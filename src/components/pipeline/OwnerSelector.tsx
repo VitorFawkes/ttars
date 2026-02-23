@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { ChevronDown, User, Zap, Users } from 'lucide-react'
+import { ChevronDown, User, Zap, Users, Search, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useRoles } from '../../hooks/useRoles'
 import type { Database } from '../../database.types'
@@ -15,7 +15,9 @@ interface Profile {
     role: string | null
     produtos: string[] | null
     team_id: string | null
+    is_admin: boolean | null
     teams: { name: string } | null
+    teamPhaseSlug: string | null
 }
 
 interface OwnerSelectorProps {
@@ -28,6 +30,8 @@ interface OwnerSelectorProps {
     showNoSdrOption?: boolean
     /** Callback when auto-assign is selected */
     onAutoAssign?: () => void
+    /** Filter users by their team's pipeline phase slug (e.g. 'sdr', 'planner', 'pos_venda') */
+    phaseSlug?: string
 }
 
 export default function OwnerSelector({
@@ -37,70 +41,100 @@ export default function OwnerSelector({
     placeholder = 'Selecionar responsável',
     className,
     showNoSdrOption = false,
-    onAutoAssign
+    onAutoAssign,
+    phaseSlug
 }: OwnerSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
-    // When showNoSdrOption is true, default to no selection (not auto mode)
-    const [autoMode, setAutoMode] = useState(!showNoSdrOption && !value)
+    const [searchTerm, setSearchTerm] = useState('')
+    const searchInputRef = useRef<HTMLInputElement>(null)
 
-    // Sync autoMode when value changes externally (e.g., form reset)
+    // Derive autoMode from value and showNoSdrOption instead of syncing via effect
+    const autoMode = !value && !showNoSdrOption
+
+    // Focus search input when dropdown opens; clear search when closing
     useEffect(() => {
-        // If value becomes non-null, we're not in auto mode
-        if (value) {
-            setAutoMode(false)
+        if (isOpen && searchInputRef.current) {
+            setTimeout(() => searchInputRef.current?.focus(), 0)
+        } else {
+            setTimeout(() => setSearchTerm(''), 0)
         }
-        // If value is null and showNoSdrOption is false, we're in auto mode
-        else if (!showNoSdrOption) {
-            setAutoMode(true)
-        }
-        // If value is null and showNoSdrOption is true, stay in "sem responsável" mode (autoMode = false)
-    }, [value, showNoSdrOption])
+    }, [isOpen])
 
     // Fetch roles from database for badge display
     const { roles } = useRoles()
 
-    // Fetch eligible users (all active users)
+    // Fetch eligible users (all active users) with team phase info
     const { data: allUsers = [], isLoading, error: usersError } = useQuery({
         queryKey: ['eligible-owners'],
         queryFn: async () => {
-            // Query profiles without teams join to avoid FK ambiguity issues
+            // Query profiles with is_admin for phase filtering
             const { data: profiles, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email, role, produtos, team_id')
+                .select('id, nome, email, role, produtos, team_id, is_admin')
                 .eq('active', true)
                 .order('nome')
 
             if (error) throw error
 
-            // Fetch team names separately
-            const teamIds = profiles?.filter(p => p.team_id).map(p => p.team_id as string) ?? []
-            let teamsMap: Record<string, string> = {}
+            // Fetch team names and phase slugs separately
+            const teamIds = [...new Set(profiles?.filter(p => p.team_id).map(p => p.team_id as string) ?? [])]
+            const teamsMap: Record<string, { name: string; phaseSlug: string | null }> = {}
 
             if (teamIds.length > 0) {
                 const { data: teams } = await supabase
                     .from('teams')
-                    .select('id, name')
+                    .select('id, name, phase:pipeline_phases(slug)')
                     .in('id', teamIds)
 
-                teams?.forEach(t => { teamsMap[t.id] = t.name })
+                teams?.forEach(t => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const phase = t.phase as any
+                    teamsMap[t.id] = {
+                        name: t.name,
+                        phaseSlug: phase?.slug ?? null
+                    }
+                })
             }
 
-            // Combine profiles with team names
+            // Combine profiles with team info
             return profiles?.map(p => ({
                 ...p,
-                teams: p.team_id ? { name: teamsMap[p.team_id] || null } : null
+                teams: p.team_id && teamsMap[p.team_id] ? { name: teamsMap[p.team_id].name } : null,
+                teamPhaseSlug: p.team_id && teamsMap[p.team_id] ? teamsMap[p.team_id].phaseSlug : null
             })) as Profile[] ?? []
         }
     })
 
-    // Filter users by product if they have produtos configured
-    // Users without produtos configured (null or empty) can work on any product
+    // Filter users by product and phase
     const users = useMemo(() => {
+        // Check if any team is configured for the target phase (fail-open)
+        const hasTeamsForPhase = phaseSlug
+            ? allUsers.some(u => u.teamPhaseSlug === phaseSlug)
+            : false
+
         return allUsers.filter(user => {
-            if (!user.produtos || user.produtos.length === 0) return true
-            return user.produtos.includes(product)
+            // Product filter (existing)
+            if (user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) return false
+
+            // Phase filter (new)
+            if (phaseSlug && hasTeamsForPhase) {
+                if (user.is_admin === true) return true
+                if (user.teamPhaseSlug !== phaseSlug) return false
+            }
+
+            return true
         })
-    }, [allUsers, product])
+    }, [allUsers, product, phaseSlug])
+
+    // Apply search filter
+    const filteredUsers = useMemo(() => {
+        if (!searchTerm) return users
+        const term = searchTerm.toLowerCase()
+        return users.filter(user =>
+            user.nome?.toLowerCase().includes(term) ||
+            user.email?.toLowerCase().includes(term)
+        )
+    }, [users, searchTerm])
 
     // Fetch cards count per user for workload indicator
     const { data: workload = {} } = useQuery({
@@ -126,9 +160,10 @@ export default function OwnerSelector({
         staleTime: 1000 * 30 // 30 seconds
     })
 
+    // Selected user must come from allUsers (not filtered) to always show current selection
     const selectedUser = useMemo(() =>
-        users.find(u => u.id === value),
-        [users, value]
+        allUsers.find(u => u.id === value),
+        [allUsers, value]
     )
 
     const getRoleBadge = (role: string | null) => {
@@ -152,10 +187,8 @@ export default function OwnerSelector({
 
     const handleSelect = (user: Profile | null) => {
         if (user) {
-            setAutoMode(false)
             onChange(user.id, user.nome)
         } else {
-            setAutoMode(true)
             onChange(null, null)
         }
         setIsOpen(false)
@@ -225,104 +258,131 @@ export default function OwnerSelector({
                         className="fixed inset-0 z-10"
                         onClick={() => setIsOpen(false)}
                     />
-                    <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                        {/* "Sem responsável" option - only when showNoSdrOption is true */}
-                        {showNoSdrOption && (
-                            <>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setAutoMode(false)
-                                        onChange(null, null)
-                                        setIsOpen(false)
-                                    }}
-                                    className={cn(
-                                        'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
-                                        !autoMode && !value && 'bg-slate-50'
-                                    )}
-                                >
-                                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                        <User className="h-4 w-4 text-slate-400" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-sm font-medium text-slate-700">Sem responsável</p>
-                                        <p className="text-xs text-slate-500">Card sem responsável definido</p>
-                                    </div>
-                                </button>
-                                <div className="border-t border-slate-100" />
-                            </>
-                        )}
+                    <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 flex flex-col">
+                        {/* Search input */}
+                        <div className="p-2 border-b border-slate-100 flex-shrink-0">
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Buscar por nome..."
+                                    className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2"
+                                    >
+                                        <X className="h-3.5 w-3.5 text-slate-400 hover:text-slate-600" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
 
-                        {/* Auto-atribuir option */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setAutoMode(true)
-                                onChange(null, null)
-                                onAutoAssign?.()
-                                setIsOpen(false)
-                            }}
-                            className={cn(
-                                'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
-                                autoMode && 'bg-indigo-50'
+                        <div className="overflow-y-auto flex-1">
+                            {/* "Sem responsável" option - only when showNoSdrOption is true */}
+                            {!searchTerm && showNoSdrOption && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onChange(null, null)
+                                            setIsOpen(false)
+                                        }}
+                                        className={cn(
+                                            'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
+                                            !autoMode && !value && 'bg-slate-50'
+                                        )}
+                                    >
+                                        <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <User className="h-4 w-4 text-slate-400" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-medium text-slate-700">Sem responsável</p>
+                                            <p className="text-xs text-slate-500">Card sem responsável definido</p>
+                                        </div>
+                                    </button>
+                                    <div className="border-t border-slate-100" />
+                                </>
                             )}
-                        >
-                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                                <Zap className="h-4 w-4 text-indigo-600" />
-                            </div>
-                            <div className="text-left">
-                                <p className="text-sm font-medium text-slate-900">Auto-atribuir</p>
-                                <p className="text-xs text-slate-500">Distribuição automática por workload</p>
-                            </div>
-                        </button>
 
-                        <div className="border-t border-slate-100" />
+                            {/* Auto-atribuir option */}
+                            {!searchTerm && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onChange(null, null)
+                                            onAutoAssign?.()
+                                            setIsOpen(false)
+                                        }}
+                                        className={cn(
+                                            'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
+                                            autoMode && 'bg-indigo-50'
+                                        )}
+                                    >
+                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                            <Zap className="h-4 w-4 text-indigo-600" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-medium text-slate-900">Auto-atribuir</p>
+                                            <p className="text-xs text-slate-500">Distribuição automática por workload</p>
+                                        </div>
+                                    </button>
+                                    <div className="border-t border-slate-100" />
+                                </>
+                            )}
 
-                        {/* User list */}
-                        {isLoading ? (
-                            <div className="px-3 py-4 text-center text-sm text-slate-500">
-                                Carregando...
-                            </div>
-                        ) : usersError ? (
-                            <div className="px-3 py-4 text-center text-sm text-red-500">
-                                Erro ao carregar usuários
-                            </div>
-                        ) : users.length === 0 ? (
-                            <div className="px-3 py-4 text-center text-sm text-slate-500">
-                                Nenhum usuário ativo encontrado
-                            </div>
-                        ) : (
-                            users.map(user => (
-                                <button
-                                    key={user.id}
-                                    type="button"
-                                    onClick={() => handleSelect(user)}
-                                    className={cn(
-                                        'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
-                                        value === user.id && 'bg-indigo-50'
-                                    )}
-                                >
-                                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                        <User className="h-4 w-4 text-slate-600" />
-                                    </div>
-                                    <div className="flex-1 text-left min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm font-medium text-slate-900 truncate">{user.nome}</p>
-                                            {getRoleBadge(user.role)}
+                            {/* User list */}
+                            {isLoading ? (
+                                <div className="px-3 py-4 text-center text-sm text-slate-500">
+                                    Carregando...
+                                </div>
+                            ) : usersError ? (
+                                <div className="px-3 py-4 text-center text-sm text-red-500">
+                                    Erro ao carregar usuários
+                                </div>
+                            ) : filteredUsers.length === 0 ? (
+                                <div className="px-3 py-4 text-center text-sm text-slate-500">
+                                    {searchTerm ? 'Nenhum resultado encontrado' : 'Nenhum usuário ativo encontrado'}
+                                </div>
+                            ) : (
+                                filteredUsers.map(user => (
+                                    <button
+                                        key={user.id}
+                                        type="button"
+                                        onClick={() => handleSelect(user)}
+                                        className={cn(
+                                            'w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors',
+                                            value === user.id && 'bg-indigo-50'
+                                        )}
+                                    >
+                                        <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <User className="h-4 w-4 text-slate-600" />
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            {user.teams?.name && <span>{user.teams.name}</span>}
-                                            {workload[user.id] !== undefined && (
-                                                <span className="flex items-center gap-0.5">
-                                                    <Users className="h-3 w-3" />
-                                                    {workload[user.id]} cards
-                                                </span>
-                                            )}
+                                        <div className="flex-1 text-left min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium text-slate-900 truncate">{user.nome}</p>
+                                                {getRoleBadge(user.role)}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                {user.teams?.name && <span>{user.teams.name}</span>}
+                                                {workload[user.id] !== undefined && (
+                                                    <span className="flex items-center gap-0.5">
+                                                        <Users className="h-3 w-3" />
+                                                        {workload[user.id]} cards
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </button>
-                            ))
-                        )}
+                                    </button>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </>
             )}
