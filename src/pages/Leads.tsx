@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Database, UploadCloud } from 'lucide-react'
+import { Database, UploadCloud, AlertTriangle, RefreshCw } from 'lucide-react'
 import { useLeadsFilters } from '../hooks/useLeadsFilters'
 import { useLeadsQuery } from '../hooks/useLeadsQuery'
 import { useLeadsColumns } from '../hooks/useLeadsColumns'
@@ -14,7 +14,7 @@ import DealImportModal from '../components/kanban/DealImportModal'
 
 export default function Leads() {
     const { filters, setPage, setPageSize } = useLeadsFilters()
-    const { data: queryResult, isLoading } = useLeadsQuery({ filters })
+    const { data: queryResult, isLoading, isError, refetch } = useLeadsQuery({ filters })
     const { columns, setColumns } = useLeadsColumns()
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isImportModalOpen, setIsImportModalOpen] = useState(false)
@@ -54,7 +54,7 @@ export default function Leads() {
                     <div>
                         <h1 className="text-xl font-bold text-gray-900">Gestão de Leads</h1>
                         <p className="text-sm text-gray-500">
-                            {isLoading ? 'Carregando...' : `${total} leads encontrados`}
+                            {isLoading ? 'Carregando...' : isError ? 'Erro ao carregar dados' : `${total} leads encontrados`}
                         </p>
                     </div>
                 </div>
@@ -95,13 +95,32 @@ export default function Leads() {
 
             {/* Table */}
             <div className="flex-1 overflow-auto p-6">
-                <LeadsTable
-                    leads={leads}
-                    selectedIds={selectedIds}
-                    onSelectAll={handleSelectAll}
-                    onSelectRow={handleSelectRow}
-                    isLoading={isLoading}
-                />
+                {isError ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="rounded-full bg-amber-100 p-3 mb-4">
+                            <AlertTriangle className="h-6 w-6 text-amber-600" />
+                        </div>
+                        <h3 className="text-base font-semibold text-slate-900">Não foi possível carregar os leads</h3>
+                        <p className="text-sm text-slate-500 mt-1 max-w-sm">
+                            Verifique sua conexão e tente novamente. Se o problema persistir, os servidores podem estar temporariamente indisponíveis.
+                        </p>
+                        <button
+                            onClick={() => refetch()}
+                            className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            Tentar novamente
+                        </button>
+                    </div>
+                ) : (
+                    <LeadsTable
+                        leads={leads}
+                        selectedIds={selectedIds}
+                        onSelectAll={handleSelectAll}
+                        onSelectRow={handleSelectRow}
+                        isLoading={isLoading}
+                    />
+                )}
             </div>
 
             {/* Pagination */}

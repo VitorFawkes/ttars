@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
@@ -49,7 +49,31 @@ import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster } from 'sonner'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+    queryCache: new QueryCache({
+        onError: (error) => {
+            // Log apenas — o banner de rede cuida do feedback visual
+            console.error('[QueryCache] Query error:', error.message)
+        },
+    }),
+    mutationCache: new MutationCache({
+        onError: (error) => {
+            console.error('[MutationCache] Mutation error:', error.message)
+        },
+    }),
+    defaultOptions: {
+        queries: {
+            retry: 3,
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+            staleTime: 1000 * 60 * 2,   // 2 minutos
+            gcTime: 1000 * 60 * 30,      // 30 minutos
+            refetchOnWindowFocus: 'always',
+        },
+        mutations: {
+            retry: 1,
+        },
+    },
+})
 
 function App() {
   return (

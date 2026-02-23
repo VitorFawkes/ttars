@@ -62,6 +62,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useTeamFilterMembers | 2 | Resolve teamIds → member IDs via RPC server-side (filtro de time) |
 | useDuplicateDetection | 2 | Detecção de duplicados em tempo real (CPF, email, telefone, nome) via RPC |
 | useDeleteContact | 1 | Soft-delete e restauração de contatos (padrão useDeleteCard) |
+| useNetworkStatus | 1 | Detecta online/offline via eventos nativos do browser |
 
 ### Componentes Principais (src/components/)
 | Área | Componentes-chave |
@@ -74,9 +75,10 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | Health | IntegrationHealthTab, PulseGrid, ActiveAlertsList, HealthRulesConfig |
 | Pessoas | PeopleGrid, PersonDetailDrawer, ContactForm, ContactImportModal, DuplicateWarningPanel |
 | Leads | LeadsTable, LeadsFilters, LeadsBulkActions |
-| Trips | TripsTaxBadge, group/* (GroupDashboard, GroupTravelersList) |
+| Trips | TripsTaxBadge, group/* (GroupDashboard, GroupTravelersList, CreateGroupModal, LinkToGroupModal) |
 | Monde | MondeWidget |
 | UI Base | src/components/ui/ — 29 componentes Radix UI (Button, Dialog, Select, etc.) |
+| Resiliência | NetworkStatusBanner (banner offline/online no Layout) |
 
 ### Tabelas do Banco (principais)
 | Tabela | Papel | FK principais |

@@ -6,6 +6,7 @@ import { useProposalNotifications } from '@/hooks/useProposalNotifications';
 import { usePipelinePersistence } from '@/hooks/usePipelinePersistence';
 import { GlobalSearchProvider } from '@/components/search/GlobalSearchProvider';
 import { GlobalSearchModal } from '@/components/search/GlobalSearchModal';
+import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
 
 
 export default function Layout() {
@@ -57,6 +58,7 @@ export default function Layout() {
                 </ThemeBoundary>
 
                 <ThemeBoundary mode="light" className="flex flex-1 flex-col overflow-hidden relative">
+                    <NetworkStatusBanner />
                     <main className="flex-1 relative flex flex-col overflow-hidden bg-surface-secondary">
                         <Outlet />
                     </main>
