@@ -8095,6 +8095,7 @@ export type Database = {
       }
       view_cards_acoes: {
         Row: {
+          archived_at: string | null
           briefing_inicial: Json | null
           campaign_id: string | null
           cliente_recorrente: boolean | null
@@ -8131,6 +8132,7 @@ export type Database = {
           pessoa_nome: string | null
           pessoa_principal_id: string | null
           pessoa_telefone: string | null
+          pessoa_telefone_normalizado: string | null
           pipeline_id: string | null
           pipeline_nome: string | null
           pipeline_stage_id: string | null
@@ -8139,6 +8141,8 @@ export type Database = {
           produto: Database["public"]["Enums"]["app_product"] | null
           produto_data: Json | null
           proxima_tarefa: Json | null
+          receita: number | null
+          receita_source: string | null
           sdr_nome: string | null
           sdr_owner_email: string | null
           sdr_owner_id: string | null
@@ -8154,6 +8158,7 @@ export type Database = {
           updated_at: string | null
           urgencia_tempo_etapa: number | null
           urgencia_viagem: number | null
+          valor_display: number | null
           valor_estimado: number | null
           valor_final: number | null
           vendas_nome: string | null
@@ -8460,6 +8465,31 @@ export type Database = {
       }
     }
     Functions: {
+      apply_contact_quality_fixes: {
+        Args: { p_fixes: Json }
+        Returns: {
+          error_count: number
+          errors: string[]
+          fixed_count: number
+        }[]
+      }
+      audit_contact_quality: {
+        Args: { p_issue_types?: string[]; p_limit?: number }
+        Returns: {
+          confidence: string
+          contact_cpf: string
+          contact_data_nascimento: string
+          contact_email: string
+          contact_id: string
+          contact_nome: string
+          contact_sobrenome: string
+          issue_description: string
+          issue_type: string
+          suggested_data_nascimento: string
+          suggested_nome: string
+          suggested_sobrenome: string
+        }[]
+      }
       auto_expire_proposals: { Args: never; Returns: number }
       calculate_business_due_date: {
         Args: {
@@ -8789,6 +8819,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      sanitize_contact_names: {
+        Args: { p_nome: string; p_sobrenome: string }
+        Returns: {
+          nome: string
+          sobrenome: string
+        }[]
+      }
       search_proposal_library: {
         Args: {
           category_filter?: string
@@ -8828,6 +8865,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      smart_title_case: { Args: { name: string }; Returns: string }
       unaccent: { Args: { "": string }; Returns: string }
       update_card_from_ai_extraction: {
         Args: {
@@ -8836,6 +8874,20 @@ export type Database = {
           p_produto_data: Json
         }
         Returns: Json
+      }
+      upsert_contacts_from_import: {
+        Args: {
+          p_contacts: Json
+          p_created_by?: string
+          p_origem_detalhe?: string
+        }
+        Returns: {
+          error_count: number
+          errors: string[]
+          inserted_count: number
+          skipped_count: number
+          updated_count: number
+        }[]
       }
       validate_api_key: {
         Args: { p_key: string }
@@ -8849,6 +8901,7 @@ export type Database = {
           rate_limit: number
         }[]
       }
+      validate_cpf: { Args: { cpf: string }; Returns: boolean }
       validate_integration_gate: {
         Args: {
           p_card_data: Json

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -12,10 +13,12 @@ import PessoasWidget from '../components/card/PessoasWidget'
 import ActivityFeed from '../components/card/ActivityFeed'
 import { ParentLinkBanner } from '../components/cards/group/ParentLinkBanner'
 import GroupDetailLayout from '../components/cards/group/GroupDetailLayout'
+import LinkToGroupModal from '../components/cards/group/LinkToGroupModal'
 import SubCardsList from '../components/card/SubCardsList'
+import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Users } from 'lucide-react'
 
 import type { Database } from '../database.types'
 
@@ -27,6 +30,7 @@ const HARDCODED_EXCLUDE_KEYS = ['agenda_tarefas', 'historico_conversas', 'people
 export default function CardDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const [showLinkToGroup, setShowLinkToGroup] = useState(false)
 
     // Check if card is a sub-card and get parent info
     const { isSubCard, subCardMode, parentCard } = useSubCardParent(id)
@@ -145,6 +149,19 @@ export default function CardDetail() {
                         <ParentLinkBanner parentId={card.parent_card_id} />
                     )}
 
+                    {/* Link to Group (if card is not linked and not a group itself) */}
+                    {!card.parent_card_id && !card.is_group_parent && !isSubCard && (
+                        <button
+                            onClick={() => setShowLinkToGroup(true)}
+                            className="w-full flex items-center gap-3 p-3 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all group"
+                        >
+                            <div className="p-1.5 bg-slate-100 rounded-full group-hover:bg-indigo-100 transition-colors">
+                                <Users className="w-4 h-4" />
+                            </div>
+                            <span className="text-sm font-medium">Vincular a um Grupo</span>
+                        </button>
+                    )}
+
                     {/* Tasks & Meetings (Unified) — hardcoded */}
                     <CardTasks cardId={card.id!} requiredTasks={requiredTasks} />
 
@@ -181,6 +198,9 @@ export default function CardDetail() {
                     {/* Pessoas — hardcoded */}
                     <PessoasWidget card={card} />
 
+                    {/* Equipe do Card — assistentes e apoio */}
+                    <CardTeamSection card={card} />
+
                     {/* Dynamic Sections (right_column) — includes Monde, Financeiro, Trip Info, Propostas, Marketing */}
                     <DynamicSectionsList
                         card={card}
@@ -192,6 +212,14 @@ export default function CardDetail() {
                     <ActivityFeed cardId={card.id!} />
                 </div>
             </div>
+
+            {/* Link to Group Modal */}
+            <LinkToGroupModal
+                isOpen={showLinkToGroup}
+                onClose={() => setShowLinkToGroup(false)}
+                cardId={card.id!}
+                cardTitle={card.titulo || 'Viagem'}
+            />
         </div>
     )
 }

@@ -13,6 +13,7 @@ interface Profile {
     nome: string | null
     email: string | null
     role: string | null
+    role_id: string | null
     produtos: string[] | null
     team_id: string | null
     is_admin: boolean | null
@@ -23,7 +24,7 @@ interface Profile {
 interface OwnerSelectorProps {
     value: string | null
     onChange: (ownerId: string | null, ownerName: string | null) => void
-    product: Product
+    product?: Product
     placeholder?: string
     className?: string
     /** If true, shows "Sem responsável" as default and "Auto-atribuir" as an option */
@@ -32,6 +33,10 @@ interface OwnerSelectorProps {
     onAutoAssign?: () => void
     /** Filter users by their team's pipeline phase slug (e.g. 'sdr', 'planner', 'pos_venda') */
     phaseSlug?: string
+    /** Compact trigger for inline selectors (e.g. CardHeader) */
+    compact?: boolean
+    /** Filter users by their role_id (UUID from roles table) */
+    roleId?: string
 }
 
 export default function OwnerSelector({
@@ -42,7 +47,9 @@ export default function OwnerSelector({
     className,
     showNoSdrOption = false,
     onAutoAssign,
-    phaseSlug
+    phaseSlug,
+    compact = false,
+    roleId
 }: OwnerSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
@@ -70,7 +77,7 @@ export default function OwnerSelector({
             // Query profiles with is_admin for phase filtering
             const { data: profiles, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email, role, produtos, team_id, is_admin')
+                .select('id, nome, email, role, role_id, produtos, team_id, is_admin')
                 .eq('active', true)
                 .order('nome')
 
@@ -105,7 +112,7 @@ export default function OwnerSelector({
         }
     })
 
-    // Filter users by product and phase
+    // Filter users by product, phase, and role
     const users = useMemo(() => {
         // Check if any team is configured for the target phase (fail-open)
         const hasTeamsForPhase = phaseSlug
@@ -113,18 +120,23 @@ export default function OwnerSelector({
             : false
 
         return allUsers.filter(user => {
-            // Product filter (existing)
-            if (user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) return false
+            // Admin bypass: admins pass all filters (product, phase, role)
+            if (user.is_admin === true) return true
 
-            // Phase filter (new)
+            // Product filter (only when product is provided)
+            if (product && user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) return false
+
+            // Role filter: only show users with the specified role_id
+            if (roleId && user.role_id !== roleId) return false
+
+            // Phase filter
             if (phaseSlug && hasTeamsForPhase) {
-                if (user.is_admin === true) return true
                 if (user.teamPhaseSlug !== phaseSlug) return false
             }
 
             return true
         })
-    }, [allUsers, product, phaseSlug])
+    }, [allUsers, product, phaseSlug, roleId])
 
     // Apply search filter
     const filteredUsers = useMemo(() => {
@@ -200,14 +212,29 @@ export default function OwnerSelector({
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    'w-full flex items-center justify-between gap-2 px-3 py-2.5',
-                    'border border-slate-200 rounded-lg bg-white',
-                    'hover:border-slate-300 transition-colors',
-                    'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    'w-full flex items-center justify-between',
+                    compact
+                        ? 'gap-1.5 py-1 px-1.5 -mx-1.5 rounded-md hover:bg-slate-100/60'
+                        : 'gap-2 px-3 py-2.5 border border-slate-200 rounded-lg bg-white hover:border-slate-300',
+                    'transition-colors cursor-pointer',
+                    'focus:outline-none focus:ring-2 focus:ring-indigo-500/20'
                 )}
             >
-                <div className="flex items-center gap-2 min-w-0">
-                    {autoMode ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                    {compact ? (
+                        selectedUser ? (
+                            <>
+                                <div className="h-5 w-5 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-[9px] font-bold text-white leading-none">
+                                        {(selectedUser.nome || selectedUser.email || '?')[0].toUpperCase()}
+                                    </span>
+                                </div>
+                                <span className="text-[13px] font-medium text-slate-800 truncate">{selectedUser.nome || selectedUser.email}</span>
+                            </>
+                        ) : (
+                            <span className="text-[13px] text-slate-400 italic truncate">Não atribuído</span>
+                        )
+                    ) : autoMode ? (
                         <>
                             <div className="h-7 w-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
                                 <Zap className="h-3.5 w-3.5 text-indigo-600" />
@@ -247,7 +274,8 @@ export default function OwnerSelector({
                     )}
                 </div>
                 <ChevronDown className={cn(
-                    'h-4 w-4 text-slate-400 transition-transform flex-shrink-0',
+                    'text-slate-400 transition-transform flex-shrink-0',
+                    compact ? 'h-3 w-3' : 'h-4 w-4',
                     isOpen && 'rotate-180'
                 )} />
             </button>
@@ -258,7 +286,7 @@ export default function OwnerSelector({
                         className="fixed inset-0 z-10"
                         onClick={() => setIsOpen(false)}
                     />
-                    <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 flex flex-col">
+                    <div className={cn("absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 flex flex-col", compact ? "min-w-[280px] right-auto" : "right-0")}>
                         {/* Search input */}
                         <div className="p-2 border-b border-slate-100 flex-shrink-0">
                             <div className="relative">
@@ -310,8 +338,8 @@ export default function OwnerSelector({
                                 </>
                             )}
 
-                            {/* Auto-atribuir option */}
-                            {!searchTerm && (
+                            {/* Auto-atribuir option - only in full mode */}
+                            {!searchTerm && !compact && (
                                 <>
                                     <button
                                         type="button"
@@ -371,7 +399,7 @@ export default function OwnerSelector({
                                             </div>
                                             <div className="flex items-center gap-2 text-xs text-slate-500">
                                                 {user.teams?.name && <span>{user.teams.name}</span>}
-                                                {workload[user.id] !== undefined && (
+                                                {!compact && workload[user.id] !== undefined && (
                                                     <span className="flex items-center gap-0.5">
                                                         <Users className="h-3 w-3" />
                                                         {workload[user.id]} cards

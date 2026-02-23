@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { GroupSummaryCard } from '../components/cards/group/GroupSummaryCard';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Search, Plus, Users, Filter, Plane } from 'lucide-react';
+import CreateGroupModal from '../components/cards/group/CreateGroupModal';
 import type { Database } from '../database.types';
 
 type Card = Database['public']['Tables']['cards']['Row'];
 
 export default function GroupsPage() {
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     const { data: groups, isLoading } = useQuery({
         queryKey: ['groups-gallery'],
@@ -48,7 +52,10 @@ export default function GroupsPage() {
                             Gerencie suas excursões e grupos de viagem com uma visão panorâmica.
                         </p>
                     </div>
-                    <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-10 px-6 text-sm font-medium rounded-lg transition-all">
+                    <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-10 px-6 text-sm font-medium rounded-lg transition-all"
+                        onClick={() => setShowCreateModal(true)}
+                    >
                         <Plus className="h-4 w-4 mr-2" />
                         Novo Grupo
                     </Button>
@@ -102,6 +109,12 @@ export default function GroupsPage() {
                     </div>
                 )}
             </div>
+
+            <CreateGroupModal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onSuccess={(groupId) => navigate(`/cards/${groupId}`)}
+            />
         </div>
     );
 }

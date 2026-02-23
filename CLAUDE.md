@@ -63,17 +63,19 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useDuplicateDetection | 2 | Detecção de duplicados em tempo real (CPF, email, telefone, nome) via RPC |
 | useDeleteContact | 1 | Soft-delete e restauração de contatos (padrão useDeleteCard) |
 | useNetworkStatus | 1 | Detecta online/offline via eventos nativos do browser |
+| useCardTeam | 2 | CRUD membros da equipe do card (assistentes, apoio) + fullTeam unificado. Usado no CardHeader e CardTeamSection |
+| useContactQuality | 1 | Auditoria e correção em lote de qualidade de dados cadastrais |
 
 ### Componentes Principais (src/components/)
 | Área | Componentes-chave |
 |------|-------------------|
 | Layout | Header, Sidebar, Layout, ProductSwitcher, NotificationCenter |
 | Pipeline | KanbanBoard, PipelineListView, CreateCardModal, FilterDrawer |
-| Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget |
+| Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget, CardTeamSection |
 | Propostas | ProposalBuilder, SectionEditor, AddItemMenu, VersionHistory |
 | Admin | StudioUnified, IntegrationBuilder, KanbanCardSettings, JuliaIAConfig |
 | Health | IntegrationHealthTab, PulseGrid, ActiveAlertsList, HealthRulesConfig |
-| Pessoas | PeopleGrid, PersonDetailDrawer, ContactForm, ContactImportModal, DuplicateWarningPanel |
+| Pessoas | PeopleGrid, PersonDetailDrawer, ContactForm, ContactImportModal, DuplicateWarningPanel, DataQualityBanner, DataQualityDrawer |
 | Leads | LeadsTable, LeadsFilters, LeadsBulkActions |
 | Trips | TripsTaxBadge, group/* (GroupDashboard, GroupTravelersList, CreateGroupModal, LinkToGroupModal) |
 | Monde | MondeWidget |
@@ -101,6 +103,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | integration_health_rules | Regras de monitoramento | — |
 | integration_health_alerts | Alertas gerados | → integration_health_rules, profiles |
 | integration_health_pulse | Cache de ultimo evento por canal | — |
+| card_team_members | Equipe do card (assistentes, apoio) | → cards, profiles |
 
 ### Campos IA no Cards (Agente WhatsApp)
 | Coluna | Tipo | Propósito |

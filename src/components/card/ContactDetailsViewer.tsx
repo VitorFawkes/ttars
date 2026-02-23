@@ -162,11 +162,19 @@ export default function ContactDetailsViewer({ contact, card }: ContactDetailsVi
                         <div>
                             <label className="text-xs font-medium text-gray-500 uppercase block">Endereço</label>
                             <div className="text-sm text-gray-900">
-                                {contact.endereco ? (
-                                    typeof contact.endereco === 'string'
-                                        ? contact.endereco
-                                        : JSON.stringify(contact.endereco)
-                                ) : '-'}
+                                {contact.endereco ? (() => {
+                                    if (typeof contact.endereco === 'string') return contact.endereco
+                                    const e = contact.endereco as Record<string, string>
+                                    const parts: string[] = []
+                                    if (e.rua) parts.push(e.rua + (e.numero ? `, ${e.numero}` : ''))
+                                    if (e.complemento) parts.push(e.complemento)
+                                    if (e.bairro) parts.push(e.bairro)
+                                    const cidadeUf = [e.cidade, e.estado].filter(Boolean).join(' - ')
+                                    if (cidadeUf) parts.push(cidadeUf)
+                                    if (e.cep) parts.push(`CEP ${e.cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')}`)
+                                    if (e.pais && e.pais.toLowerCase() !== 'brasil') parts.push(e.pais)
+                                    return parts.join(', ') || '-'
+                                })() : '-'}
                             </div>
                         </div>
 

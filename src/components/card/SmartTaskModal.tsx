@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/label";
@@ -20,9 +20,13 @@ import {
     ChevronDown,
     Check,
     FileText,
-    Sparkles
+    Sparkles,
+    ChevronsUpDown,
+    Star
 } from 'lucide-react';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/transcript-process';
 
@@ -52,12 +56,14 @@ interface SmartTaskModalProps {
     isOpen: boolean;
     onClose: () => void;
     cardId: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     initialData?: any; // For edit mode
     mode?: 'create' | 'edit' | 'reschedule';
 }
 
 type TaskType = 'tarefa' | 'contato' | 'ligacao' | 'whatsapp' | 'email' | 'reuniao' | 'solicitacao_mudanca' | 'enviar_proposta';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const TASK_TYPES: { id: TaskType; label: string; icon: any; color: string; activeColor: string }[] = [
     { id: 'tarefa', label: 'Tarefa', icon: CheckCircle2, color: 'text-indigo-600 bg-indigo-50 border-indigo-200', activeColor: 'ring-2 ring-indigo-500 bg-indigo-100' },
     { id: 'contato', label: 'Contato', icon: Phone, color: 'text-blue-600 bg-blue-50 border-blue-200', activeColor: 'ring-2 ring-blue-500 bg-blue-100' },
@@ -81,6 +87,7 @@ const TEMPLATES: Record<TaskType, string> = {
 };
 
 export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'create' }: SmartTaskModalProps) {
+    const { user } = useAuth();
     // Step 1: Type Selection, Step 2: Form
     const [step, setStep] = useState<1 | 2>(1);
 
@@ -123,6 +130,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     const rescheduleTimeListRef = useRef<HTMLDivElement>(null);
 
     // Metadata Fields
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [metadata, setMetadata] = useState<any>({});
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -193,10 +201,91 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return `${hh}:${mm}`;
     };
 
-    const profileOptions = profiles?.map(p => ({
-        value: p.id,
-        label: p.nome || p.email || 'Sem nome'
-    })) || [];
+    // Fetch card owners + team members for grouped responsible options
+    const { data: cardOwners } = useQuery({
+        queryKey: ['card-owners', cardId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('cards')
+                .select('sdr_owner_id, vendas_owner_id, pos_owner_id, dono_atual_id')
+                .eq('id', cardId)
+                .single();
+            if (error) return null;
+            return data;
+        },
+        staleTime: 1000 * 60,
+    });
+
+    const { data: teamMemberIds } = useQuery({
+        queryKey: ['card-team-ids', cardId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('card_team_members')
+                .select('profile_id')
+                .eq('card_id', cardId);
+            if (error) return [];
+            return data?.map(d => d.profile_id) || [];
+        },
+        staleTime: 1000 * 60,
+    });
+
+    // Build grouped responsible options: card team first, then others — alphabetically sorted
+    const { teamProfiles, otherProfiles } = useMemo(() => {
+        if (!profiles) return { teamProfiles: [], otherProfiles: [] };
+
+        const cardTeamIds = new Set([
+            cardOwners?.sdr_owner_id,
+            cardOwners?.vendas_owner_id,
+            cardOwners?.pos_owner_id,
+            cardOwners?.dono_atual_id,
+            ...(teamMemberIds || []),
+        ].filter(Boolean) as string[]);
+
+        const sortByName = (a: typeof profiles[0], b: typeof profiles[0]) =>
+            (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt-BR');
+
+        const team = profiles.filter(p => cardTeamIds.has(p.id)).sort(sortByName);
+        const others = profiles.filter(p => !cardTeamIds.has(p.id)).sort(sortByName);
+
+        return { teamProfiles: team, otherProfiles: others };
+    }, [profiles, cardOwners, teamMemberIds]);
+
+    // State for responsible searchable dropdown
+    const [responsibleOpen, setResponsibleOpen] = useState(false);
+    const [responsibleSearch, setResponsibleSearch] = useState('');
+    const responsibleDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        if (!responsibleOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (responsibleDropdownRef.current && !responsibleDropdownRef.current.contains(e.target as Node)) {
+                setResponsibleOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [responsibleOpen]);
+
+    // Get selected user name for display
+    const selectedResponsibleName = useMemo(() => {
+        if (!responsibleId || !profiles) return null;
+        const p = profiles.find(pr => pr.id === responsibleId);
+        return p ? (p.nome || p.email || 'Sem nome') : null;
+    }, [responsibleId, profiles]);
+
+    // Filter profiles by search term
+    const filteredTeamProfiles = useMemo(() => {
+        if (!responsibleSearch) return teamProfiles;
+        const q = responsibleSearch.toLowerCase();
+        return teamProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
+    }, [teamProfiles, responsibleSearch]);
+
+    const filteredOtherProfiles = useMemo(() => {
+        if (!responsibleSearch) return otherProfiles;
+        const q = responsibleSearch.toLowerCase();
+        return otherProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
+    }, [otherProfiles, responsibleSearch]);
 
     // Reset or populate form
     useEffect(() => {
@@ -252,7 +341,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setDescription('');
                 setType('tarefa');
                 setMetadata({});
-                setResponsibleId('');
+                setResponsibleId(user?.id || '');
                 setMeetingStatus('agendada');
                 setMeetingResult('');
                 setMeetingFeedback('');
@@ -277,7 +366,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setTime(formatLocalTime(now));
             }
         }
-    }, [isOpen, initialData, mode]);
+    }, [isOpen, initialData, mode, user?.id]);
 
     // Close time list when clicking outside
     useEffect(() => {
@@ -309,7 +398,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateMetadata = (key: string, value: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setMetadata((prev: any) => ({ ...prev, [key]: value }));
 
         // Clear other category if category changes
@@ -417,9 +508,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             // Get current user
             const { data: { user } } = await supabase.auth.getUser();
 
-            // Determine responsible
+            // Determine responsible (use selected, fallback to current user)
             let finalResponsibleId = responsibleId;
-            if (type !== 'reuniao') {
+            if (!finalResponsibleId) {
                 finalResponsibleId = user?.id || '';
             }
 
@@ -454,6 +545,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             }
 
             // Prepare payload
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: any = {
                 card_id: cardId,
                 titulo: title,
@@ -473,7 +565,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                     ? meetingStatus
                     : (type === 'reuniao' && meetingStatus === 'reagendada' ? 'remarcada' : null),
                 // Transcription for meetings
-                transcricao: type === 'reuniao' && meetingStatus === 'realizada' ? (transcricao || null) : null
+                transcricao: type === 'reuniao' && meetingStatus === 'realizada' ? (transcricao || null) : null,
+                // Track who created the task (only on create, not edit)
+                ...(mode === 'create' ? { created_by: user?.id || null } : {}),
             };
 
             // Only add participantes_externos if it's a meeting and has values
@@ -514,7 +608,8 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                     rescheduled_from_id: initialData?.id || null,
                     feedback: null,
                     motivo_cancelamento: null,
-                    resultado: null
+                    resultado: null,
+                    created_by: user?.id || null,
                 };
 
                 const { data: newMeeting, error: createError } = await supabase
@@ -613,6 +708,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             queryClient.invalidateQueries({ queryKey: ['reunioes', cardId] }); // Refresh meetings tab
 
             onClose();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error saving task:', error);
             console.error('Payload:', {
@@ -723,32 +819,104 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                             </div>
                         )}
 
-                        {/* Responsible - ONLY for Reuniao */}
-                        {type === 'reuniao' && (
-                            <div className="space-y-4">
-                                <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
-                                    <Label className="text-purple-900 font-medium">Responsável pela Reunião</Label>
-                                    <Select
-                                        value={responsibleId}
-                                        onChange={setResponsibleId}
-                                        options={profileOptions}
-                                        placeholder="Selecione quem conduzirá..."
-                                    />
-                                </div>
-                                <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
-                                    <Label className="flex items-center gap-1">
-                                        Participantes Externos (E-mails)
-                                        <span className="text-red-500">*</span>
-                                    </Label>
-                                    <MultiSelectEmail
-                                        value={externalParticipants}
-                                        onChange={setExternalParticipants}
-                                        placeholder="Digite o e-mail e pressione Enter..."
-                                    />
-                                    {externalParticipants.length === 0 && (
-                                        <p className="text-xs text-amber-600">Adicione pelo menos um participante externo</p>
+                        {/* Responsible - searchable dropdown */}
+                        <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                            <Label className="font-medium">Responsável</Label>
+                            <div className="relative" ref={responsibleDropdownRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setResponsibleOpen(!responsibleOpen); setResponsibleSearch(''); }}
+                                    className={cn(
+                                        "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer",
+                                        !selectedResponsibleName && "text-muted-foreground"
                                     )}
-                                </div>
+                                >
+                                    <span className="truncate">
+                                        {selectedResponsibleName || 'Buscar responsável...'}
+                                    </span>
+                                    <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+                                </button>
+
+                                {responsibleOpen && (
+                                    <div className="absolute z-[9999] mt-1 w-full rounded-md border bg-popover shadow-lg">
+                                        <div className="flex items-center border-b px-3">
+                                            <Star className="h-3.5 w-3.5 shrink-0 opacity-40 mr-2" />
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                value={responsibleSearch}
+                                                onChange={e => setResponsibleSearch(e.target.value)}
+                                                placeholder="Buscar por nome..."
+                                                className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                            />
+                                        </div>
+                                        <div className="max-h-[220px] overflow-y-auto p-1">
+                                            {filteredTeamProfiles.length === 0 && filteredOtherProfiles.length === 0 && (
+                                                <p className="py-4 text-center text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
+                                            )}
+                                            {filteredTeamProfiles.length > 0 && (
+                                                <>
+                                                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Equipe do card</p>
+                                                    {filteredTeamProfiles.map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            type="button"
+                                                            onClick={() => { setResponsibleId(p.id); setResponsibleOpen(false); }}
+                                                            className={cn(
+                                                                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                                                                p.id === responsibleId && "bg-accent/50 font-medium"
+                                                            )}
+                                                        >
+                                                            <Star className="h-3 w-3 text-amber-400 shrink-0" />
+                                                            <span className="truncate">{p.nome || p.email || 'Sem nome'}</span>
+                                                            {p.id === responsibleId && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
+                                                        </button>
+                                                    ))}
+                                                </>
+                                            )}
+                                            {filteredTeamProfiles.length > 0 && filteredOtherProfiles.length > 0 && (
+                                                <div className="-mx-1 my-1 h-px bg-border" />
+                                            )}
+                                            {filteredOtherProfiles.length > 0 && (
+                                                <>
+                                                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Outros</p>
+                                                    {filteredOtherProfiles.map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            type="button"
+                                                            onClick={() => { setResponsibleId(p.id); setResponsibleOpen(false); }}
+                                                            className={cn(
+                                                                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                                                                p.id === responsibleId && "bg-accent/50 font-medium"
+                                                            )}
+                                                        >
+                                                            <span className="truncate">{p.nome || p.email || 'Sem nome'}</span>
+                                                            {p.id === responsibleId && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
+                                                        </button>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Meeting-specific: External Participants */}
+                        {type === 'reuniao' && (
+                            <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                                <Label className="flex items-center gap-1">
+                                    Participantes Externos (E-mails)
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <MultiSelectEmail
+                                    value={externalParticipants}
+                                    onChange={setExternalParticipants}
+                                    placeholder="Digite o e-mail e pressione Enter..."
+                                />
+                                {externalParticipants.length === 0 && (
+                                    <p className="text-xs text-amber-600">Adicione pelo menos um participante externo</p>
+                                )}
                             </div>
                         )}
 
@@ -990,6 +1158,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                     <Select
                                         value={metadata.change_category || ''}
                                         onChange={v => updateMetadata('change_category', v)}
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         options={changeCategories?.map((c: any) => ({ value: c.key, label: c.label })) || []}
                                         placeholder="Selecione..."
                                     />

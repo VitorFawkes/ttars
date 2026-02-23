@@ -12,6 +12,9 @@ import PeopleStatsBar from '../components/people/PeopleStatsBar'
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, DrawerTitle } from '../components/ui/drawer'
 import ContactForm from '../components/card/ContactForm'
 import ContactImportModal from '../components/people/ContactImportModal'
+import { DataQualityBanner } from '../components/people/DataQualityBanner'
+import { DataQualityDrawer } from '../components/people/DataQualityDrawer'
+import { useContactQuality } from '../hooks/useContactQuality'
 import { supabase } from '../lib/supabase'
 
 export default function People() {
@@ -32,7 +35,9 @@ export default function People() {
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
     const [isNewPersonDrawerOpen, setIsNewPersonDrawerOpen] = useState(false)
     const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+    const [isQualityDrawerOpen, setIsQualityDrawerOpen] = useState(false)
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
+    const quality = useContactQuality()
 
     const handleCreateSuccess = () => {
         setIsNewPersonDrawerOpen(false)
@@ -138,6 +143,18 @@ export default function People() {
                             totalLeaders={summaryStats.totalLeaders}
                         />
                     </div>
+
+                    {/* Data Quality Banner */}
+                    {!quality.isDismissed && (
+                        <div className="mb-6">
+                            <DataQualityBanner
+                                fixableIssues={quality.fixableIssueCount}
+                                isLoading={quality.isLoading}
+                                onReview={() => setIsQualityDrawerOpen(true)}
+                                onDismiss={quality.dismiss}
+                            />
+                        </div>
+                    )}
 
                     <div className="flex items-center justify-between gap-4">
                         {/* Search Input */}
@@ -248,6 +265,13 @@ export default function People() {
                     isOpen={isImportModalOpen}
                     onClose={() => setIsImportModalOpen(false)}
                     onSuccess={refresh}
+                />
+
+                <DataQualityDrawer
+                    isOpen={isQualityDrawerOpen}
+                    onClose={() => setIsQualityDrawerOpen(false)}
+                    quality={quality}
+                    onApplied={refresh}
                 />
             </div>
         </ErrorBoundary>

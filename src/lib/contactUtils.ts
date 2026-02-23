@@ -90,6 +90,34 @@ export function sanitizeContactNames(
     return { nome: n, sobrenome: s || null }
 }
 
+/** Valida CPF brasileiro pelo algoritmo de checksum (2 dígitos verificadores) */
+export function validateCPF(cpf: string | null | undefined): boolean {
+    if (!cpf) return false
+    const digits = cpf.replace(/\D/g, '')
+    if (digits.length !== 11) return false
+
+    // Rejeita sequências iguais (000.000.000-00, etc.)
+    if (/^(\d)\1{10}$/.test(digits)) return false
+
+    const d = digits.split('').map(Number)
+
+    // Primeiro dígito verificador
+    let sum = 0
+    for (let i = 0; i < 9; i++) sum += d[i] * (10 - i)
+    let check = 11 - (sum % 11)
+    if (check >= 10) check = 0
+    if (d[9] !== check) return false
+
+    // Segundo dígito verificador
+    sum = 0
+    for (let i = 0; i < 10; i++) sum += d[i] * (11 - i)
+    check = 11 - (sum % 11)
+    if (check >= 10) check = 0
+    if (d[10] !== check) return false
+
+    return true
+}
+
 export function getContactSummary(contacts: Contato[]): { adults: number, children: number } {
     return contacts.reduce(
         (acc, contact) => {

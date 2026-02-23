@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
@@ -35,7 +35,9 @@ interface TripsProdutoData {
 import OwnerHistoryModal from './OwnerHistoryModal'
 import ActionButtons from './ActionButtons'
 import { Button } from '../ui/Button'
-import UserSelector from './UserSelector'
+import OwnerSelector from '../pipeline/OwnerSelector'
+import { useCardTeam } from '../../hooks/useCardTeam'
+import { useRoles } from '../../hooks/useRoles'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useQualityGate } from '../../hooks/useQualityGate'
@@ -208,6 +210,22 @@ export default function CardHeader({ card }: CardHeaderProps) {
     const { getHeaderFields } = useFieldConfig()
     const headerFields = card.pipeline_stage_id ? getHeaderFields(card.pipeline_stage_id) : []
     const { data: phasesData } = usePipelinePhases()
+
+    // Card team (assistants)
+    const { members: teamMembers, addMember, removeMember } = useCardTeam(card.id || undefined, card)
+    const { roles: allRoles } = useRoles()
+
+    const assistenteRoleId = useMemo(() =>
+        allRoles.find(r => r.name === 'assistente')?.id || null
+    , [allRoles])
+
+    const assistentePlanner = useMemo(() =>
+        teamMembers.find(m => m.role === 'assistente_planner') || null
+    , [teamMembers])
+
+    const assistentePos = useMemo(() =>
+        teamMembers.find(m => m.role === 'assistente_pos') || null
+    , [teamMembers])
 
     // Fetch pipeline stages with proper Kanban ordering (phase order_index -> stage ordem)
     const { data: stages } = useQuery({
@@ -632,6 +650,32 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     }
 
+    const handleAssistentePlannerSelect = (userId: string | null) => {
+        if (assistentePlanner) {
+            // Chain: remove first, then add (avoids UNIQUE constraint race)
+            removeMember.mutate(assistentePlanner.id, {
+                onSuccess: () => {
+                    if (userId) addMember.mutate({ profileId: userId, role: 'assistente_planner' })
+                }
+            })
+        } else if (userId) {
+            addMember.mutate({ profileId: userId, role: 'assistente_planner' })
+        }
+    }
+
+    const handleAssistentePosSelect = (userId: string | null) => {
+        if (assistentePos) {
+            // Chain: remove first, then add (avoids UNIQUE constraint race)
+            removeMember.mutate(assistentePos.id, {
+                onSuccess: () => {
+                    if (userId) addMember.mutate({ profileId: userId, role: 'assistente_pos' })
+                }
+            })
+        } else if (userId) {
+            addMember.mutate({ profileId: userId, role: 'assistente_pos' })
+        }
+    }
+
     const handleTitleSave = () => {
         if (editedTitle.trim() && editedTitle !== card.titulo) {
             updateTitleMutation.mutate(editedTitle.trim())
@@ -1040,43 +1084,66 @@ export default function CardHeader({ card }: CardHeaderProps) {
                     </div>
 
                     {/* Row 2: Owners & Actions */}
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-2 border-t border-gray-100">
-                        {/* Owner Selectors */}
-                        <div className="flex flex-wrap items-center gap-3 md:gap-4">
-                            {/* SDR Selector */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-12 md:w-auto">SDR</span>
-                                <UserSelector
-                                    currentUserId={card.sdr_owner_id}
-                                    onSelect={handleSdrSelect}
+                    <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-100">
+                        {/* Phase columns */}
+                        <div className="flex items-start gap-6 flex-wrap">
+                            {/* SDR */}
+                            <div className="flex flex-col gap-0.5 min-w-[150px]">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none mb-0.5">SDR</span>
+                                <OwnerSelector
+                                    value={card.sdr_owner_id}
+                                    onChange={(id) => handleSdrSelect(id)}
+                                    phaseSlug="sdr"
+                                    compact
+                                    showNoSdrOption
                                 />
                             </div>
 
-                            <div className="hidden md:block h-6 w-px bg-gray-200" />
-
-                            {/* Planner Selector */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-12 md:w-auto">Planner</span>
-                                <UserSelector
-                                    currentUserId={card.vendas_owner_id}
-                                    onSelect={handlePlannerSelect}
+                            {/* Planner + Assistente */}
+                            <div className="flex flex-col gap-0.5 min-w-[150px]">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Planner</span>
+                                <OwnerSelector
+                                    value={card.vendas_owner_id}
+                                    onChange={(id) => handlePlannerSelect(id)}
+                                    phaseSlug="planner"
+                                    compact
+                                    showNoSdrOption
+                                />
+                                <span className="text-[10px] font-medium text-slate-300 uppercase tracking-wider leading-none mt-1.5 mb-0.5">Assistente</span>
+                                <OwnerSelector
+                                    value={assistentePlanner?.profile_id || null}
+                                    onChange={(id) => handleAssistentePlannerSelect(id)}
+                                    phaseSlug="planner"
+                                    roleId={assistenteRoleId || undefined}
+                                    compact
+                                    showNoSdrOption
                                 />
                             </div>
 
-                            <div className="hidden md:block h-6 w-px bg-gray-200" />
-
-                            {/* Pós-Venda Selector */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-12 md:w-auto">Pós</span>
-                                <UserSelector
-                                    currentUserId={card.pos_owner_id}
-                                    onSelect={handlePosVendaSelect}
+                            {/* Pós-Venda + Assistente */}
+                            <div className="flex flex-col gap-0.5 min-w-[150px]">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Pós-Venda</span>
+                                <OwnerSelector
+                                    value={card.pos_owner_id}
+                                    onChange={(id) => handlePosVendaSelect(id)}
+                                    phaseSlug="pos_venda"
+                                    compact
+                                    showNoSdrOption
+                                />
+                                <span className="text-[10px] font-medium text-slate-300 uppercase tracking-wider leading-none mt-1.5 mb-0.5">Assistente</span>
+                                <OwnerSelector
+                                    value={assistentePos?.profile_id || null}
+                                    onChange={(id) => handleAssistentePosSelect(id)}
+                                    phaseSlug="pos_venda"
+                                    roleId={assistenteRoleId || undefined}
+                                    compact
+                                    showNoSdrOption
                                 />
                             </div>
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0">
                             {missingBlocking.length > 0 && (
                                 <Button
                                     variant="outline"

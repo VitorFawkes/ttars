@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { SmartTaskModal } from './SmartTaskModal'
@@ -98,11 +98,13 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    const getResponsibleName = (id: string) => {
-        if (!profiles) return null
+    const getProfileName = (id: string | null | undefined) => {
+        if (!id || !profiles) return null
         const profile = profiles.find(p => p.id === id)
         return profile ? String(profile.nome || profile.email || '') : null
     }
+
+    const getResponsibleName = (id: string) => getProfileName(id)
 
     // Mutations
     const updateTaskMutation = useMutation({
@@ -364,6 +366,8 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                     tasks?.map((task) => {
                         const isLate = task.data_vencimento ? isPast(new Date(task.data_vencimento)) && !isToday(new Date(task.data_vencimento)) && !task.concluida : false
                         const responsibleName = task.responsavel_id ? getResponsibleName(task.responsavel_id) : null
+                        const creatorName = task.created_by ? getProfileName(task.created_by) : null
+                        const showCreator = creatorName && task.created_by !== task.responsavel_id
 
                         const isMudanca = task.tipo === 'solicitacao_mudanca'
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
@@ -411,11 +415,19 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 </div>
                                             )}
 
-                                            {/* Responsible (Only for Meetings) */}
-                                            {task.tipo === 'reuniao' && responsibleName && (
-                                                <div className="flex items-center gap-1.5 text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                                            {/* Responsible — always show */}
+                                            {responsibleName && (
+                                                <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded" title={`Responsável: ${responsibleName}`}>
                                                     <User className="w-3 h-3" />
                                                     <span className="truncate max-w-[100px]">{responsibleName}</span>
+                                                </div>
+                                            )}
+
+                                            {/* Creator — show when different from responsible */}
+                                            {showCreator && (
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded" title={`Criado por: ${creatorName}`}>
+                                                    <UserPlus className="w-3 h-3" />
+                                                    <span className="truncate max-w-[100px]">por {creatorName}</span>
                                                 </div>
                                             )}
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody, DrawerTitle, DrawerClose } from '../ui/drawer'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
@@ -27,6 +28,7 @@ interface PersonDetailDrawerProps {
 }
 
 export default function PersonDetailDrawer({ person, onClose, onRefresh }: PersonDetailDrawerProps) {
+    const navigate = useNavigate()
     const [activeTab, setActiveTab] = useState('info')
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
     const { softDelete, isDeleting } = useDeleteContact({
@@ -39,16 +41,18 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
         queryFn: async () => {
             if (!person?.id) return []
 
-            // Fetch cards where user is main contact OR traveler
+            // Fetch cards where user is main contact OR traveler (excluir deletados)
             const { data: mainCards } = await supabase
                 .from('cards')
                 .select('*')
                 .eq('pessoa_principal_id', person.id)
+                .is('deleted_at', null)
 
             const { data: travelerCards } = await supabase
                 .from('cards')
                 .select('*, cards_contatos!inner(contato_id)')
                 .eq('cards_contatos.contato_id', person.id)
+                .is('deleted_at', null)
 
             // Merge and dedup
             const allCards = [...(mainCards || []), ...(travelerCards || [])]
@@ -179,7 +183,11 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                             ) : (
                                 <div className="space-y-3">
                                     {trips?.map((trip) => (
-                                        <div key={trip.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                        <div
+                                            key={trip.id}
+                                            onClick={() => { onClose(); navigate(`/cards/${trip.id}`) }}
+                                            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer"
+                                        >
                                             <div className="flex justify-between items-start mb-2">
                                                 <h4 className="font-semibold text-gray-900">{trip.titulo}</h4>
                                                 <Badge variant={trip.status_comercial === 'ganho' ? 'default' : 'secondary'}>

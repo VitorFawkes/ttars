@@ -617,6 +617,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     })}
                                     product={formData.produto}
                                     showNoSdrOption={true}
+                                    phaseSlug="sdr"
                                 />
                             </div>
 
@@ -635,6 +636,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     product={formData.produto}
                                     showNoSdrOption={true}
                                     placeholder="Selecionar Planner"
+                                    phaseSlug="planner"
                                 />
                             </div>
 
@@ -653,6 +655,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     product={formData.produto}
                                     showNoSdrOption={true}
                                     placeholder="Selecionar Pós-venda"
+                                    phaseSlug="pos_venda"
                                 />
                             </div>
                         </section>
