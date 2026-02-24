@@ -68,6 +68,22 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
     field_update: 'Campo',
 };
 
+function formatFieldValue(value: unknown): string {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) return value.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        // Objects with display property (orcamento, epoca_viagem, duracao_viagem)
+        if (typeof obj.display === 'string' && obj.display) return obj.display;
+        // Observacoes-like nested objects: show key=value pairs
+        const entries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined);
+        if (entries.length <= 3) return entries.map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join('; ');
+        return JSON.stringify(obj);
+    }
+    return String(value);
+}
+
 function EventDetailPanel({
     payload,
     processingLog,
@@ -151,7 +167,7 @@ function EventDetailPanel({
                                 .map(([key, value]) => (
                                     <div key={key} className="text-xs">
                                         <span className="text-slate-500">{key}:</span>{' '}
-                                        <span className="text-slate-800 font-medium">{String(value)}</span>
+                                        <span className="text-slate-800 font-medium">{formatFieldValue(value)}</span>
                                     </div>
                                 ))
                             }
