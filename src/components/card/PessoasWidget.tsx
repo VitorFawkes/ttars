@@ -1,12 +1,10 @@
-import { Plus, Edit2, Eye } from 'lucide-react'
+import { Plus, Eye } from 'lucide-react'
 import { useState } from 'react'
 import ContactSelector from './ContactSelector'
-import ContactForm from './ContactForm'
 import CardTravelers from './CardTravelers'
 import TravelHistorySection from './TravelHistorySection'
 import ContactIntelligenceWidget from './ContactIntelligenceWidget'
-import ContactDetailsViewer from './ContactDetailsViewer'
-import { Drawer, DrawerContent, DrawerHeader, DrawerBody, DrawerTitle } from '../ui/drawer'
+import PersonDetailDrawer from '../people/PersonDetailDrawer'
 import { useCardPeople } from '../../hooks/useCardPeople'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Database } from '../../database.types'
@@ -19,12 +17,9 @@ interface PessoasWidgetProps {
 }
 
 export default function PessoasWidget({ card }: PessoasWidgetProps) {
-    // Debug log to confirm new version is running
-    console.log('PessoasWidget v2 rendered', { cardId: card.id })
     const queryClient = useQueryClient()
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
-    const [editingPrimary, setEditingPrimary] = useState(false)
-    const [viewingPrimary, setViewingPrimary] = useState(false)
+    const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
 
     // Use the Unified Hook
     const {
@@ -87,19 +82,11 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
 
                             <div className="flex items-center gap-1">
                                 <button
-                                    onClick={() => setViewingPrimary(true)}
+                                    onClick={() => setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])}
                                     className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
-                                    title="Visualizar detalhes"
+                                    title="Ver detalhes completos"
                                 >
                                     <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                    onClick={() => setEditingPrimary(true)}
-                                    disabled={isUpdating}
-                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
-                                    title="Editar contato"
-                                >
-                                    <Edit2 className="h-4 w-4" />
                                 </button>
                                 <button
                                     onClick={() => setSelectorMode('set_primary')}
@@ -189,44 +176,14 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                 />
             )}
 
-            {/* Edit Primary Contact Drawer */}
-            <Drawer open={editingPrimary && !!primary} onOpenChange={(open) => !open && setEditingPrimary(false)}>
-                <DrawerContent className="max-h-[90vh]">
-                    <DrawerHeader>
-                        <DrawerTitle>Editar Contato Principal</DrawerTitle>
-                    </DrawerHeader>
-                    <DrawerBody>
-                        {primary && (
-                            <ContactForm
-                                key={primary.id}
-                                contact={primary as unknown as Database['public']['Tables']['contatos']['Row']}
-                                onSave={() => {
-                                    queryClient.invalidateQueries({ queryKey: ['card-people', card.id] })
-                                    setEditingPrimary(false)
-                                }}
-                                onCancel={() => setEditingPrimary(false)}
-                            />
-                        )}
-                    </DrawerBody>
-                </DrawerContent>
-            </Drawer>
-
-            {/* View Primary Contact Drawer */}
-            <Drawer open={viewingPrimary && !!primary} onOpenChange={(open) => !open && setViewingPrimary(false)}>
-                <DrawerContent className="max-h-[90vh]">
-                    <DrawerHeader>
-                        <DrawerTitle>Detalhes do Contato</DrawerTitle>
-                    </DrawerHeader>
-                    <DrawerBody>
-                        {primary && (
-                            <ContactDetailsViewer
-                                contact={primary as unknown as Database['public']['Tables']['contatos']['Row']}
-                                card={card}
-                            />
-                        )}
-                    </DrawerBody>
-                </DrawerContent>
-            </Drawer>
+            {/* Person Detail Drawer */}
+            <PersonDetailDrawer
+                person={selectedContact}
+                onClose={() => setSelectedContact(null)}
+                onRefresh={() => {
+                    queryClient.invalidateQueries({ queryKey: ['card-people', card.id] })
+                }}
+            />
         </div>
     )
 }

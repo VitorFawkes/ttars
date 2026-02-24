@@ -35,6 +35,22 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
         onSuccess: () => { onRefresh?.(); onClose() }
     })
 
+    // Auto-fetch stats when not provided (e.g. when opened from CardDetail)
+    const { data: fetchedStats } = useQuery({
+        queryKey: ['contact-stats', person?.id],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('contact_stats')
+                .select('*')
+                .eq('contact_id', person!.id)
+                .maybeSingle()
+            return data
+        },
+        enabled: !!person?.id && !person?.stats
+    })
+
+    const stats = person?.stats || fetchedStats
+
     // Fetch Trips
     const { data: trips, isLoading: loadingTrips } = useQuery({
         queryKey: ['person-trips', person?.id],
@@ -86,7 +102,7 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                             <div>
                                 <DrawerTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                                     {formatContactName(person) || 'Sem Nome'}
-                                    {person.stats?.is_group_leader && (
+                                    {stats?.is_group_leader && (
                                         <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200">
                                             <Crown className="h-3 w-3 mr-1" />
                                             Líder de Grupo
@@ -120,7 +136,7 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                                 Valor Total
                             </div>
                             <div className="text-lg font-semibold text-gray-900">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(person.stats?.total_spend || 0)}
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats?.total_spend || 0)}
                             </div>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
@@ -129,7 +145,7 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                                 Viagens
                             </div>
                             <div className="text-lg font-semibold text-gray-900">
-                                {person.stats?.total_trips || 0}
+                                {stats?.total_trips || 0}
                             </div>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
@@ -138,8 +154,8 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                                 Última Viagem
                             </div>
                             <div className="text-sm font-medium text-gray-900 truncate">
-                                {person.stats?.last_trip_date
-                                    ? format(new Date(person.stats.last_trip_date), "MMM yyyy", { locale: ptBR })
+                                {stats?.last_trip_date
+                                    ? format(new Date(stats.last_trip_date!), "MMM yyyy", { locale: ptBR })
                                     : 'Nunca'}
                             </div>
                         </div>
