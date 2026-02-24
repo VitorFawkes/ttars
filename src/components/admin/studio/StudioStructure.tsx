@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { Loader2, Plus, Layout } from 'lucide-react'
@@ -91,18 +91,14 @@ export default function StudioStructure() {
         })
     )
 
-    // Sync server data → local state (render-time sync, avoids cascading useEffect)
-    const [prevPhases, setPrevPhases] = useState(phasesData)
-    if (phasesData !== prevPhases) {
-        setPrevPhases(phasesData)
+    // Sync server data → local state
+    useEffect(() => {
         if (phasesData) setLocalPhases(phasesData)
-    }
+    }, [phasesData])
 
-    const [prevStages, setPrevStages] = useState(stagesData)
-    if (stagesData !== prevStages) {
-        setPrevStages(stagesData)
+    useEffect(() => {
         if (stagesData) setLocalStages(stagesData)
-    }
+    }, [stagesData])
 
     // --- Mutations ---
     const updatePhaseMutation = useMutation({
