@@ -179,6 +179,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
             {/* Person Detail Drawer */}
             <PersonDetailDrawer
                 person={selectedContact}
+                card={card}
                 onClose={() => setSelectedContact(null)}
                 onRefresh={() => {
                     queryClient.invalidateQueries({ queryKey: ['card-people', card.id] })

@@ -10,9 +10,10 @@ import { Badge } from '../ui/Badge'
 import ContactForm from '../card/ContactForm'
 import type { Person } from '../../hooks/usePeopleIntelligence'
 import type { Database } from '../../database.types'
-import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2 } from 'lucide-react'
+import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon } from 'lucide-react'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
+import ContactDetailsViewer from '../card/ContactDetailsViewer'
 import { useDeleteContact } from '../../hooks/useDeleteContact'
 import {
     AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -23,11 +24,12 @@ type Card = Database['public']['Tables']['cards']['Row']
 
 interface PersonDetailDrawerProps {
     person: Person | null
+    card?: Card
     onClose: () => void
     onRefresh?: () => void
 }
 
-export default function PersonDetailDrawer({ person, onClose, onRefresh }: PersonDetailDrawerProps) {
+export default function PersonDetailDrawer({ person, card, onClose, onRefresh }: PersonDetailDrawerProps) {
     const navigate = useNavigate()
     const [activeTab, setActiveTab] = useState('info')
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -171,6 +173,12 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                                 Propostas
                             </TabsTrigger>
                             <TabsTrigger value="trips" className="flex-1">Viagens</TabsTrigger>
+                            {card && (
+                                <TabsTrigger value="integration" className="flex-1">
+                                    <DatabaseIcon className="h-3.5 w-3.5 mr-1" />
+                                    Integração
+                                </TabsTrigger>
+                            )}
                         </TabsList>
 
                         <TabsContent value="info" className="mt-0">
@@ -243,6 +251,12 @@ export default function PersonDetailDrawer({ person, onClose, onRefresh }: Perso
                                 </div>
                             )}
                         </TabsContent>
+
+                        {card && (
+                            <TabsContent value="integration" className="mt-0">
+                                <ContactDetailsViewer contact={person as unknown as Database['public']['Tables']['contatos']['Row']} card={card} />
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </DrawerBody>
             </DrawerContent>
