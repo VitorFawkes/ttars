@@ -29,7 +29,8 @@ export default function ActivitiesPage() {
 
     const userOptions = [
         { value: 'all', label: 'Todos os usuários' },
-        ...((users as any[] || []).map((u: any) => ({ value: u.id, label: u.nome || u.email || 'Sem nome' })))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- profiles query returns untyped rows
+        ...((users as any[] || []).map((u: { id: string; nome: string | null; email: string | null }) => ({ value: u.id, label: u.nome || u.email || 'Sem nome' })))
     ]
 
 
@@ -42,6 +43,12 @@ export default function ActivitiesPage() {
         { value: 'whatsapp_sent', label: 'WhatsApp Enviado' },
         { value: 'note_added', label: 'Nota Adicionada' },
         { value: 'task_completed', label: 'Tarefa Concluída' },
+        { value: 'ai_summary_updated', label: 'Resumo IA Atualizado' },
+        { value: 'ai_context_updated', label: 'Contexto IA Atualizado' },
+        { value: 'ai_handoff', label: 'Handoff IA/Humano' },
+        { value: 'title_changed', label: 'Título Alterado' },
+        { value: 'budget_changed', label: 'Orçamento Alterado' },
+        { value: 'notes_changed', label: 'Informações Importantes' },
     ]
 
     const clearFilters = () => {

@@ -25,6 +25,7 @@ export interface FilterState {
     showArchived?: boolean // Mostrar cards arquivados
     statusComercial?: string[] // Multi-select: em_aberto, em_andamento, pausado, ganho, perdido
     origem?: string[] // Multi-select: mkt, indicacao, carteira, manual, outro, site, active_campaign, whatsapp
+    docStatus?: string[] // 'pendente' | 'completo' | 'sem_documentos'
 }
 
 export interface GroupFilters {

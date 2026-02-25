@@ -210,6 +210,17 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 return false
             })
 
+            // Document Status Filter (client-side — usa docs_total/docs_completed já na view)
+            if ((filters.docStatus?.length ?? 0) > 0) {
+                filteredData = filteredData.filter(card => {
+                    const total = Number(card.docs_total) || 0
+                    const completed = Number(card.docs_completed) || 0
+                    if (total === 0) return filters.docStatus!.includes('sem_documentos')
+                    if (completed >= total) return filters.docStatus!.includes('completo')
+                    return filters.docStatus!.includes('pendente')
+                })
+            }
+
             return filteredData
         }
     })

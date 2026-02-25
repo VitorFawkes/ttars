@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link } from 'lucide-react'
+import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { cn } from '../../lib/utils'
@@ -18,6 +18,12 @@ const STATUS_COMERCIAL_OPTIONS = [
     { value: 'pausado', label: 'Pausado' },
     { value: 'ganho', label: 'Ganho' },
     { value: 'perdido', label: 'Perdido' },
+]
+
+const DOC_STATUS_OPTIONS = [
+    { value: 'pendente', label: 'Pendente', color: 'bg-amber-500 text-white border-amber-500' },
+    { value: 'completo', label: 'Completo', color: 'bg-green-500 text-white border-green-500' },
+    { value: 'sem_documentos', label: 'Sem Documentos', color: 'bg-gray-500 text-white border-gray-500' },
 ]
 
 
@@ -58,7 +64,7 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
         setFilters({})
     }
 
-    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem', value: string) => {
+    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem' | 'docStatus', value: string) => {
         setLocalFilters(prev => {
             const current = (prev[field] as string[]) || []
             const updated = current.includes(value)
@@ -170,6 +176,34 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                                                 "px-3 py-1.5 text-sm font-medium rounded-lg border transition-all",
                                                 isSelected
                                                     ? opt.color + " border-transparent shadow-sm"
+                                                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                                            )}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Documentos */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                            <FileText className="h-3 w-3" /> Documentos
+                        </h3>
+                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <div className="flex flex-wrap gap-2">
+                                {DOC_STATUS_OPTIONS.map(opt => {
+                                    const isSelected = (localFilters.docStatus || []).includes(opt.value)
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => toggleSelection('docStatus', opt.value)}
+                                            className={cn(
+                                                "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
+                                                isSelected
+                                                    ? opt.color + " shadow-sm"
                                                     : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
                                             )}
                                         >

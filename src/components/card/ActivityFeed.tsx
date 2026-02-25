@@ -1,4 +1,4 @@
-import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock } from 'lucide-react'
+import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
@@ -82,6 +82,13 @@ const activityIcons = {
     'destination_changed': MapPin,
     'budget_changed': DollarSign,
     'period_changed': Calendar,
+    // AI
+    'ai_summary_updated': Sparkles,
+    'ai_context_updated': Sparkles,
+    'ai_handoff': ArrowRightLeft,
+    // Title & Notes
+    'title_changed': Pencil,
+    'notes_changed': FileEdit,
     // Generic
     'created': Plus,
     'updated': Pencil,
@@ -140,10 +147,72 @@ const activityColors = {
     'destination_changed': 'text-blue-600 bg-blue-50',
     'budget_changed': 'text-emerald-600 bg-emerald-50',
     'period_changed': 'text-orange-600 bg-orange-50',
+    // AI
+    'ai_summary_updated': 'text-violet-600 bg-violet-50',
+    'ai_context_updated': 'text-violet-600 bg-violet-50',
+    'ai_handoff': 'text-amber-600 bg-amber-50',
+    // Title & Notes
+    'title_changed': 'text-slate-600 bg-slate-50',
+    'notes_changed': 'text-orange-600 bg-orange-50',
     // Generic
     'created': 'text-green-600 bg-green-50',
     'updated': 'text-blue-600 bg-blue-50',
     'default': 'text-gray-600 bg-gray-50'
+}
+
+/** Formata valor legível a partir de metadata JSONB */
+function formatValue(val: unknown): string | null {
+    if (val == null) return null
+    if (typeof val === 'string') return val || null
+    if (typeof val === 'number') return val.toLocaleString('pt-BR')
+    if (typeof val === 'boolean') return val ? 'Sim' : 'Não'
+    // JSONB objects (época, orçamento, etc.)
+    if (typeof val === 'object') {
+        const obj = val as Record<string, unknown>
+        // Smart budget: { tipo, valor, ... }
+        if (obj.valor != null) return `R$ ${Number(obj.valor).toLocaleString('pt-BR')}`
+        // Flexible date: { tipo, mes, ano, ... }
+        if (obj.mes) return `${obj.mes}${obj.ano ? '/' + obj.ano : ''}`
+        if (obj.data_inicio) return String(obj.data_inicio)
+        // Arrays (destinos, etc.)
+        if (Array.isArray(val)) return val.join(', ') || null
+        // Fallback: stringify compacto
+        const str = JSON.stringify(val)
+        return str.length > 80 ? str.slice(0, 77) + '...' : str
+    }
+    return String(val)
+}
+
+/** Extrai pares old→new do metadata por tipo de atividade */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newVal: string | null } | null {
+    if (!meta) return null
+    switch (tipo) {
+        case 'stage_changed':
+            return { oldVal: meta.old_stage_name, newVal: meta.new_stage_name }
+        case 'value_changed':
+            return {
+                oldVal: meta.old_value != null ? `R$ ${Number(meta.old_value).toLocaleString('pt-BR')}` : null,
+                newVal: meta.new_value != null ? `R$ ${Number(meta.new_value).toLocaleString('pt-BR')}` : null
+            }
+        case 'status_changed':
+            return { oldVal: meta.old_status, newVal: meta.new_status }
+        case 'title_changed':
+            return { oldVal: meta.old_title, newVal: meta.new_title }
+        case 'ai_handoff':
+            return {
+                oldVal: meta.old_responsavel === 'ia' ? 'IA Julia' : meta.old_responsavel === 'humano' ? 'Humano' : meta.old_responsavel,
+                newVal: meta.new_responsavel === 'ia' ? 'IA Julia' : meta.new_responsavel === 'humano' ? 'Humano' : meta.new_responsavel
+            }
+        case 'destination_changed':
+        case 'traveler_changed':
+        case 'period_changed':
+        case 'budget_changed':
+        case 'notes_changed':
+            return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
+        default:
+            return null
+    }
 }
 
 export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
@@ -245,7 +314,11 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                     {activities.map((activity) => {
                         const Icon = activityIcons[activity.tipo as keyof typeof activityIcons] || activityIcons.default
                         const colorClass = activityColors[activity.tipo as keyof typeof activityColors] || activityColors.default
-                        const userName = activity.created_by_user?.nome || activity.created_by_user?.email || 'Sistema'
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+                        const isAiActivity = (activity.metadata as any)?.source === 'ai_agent'
+                        const userName = isAiActivity
+                            ? 'IA Julia'
+                            : (activity.created_by_user?.nome || activity.created_by_user?.email || 'Sistema')
 
                         return (
                             <div key={activity.id} className="flex gap-2 text-xs">
@@ -269,10 +342,31 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                             </span>
                                         )}
                                     </div>
+                                    {(() => {
+                                        const detail = getChangeDetail(activity.tipo!, activity.metadata)
+                                        if (!detail || (!detail.oldVal && !detail.newVal)) return null
+                                        return (
+                                            <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                                                {detail.oldVal && (
+                                                    <span className="px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-[140px] truncate" title={detail.oldVal}>
+                                                        {detail.oldVal}
+                                                    </span>
+                                                )}
+                                                <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                                {detail.newVal && (
+                                                    <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-[180px] truncate" title={detail.newVal}>
+                                                        {detail.newVal}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )
+                                    })()}
+                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
                                     {activity.tipo === 'task_rescheduled' && (activity.metadata as any)?.new_date && (
                                         <div className="mt-1 text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded border border-purple-100 inline-flex items-center gap-2">
                                             <CalendarClock className="h-3 w-3" />
                                             <span>
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
                                                 Reagendada para: <span className="font-medium">{format(new Date((activity.metadata as any).new_date), "dd/MM 'às' HH:mm")}</span>
                                             </span>
                                         </div>
@@ -280,6 +374,12 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                     <div className="flex flex-col mt-0.5">
                                         <span className="text-gray-500">
                                             por <span className="font-medium text-gray-700">{userName}</span>
+                                            {isAiActivity && (
+                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 text-violet-700 rounded">
+                                                    <Bot className="h-2.5 w-2.5" />
+                                                    Auto
+                                                </span>
+                                            )}
                                         </span>
                                         <div className="flex items-center gap-1 text-gray-400 text-[10px]">
                                             <span>{formatDistanceToNow(new Date(activity.created_at!), { addSuffix: true, locale: ptBR })}</span>

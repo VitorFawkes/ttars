@@ -14,6 +14,12 @@ const STATUS_LABELS: Record<string, string> = {
     perdido: 'Perdido',
 }
 
+const DOC_STATUS_LABELS: Record<string, string> = {
+    pendente: 'Pendente',
+    completo: 'Completo',
+    sem_documentos: 'Sem Documentos',
+}
+
 export function ActiveFilters() {
     const { filters: rawFilters, setFilters } = usePipelineFilters()
     const filters = rawFilters || {}
@@ -33,7 +39,8 @@ export function ActiveFilters() {
         filters.startDate ||
         filters.endDate ||
         filters.creationStartDate ||
-        filters.creationEndDate
+        filters.creationEndDate ||
+        filters.docStatus?.length
     )
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic filter removal needs flexible typing
@@ -112,6 +119,11 @@ export function ActiveFilters() {
                 {/* Status Comercial */}
                 {filters.statusComercial?.map(status => (
                     <Chip key={status} label={`Status: ${STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('statusComercial', status)} />
+                ))}
+
+                {/* Doc Status */}
+                {filters.docStatus?.map(status => (
+                    <Chip key={`doc-${status}`} label={`Docs: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
                 ))}
 
                 {/* Dates */}

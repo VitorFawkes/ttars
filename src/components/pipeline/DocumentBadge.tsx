@@ -25,7 +25,7 @@ export default function DocumentBadge({ total, completed, variant = 'small' }: D
         colorClasses
       )}>
         <FileText className="w-2.5 h-2.5" />
-        {completed}/{total}
+        {completed}/{total} docs
       </div>
     )
   }
