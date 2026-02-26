@@ -108,7 +108,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         queryKey: ['stages', productFilter],
         queryFn: async () => {
             let query = supabase.from('pipeline_stages')
-                .select('*')
+                .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('ativo', true)
                 .order('ordem')
 
@@ -126,7 +126,17 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
             const { data, error } = await query
             if (error) throw error
-            return data as Stage[]
+
+            // Sort by phase order_index first, then by stage ordem within phase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+
+            return sorted as Stage[]
         }
     })
 
@@ -379,6 +389,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         missingFields?: { key: string, label: string }[],
         missingProposals?: { label: string, min_status: string }[],
         missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[],
+        missingDocuments?: { label: string, total: number, completed: number }[],
         targetPhaseId?: string,
         targetPhaseName?: string
     } | null>(null)
@@ -523,6 +534,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         missingFields: asyncResult.missingFields,
                         missingProposals: asyncResult.missingProposals,
                         missingTasks: asyncResult.missingTasks,
+                        missingDocuments: asyncResult.missingDocuments,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -779,6 +791,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         missingFields={pendingMove.missingFields || []}
                                         missingProposals={pendingMove.missingProposals || []}
                                         missingTasks={pendingMove.missingTasks || []}
+                                        missingDocuments={pendingMove.missingDocuments || []}
                                         initialData={allCards?.find(c => c.id === pendingMove.cardId) as Record<string, unknown> | undefined}
                                     />
 

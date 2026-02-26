@@ -70,7 +70,9 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 is_lost: data.is_lost,
                 is_sdr_won: data.is_sdr_won,
                 is_planner_won: data.is_planner_won,
-                is_pos_won: data.is_pos_won
+                is_pos_won: data.is_pos_won,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                milestone_key: (data as any).milestone_key || null
             };
 
             console.log('[StageInspector] Saving stage data:', updatePayload);
@@ -299,6 +301,25 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                         </div>
                                     </label>
                                 </div>
+                            </div>
+
+                            {/* Milestone para Analytics */}
+                            <div className="border-t border-gray-200 pt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Milestone Analytics</label>
+                                <p className="text-xs text-gray-500 mb-3">
+                                    Vincula esta etapa a um KPI de conversão no Analytics. Cada milestone pode ser atribuído a apenas um stage ativo.
+                                </p>
+                                <select
+                                    value={(formData as Record<string, unknown>).milestone_key as string || ''}
+                                    onChange={e => setFormData({ ...formData, milestone_key: e.target.value || null } as typeof formData)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                >
+                                    <option value="">Nenhum</option>
+                                    <option value="taxa_paga">% Taxa Paga</option>
+                                    <option value="briefing">% Briefing Agendado</option>
+                                    <option value="proposta">% Proposta Enviada</option>
+                                    <option value="viagem_confirmada">% Viagem Confirmada</option>
+                                </select>
                             </div>
 
                             <button

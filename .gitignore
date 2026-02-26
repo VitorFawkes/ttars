@@ -31,6 +31,7 @@ lint_output.txt
 # Claude IDE secrets (nunca commitar!)
 .claude/secrets.json
 .claude/settings.local.json
+.claude/.migration_applied
 
 # Agent memory (local)
 .agent/

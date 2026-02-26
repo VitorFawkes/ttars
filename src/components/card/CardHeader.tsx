@@ -197,6 +197,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
         missingFields?: { key: string, label: string }[],
         missingProposals?: { label: string, min_status: string }[],
         missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[],
+        missingDocuments?: { label: string, total: number, completed: number }[],
         currentOwnerId?: string,
         sdrName?: string,
         targetPhaseId?: string,
@@ -455,7 +456,8 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 targetStageName: stageName,
                 missingFields: validation.missingFields,
                 missingProposals: validation.missingProposals,
-                missingTasks: validation.missingTasks
+                missingTasks: validation.missingTasks,
+                missingDocuments: validation.missingDocuments
             })
             setQualityGateModalOpen(true)
             setShowStageDropdown(false)
@@ -1182,6 +1184,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 missingFields={pendingStageChange?.missingFields || []}
                 missingProposals={pendingStageChange?.missingProposals || []}
                 missingTasks={pendingStageChange?.missingTasks || []}
+                missingDocuments={pendingStageChange?.missingDocuments || []}
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || ''}
                 cardId={card.id!}

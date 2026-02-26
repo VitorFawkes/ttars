@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { SmartTaskModal } from './SmartTaskModal'
 import { format, isToday, isPast, isTomorrow } from 'date-fns'
@@ -23,6 +24,7 @@ interface CardTasksProps {
 }
 
 export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps) {
+    const navigate = useNavigate()
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
     const [modalMode, setModalMode] = useState<'create' | 'edit' | 'reschedule'>('create')
@@ -216,6 +218,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'followup': return <Phone className="w-4 h-4 text-blue-600" />
             case 'ligacao': return <Phone className="w-4 h-4 text-cyan-600" />
             case 'solicitacao_mudanca': return <RefreshCw className="w-4 h-4 text-orange-600" />
+            case 'coleta_documentos': return <FileText className="w-4 h-4 text-teal-600" />
             case 'tarefa': return <CheckCircle2 className="w-4 h-4 text-indigo-600" />
             default: return <MoreHorizontal className="w-4 h-4 text-gray-500" />
         }
@@ -228,6 +231,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'followup': return 'Follow-up'
             case 'ligacao': return 'Ligação'
             case 'solicitacao_mudanca': return 'Mudança'
+            case 'coleta_documentos': return 'Coleta Docs'
             case 'tarefa': return 'Tarefa'
             default: return type?.replace('_', ' ')
         }
@@ -240,6 +244,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'followup': return 'bg-blue-50 border-blue-100 text-blue-700'
             case 'ligacao': return 'bg-cyan-50 border-cyan-100 text-cyan-700'
             case 'solicitacao_mudanca': return 'bg-orange-50 border-orange-100 text-orange-700'
+            case 'coleta_documentos': return 'bg-teal-50 border-teal-100 text-teal-700'
             default: return 'bg-gray-50 border-gray-100 text-gray-700'
         }
     }
@@ -500,6 +505,18 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                     <Calendar className="w-3.5 h-3.5" />
                                                     Re-agendar
                                                 </DropdownMenu.Item>
+                                                {task.tipo === 'reuniao' && task.data_vencimento && (
+                                                    <DropdownMenu.Item
+                                                        onClick={() => {
+                                                            const dateStr = format(new Date(task.data_vencimento!), 'yyyy-MM-dd')
+                                                            navigate(`/calendar?date=${dateStr}`)
+                                                        }}
+                                                        className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 hover:text-purple-600 rounded cursor-pointer outline-none"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                        Ver no Calendário
+                                                    </DropdownMenu.Item>
+                                                )}
                                                 <DropdownMenu.Item
                                                     onClick={() => handleToggleComplete(task)}
                                                     className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 hover:text-green-600 rounded cursor-pointer outline-none"

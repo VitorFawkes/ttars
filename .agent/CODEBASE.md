@@ -604,3 +604,4 @@ npm run build
 | `CardHeader` | CardDetail | Titulo, fase, owner |
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
+

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MoreHorizontal, Flag, User, Layers, ExternalLink, Loader2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import {
@@ -186,10 +187,10 @@ export default function LeadsRowActions({ lead }: LeadsRowActionsProps) {
 
                 {/* Open Lead */}
                 <DropdownMenuItem asChild>
-                    <a href={`/cards/${lead.id}`} className="cursor-pointer">
+                    <Link to={`/cards/${lead.id}`} className="cursor-pointer">
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Abrir Lead
-                    </a>
+                    </Link>
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

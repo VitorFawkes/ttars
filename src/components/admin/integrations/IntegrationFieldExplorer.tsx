@@ -18,6 +18,7 @@ interface SystemField {
     type: string;
     section: string;
     active: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic field options
     options?: any;
 }
 
@@ -28,8 +29,9 @@ export function IntegrationFieldExplorer({ onBack }: { onBack: () => void }) {
     const { data: systemFields, isLoading } = useQuery({
         queryKey: ['system-fields-explorer'],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('system_fields' as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types
+            const { data, error } = await (supabase as any)
+                .from('system_fields')
                 .select('*')
                 .order('section')
                 .order('label');
@@ -82,12 +84,19 @@ export function IntegrationFieldExplorer({ onBack }: { onBack: () => void }) {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('id, nome, pipeline_id')
+                .select('id, nome, pipeline_id, ordem, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('ativo', true)
                 .order('ordem');
 
             if (error) throw error;
-            return data as { id: string, nome: string, pipeline_id: string }[];
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return ((data || []) as any[]).sort((a, b) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            }) as { id: string, nome: string, pipeline_id: string }[];
         }
     });
 
@@ -126,7 +135,7 @@ export function IntegrationFieldExplorer({ onBack }: { onBack: () => void }) {
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'explorer' | 'docs')} className="flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between border-b border-border pb-2 mb-4 print:hidden">
                     <TabsList className="bg-card border border-border">
                         <TabsTrigger value="explorer" className="gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">

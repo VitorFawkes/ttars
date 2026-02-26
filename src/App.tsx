@@ -15,8 +15,24 @@ import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import ProposalBuilderV4 from './pages/ProposalBuilderV4'
 import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
-import Analytics from './pages/Analytics'
+import AnalyticsPage from './pages/analytics/AnalyticsPage'
+import ReportsPage from './pages/reports/ReportsPage'
+import ReportsList from './components/reports/ReportsList'
+import ReportBuilder from './components/reports/ReportBuilder'
+import ReportViewer from './components/reports/ReportViewer'
+import DashboardsList from './components/reports/DashboardsList'
+import DashboardEditor from './components/reports/DashboardEditor'
+import DashboardViewer from './components/reports/DashboardViewer'
+import OverviewView from './components/analytics/views/OverviewView'
+import TeamView from './components/analytics/views/TeamView'
+import FunnelView from './components/analytics/views/FunnelView'
+import SLAView from './components/analytics/views/SLAView'
+import WhatsAppView from './components/analytics/views/WhatsAppView'
+import OperationsView from './components/analytics/views/OperationsView'
+import FinancialView from './components/analytics/views/FinancialView'
+import RetentionView from './components/analytics/views/RetentionView'
 import MondePreviewPage from './pages/MondePreviewPage'
+import CalendarPage from './pages/CalendarPage'
 
 
 import ProposalReview from './pages/public/ProposalReview'
@@ -103,8 +119,30 @@ function App() {
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
-                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/analytics" element={<AnalyticsPage />}>
+                    <Route index element={<Navigate to="/analytics/overview" replace />} />
+                    <Route path="overview" element={<OverviewView />} />
+                    <Route path="team" element={<TeamView />} />
+                    <Route path="funnel" element={<FunnelView />} />
+                    <Route path="sla" element={<SLAView />} />
+                    <Route path="whatsapp" element={<WhatsAppView />} />
+                    <Route path="operations" element={<OperationsView />} />
+                    <Route path="financial" element={<FinancialView />} />
+                    <Route path="retention" element={<RetentionView />} />
+                  </Route>
+                  {/* Custom Reports (módulo separado do Analytics) */}
+                  <Route path="/reports" element={<ReportsPage />}>
+                    <Route index element={<ReportsList />} />
+                    <Route path="new" element={<ReportBuilder />} />
+                    <Route path=":id" element={<ReportViewer />} />
+                    <Route path=":id/edit" element={<ReportBuilder />} />
+                    <Route path="dashboards" element={<DashboardsList />} />
+                    <Route path="dashboards/new" element={<DashboardEditor />} />
+                    <Route path="dashboards/:id" element={<DashboardViewer />} />
+                    <Route path="dashboards/:id/edit" element={<DashboardEditor />} />
+                  </Route>
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
 

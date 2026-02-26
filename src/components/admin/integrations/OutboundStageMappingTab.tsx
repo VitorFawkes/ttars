@@ -60,13 +60,20 @@ export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingT
             const { data, error } = await supabase
                 .from('pipeline_stages')
                 .select(`
-                    id, nome, pipeline_id, phase_id,
-                    phase:pipeline_phases(label, color)
+                    id, nome, pipeline_id, phase_id, ordem,
+                    phase:pipeline_phases(label, color, order_index)
                 `)
                 .eq('ativo', true)
                 .order('ordem');
             if (error) throw error;
-            return data as WelcomeStage[];
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return ((data || []) as any[]).sort((a, b) => {
+                const phaseA = a.phase?.order_index ?? 999
+                const phaseB = b.phase?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            }) as WelcomeStage[];
         }
     });
 
@@ -116,16 +123,14 @@ export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingT
     const saveMappingMutation = useMutation({
         mutationFn: async ({ internalStageId, externalStageId }: { internalStageId: string, externalStageId: string | null }) => {
             // Delete existing mapping for this internal stage
-            await (supabase
-                .from('integration_outbound_stage_map' as never)
-                .delete as Function)()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types
+            await (supabase.from('integration_outbound_stage_map' as never).delete as any)()
 
             // If externalStageId is provided, create new mapping
             if (externalStageId) {
                 const externalStage = externalStages?.find(s => s.external_id === externalStageId);
-                const { error } = await (supabase
-                    .from('integration_outbound_stage_map' as never)
-                    .insert as Function)({
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types
+                const { error } = await (supabase.from('integration_outbound_stage_map' as never).insert as any)({
                         integration_id: integrationId,
                         internal_stage_id: internalStageId,
                         external_stage_id: externalStageId,
@@ -207,10 +212,11 @@ export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingT
 
     // Group stages by phase
     const stagesByPhase = welcomeStages?.reduce((acc, stage) => {
-        const phaseLabel = (stage.phase as any)?.label || 'Sem Fase';
+        const phase = stage.phase as Record<string, string> | null;
+        const phaseLabel = phase?.label || 'Sem Fase';
         if (!acc[phaseLabel]) {
             acc[phaseLabel] = {
-                color: (stage.phase as any)?.color || '#888',
+                color: phase?.color || '#888',
                 stages: []
             };
         }

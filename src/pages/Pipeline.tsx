@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import KanbanBoard from '../components/pipeline/KanbanBoard'
 import PipelineListView from '../components/pipeline/PipelineListView'
 import { cn } from '../lib/utils'
@@ -24,6 +25,7 @@ import {
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 
 export default function Pipeline() {
+    const navigate = useNavigate()
     const {
         viewMode, subView, groupFilters, filters, _phaseAutoApplied,
         setViewMode, setSubView, setGroupFilters, setFilters, setAll
@@ -309,9 +311,7 @@ export default function Pipeline() {
                             subView={subView}
                             filters={filters}
                             onCardClick={(cardId) => {
-                                // For now, maybe navigate? Or just log.
-                                // Ideally open CardDetail.
-                                window.location.href = `/cards/${cardId}`
+                                navigate(`/cards/${cardId}`)
                             }}
                         />
                     )}

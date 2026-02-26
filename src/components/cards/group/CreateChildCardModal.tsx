@@ -40,15 +40,23 @@ export default function CreateChildCardModal({ isOpen, onClose, parentCardId, pa
 
             if (!pipeline) throw new Error('Pipeline not found')
 
+            // Get first stage (sorted by phase order then stage order)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase query builder
-            const { data: firstStage } = await (supabase.from('pipeline_stages') as any)
-                .select('id')
+            const { data: stagesData } = await (supabase.from('pipeline_stages') as any)
+                .select('id, ordem, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('pipeline_id', pipeline.id)
-                .order('ordem')
-                .limit(1)
-                .single()
+                .eq('ativo', true)
 
-            if (!firstStage) throw new Error('No stages found')
+            if (!stagesData || stagesData.length === 0) throw new Error('No stages found')
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase query builder
+            stagesData.sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            const firstStage = stagesData[0]
 
             // Create the card linked to the parent
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase query builder

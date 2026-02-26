@@ -3,6 +3,7 @@ import StatsCards from '../components/dashboard/StatsCards'
 import FunnelChart from '../components/dashboard/FunnelChart'
 import RecentActivity from '../components/dashboard/RecentActivity'
 import { ProposalAnalyticsWidget } from '../components/proposals/ProposalAnalyticsWidget'
+import { TodayMeetingsWidget } from '../components/dashboard/TodayMeetingsWidget'
 import type { Database } from '../database.types'
 
 type Product = Database['public']['Enums']['app_product'] | 'ALL'
@@ -34,9 +35,10 @@ export default function Dashboard() {
 
             <StatsCards productFilter={productFilter} />
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <FunnelChart productFilter={productFilter} />
                 <ProposalAnalyticsWidget />
+                <TodayMeetingsWidget />
             </div>
 
             <div className="grid grid-cols-1 gap-6">

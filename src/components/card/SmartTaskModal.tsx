@@ -23,8 +23,10 @@ import {
     Sparkles,
     ChevronsUpDown,
     Star,
-    UserPlus
+    UserPlus,
+    AlertTriangle
 } from 'lucide-react';
+import { findConflicts, type MeetingTimeSlot } from '@/utils/meetingConflicts';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -56,13 +58,20 @@ const formatCampoLabel = (campo: string): string => {
 interface SmartTaskModalProps {
     isOpen: boolean;
     onClose: () => void;
-    cardId: string;
+    cardId?: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     initialData?: any; // For edit mode
     mode?: 'create' | 'edit' | 'reschedule';
+    defaultType?: TaskType;
+    defaultDate?: string;
+    defaultTime?: string;
+    defaultDuration?: number;
+    onSuccess?: () => void;
+    /** Pre-fetched meetings for conflict detection (from CalendarPage) */
+    existingMeetings?: MeetingTimeSlot[];
 }
 
-type TaskType = 'tarefa' | 'contato' | 'ligacao' | 'whatsapp' | 'email' | 'reuniao' | 'solicitacao_mudanca' | 'enviar_proposta';
+type TaskType = 'tarefa' | 'contato' | 'ligacao' | 'whatsapp' | 'email' | 'reuniao' | 'solicitacao_mudanca' | 'enviar_proposta' | 'coleta_documentos';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const TASK_TYPES: { id: TaskType; label: string; icon: any; color: string; activeColor: string }[] = [
@@ -74,6 +83,7 @@ const TASK_TYPES: { id: TaskType; label: string; icon: any; color: string; activ
     { id: 'reuniao', label: 'Reunião', icon: Users, color: 'text-purple-600 bg-purple-50 border-purple-200', activeColor: 'ring-2 ring-purple-500 bg-purple-100' },
     { id: 'solicitacao_mudanca', label: 'Mudança', icon: RefreshCw, color: 'text-orange-600 bg-orange-50 border-orange-200', activeColor: 'ring-2 ring-orange-500 bg-orange-100' },
     { id: 'enviar_proposta', label: 'Proposta', icon: FileCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', activeColor: 'ring-2 ring-emerald-500 bg-emerald-100' },
+    { id: 'coleta_documentos', label: 'Coleta Docs', icon: FileText, color: 'text-teal-600 bg-teal-50 border-teal-200', activeColor: 'ring-2 ring-teal-500 bg-teal-100' },
 ];
 
 const TEMPLATES: Record<TaskType, string> = {
@@ -84,10 +94,11 @@ const TEMPLATES: Record<TaskType, string> = {
     email: "Ex: E-mail com proposta...",
     reuniao: "Ex: Reunião de alinhamento...",
     solicitacao_mudanca: "Ex: Mudança de destino / hotel...",
-    enviar_proposta: "Ex: Enviar proposta..."
+    enviar_proposta: "Ex: Enviar proposta...",
+    coleta_documentos: "Ex: Coletar passaportes e documentos..."
 };
 
-export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'create' }: SmartTaskModalProps) {
+export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'create', defaultType, defaultDate, defaultTime, defaultDuration, onSuccess, existingMeetings }: SmartTaskModalProps) {
     const { user } = useAuth();
     // Step 1: Type Selection, Step 2: Form
     const [step, setStep] = useState<1 | 2>(1);
@@ -99,6 +110,15 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     const [responsibleId, setResponsibleId] = useState('');
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
+
+    // Card selector (when cardId is not provided)
+    const [selectedCardId, setSelectedCardId] = useState('');
+    const [cardSearch, setCardSearch] = useState('');
+    const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
+    const cardDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Duration for meetings
+    const [durationMinutes, setDurationMinutes] = useState(30);
 
     // Meeting Specifics
     const [meetingStatus, setMeetingStatus] = useState('agendada');
@@ -137,6 +157,51 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitPhase, setSubmitPhase] = useState<'idle' | 'saving' | 'processing_ai' | 'done'>('idle');
     const queryClient = useQueryClient();
+
+    // Effective card ID: prop or user-selected
+    const effectiveCardId = cardId || selectedCardId;
+
+    // Search cards for card selector (when cardId not provided)
+    const { data: searchedCards } = useQuery({
+        queryKey: ['card-search', cardSearch],
+        queryFn: async () => {
+            let query = supabase
+                .from('cards')
+                .select('id, titulo')
+                .is('deleted_at', null)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (cardSearch.trim()) {
+                query = query.ilike('titulo', `%${cardSearch.trim()}%`);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !cardId && isOpen,
+        staleTime: 1000 * 30,
+    });
+
+    // Close card dropdown on outside click
+    useEffect(() => {
+        if (!cardDropdownOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (cardDropdownRef.current && !cardDropdownRef.current.contains(e.target as Node)) {
+                setCardDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [cardDropdownOpen]);
+
+    // Selected card name for display
+    const selectedCardName = useMemo(() => {
+        if (!selectedCardId || !searchedCards) return null;
+        const card = searchedCards.find(c => c.id === selectedCardId);
+        return card?.titulo || null;
+    }, [selectedCardId, searchedCards]);
 
     // Fetch profiles for responsible selection
     const { data: profiles } = useQuery({
@@ -204,45 +269,48 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
     // Fetch card owners + team members for grouped responsible options
     const { data: cardOwners } = useQuery({
-        queryKey: ['card-owners', cardId],
+        queryKey: ['card-owners', effectiveCardId],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('cards')
                 .select('sdr_owner_id, vendas_owner_id, pos_owner_id, dono_atual_id')
-                .eq('id', cardId)
+                .eq('id', effectiveCardId!)
                 .single();
             if (error) return null;
             return data;
         },
         staleTime: 1000 * 60,
+        enabled: !!effectiveCardId,
     });
 
     // Fetch main contact email for meeting quick-add
     const { data: mainContact } = useQuery({
-        queryKey: ['card-main-contact-email', cardId],
+        queryKey: ['card-main-contact-email', effectiveCardId],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('cards')
                 .select('contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, email)')
-                .eq('id', cardId)
+                .eq('id', effectiveCardId!)
                 .single();
             if (error) throw error;
             return data?.contato as { id: string; nome: string; sobrenome: string | null; email: string | null } | null;
         },
         staleTime: 1000 * 60 * 5,
+        enabled: !!effectiveCardId,
     });
 
     const { data: teamMemberIds } = useQuery({
-        queryKey: ['card-team-ids', cardId],
+        queryKey: ['card-team-ids', effectiveCardId],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('card_team_members')
                 .select('profile_id')
-                .eq('card_id', cardId);
+                .eq('card_id', effectiveCardId!);
             if (error) return [];
             return data?.map(d => d.profile_id) || [];
         },
         staleTime: 1000 * 60,
+        enabled: !!effectiveCardId,
     });
 
     // Build grouped responsible options: card team first, then others — alphabetically sorted
@@ -303,6 +371,21 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return otherProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
     }, [otherProfiles, responsibleSearch]);
 
+    // Conflict detection for meetings
+    const meetingConflicts = useMemo(() => {
+        if (type !== 'reuniao' || !date || !time || !responsibleId) return [];
+        const proposedStart = new Date(`${date}T${time}:00`);
+        if (isNaN(proposedStart.getTime())) return [];
+        if (!existingMeetings || existingMeetings.length === 0) return [];
+        return findConflicts(
+            proposedStart,
+            durationMinutes,
+            responsibleId,
+            existingMeetings,
+            initialData?.id, // exclude self in edit mode
+        );
+    }, [type, date, time, durationMinutes, responsibleId, existingMeetings, initialData?.id]);
+
     // Reset or populate form
     useEffect(() => {
         if (isOpen) {
@@ -322,6 +405,8 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setCancellationReason(initialData?.motivo_cancelamento || '');
                 setOtherCategory(initialData?.categoria_outro || '');
                 setExternalParticipants(initialData?.participantes_externos || []);
+                const savedDuration = (initialData?.metadata as Record<string, unknown>)?.duration_minutes;
+                setDurationMinutes(typeof savedDuration === 'number' ? savedDuration : 30);
                 setTranscricao(initialData?.transcricao || '');
                 setAiProcessResult(null);
                 setIsProcessingAI(false);
@@ -351,11 +436,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 }
             } else {
                 // Create mode - Reset everything
-                setStep(1);
-                setTitle('Tarefa'); // Default title
-
                 setDescription('');
-                setType('tarefa');
                 setMetadata({});
                 setResponsibleId(user?.id || '');
                 setMeetingStatus('agendada');
@@ -371,18 +452,47 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setIsProcessingAI(false);
                 setProcessWithAI(true); // Default: processar com IA
                 setSubmitPhase('idle');
+                setSelectedCardId('');
+                setCardSearch('');
 
-                // Defaults: Today + Now (rounded to next 15 min)
-                const now = new Date();
-                const minutes = now.getMinutes();
-                const roundedMinutes = Math.ceil(minutes / 15) * 15;
-                now.setMinutes(roundedMinutes);
+                // Handle defaultType: skip step 1 if provided
+                if (defaultType) {
+                    setType(defaultType);
+                    setStep(2);
+                    const typeLabel = TASK_TYPES.find(t => t.id === defaultType)?.label || '';
+                    setTitle(typeLabel);
+                } else {
+                    setStep(1);
+                    setType('tarefa');
+                    setTitle('Tarefa');
+                }
 
-                setDate(formatLocalDate(now));
-                setTime(formatLocalTime(now));
+                // Handle defaultDuration
+                setDurationMinutes(defaultDuration || 30);
+
+                // Handle defaultDate/defaultTime or fallback to now
+                if (defaultDate) {
+                    setDate(defaultDate);
+                    if (defaultTime) {
+                        setTime(defaultTime);
+                    } else {
+                        const now = new Date();
+                        const minutes = now.getMinutes();
+                        const roundedMinutes = Math.ceil(minutes / 15) * 15;
+                        now.setMinutes(roundedMinutes);
+                        setTime(formatLocalTime(now));
+                    }
+                } else {
+                    const now = new Date();
+                    const minutes = now.getMinutes();
+                    const roundedMinutes = Math.ceil(minutes / 15) * 15;
+                    now.setMinutes(roundedMinutes);
+                    setDate(formatLocalDate(now));
+                    setTime(formatLocalTime(now));
+                }
             }
         }
-    }, [isOpen, initialData, mode, user?.id]);
+    }, [isOpen, initialData, mode, user?.id, defaultType, defaultDate, defaultTime, defaultDuration]);
 
     // Close time list when clicking outside
     useEffect(() => {
@@ -455,7 +565,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    card_id: cardId,
+                    card_id: effectiveCardId,
                     meeting_id: taskId || 'preview', // Use 'preview' if no task ID yet
                     transcription: transcriptionText
                 })
@@ -466,34 +576,38 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             }
 
             const result = await response.json();
-            setAiProcessResult(result);
+            // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
+            const camposRaw = result.campos_extraidos || result.campos_atualizados;
+            const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : []);
+            const normalizedResult = { ...result, campos_extraidos: campos };
+            setAiProcessResult(normalizedResult);
 
-            if (result.status === 'success' && result.campos_extraidos?.length > 0) {
+            if (result.status === 'success' && campos.length > 0) {
                 toast.success(
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
                             <span className="text-lg">✨</span>
-                            <p className="font-semibold">IA atualizou {result.campos_extraidos.length} campos!</p>
+                            <p className="font-semibold">IA atualizou {campos.length} campos!</p>
                         </div>
                         <div className="bg-white/20 rounded-lg p-2">
                             <ul className="text-xs space-y-0.5">
-                                {result.campos_extraidos.slice(0, 6).map((campo: string) => (
+                                {campos.slice(0, 6).map((campo: string) => (
                                     <li key={campo} className="flex items-center gap-1.5">
                                         <span className="text-green-300">✓</span>
                                         {formatCampoLabel(campo)}
                                     </li>
                                 ))}
-                                {result.campos_extraidos.length > 6 && (
-                                    <li className="text-white/70 pl-4">+{result.campos_extraidos.length - 6} campos</li>
+                                {campos.length > 6 && (
+                                    <li className="text-white/70 pl-4">+{campos.length - 6} campos</li>
                                 )}
                             </ul>
                         </div>
                     </div>,
                     { duration: 6000 }
                 );
-                queryClient.invalidateQueries({ queryKey: ['card', cardId] });
-                queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] });
-            } else if (result.status === 'no_update' || !result.campos_extraidos?.length) {
+                queryClient.invalidateQueries({ queryKey: ['card', effectiveCardId] });
+                queryClient.invalidateQueries({ queryKey: ['card-detail', effectiveCardId] });
+            } else if (result.status === 'no_update' || campos.length === 0) {
                 toast.info('IA não encontrou novas informações na transcrição');
             }
 
@@ -513,6 +627,11 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         setSubmitPhase('saving');
 
         try {
+            // Card is required
+            if (!effectiveCardId) {
+                throw new Error("Selecione um card para vincular esta tarefa.");
+            }
+
             // Combine date and time
             let finalDate = null;
             if (date && time) {
@@ -532,11 +651,6 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
             // Validations for Meeting
             if (type === 'reuniao') {
-                // Participantes externos obrigatórios para reunião
-                if (!externalParticipants || externalParticipants.length === 0) {
-                    throw new Error("Para reuniões, é obrigatório adicionar pelo menos um participante externo.");
-                }
-
                 // Se não tiver responsável, usa o usuário atual
                 if (!finalResponsibleId) {
                     finalResponsibleId = user?.id || '';
@@ -560,10 +674,15 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 }
             }
 
+            // Build metadata with duration for meetings
+            const finalMetadata = type === 'reuniao'
+                ? { ...metadata, duration_minutes: durationMinutes }
+                : metadata;
+
             // Prepare payload
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: any = {
-                card_id: cardId,
+                card_id: effectiveCardId,
                 titulo: title,
                 descricao: description,
                 tipo: type,
@@ -571,7 +690,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 responsavel_id: finalResponsibleId,
                 status: type === 'reuniao' ? meetingStatus : 'pendente',
                 concluida: type === 'reuniao' ? ['realizada', 'cancelada', 'nao_compareceu', 'reagendada'].includes(meetingStatus) : false,
-                metadata: metadata,
+                metadata: finalMetadata,
                 feedback: meetingFeedback || null,
                 motivo_cancelamento: cancellationReason || null,
                 resultado: meetingResult || null,
@@ -611,7 +730,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 // A NOVA reunião herda dados ORIGINAIS da tarefa antiga + nova data
                 // Isso preserva o título, descrição, participantes originais
                 const newTaskPayload = {
-                    card_id: cardId,
+                    card_id: effectiveCardId,
                     tipo: 'reuniao',
                     titulo: initialData?.titulo || title, // Preserva título original
                     descricao: initialData?.descricao || description, // Preserva descrição original
@@ -718,11 +837,14 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 toast.success(initialData ? "Item atualizado!" : "Item criado!");
             }
 
-            queryClient.invalidateQueries({ queryKey: ['tasks', cardId] });
-            queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] });
-            queryClient.invalidateQueries({ queryKey: ['card-tasks-completed', cardId] });
-            queryClient.invalidateQueries({ queryKey: ['reunioes', cardId] }); // Refresh meetings tab
+            queryClient.invalidateQueries({ queryKey: ['tasks', effectiveCardId] });
+            queryClient.invalidateQueries({ queryKey: ['card-detail', effectiveCardId] });
+            queryClient.invalidateQueries({ queryKey: ['card-tasks-completed', effectiveCardId] });
+            queryClient.invalidateQueries({ queryKey: ['reunioes', effectiveCardId] }); // Refresh meetings tab
+            queryClient.invalidateQueries({ queryKey: ['calendar-meetings'] });
+            queryClient.invalidateQueries({ queryKey: ['today-meeting-count'] });
 
+            onSuccess?.();
             onClose();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
@@ -789,6 +911,66 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                        {/* Card Selector (when cardId is not provided as prop) */}
+                        {!cardId && (
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-1">
+                                    Card Vinculado
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <div className="relative" ref={cardDropdownRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setCardDropdownOpen(!cardDropdownOpen); setCardSearch(''); }}
+                                        className={cn(
+                                            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer",
+                                            !selectedCardName && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <span className="truncate">
+                                            {selectedCardName || 'Buscar card...'}
+                                        </span>
+                                        <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+                                    </button>
+
+                                    {cardDropdownOpen && (
+                                        <div className="absolute z-[9999] mt-1 w-full rounded-md border bg-popover shadow-lg">
+                                            <div className="flex items-center border-b px-3">
+                                                <Star className="h-3.5 w-3.5 shrink-0 opacity-40 mr-2" />
+                                                <input
+                                                    autoFocus
+                                                    type="text"
+                                                    value={cardSearch}
+                                                    onChange={e => setCardSearch(e.target.value)}
+                                                    placeholder="Buscar por nome do card..."
+                                                    className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                                />
+                                            </div>
+                                            <div className="max-h-[220px] overflow-y-auto p-1">
+                                                {(!searchedCards || searchedCards.length === 0) && (
+                                                    <p className="py-4 text-center text-sm text-muted-foreground">Nenhum card encontrado.</p>
+                                                )}
+                                                {searchedCards?.map((card: { id: string; titulo: string | null }) => (
+                                                    <button
+                                                        key={card.id}
+                                                        type="button"
+                                                        onClick={() => { setSelectedCardId(card.id); setCardDropdownOpen(false); }}
+                                                        className={cn(
+                                                            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                                                            card.id === selectedCardId && "bg-accent/50 font-medium"
+                                                        )}
+                                                    >
+                                                        <span className="truncate">{card.titulo || 'Sem título'}</span>
+                                                        {card.id === selectedCardId && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Common Fields */}
                         <div className="grid gap-2">
                             <Label className="flex items-center gap-1">
@@ -806,33 +988,73 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
                         {/* Date/Time - Hide if Reagendada (since we show new date picker) */}
                         {meetingStatus !== 'reagendada' && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label>Data</Label>
-                                    <div
-                                        className="relative cursor-pointer"
-                                        onClick={() => handleWrapperClick(dateInputRef)}
-                                    >
-                                        <input
-                                            ref={dateInputRef}
-                                            type="date"
-                                            value={date}
-                                            onChange={e => setDate(e.target.value)}
-                                            className="w-full h-10 px-3 py-2 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                                            required
+                            <>
+                                <div className={cn("grid gap-4", type === 'reuniao' ? "grid-cols-3" : "grid-cols-2")}>
+                                    <div className="grid gap-2">
+                                        <Label>Data</Label>
+                                        <div
+                                            className="relative cursor-pointer"
+                                            onClick={() => handleWrapperClick(dateInputRef)}
+                                        >
+                                            <input
+                                                ref={dateInputRef}
+                                                type="date"
+                                                value={date}
+                                                onChange={e => setDate(e.target.value)}
+                                                className="w-full h-10 px-3 py-2 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Hora</Label>
+                                        <Input
+                                            type="time"
+                                            value={time}
+                                            onChange={e => setTime(e.target.value)}
+                                            className="font-medium"
                                         />
                                     </div>
+                                    {type === 'reuniao' && (
+                                        <div className="grid gap-2">
+                                            <Label>Duração</Label>
+                                            <Select
+                                                value={String(durationMinutes)}
+                                                onChange={v => setDurationMinutes(Number(v))}
+                                                options={[
+                                                    { value: '15', label: '15 min' },
+                                                    { value: '30', label: '30 min' },
+                                                    { value: '45', label: '45 min' },
+                                                    { value: '60', label: '1h' },
+                                                    { value: '90', label: '1h30' },
+                                                    { value: '120', label: '2h' },
+                                                ]}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="grid gap-2">
-                                    <Label>Hora</Label>
-                                    <Input
-                                        type="time"
-                                        value={time}
-                                        onChange={e => setTime(e.target.value)}
-                                        className="font-medium"
-                                    />
-                                </div>
-                            </div>
+
+                                {/* Conflict warning */}
+                                {meetingConflicts.length > 0 && type === 'reuniao' && (
+                                    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 animate-in fade-in slide-in-from-top-2">
+                                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                        <div className="text-sm text-amber-800 space-y-1">
+                                            <p className="font-medium">Conflito de horário</p>
+                                            {meetingConflicts.map((c) => {
+                                                const cStart = new Date(c.meeting.data_vencimento!);
+                                                const cEnd = new Date(cStart.getTime() + c.meeting.duration_minutes * 60_000);
+                                                const hStart = `${String(cStart.getHours()).padStart(2, '0')}:${String(cStart.getMinutes()).padStart(2, '0')}`;
+                                                const hEnd = `${String(cEnd.getHours()).padStart(2, '0')}:${String(cEnd.getMinutes()).padStart(2, '0')}`;
+                                                return (
+                                                    <p key={c.meeting.id} className="text-xs text-amber-700">
+                                                        &ldquo;{c.meeting.titulo}&rdquo; das {hStart} às {hEnd}
+                                                    </p>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {/* Responsible - searchable dropdown */}
@@ -923,7 +1145,6 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                             <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
                                 <Label className="flex items-center gap-1">
                                     Participantes Externos (E-mails)
-                                    <span className="text-red-500">*</span>
                                 </Label>
                                 {/* Quick-add main contact email */}
                                 {mainContact?.email && !externalParticipants.includes(mainContact.email) && (
@@ -951,9 +1172,6 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                     onChange={setExternalParticipants}
                                     placeholder="Digite o e-mail e pressione Enter..."
                                 />
-                                {externalParticipants.length === 0 && (
-                                    <p className="text-xs text-amber-600">Adicione pelo menos um participante externo</p>
-                                )}
                             </div>
                         )}
 

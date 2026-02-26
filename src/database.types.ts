@@ -2723,6 +2723,134 @@ export type Database = {
           },
         ]
       }
+      custom_dashboards: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          global_filters: Json | null
+          id: string
+          pinned: boolean | null
+          title: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          global_filters?: Json | null
+          id?: string
+          pinned?: boolean | null
+          title: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          global_filters?: Json | null
+          id?: string
+          pinned?: boolean | null
+          title?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_dashboards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_dashboards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "custom_dashboards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_reports: {
+        Row: {
+          category: string | null
+          config: Json
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_template: boolean
+          last_run_at: string | null
+          pinned: boolean | null
+          title: string
+          updated_at: string
+          visibility: string
+          visualization: Json
+        }
+        Insert: {
+          category?: string | null
+          config: Json
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          last_run_at?: string | null
+          pinned?: boolean | null
+          title: string
+          updated_at?: string
+          visibility?: string
+          visualization: Json
+        }
+        Update: {
+          category?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          last_run_at?: string | null
+          pinned?: boolean | null
+          title?: string
+          updated_at?: string
+          visibility?: string
+          visualization?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "custom_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dados_cadastrais_pf: {
         Row: {
           cpf: string | null
@@ -2842,6 +2970,57 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: true
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboard_widgets: {
+        Row: {
+          created_at: string
+          dashboard_id: string
+          grid_h: number
+          grid_w: number
+          grid_x: number
+          grid_y: number
+          id: string
+          report_id: string
+          title_override: string | null
+        }
+        Insert: {
+          created_at?: string
+          dashboard_id: string
+          grid_h?: number
+          grid_w?: number
+          grid_x?: number
+          grid_y?: number
+          id?: string
+          report_id: string
+          title_override?: string | null
+        }
+        Update: {
+          created_at?: string
+          dashboard_id?: string
+          grid_h?: number
+          grid_w?: number
+          grid_x?: number
+          grid_y?: number
+          id?: string
+          report_id?: string
+          title_override?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_widgets_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "custom_dashboards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_widgets_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "custom_reports"
             referencedColumns: ["id"]
           },
         ]
@@ -3779,7 +3958,7 @@ export type Database = {
           card_id: string | null
           created_at: string | null
           event_type: string
-          external_id: string
+          external_id: string | null
           id: string
           integration_id: string | null
           matched_trigger_id: string | null
@@ -3797,7 +3976,7 @@ export type Database = {
           card_id?: string | null
           created_at?: string | null
           event_type: string
-          external_id: string
+          external_id?: string | null
           id?: string
           integration_id?: string | null
           matched_trigger_id?: string | null
@@ -3815,7 +3994,7 @@ export type Database = {
           card_id?: string | null
           created_at?: string | null
           event_type?: string
-          external_id?: string
+          external_id?: string | null
           id?: string
           integration_id?: string | null
           matched_trigger_id?: string | null
@@ -3931,6 +4110,7 @@ export type Database = {
       integration_outbound_triggers: {
         Row: {
           action_mode: string | null
+          action_type: string | null
           created_at: string | null
           description: string | null
           event_types: string[] | null
@@ -3949,6 +4129,7 @@ export type Database = {
         }
         Insert: {
           action_mode?: string | null
+          action_type?: string | null
           created_at?: string | null
           description?: string | null
           event_types?: string[] | null
@@ -3967,6 +4148,7 @@ export type Database = {
         }
         Update: {
           action_mode?: string | null
+          action_type?: string | null
           created_at?: string | null
           description?: string | null
           event_types?: string[] | null
@@ -7534,6 +7716,7 @@ export type Database = {
           is_from_me: boolean | null
           is_read: boolean | null
           lead_id: string | null
+          media_content: string | null
           media_url: string | null
           message_type: string | null
           metadata: Json | null
@@ -7579,6 +7762,7 @@ export type Database = {
           is_from_me?: boolean | null
           is_read?: boolean | null
           lead_id?: string | null
+          media_content?: string | null
           media_url?: string | null
           message_type?: string | null
           metadata?: Json | null
@@ -7624,6 +7808,7 @@ export type Database = {
           is_from_me?: boolean | null
           is_read?: boolean | null
           lead_id?: string | null
+          media_content?: string | null
           media_url?: string | null
           message_type?: string | null
           metadata?: Json | null
@@ -8671,6 +8856,271 @@ export type Database = {
       }
     }
     Functions: {
+      _report_computed_measure_sql: {
+        Args: { p_key: string; p_source: string }
+        Returns: string
+      }
+      _report_resolve_field_sql: {
+        Args: { p_field: string; p_source: string }
+        Returns: string
+      }
+      _report_resolve_source: { Args: { p_source: string }; Returns: string }
+      _report_validate_field: {
+        Args: { p_field: string; p_source: string }
+        Returns: boolean
+      }
+      analytics_financial_breakdown: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_granularity?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          count_won: number
+          period: string
+          receita_sum: number
+          ticket_medio: number
+          valor_final_sum: number
+        }[]
+      }
+      analytics_funnel_by_owner: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          card_count: number
+          fase: string
+          ordem: number
+          owner_id: string
+          owner_name: string
+          stage_id: string
+          stage_nome: string
+        }[]
+      }
+      analytics_funnel_conversion: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          avg_days_in_stage: number
+          current_count: number
+          ordem: number
+          p75_days_in_stage: number
+          phase_slug: string
+          stage_id: string
+          stage_nome: string
+          total_valor: number
+        }[]
+      }
+      analytics_funnel_live: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          fase: string
+          ordem: number
+          receita_total: number
+          stage_id: string
+          stage_nome: string
+          total_cards: number
+          valor_total: number
+        }[]
+      }
+      analytics_loss_reasons: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          count: number
+          motivo: string
+          percentage: number
+        }[]
+      }
+      analytics_operations_summary: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      analytics_overview_kpis: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      analytics_retention_cohort: {
+        Args: { p_date_end?: string; p_date_start?: string; p_product?: string }
+        Returns: {
+          cohort_month: string
+          month_offset: number
+          retained: number
+          retention_rate: number
+          total_contacts: number
+        }[]
+      }
+      analytics_retention_kpis: {
+        Args: { p_date_end?: string; p_date_start?: string; p_product?: string }
+        Returns: Json
+      }
+      analytics_revenue_by_product: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          count_won: number
+          produto: string
+          receita_total: number
+          valor_total: number
+        }[]
+      }
+      analytics_revenue_timeseries: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_granularity?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          count_won: number
+          period: string
+          period_start: string
+          total_receita: number
+          total_valor: number
+        }[]
+      }
+      analytics_sla_summary: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          avg_hours_in_stage: number
+          compliance_rate: number
+          compliant_cards: number
+          sla_hours: number
+          stage_nome: string
+          total_cards: number
+          violating_cards: number
+        }[]
+      }
+      analytics_sla_violations: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_limit?: number
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          card_id: string
+          dias_na_etapa: number
+          owner_nome: string
+          sla_exceeded_hours: number
+          sla_hours: number
+          stage_nome: string
+          titulo: string
+        }[]
+      }
+      analytics_team_performance: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_phase?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          active_cards: number
+          ciclo_medio_dias: number
+          conversion_rate: number
+          lost_cards: number
+          open_cards: number
+          phase: string
+          ticket_medio: number
+          total_cards: number
+          total_receita: number
+          user_id: string
+          user_nome: string
+          won_cards: number
+        }[]
+      }
+      analytics_top_destinations: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_limit?: number
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: {
+          destino: string
+          receita_total: number
+          total_cards: number
+        }[]
+      }
+      analytics_whatsapp_metrics: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_mode?: string
+          p_owner_id?: string
+          p_product?: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
       apply_contact_quality_fixes: {
         Args: { p_fixes: Json }
         Returns: {
@@ -8755,6 +9205,7 @@ export type Database = {
         }
         Returns: {
           action_mode: string
+          action_type: string
           allowed: boolean
           reason: string
           rule_id: string
@@ -8840,6 +9291,17 @@ export type Database = {
         Args: never
         Returns: {
           view_name: string
+        }[]
+      }
+      get_card_ids_by_stage_entry: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_product?: string
+          p_stage_id: string
+        }
+        Returns: {
+          card_id: string
         }[]
       }
       get_client_by_phone: {
@@ -8958,6 +9420,14 @@ export type Database = {
       }
       is_proposal_item_sold: { Args: { p_item_id: string }; Returns: boolean }
       jsonb_get_path: { Args: { data: Json; path: string }; Returns: string }
+      julia_request_handoff: {
+        Args: {
+          p_card_id: string
+          p_context_summary?: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
       list_all_tables: {
         Args: never
         Returns: {
@@ -9018,6 +9488,27 @@ export type Database = {
       recalculate_contact_stats_for: {
         Args: { p_contact_id: string }
         Returns: undefined
+      }
+      report_drill_down: {
+        Args: {
+          p_config: Json
+          p_date_end?: string
+          p_date_start?: string
+          p_drill_filters: Json
+          p_owner_id?: string
+          p_product?: string
+        }
+        Returns: Json
+      }
+      report_query_engine: {
+        Args: {
+          p_config: Json
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_id?: string
+          p_product?: string
+        }
+        Returns: Json
       }
       reprocess_orphan_whatsapp_for_phone: {
         Args: { p_phone: string }

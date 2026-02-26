@@ -155,23 +155,26 @@ function MeetingBubble({
 
                 if (response.ok) {
                     const result = await response.json()
-                    if (result.status === 'success' && result.campos_extraidos?.length > 0) {
+                    // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
+                    const camposRaw = result.campos_extraidos || result.campos_atualizados
+                    const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : [])
+                    if (result.status === 'success' && campos.length > 0) {
                         toast.success(
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2">
                                     <span className="text-lg">✨</span>
-                                    <p className="font-semibold">IA atualizou {result.campos_extraidos.length} campos!</p>
+                                    <p className="font-semibold">IA atualizou {campos.length} campos!</p>
                                 </div>
                                 <div className="bg-white/20 rounded-lg p-2">
                                     <ul className="text-xs space-y-0.5">
-                                        {result.campos_extraidos.slice(0, 6).map((campo: string) => (
+                                        {campos.slice(0, 6).map((campo: string) => (
                                             <li key={campo} className="flex items-center gap-1.5">
                                                 <span className="text-green-300">✓</span>
                                                 {formatCampoLabel(campo)}
                                             </li>
                                         ))}
-                                        {result.campos_extraidos.length > 6 && (
-                                            <li className="text-white/70 pl-4">+{result.campos_extraidos.length - 6} campos</li>
+                                        {campos.length > 6 && (
+                                            <li className="text-white/70 pl-4">+{campos.length - 6} campos</li>
                                         )}
                                     </ul>
                                 </div>

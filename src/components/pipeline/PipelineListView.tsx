@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, Eye, EyeOff, FileText } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
 import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -126,6 +127,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         { id: 'sdr_nome', label: 'SDR', isVisible: false },
         { id: 'vendas_nome', label: 'Closer', isVisible: false },
         { id: 'tempo_etapa_dias', label: 'Dias na Etapa', isVisible: false },
+        { id: 'documentos', label: 'Documentos', isVisible: false },
         { id: 'acoes', label: 'Ações', isVisible: true },
     ]
 
@@ -158,7 +160,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     }, [columns])
 
     // Quick Filters state
-    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority'
+    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority' | 'docs_incomplete'
     const [activeQuickFilters, setActiveQuickFilters] = useState<QuickFilterType[]>([])
 
     const toggleQuickFilter = (filter: QuickFilterType) => {
@@ -176,6 +178,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         sla: cards?.filter(c => (c.tempo_etapa_dias as number) > 7).length ?? 0,
         no_task: cards?.filter(c => !c.proxima_tarefa).length ?? 0,
         high_priority: cards?.filter(c => c.prioridade === 'alta').length ?? 0,
+        docs_incomplete: cards?.filter(c => Number(c.docs_total) > 0 && Number(c.docs_completed) < Number(c.docs_total)).length ?? 0,
     }
 
     const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -296,6 +299,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                     return !card.proxima_tarefa
                 case 'high_priority':
                     return card.prioridade === 'alta'
+                case 'docs_incomplete':
+                    return Number(card.docs_total) > 0 && Number(card.docs_completed) < Number(card.docs_total)
                 default:
                     return true
             }
@@ -396,9 +401,9 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
             ),
             renderCell: (card) => (
                 <div className="flex flex-col">
-                    <a href={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
+                    <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
                         {card.titulo}
-                    </a>
+                    </Link>
                     <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <UserIcon className="h-3 w-3" />
                         {card.pessoa_nome || 'Sem cliente'}
@@ -652,6 +657,27 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 </Badge>
             ) : <span>-</span>
         },
+        documentos: {
+            width: 'w-[100px]',
+            renderHeader: () => 'Documentos',
+            renderCell: (card) => {
+                const total = Number(card.docs_total) || 0
+                const completed = Number(card.docs_completed) || 0
+                if (!total) return <span className="text-gray-400">-</span>
+                const pct = Math.round((completed / total) * 100)
+                return (
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                                className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-green-500" : "bg-amber-500")}
+                                style={{ width: `${pct}%` }}
+                            />
+                        </div>
+                        <span className="text-xs text-gray-600 tabular-nums">{completed}/{total}</span>
+                    </div>
+                )
+            }
+        },
         acoes: {
             width: 'w-[60px]',
             headerClass: 'text-center',
@@ -683,10 +709,10 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         )}
                         {(card.pessoa_telefone || card.pessoa_email) && <DropdownMenuSeparator />}
                         <DropdownMenuItem asChild>
-                            <a href={`/cards/${card.id}`} className="flex items-center gap-2">
+                            <Link to={`/cards/${card.id}`} className="flex items-center gap-2">
                                 <ArrowUpDown className="h-4 w-4" />
                                 Ver Detalhes
-                            </a>
+                            </Link>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -867,6 +893,25 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         activeQuickFilters.includes('high_priority') ? "bg-rose-200" : "bg-gray-200"
                     )}>
                         {quickFilterCounts.high_priority}
+                    </span>
+                </button>
+
+                <button
+                    onClick={() => toggleQuickFilter('docs_incomplete')}
+                    className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                        activeQuickFilters.includes('docs_incomplete')
+                            ? "bg-teal-100 text-teal-700 border border-teal-200"
+                            : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                    )}
+                >
+                    <FileText className="h-3 w-3" />
+                    Docs Pendentes
+                    <span className={cn(
+                        "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]",
+                        activeQuickFilters.includes('docs_incomplete') ? "bg-teal-200" : "bg-gray-200"
+                    )}>
+                        {quickFilterCounts.docs_incomplete}
                     </span>
                 </button>
 

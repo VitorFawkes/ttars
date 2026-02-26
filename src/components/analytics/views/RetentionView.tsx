@@ -1,0 +1,193 @@
+import { useMemo } from 'react'
+import {
+    Repeat, Users, TrendingDown, Heart, Info,
+} from 'lucide-react'
+import KpiCard from '../KpiCard'
+import ChartCard from '../ChartCard'
+import { useRetentionCohort, useRetentionKpis } from '@/hooks/analytics/useRetentionData'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
+import { cn } from '@/lib/utils'
+
+export default function RetentionView() {
+    const { mode } = useAnalyticsFilters()
+    const { data: cohortRows, isLoading: cohortLoading } = useRetentionCohort()
+    const { data: kpis, isLoading: kpisLoading } = useRetentionKpis()
+
+    const isLoading = cohortLoading || kpisLoading
+    const modeDoesNotApply = mode !== 'entries' && mode !== 'cohort'
+
+    // Build cohort matrix: rows = cohort months, cols = offsets
+    const cohortMatrix = useMemo(() => {
+        if (!cohortRows || cohortRows.length === 0) return { months: [], maxOffset: 0, matrix: new Map() }
+
+        const matrix = new Map<string, Map<number, { retained: number; rate: number; total: number }>>()
+        let maxOffset = 0
+
+        for (const row of cohortRows) {
+            if (!matrix.has(row.cohort_month)) {
+                matrix.set(row.cohort_month, new Map())
+            }
+            matrix.get(row.cohort_month)!.set(row.month_offset, {
+                retained: row.retained,
+                rate: Number(row.retention_rate),
+                total: row.total_contacts,
+            })
+            if (row.month_offset > maxOffset) maxOffset = row.month_offset
+        }
+
+        const months = Array.from(matrix.keys()).sort()
+        return { months, maxOffset, matrix }
+    }, [cohortRows])
+
+    function getRateColor(rate: number): string {
+        if (rate >= 20) return 'bg-green-500 text-white'
+        if (rate >= 10) return 'bg-green-300 text-green-900'
+        if (rate >= 5) return 'bg-green-100 text-green-800'
+        if (rate > 0) return 'bg-slate-100 text-slate-600'
+        return 'bg-slate-50 text-slate-300'
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Mode indicator */}
+            {modeDoesNotApply && (
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                    <Info className="w-4 h-4 text-slate-400 shrink-0" />
+                    <p className="text-xs text-slate-500">
+                        O modo de analise selecionado nao afeta esta vista. Recorrencia e baseada na primeira compra do contato.
+                    </p>
+                </div>
+            )}
+
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <KpiCard
+                    title="Taxa de Recompra"
+                    value={kpis ? `${kpis.repurchase_rate}%` : '—'}
+                    icon={Repeat}
+                    color="text-green-600"
+                    bgColor="bg-green-50"
+                    isLoading={isLoading}
+                />
+                <KpiCard
+                    title="Churn Estimado"
+                    value={kpis ? `${kpis.churn_rate}%` : '—'}
+                    subtitle="Sem compra ha +18 meses"
+                    icon={TrendingDown}
+                    color="text-rose-600"
+                    bgColor="bg-rose-50"
+                    isLoading={isLoading}
+                />
+                <KpiCard
+                    title="Clientes Fieis"
+                    value={kpis?.repeat_buyers ?? 0}
+                    subtitle="2+ viagens"
+                    icon={Heart}
+                    color="text-indigo-600"
+                    bgColor="bg-indigo-50"
+                    isLoading={isLoading}
+                />
+                <KpiCard
+                    title="Base com Compra"
+                    value={kpis?.total_with_purchase ?? 0}
+                    icon={Users}
+                    color="text-slate-700"
+                    bgColor="bg-slate-100"
+                    isLoading={isLoading}
+                />
+            </div>
+
+            {/* Nota sobre dados */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs text-amber-700">
+                    <strong>Nota:</strong> Qualidade dos dados de recorrencia depende dos campos <code className="bg-amber-100 px-1 rounded">primeira_venda_data</code> e <code className="bg-amber-100 px-1 rounded">ultima_venda_data</code> estarem populados nos contatos. Dados parciais mostrarao metricas parciais.
+                </p>
+            </div>
+
+            {/* Cohort Table */}
+            <ChartCard
+                title="Analise de Cohort"
+                description="Mes de primeira compra × meses depois — % que comprou de novo"
+                isLoading={isLoading}
+            >
+                {cohortMatrix.months.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr>
+                                    <th className="text-left px-3 py-2 font-medium text-slate-500 sticky left-0 bg-white z-10">Cohort</th>
+                                    <th className="text-center px-2 py-2 font-medium text-slate-500">N</th>
+                                    {Array.from({ length: Math.min(cohortMatrix.maxOffset, 12) }).map((_, i) => (
+                                        <th key={i} className="text-center px-2 py-2 font-medium text-slate-400">
+                                            M{i + 1}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cohortMatrix.months.map((month) => {
+                                    const row = cohortMatrix.matrix.get(month)!
+                                    const first = row.values().next().value
+                                    const total = first?.total ?? 0
+
+                                    return (
+                                        <tr key={month} className="border-t border-slate-100">
+                                            <td className="px-3 py-2 font-medium text-slate-700 sticky left-0 bg-white z-10 whitespace-nowrap">
+                                                {month}
+                                            </td>
+                                            <td className="text-center px-2 py-2 text-slate-500 font-medium">
+                                                {total}
+                                            </td>
+                                            {Array.from({ length: Math.min(cohortMatrix.maxOffset, 12) }).map((_, i) => {
+                                                const cell = row.get(i + 1)
+                                                const rate = cell?.rate ?? 0
+
+                                                return (
+                                                    <td key={i} className="text-center px-1 py-1">
+                                                        <div className={cn(
+                                                            'rounded px-2 py-1.5 font-medium',
+                                                            cell ? getRateColor(rate) : 'bg-slate-50 text-slate-200'
+                                                        )}>
+                                                            {cell ? `${rate}%` : '—'}
+                                                        </div>
+                                                    </td>
+                                                )
+                                            })}
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="h-[300px] flex items-center justify-center text-sm text-slate-400">
+                        Nenhum dado de cohort disponivel
+                    </div>
+                )}
+            </ChartCard>
+
+            {/* Summary Cards */}
+            {kpis && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                        <p className="text-3xl font-bold text-green-600">{kpis.repeat_buyers}</p>
+                        <p className="text-sm text-slate-500 mt-1">Compraram 2+ vezes</p>
+                        <p className="text-xs text-slate-400 mt-0.5">de {kpis.total_with_purchase} com compra</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                        <p className="text-3xl font-bold text-rose-600">{kpis.churned}</p>
+                        <p className="text-sm text-slate-500 mt-1">Possivelmente churned</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sem compra ha +18 meses</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                        <p className="text-3xl font-bold text-indigo-600">
+                            {kpis.total_with_purchase - kpis.repeat_buyers - kpis.churned}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Potencial Recompra</p>
+                        <p className="text-xs text-slate-400 mt-0.5">1 compra, ainda no janela</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}

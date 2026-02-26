@@ -115,10 +115,15 @@ return [{ json: {
   transcription
 }}];`;
 
-const CODE_MONTA_CONTEXTO = `// Monta contexto para o AI Briefing
+const CODE_MONTA_CONTEXTO = `// Monta contexto para o AI Briefing (filtra por visibilidade do stage)
 const transcriptionData = $('3b. Extrai Transcrição').first().json;
 const cardData = $('4. Busca Card').first().json;
 const config = $('5. Busca Config').first().json;
+
+// Busca campos ocultos no stage atual (retorno do step 5b)
+const hiddenFieldsRaw = $('5b. Busca Visibilidade').all().map(i => i.json);
+const hiddenKeys = new Set(hiddenFieldsRaw.map(r => r.field_key).filter(Boolean));
+console.log('[BriefingIA] Campos ocultos no stage: ' + (hiddenKeys.size > 0 ? [...hiddenKeys].join(', ') : '(nenhum)'));
 
 // Se a transcrição falhou, retornar erro direto
 if (transcriptionData.status === 'transcription_empty') {
@@ -134,10 +139,27 @@ const user_id = transcriptionData.user_id;
 const produtoData = cardData.produto_data || {};
 const briefingData = cardData.briefing_inicial || {};
 const fase = cardData.pipeline_stages?.fase || 'SDR';
-const fields = config.fields || [];
+const stageName = cardData.pipeline_stages?.nome || '';
+const stageId = cardData.pipeline_stage_id || '';
+const allFields = config.fields || [];
 const sections = config.sections || {};
 
-// Fonte dos dados baseada na FASE (mesmo padrão do Atualizador Campos)
+// FILTRAR: remover campos ocultos no stage atual
+const fields = allFields.filter(f => !hiddenKeys.has(f.key));
+const removedCount = allFields.length - fields.length;
+if (removedCount > 0) {
+  console.log('[BriefingIA] Removidos ' + removedCount + ' campos ocultos. Restam ' + fields.length + ' campos visíveis.');
+}
+
+// Mapa de seções por fase
+const SECTION_MAP = {
+  SDR: { dataSource: 'briefing_inicial', obsKey: 'observacoes', obsLabel: 'Observações do SDR' },
+  Planner: { dataSource: 'produto_data', obsKey: 'observacoes_criticas', obsLabel: 'Observações Críticas (Planner)' },
+  'Pós-venda': { dataSource: 'produto_data', obsKey: 'observacoes_pos_venda', obsLabel: 'Observações Pós-Venda' }
+};
+const sectionInfo = SECTION_MAP[fase] || SECTION_MAP['SDR'];
+
+// Fonte dos dados baseada na FASE
 let tripSource = {};
 let obsSource = {};
 
@@ -152,14 +174,14 @@ if (fase === 'SDR') {
   obsSource = produtoData.observacoes_pos_venda || {};
 }
 
-// Monta campos atuais DINAMICAMENTE
+// Monta campos atuais DINAMICAMENTE (apenas visíveis)
 const camposAtuais = {};
 for (const field of fields) {
   const source = field.section === 'trip_info' ? tripSource : obsSource;
   camposAtuais[field.key] = source[field.key] || null;
 }
 
-// Monta definições de campos para o prompt
+// Monta definições de campos para o prompt (apenas visíveis)
 let fieldDefs = '';
 let currentSection = '';
 let num = 1;
@@ -167,7 +189,7 @@ let num = 1;
 for (const f of fields) {
   if (f.section !== currentSection) {
     currentSection = f.section;
-    const sectionLabel = sections[f.section] || f.section;
+    const sectionLabel = f.section === 'observacoes' ? sectionInfo.obsLabel : (sections[f.section] || f.section);
     fieldDefs += '\\n## SEÇÃO: ' + sectionLabel + '\\n\\n';
   }
 
@@ -183,24 +205,33 @@ for (const f of fields) {
   num++;
 }
 
+// Config filtrada (apenas campos visíveis) — passada para validação downstream
+const filteredConfig = { ...config, fields };
+
 return [{ json: {
   card_id,
   user_id,
   titulo: cardData.titulo,
   fase,
+  stage_name: stageName,
+  stage_id: stageId,
+  section_info: sectionInfo,
   transcription,
   campos_atuais: camposAtuais,
   field_definitions: fieldDefs,
-  field_config: config,
+  field_config: filteredConfig,
+  hidden_fields: [...hiddenKeys],
   skip_ai: false
 }}];`;
 
-const CODE_VALIDA_OUTPUT = `// Valida e estrutura output do AI
+const CODE_VALIDA_OUTPUT = `// Valida e estrutura output do AI (respeita visibilidade)
 const aiOutput = $('7. AI Briefing').first().json.output || '{}';
-const config = $('6. Monta Contexto').first().json.field_config;
-const card_id = $('6. Monta Contexto').first().json.card_id;
-const user_id = $('6. Monta Contexto').first().json.user_id;
-const transcription = $('6. Monta Contexto').first().json.transcription;
+const contextData = $('6. Monta Contexto').first().json;
+const config = contextData.field_config;
+const card_id = contextData.card_id;
+const user_id = contextData.user_id;
+const transcription = contextData.transcription;
+const hiddenFields = new Set(contextData.hidden_fields || []);
 const fields = config.fields || [];
 
 // Parse AI JSON
@@ -230,6 +261,12 @@ for (const f of fields) {
 const camposValidados = {};
 for (const [key, value] of Object.entries(camposRaw)) {
   if (value === undefined || value === null || value === '') continue;
+
+  // Safety net: rejeitar campos ocultos no stage atual
+  if (hiddenFields.has(key)) {
+    console.log('[BriefingIA] Campo oculto rejeitado na validação: ' + key);
+    continue;
+  }
 
   const fieldDef = fieldMap[key];
   if (!fieldDef) continue;
@@ -290,16 +327,18 @@ return [{ json: {
   campos_extraidos_keys: Object.keys(camposValidados),
   tem_atualizacao: temAtualizacao,
   field_config: config,
+  hidden_fields: [...hiddenFields],
   ai_raw_output: aiOutput
 }}];`;
 
-const CODE_MERGE_DADOS = `// Merge dados extraídos com dados atuais do card
+const CODE_MERGE_DADOS = `// Merge dados extraídos com dados atuais do card (respeita visibilidade)
 const validationData = $('8. Valida Output').first().json;
 const camposExtraidos = validationData.campos_extraidos;
 const briefingText = validationData.briefing_text;
 const config = validationData.field_config;
 const fields = config.fields || [];
 const card_id = validationData.card_id;
+const hiddenFields = new Set(validationData.hidden_fields || []);
 
 const currentCard = $('10. Busca produto_data').first().json;
 const currentProdutoData = currentCard.produto_data || {};
@@ -322,6 +361,11 @@ for (const [key, value] of Object.entries(camposExtraidos)) {
   // Respeitar campos bloqueados
   if (lockedFields[key] === true) {
     console.log('[BriefingIA] Campo bloqueado, ignorando: ' + key);
+    continue;
+  }
+  // Respeitar campos ocultos no stage
+  if (hiddenFields.has(key)) {
+    console.log('[BriefingIA] Campo oculto no stage, ignorando: ' + key);
     continue;
   }
 
@@ -633,6 +677,21 @@ function buildWorkflow() {
       credentials: { supabaseApi: SUPABASE_CREDENTIAL }
     },
 
+    // 5b. HTTP Request: Busca campos ocultos no stage do card
+    {
+      parameters: {
+        url: `=${SUPABASE_URL}/rest/v1/stage_field_config?stage_id=eq.{{ $('4. Busca Card').item.json.pipeline_stage_id }}&is_visible=eq.false&select=field_key`,
+        authentication: 'predefinedCredentialType',
+        nodeCredentialType: 'supabaseApi',
+        options: {}
+      },
+      name: '5b. Busca Visibilidade',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1690, 300],
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL }
+    },
+
     // 6. Code: Monta Contexto
     {
       parameters: {
@@ -642,7 +701,7 @@ function buildWorkflow() {
       name: '6. Monta Contexto',
       type: 'n8n-nodes-base.code',
       typeVersion: 2,
-      position: [1820, 300]
+      position: [1950, 300]
     },
 
     // 7. Agent: AI Briefing
@@ -661,7 +720,11 @@ Um CONSULTOR da Welcome Trips acabou de gravar um áudio relatando o que convers
 
 ## DADOS ATUAIS DO CARD
 Título: {{ $json.titulo }}
-Fase: {{ $json.fase }}
+Fase do Pipeline: {{ $json.fase }} (Etapa: {{ $json.stage_name }})
+Seção de dados: {{ $json.section_info.obsLabel }}
+
+⚠️ REGRA DE FASE: Este card está na fase **{{ $json.fase }}**. Salve os dados na seção correta para essa fase. Apenas os campos listados abaixo estão HABILITADOS para este estágio — NÃO extraia campos que não estão na lista.
+
 Campos já preenchidos:
 {{ JSON.stringify($json.campos_atuais, null, 2) }}
 
@@ -721,7 +784,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '7. AI Briefing',
       type: '@n8n/n8n-nodes-langchain.agent',
       typeVersion: 2.2,
-      position: [2080, 300]
+      position: [2210, 300]
     },
 
     // 7b. LLM: GPT-5.1
@@ -736,7 +799,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: 'GPT-5.1',
       type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
       typeVersion: 1.2,
-      position: [2080, 520],
+      position: [2210, 520],
       credentials: { openAiApi: OPENAI_CREDENTIAL }
     },
 
@@ -749,7 +812,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '8. Valida Output',
       type: 'n8n-nodes-base.code',
       typeVersion: 2,
-      position: [2340, 300]
+      position: [2470, 300]
     },
 
     // 9. If: Tem Atualização?
@@ -764,7 +827,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '9. Tem Atualização?',
       type: 'n8n-nodes-base.if',
       typeVersion: 1,
-      position: [2600, 300]
+      position: [2730, 300]
     },
 
     // 10. HTTP Request: Busca produto_data (true branch)
@@ -778,7 +841,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '10. Busca produto_data',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [2860, 200],
+      position: [2990, 200],
       credentials: { supabaseApi: SUPABASE_CREDENTIAL }
     },
 
@@ -791,7 +854,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '11. Merge Dados',
       type: 'n8n-nodes-base.code',
       typeVersion: 2,
-      position: [3120, 200]
+      position: [3250, 200]
     },
 
     // 12. HTTP Request: Atualiza Card (RPC)
@@ -809,7 +872,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '12. Atualiza Card',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [3380, 200],
+      position: [3510, 200],
       credentials: { supabaseApi: SUPABASE_CREDENTIAL }
     },
 
@@ -844,7 +907,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '13. Log Activity',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [3640, 200],
+      position: [3770, 200],
       credentials: { supabaseApi: SUPABASE_CREDENTIAL }
     },
 
@@ -857,7 +920,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '14. Sucesso',
       type: 'n8n-nodes-base.code',
       typeVersion: 2,
-      position: [3900, 200]
+      position: [4030, 200]
     },
 
     // 15. Code: Sem Atualização (false branch)
@@ -869,7 +932,7 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       name: '15. Sem Atualização',
       type: 'n8n-nodes-base.code',
       typeVersion: 2,
-      position: [2860, 480]
+      position: [2990, 480]
     }
   ];
 
@@ -905,6 +968,11 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
       ]]
     },
     '5. Busca Config': {
+      main: [[
+        { node: '5b. Busca Visibilidade', type: 'main', index: 0 }
+      ]]
+    },
+    '5b. Busca Visibilidade': {
       main: [[
         { node: '6. Monta Contexto', type: 'main', index: 0 }
       ]]

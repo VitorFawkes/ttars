@@ -15,8 +15,16 @@ export default function StudioLayout() {
     const { data: stages, isLoading: loadingStages } = useQuery({
         queryKey: ['pipeline-stages-layout'],
         queryFn: async () => {
-            const { data } = await supabase.from('pipeline_stages').select('*').order('ordem')
-            return data as PipelineStage[]
+            const { data } = await supabase.from('pipeline_stages').select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)').order('ordem')
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            return sorted as PipelineStage[]
         }
     })
 
@@ -41,7 +49,8 @@ export default function StudioLayout() {
         mutationFn: async (newConfig: Partial<StageFieldConfig>) => {
             const { error } = await supabase
                 .from('stage_field_config')
-                .upsert(newConfig as any, { onConflict: 'stage_id, field_key' })
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Partial config typing
+                .upsert(newConfig as Record<string, unknown>, { onConflict: 'stage_id, field_key' } as any)
             if (error) throw error
         },
         onSuccess: () => {
@@ -56,7 +65,7 @@ export default function StudioLayout() {
 
     const handleToggle = async (stageId: string, fieldKey: string, type: 'visible' | 'required' | 'header') => {
         const current = getConfig(stageId, fieldKey)
-        const updates: any = {
+        const updates: Record<string, unknown> = {
             stage_id: stageId,
             field_key: fieldKey,
             // Default values if record doesn't exist

@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { Link } from 'react-router-dom'
 import { ArrowUpDown, User as UserIcon, ExternalLink, AlertCircle, Clock, MapPin } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table'
@@ -357,13 +358,13 @@ export default function LeadsTable({
                             <TableCell>
                                 <div className="flex items-center gap-1">
                                     <LeadsRowActions lead={lead} />
-                                    <a
-                                        href={`/cards/${lead.id}`}
+                                    <Link
+                                        to={`/cards/${lead.id}`}
                                         className="text-gray-400 hover:text-primary transition-colors p-1"
                                         title="Abrir lead"
                                     >
                                         <ExternalLink className="h-4 w-4" />
-                                    </a>
+                                    </Link>
                                 </div>
                             </TableCell>
                         </TableRow>

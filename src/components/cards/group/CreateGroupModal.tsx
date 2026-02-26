@@ -55,16 +55,23 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
 
             if (!pipeline) throw new Error('Pipeline não encontrado para este produto')
 
-            // Get first stage
+            // Get first stage (sorted by phase order then stage order)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: firstStage } = await (supabase.from('pipeline_stages') as any)
-                .select('id')
+            const { data: stagesData } = await (supabase.from('pipeline_stages') as any)
+                .select('id, ordem, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('pipeline_id', pipeline.id)
-                .order('ordem')
-                .limit(1)
-                .single()
+                .eq('ativo', true)
 
-            if (!firstStage) throw new Error('Nenhuma etapa encontrada')
+            if (!stagesData || stagesData.length === 0) throw new Error('Nenhuma etapa encontrada')
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            stagesData.sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            const firstStage = stagesData[0]
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: card, error } = await (supabase.from('cards') as any)

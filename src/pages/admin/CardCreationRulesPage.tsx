@@ -26,12 +26,19 @@ export default function CardCreationRulesPage() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('id, nome, ordem, fase')
+                .select('id, nome, ordem, fase, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('ativo', true)
                 .order('ordem')
 
             if (error) throw error
-            return data as Stage[]
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            }) as Stage[]
         }
     })
 

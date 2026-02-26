@@ -161,11 +161,12 @@ export function useAllowedStages(product: string) {
                 .select(`
                     stage_id,
                     pipeline_stages!inner(
-                        id, 
-                        nome, 
-                        ordem, 
-                        fase, 
+                        id,
+                        nome,
+                        ordem,
+                        fase,
                         phase_id,
+                        pipeline_phases!pipeline_stages_phase_id_fkey(order_index),
                         pipelines!inner(produto)
                     )
                 `)
@@ -176,6 +177,7 @@ export function useAllowedStages(product: string) {
             if (error) throw error
 
             // Extract the stage data - filter out nulls and map to AllowedStage
+            // Sort by phase order_index first, then by stage ordem within phase
             const stages = (data || [])
                 .map(rule => rule.pipeline_stages)
                 .filter(stage => stage !== null)
@@ -183,9 +185,13 @@ export function useAllowedStages(product: string) {
                     id: stage!.id,
                     nome: stage!.nome,
                     ordem: stage!.ordem,
-                    fase: stage!.fase
+                    fase: stage!.fase,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
+                    _phaseOrder: (stage as any)?.pipeline_phases?.order_index ?? 999
                 }))
-                .sort((a, b) => a.ordem - b.ordem)
+                .sort((a, b) => a._phaseOrder !== b._phaseOrder ? a._phaseOrder - b._phaseOrder : a.ordem - b.ordem)
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                .map(({ _phaseOrder: _order, ...rest }) => rest)
 
             // Fallback: time sem regras configuradas → mostrar todas as etapas
             if (stages.length === 0) {

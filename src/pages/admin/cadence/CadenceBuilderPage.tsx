@@ -159,11 +159,19 @@ const CadenceBuilderPage: React.FC = () => {
     useEffect(() => {
         const fetchAuxData = async () => {
             const [stagesRes, motivosRes] = await Promise.all([
-                supabase.from('pipeline_stages').select('id, nome').order('ordem'),
+                supabase.from('pipeline_stages').select('id, nome, ordem, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)').order('ordem'),
                 supabase.from('motivos_perda').select('id, nome'),
             ]);
 
-            setStages(stagesRes.data || []);
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sortedStages = (stagesRes.data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            setStages(sortedStages);
             setMotivosPerda(motivosRes.data || []);
         };
         fetchAuxData();
@@ -175,8 +183,9 @@ const CadenceBuilderPage: React.FC = () => {
 
         const fetchTemplate = async () => {
             try {
-                const { data: templateData, error: templateError } = await (supabase
-                    .from('cadence_templates' as any) as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+                const { data: templateData, error: templateError } = await (supabase as any)
+                    .from('cadence_templates')
                     .select('*')
                     .eq('id', id)
                     .single();
@@ -194,15 +203,16 @@ const CadenceBuilderPage: React.FC = () => {
                     allowed_weekdays: templateData.allowed_weekdays || [1, 2, 3, 4, 5],
                 });
 
-                const { data: stepsData, error: stepsError } = await (supabase
-                    .from('cadence_steps' as any) as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+                const { data: stepsData, error: stepsError } = await (supabase as any)
+                    .from('cadence_steps')
                     .select('*')
                     .eq('template_id', id)
                     .order('step_order');
 
                 if (stepsError) throw stepsError;
 
-                setSteps((stepsData || []).map((s: any) => ({
+                setSteps((stepsData || []).map((s: Record<string, unknown>) => ({
                     ...s,
                     day_offset: s.day_offset ?? null,
                     requires_previous_completed: s.requires_previous_completed ?? true,
@@ -252,8 +262,9 @@ const CadenceBuilderPage: React.FC = () => {
             };
 
             if (isNew) {
-                const { data: newTemplate, error: createError } = await (supabase
-                    .from('cadence_templates' as any) as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+                const { data: newTemplate, error: createError } = await (supabase as any)
+                    .from('cadence_templates')
                     .insert(templatePayload)
                     .select()
                     .single();
@@ -261,14 +272,16 @@ const CadenceBuilderPage: React.FC = () => {
                 if (createError) throw createError;
                 templateId = newTemplate.id;
             } else {
-                const { error: updateError } = await (supabase
-                    .from('cadence_templates' as any) as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+                const { error: updateError } = await (supabase as any)
+                    .from('cadence_templates')
                     .update(templatePayload)
                     .eq('id', id);
 
                 if (updateError) throw updateError;
 
-                await (supabase.from('cadence_steps' as any) as any).delete().eq('template_id', id);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+                await (supabase as any).from('cadence_steps').delete().eq('template_id', id);
             }
 
             const stepsToInsert = steps.map((step, index) => ({
@@ -284,8 +297,9 @@ const CadenceBuilderPage: React.FC = () => {
                 next_step_key: steps[index + 1]?.step_key || null,
             }));
 
-            const { error: stepsError } = await (supabase
-                .from('cadence_steps' as any) as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cadence tables not in generated types
+            const { error: stepsError } = await (supabase as any)
+                .from('cadence_steps')
                 .insert(stepsToInsert);
 
             if (stepsError) throw stepsError;

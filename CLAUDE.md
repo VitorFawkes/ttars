@@ -67,6 +67,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | Cadência | admin/cadence/* | Motor de automação de vendas v3 |
 | Lixeira | admin/Lixeira.tsx | Itens deletados |
 | Proposta Pública | public/ProposalView.tsx | Visualização do cliente |
+| Calendário | CalendarPage.tsx | Agenda de reuniões — views dia/semana/mês com drag-and-drop |
 | Relatórios | reports/ReportsPage.tsx | Report builder + dashboards customizados (sidebar + Outlet) |
 
 ### Hooks Mais Usados (src/hooks/)
@@ -113,6 +114,11 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useFieldRegistry | 2 | Campos/dimensões/medidas filtrados por permissão, por source |
 | useSavedReports | 4+ | CRUD relatórios customizados (custom_reports) |
 | useSavedDashboards | 4+ | CRUD dashboards + widgets (custom_dashboards, dashboard_widgets) |
+| useCalendarFilters | 1 | Zustand store de filtros do calendário (datas, consultores, view mode) |
+| useCalendarMeetings | 1 | Fetch de reuniões filtradas por período e consultor via React Query |
+| useMeetingDrag | 1 | Drag-and-drop de reuniões entre horários/dias no calendário |
+| useMeetingMutation | 2 | CRUD de reuniões (criar, editar, deletar, reagendar) |
+| useTodayMeetingCount | 2 | Contagem de reuniões do dia para badge no Sidebar e Dashboard widget |
 
 ### Componentes Principais (src/components/)
 | Área | Componentes-chave |
@@ -130,6 +136,8 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | UI Base | src/components/ui/ — 29 componentes Radix UI (Button, Dialog, Select, etc.) |
 | Resiliência | NetworkStatusBanner (banner offline/online no Layout) |
 | Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/OverviewView, views/TeamView, views/FunnelView, views/SLAView, views/WhatsAppView, views/OperationsView, views/FinancialView, views/RetentionView, views/PlaceholderView |
+| Dashboard | StatsCards, FunnelChart, RecentActivity, TodayMeetingsWidget |
+| Calendário | CalendarHeader, DayView, WeekView, MonthView, MeetingPopover, MeetingDetailDrawer |
 | Relatórios | ReportsSidebar, ReportBuilder, ReportViewer, ReportsList, builder/* (SourceSelector, FieldPicker, ConfigPanel, FilterPanel, VizSelector, ReportPreview, ComparisonToggle, SaveReportDialog), renderers/* (ChartRenderer, BarChart, LineChart, AreaChart, PieChart, Table, Kpi, Funnel, Composed, DrillDownPanel), DashboardEditor, DashboardViewer, DashboardsList, dashboard/* (DashboardGrid, WidgetCard, AddWidgetDialog, DashboardFilters) |
 
 ### Tabelas do Banco (principais)
@@ -181,7 +189,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 ### Workflow n8n — Briefing IA (Áudio Consultor)
 - **Workflow ID:** `1Aes61ybHxItErg8`
 - **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/briefing-ia`
-- **18 nós** — Pipeline: Webhook → Extrai Params → Prepara Audio (base64→binary) → Whisper API (HTTP Request c/ credential OpenAI) → Extrai Transcrição → Busca Card → Busca Config → Monta Contexto → AI Briefing (GPT-5.1 Agent) → Valida Output → If Tem Atualização → Merge → Atualiza Card (RPC) → Log Activity → Sucesso/Sem Atualização
+- **19 nós** — Pipeline: Webhook → Extrai Params → Prepara Audio (base64→binary) → Whisper API (HTTP Request c/ credential OpenAI) → Extrai Transcrição → Busca Card → Busca Config → **Busca Visibilidade (stage_field_config)** → Monta Contexto (filtra campos ocultos) → AI Briefing (GPT-5.1 Agent) → Valida Output → If Tem Atualização → Merge → Atualiza Card (RPC) → Log Activity → Sucesso/Sem Atualização
 - **Reusa:** `get_ai_extraction_config()` e `update_card_from_ai_extraction()` do Atualizador Campos
 - **Frontend:** Botão "Briefing IA" em ActionButtons → BriefingIAModal → AudioRecorder (gravar/upload) → useBriefingIA hook
 - **Input:** Áudio base64 do consultor (max 10min, WebM/MP3/M4A/WAV)

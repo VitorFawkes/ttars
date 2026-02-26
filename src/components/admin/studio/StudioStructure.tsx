@@ -49,10 +49,18 @@ export default function StudioStructure() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('*')
+                .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .order('ordem')
             if (error) throw error
-            return data as PipelineStage[]
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            return sorted as PipelineStage[]
         }
     })
 
@@ -92,6 +100,7 @@ export default function StudioStructure() {
     )
 
     // Sync server data → local state
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (phasesData) setLocalPhases(phasesData)
     }, [phasesData])
@@ -99,6 +108,7 @@ export default function StudioStructure() {
     useEffect(() => {
         if (stagesData) setLocalStages(stagesData)
     }, [stagesData])
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // --- Mutations ---
     const updatePhaseMutation = useMutation({

@@ -102,13 +102,16 @@ export default function MeetingModal({ isOpen, onClose, cardId, meeting, userId 
             }
 
             const result = await response.json()
-            setAiResult(result)
+            // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
+            const camposRaw = result.campos_extraidos || result.campos_atualizados
+            const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : [])
+            setAiResult({ ...result, campos_extraidos: campos })
 
-            if (result.status === 'success') {
-                toast.success(`IA extraiu ${result.campos_extraidos?.length || 0} campos!`)
+            if (result.status === 'success' && campos.length > 0) {
+                toast.success(`IA extraiu ${campos.length} campos!`)
                 // Invalidar cache do card para mostrar dados atualizados
                 queryClient.invalidateQueries({ queryKey: ['card', cardId] })
-            } else if (result.status === 'no_update') {
+            } else if (result.status === 'no_update' || campos.length === 0) {
                 toast.info('IA não encontrou novas informações na transcrição')
             }
 

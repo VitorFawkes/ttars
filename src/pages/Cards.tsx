@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Filter, Plane } from 'lucide-react'
 import { useTripsFilters } from '../hooks/useTripsFilters'
 import TripsGrid from '../components/trips/TripsGrid'
@@ -7,6 +8,7 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 
 
 export default function Cards() {
+    const navigate = useNavigate()
     const { filters, setFilters } = useTripsFilters()
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
 
@@ -59,7 +61,7 @@ export default function Cards() {
                 <div className="flex-1 min-h-0 p-8">
                     <TripsGrid
                         onCardClick={(cardId) => {
-                            window.location.href = `/cards/${cardId}`
+                            navigate(`/cards/${cardId}`)
                         }}
                     />
                 </div>

@@ -82,9 +82,16 @@ export default function GovernanceConsole() {
         queryFn: async () => {
             const { data } = await supabase
                 .from('pipeline_stages')
-                .select('id, nome, fase, ordem, phase_id')
+                .select('id, nome, fase, ordem, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .order('ordem')
-            return data || []
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
         }
     })
 

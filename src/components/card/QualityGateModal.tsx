@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { AlertTriangle, ExternalLink, FileText, CheckCircle2, LayoutList } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2, LayoutList } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 interface QualityGateModalProps {
@@ -12,6 +12,7 @@ interface QualityGateModalProps {
     missingFields: { key: string, label: string }[]
     missingProposals?: { label: string, min_status: string }[]
     missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[]
+    missingDocuments?: { label: string, total: number, completed: number }[]
     initialData?: Record<string, unknown>  // Keep for API compatibility
 }
 
@@ -30,6 +31,7 @@ export default function QualityGateModal({
     missingFields,
     missingProposals = [],
     missingTasks = [],
+    missingDocuments = [],
 }: QualityGateModalProps) {
     const navigate = useNavigate()
 
@@ -41,6 +43,7 @@ export default function QualityGateModal({
     const hasFields = missingFields.length > 0
     const hasProposals = missingProposals.length > 0
     const hasTasks = missingTasks.length > 0
+    const hasDocuments = missingDocuments.length > 0
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -115,6 +118,27 @@ export default function QualityGateModal({
                                     >
                                         <span className="w-1.5 h-1.5 bg-purple-500 rounded-full flex-shrink-0" />
                                         {task.label} {task.task_require_completed ? '(concluída)' : '(criada)'}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* Documentos Obrigatórios */}
+                    {hasDocuments && (
+                        <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2 text-teal-700 font-medium text-sm">
+                                <FileCheck className="w-4 h-4" />
+                                Documentos Pendentes
+                            </div>
+                            <ul className="space-y-1.5">
+                                {missingDocuments.map((doc, idx) => (
+                                    <li
+                                        key={idx}
+                                        className="flex items-center gap-2 text-sm text-teal-800"
+                                    >
+                                        <span className="w-1.5 h-1.5 bg-teal-500 rounded-full flex-shrink-0" />
+                                        {doc.label} ({doc.completed}/{doc.total} recebidos)
                                     </li>
                                 ))}
                             </ul>

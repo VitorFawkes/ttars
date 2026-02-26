@@ -64,8 +64,16 @@ export default function StudioUnified() {
     const { data: stages } = useQuery({
         queryKey: ['pipeline-stages-unified'],
         queryFn: async () => {
-            const { data } = await supabase.from('pipeline_stages').select('*').order('ordem')
-            return data as PipelineStage[]
+            const { data } = await supabase.from('pipeline_stages').select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)').order('ordem')
+            // Sort by phase order_index then stage ordem
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const phaseA = a.pipeline_phases?.order_index ?? 999
+                const phaseB = b.pipeline_phases?.order_index ?? 999
+                if (phaseA !== phaseB) return phaseA - phaseB
+                return a.ordem - b.ordem
+            })
+            return sorted as PipelineStage[]
         }
     })
 

@@ -1,0 +1,228 @@
+import {
+    DollarSign, TrendingUp, Target, Briefcase,
+} from 'lucide-react'
+import {
+    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    BarChart, PieChart, Pie, Cell,
+} from 'recharts'
+import KpiCard from '../KpiCard'
+import ChartCard from '../ChartCard'
+import { useFinancialBreakdown, useTopDestinations, useRevenueByProduct } from '@/hooks/analytics/useFinancialData'
+
+const PRODUCT_COLORS: Record<string, string> = {
+    TRIPS: '#6366f1',
+    WEDDING: '#ec4899',
+    CORP: '#f97316',
+}
+
+function formatCurrency(value: number): string {
+    if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)} mi`
+    if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)} mil`
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
+}
+
+export default function FinancialView() {
+    const { data: periods, isLoading: periodsLoading } = useFinancialBreakdown()
+    const { data: destinations, isLoading: destLoading } = useTopDestinations()
+    const { data: products, isLoading: prodLoading } = useRevenueByProduct()
+
+    const allPeriods = periods || []
+    const totalReceita = allPeriods.reduce((s, p) => s + Number(p.receita_sum), 0)
+    const totalValor = allPeriods.reduce((s, p) => s + Number(p.valor_final_sum), 0)
+    const totalWon = allPeriods.reduce((s, p) => s + Number(p.count_won), 0)
+    const avgTicket = totalWon > 0 ? totalValor / totalWon : 0
+    const marginPercent = totalValor > 0 ? Math.round(totalReceita / totalValor * 100 * 10) / 10 : 0
+
+    return (
+        <div className="space-y-6">
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <KpiCard
+                    title="Receita Total"
+                    value={formatCurrency(totalValor)}
+                    icon={DollarSign}
+                    color="text-green-600"
+                    bgColor="bg-green-50"
+                    isLoading={periodsLoading}
+                />
+                <KpiCard
+                    title="Margem Bruta"
+                    value={formatCurrency(totalReceita)}
+                    subtitle={`${marginPercent}% de margem`}
+                    icon={TrendingUp}
+                    color="text-indigo-600"
+                    bgColor="bg-indigo-50"
+                    isLoading={periodsLoading}
+                />
+                <KpiCard
+                    title="Ticket Medio"
+                    value={formatCurrency(avgTicket)}
+                    icon={Target}
+                    color="text-amber-600"
+                    bgColor="bg-amber-50"
+                    isLoading={periodsLoading}
+                />
+                <KpiCard
+                    title="Viagens Vendidas"
+                    value={totalWon}
+                    icon={Briefcase}
+                    color="text-slate-700"
+                    bgColor="bg-slate-100"
+                    isLoading={periodsLoading}
+                />
+            </div>
+
+            {/* Receita vs Margem */}
+            <ChartCard
+                title="Receita vs Margem"
+                description="Evolucao mensal de faturamento e lucro"
+                isLoading={periodsLoading}
+            >
+                {allPeriods.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={320}>
+                        <ComposedChart data={allPeriods} margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis
+                                dataKey="period"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <YAxis
+                                yAxisId="left"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v: number) => formatCurrency(v)}
+                            />
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v: number) => formatCurrency(v)}
+                            />
+                            <Tooltip
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '12px' }} />
+                            <Bar yAxisId="left" dataKey="valor_final_sum" name="Receita" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={30} fillOpacity={0.8} />
+                            <Line yAxisId="right" type="monotone" dataKey="receita_sum" name="Margem" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4, fill: '#22c55e' }} />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="h-[320px] flex items-center justify-center text-sm text-slate-400">
+                        Nenhum dado financeiro no periodo
+                    </div>
+                )}
+            </ChartCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Top Destinos */}
+                <ChartCard
+                    title="Top Destinos por Receita"
+                    description="Onde a Welcome ganha mais?"
+                    isLoading={destLoading}
+                >
+                    {(destinations || []).length > 0 ? (
+                        <ResponsiveContainer width="100%" height={Math.max(250, (destinations || []).length * 30 + 40)}>
+                            <BarChart
+                                data={destinations}
+                                layout="vertical"
+                                margin={{ left: 10, right: 50 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v)} />
+                                <YAxis
+                                    dataKey="destino"
+                                    type="category"
+                                    width={130}
+                                    tick={{ fontSize: 11, fill: '#334155' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                    formatter={(value: number) => [formatCurrency(value), 'Receita']}
+                                />
+                                <Bar dataKey="receita_total" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={18} name="Receita" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
+                            Nenhum destino com receita
+                        </div>
+                    )}
+                </ChartCard>
+
+                {/* Receita por Produto */}
+                <ChartCard
+                    title="Receita por Produto"
+                    description="TRIPS vs WEDDING vs CORP"
+                    isLoading={prodLoading}
+                >
+                    {(products || []).length > 0 ? (
+                        <div className="flex items-center gap-6">
+                            <ResponsiveContainer width="60%" height={250}>
+                                <PieChart>
+                                    <Pie
+                                        data={(products || []).map(p => ({ ...p }))}
+                                        dataKey="receita_total"
+                                        nameKey="produto"
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={90}
+                                        innerRadius={50}
+                                        strokeWidth={2}
+                                        stroke="#fff"
+                                    >
+                                        {(products || []).map((p) => (
+                                            <Cell key={p.produto} fill={PRODUCT_COLORS[p.produto] || '#94a3b8'} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                        formatter={(value: number) => [formatCurrency(value), 'Receita']}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="flex-1 space-y-3">
+                                {(products || []).map((p) => (
+                                    <div key={p.produto} className="flex items-center gap-3">
+                                        <div
+                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: PRODUCT_COLORS[p.produto] || '#94a3b8' }}
+                                        />
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-medium text-slate-800">{p.produto}</p>
+                                            <p className="text-xs text-slate-400">{p.count_won} vendas — {formatCurrency(p.receita_total)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
+                            Nenhum dado de produto
+                        </div>
+                    )}
+                </ChartCard>
+            </div>
+
+            {/* CAC Placeholder */}
+            <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
+                        <Target size={20} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-slate-800">LTV / CAC</p>
+                        <p className="text-xs text-slate-400">Custo de aquisicao por canal em desenvolvimento. LTV disponivel via contact_stats.total_spend.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
