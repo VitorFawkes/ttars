@@ -50,4 +50,24 @@ if [ -n "$NEW_FILES" ]; then
   fi
 fi
 
+# ── Migration guard: bloqueia se .sql novo/modificado sem marker ──
+SQL_NEW=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$')
+SQL_MOD=$(git diff --name-only 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$')
+ALL_SQL=$(printf "%s\n%s" "$SQL_NEW" "$SQL_MOD" | sort -u | grep -v '^$')
+
+if [ -n "$ALL_SQL" ]; then
+  MARKER="$CWD/.claude/.migration_applied"
+  if [ ! -f "$MARKER" ] || [ "$(find "$MARKER" -mmin +30 2>/dev/null)" ]; then
+    echo "" >&2
+    echo "BLOQUEADO: Migrations SQL detectadas mas não verificadas:" >&2
+    echo "$ALL_SQL" | sed 's/^/  /' >&2
+    echo "" >&2
+    echo "Aplique cada migration ao banco remoto e depois rode:" >&2
+    echo "  touch .claude/.migration_applied" >&2
+    echo "" >&2
+    echo "Veja CLAUDE.md seção 'Protocolo de Migrations' para o workflow completo." >&2
+    exit 2
+  fi
+fi
+
 exit 0
