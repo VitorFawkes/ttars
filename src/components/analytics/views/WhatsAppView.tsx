@@ -2,7 +2,7 @@ import {
     MessageCircle, Clock, AlertTriangle, Send,
 } from 'lucide-react'
 import {
-    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
@@ -62,7 +62,7 @@ export default function WhatsAppView() {
                     isLoading={isLoading}
                 />
                 <KpiCard
-                    title="Tempo Medio Resp."
+                    title="Tempo Médio Resp."
                     value={responseTime ? `${responseTime.avg_response_minutes} min` : '—'}
                     subtitle={responseTime ? `Mediana: ${responseTime.median_response_minutes} min` : undefined}
                     icon={Clock}
@@ -84,7 +84,7 @@ export default function WhatsAppView() {
             {/* Volume de Mensagens */}
             <ChartCard
                 title="Volume de Mensagens"
-                description="Tendencia de comunicacao por dia"
+                description="Tendência de comunicação por dia"
                 isLoading={isLoading}
             >
                 {daily.length > 0 ? (
@@ -107,7 +107,7 @@ export default function WhatsAppView() {
                     </ResponsiveContainer>
                 ) : (
                     <div className="h-[300px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de mensagens no periodo
+                        Nenhum dado de mensagens no período
                     </div>
                 )}
             </ChartCard>
@@ -116,7 +116,7 @@ export default function WhatsAppView() {
                 {/* Aging de Conversas */}
                 <ChartCard
                     title="Aging de Conversas Sem Resposta"
-                    description="Distribuicao do tempo de espera"
+                    description="Distribuição do tempo de espera"
                     isLoading={isLoading}
                 >
                     {agingData.length > 0 ? (
@@ -128,7 +128,7 @@ export default function WhatsAppView() {
                                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                 <Bar dataKey="value" name="Conversas" radius={[4, 4, 0, 0]} barSize={40}>
                                     {agingData.map((entry, i) => (
-                                        <rect key={i} fill={entry.fill} />
+                                        <Cell key={i} fill={entry.fill} />
                                     ))}
                                 </Bar>
                             </BarChart>
@@ -142,8 +142,8 @@ export default function WhatsAppView() {
 
                 {/* Tempo Medio por Pessoa */}
                 <ChartCard
-                    title="Tempo Medio de Resposta por Pessoa"
-                    description="Quem responde mais rapido?"
+                    title="Tempo Médio de Resposta por Pessoa"
+                    description="Quem responde mais rápido?"
                     isLoading={isLoading}
                 >
                     {perUser.length > 0 ? (
@@ -165,7 +165,7 @@ export default function WhatsAppView() {
                                 />
                                 <Tooltip
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                                    formatter={(value: number) => [`${value} min`, 'Tempo medio']}
+                                    formatter={(value: number) => [`${value} min`, 'Tempo médio']}
                                 />
                                 <Bar dataKey="avg_minutes" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={18} name="Tempo (min)" />
                             </BarChart>

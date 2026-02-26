@@ -9,6 +9,7 @@ import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { cn } from '@/lib/utils'
 
 const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#0ea5e9']
 
@@ -22,7 +23,7 @@ function TimeTooltip({ active, payload, label }: any) {
         <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
             <p className="font-medium text-slate-900 mb-1.5">{label}</p>
             <div className="space-y-1">
-                <p className="text-indigo-600">Media: <span className="font-semibold">{row.avg_days_in_stage}d</span></p>
+                <p className="text-indigo-600">Média: <span className="font-semibold">{row.avg_days_in_stage}d</span></p>
                 <p className="text-violet-500">p75: <span className="font-semibold">{row.p75_days_in_stage}d</span></p>
                 {slaDay != null && slaDay > 0 && (
                     <p className={row.p75_days_in_stage > slaDay ? 'text-rose-600 font-semibold' : 'text-slate-400'}>
@@ -40,7 +41,7 @@ export default function FunnelView() {
     const { data: lossData, isLoading: lossLoading } = useLossReasons()
     const { data: pipelineStages } = usePipelineStages()
 
-    const stages = funnelData || []
+    const stages = useMemo(() => funnelData || [], [funnelData])
     const totalLeads = stages.length > 0 ? stages[0].current_count : 0
     const lastStage = stages.length > 0 ? stages[stages.length - 1] : null
     const overallConversion = totalLeads > 0 && lastStage
@@ -94,7 +95,7 @@ export default function FunnelView() {
                     isLoading={funnelLoading}
                 />
                 <KpiCard
-                    title="Conversao E2E"
+                    title="Conversão E2E"
                     value={`${overallConversion}%`}
                     icon={GitBranch}
                     color="text-indigo-600"
@@ -122,7 +123,7 @@ export default function FunnelView() {
             {/* Full Funnel Chart (horizontal bars) */}
             <ChartCard
                 title="Funil Completo"
-                description="Distribuicao atual de cards por etapa"
+                description="Distribuição atual de cards por etapa"
                 isLoading={funnelLoading}
             >
                 {stages.length > 0 ? (
@@ -164,23 +165,37 @@ export default function FunnelView() {
             {/* Conversion Rates */}
             {conversionRates.length > 1 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {conversionRates.slice(1).map((stage, i) => (
-                        <div key={stage.stage_id} className="bg-white border border-slate-200 shadow-sm rounded-xl p-4 text-center">
-                            <p className="text-xs text-slate-400 truncate mb-1">
-                                {conversionRates[i].stage_nome}
-                            </p>
-                            <p className="text-xs text-slate-400 mb-2">↓</p>
-                            <p className="text-xl font-bold text-slate-900">{stage.conversion_from_prev}%</p>
-                            <p className="text-xs text-slate-400 truncate mt-1">{stage.stage_nome}</p>
-                        </div>
-                    ))}
+                    {conversionRates.slice(1).map((stage, i) => {
+                        const rate = stage.conversion_from_prev
+                        const prevCount = conversionRates[i].current_count
+                        const drop = prevCount - stage.current_count
+                        const rateColor = rate >= 70 ? 'text-green-600' : rate >= 40 ? 'text-amber-600' : 'text-rose-600'
+                        const bgAccent = rate >= 70 ? 'border-green-200' : rate >= 40 ? 'border-amber-200' : 'border-rose-200'
+
+                        return (
+                            <div key={stage.stage_id} className={cn('bg-white border shadow-sm rounded-xl p-4 text-center', bgAccent)}>
+                                <p className="text-xs text-slate-500 truncate mb-1 font-medium">
+                                    {conversionRates[i].stage_nome}
+                                </p>
+                                <div className="flex items-center justify-center gap-1 mb-1">
+                                    <span className="text-slate-300 text-sm">↓</span>
+                                    {drop > 0 && (
+                                        <span className="text-[10px] text-rose-400">-{drop}</span>
+                                    )}
+                                </div>
+                                <p className={cn('text-2xl font-bold', rateColor)}>{rate}%</p>
+                                <p className="text-xs text-slate-500 truncate mt-1 font-medium">{stage.stage_nome}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{stage.current_count} cards</p>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
 
             {/* Time per Stage — avg + p75 */}
             <ChartCard
                 title="Velocidade por Etapa (dias)"
-                description="Media e percentil 75 — etapas vermelhas excedem SLA"
+                description="Média e percentil 75 — etapas vermelhas excedem SLA"
                 isLoading={funnelLoading}
             >
                 {timeData.length > 0 ? (
@@ -201,7 +216,7 @@ export default function FunnelView() {
                                 tickLine={false}
                             />
                             <Tooltip content={<TimeTooltip />} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
-                            <Bar dataKey="avg_days_in_stage" name="Media" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={14} />
+                            <Bar dataKey="avg_days_in_stage" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={14} />
                             <Bar dataKey="p75_days_in_stage" name="p75" barSize={14} radius={[0, 4, 4, 0]}>
                                 <LabelList
                                     dataKey="p75_days_in_stage"
@@ -229,7 +244,7 @@ export default function FunnelView() {
                 {timeData.some(s => s.is_bottleneck) && (
                     <div className="flex items-center gap-4 mt-3 px-2 text-xs text-slate-500">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded-sm bg-[#6366f1]" /> Media
+                            <span className="w-3 h-3 rounded-sm bg-[#6366f1]" /> Média
                         </span>
                         <span className="flex items-center gap-1.5">
                             <span className="w-3 h-3 rounded-sm bg-[#c4b5fd]" /> p75
@@ -276,7 +291,7 @@ export default function FunnelView() {
                     </ResponsiveContainer>
                 ) : (
                     <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum card perdido no periodo
+                        Nenhum card perdido no período
                     </div>
                 )}
             </ChartCard>

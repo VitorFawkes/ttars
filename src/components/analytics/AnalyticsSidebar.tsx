@@ -12,14 +12,14 @@ import {
 import { cn } from '@/lib/utils'
 
 const navItems = [
-    { to: '/analytics/overview', icon: LayoutDashboard, label: 'Visao Geral' },
+    { to: '/analytics/overview', icon: LayoutDashboard, label: 'Visão Geral' },
     { to: '/analytics/team', icon: Users, label: 'Equipe' },
     { to: '/analytics/funnel', icon: GitBranch, label: 'Funil End-to-End' },
     { to: '/analytics/sla', icon: Timer, label: 'Velocidade & SLA' },
     { to: '/analytics/whatsapp', icon: MessageCircle, label: 'Conversas' },
-    { to: '/analytics/operations', icon: ShieldCheck, label: 'Operacao & Qualidade' },
+    { to: '/analytics/operations', icon: ShieldCheck, label: 'Operação & Qualidade' },
     { to: '/analytics/financial', icon: DollarSign, label: 'Financeiro' },
-    { to: '/analytics/retention', icon: Repeat, label: 'Recorrencia' },
+    { to: '/analytics/retention', icon: Repeat, label: 'Recorrência' },
 ]
 
 export default function AnalyticsSidebar() {

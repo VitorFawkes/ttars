@@ -36,7 +36,7 @@ export default function OperationsView() {
                     isLoading={isLoading}
                 />
                 <KpiCard
-                    title="Mudancas / Viagem"
+                    title="Mudanças / Viagem"
                     value={subStats?.changes_per_trip ?? 0}
                     subtitle={subStats ? `${subStats.total_sub_cards} total` : undefined}
                     icon={GitPullRequest}
@@ -45,7 +45,7 @@ export default function OperationsView() {
                     isLoading={isLoading}
                 />
                 <KpiCard
-                    title="Viagens com Mudanca"
+                    title="Viagens com Mudança"
                     value={subStats?.cards_with_changes ?? 0}
                     icon={ShieldCheck}
                     color="text-indigo-600"
@@ -69,16 +69,16 @@ export default function OperationsView() {
                         <ShieldCheck size={20} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-800">NPS / Satisfacao do Cliente</p>
-                        <p className="text-xs text-slate-400">Sistema de feedback em desenvolvimento. Dados estarao disponiveis apos implementacao.</p>
+                        <p className="text-sm font-medium text-slate-800">NPS / Satisfação do Cliente</p>
+                        <p className="text-xs text-slate-400">Sistema de feedback em desenvolvimento. Dados estarão disponíveis após implementação.</p>
                     </div>
                 </div>
             </div>
 
             {/* Timeline de Sub-cards */}
             <ChartCard
-                title="Solicitacoes de Mudanca"
-                description="Tendencia semanal de sub-cards criados"
+                title="Solicitações de Mudança"
+                description="Tendência semanal de sub-cards criados"
                 isLoading={isLoading}
             >
                 {timeline.length > 0 ? (
@@ -94,12 +94,12 @@ export default function OperationsView() {
                             />
                             <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            <Line type="monotone" dataKey="count" name="Mudancas" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} />
+                            <Line type="monotone" dataKey="count" name="Mudanças" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} />
                         </LineChart>
                     </ResponsiveContainer>
                 ) : (
                     <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de mudancas
+                        Nenhum dado de mudanças
                     </div>
                 )}
             </ChartCard>
@@ -108,7 +108,7 @@ export default function OperationsView() {
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100">
                     <h3 className="text-sm font-semibold text-slate-800">Qualidade por Planner</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Taxa de mudancas por Planner que montou a viagem</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Taxa de mudanças por Planner que montou a viagem</p>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -116,7 +116,7 @@ export default function OperationsView() {
                             <tr className="border-b border-slate-100 bg-slate-50/50">
                                 <th className="text-left px-6 py-3 font-medium text-slate-500">Planner</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Viagens</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Mudancas</th>
+                                <th className="text-right px-4 py-3 font-medium text-slate-500">Mudanças</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Mud./Viagem</th>
                                 <th className="text-right px-6 py-3 font-medium text-slate-500">Receita</th>
                             </tr>
@@ -133,7 +133,7 @@ export default function OperationsView() {
                             ) : planners.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                                        Nenhum planner com viagens no periodo
+                                        Nenhum planner com viagens no período
                                     </td>
                                 </tr>
                             ) : (
@@ -163,7 +163,7 @@ export default function OperationsView() {
             {/* Workload Chart */}
             <ChartCard
                 title="Viagens por Planner"
-                description="Distribuicao de viagens realizadas"
+                description="Distribuição de viagens realizadas"
                 isLoading={isLoading}
             >
                 {planners.length > 0 ? (
@@ -178,7 +178,7 @@ export default function OperationsView() {
                             <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: '#334155' }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                             <Bar dataKey="viagens" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Viagens" />
-                            <Bar dataKey="mudancas" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Mudancas" />
+                            <Bar dataKey="mudancas" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Mudanças" />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (

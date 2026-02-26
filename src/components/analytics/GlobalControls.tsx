@@ -16,18 +16,18 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const presets: { value: DatePreset; label: string }[] = [
-    { value: 'this_month', label: 'Este Mes' },
-    { value: 'last_month', label: 'Mes Passado' },
-    { value: 'last_3_months', label: 'Ultimos 3M' },
-    { value: 'last_6_months', label: 'Ultimos 6M' },
+    { value: 'this_month', label: 'Este Mês' },
+    { value: 'last_month', label: 'Mês Passado' },
+    { value: 'last_3_months', label: 'Últimos 3M' },
+    { value: 'last_6_months', label: 'Últimos 6M' },
     { value: 'this_year', label: 'Este Ano' },
-    { value: 'all_time', label: 'Todo Periodo' },
+    { value: 'all_time', label: 'Todo Período' },
 ]
 
 const granularities: { value: Granularity; label: string }[] = [
     { value: 'day', label: 'Dia' },
     { value: 'week', label: 'Semana' },
-    { value: 'month', label: 'Mes' },
+    { value: 'month', label: 'Mês' },
 ]
 
 const products = [
@@ -98,7 +98,7 @@ export default function GlobalControls() {
     const triggerLabel = useMemo(() => {
         switch (mode) {
             case 'entries': return 'Entradas por Etapa'
-            case 'cohort': return 'Coorte: Criacao'
+            case 'cohort': return 'Coorte: Criação'
             case 'stage_entry':
                 if (stageId && stages) {
                     const stage = stages.find(s => s.id === stageId)
@@ -166,7 +166,7 @@ export default function GlobalControls() {
                             className="flex items-center gap-2 text-xs"
                         >
                             <Check className={cn('w-3.5 h-3.5', isSelected('cohort') ? 'opacity-100' : 'opacity-0')} />
-                            Criacao do Lead
+                            Criação do Lead
                         </DropdownMenuItem>
 
                         {stagesByPhase.map((group) => (

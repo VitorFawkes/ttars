@@ -2,6 +2,9 @@ import { useMemo } from 'react'
 import {
     Repeat, Users, TrendingDown, Heart, Info,
 } from 'lucide-react'
+import {
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useRetentionCohort, useRetentionKpis } from '@/hooks/analytics/useRetentionData'
@@ -39,6 +42,25 @@ export default function RetentionView() {
         return { months, maxOffset, matrix }
     }, [cohortRows])
 
+    // Derive repurchase evolution by cohort month (M1 retention trend)
+    const repurchaseEvolution = useMemo(() => {
+        if (!cohortMatrix.months.length) return []
+        return cohortMatrix.months.map(month => {
+            const row = cohortMatrix.matrix.get(month)!
+            // Aggregate: any repurchase in any offset
+            let anyRetained = 0
+            let total = 0
+            const firstEntry = row.values().next().value
+            total = firstEntry?.total ?? 0
+            // Use max retained across offsets as "anyone who repurchased"
+            for (const cell of row.values()) {
+                if (cell.retained > anyRetained) anyRetained = cell.retained
+            }
+            const rate = total > 0 ? Math.round(anyRetained / total * 100 * 10) / 10 : 0
+            return { month, rate, retained: anyRetained, total }
+        })
+    }, [cohortMatrix])
+
     function getRateColor(rate: number): string {
         if (rate >= 20) return 'bg-green-500 text-white'
         if (rate >= 10) return 'bg-green-300 text-green-900'
@@ -54,7 +76,7 @@ export default function RetentionView() {
                 <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                     <Info className="w-4 h-4 text-slate-400 shrink-0" />
                     <p className="text-xs text-slate-500">
-                        O modo de analise selecionado nao afeta esta vista. Recorrencia e baseada na primeira compra do contato.
+                        O modo de análise selecionado não afeta esta vista. Recorrência é baseada na primeira compra do contato.
                     </p>
                 </div>
             )}
@@ -72,14 +94,14 @@ export default function RetentionView() {
                 <KpiCard
                     title="Churn Estimado"
                     value={kpis ? `${kpis.churn_rate}%` : '—'}
-                    subtitle="Sem compra ha +18 meses"
+                    subtitle="Sem compra há +18 meses"
                     icon={TrendingDown}
                     color="text-rose-600"
                     bgColor="bg-rose-50"
                     isLoading={isLoading}
                 />
                 <KpiCard
-                    title="Clientes Fieis"
+                    title="Clientes Fiéis"
                     value={kpis?.repeat_buyers ?? 0}
                     subtitle="2+ viagens"
                     icon={Heart}
@@ -100,14 +122,60 @@ export default function RetentionView() {
             {/* Nota sobre dados */}
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                 <p className="text-xs text-amber-700">
-                    <strong>Nota:</strong> Qualidade dos dados de recorrencia depende dos campos <code className="bg-amber-100 px-1 rounded">primeira_venda_data</code> e <code className="bg-amber-100 px-1 rounded">ultima_venda_data</code> estarem populados nos contatos. Dados parciais mostrarao metricas parciais.
+                    <strong>Nota:</strong> Qualidade dos dados de recorrência depende dos campos <code className="bg-amber-100 px-1 rounded">primeira_venda_data</code> e <code className="bg-amber-100 px-1 rounded">ultima_venda_data</code> estarem populados nos contatos. Dados parciais mostrarão métricas parciais.
                 </p>
             </div>
 
+            {/* Repurchase Evolution Chart */}
+            <ChartCard
+                title="Evolução da Taxa de Recompra"
+                description="% de recompra por cohort — tendência ao longo do tempo"
+                isLoading={isLoading}
+            >
+                {repurchaseEvolution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                        <AreaChart data={repurchaseEvolution} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis
+                                dataKey="month"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v: string) => v.slice(5)}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v: number) => `${v}%`}
+                            />
+                            <Tooltip
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                formatter={(value: number) => [`${value}%`, 'Taxa de Recompra']}
+                                labelFormatter={(label: string) => `Cohort: ${label}`}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="rate"
+                                stroke="#22c55e"
+                                fill="#22c55e"
+                                fillOpacity={0.15}
+                                strokeWidth={2}
+                                dot={{ r: 3, fill: '#22c55e' }}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
+                        Nenhum dado de evolução de recompra
+                    </div>
+                )}
+            </ChartCard>
+
             {/* Cohort Table */}
             <ChartCard
-                title="Analise de Cohort"
-                description="Mes de primeira compra × meses depois — % que comprou de novo"
+                title="Análise de Cohort"
+                description="Mês de primeira compra × meses depois — % que comprou de novo"
                 isLoading={isLoading}
             >
                 {cohortMatrix.months.length > 0 ? (
@@ -161,7 +229,7 @@ export default function RetentionView() {
                     </div>
                 ) : (
                     <div className="h-[300px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de cohort disponivel
+                        Nenhum dado de cohort disponível
                     </div>
                 )}
             </ChartCard>
@@ -177,14 +245,14 @@ export default function RetentionView() {
                     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
                         <p className="text-3xl font-bold text-rose-600">{kpis.churned}</p>
                         <p className="text-sm text-slate-500 mt-1">Possivelmente churned</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Sem compra ha +18 meses</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sem compra há +18 meses</p>
                     </div>
                     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
                         <p className="text-3xl font-bold text-indigo-600">
                             {kpis.total_with_purchase - kpis.repeat_buyers - kpis.churned}
                         </p>
                         <p className="text-sm text-slate-500 mt-1">Potencial Recompra</p>
-                        <p className="text-xs text-slate-400 mt-0.5">1 compra, ainda no janela</p>
+                        <p className="text-xs text-slate-400 mt-0.5">1 compra, ainda na janela</p>
                     </div>
                 </div>
             )}

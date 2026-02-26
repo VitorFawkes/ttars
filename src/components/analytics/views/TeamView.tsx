@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 const TABS = [
     { key: 'SDR', label: 'SDR' },
     { key: 'Vendas', label: 'Planner' },
-    { key: 'Pos-Venda', label: 'Pos-Venda' },
+    { key: 'Pos-Venda', label: 'Pós-Venda' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -80,7 +80,7 @@ export default function TeamView() {
                     isLoading={isLoading}
                 />
                 <KpiCard
-                    title="Conversao %"
+                    title="Conversão %"
                     value={`${avgConversion}%`}
                     icon={TrendingUp}
                     color="text-emerald-600"
@@ -117,9 +117,9 @@ export default function TeamView() {
                                 <th className="text-left px-6 py-3 font-medium text-slate-500">Consultor</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Cards</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Ganhos</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Conversao</th>
+                                <th className="text-right px-4 py-3 font-medium text-slate-500">Conversão</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Receita</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Ticket Medio</th>
+                                <th className="text-right px-4 py-3 font-medium text-slate-500">Ticket Médio</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Ciclo (dias)</th>
                                 <th className="text-right px-6 py-3 font-medium text-slate-500">Ativos</th>
                             </tr>
@@ -136,7 +136,7 @@ export default function TeamView() {
                             ) : members.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
-                                        Nenhum consultor com cards neste periodo
+                                        Nenhum consultor com cards neste período
                                     </td>
                                 </tr>
                             ) : (

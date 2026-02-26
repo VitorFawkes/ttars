@@ -55,7 +55,7 @@ export default function FinancialView() {
                     isLoading={periodsLoading}
                 />
                 <KpiCard
-                    title="Ticket Medio"
+                    title="Ticket Médio"
                     value={formatCurrency(avgTicket)}
                     icon={Target}
                     color="text-amber-600"
@@ -75,7 +75,7 @@ export default function FinancialView() {
             {/* Receita vs Margem */}
             <ChartCard
                 title="Receita vs Margem"
-                description="Evolucao mensal de faturamento e lucro"
+                description="Evolução mensal de faturamento e lucro"
                 isLoading={periodsLoading}
             >
                 {allPeriods.length > 0 ? (
@@ -114,7 +114,7 @@ export default function FinancialView() {
                     </ResponsiveContainer>
                 ) : (
                     <div className="h-[320px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado financeiro no periodo
+                        Nenhum dado financeiro no período
                     </div>
                 )}
             </ChartCard>
@@ -219,7 +219,7 @@ export default function FinancialView() {
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-800">LTV / CAC</p>
-                        <p className="text-xs text-slate-400">Custo de aquisicao por canal em desenvolvimento. LTV disponivel via contact_stats.total_spend.</p>
+                        <p className="text-xs text-slate-400">Custo de aquisição por canal em desenvolvimento. LTV disponível via contact_stats.total_spend.</p>
                     </div>
                 </div>
             </div>

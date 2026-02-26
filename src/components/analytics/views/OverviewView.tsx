@@ -5,7 +5,6 @@ import {
     CheckCircle,
     Plane,
     DollarSign,
-    Clock,
     TrendingUp,
     FileText,
     Wallet,
@@ -13,7 +12,7 @@ import {
 } from 'lucide-react'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line, Cell, ComposedChart, Legend, LabelList,
+    Line, Cell, ComposedChart, Legend, LabelList,
 } from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
@@ -149,11 +148,11 @@ export default function OverviewView() {
                     isLoading={kpisLoading}
                 />
                 <KpiCard
-                    title="Tempo Medio (Lead -> Ganho)"
-                    value={`${k.ciclo_medio_dias} dias`}
-                    icon={Clock}
-                    color="text-amber-600"
-                    bgColor="bg-amber-50"
+                    title="Conversão (Venda)"
+                    value={`${k.conversao_venda_rate}%`}
+                    icon={TrendingUp}
+                    color="text-cyan-600"
+                    bgColor="bg-cyan-50"
                     isLoading={kpisLoading}
                 />
                 <KpiCard
@@ -181,7 +180,7 @@ export default function OverviewView() {
                     isLoading={kpisLoading}
                 />
                 <KpiCard
-                    title="Ticket Medio"
+                    title="Ticket Médio"
                     value={formatCurrency(k.ticket_medio)}
                     icon={BarChart3}
                     color="text-orange-600"
@@ -192,7 +191,7 @@ export default function OverviewView() {
 
             {/* Funil de Vendas por Responsavel (Kanban Operacional) — Stacked */}
             <ChartCard
-                title="Funil de Vendas por Responsavel (Kanban Operacional)"
+                title="Funil de Vendas por Responsável (Kanban Operacional)"
                 isLoading={funnelByOwnerLoading}
                 colSpan={2}
                 actions={
@@ -295,31 +294,40 @@ export default function OverviewView() {
                     </div>
                 ) : (
                     <div className="h-[450px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de funil no periodo selecionado
+                        Nenhum dado de funil no período selecionado
                     </div>
                 )}
             </ChartCard>
 
             {/* Charts Row 2: Revenue Evolution */}
             <ChartCard
-                title="Evolucao da Receita"
-                description="Receita e margem por periodo"
+                title="Evolução da Receita"
+                description="Receita e margem por período"
                 isLoading={revenueLoading}
             >
                 {(revenueData && revenueData.length > 0) ? (
-                    <ResponsiveContainer width="100%" height={280}>
-                        <LineChart
+                    <ResponsiveContainer width="100%" height={300}>
+                        <ComposedChart
                             data={revenueData}
-                            margin={{ left: 10, right: 10, top: 10, bottom: 5 }}
+                            margin={{ left: 10, right: 20, top: 10, bottom: 5 }}
                         >
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                             <XAxis
                                 dataKey="period"
                                 tick={{ fontSize: 11, fill: '#64748b' }}
-                                axisLine={{ stroke: '#e2e8f0' }}
+                                axisLine={false}
                                 tickLine={false}
                             />
                             <YAxis
+                                yAxisId="left"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v) => formatCurrency(v)}
+                            />
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
                                 tick={{ fontSize: 11, fill: '#64748b' }}
                                 axisLine={false}
                                 tickLine={false}
@@ -334,38 +342,41 @@ export default function OverviewView() {
                                 }}
                                 formatter={(value: number, name: string) => [
                                     formatCurrencyFull(value),
-                                    name === 'total_valor' ? 'Receita' : 'Margem'
+                                    name
                                 ]}
                             />
-                            <Line
-                                type="monotone"
+                            <Legend wrapperStyle={{ fontSize: '12px' }} />
+                            <Bar
+                                yAxisId="left"
                                 dataKey="total_valor"
-                                stroke="#6366f1"
-                                strokeWidth={2}
-                                dot={{ r: 4, fill: '#6366f1' }}
-                                name="total_valor"
+                                name="Faturamento"
+                                fill="#6366f1"
+                                radius={[4, 4, 0, 0]}
+                                barSize={30}
+                                fillOpacity={0.8}
                             />
                             <Line
+                                yAxisId="right"
                                 type="monotone"
                                 dataKey="total_receita"
-                                stroke="#10b981"
-                                strokeWidth={2}
-                                dot={{ r: 4, fill: '#10b981' }}
-                                name="total_receita"
+                                name="Margem"
+                                stroke="#22c55e"
+                                strokeWidth={2.5}
+                                dot={{ r: 4, fill: '#22c55e' }}
                             />
-                        </LineChart>
+                        </ComposedChart>
                     </ResponsiveContainer>
                 ) : (
                     <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de receita no periodo selecionado
+                        Nenhum dado de receita no período selecionado
                     </div>
                 )}
             </ChartCard>
 
             {/* Distribuicao no Funil */}
             <ChartCard
-                title="Distribuicao no Funil"
-                description="Cards ativos por macro-fase no periodo selecionado"
+                title="Distribuição no Funil"
+                description="Cards ativos por macro-fase no período selecionado"
                 isLoading={funnelLoading}
             >
                 <MacroFunnelSnapshot data={funnelData || []} />
@@ -379,7 +390,7 @@ function MacroFunnelSnapshot({ data }: { data: { stage_nome: string; fase: strin
     const macroMap: Record<string, { label: string; color: string; count: number }> = {
         'SDR': { label: 'Entrada (SDR)', color: '#3b82f6', count: 0 },
         'Vendas': { label: 'Vendas (Planner)', color: '#8b5cf6', count: 0 },
-        'Pos-Venda': { label: 'Pos-Venda', color: '#10b981', count: 0 },
+        'Pos-Venda': { label: 'Pós-Venda', color: '#10b981', count: 0 },
     }
 
     for (const stage of data) {

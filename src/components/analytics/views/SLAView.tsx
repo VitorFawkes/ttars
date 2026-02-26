@@ -2,7 +2,7 @@ import {
     Timer, CheckCircle, AlertTriangle,
 } from 'lucide-react'
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
@@ -50,7 +50,7 @@ export default function SLAView() {
                     isLoading={summaryLoading}
                 />
                 <KpiCard
-                    title="Cards em Violacao"
+                    title="Cards em Violação"
                     value={totalViolating}
                     icon={AlertTriangle}
                     color="text-rose-600"
@@ -71,7 +71,7 @@ export default function SLAView() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <AgingCard
                     title="Parados no SDR (>2 dias)"
-                    subtitle="Leads sem qualificacao"
+                    subtitle="Leads sem qualificação"
                     count={agingBuckets.sdr}
                     severity="high"
                     isLoading={violationsLoading}
@@ -94,43 +94,69 @@ export default function SLAView() {
 
             {/* Compliance by Stage Chart */}
             <ChartCard
-                title="Tempo Medio vs SLA por Etapa"
-                description="Horas medias na etapa comparadas ao SLA configurado"
+                title="Tempo Médio vs SLA por Etapa"
+                description="Horas médias na etapa comparadas ao SLA configurado"
                 isLoading={summaryLoading}
             >
                 {stagesWithSLA.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(250, stagesWithSLA.length * 40 + 40)}>
-                        <BarChart
-                            data={stagesWithSLA.map(s => ({
-                                name: s.stage_nome,
-                                horas: Math.round(s.avg_hours_in_stage),
-                                sla: s.sla_hours,
-                                compliance: s.compliance_rate,
-                            }))}
-                            layout="vertical"
-                            margin={{ left: 10, right: 40 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} label={{ value: 'Horas', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#94a3b8' }} />
-                            <YAxis
-                                dataKey="name"
-                                type="category"
-                                width={160}
-                                tick={{ fontSize: 11, fill: '#334155' }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <Tooltip
-                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                                formatter={(value: number, name: string) => [
-                                    `${value}h`,
-                                    name === 'horas' ? 'Tempo medio' : 'SLA'
-                                ]}
-                            />
-                            <Bar dataKey="horas" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16} name="horas" />
-                            <ReferenceLine x={0} stroke="#e2e8f0" />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <>
+                        <ResponsiveContainer width="100%" height={Math.max(280, stagesWithSLA.length * 50 + 60)}>
+                            <BarChart
+                                data={stagesWithSLA.map(s => ({
+                                    name: s.stage_nome,
+                                    horas: Math.round(s.avg_hours_in_stage),
+                                    sla: s.sla_hours,
+                                    compliance: s.compliance_rate,
+                                    excede: Math.round(s.avg_hours_in_stage) > s.sla_hours,
+                                }))}
+                                layout="vertical"
+                                margin={{ left: 10, right: 50 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} label={{ value: 'Horas', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#94a3b8' }} />
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    width={160}
+                                    tick={{ fontSize: 11, fill: '#334155' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    formatter={(value: number, name: string, entry: any) => {
+                                        if (name === 'Tempo médio') {
+                                            const c = entry?.payload?.compliance
+                                            return [`${value}h (${c ?? 0}% dentro)`, name]
+                                        }
+                                        return [`${value}h`, name]
+                                    }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                                <Bar dataKey="horas" name="Tempo médio" radius={[0, 4, 4, 0]} barSize={14}>
+                                    {stagesWithSLA.map((s, i) => (
+                                        <Cell
+                                            key={i}
+                                            fill={Math.round(s.avg_hours_in_stage) > s.sla_hours ? '#f43f5e' : '#6366f1'}
+                                        />
+                                    ))}
+                                </Bar>
+                                <Bar dataKey="sla" name="SLA target" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={14} fillOpacity={0.4} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                        <div className="flex items-center gap-4 px-2 text-xs text-slate-500">
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm bg-[#6366f1]" /> Dentro do SLA
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm bg-[#f43f5e]" /> Excede SLA
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm bg-[#94a3b8] opacity-40" /> Target SLA
+                            </span>
+                        </div>
+                    </>
                 ) : (
                     <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
                         Nenhuma etapa com SLA configurado
@@ -153,7 +179,7 @@ export default function SLAView() {
                             <tr className="border-b border-slate-100 bg-slate-50/50">
                                 <th className="text-left px-6 py-3 font-medium text-slate-500">Card</th>
                                 <th className="text-left px-4 py-3 font-medium text-slate-500">Etapa</th>
-                                <th className="text-left px-4 py-3 font-medium text-slate-500">Responsavel</th>
+                                <th className="text-left px-4 py-3 font-medium text-slate-500">Responsável</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">Dias Parado</th>
                                 <th className="text-right px-4 py-3 font-medium text-slate-500">SLA (h)</th>
                                 <th className="text-right px-6 py-3 font-medium text-slate-500">Excedido (h)</th>
@@ -171,7 +197,7 @@ export default function SLAView() {
                             ) : (violations || []).length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                                        Nenhum card em violacao de SLA
+                                        Nenhum card em violação de SLA
                                     </td>
                                 </tr>
                             ) : (
