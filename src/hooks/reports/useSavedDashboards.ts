@@ -70,6 +70,7 @@ export function useCreateDashboard() {
             title: string
             description?: string
             visibility?: 'private' | 'team' | 'everyone'
+            global_filters?: DashboardGlobalFilters
         }) => {
             const { data, error } = await supabase
                 .from('custom_dashboards')
@@ -78,6 +79,7 @@ export function useCreateDashboard() {
                     description: params.description || null,
                     created_by: session!.user.id,
                     visibility: params.visibility || 'private',
+                    global_filters: params.global_filters || {},
                 })
                 .select()
                 .single()

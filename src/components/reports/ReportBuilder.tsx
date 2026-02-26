@@ -85,6 +85,7 @@ export default function ReportBuilder() {
                 })
                 navigate(`/reports/${saved.id}`, { replace: true })
             }
+            store.markSaved()
             setSaveOpen(false)
         } catch (err) {
             setSaveError(err instanceof Error ? err.message : 'Erro ao salvar relatório')

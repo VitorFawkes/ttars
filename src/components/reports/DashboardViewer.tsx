@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Trash2, Pin, PinOff, Loader2, AlertCircle } from 'lucide-react'
 import {
@@ -7,6 +7,7 @@ import {
     useUpdateDashboard,
     useDeleteDashboard,
 } from '@/hooks/reports/useSavedDashboards'
+import type { DashboardGlobalFilters as DGF } from '@/lib/reports/reportTypes'
 import DashboardGrid from './dashboard/DashboardGrid'
 import WidgetCard from './dashboard/WidgetCard'
 import DashboardFilters from './dashboard/DashboardFilters'
@@ -15,19 +16,18 @@ import type { DashboardGlobalFilters } from '@/lib/reports/reportTypes'
 export default function DashboardViewer() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
-    const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
-
     const { data: dashboard, isLoading } = useSavedDashboard(id)
     const { data: widgets } = useDashboardWidgets(id)
     const updateDashboard = useUpdateDashboard()
     const deleteDashboard = useDeleteDashboard()
 
-    // Load saved filters from dashboard
-    useEffect(() => {
-        if (dashboard?.global_filters) {
-            setGlobalFilters(dashboard.global_filters)
-        }
-    }, [dashboard?.id])
+    // Sync filters from server data (render-time adjustment)
+    const [syncedId, setSyncedId] = useState<string | undefined>()
+    const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
+    if (dashboard && dashboard.id !== syncedId) {
+        setSyncedId(dashboard.id)
+        setGlobalFilters(dashboard.global_filters ?? {})
+    }
 
     if (isLoading) {
         return (
@@ -99,7 +99,10 @@ export default function DashboardViewer() {
 
             {/* Filters */}
             <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/50">
-                <DashboardFilters filters={globalFilters} onChange={setGlobalFilters} />
+                <DashboardFilters filters={globalFilters} onChange={(f: DGF) => {
+                    setGlobalFilters(f)
+                    if (dashboard) updateDashboard.mutate({ id: dashboard.id, global_filters: f })
+                }} />
             </div>
 
             {/* Grid */}

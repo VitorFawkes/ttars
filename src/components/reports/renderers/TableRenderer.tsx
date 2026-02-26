@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { autoFormat } from '@/lib/reports/formatters'
+import { autoFormat, formatDateAxis } from '@/lib/reports/formatters'
 import type { ChartRendererProps } from './ChartRenderer'
 
 export default function TableRenderer({
@@ -10,6 +10,7 @@ export default function TableRenderer({
     labels,
     labelFormat,
     keyFormats,
+    dateGrouping,
     onDrillDown,
 }: ChartRendererProps) {
     const [sortKey, setSortKey] = useState<string | null>(null)
@@ -110,7 +111,9 @@ export default function TableRenderer({
                                             ? <span className="text-slate-300">—</span>
                                             : isMeasure(k)
                                                 ? autoFormat(row[k], keyFormats?.[k] ?? labelFormat)
-                                                : String(row[k])
+                                                : typeof row[k] === 'string' && /^\d{4}-\d{2}/.test(row[k] as string) && !isNaN(Date.parse(row[k] as string))
+                                                    ? formatDateAxis(row[k] as string, dateGrouping)
+                                                    : String(row[k])
                                         }
                                     </td>
                                 ))}

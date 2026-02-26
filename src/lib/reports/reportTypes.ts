@@ -102,6 +102,7 @@ export interface VisualizationConfig {
     type: VizType
     showLegend?: boolean
     showGrid?: boolean
+    showDataLabels?: boolean
     colorScheme?: 'default' | 'warm' | 'cool' | 'monochrome'
     labelFormat?: 'number' | 'currency' | 'percent'
     height?: number

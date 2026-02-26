@@ -61,6 +61,7 @@ export function getDefaultVizConfig(type: VizType): VisualizationConfig {
         type,
         showLegend: true,
         showGrid: true,
+        showDataLabels: true,
         colorScheme: 'default',
         height: 360,
     }

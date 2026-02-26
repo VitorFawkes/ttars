@@ -1,3 +1,4 @@
+import { useFilterOptions } from '@/hooks/useFilterOptions'
 import type { DashboardGlobalFilters } from '@/lib/reports/reportTypes'
 
 interface DashboardFiltersProps {
@@ -59,6 +60,9 @@ function resolveDatePreset(preset: string): { start: string; end: string } | und
 }
 
 export default function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
+    const { data: filterOptions } = useFilterOptions()
+    const profiles = filterOptions?.profiles ?? []
+
     const handleDatePresetChange = (preset: string) => {
         const dateRange = resolveDatePreset(preset)
         onChange({ ...filters, datePreset: preset, dateRange })
@@ -88,6 +92,20 @@ export default function DashboardFilters({ filters, onChange }: DashboardFilters
                 >
                     {PRODUCTS.map(p => (
                         <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-400">Consultor:</span>
+                <select
+                    value={filters.ownerId ?? ''}
+                    onChange={(e) => onChange({ ...filters, ownerId: e.target.value || null })}
+                    className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 focus:ring-1 focus:ring-indigo-300"
+                >
+                    <option value="">Todos</option>
+                    {profiles.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name ?? p.email ?? p.id}</option>
                     ))}
                 </select>
             </div>

@@ -84,7 +84,9 @@ const DRILL_COLUMN_LABELS: Record<string, string> = {
 const NUMERIC_COLUMNS = new Set([
     'valor_estimado', 'valor_final', 'receita', 'accepted_total',
     'taxa_valor', 'total_spend', 'total_trips', 'successful_contacts',
-    'tempo_na_etapa_anterior',
+    'tempo_na_etapa_anterior', 'supplier_cost', 'pax_adultos',
+    'pax_criancas', 'total_pax', 'dias_etapa', 'ciclo_dias',
+    'valor_total', 'margem_pct',
 ])
 
 interface DrillDownPanelProps {

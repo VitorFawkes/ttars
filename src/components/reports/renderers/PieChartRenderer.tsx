@@ -12,6 +12,7 @@ export default function PieChartRenderer({
     visualization,
     dimensionKeys,
     measureKeys,
+    labels,
     labelFormat,
     keyFormats,
     onDrillDown,
@@ -78,7 +79,7 @@ export default function PieChartRenderer({
                     {...TOOLTIP_STYLE}
                     formatter={(value: number, name: string) => {
                         const pct = total > 0 ? ` (${((value / total) * 100).toFixed(1)}%)` : ''
-                        return [`${autoFormat(value, fmt)}${pct}`, name]
+                        return [`${autoFormat(value, fmt)}${pct}`, labels?.[name] ?? name]
                     }}
                 />
                 {visualization.showLegend && (
@@ -89,6 +90,7 @@ export default function PieChartRenderer({
                         iconType="circle"
                         iconSize={8}
                         wrapperStyle={{ fontSize: '12px', paddingLeft: '16px' }}
+                        formatter={(value) => labels?.[value] ?? value}
                     />
                 )}
             </PieChart>

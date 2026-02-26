@@ -1,6 +1,6 @@
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend,
+    ResponsiveContainer, Legend, LabelList,
 } from 'recharts'
 import { getColorScheme, TOOLTIP_STYLE } from '@/lib/reports/chartDefaults'
 import { autoFormat, formatDateAxis } from '@/lib/reports/formatters'
@@ -82,7 +82,16 @@ export default function LineChartRenderer({
                                 }
                             },
                         }}
-                    />
+                    >
+                        {visualization.showDataLabels !== false && data.length <= 20 && (
+                            <LabelList
+                                dataKey={key}
+                                position="top"
+                                formatter={(val: number) => autoFormat(val, keyFormats?.[key] ?? labelFormat)}
+                                style={{ fontSize: 10, fontWeight: 500, fill: '#475569' }}
+                            />
+                        )}
+                    </Line>
                 ))}
             </LineChart>
         </ResponsiveContainer>

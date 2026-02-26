@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Settings2 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Settings2, Loader2, CheckCircle2 } from 'lucide-react'
 import {
     useSavedDashboard,
     useDashboardWidgets,
@@ -43,20 +43,32 @@ export default function DashboardEditor() {
         setGlobalFilters(dashboard.global_filters ?? {})
     }
 
+    const [saveError, setSaveError] = useState<string | null>(null)
+    const [saveSuccess, setSaveSuccess] = useState(false)
+
     const handleSave = async () => {
-        if (isNew) {
-            const saved = await createDashboard.mutateAsync({
-                title: title || 'Novo Dashboard',
-                description: description || undefined,
-            })
-            navigate(`/reports/dashboards/${saved.id}/edit`, { replace: true })
-        } else if (id) {
-            await updateDashboard.mutateAsync({
-                id,
-                title,
-                description,
-                global_filters: globalFilters,
-            })
+        setSaveError(null)
+        setSaveSuccess(false)
+        try {
+            if (isNew) {
+                const saved = await createDashboard.mutateAsync({
+                    title: title || 'Novo Dashboard',
+                    description: description || undefined,
+                    global_filters: globalFilters,
+                })
+                navigate(`/reports/dashboards/${saved.id}/edit`, { replace: true })
+            } else if (id) {
+                await updateDashboard.mutateAsync({
+                    id,
+                    title,
+                    description,
+                    global_filters: globalFilters,
+                })
+                setSaveSuccess(true)
+                setTimeout(() => setSaveSuccess(false), 2000)
+            }
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Erro ao salvar dashboard')
         }
     }
 
@@ -80,6 +92,7 @@ export default function DashboardEditor() {
         removeWidget.mutate({ widgetId, dashboardId: id })
     }
 
+    const isSaving = createDashboard.isPending || updateDashboard.isPending
     const existingReportIds = widgets?.map(w => w.report_id) ?? []
 
     return (
@@ -110,13 +123,22 @@ export default function DashboardEditor() {
                         <Plus className="w-3.5 h-3.5" />
                         Widget
                     </button>
+                    {saveError && (
+                        <span className="text-xs text-red-500 mr-2">{saveError}</span>
+                    )}
                     <button
                         onClick={handleSave}
-                        disabled={!title.trim()}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
+                        disabled={!title.trim() || isSaving}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 ${saveSuccess ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                     >
-                        <Save className="w-4 h-4" />
-                        Salvar
+                        {isSaving ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : saveSuccess ? (
+                            <CheckCircle2 className="w-4 h-4" />
+                        ) : (
+                            <Save className="w-4 h-4" />
+                        )}
+                        {isSaving ? 'Salvando...' : saveSuccess ? 'Salvo!' : 'Salvar'}
                     </button>
                 </div>
             </div>

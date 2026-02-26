@@ -1,6 +1,6 @@
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend, Cell,
+    ResponsiveContainer, Legend, Cell, LabelList,
 } from 'recharts'
 import { getColorScheme, TOOLTIP_STYLE } from '@/lib/reports/chartDefaults'
 import { autoFormat, formatDateAxis } from '@/lib/reports/formatters'
@@ -135,6 +135,14 @@ export default function BarChartRenderer({
                         {measureKeys.length === 1 && data.map((_, idx) => (
                             <Cell key={idx} fill={colors[idx % colors.length]} />
                         ))}
+                        {visualization.showDataLabels !== false && data.length <= 20 && (
+                            <LabelList
+                                dataKey={key}
+                                position={isHorizontal ? 'right' : 'top'}
+                                formatter={(val: number) => autoFormat(val, keyFormats?.[key] ?? labelFormat)}
+                                style={{ fontSize: 10, fontWeight: 500, fill: '#475569' }}
+                            />
+                        )}
                     </Bar>
                 ))}
             </BarChart>

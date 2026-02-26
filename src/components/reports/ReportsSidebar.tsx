@@ -38,7 +38,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
                 to: '/reports/dashboards/new',
                 icon: Plus,
                 label: 'Novo Dashboard',
-                isActive: (p) => p === '/reports/dashboards/new' || p.endsWith('/edit'),
+                isActive: (p) => p === '/reports/dashboards/new' || /^\/reports\/dashboards\/[0-9a-f-]+\/edit$/.test(p),
             },
         ],
     },

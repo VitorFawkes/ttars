@@ -64,6 +64,7 @@ interface ReportBuilderState {
     loadFromReport: (config: ReportIQR, viz: VisualizationConfig, reportId?: string, title?: string, description?: string) => void
     toIQR: () => ReportIQR | null
     toVisualization: () => VisualizationConfig
+    markSaved: () => void
     reset: () => void
 }
 
@@ -212,6 +213,8 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
     },
 
     toVisualization: () => get().visualization,
+
+    markSaved: () => set({ isDirty: false }),
 
     reset: () => set({ ...initialState, visualization: getDefaultVizConfig('bar_vertical') }),
 }))

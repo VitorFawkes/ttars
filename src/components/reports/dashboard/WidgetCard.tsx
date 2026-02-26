@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { GripVertical, X, Loader2, AlertCircle } from 'lucide-react'
 import { useReportEngine } from '@/hooks/reports/useReportEngine'
-import { buildReportKeys } from '@/lib/reports/buildReportKeys'
+import { useReportDrillDown } from '@/hooks/reports/useReportDrillDown'
+import { buildReportKeys, mapDrillFilters } from '@/lib/reports/buildReportKeys'
 import ChartRenderer from '../renderers/ChartRenderer'
-import type { DashboardWidget, DashboardGlobalFilters } from '@/lib/reports/reportTypes'
+import DrillDownPanel from '../renderers/DrillDownPanel'
+import type { DashboardWidget, DashboardGlobalFilters, DrillDownFilters } from '@/lib/reports/reportTypes'
 
 interface WidgetCardProps {
     widget: DashboardWidget
@@ -30,11 +32,23 @@ export default function WidgetCard({
         enabled: !!report,
     })
 
+    const [drillFilters, setDrillFilters] = useState<DrillDownFilters | null>(null)
+
     const widgetConfig = report?.config ?? null
-    const { dimensionKeys, measureKeys, labels, keyFormats, dateGrouping } = useMemo(() => {
-        if (!widgetConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, keyFormats: {}, dateGrouping: undefined }
+    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping } = useMemo(() => {
+        if (!widgetConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined }
         return buildReportKeys(widgetConfig)
     }, [widgetConfig])
+
+    const mappedDrillFilters = useMemo(() => {
+        if (!drillFilters) return null
+        return mapDrillFilters(drillFilters, drillFieldMap)
+    }, [drillFilters, drillFieldMap])
+
+    const { data: drillData, isLoading: drillLoading } = useReportDrillDown({
+        config: report?.config ?? null,
+        drillFilters: mappedDrillFilters,
+    })
 
     return (
         <div className="bg-white border border-slate-200 shadow-sm rounded-xl h-full flex flex-col overflow-hidden">
@@ -77,6 +91,7 @@ export default function WidgetCard({
                         labelFormat={report.visualization.labelFormat}
                         keyFormats={keyFormats}
                         dateGrouping={dateGrouping}
+                        onDrillDown={(f) => setDrillFilters(f)}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full text-xs text-slate-400">
@@ -84,6 +99,18 @@ export default function WidgetCard({
                     </div>
                 )}
             </div>
+
+            {/* Drill-down */}
+            {drillFilters && (
+                <DrillDownPanel
+                    filters={drillFilters}
+                    data={drillData}
+                    isLoading={drillLoading}
+                    onClose={() => setDrillFilters(null)}
+                    labels={labels}
+                    labelFormat={report?.visualization.labelFormat}
+                />
+            )}
         </div>
     )
 }
