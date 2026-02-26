@@ -649,7 +649,7 @@ function buildWorkflow() {
     // 4. HTTP Request: Busca Card
     {
       parameters: {
-        url: `=${SUPABASE_URL}/rest/v1/cards?id=eq.{{ $('3b. Extrai Transcrição').item.json.card_id }}&select=id,titulo,produto_data,briefing_inicial,pipeline_stage_id,locked_fields,pipeline_stages(fase)`,
+        url: `=${SUPABASE_URL}/rest/v1/cards?id=eq.{{ $('3b. Extrai Transcrição').item.json.card_id }}&select=id,titulo,produto_data,briefing_inicial,pipeline_stage_id,locked_fields,pipeline_stages(fase,nome)`,
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'supabaseApi',
         options: {}

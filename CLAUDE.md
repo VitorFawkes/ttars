@@ -187,7 +187,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | welcome-trips-faq.md | FAQ da Welcome Trips para ferramenta Info do Agent 3 (Julia) |
 
 ### Workflow n8n — Briefing IA (Áudio Consultor)
-- **Workflow ID:** `1Aes61ybHxItErg8`
+- **Workflow ID:** `fezRqL6GQFaGyJNG`
 - **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/briefing-ia`
 - **19 nós** — Pipeline: Webhook → Extrai Params → Prepara Audio (base64→binary) → Whisper API (HTTP Request c/ credential OpenAI) → Extrai Transcrição → Busca Card → Busca Config → **Busca Visibilidade (stage_field_config)** → Monta Contexto (filtra campos ocultos) → AI Briefing (GPT-5.1 Agent) → Valida Output → If Tem Atualização → Merge → Atualiza Card (RPC) → Log Activity → Sucesso/Sem Atualização
 - **Reusa:** `get_ai_extraction_config()` e `update_card_from_ai_extraction()` do Atualizador Campos
