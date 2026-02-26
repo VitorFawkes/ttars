@@ -52,6 +52,7 @@ export function useOperationsData() {
             if (error) throw error
             return (data as unknown as OperationsData) || null
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

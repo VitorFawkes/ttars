@@ -16,7 +16,7 @@ function formatCurrency(value: number): string {
 }
 
 export default function OperationsView() {
-    const { data: ops, isLoading } = useOperationsData()
+    const { data: ops, isLoading, error: opsError } = useOperationsData()
 
     const kpis = ops?.kpis
     const subStats = ops?.sub_card_stats
@@ -25,6 +25,12 @@ export default function OperationsView() {
 
     return (
         <div className="space-y-6">
+            {opsError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados operacionais. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard

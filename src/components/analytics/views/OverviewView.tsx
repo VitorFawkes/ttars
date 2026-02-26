@@ -64,10 +64,12 @@ function CustomXAxisTick(props: any) {
 type PhaseViewMode = 'all' | 'sdr' | 'planner' | 'pos'
 
 export default function OverviewView() {
-    const { data: kpis, isLoading: kpisLoading } = useOverviewKpis()
-    const { data: funnelData, isLoading: funnelLoading } = useFunnelData()
-    const { data: revenueData, isLoading: revenueLoading } = useRevenueTimeseries()
-    const { chartData, allOwners, isLoading: funnelByOwnerLoading } = useFunnelByOwner()
+    const { data: kpis, isLoading: kpisLoading, error: kpisError } = useOverviewKpis()
+    const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelData()
+    const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useRevenueTimeseries()
+    const { chartData, allOwners, isLoading: funnelByOwnerLoading, error: funnelByOwnerError } = useFunnelByOwner()
+
+    const hasError = !!(kpisError || funnelError || revenueError || funnelByOwnerError)
 
     const [viewMode, setViewMode] = useState<PhaseViewMode>('all')
 
@@ -105,6 +107,12 @@ export default function OverviewView() {
 
     return (
         <div className="space-y-6">
+            {hasError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados do overview. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPI Cards - 2 rows of 5 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 <KpiCard

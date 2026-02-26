@@ -37,6 +37,7 @@ export function useFunnelConversion() {
             if (error) throw error
             return (data as unknown as FunnelStageData[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -59,6 +60,7 @@ export function useLossReasons() {
             if (error) throw error
             return (data as unknown as LossReason[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

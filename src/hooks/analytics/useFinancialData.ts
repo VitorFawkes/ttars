@@ -42,6 +42,7 @@ export function useFinancialBreakdown() {
             if (error) throw error
             return (data as unknown as FinancialPeriod[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -65,6 +66,7 @@ export function useTopDestinations() {
             if (error) throw error
             return (data as unknown as TopDestination[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -87,6 +89,7 @@ export function useRevenueByProduct() {
             if (error) throw error
             return (data as unknown as RevenueByProduct[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

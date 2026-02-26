@@ -26,9 +26,9 @@ function formatCurrency(value: number): string {
 
 export default function TeamView() {
     const [activeTab, setActiveTab] = useState<TabKey>('SDR')
-    const { data: teamData, isLoading } = useTeamPerformance(activeTab)
+    const { data: teamData, isLoading, error: teamError } = useTeamPerformance(activeTab)
 
-    const members = (teamData || []).filter(m => m.phase === activeTab)
+    const members = teamData || []
     const totals = members.reduce((acc, m) => ({
         total_cards: acc.total_cards + m.total_cards,
         won_cards: acc.won_cards + m.won_cards,
@@ -43,6 +43,12 @@ export default function TeamView() {
 
     return (
         <div className="space-y-6">
+            {teamError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados de equipe. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* Tab Toggle */}
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 w-fit">
                 {TABS.map((tab) => (

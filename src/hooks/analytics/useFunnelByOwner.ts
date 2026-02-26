@@ -41,6 +41,7 @@ export function useFunnelByOwner() {
             if (error) throw error
             return (data as unknown as FunnelByOwnerRow[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 

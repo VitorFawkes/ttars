@@ -10,8 +10,10 @@ import { useSLAViolations, useSLASummary } from '@/hooks/analytics/useSLAData'
 import { cn } from '@/lib/utils'
 
 export default function SLAView() {
-    const { data: violations, isLoading: violationsLoading } = useSLAViolations()
-    const { data: summary, isLoading: summaryLoading } = useSLASummary()
+    const { data: violations, isLoading: violationsLoading, error: violationsError } = useSLAViolations()
+    const { data: summary, isLoading: summaryLoading, error: summaryError } = useSLASummary()
+
+    const hasError = !!(violationsError || summaryError)
 
     const stagesWithSLA = (summary || []).filter(s => s.sla_hours > 0)
     const totalWithSLA = stagesWithSLA.reduce((sum, s) => sum + s.total_cards, 0)
@@ -21,24 +23,20 @@ export default function SLAView() {
         : 0
     const totalViolating = (violations || []).length
 
-    // Aging buckets (SDR >2d, Planner >3d, Proposta >5d)
-    const agingBuckets = {
-        sdr: (violations || []).filter(v => {
-            const nome = v.stage_nome?.toLowerCase() || ''
-            return nome.includes('lead') || nome.includes('contato') || nome.includes('conectado')
-        }).length,
-        planner: (violations || []).filter(v => {
-            const nome = v.stage_nome?.toLowerCase() || ''
-            return nome.includes('briefing') || nome.includes('proposta em') || nome.includes('qualificado')
-        }).length,
-        proposta: (violations || []).filter(v => {
-            const nome = v.stage_nome?.toLowerCase() || ''
-            return nome.includes('proposta enviada') || nome.includes('ajustes')
-        }).length,
-    }
+    // Top violating stages (dynamic — no hardcoded stage names)
+    const topViolatingStages = stagesWithSLA
+        .filter(s => s.violating_cards > 0)
+        .sort((a, b) => b.violating_cards - a.violating_cards)
+        .slice(0, 3)
 
     return (
         <div className="space-y-6">
+            {hasError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados de SLA. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <KpiCard
@@ -67,30 +65,27 @@ export default function SLAView() {
                 />
             </div>
 
-            {/* Aging Alert Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <AgingCard
-                    title="Parados no SDR (>2 dias)"
-                    subtitle="Leads sem qualificação"
-                    count={agingBuckets.sdr}
-                    severity="high"
-                    isLoading={violationsLoading}
-                />
-                <AgingCard
-                    title="Parados no Planner (>3 dias)"
-                    subtitle="Aguardando proposta"
-                    count={agingBuckets.planner}
-                    severity="medium"
-                    isLoading={violationsLoading}
-                />
-                <AgingCard
-                    title="Proposta Enviada (>5 dias)"
-                    subtitle="Sem resposta do cliente"
-                    count={agingBuckets.proposta}
-                    severity="warning"
-                    isLoading={violationsLoading}
-                />
-            </div>
+            {/* Top Violating Stages */}
+            {(summaryLoading || topViolatingStages.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {summaryLoading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                            <AgingCard key={i} title="" subtitle="" count={0} severity="high" isLoading={true} />
+                        ))
+                    ) : (
+                        topViolatingStages.map((stage, i) => (
+                            <AgingCard
+                                key={stage.stage_nome}
+                                title={stage.stage_nome}
+                                subtitle={`SLA: ${stage.sla_hours}h — ${stage.compliance_rate ?? 0}% no prazo`}
+                                count={stage.violating_cards}
+                                severity={i === 0 ? 'high' : i === 1 ? 'medium' : 'warning'}
+                                isLoading={false}
+                            />
+                        ))
+                    )}
+                </div>
+            )}
 
             {/* Compliance by Stage Chart */}
             <ChartCard

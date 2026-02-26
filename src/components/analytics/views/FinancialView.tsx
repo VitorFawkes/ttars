@@ -22,9 +22,11 @@ function formatCurrency(value: number): string {
 }
 
 export default function FinancialView() {
-    const { data: periods, isLoading: periodsLoading } = useFinancialBreakdown()
-    const { data: destinations, isLoading: destLoading } = useTopDestinations()
-    const { data: products, isLoading: prodLoading } = useRevenueByProduct()
+    const { data: periods, isLoading: periodsLoading, error: periodsError } = useFinancialBreakdown()
+    const { data: destinations, isLoading: destLoading, error: destError } = useTopDestinations()
+    const { data: products, isLoading: prodLoading, error: prodError } = useRevenueByProduct()
+
+    const hasError = !!(periodsError || destError || prodError)
 
     const allPeriods = periods || []
     const totalReceita = allPeriods.reduce((s, p) => s + Number(p.receita_sum), 0)
@@ -35,10 +37,16 @@ export default function FinancialView() {
 
     return (
         <div className="space-y-6">
+            {hasError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados financeiros. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard
-                    title="Receita Total"
+                    title="Faturamento Total"
                     value={formatCurrency(totalValor)}
                     icon={DollarSign}
                     color="text-green-600"
@@ -108,7 +116,7 @@ export default function FinancialView() {
                                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
                             />
                             <Legend wrapperStyle={{ fontSize: '12px' }} />
-                            <Bar yAxisId="left" dataKey="valor_final_sum" name="Receita" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={30} fillOpacity={0.8} />
+                            <Bar yAxisId="left" dataKey="valor_final_sum" name="Faturamento" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={30} fillOpacity={0.8} />
                             <Line yAxisId="right" type="monotone" dataKey="receita_sum" name="Margem" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4, fill: '#22c55e' }} />
                         </ComposedChart>
                     </ResponsiveContainer>

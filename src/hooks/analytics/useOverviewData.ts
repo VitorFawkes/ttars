@@ -59,6 +59,7 @@ export function useOverviewKpis() {
             if (error) throw error
             return data as unknown as OverviewKpis
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -82,6 +83,7 @@ export function useFunnelData() {
             // RPC already returns sorted by pp.order_index, s.ordem — trust server order
             return (data as unknown as FunnelStage[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -105,6 +107,7 @@ export function useRevenueTimeseries() {
             if (error) throw error
             return (data as unknown as RevenuePoint[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

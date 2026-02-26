@@ -41,6 +41,7 @@ export function useSLAViolations() {
             if (error) throw error
             return (data as unknown as SLAViolation[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -63,6 +64,7 @@ export function useSLASummary() {
             if (error) throw error
             return (data as unknown as SLAStageSummary[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

@@ -13,8 +13,10 @@ import { cn } from '@/lib/utils'
 
 export default function RetentionView() {
     const { mode } = useAnalyticsFilters()
-    const { data: cohortRows, isLoading: cohortLoading } = useRetentionCohort()
-    const { data: kpis, isLoading: kpisLoading } = useRetentionKpis()
+    const { data: cohortRows, isLoading: cohortLoading, error: cohortError } = useRetentionCohort()
+    const { data: kpis, isLoading: kpisLoading, error: kpisError } = useRetentionKpis()
+
+    const hasError = !!(cohortError || kpisError)
 
     const isLoading = cohortLoading || kpisLoading
     const modeDoesNotApply = mode !== 'entries' && mode !== 'cohort'
@@ -71,6 +73,12 @@ export default function RetentionView() {
 
     return (
         <div className="space-y-6">
+            {hasError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados de recorrência. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* Mode indicator */}
             {modeDoesNotApply && (
                 <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">

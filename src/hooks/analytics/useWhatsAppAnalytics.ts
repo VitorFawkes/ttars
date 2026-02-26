@@ -60,6 +60,7 @@ export function useWhatsAppAnalytics() {
             if (error) throw error
             return (data as unknown as WhatsAppMetrics) || null
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

@@ -37,8 +37,10 @@ function TimeTooltip({ active, payload, label }: any) {
 
 
 export default function FunnelView() {
-    const { data: funnelData, isLoading: funnelLoading } = useFunnelConversion()
-    const { data: lossData, isLoading: lossLoading } = useLossReasons()
+    const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelConversion()
+    const { data: lossData, isLoading: lossLoading, error: lossError } = useLossReasons()
+
+    const hasError = !!(funnelError || lossError)
     const { data: pipelineStages } = usePipelineStages()
 
     const stages = useMemo(() => funnelData || [], [funnelData])
@@ -84,6 +86,12 @@ export default function FunnelView() {
 
     return (
         <div className="space-y-6">
+            {hasError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados do funil. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard

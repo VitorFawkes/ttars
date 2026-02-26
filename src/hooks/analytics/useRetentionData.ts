@@ -33,6 +33,7 @@ export function useRetentionCohort() {
             if (error) throw error
             return (data as unknown as RetentionCohortRow[]) || []
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }
@@ -52,6 +53,7 @@ export function useRetentionKpis() {
             if (error) throw error
             return (data as unknown as RetentionKpis) || null
         },
+        staleTime: 5 * 60 * 1000,
         retry: 1,
     })
 }

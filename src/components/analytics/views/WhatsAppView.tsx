@@ -23,7 +23,7 @@ const AGING_COLORS: Record<string, string> = {
 }
 
 export default function WhatsAppView() {
-    const { data: metrics, isLoading } = useWhatsAppAnalytics()
+    const { data: metrics, isLoading, error: whatsappError } = useWhatsAppAnalytics()
 
     const volume = metrics?.volume
     const daily = metrics?.daily || []
@@ -43,6 +43,12 @@ export default function WhatsAppView() {
 
     return (
         <div className="space-y-6">
+            {whatsappError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+                    Erro ao carregar dados do WhatsApp. Verifique sua conexão e tente novamente.
+                </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KpiCard
