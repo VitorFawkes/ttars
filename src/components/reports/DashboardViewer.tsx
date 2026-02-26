@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Trash2, Pin, PinOff, Loader2, AlertCircle } from 'lucide-react'
 import {
@@ -16,6 +16,13 @@ export default function DashboardViewer() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
+
+    // Load saved filters from dashboard
+    useEffect(() => {
+        if (dashboard?.global_filters) {
+            setGlobalFilters(dashboard.global_filters)
+        }
+    }, [dashboard?.id])
 
     const { data: dashboard, isLoading } = useSavedDashboard(id)
     const { data: widgets } = useDashboardWidgets(id)

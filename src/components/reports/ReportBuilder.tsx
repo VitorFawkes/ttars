@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useReportBuilderStore } from '@/hooks/reports/useReportBuilderStore'
@@ -26,12 +26,13 @@ export default function ReportBuilder() {
     const updateReport = useUpdateReport()
 
     const [saveOpen, setSaveOpen] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     // Load existing report when editing
     const { data: existingReport } = useSavedReport(id)
 
     useEffect(() => {
-        if (existingReport && !store.isDirty) {
+        if (existingReport && existingReport.id !== store.editingReportId) {
             store.loadFromReport(
                 existingReport.config,
                 existingReport.visualization,
@@ -47,33 +48,48 @@ export default function ReportBuilder() {
         return () => store.reset()
     }, [])
 
-    const handleSave = async (params: { title: string; description: string; visibility: 'private' | 'team' | 'everyone' }) => {
+    // Warn before losing unsaved changes
+    useEffect(() => {
+        if (!store.isDirty) return
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault()
+        }
+        window.addEventListener('beforeunload', handler)
+        return () => window.removeEventListener('beforeunload', handler)
+    }, [store.isDirty])
+
+    const handleSave = useCallback(async (params: { title: string; description: string; visibility: 'private' | 'team' | 'everyone' }) => {
         const iqr = store.toIQR()
         if (!iqr) return
 
         const viz = store.toVisualization()
+        setSaveError(null)
 
-        if (isEditing && id) {
-            await updateReport.mutateAsync({
-                id,
-                title: params.title,
-                description: params.description,
-                config: iqr,
-                visualization: viz,
-                visibility: params.visibility,
-            })
-        } else {
-            const saved = await createReport.mutateAsync({
-                title: params.title,
-                description: params.description,
-                config: iqr,
-                visualization: viz,
-                visibility: params.visibility,
-            })
-            navigate(`/reports/${saved.id}`, { replace: true })
+        try {
+            if (isEditing && id) {
+                await updateReport.mutateAsync({
+                    id,
+                    title: params.title,
+                    description: params.description,
+                    config: iqr,
+                    visualization: viz,
+                    visibility: params.visibility,
+                })
+            } else {
+                const saved = await createReport.mutateAsync({
+                    title: params.title,
+                    description: params.description,
+                    config: iqr,
+                    visualization: viz,
+                    visibility: params.visibility,
+                })
+                navigate(`/reports/${saved.id}`, { replace: true })
+            }
+            setSaveOpen(false)
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Erro ao salvar relatório')
         }
-        setSaveOpen(false)
-    }
+    }, [store, isEditing, id, updateReport, createReport, navigate])
 
     // Build active keys for FieldPicker disabled state
     const activeDimensions = store.dimensions.map(d => d.field)
@@ -259,12 +275,13 @@ export default function ReportBuilder() {
             {/* Save dialog */}
             <SaveReportDialog
                 open={saveOpen}
-                onClose={() => setSaveOpen(false)}
+                onClose={() => { setSaveOpen(false); setSaveError(null) }}
                 onSave={handleSave}
                 initialTitle={store.title}
                 initialDescription={store.description}
                 isEditing={isEditing}
                 saving={createReport.isPending || updateReport.isPending}
+                error={saveError}
             />
         </div>
     )

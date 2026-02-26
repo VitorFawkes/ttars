@@ -114,7 +114,7 @@ export default function FieldPicker({
                                         className={cn(
                                             'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all',
                                             isActive
-                                                ? 'bg-indigo-50 text-indigo-400 cursor-not-allowed'
+                                                ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
                                                 : 'text-slate-600 hover:bg-slate-50'
                                         )}
                                     >
@@ -146,7 +146,7 @@ export default function FieldPicker({
                                         className={cn(
                                             'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all',
                                             isActive
-                                                ? 'bg-indigo-50 text-indigo-400 cursor-not-allowed'
+                                                ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
                                                 : 'text-slate-600 hover:bg-slate-50'
                                         )}
                                     >

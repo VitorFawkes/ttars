@@ -26,16 +26,12 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
 
     useEffect(() => {
         const timer = setTimeout(() => {
+            // Clear drill-down when config changes
+            setDrillFilters(null)
             setDebouncedIQR(currentIQR)
         }, 500)
         return () => clearTimeout(timer)
-    }, [iqrKey])
-
-    // Clear drill-down when config changes
-    const debouncedKey = JSON.stringify(debouncedIQR)
-    useEffect(() => {
-        setDrillFilters(null)
-    }, [debouncedKey])
+    }, [iqrKey, currentIQR])
 
     const hasMinimumConfig = store.source && store.measures.length > 0
 
@@ -49,10 +45,10 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
     })
 
     // Build keys/labels matching RPC output aliases (dim_0, mea_0, etc.)
-    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats } = useMemo(() => {
-        if (!currentIQR) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {} }
+    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping } = useMemo(() => {
+        if (!currentIQR) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined }
         return buildReportKeys(currentIQR)
-    }, [iqrKey])
+    }, [currentIQR])
 
     // Map drill filters from data keys (dim_0) to actual field names (ps.nome)
     const mappedDrillFilters = useMemo(() => {
@@ -129,6 +125,7 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
                     labels={labels}
                     labelFormat={store.visualization.labelFormat}
                     keyFormats={keyFormats}
+                    dateGrouping={dateGrouping}
                     onDrillDown={(filters) => setDrillFilters(filters)}
                 />
             ) : (

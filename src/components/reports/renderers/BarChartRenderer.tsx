@@ -3,7 +3,7 @@ import {
     ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 import { getColorScheme, TOOLTIP_STYLE } from '@/lib/reports/chartDefaults'
-import { autoFormat } from '@/lib/reports/formatters'
+import { autoFormat, formatDateAxis } from '@/lib/reports/formatters'
 import type { ChartRendererProps } from './ChartRenderer'
 
 interface BarChartRendererProps extends ChartRendererProps {
@@ -17,12 +17,17 @@ export default function BarChartRenderer({
     measureKeys,
     labels,
     labelFormat,
+    keyFormats,
+    dateGrouping,
     onDrillDown,
     layout,
 }: BarChartRendererProps) {
     const colors = getColorScheme(visualization.colorScheme)
     const dimKey = dimensionKeys[0]
     const isHorizontal = layout === 'horizontal'
+    const isTimeseries = !isHorizontal && data.length > 0 && dimKey && typeof data[0][dimKey] === 'string' && !isNaN(Date.parse(String(data[0][dimKey])))
+    const needsRotation = !isHorizontal && data.length > 8
+
     // Dynamic height for horizontal: adapt to number of bars
     const height = isHorizontal
         ? Math.max(280, data.length * 40 + 60)
@@ -34,10 +39,15 @@ export default function BarChartRenderer({
         }
     }
 
+    const formatValue = (value: number, name: string) => {
+        const fmt = keyFormats?.[name] ?? labelFormat
+        return [autoFormat(value, fmt), labels?.[name] ?? name]
+    }
+
     if (!data.length) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
-                Sem dados para exibir
+                Nenhum registro encontrado
             </div>
         )
     }
@@ -48,8 +58,8 @@ export default function BarChartRenderer({
                 data={data}
                 layout={isHorizontal ? 'vertical' : 'horizontal'}
                 margin={isHorizontal
-                    ? { top: 8, right: 30, left: 10, bottom: 8 }
-                    : { top: 12, right: 20, left: 10, bottom: 40 }
+                    ? { top: 8, right: 30, left: 160, bottom: 8 }
+                    : { top: 12, right: 20, left: 10, bottom: needsRotation ? 80 : 40 }
                 }
                 barCategoryGap="20%"
             >
@@ -63,7 +73,7 @@ export default function BarChartRenderer({
                     <>
                         <XAxis
                             type="number"
-                            tickFormatter={(v) => autoFormat(v, labelFormat)}
+                            tickFormatter={(v) => autoFormat(v, keyFormats?.[measureKeys[0]] ?? labelFormat)}
                             tick={{ fontSize: 11, fill: '#94a3b8' }}
                             axisLine={false}
                             tickLine={false}
@@ -72,7 +82,7 @@ export default function BarChartRenderer({
                             dataKey={dimKey}
                             type="category"
                             tick={{ fontSize: 11, fill: '#475569' }}
-                            width={140}
+                            width={150}
                             axisLine={false}
                             tickLine={false}
                         />
@@ -85,12 +95,13 @@ export default function BarChartRenderer({
                             axisLine={false}
                             tickLine={false}
                             interval={0}
-                            angle={data.length > 8 ? -35 : 0}
-                            textAnchor={data.length > 8 ? 'end' : 'middle'}
-                            height={data.length > 8 ? 80 : 40}
+                            angle={needsRotation ? -35 : 0}
+                            textAnchor={needsRotation ? 'end' : 'middle'}
+                            height={needsRotation ? 80 : 40}
+                            tickFormatter={isTimeseries ? (v) => formatDateAxis(v, dateGrouping) : undefined}
                         />
                         <YAxis
-                            tickFormatter={(v) => autoFormat(v, labelFormat)}
+                            tickFormatter={(v) => autoFormat(v, keyFormats?.[measureKeys[0]] ?? labelFormat)}
                             tick={{ fontSize: 11, fill: '#94a3b8' }}
                             axisLine={false}
                             tickLine={false}
@@ -99,7 +110,7 @@ export default function BarChartRenderer({
                 )}
                 <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [autoFormat(value, labelFormat), labels?.[name] ?? name]}
+                    formatter={(value: number, name: string) => formatValue(value, name)}
                     labelFormatter={(label) => labels?.[dimKey] ? `${labels[dimKey]}: ${label}` : String(label)}
                 />
                 {visualization.showLegend && measureKeys.length > 1 && (
@@ -115,7 +126,7 @@ export default function BarChartRenderer({
                         name={labels?.[key] ?? key}
                         fill={colors[i % colors.length]}
                         radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-                        maxBarSize={60}
+                        maxBarSize={measureKeys.length === 1 ? 80 : 60}
                         cursor="pointer"
                         onClick={(entry: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                             if (entry) handleClick(entry)

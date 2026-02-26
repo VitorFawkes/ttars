@@ -16,8 +16,8 @@ export const COOL_COLORS = [
 ]
 
 export const MONOCHROME_COLORS = [
-    '#1e293b', '#334155', '#475569', '#64748b', '#94a3b8',
-    '#475569', '#334155', '#1e293b', '#64748b', '#94a3b8',
+    '#0f172a', '#1e293b', '#334155', '#475569', '#64748b',
+    '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9', '#f8fafc',
 ]
 
 export function getColorScheme(scheme: string | undefined): string[] {

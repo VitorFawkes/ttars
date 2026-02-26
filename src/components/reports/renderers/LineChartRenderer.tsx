@@ -13,6 +13,8 @@ export default function LineChartRenderer({
     measureKeys,
     labels,
     labelFormat,
+    keyFormats,
+    dateGrouping,
     onDrillDown,
 }: ChartRendererProps) {
     const colors = getColorScheme(visualization.colorScheme)
@@ -23,9 +25,14 @@ export default function LineChartRenderer({
     if (!data.length) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
-                Sem dados para exibir
+                Nenhum registro encontrado
             </div>
         )
+    }
+
+    const formatValue = (value: number, name: string) => {
+        const fmt = keyFormats?.[name] ?? labelFormat
+        return [autoFormat(value, fmt), labels?.[name] ?? name]
     }
 
     return (
@@ -37,18 +44,18 @@ export default function LineChartRenderer({
                     tick={{ fontSize: 11, fill: '#475569' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={isTimeseries ? (v) => formatDateAxis(v) : undefined}
+                    tickFormatter={isTimeseries ? (v) => formatDateAxis(v, dateGrouping) : undefined}
                 />
                 <YAxis
-                    tickFormatter={(v) => autoFormat(v, labelFormat)}
+                    tickFormatter={(v) => autoFormat(v, keyFormats?.[measureKeys[0]] ?? labelFormat)}
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
                     axisLine={false}
                     tickLine={false}
                 />
                 <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [autoFormat(value, labelFormat), labels?.[name] ?? name]}
-                    labelFormatter={isTimeseries ? (v) => formatDateAxis(String(v)) : (v) => String(v)}
+                    formatter={(value: number, name: string) => formatValue(value, name)}
+                    labelFormatter={isTimeseries ? (v) => formatDateAxis(String(v), dateGrouping) : (v) => String(v)}
                 />
                 {visualization.showLegend && measureKeys.length > 1 && (
                     <Legend

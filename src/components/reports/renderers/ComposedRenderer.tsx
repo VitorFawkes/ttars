@@ -13,6 +13,8 @@ export default function ComposedRenderer({
     measureKeys,
     labels,
     labelFormat,
+    keyFormats,
+    dateGrouping,
     onDrillDown,
 }: ChartRendererProps) {
     const colors = getColorScheme(visualization.colorScheme)
@@ -23,37 +25,43 @@ export default function ComposedRenderer({
     if (!data.length || measureKeys.length < 1) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
-                Sem dados para exibir
+                Nenhum registro encontrado
             </div>
         )
     }
 
     const barKey = measureKeys[0]
     const lineKeys = measureKeys.slice(1)
+    const hasRightAxis = lineKeys.length > 0
+
+    const formatValue = (value: number, name: string) => {
+        const fmt = keyFormats?.[name] ?? labelFormat
+        return [autoFormat(value, fmt), labels?.[name] ?? name]
+    }
 
     return (
         <ResponsiveContainer width="100%" height={height}>
-            <ComposedChart data={data} margin={{ top: 12, right: 30, left: 10, bottom: 8 }}>
+            <ComposedChart data={data} margin={{ top: 12, right: hasRightAxis ? 30 : 20, left: 10, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                 <XAxis
                     dataKey={dimKey}
                     tick={{ fontSize: 11, fill: '#475569' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={isTimeseries ? (v) => formatDateAxis(v) : undefined}
+                    tickFormatter={isTimeseries ? (v) => formatDateAxis(v, dateGrouping) : undefined}
                 />
                 <YAxis
                     yAxisId="left"
-                    tickFormatter={(v) => autoFormat(v, labelFormat)}
+                    tickFormatter={(v) => autoFormat(v, keyFormats?.[barKey] ?? labelFormat)}
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
                     axisLine={false}
                     tickLine={false}
                 />
-                {lineKeys.length > 0 && (
+                {hasRightAxis && (
                     <YAxis
                         yAxisId="right"
                         orientation="right"
-                        tickFormatter={(v) => autoFormat(v, labelFormat)}
+                        tickFormatter={(v) => autoFormat(v, keyFormats?.[lineKeys[0]] ?? labelFormat)}
                         tick={{ fontSize: 11, fill: '#94a3b8' }}
                         axisLine={false}
                         tickLine={false}
@@ -61,13 +69,15 @@ export default function ComposedRenderer({
                 )}
                 <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [autoFormat(value, labelFormat), labels?.[name] ?? name]}
-                    labelFormatter={isTimeseries ? (v) => formatDateAxis(String(v)) : (v) => String(v)}
+                    formatter={(value: number, name: string) => formatValue(value, name)}
+                    labelFormatter={isTimeseries ? (v) => formatDateAxis(String(v), dateGrouping) : (v) => String(v)}
                 />
-                <Legend
-                    formatter={(value) => labels?.[value] ?? value}
-                    wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }}
-                />
+                {visualization.showLegend !== false && measureKeys.length > 1 && (
+                    <Legend
+                        formatter={(value) => labels?.[value] ?? value}
+                        wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }}
+                    />
+                )}
                 <Bar
                     yAxisId="left"
                     dataKey={barKey}
@@ -86,7 +96,7 @@ export default function ComposedRenderer({
                 {lineKeys.map((key, i) => (
                     <Line
                         key={key}
-                        yAxisId="right"
+                        yAxisId={hasRightAxis ? 'right' : 'left'}
                         type="monotone"
                         dataKey={key}
                         name={labels?.[key] ?? key}

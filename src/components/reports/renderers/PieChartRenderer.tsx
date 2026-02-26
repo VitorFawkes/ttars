@@ -12,8 +12,8 @@ export default function PieChartRenderer({
     visualization,
     dimensionKeys,
     measureKeys,
-    labels,
     labelFormat,
+    keyFormats,
     onDrillDown,
     variant,
 }: PieChartRendererProps) {
@@ -26,12 +26,13 @@ export default function PieChartRenderer({
     if (!data.length || !measureKey) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
-                Sem dados para exibir
+                Nenhum registro encontrado
             </div>
         )
     }
 
     const total = data.reduce((s, r) => s + Number(r[measureKey] ?? 0), 0)
+    const fmt = keyFormats?.[measureKey] ?? labelFormat
 
     const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, index }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const RADIAN = Math.PI / 180
@@ -39,7 +40,7 @@ export default function PieChartRenderer({
         const x = cx + radius * Math.cos(-midAngle * RADIAN)
         const y = cy + radius * Math.sin(-midAngle * RADIAN)
         const pct = total > 0 ? ((Number(data[index]?.[measureKey] ?? 0) / total) * 100) : 0
-        if (pct < 5) return null
+        if (pct < 3) return null
         return (
             <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
                 {pct.toFixed(0)}%
@@ -77,7 +78,7 @@ export default function PieChartRenderer({
                     {...TOOLTIP_STYLE}
                     formatter={(value: number, name: string) => {
                         const pct = total > 0 ? ` (${((value / total) * 100).toFixed(1)}%)` : ''
-                        return [`${autoFormat(value, labelFormat)}${pct}`, labels?.[dimKey] ? name : name]
+                        return [`${autoFormat(value, fmt)}${pct}`, name]
                     }}
                 />
                 {visualization.showLegend && (

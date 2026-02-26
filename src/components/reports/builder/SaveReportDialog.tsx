@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Save, Globe, Users, Lock } from 'lucide-react'
 
 interface SaveReportDialogProps {
@@ -10,6 +10,7 @@ interface SaveReportDialogProps {
     initialVisibility?: 'private' | 'team' | 'everyone'
     isEditing?: boolean
     saving?: boolean
+    error?: string | null
 }
 
 const VISIBILITY_OPTIONS = [
@@ -27,10 +28,20 @@ export default function SaveReportDialog({
     initialVisibility = 'private',
     isEditing = false,
     saving = false,
+    error = null,
 }: SaveReportDialogProps) {
     const [title, setTitle] = useState(initialTitle)
     const [description, setDescription] = useState(initialDescription)
     const [visibility, setVisibility] = useState(initialVisibility)
+
+    // Reset state when dialog opens (render-time adjustment, React recommended pattern)
+    const prevOpenRef = useRef(false)
+    if (open && !prevOpenRef.current) {
+        setTitle(initialTitle)
+        setDescription(initialDescription)
+        setVisibility(initialVisibility)
+    }
+    prevOpenRef.current = open
 
     if (!open) return null
 
@@ -94,6 +105,12 @@ export default function SaveReportDialog({
                             })}
                         </div>
                     </div>
+
+                    {error && (
+                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                            {error}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">

@@ -24,10 +24,11 @@ export default function ReportViewer() {
     })
 
     // Build keys/labels matching RPC output aliases
-    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats } = useMemo(() => {
-        if (!report?.config) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {} }
-        return buildReportKeys(report.config)
-    }, [report?.config])
+    const reportConfig = report?.config ?? null
+    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping } = useMemo(() => {
+        if (!reportConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined }
+        return buildReportKeys(reportConfig)
+    }, [reportConfig])
 
     // Map drill filters from data keys to actual field names
     const mappedDrillFilters = useMemo(() => {
@@ -135,6 +136,7 @@ export default function ReportViewer() {
                             labels={labels}
                             labelFormat={viz.labelFormat}
                             keyFormats={keyFormats}
+                            dateGrouping={dateGrouping}
                             onDrillDown={(filters) => setDrillFilters(filters)}
                         />
                     ) : (

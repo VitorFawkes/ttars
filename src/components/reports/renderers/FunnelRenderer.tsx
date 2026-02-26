@@ -9,21 +9,24 @@ export default function FunnelRenderer({
     measureKeys,
     labels,
     labelFormat,
+    keyFormats,
     onDrillDown,
 }: ChartRendererProps) {
     const colors = getColorScheme(visualization.colorScheme)
     const dimKey = dimensionKeys[0]
     const measureKey = measureKeys[0]
+    const fmt = keyFormats?.[measureKey] ?? labelFormat
 
     if (!data.length || !measureKey) {
         return (
             <div className="flex items-center justify-center h-[200px] text-slate-400 text-sm">
-                Sem dados para funil
+                Nenhum registro encontrado
             </div>
         )
     }
 
     const maxValue = Math.max(...data.map(d => Number(d[measureKey] ?? 0)), 1)
+    const firstValue = Number(data[0]?.[measureKey] ?? 1) || 1
 
     return (
         <div className="space-y-1 py-3 px-1">
@@ -31,7 +34,7 @@ export default function FunnelRenderer({
                 const value = Number(row[measureKey] ?? 0)
                 const label = String(row[dimKey] ?? `Item ${i + 1}`)
                 const widthPct = Math.max((value / maxValue) * 100, 6)
-                const pctOfFirst = data[0] ? Math.round((value / Number(data[0][measureKey] ?? 1)) * 100) : 100
+                const pctOfFirst = Math.round((value / firstValue) * 100)
 
                 return (
                     <button
@@ -44,7 +47,7 @@ export default function FunnelRenderer({
                         className="w-full group"
                     >
                         <div className="flex items-center gap-3 py-0.5">
-                            <div className="w-[160px] text-right text-xs text-slate-600 truncate flex-shrink-0 font-medium" title={label}>
+                            <div className="w-28 md:w-40 text-right text-xs text-slate-600 truncate flex-shrink-0 font-medium" title={label}>
                                 {label}
                             </div>
                             <div className="flex-1 relative">
@@ -57,7 +60,7 @@ export default function FunnelRenderer({
                                     }}
                                 >
                                     <span className="text-xs font-semibold text-white truncate">
-                                        {autoFormat(value, labelFormat)}
+                                        {autoFormat(value, fmt)}
                                     </span>
                                 </div>
                             </div>
@@ -70,7 +73,7 @@ export default function FunnelRenderer({
             })}
             {labels?.[measureKey] && (
                 <div className="text-[10px] text-slate-400 text-right pt-2 pr-14">
-                    {labels[measureKey]} — % relativo ao primeiro
+                    {labels[measureKey]} — % relativo ao topo
                 </div>
             )}
         </div>

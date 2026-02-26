@@ -213,7 +213,7 @@ function ConfigItem({
             {children}
             <button
                 onClick={onRemove}
-                className="w-4 h-4 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"
             >
                 <X className="w-3 h-3" />
             </button>

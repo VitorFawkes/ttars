@@ -87,7 +87,11 @@ export function buildReportKeys(config: ReportIQR) {
         }
     })
 
-    return { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats }
+    // Extract dateGrouping from the first date dimension (for formatDateAxis)
+    const dateDim = config.dimensions.find(d => d.dateGrouping)
+    const dateGrouping = dateDim?.dateGrouping
+
+    return { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping }
 }
 
 /**

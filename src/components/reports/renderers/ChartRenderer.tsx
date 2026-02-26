@@ -16,6 +16,7 @@ export interface ChartRendererProps {
     labels?: Record<string, string>
     labelFormat?: 'number' | 'currency' | 'percent'
     keyFormats?: Record<string, 'number' | 'currency' | 'percent'>
+    dateGrouping?: 'day' | 'week' | 'month' | 'quarter' | 'year'
     onDrillDown?: (filters: DrillDownFilters) => void
 }
 

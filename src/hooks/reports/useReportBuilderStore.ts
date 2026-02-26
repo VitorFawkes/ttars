@@ -104,10 +104,17 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         dimensions: [...s.dimensions, dim],
         isDirty: true,
     })),
-    removeDimension: (field) => set((s) => ({
-        dimensions: s.dimensions.filter(d => d.field !== field),
-        isDirty: true,
-    })),
+    removeDimension: (field) => set((s) => {
+        const updates: Partial<ReportBuilderState> = {
+            dimensions: s.dimensions.filter(d => d.field !== field),
+            isDirty: true,
+        }
+        // Clean orphan breakdownBy
+        if (s.breakdownBy?.field === field) updates.breakdownBy = null
+        // Clean orphan orderBy
+        if (s.orderBy?.field === field) updates.orderBy = null
+        return updates
+    }),
     updateDimension: (field, updates) => set((s) => ({
         dimensions: s.dimensions.map(d => d.field === field ? { ...d, ...updates } : d),
         isDirty: true,
@@ -118,10 +125,15 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         measures: [...s.measures, measure],
         isDirty: true,
     })),
-    removeMeasure: (field) => set((s) => ({
-        measures: s.measures.filter(m => m.field !== field),
-        isDirty: true,
-    })),
+    removeMeasure: (field) => set((s) => {
+        const updates: Partial<ReportBuilderState> = {
+            measures: s.measures.filter(m => m.field !== field),
+            isDirty: true,
+        }
+        // Clean orphan orderBy
+        if (s.orderBy?.field === field) updates.orderBy = null
+        return updates
+    }),
     updateMeasure: (field, updates) => set((s) => ({
         measures: s.measures.map(m => m.field === field ? { ...m, ...updates } : m),
         isDirty: true,

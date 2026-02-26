@@ -47,6 +47,7 @@ export default function DashboardEditor() {
             const saved = await createDashboard.mutateAsync({
                 title: title || 'Novo Dashboard',
                 description: description || undefined,
+                global_filters: Object.keys(globalFilters).length > 0 ? globalFilters : undefined,
             })
             navigate(`/reports/dashboards/${saved.id}/edit`, { replace: true })
         } else if (id) {

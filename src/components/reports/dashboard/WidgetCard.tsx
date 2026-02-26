@@ -30,10 +30,11 @@ export default function WidgetCard({
         enabled: !!report,
     })
 
-    const { dimensionKeys, measureKeys, labels, keyFormats } = useMemo(() => {
-        if (!report?.config) return { dimensionKeys: [], measureKeys: [], labels: {}, keyFormats: {} }
-        return buildReportKeys(report.config)
-    }, [report?.config])
+    const widgetConfig = report?.config ?? null
+    const { dimensionKeys, measureKeys, labels, keyFormats, dateGrouping } = useMemo(() => {
+        if (!widgetConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, keyFormats: {}, dateGrouping: undefined }
+        return buildReportKeys(widgetConfig)
+    }, [widgetConfig])
 
     return (
         <div className="bg-white border border-slate-200 shadow-sm rounded-xl h-full flex flex-col overflow-hidden">
@@ -64,7 +65,7 @@ export default function WidgetCard({
                 ) : error ? (
                     <div className="flex flex-col items-center justify-center h-full text-red-400">
                         <AlertCircle className="w-5 h-5 mb-1" />
-                        <p className="text-[10px]">Erro</p>
+                        <p className="text-xs">{(error as Error).message ?? 'Erro ao carregar'}</p>
                     </div>
                 ) : queryData && queryData.length > 0 && report ? (
                     <ChartRenderer
@@ -75,10 +76,11 @@ export default function WidgetCard({
                         labels={labels}
                         labelFormat={report.visualization.labelFormat}
                         keyFormats={keyFormats}
+                        dateGrouping={dateGrouping}
                     />
                 ) : (
                     <div className="flex items-center justify-center h-full text-xs text-slate-400">
-                        Sem dados
+                        Nenhum registro encontrado
                     </div>
                 )}
             </div>
