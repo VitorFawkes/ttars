@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Save, Globe, Users, Lock } from 'lucide-react'
 
 interface SaveReportDialogProps {
@@ -19,8 +19,12 @@ const VISIBILITY_OPTIONS = [
     { value: 'everyone' as const, label: 'Todos', icon: Globe, desc: 'Toda a empresa' },
 ]
 
-export default function SaveReportDialog({
-    open,
+export default function SaveReportDialog({ open, ...props }: SaveReportDialogProps) {
+    if (!open) return null
+    return <SaveReportDialogInner {...props} />
+}
+
+function SaveReportDialogInner({
     onClose,
     onSave,
     initialTitle = '',
@@ -29,21 +33,10 @@ export default function SaveReportDialog({
     isEditing = false,
     saving = false,
     error = null,
-}: SaveReportDialogProps) {
+}: Omit<SaveReportDialogProps, 'open'>) {
     const [title, setTitle] = useState(initialTitle)
     const [description, setDescription] = useState(initialDescription)
     const [visibility, setVisibility] = useState(initialVisibility)
-
-    // Reset state when dialog opens (render-time adjustment, React recommended pattern)
-    const prevOpenRef = useRef(false)
-    if (open && !prevOpenRef.current) {
-        setTitle(initialTitle)
-        setDescription(initialDescription)
-        setVisibility(initialVisibility)
-    }
-    prevOpenRef.current = open
-
-    if (!open) return null
 
     const canSave = title.trim().length > 0 && !saving
 

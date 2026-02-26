@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Plus, Settings2 } from 'lucide-react'
 import {
@@ -21,10 +21,7 @@ export default function DashboardEditor() {
     const navigate = useNavigate()
     const isNew = !id
 
-    const [title, setTitle] = useState('')
-    const [description, setDescription] = useState('')
     const [addWidgetOpen, setAddWidgetOpen] = useState(false)
-    const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
 
     const { data: dashboard } = useSavedDashboard(id)
     const { data: widgets } = useDashboardWidgets(id)
@@ -34,20 +31,23 @@ export default function DashboardEditor() {
     const updateLayout = useUpdateWidgetLayout()
     const removeWidget = useRemoveWidget()
 
-    useEffect(() => {
-        if (dashboard) {
-            setTitle(dashboard.title)
-            setDescription(dashboard.description ?? '')
-            setGlobalFilters(dashboard.global_filters ?? {})
-        }
-    }, [dashboard?.id])
+    // Sync state from server data (render-time adjustment)
+    const [syncedId, setSyncedId] = useState<string | undefined>()
+    const [title, setTitle] = useState('')
+    const [description, setDescription] = useState('')
+    const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
+    if (dashboard && dashboard.id !== syncedId) {
+        setSyncedId(dashboard.id)
+        setTitle(dashboard.title)
+        setDescription(dashboard.description ?? '')
+        setGlobalFilters(dashboard.global_filters ?? {})
+    }
 
     const handleSave = async () => {
         if (isNew) {
             const saved = await createDashboard.mutateAsync({
                 title: title || 'Novo Dashboard',
                 description: description || undefined,
-                global_filters: Object.keys(globalFilters).length > 0 ? globalFilters : undefined,
             })
             navigate(`/reports/dashboards/${saved.id}/edit`, { replace: true })
         } else if (id) {

@@ -17,17 +17,17 @@ export default function DashboardViewer() {
     const navigate = useNavigate()
     const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
 
+    const { data: dashboard, isLoading } = useSavedDashboard(id)
+    const { data: widgets } = useDashboardWidgets(id)
+    const updateDashboard = useUpdateDashboard()
+    const deleteDashboard = useDeleteDashboard()
+
     // Load saved filters from dashboard
     useEffect(() => {
         if (dashboard?.global_filters) {
             setGlobalFilters(dashboard.global_filters)
         }
     }, [dashboard?.id])
-
-    const { data: dashboard, isLoading } = useSavedDashboard(id)
-    const { data: widgets } = useDashboardWidgets(id)
-    const updateDashboard = useUpdateDashboard()
-    const deleteDashboard = useDeleteDashboard()
 
     if (isLoading) {
         return (
