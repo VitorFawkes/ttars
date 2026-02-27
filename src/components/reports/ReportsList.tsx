@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Pin, Clock, Eye, Loader2, Sparkles } from 'lucide-react'
+import { Plus, Search, Pin, Clock, Eye, Loader2, Sparkles, LayoutDashboard, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSavedReports } from '@/hooks/reports/useSavedReports'
+import { useSavedDashboards } from '@/hooks/reports/useSavedDashboards'
 import { VIZ_LABELS } from '@/lib/reports/chartDefaults'
 import { SOURCE_MAP } from '@/lib/reports/sourceMap'
 import type { SavedReport, VizType } from '@/lib/reports/reportTypes'
@@ -13,6 +14,12 @@ export default function ReportsList() {
     const showTemplates = searchParams.get('tab') === 'templates'
     const [search, setSearch] = useState('')
     const { data: reports, isLoading } = useSavedReports()
+    const { data: dashboards } = useSavedDashboards()
+
+    const pinnedDashboards = useMemo(() => {
+        if (!dashboards || showTemplates) return []
+        return dashboards.filter(d => d.pinned)
+    }, [dashboards, showTemplates])
 
     const filtered = useMemo(() => {
         if (!reports) return []
@@ -31,6 +38,46 @@ export default function ReportsList() {
 
     return (
         <div className="flex-1 overflow-y-auto p-6">
+            {/* Pinned Dashboards — quick access for executives */}
+            {pinnedDashboards.length > 0 && !search && (
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <LayoutDashboard className="w-4 h-4 text-indigo-500" />
+                            Dashboards Fixados
+                        </h2>
+                        <button
+                            onClick={() => navigate('/reports/dashboards')}
+                            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                        >
+                            Ver todos <ArrowRight className="w-3 h-3" />
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {pinnedDashboards.map(dash => (
+                            <button
+                                key={dash.id}
+                                onClick={() => navigate(`/reports/dashboards/${dash.id}`)}
+                                className="text-left bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-xl p-4 hover:shadow-md hover:border-indigo-300 transition-all group"
+                            >
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                                        <LayoutDashboard className="w-4 h-4 text-indigo-600" />
+                                    </div>
+                                    <Pin className="w-3 h-3 text-amber-500" />
+                                </div>
+                                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 truncate">
+                                    {dash.title}
+                                </h3>
+                                {dash.description && (
+                                    <p className="text-xs text-slate-400 mt-1 line-clamp-1">{dash.description}</p>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>

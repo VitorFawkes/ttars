@@ -9,6 +9,8 @@ interface KpiCardProps {
     bgColor?: string
     subtitle?: string
     isLoading?: boolean
+    onClick?: () => void
+    clickHint?: string
 }
 
 export default function KpiCard({
@@ -19,6 +21,8 @@ export default function KpiCard({
     bgColor = 'bg-indigo-50',
     subtitle,
     isLoading,
+    onClick,
+    clickHint,
 }: KpiCardProps) {
     if (isLoading) {
         return (
@@ -34,8 +38,16 @@ export default function KpiCard({
         )
     }
 
+    const Wrapper = onClick ? 'button' : 'div'
+
     return (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+        <Wrapper
+            onClick={onClick}
+            className={cn(
+                'bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-left w-full',
+                onClick && 'hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group'
+            )}
+        >
             <div className="flex items-center gap-4">
                 <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', bgColor)}>
                     <Icon className={cn('w-5 h-5', color)} />
@@ -46,8 +58,11 @@ export default function KpiCard({
                     {subtitle && (
                         <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
                     )}
+                    {clickHint && (
+                        <p className="text-[10px] text-indigo-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{clickHint}</p>
+                    )}
                 </div>
             </div>
-        </div>
+        </Wrapper>
     )
 }

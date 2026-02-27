@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FieldDefinition, Aggregation, ComputedMeasureDefinition } from '@/lib/reports/reportTypes'
 
@@ -37,7 +37,11 @@ export default function FieldPicker({
         const q = search.toLowerCase()
         if (!q) return tab === 'dimensions' ? dimensions : measures
         const list = tab === 'dimensions' ? dimensions : measures
-        return list.filter(f => f.label.toLowerCase().includes(q) || f.category.toLowerCase().includes(q))
+        return list.filter(f =>
+            f.label.toLowerCase().includes(q) ||
+            f.category.toLowerCase().includes(q) ||
+            (f.description?.toLowerCase().includes(q) ?? false)
+        )
     }, [search, tab, dimensions, measures])
 
     const categories = tab === 'dimensions' ? dimensionCategories : measureCategories
@@ -58,7 +62,9 @@ export default function FieldPicker({
             {/* Tab Toggle */}
             <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg">
                 <button
+                    type="button"
                     onClick={() => setTab('dimensions')}
+                    title="Campos para agrupar (eixo X, categorias)"
                     className={cn(
                         'flex-1 text-xs font-medium py-1.5 rounded-md transition-all',
                         tab === 'dimensions' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'
@@ -67,7 +73,9 @@ export default function FieldPicker({
                     Dimensões ({dimensions.length})
                 </button>
                 <button
+                    type="button"
                     onClick={() => setTab('measures')}
+                    title="Valores para calcular (eixo Y, totais)"
                     className={cn(
                         'flex-1 text-xs font-medium py-1.5 rounded-md transition-all',
                         tab === 'measures' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'
@@ -76,6 +84,15 @@ export default function FieldPicker({
                     Medidas ({measures.length})
                 </button>
             </div>
+
+            {/* Hint */}
+            <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                <Info className="w-3 h-3 flex-shrink-0" />
+                {tab === 'dimensions'
+                    ? 'Dimensões definem os agrupamentos (ex: etapa, mês, responsável)'
+                    : 'Medidas são os valores calculados (ex: total, média, contagem)'
+                }
+            </p>
 
             {/* Search */}
             <div className="relative">
@@ -102,7 +119,9 @@ export default function FieldPicker({
                                 return (
                                     <button
                                         key={field.key}
+                                        type="button"
                                         disabled={isActive}
+                                        title={field.description ?? field.label}
                                         onClick={() => {
                                             if (tab === 'dimensions') {
                                                 onAddDimension(field)
@@ -112,13 +131,18 @@ export default function FieldPicker({
                                             }
                                         }}
                                         className={cn(
-                                            'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all',
+                                            'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all group',
                                             isActive
                                                 ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
                                                 : 'text-slate-600 hover:bg-slate-50'
                                         )}
                                     >
-                                        <span className="truncate">{field.label}</span>
+                                        <div className="min-w-0">
+                                            <span className="truncate block">{field.label}</span>
+                                            {field.description && !isActive && (
+                                                <span className="text-[10px] text-slate-400 truncate block opacity-0 group-hover:opacity-100 transition-opacity">{field.description}</span>
+                                            )}
+                                        </div>
                                         {!isActive && (
                                             <Plus className="w-3 h-3 text-slate-400 flex-shrink-0" />
                                         )}
@@ -129,19 +153,30 @@ export default function FieldPicker({
                     </div>
                 ))}
 
-                {/* Computed Measures (only in measures tab) */}
-                {tab === 'measures' && computedMeasures.length > 0 && (
+                {/* Computed Measures (only in measures tab, filtered by search) */}
+                {tab === 'measures' && computedMeasures.length > 0 && (() => {
+                    const q = search.toLowerCase()
+                    const filteredCM = q
+                        ? computedMeasures.filter(cm =>
+                            cm.label.toLowerCase().includes(q) ||
+                            (cm.description?.toLowerCase().includes(q) ?? false)
+                        )
+                        : computedMeasures
+                    if (filteredCM.length === 0) return null
+                    return (
                     <div>
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                             Calculados
                         </div>
                         <div className="space-y-0.5">
-                            {computedMeasures.map((cm) => {
+                            {filteredCM.map((cm) => {
                                 const isActive = activeComputedMeasures.includes(cm.key)
                                 return (
                                     <button
                                         key={cm.key}
+                                        type="button"
                                         disabled={isActive}
+                                        title={cm.description}
                                         onClick={() => onAddComputedMeasure(cm.key)}
                                         className={cn(
                                             'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all',
@@ -160,7 +195,8 @@ export default function FieldPicker({
                             })}
                         </div>
                     </div>
-                )}
+                    )
+                })()}
             </div>
         </div>
     )

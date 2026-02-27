@@ -115,7 +115,7 @@ export default function BulkAddTravelersModal({
                 valor_estimado: 0, // Default to 0, can be updated later
                 pessoa_principal_id: contact.id,
                 pipeline_stage_id: firstStage.id,
-                status_comercial: 'em_andamento',
+                status_comercial: 'aberto',
                 moeda: 'BRL',
                 parent_card_id: parentCardId,
                 // Data Inheritance

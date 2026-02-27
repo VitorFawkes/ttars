@@ -42,19 +42,6 @@ export const VIZ_LABELS: Record<VizType, string> = {
     funnel: 'Funil',
 }
 
-export const VIZ_ICONS: Record<VizType, string> = {
-    bar_vertical: '📊',
-    bar_horizontal: '📊',
-    line: '📈',
-    area: '📉',
-    composed: '📊',
-    pie: '🥧',
-    donut: '🍩',
-    table: '📋',
-    kpi: '🔢',
-    funnel: '🔻',
-}
-
 /** Default visualization config per viz type */
 export function getDefaultVizConfig(type: VizType): VisualizationConfig {
     const base: VisualizationConfig = {

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Repeat, Users, TrendingDown, Heart, Info,
 } from 'lucide-react'
@@ -7,14 +8,18 @@ import {
 } from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { useRetentionCohort, useRetentionKpis } from '@/hooks/analytics/useRetentionData'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { cn } from '@/lib/utils'
 
 export default function RetentionView() {
     const { mode } = useAnalyticsFilters()
-    const { data: cohortRows, isLoading: cohortLoading, error: cohortError } = useRetentionCohort()
-    const { data: kpis, isLoading: kpisLoading, error: kpisError } = useRetentionKpis()
+    const { data: cohortRows, isLoading: cohortLoading, error: cohortError, refetch: r1 } = useRetentionCohort()
+    const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: r2 } = useRetentionKpis()
+
+    const navigate = useNavigate()
+    const handleRetry = () => { r1(); r2() }
 
     const hasError = !!(cohortError || kpisError)
 
@@ -74,9 +79,11 @@ export default function RetentionView() {
     return (
         <div className="space-y-6">
             {hasError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados de recorrência. Verifique sua conexão e tente novamente.
-                </div>
+                <QueryErrorState
+                    compact
+                    title="Erro ao carregar dados de recorrência"
+                    onRetry={handleRetry}
+                />
             )}
 
             {/* Mode indicator */}
@@ -116,6 +123,8 @@ export default function RetentionView() {
                     color="text-indigo-600"
                     bgColor="bg-indigo-50"
                     isLoading={isLoading}
+                    onClick={() => navigate('/people')}
+                    clickHint="Ver contatos"
                 />
                 <KpiCard
                     title="Base com Compra"
@@ -124,6 +133,8 @@ export default function RetentionView() {
                     color="text-slate-700"
                     bgColor="bg-slate-100"
                     isLoading={isLoading}
+                    onClick={() => navigate('/people')}
+                    clickHint="Ver contatos"
                 />
             </div>
 
@@ -170,6 +181,7 @@ export default function RetentionView() {
                                 fillOpacity={0.15}
                                 strokeWidth={2}
                                 dot={{ r: 3, fill: '#22c55e' }}
+                                activeDot={{ r: 5, fill: '#22c55e', cursor: 'pointer', onClick: () => navigate('/people') }}
                             />
                         </AreaChart>
                     </ResponsiveContainer>
@@ -220,10 +232,14 @@ export default function RetentionView() {
 
                                                 return (
                                                     <td key={i} className="text-center px-1 py-1">
-                                                        <div className={cn(
-                                                            'rounded px-2 py-1.5 font-medium',
-                                                            cell ? getRateColor(rate) : 'bg-slate-50 text-slate-200'
-                                                        )}>
+                                                        <div
+                                                            className={cn(
+                                                                'rounded px-2 py-1.5 font-medium',
+                                                                cell ? getRateColor(rate) : 'bg-slate-50 text-slate-200',
+                                                                cell ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1 transition-all' : ''
+                                                            )}
+                                                            onClick={() => { if (cell) navigate('/people') }}
+                                                        >
                                                             {cell ? `${rate}%` : '—'}
                                                         </div>
                                                     </td>
@@ -245,23 +261,23 @@ export default function RetentionView() {
             {/* Summary Cards */}
             {kpis && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                    <button onClick={() => navigate('/people')} className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center hover:border-green-300 hover:shadow-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:outline-none">
                         <p className="text-3xl font-bold text-green-600">{kpis.repeat_buyers}</p>
                         <p className="text-sm text-slate-500 mt-1">Compraram 2+ vezes</p>
                         <p className="text-xs text-slate-400 mt-0.5">de {kpis.total_with_purchase} com compra</p>
-                    </div>
-                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                    </button>
+                    <button onClick={() => navigate('/people')} className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center hover:border-rose-300 hover:shadow-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none">
                         <p className="text-3xl font-bold text-rose-600">{kpis.churned}</p>
                         <p className="text-sm text-slate-500 mt-1">Possivelmente churned</p>
                         <p className="text-xs text-slate-400 mt-0.5">Sem compra há +18 meses</p>
-                    </div>
-                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center">
+                    </button>
+                    <button onClick={() => navigate('/people')} className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 text-center hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none">
                         <p className="text-3xl font-bold text-indigo-600">
                             {kpis.total_with_purchase - kpis.repeat_buyers - kpis.churned}
                         </p>
                         <p className="text-sm text-slate-500 mt-1">Potencial Recompra</p>
                         <p className="text-xs text-slate-400 mt-0.5">1 compra, ainda na janela</p>
-                    </div>
+                    </button>
                 </div>
             )}
         </div>

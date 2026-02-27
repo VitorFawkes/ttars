@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     GitBranch, TrendingDown, Clock, Users, AlertTriangle,
 } from 'lucide-react'
@@ -9,7 +10,9 @@ import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { cn } from '@/lib/utils'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
 
 const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#0ea5e9']
 
@@ -37,11 +40,15 @@ function TimeTooltip({ active, payload, label }: any) {
 
 
 export default function FunnelView() {
-    const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelConversion()
-    const { data: lossData, isLoading: lossLoading, error: lossError } = useLossReasons()
+    const { data: funnelData, isLoading: funnelLoading, error: funnelError, refetch: refetchFunnel } = useFunnelConversion()
+    const { data: lossData, isLoading: lossLoading, error: lossError, refetch: refetchLoss } = useLossReasons()
 
     const hasError = !!(funnelError || lossError)
     const { data: pipelineStages } = usePipelineStages()
+
+    const navigate = useNavigate()
+    const drillDown = useDrillDownStore()
+    const handleRetry = () => { refetchFunnel(); refetchLoss() }
 
     const stages = useMemo(() => funnelData || [], [funnelData])
     const totalLeads = stages.length > 0 ? stages[0].current_count : 0
@@ -87,9 +94,7 @@ export default function FunnelView() {
     return (
         <div className="space-y-6">
             {hasError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados do funil. Verifique sua conexão e tente novamente.
-                </div>
+                <QueryErrorState compact title="Erro ao carregar dados do funil" onRetry={handleRetry} />
             )}
 
             {/* KPIs */}
@@ -101,6 +106,8 @@ export default function FunnelView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={funnelLoading}
+                    onClick={() => drillDown.open({ label: 'Total no Funil', drillSource: 'stage_entries' })}
+                    clickHint="Ver todos os cards"
                 />
                 <KpiCard
                     title="Conversão E2E"
@@ -125,6 +132,8 @@ export default function FunnelView() {
                     color={bottleneckCount > 0 ? 'text-rose-600' : 'text-sky-600'}
                     bgColor={bottleneckCount > 0 ? 'bg-rose-50' : 'bg-sky-50'}
                     isLoading={funnelLoading}
+                    onClick={() => navigate('/analytics/sla')}
+                    clickHint="Ver SLA"
                 />
             </div>
 
@@ -135,19 +144,19 @@ export default function FunnelView() {
                 isLoading={funnelLoading}
             >
                 {stages.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(300, stages.length * 35 + 40)}>
+                    <ResponsiveContainer width="100%" height={Math.max(300, stages.length * 44 + 40)}>
                         <BarChart
                             data={stages}
                             layout="vertical"
-                            margin={{ left: 10, right: 50 }}
+                            margin={{ left: 10, right: 60 }}
                         >
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                             <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <YAxis
                                 dataKey="stage_nome"
                                 type="category"
-                                width={160}
-                                tick={{ fontSize: 11, fill: '#334155' }}
+                                width={180}
+                                tick={{ fontSize: 10, fill: '#334155' }}
                                 axisLine={false}
                                 tickLine={false}
                             />
@@ -155,8 +164,9 @@ export default function FunnelView() {
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                                 formatter={(value: number) => [value, 'Cards']}
                             />
-                            <Bar dataKey="current_count" radius={[0, 6, 6, 0]} barSize={22}>
-                                <LabelList dataKey="current_count" position="right" fill="#64748b" fontSize={11} />
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="current_count" radius={[0, 6, 6, 0]} barSize={20} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: s.stage_nome, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }}>
+                                <LabelList dataKey="current_count" position="right" fill="#64748b" fontSize={11} offset={8} />
                                 {stages.map((_, i) => (
                                     <Cell key={i} fill={FUNNEL_COLORS[i % FUNNEL_COLORS.length]} />
                                 ))}
@@ -172,31 +182,47 @@ export default function FunnelView() {
 
             {/* Conversion Rates */}
             {conversionRates.length > 1 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {conversionRates.slice(1).map((stage, i) => {
-                        const rate = stage.conversion_from_prev
-                        const prevCount = conversionRates[i].current_count
-                        const drop = prevCount - stage.current_count
-                        const rateColor = rate >= 70 ? 'text-green-600' : rate >= 40 ? 'text-amber-600' : 'text-rose-600'
-                        const bgAccent = rate >= 70 ? 'border-green-200' : rate >= 40 ? 'border-amber-200' : 'border-rose-200'
+                <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100">
+                        <h3 className="text-sm font-semibold text-slate-800">Taxa de Conversão entre Etapas</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-slate-100 bg-slate-50/50">
+                                    <th className="text-left px-6 py-3 font-medium text-slate-500">De</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-500">Para</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-500">Entrada</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-500">Saída</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-500">Perda</th>
+                                    <th className="text-right px-6 py-3 font-medium text-slate-500">Conversão</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {conversionRates.slice(1).map((stage, i) => {
+                                    const rate = stage.conversion_from_prev
+                                    const prevCount = conversionRates[i].current_count
+                                    const drop = prevCount - stage.current_count
+                                    const rateColor = rate >= 70 ? 'text-green-600' : rate >= 40 ? 'text-amber-600' : 'text-rose-600'
 
-                        return (
-                            <div key={stage.stage_id} className={cn('bg-white border shadow-sm rounded-xl p-4 text-center', bgAccent)}>
-                                <p className="text-xs text-slate-500 truncate mb-1 font-medium">
-                                    {conversionRates[i].stage_nome}
-                                </p>
-                                <div className="flex items-center justify-center gap-1 mb-1">
-                                    <span className="text-slate-300 text-sm">↓</span>
-                                    {drop > 0 && (
-                                        <span className="text-[10px] text-rose-400">-{drop}</span>
-                                    )}
-                                </div>
-                                <p className={cn('text-2xl font-bold', rateColor)}>{rate}%</p>
-                                <p className="text-xs text-slate-500 truncate mt-1 font-medium">{stage.stage_nome}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">{stage.current_count} cards</p>
-                            </div>
-                        )
-                    })}
+                                    return (
+                                        <tr key={stage.stage_id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => drillDown.open({ label: `${conversionRates[i].stage_nome} → ${stage.stage_nome}`, drillStageId: stage.stage_id, drillSource: 'stage_entries' })}>
+                                            <td className="px-6 py-3 text-slate-700 font-medium max-w-[180px] truncate">{conversionRates[i].stage_nome}</td>
+                                            <td className="px-4 py-3 text-slate-600 max-w-[180px] truncate">{stage.stage_nome}</td>
+                                            <td className="text-right px-4 py-3 text-slate-600">{prevCount}</td>
+                                            <td className="text-right px-4 py-3 text-slate-600">{stage.current_count}</td>
+                                            <td className="text-right px-4 py-3">
+                                                {drop > 0 ? <span className="text-rose-500 font-medium">-{drop}</span> : <span className="text-slate-300">0</span>}
+                                            </td>
+                                            <td className="text-right px-6 py-3">
+                                                <span className={cn('font-bold', rateColor)}>{rate}%</span>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -207,32 +233,35 @@ export default function FunnelView() {
                 isLoading={funnelLoading}
             >
                 {timeData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(280, timeData.length * 40 + 40)}>
+                    <ResponsiveContainer width="100%" height={Math.max(280, timeData.length * 52 + 40)}>
                         <BarChart
                             data={timeData}
                             layout="vertical"
-                            margin={{ left: 10, right: 60 }}
+                            margin={{ left: 10, right: 80 }}
                         >
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} label={{ value: 'Dias', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#94a3b8' }} />
                             <YAxis
                                 dataKey="stage_nome"
                                 type="category"
-                                width={160}
-                                tick={{ fontSize: 11, fill: '#334155' }}
+                                width={180}
+                                tick={{ fontSize: 10, fill: '#334155' }}
                                 axisLine={false}
                                 tickLine={false}
                             />
                             <Tooltip content={<TimeTooltip />} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
-                            <Bar dataKey="avg_days_in_stage" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={14} />
-                            <Bar dataKey="p75_days_in_stage" name="p75" barSize={14} radius={[0, 4, 4, 0]}>
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="avg_days_in_stage" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }} />
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="p75_days_in_stage" name="p75" barSize={12} radius={[0, 4, 4, 0]} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }}>
                                 <LabelList
                                     dataKey="p75_days_in_stage"
                                     position="right"
-                                    fontSize={11}
+                                    fontSize={10}
                                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts typing
                                     formatter={(v: any) => `p75: ${v}d`}
                                     fill="#64748b"
+                                    offset={6}
                                 />
                                 {timeData.map((entry, i) => (
                                     <Cell
@@ -292,7 +321,8 @@ export default function FunnelView() {
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts payload typing
                                 formatter={(value: number, _key: string, entry: any) => [`${value} (${entry?.payload?.percentage ?? 0}%)`, 'Cards perdidos']}
                             />
-                            <Bar dataKey="count" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={18}>
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="count" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={18} cursor="pointer" onClick={(data: any) => { const m = data?.payload?.motivo || data?.motivo; if (m) drillDown.open({ label: `Motivo: ${m}`, drillLossReason: m, drillStatus: 'perdido', drillSource: 'lost_deals' }) }}>
                                 <LabelList dataKey="count" position="right" fill="#64748b" fontSize={11} />
                             </Bar>
                         </BarChart>

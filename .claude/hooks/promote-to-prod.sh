@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+
+# Promove migration do staging para PRODUÇÃO + smoke test
+# Uso: bash .claude/hooks/promote-to-prod.sh supabase/migrations/ARQUIVO.sql
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/../.." || exit 1
+source .env 2>/dev/null || { echo "Erro: .env não encontrado" >&2; exit 1; }
+
+SQL_FILE="${1:?Uso: promote-to-prod.sh <arquivo.sql>}"
+if [ ! -f "$SQL_FILE" ]; then
+  echo "Erro: Arquivo não encontrado: $SQL_FILE" >&2
+  exit 1
+fi
+
+echo "=== PROMOÇÃO PARA PRODUÇÃO ==="
+echo "Arquivo: $SQL_FILE"
+echo "Banco: szyrzxvlptqqheizyrxu (PRODUÇÃO)"
+echo ""
+
+# Aplicar no banco de produção
+python3 -c "
+import json,subprocess,os
+sql = open('$SQL_FILE').read()
+r = subprocess.run(['curl','-sS','-X','POST',
+  'https://api.supabase.com/v1/projects/szyrzxvlptqqheizyrxu/database/query',
+  '-H','Authorization: Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],
+  '-H','Content-Type: application/json',
+  '-d',json.dumps({'query':sql})], capture_output=True, text=True)
+print(r.stdout[:500])
+if r.returncode != 0:
+    print('STDERR:', r.stderr[:300])
+    exit(1)
+"
+
+# Smoke test contra produção
+echo ""
+echo "Rodando smoke test contra produção..."
+SMOKE_URL="$VITE_SUPABASE_URL" \
+SMOKE_ANON="$VITE_SUPABASE_ANON_KEY" \
+SMOKE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+bash "$SCRIPT_DIR/schema-smoke-test.sh"
+
+echo ""
+echo "Promoção concluída. Rode: touch .claude/.migration_applied"

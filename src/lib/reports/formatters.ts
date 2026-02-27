@@ -41,8 +41,9 @@ export function formatDays(value: number): string {
 
 /** Auto-format based on label format type */
 export function autoFormat(value: unknown, format: 'number' | 'currency' | 'percent' | undefined): string {
+    if (value === null || value === undefined) return '—'
     const num = Number(value)
-    if (isNaN(num)) return String(value ?? '—')
+    if (isNaN(num)) return String(value)
     switch (format) {
         case 'currency': return formatCurrency(num)
         case 'percent': return formatPercent(num)
@@ -52,7 +53,11 @@ export function autoFormat(value: unknown, format: 'number' | 'currency' | 'perc
 
 /** Format date for chart axis based on granularity */
 export function formatDateAxis(dateStr: string, granularity?: string): string {
-    const d = new Date(dateStr)
+    // Append T00:00:00 to date-only strings (YYYY-MM-DD) to force local timezone parsing
+    // Without this, new Date('2025-03-15') is parsed as UTC midnight, which shifts
+    // to the previous day in negative UTC offsets (e.g. UTC-3 Brazil)
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr
+    const d = new Date(normalized)
     if (isNaN(d.getTime())) return dateStr
 
     switch (granularity) {

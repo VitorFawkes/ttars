@@ -190,6 +190,8 @@ export interface FieldDefinition {
     requiresPermission?: string
     filterOperators?: FilterOperator[]
     filterOptions?: string[] | 'dynamic'
+    /** Human-readable description shown in field picker tooltip */
+    description?: string
 }
 
 // === Computed measure definition ===

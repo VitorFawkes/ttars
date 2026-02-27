@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import type { Database } from '../../database.types'
+import { QueryErrorState } from '../ui/QueryErrorState'
 
 type Product = Database['public']['Enums']['app_product']
 
@@ -10,7 +11,7 @@ interface FunnelChartProps {
 }
 
 export default function FunnelChart({ productFilter = 'ALL' }: FunnelChartProps) {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['dashboard-funnel', productFilter],
         queryFn: async () => {
             let query = supabase
@@ -31,6 +32,15 @@ export default function FunnelChart({ productFilter = 'ALL' }: FunnelChartProps)
     const chartData = data || []
 
     if (isLoading) return <div className="h-64 animate-pulse bg-gray-100 rounded-lg"></div>
+
+    if (isError) {
+        return (
+            <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-4">Funil de Vendas</h3>
+                <QueryErrorState compact onRetry={refetch} />
+            </div>
+        )
+    }
 
     return (
         <div className="bg-white p-6 rounded-lg shadow">

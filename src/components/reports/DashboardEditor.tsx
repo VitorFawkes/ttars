@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Settings2, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Settings2, Loader2, CheckCircle2, Copy } from 'lucide-react'
 import {
     useSavedDashboard,
     useDashboardWidgets,
@@ -10,6 +10,7 @@ import {
     useUpdateWidgetLayout,
     useRemoveWidget,
 } from '@/hooks/reports/useSavedDashboards'
+import { useAuth } from '@/contexts/AuthContext'
 import DashboardGrid from './dashboard/DashboardGrid'
 import WidgetCard from './dashboard/WidgetCard'
 import AddWidgetDialog from './dashboard/AddWidgetDialog'
@@ -19,6 +20,7 @@ import type { DashboardGlobalFilters } from '@/lib/reports/reportTypes'
 export default function DashboardEditor() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const { session, profile } = useAuth()
     const isNew = !id
 
     const [addWidgetOpen, setAddWidgetOpen] = useState(false)
@@ -31,14 +33,20 @@ export default function DashboardEditor() {
     const updateLayout = useUpdateWidgetLayout()
     const removeWidget = useRemoveWidget()
 
-    // Sync state from server data (render-time adjustment)
-    const [syncedId, setSyncedId] = useState<string | undefined>()
+    // Can edit if: owner, admin, or new dashboard (not yet saved)
+    const canEdit = !dashboard || dashboard.created_by === session?.user?.id || profile?.is_admin === true
+
+    // Local edits — initialized from server data, user can override
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
     const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
-    if (dashboard && dashboard.id !== syncedId) {
-        setSyncedId(dashboard.id)
-        setTitle(dashboard.title)
+    const [prevDashId, setPrevDashId] = useState<string | undefined>(undefined)
+
+    // Adjust state when dashboard data changes (React-recommended pattern)
+    // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+    if (dashboard?.id && dashboard.id !== prevDashId) {
+        setPrevDashId(dashboard.id)
+        setTitle(dashboard.title ?? '')
         setDescription(dashboard.description ?? '')
         setGlobalFilters(dashboard.global_filters ?? {})
     }
@@ -50,7 +58,8 @@ export default function DashboardEditor() {
         setSaveError(null)
         setSaveSuccess(false)
         try {
-            if (isNew) {
+            if (isNew || !canEdit) {
+                // New dashboard or fork (non-owner, non-admin)
                 const saved = await createDashboard.mutateAsync({
                     title: title || 'Novo Dashboard',
                     description: description || undefined,
@@ -82,14 +91,28 @@ export default function DashboardEditor() {
         })
     }
 
-    const handleLayoutChange = (updates: { id: string; grid_x: number; grid_y: number; grid_w: number; grid_h: number }[]) => {
+    const layoutDebounce = useRef<ReturnType<typeof setTimeout>>(undefined)
+    const handleLayoutChange = useCallback((updates: { id: string; grid_x: number; grid_y: number; grid_w: number; grid_h: number }[]) => {
         if (!id) return
-        updateLayout.mutate({ dashboardId: id, widgets: updates })
-    }
+        clearTimeout(layoutDebounce.current)
+        layoutDebounce.current = setTimeout(() => {
+            updateLayout.mutate(
+                { dashboardId: id, widgets: updates },
+                { onError: (err) => setSaveError((err as Error).message ?? 'Erro ao salvar layout') },
+            )
+        }, 500)
+    }, [id, updateLayout])
 
-    const handleRemoveWidget = (widgetId: string) => {
+    // Cleanup debounce on unmount
+    useEffect(() => () => clearTimeout(layoutDebounce.current), [])
+
+    const handleRemoveWidget = async (widgetId: string) => {
         if (!id) return
-        removeWidget.mutate({ widgetId, dashboardId: id })
+        try {
+            await removeWidget.mutateAsync({ widgetId, dashboardId: id })
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Erro ao remover widget')
+        }
     }
 
     const isSaving = createDashboard.isPending || updateDashboard.isPending
@@ -103,16 +126,26 @@ export default function DashboardEditor() {
                     <button
                         onClick={() => navigate('/reports/dashboards')}
                         className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        aria-label="Voltar para dashboards"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Título do Dashboard"
-                        className="text-lg font-semibold text-slate-900 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-slate-300 w-64"
-                    />
+                    <div className="flex flex-col">
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Título do Dashboard"
+                            className="text-lg font-semibold text-slate-900 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-slate-300 w-64"
+                        />
+                        <input
+                            type="text"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Descrição (opcional)"
+                            className="text-xs text-slate-500 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-slate-300 w-64 -mt-0.5"
+                        />
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
@@ -135,10 +168,12 @@ export default function DashboardEditor() {
                             <Loader2 className="w-4 h-4 animate-spin" />
                         ) : saveSuccess ? (
                             <CheckCircle2 className="w-4 h-4" />
+                        ) : !canEdit ? (
+                            <Copy className="w-4 h-4" />
                         ) : (
                             <Save className="w-4 h-4" />
                         )}
-                        {isSaving ? 'Salvando...' : saveSuccess ? 'Salvo!' : 'Salvar'}
+                        {isSaving ? 'Salvando...' : saveSuccess ? 'Salvo!' : !canEdit ? 'Salvar cópia' : 'Salvar'}
                     </button>
                 </div>
             </div>

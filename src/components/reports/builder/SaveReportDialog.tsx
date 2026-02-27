@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Save, Globe, Users, Lock } from 'lucide-react'
 
 interface SaveReportDialogProps {
@@ -37,6 +37,14 @@ function SaveReportDialogInner({
     const [title, setTitle] = useState(initialTitle)
     const [description, setDescription] = useState(initialDescription)
     const [visibility, setVisibility] = useState(initialVisibility)
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', handleKeyDown)
+        return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [onClose])
 
     const canSave = title.trim().length > 0 && !saving
 

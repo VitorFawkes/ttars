@@ -7,7 +7,7 @@ interface NavItem {
     icon: typeof FileText
     label: string
     /** Custom active check: true when this item should be highlighted */
-    isActive?: (pathname: string) => boolean
+    isActive?: (pathname: string, search: string) => boolean
 }
 
 const navSections: { title: string; items: NavItem[] }[] = [
@@ -18,8 +18,8 @@ const navSections: { title: string; items: NavItem[] }[] = [
                 to: '/reports',
                 icon: FileText,
                 label: 'Meus Relatórios',
-                // Active on /reports exactly and /reports/:uuid (but not /reports/new, /reports/dashboards)
-                isActive: (p) => p === '/reports' || (/^\/reports\/[0-9a-f-]{20,}/.test(p) && !p.includes('dashboards')),
+                // Active on /reports exactly (without ?tab=templates) and /reports/:uuid (but not /reports/new, /reports/dashboards)
+                isActive: (p, s) => (p === '/reports' && !s.includes('tab=templates')) || (/^\/reports\/[0-9a-f-]{20,}/.test(p) && !p.includes('dashboards')),
             },
             { to: '/reports/new', icon: Plus, label: 'Novo Relatório' },
         ],
@@ -45,7 +45,12 @@ const navSections: { title: string; items: NavItem[] }[] = [
     {
         title: 'Templates',
         items: [
-            { to: '/reports?tab=templates', icon: Sparkles, label: 'Relatórios Pré-Prontos' },
+            {
+                to: '/reports?tab=templates',
+                icon: Sparkles,
+                label: 'Relatórios Pré-Prontos',
+                isActive: (p, s) => p === '/reports' && s.includes('tab=templates'),
+            },
         ],
     },
 ]
@@ -68,7 +73,7 @@ export default function ReportsSidebar() {
                         <div className="space-y-0.5">
                             {section.items.map((item) => {
                                 const active = item.isActive
-                                    ? item.isActive(location.pathname)
+                                    ? item.isActive(location.pathname, location.search)
                                     : undefined // let NavLink decide
 
                                 return (

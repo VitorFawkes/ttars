@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Loader2, AlertCircle, BarChart3 } from 'lucide-react'
 import { useReportBuilderStore } from '@/hooks/reports/useReportBuilderStore'
 import { useReportEngine } from '@/hooks/reports/useReportEngine'
@@ -23,17 +23,19 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
     const [debouncedIQR, setDebouncedIQR] = useState<ReportIQR | null>(null)
     const currentIQR = store.toIQR()
     const iqrKey = JSON.stringify(currentIQR)
+    const currentIQRRef = useRef(currentIQR)
+    currentIQRRef.current = currentIQR
 
     useEffect(() => {
         const timer = setTimeout(() => {
             // Clear drill-down when config changes
             setDrillFilters(null)
-            setDebouncedIQR(currentIQR)
+            setDebouncedIQR(currentIQRRef.current)
         }, 500)
         return () => clearTimeout(timer)
-    }, [iqrKey, currentIQR])
+    }, [iqrKey])
 
-    const hasMinimumConfig = store.source && store.measures.length > 0
+    const hasMinimumConfig = store.source && (store.measures.length > 0 || store.computedMeasures.length > 0)
 
     const { data: queryData, isLoading, error } = useReportEngine({
         config: debouncedIQR,
@@ -45,10 +47,14 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
     })
 
     // Build keys/labels matching RPC output aliases (dim_0, mea_0, etc.)
-    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping } = useMemo(() => {
-        if (!currentIQR) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined }
-        return buildReportKeys(currentIQR)
-    }, [currentIQR])
+    // iqrKey is intentionally used as the dependency to trigger recalculation
+    // when the IQR config changes (the ref is read inside for the actual value).
+    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping, breakdownKey } = useMemo(() => {
+        const iqr = currentIQRRef.current
+        if (!iqr) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined, breakdownKey: null }
+        return buildReportKeys(iqr)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [iqrKey])
 
     // Map drill filters from data keys (dim_0) to actual field names (ps.nome)
     const mappedDrillFilters = useMemo(() => {
@@ -126,6 +132,7 @@ export default function ReportPreview({ dateStart, dateEnd, product, ownerId }: 
                     labelFormat={store.visualization.labelFormat}
                     keyFormats={keyFormats}
                     dateGrouping={dateGrouping}
+                    breakdownKey={breakdownKey}
                     onDrillDown={(filters) => setDrillFilters(filters)}
                 />
             ) : (

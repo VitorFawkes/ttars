@@ -13,6 +13,7 @@ import {
     Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
 
 interface ProposalStats {
     total: number
@@ -39,7 +40,7 @@ interface PendingProposal {
 }
 
 export function ProposalAnalyticsWidget() {
-    const { data: stats, isLoading: loadingStats } = useQuery({
+    const { data: stats, isLoading: loadingStats, isError: errorStats, refetch: refetchStats } = useQuery({
         queryKey: ['proposal-stats-widget'],
         queryFn: async () => {
             const { data: proposals, error } = await supabase
@@ -67,6 +68,7 @@ export function ProposalAnalyticsWidget() {
                 conversionRate: 0,
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             proposals?.forEach((p: any) => {
                 const status = p.status as keyof typeof stats
                 if (status in stats && typeof stats[status] === 'number') {
@@ -94,7 +96,7 @@ export function ProposalAnalyticsWidget() {
         staleTime: 60000, // 1 min
     })
 
-    const { data: pendingProposals = [], isLoading: loadingPending } = useQuery({
+    const { data: pendingProposals = [], isLoading: loadingPending, isError: errorPending, refetch: refetchPending } = useQuery({
         queryKey: ['pending-proposals-widget'],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -113,6 +115,7 @@ export function ProposalAnalyticsWidget() {
 
             if (error) throw error
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (data || []).map((p: any) => {
                 const createdAt = new Date(p.created_at)
                 const now = new Date()
@@ -150,6 +153,14 @@ export function ProposalAnalyticsWidget() {
     }
 
 
+
+    if (errorStats || errorPending) {
+        return (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <QueryErrorState compact onRetry={() => { refetchStats(); refetchPending() }} />
+            </div>
+        )
+    }
 
     if (loadingStats || loadingPending) {
         return (

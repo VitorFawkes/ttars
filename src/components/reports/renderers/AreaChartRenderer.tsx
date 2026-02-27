@@ -22,7 +22,7 @@ export default function AreaChartRenderer({
     const dimKey = dimensionKeys[0]
     const isTimeseries = data.length > 0 && dimKey && typeof data[0][dimKey] === 'string' && !isNaN(Date.parse(String(data[0][dimKey])))
 
-    if (!data.length) {
+    if (!data.length || !measureKeys.length) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
                 Nenhum registro encontrado
@@ -85,8 +85,12 @@ export default function AreaChartRenderer({
                             strokeWidth: 2,
                             stroke: '#fff',
                             onClick: (_: unknown, payload: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-                                if (onDrillDown && dimKey && payload?.payload?.[dimKey] != null) {
-                                    onDrillDown({ [dimKey]: payload.payload[dimKey] })
+                                if (onDrillDown && payload?.payload) {
+                                    const filters: Record<string, unknown> = {}
+                                    for (const dk of dimensionKeys) {
+                                        if (payload.payload[dk] != null) filters[dk] = payload.payload[dk]
+                                    }
+                                    if (Object.keys(filters).length > 0) onDrillDown(filters)
                                 }
                             },
                         }}

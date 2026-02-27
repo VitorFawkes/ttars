@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import type { Database } from '../../database.types'
 import { DollarSign, Layers, TrendingUp } from 'lucide-react'
+import { QueryErrorState } from '../ui/QueryErrorState'
 
 type Product = Database['public']['Enums']['app_product']
 
@@ -11,7 +12,7 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['dashboard-stats', productFilter],
         queryFn: async () => {
             let query = supabase
@@ -29,11 +30,11 @@ export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
     })
 
     const receitaPerm = useReceitaPermission()
-    const stats = (data as any[])?.reduce((acc, curr) => ({
-        totalCards: acc.totalCards + (curr.total_cards || 0),
-        totalValue: acc.totalValue + (curr.valor_total || 0),
-        totalReceita: acc.totalReceita + (curr.receita_total || 0)
-    }), { totalCards: 0, totalValue: 0, totalReceita: 0 }) || { totalCards: 0, totalValue: 0, totalReceita: 0 }
+    const stats = (data as Record<string, number | null>[])?.reduce((acc, curr) => ({
+        totalCards: (acc.totalCards ?? 0) + (curr.total_cards || 0),
+        totalValue: (acc.totalValue ?? 0) + (curr.valor_total ?? curr.total_valor_estimado ?? 0),
+        totalReceita: (acc.totalReceita ?? 0) + (curr.receita_total ?? 0)
+    }), { totalCards: 0 as number | null, totalValue: 0 as number | null, totalReceita: 0 as number | null }) || { totalCards: 0, totalValue: 0, totalReceita: 0 }
 
     if (isLoading) {
         return (
@@ -41,6 +42,16 @@ export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
                 {[1, 2].map((i) => (
                     <div key={i} className="h-32 animate-pulse rounded-lg bg-gray-100"></div>
                 ))}
+            </div>
+        )
+    }
+
+    if (isError) {
+        return (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="col-span-full rounded-lg bg-white p-6 shadow-sm">
+                    <QueryErrorState compact onRetry={refetch} />
+                </div>
             </div>
         )
     }
@@ -67,13 +78,13 @@ export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
                     <div className="ml-4">
                         <p className="text-sm font-medium text-gray-500">Valor em Pipeline</p>
                         <p className="text-2xl font-semibold text-gray-900">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalValue)}
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalValue ?? 0)}
                         </p>
                     </div>
                 </div>
             </div>
 
-            {receitaPerm.canView && stats.totalReceita > 0 && (
+            {receitaPerm.canView && (stats.totalReceita ?? 0) > 0 && (
                 <div className="rounded-lg bg-white p-6 shadow-sm">
                     <div className="flex items-center">
                         <div className="rounded-md bg-amber-50 p-3">
@@ -82,7 +93,7 @@ export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
                         <div className="ml-4">
                             <p className="text-sm font-medium text-gray-500">Receita Total</p>
                             <p className="text-2xl font-semibold text-amber-700">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalReceita)}
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalReceita ?? 0)}
                             </p>
                         </div>
                     </div>

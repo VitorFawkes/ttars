@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { QueryErrorState } from '../ui/QueryErrorState'
 
 interface Activity {
     id: string
@@ -18,7 +19,7 @@ interface Activity {
 }
 
 export default function RecentActivity() {
-    const { data: activities, isLoading } = useQuery({
+    const { data: activities, isLoading, isError, refetch } = useQuery({
         queryKey: ['recent-activity'],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -45,6 +46,15 @@ export default function RecentActivity() {
     })
 
     if (isLoading) return <div className="h-64 animate-pulse bg-gray-100 rounded-lg"></div>
+
+    if (isError) {
+        return (
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+                <h3 className="mb-4 text-lg font-medium text-gray-900">Atividades Recentes</h3>
+                <QueryErrorState compact onRetry={refetch} />
+            </div>
+        )
+    }
 
     return (
         <div className="rounded-lg bg-white p-6 shadow-sm">

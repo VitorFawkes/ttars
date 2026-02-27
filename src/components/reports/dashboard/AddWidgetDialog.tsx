@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Search, Plus, Loader2 } from 'lucide-react'
 import { useSavedReports } from '@/hooks/reports/useSavedReports'
 import { SOURCE_MAP } from '@/lib/reports/sourceMap'
@@ -29,6 +29,15 @@ export default function AddWidgetDialog({
         const q = search.toLowerCase()
         return list.filter(r => r.title.toLowerCase().includes(q))
     }, [reports, search, existingReportIds])
+
+    useEffect(() => {
+        if (!open) return
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', handleKeyDown)
+        return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [open, onClose])
 
     if (!open) return null
 

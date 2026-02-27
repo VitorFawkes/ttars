@@ -23,10 +23,10 @@ export interface SLAStageSummary {
 }
 
 export function useSLAViolations() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'sla-violations', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'sla-violations', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_sla_violations', {
@@ -35,7 +35,7 @@ export function useSLAViolations() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_limit: 50,
             })
             if (error) throw error
@@ -47,10 +47,10 @@ export function useSLAViolations() {
 }
 
 export function useSLASummary() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'sla-summary', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'sla-summary', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_sla_summary', {
@@ -59,7 +59,7 @@ export function useSLASummary() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as SLAStageSummary[]) || []

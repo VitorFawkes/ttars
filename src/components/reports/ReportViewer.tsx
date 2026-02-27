@@ -4,29 +4,39 @@ import { ArrowLeft, Edit2, Trash2, Pin, PinOff, Loader2, AlertCircle } from 'luc
 import { useSavedReport, useUpdateReport, useDeleteReport } from '@/hooks/reports/useSavedReports'
 import { useReportEngine } from '@/hooks/reports/useReportEngine'
 import { useReportDrillDown } from '@/hooks/reports/useReportDrillDown'
+import { useAuth } from '@/contexts/AuthContext'
 import { buildReportKeys, mapDrillFilters } from '@/lib/reports/buildReportKeys'
 import ChartRenderer from './renderers/ChartRenderer'
 import DrillDownPanel from './renderers/DrillDownPanel'
-import type { DrillDownFilters } from '@/lib/reports/reportTypes'
+import DashboardFilters from './dashboard/DashboardFilters'
+import type { DrillDownFilters, DashboardGlobalFilters } from '@/lib/reports/reportTypes'
 
 export default function ReportViewer() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const { session, profile } = useAuth()
     const [drillFilters, setDrillFilters] = useState<DrillDownFilters | null>(null)
+    const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
 
     const { data: report, isLoading: reportLoading } = useSavedReport(id)
     const updateReport = useUpdateReport()
     const deleteReport = useDeleteReport()
 
+    const canModify = report && (report.created_by === session?.user?.id || profile?.is_admin === true)
+
     const { data: queryData, isLoading: queryLoading, error: queryError } = useReportEngine({
         config: report?.config ?? null,
+        dateStart: globalFilters.dateRange?.start,
+        dateEnd: globalFilters.dateRange?.end,
+        product: globalFilters.product,
+        ownerId: globalFilters.ownerId,
         enabled: !!report,
     })
 
     // Build keys/labels matching RPC output aliases
     const reportConfig = report?.config ?? null
-    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping } = useMemo(() => {
-        if (!reportConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined }
+    const { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping, breakdownKey } = useMemo(() => {
+        if (!reportConfig) return { dimensionKeys: [], measureKeys: [], labels: {}, drillFieldMap: {}, keyFormats: {}, dateGrouping: undefined, breakdownKey: null }
         return buildReportKeys(reportConfig)
     }, [reportConfig])
 
@@ -39,6 +49,10 @@ export default function ReportViewer() {
     const { data: drillData, isLoading: drillLoading } = useReportDrillDown({
         config: report?.config ?? null,
         drillFilters: mappedDrillFilters,
+        dateStart: globalFilters.dateRange?.start,
+        dateEnd: globalFilters.dateRange?.end,
+        product: globalFilters.product,
+        ownerId: globalFilters.ownerId,
     })
 
     if (reportLoading) {
@@ -62,8 +76,12 @@ export default function ReportViewer() {
 
     const handleDelete = async () => {
         if (!confirm('Tem certeza que deseja excluir este relatório?')) return
-        await deleteReport.mutateAsync(report.id)
-        navigate('/reports')
+        try {
+            await deleteReport.mutateAsync(report.id)
+            navigate('/reports')
+        } catch {
+            // RLS will block non-owners/non-admins — error shown via MutationCache
+        }
     }
 
     const handleTogglePin = () => {
@@ -78,8 +96,10 @@ export default function ReportViewer() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={() => navigate('/reports')}
                         className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        aria-label="Voltar para relatórios"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
@@ -91,27 +111,40 @@ export default function ReportViewer() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleTogglePin}
-                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-slate-100 rounded-lg transition-colors"
-                        title={report.pinned ? 'Desafixar' : 'Fixar'}
-                    >
-                        {report.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-                    </button>
+                    {canModify && (
+                        <button
+                            onClick={handleTogglePin}
+                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-slate-100 rounded-lg transition-colors"
+                            title={report.pinned ? 'Desafixar' : 'Fixar'}
+                            aria-label={report.pinned ? 'Desafixar relatório' : 'Fixar relatório'}
+                        >
+                            {report.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                        </button>
+                    )}
                     <button
                         onClick={() => navigate(`/reports/${id}/edit`)}
                         className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                         <Edit2 className="w-3.5 h-3.5" />
-                        Editar
+                        {canModify ? 'Editar' : 'Ver configuração'}
                     </button>
-                    <button
-                        onClick={handleDelete}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canModify && (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir relatório"
+                            aria-label="Excluir relatório"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
+            </div>
+
+            {/* Filters — sticky like Analytics GlobalControls */}
+            <div className="sticky top-0 z-10 px-6 py-3 border-b border-slate-200 bg-white/80 backdrop-blur-md">
+                <DashboardFilters filters={globalFilters} onChange={setGlobalFilters} />
             </div>
 
             {/* Chart */}
@@ -137,6 +170,7 @@ export default function ReportViewer() {
                             labelFormat={viz.labelFormat}
                             keyFormats={keyFormats}
                             dateGrouping={dateGrouping}
+                            breakdownKey={breakdownKey}
                             onDrillDown={(filters) => setDrillFilters(filters)}
                         />
                     ) : (

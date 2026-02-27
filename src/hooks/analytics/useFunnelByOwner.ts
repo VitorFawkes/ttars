@@ -24,10 +24,10 @@ export interface FunnelStageChartData {
 }
 
 export function useFunnelByOwner() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     const query = useQuery({
-        queryKey: ['analytics', 'funnel-by-owner', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'funnel-by-owner', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC não existe nos types até deploy
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_by_owner', {
@@ -36,7 +36,7 @@ export function useFunnelByOwner() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as FunnelByOwnerRow[]) || []
@@ -119,5 +119,6 @@ export function useFunnelByOwner() {
         allOwners,
         isLoading: query.isLoading,
         error: query.error,
+        refetch: query.refetch,
     }
 }

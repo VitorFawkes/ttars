@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Users as UsersIcon,
     Phone,
@@ -16,8 +17,27 @@ import {
 } from 'recharts'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { useOverviewKpis, useFunnelData, useRevenueTimeseries } from '@/hooks/analytics/useOverviewData'
 import { useFunnelByOwner } from '@/hooks/analytics/useFunnelByOwner'
+import { useDrillDownStore, type DrillDownContext } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
+import { formatCurrency, formatCurrencyFull } from '@/utils/whatsappFormatters'
+
+/** Compute period end based on period_start + granularity */
+function getPeriodEnd(periodStart: string, granularity: string): string {
+    const d = new Date(periodStart)
+    if (isNaN(d.getTime())) return new Date().toISOString()
+    if (granularity === 'day') {
+        d.setDate(d.getDate() + 1)
+    } else if (granularity === 'week') {
+        d.setDate(d.getDate() + 7)
+    } else {
+        // month (default)
+        d.setMonth(d.getMonth() + 1)
+    }
+    return d.toISOString()
+}
 
 const OWNER_COLORS = [
     '#93c5fd', '#6ee7b7', '#fcd34d', '#fca5a5', '#c4b5fd',
@@ -31,16 +51,6 @@ const SPECIAL_COLORS: Record<string, string> = {
 
 function getOwnerColor(owner: string, idx: number): string {
     return SPECIAL_COLORS[owner] || OWNER_COLORS[idx % OWNER_COLORS.length]
-}
-
-function formatCurrency(value: number): string {
-    if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)} mi`
-    if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)} mil`
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
-}
-
-function formatCurrencyFull(value: number): string {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts custom tick typing
@@ -64,14 +74,39 @@ function CustomXAxisTick(props: any) {
 type PhaseViewMode = 'all' | 'sdr' | 'planner' | 'pos'
 
 export default function OverviewView() {
-    const { data: kpis, isLoading: kpisLoading, error: kpisError } = useOverviewKpis()
-    const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelData()
-    const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useRevenueTimeseries()
-    const { chartData, allOwners, isLoading: funnelByOwnerLoading, error: funnelByOwnerError } = useFunnelByOwner()
-
+    const navigate = useNavigate()
+    const drillDown = useDrillDownStore()
+    const { granularity } = useAnalyticsFilters()
+    const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useOverviewKpis()
+    const { data: funnelData, isLoading: funnelLoading, error: funnelError, refetch: refetchFunnel } = useFunnelData()
+    const { data: revenueData, isLoading: revenueLoading, error: revenueError, refetch: refetchRevenue } = useRevenueTimeseries()
+    const { data: funnelByOwnerRaw, chartData, allOwners, isLoading: funnelByOwnerLoading, error: funnelByOwnerError, refetch: refetchFunnelByOwner } = useFunnelByOwner()
     const hasError = !!(kpisError || funnelError || revenueError || funnelByOwnerError)
+    const handleRetry = () => { refetchKpis(); refetchFunnel(); refetchRevenue(); refetchFunnelByOwner() }
 
     const [viewMode, setViewMode] = useState<PhaseViewMode>('all')
+
+    // Map owner_name → owner_id for in-place drill-down
+    const ownerIdMap = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const row of (funnelByOwnerRaw || [])) {
+            if (row.owner_id && row.owner_name) {
+                map.set(row.owner_name, row.owner_id)
+            }
+        }
+        return map
+    }, [funnelByOwnerRaw])
+
+    // Map stage_nome → stage_id for drill-down context
+    const stageIdMap = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const row of (funnelByOwnerRaw || [])) {
+            if (row.stage_id && row.stage_nome) {
+                map.set(row.stage_nome, row.stage_id)
+            }
+        }
+        return map
+    }, [funnelByOwnerRaw])
 
     const k = kpis || {
         total_leads: 0, total_won: 0, total_lost: 0, total_open: 0,
@@ -108,9 +143,11 @@ export default function OverviewView() {
     return (
         <div className="space-y-6">
             {hasError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados do overview. Verifique sua conexão e tente novamente.
-                </div>
+                <QueryErrorState
+                    compact
+                    title="Erro ao carregar dados do overview"
+                    onRetry={handleRetry}
+                />
             )}
 
             {/* KPI Cards - 2 rows of 5 */}
@@ -122,6 +159,8 @@ export default function OverviewView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/team')}
+                    clickHint="Ver por consultor"
                 />
                 <KpiCard
                     title="% Taxa Paga"
@@ -130,6 +169,8 @@ export default function OverviewView() {
                     color="text-emerald-600"
                     bgColor="bg-emerald-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil completo"
                 />
                 <KpiCard
                     title="% Briefing Agendado"
@@ -138,6 +179,8 @@ export default function OverviewView() {
                     color="text-indigo-600"
                     bgColor="bg-indigo-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil completo"
                 />
                 <KpiCard
                     title="% Proposta Enviada"
@@ -146,6 +189,8 @@ export default function OverviewView() {
                     color="text-purple-600"
                     bgColor="bg-purple-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil completo"
                 />
                 <KpiCard
                     title="% Viagem Confirmada"
@@ -154,6 +199,8 @@ export default function OverviewView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil completo"
                 />
                 <KpiCard
                     title="Conversão (Venda)"
@@ -162,6 +209,8 @@ export default function OverviewView() {
                     color="text-cyan-600"
                     bgColor="bg-cyan-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil completo"
                 />
                 <KpiCard
                     title="Viagens Vendidas"
@@ -170,6 +219,8 @@ export default function OverviewView() {
                     color="text-sky-600"
                     bgColor="bg-sky-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/operations')}
+                    clickHint="Ver operações"
                 />
                 <KpiCard
                     title="Faturamento (Ganhos)"
@@ -178,6 +229,8 @@ export default function OverviewView() {
                     color="text-teal-600"
                     bgColor="bg-teal-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/financial')}
+                    clickHint="Ver financeiro"
                 />
                 <KpiCard
                     title="Receita (Margem)"
@@ -186,6 +239,8 @@ export default function OverviewView() {
                     color="text-rose-600"
                     bgColor="bg-rose-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/financial')}
+                    clickHint="Ver financeiro"
                 />
                 <KpiCard
                     title="Ticket Médio"
@@ -194,6 +249,8 @@ export default function OverviewView() {
                     color="text-orange-600"
                     bgColor="bg-orange-50"
                     isLoading={kpisLoading}
+                    onClick={() => navigate('/analytics/financial')}
+                    clickHint="Ver financeiro"
                 />
             </div>
 
@@ -255,6 +312,21 @@ export default function OverviewView() {
                                             stackId="a"
                                             fill={getOwnerColor(owner, idx)}
                                             maxBarSize={60}
+                                            cursor="pointer"
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            onClick={(data: any) => {
+                                                const stageName = data?.stage || data?.payload?.stage
+                                                const sid = stageName ? stageIdMap.get(stageName) : undefined
+                                                const oid = ownerIdMap.get(owner)
+                                                if (sid || oid) {
+                                                    drillDown.open({
+                                                        label: `${owner} — ${stageName || 'Funil'}`,
+                                                        drillStageId: sid,
+                                                        drillOwnerId: oid,
+                                                        drillSource: 'stage_entries',
+                                                    })
+                                                }
+                                            }}
                                         >
                                             <LabelList
                                                 dataKey={owner}
@@ -362,6 +434,21 @@ export default function OverviewView() {
                                 radius={[4, 4, 0, 0]}
                                 barSize={30}
                                 fillOpacity={0.8}
+                                cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(data: any) => {
+                                    const d = data?.payload || data
+                                    const period = d?.period
+                                    const periodStart = d?.period_start
+                                    const periodEnd = periodStart ? getPeriodEnd(periodStart, granularity) : undefined
+                                    drillDown.open({
+                                        label: `Faturamento — ${period || 'Período'}`,
+                                        drillStatus: 'ganho',
+                                        drillSource: 'closed_deals',
+                                        drillPeriodStart: periodStart,
+                                        drillPeriodEnd: periodEnd,
+                                    })
+                                }}
                             />
                             <Line
                                 yAxisId="right"
@@ -371,6 +458,23 @@ export default function OverviewView() {
                                 stroke="#22c55e"
                                 strokeWidth={2.5}
                                 dot={{ r: 4, fill: '#22c55e' }}
+                                activeDot={{
+                                    r: 6, cursor: 'pointer',
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    onClick: (_e: any, payload: any) => {
+                                        const d = payload?.payload
+                                        const period = d?.period
+                                        const periodStart = d?.period_start
+                                        const periodEnd = periodStart ? getPeriodEnd(periodStart, granularity) : undefined
+                                        drillDown.open({
+                                            label: `Margem — ${period || 'Período'}`,
+                                            drillStatus: 'ganho',
+                                            drillSource: 'closed_deals',
+                                            drillPeriodStart: periodStart,
+                                            drillPeriodEnd: periodEnd,
+                                        })
+                                    },
+                                }}
                             />
                         </ComposedChart>
                     </ResponsiveContainer>
@@ -387,14 +491,14 @@ export default function OverviewView() {
                 description="Cards ativos por macro-fase no período selecionado"
                 isLoading={funnelLoading}
             >
-                <MacroFunnelSnapshot data={funnelData || []} />
+                <MacroFunnelSnapshot data={funnelData || []} onDrillDown={drillDown.open} />
             </ChartCard>
         </div>
     )
 }
 
 // Sub-component: Macro funnel snapshot (3 macro-stages)
-function MacroFunnelSnapshot({ data }: { data: { stage_nome: string; fase: string; total_cards: number }[] }) {
+function MacroFunnelSnapshot({ data, onDrillDown }: { data: { stage_nome: string; fase: string; total_cards: number }[]; onDrillDown?: (ctx: DrillDownContext) => void }) {
     const macroMap: Record<string, { label: string; color: string; count: number }> = {
         'SDR': { label: 'Entrada (SDR)', color: '#3b82f6', count: 0 },
         'Vendas': { label: 'Vendas (Planner)', color: '#8b5cf6', count: 0 },
@@ -439,7 +543,22 @@ function MacroFunnelSnapshot({ data }: { data: { stage_nome: string; fase: strin
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                     formatter={(value: number) => [value, 'Cards']}
                 />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
+                <Bar
+                    dataKey="count"
+                    radius={[0, 6, 6, 0]}
+                    barSize={24}
+                    cursor="pointer"
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    onClick={(data: any) => {
+                        const label = data?.label || data?.payload?.label
+                        const phaseSlug = label?.includes('SDR') ? 'sdr'
+                            : label?.includes('Planner') || label?.includes('Vendas') ? 'planner'
+                            : label?.includes('Pós') ? 'pos-venda' : undefined
+                        if (onDrillDown && phaseSlug) {
+                            onDrillDown({ label: label || 'Fase', drillPhase: phaseSlug, drillSource: 'macro_funnel' })
+                        }
+                    }}
+                >
                     {chartData.map((entry, index) => (
                         <Cell key={index} fill={entry.color} />
                     ))}

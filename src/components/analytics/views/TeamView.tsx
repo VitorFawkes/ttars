@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Users, CheckCircle, DollarSign, Briefcase, TrendingUp,
 } from 'lucide-react'
@@ -8,6 +9,10 @@ import {
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useTeamPerformance, type TeamMember } from '@/hooks/analytics/useTeamPerformance'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
+import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -18,17 +23,30 @@ const TABS = [
 
 type TabKey = typeof TABS[number]['key']
 
-function formatCurrency(value: number): string {
-    if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)} mi`
-    if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)} mil`
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
-}
-
 export default function TeamView() {
+    const navigate = useNavigate()
+    const { ownerId, setOwnerId } = useAnalyticsFilters()
+    const drillDown = useDrillDownStore()
     const [activeTab, setActiveTab] = useState<TabKey>('SDR')
-    const { data: teamData, isLoading, error: teamError } = useTeamPerformance(activeTab)
+    const { data: teamData, isLoading, error: teamError, refetch } = useTeamPerformance(activeTab)
 
-    const members = teamData || []
+    const [sortKey, setSortKey] = useState<keyof TeamMember>('total_cards')
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+    const toggleOwnerFilter = (userId: string) => {
+        setOwnerId(ownerId === userId ? null : userId)
+    }
+
+    const toggleSort = (key: keyof TeamMember) => {
+        if (sortKey === key) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortKey(key)
+            setSortDir('desc')
+        }
+    }
+
+    const members = useMemo(() => teamData || [], [teamData])
     const totals = members.reduce((acc, m) => ({
         total_cards: acc.total_cards + m.total_cards,
         won_cards: acc.won_cards + m.won_cards,
@@ -41,12 +59,22 @@ export default function TeamView() {
         ? Math.round(totals.won_cards / totals.total_cards * 100 * 10) / 10
         : 0
 
+    const sortedMembers = useMemo(() =>
+        [...members].sort((a, b) => {
+            const av = a[sortKey] as number
+            const bv = b[sortKey] as number
+            return sortDir === 'asc' ? av - bv : bv - av
+        }),
+    [members, sortKey, sortDir])
+
     return (
         <div className="space-y-6">
             {teamError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados de equipe. Verifique sua conexão e tente novamente.
-                </div>
+                <QueryErrorState
+                    compact
+                    title="Erro ao carregar dados de equipe"
+                    onRetry={() => refetch()}
+                />
             )}
 
             {/* Tab Toggle */}
@@ -76,6 +104,8 @@ export default function TeamView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={isLoading}
+                    onClick={() => navigate('/analytics/overview')}
+                    clickHint="Ver overview"
                 />
                 <KpiCard
                     title="Ganhos"
@@ -84,6 +114,8 @@ export default function TeamView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={isLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil"
                 />
                 <KpiCard
                     title="Conversão %"
@@ -92,6 +124,8 @@ export default function TeamView() {
                     color="text-emerald-600"
                     bgColor="bg-emerald-50"
                     isLoading={isLoading}
+                    onClick={() => navigate('/analytics/funnel')}
+                    clickHint="Ver funil"
                 />
                 <KpiCard
                     title="Receita"
@@ -100,6 +134,8 @@ export default function TeamView() {
                     color="text-slate-700"
                     bgColor="bg-slate-100"
                     isLoading={isLoading}
+                    onClick={() => navigate('/analytics/financial')}
+                    clickHint="Ver financeiro"
                 />
                 <KpiCard
                     title="Cards Ativos"
@@ -108,6 +144,8 @@ export default function TeamView() {
                     color="text-amber-600"
                     bgColor="bg-amber-50"
                     isLoading={isLoading}
+                    onClick={() => drillDown.open({ label: 'Cards Ativos', drillStatus: 'aberto', drillSource: 'current_stage' })}
+                    clickHint="Ver cards abertos"
                 />
             </div>
 
@@ -121,13 +159,41 @@ export default function TeamView() {
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/50">
                                 <th className="text-left px-6 py-3 font-medium text-slate-500">Consultor</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Cards</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Ganhos</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Conversão</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Receita</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Ticket Médio</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Ciclo (dias)</th>
-                                <th className="text-right px-6 py-3 font-medium text-slate-500">Ativos</th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('total_cards')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Cards {sortKey === 'total_cards' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('won_cards')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Ganhos {sortKey === 'won_cards' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('conversion_rate')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Conversão {sortKey === 'conversion_rate' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('total_receita')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Receita {sortKey === 'total_receita' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('ticket_medio')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Ticket Médio {sortKey === 'ticket_medio' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                    <button onClick={() => toggleSort('ciclo_medio_dias')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Ciclo (dias) {sortKey === 'ciclo_medio_dias' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
+                                <th className="text-right px-6 py-3">
+                                    <button onClick={() => toggleSort('active_cards')} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-800">
+                                        Ativos {sortKey === 'active_cards' && <span className="text-indigo-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -139,15 +205,26 @@ export default function TeamView() {
                                         </td>
                                     </tr>
                                 ))
-                            ) : members.length === 0 ? (
+                            ) : sortedMembers.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
                                         Nenhum consultor com cards neste período
                                     </td>
                                 </tr>
                             ) : (
-                                members.map((m) => (
-                                    <TeamRow key={m.user_id} member={m} />
+                                sortedMembers.map((m) => (
+                                    <TeamRow
+                                        key={m.user_id}
+                                        member={m}
+                                        isSelected={ownerId === m.user_id}
+                                        onClick={() => drillDown.open({
+                                            label: `${m.user_nome} — ${TABS.find(t => t.key === activeTab)?.label ?? activeTab}`,
+                                            drillOwnerId: m.user_id,
+                                            drillPhase: activeTab,
+                                            drillSource: 'stage_entries',
+                                        })}
+                                        onDoubleClick={() => toggleOwnerFilter(m.user_id)}
+                                    />
                                 ))
                             )}
                         </tbody>
@@ -164,7 +241,7 @@ export default function TeamView() {
                 {members.length > 0 ? (
                     <ResponsiveContainer width="100%" height={Math.max(200, members.length * 40 + 40)}>
                         <BarChart
-                            data={members.map(m => ({ name: m.user_nome.split(' ')[0], ativos: m.active_cards }))}
+                            data={members.map(m => ({ name: m.user_nome.split(' ')[0], ativos: m.active_cards, user_id: m.user_id }))}
                             layout="vertical"
                             margin={{ left: 10, right: 30 }}
                         >
@@ -172,7 +249,8 @@ export default function TeamView() {
                             <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12, fill: '#334155' }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            <Bar dataKey="ativos" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} name="Ativos" />
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="ativos" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} name="Ativos" cursor="pointer" onClick={(data: any) => { const id = data?.payload?.user_id || data?.user_id; const name = data?.payload?.name || data?.name; if (id) drillDown.open({ label: `${name || 'Consultor'} — Ativos`, drillOwnerId: id, drillPhase: activeTab, drillStatus: 'aberto', drillSource: 'current_stage' }) }} />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
@@ -185,9 +263,9 @@ export default function TeamView() {
     )
 }
 
-function TeamRow({ member: m }: { member: TeamMember }) {
+function TeamRow({ member: m, isSelected, onClick, onDoubleClick }: { member: TeamMember; isSelected?: boolean; onClick?: () => void; onDoubleClick?: () => void }) {
     return (
-        <tr className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+        <tr className={cn('border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer', isSelected && 'bg-indigo-50/60 hover:bg-indigo-50/80')} onClick={onClick} onDoubleClick={onDoubleClick}>
             <td className="px-6 py-3 font-medium text-slate-800">{m.user_nome}</td>
             <td className="text-right px-4 py-3 text-slate-600">{m.total_cards}</td>
             <td className="text-right px-4 py-3 text-green-600 font-medium">{m.won_cards}</td>

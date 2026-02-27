@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Trash2, Pin, PinOff, Loader2, AlertCircle } from 'lucide-react'
 import {
@@ -7,27 +7,49 @@ import {
     useUpdateDashboard,
     useDeleteDashboard,
 } from '@/hooks/reports/useSavedDashboards'
-import type { DashboardGlobalFilters as DGF } from '@/lib/reports/reportTypes'
+import { useAuth } from '@/contexts/AuthContext'
 import DashboardGrid from './dashboard/DashboardGrid'
 import WidgetCard from './dashboard/WidgetCard'
-import DashboardFilters from './dashboard/DashboardFilters'
+import DashboardFilters, { resolveDatePreset } from './dashboard/DashboardFilters'
 import type { DashboardGlobalFilters } from '@/lib/reports/reportTypes'
 
 export default function DashboardViewer() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const { session, profile } = useAuth()
     const { data: dashboard, isLoading } = useSavedDashboard(id)
     const { data: widgets } = useDashboardWidgets(id)
     const updateDashboard = useUpdateDashboard()
     const deleteDashboard = useDeleteDashboard()
 
-    // Sync filters from server data (render-time adjustment)
-    const [syncedId, setSyncedId] = useState<string | undefined>()
+    // Only owner or admin can modify (pin, delete, persist filters)
+    const canModify = dashboard && (dashboard.created_by === session?.user?.id || profile?.is_admin === true)
+
+    // Sync filters from server data (render-time adjustment — React recommended pattern)
+    // Re-resolve dynamic presets (today, last_7_days, etc.) on load so they don't become stale
+    const [prevDashId, setPrevDashId] = useState<string | undefined>()
     const [globalFilters, setGlobalFilters] = useState<DashboardGlobalFilters>({})
-    if (dashboard && dashboard.id !== syncedId) {
-        setSyncedId(dashboard.id)
-        setGlobalFilters(dashboard.global_filters ?? {})
+    if (dashboard && dashboard.id !== prevDashId) {
+        setPrevDashId(dashboard.id)
+        const saved = dashboard.global_filters ?? {}
+        if (saved.datePreset && saved.datePreset !== 'custom') {
+            setGlobalFilters({ ...saved, dateRange: resolveDatePreset(saved.datePreset) })
+        } else {
+            setGlobalFilters(saved)
+        }
     }
+
+    // Debounced filter persistence (avoid mutation per keystroke)
+    const persistTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+    const handleFiltersChange = useCallback((f: DashboardGlobalFilters) => {
+        setGlobalFilters(f)
+        if (!canModify || !dashboard) return
+        clearTimeout(persistTimerRef.current)
+        persistTimerRef.current = setTimeout(() => {
+            updateDashboard.mutate({ id: dashboard.id, global_filters: f })
+        }, 800)
+    }, [canModify, dashboard, updateDashboard])
+    useEffect(() => () => clearTimeout(persistTimerRef.current), [])
 
     if (isLoading) {
         return (
@@ -48,8 +70,12 @@ export default function DashboardViewer() {
 
     const handleDelete = async () => {
         if (!confirm('Tem certeza que deseja excluir este dashboard?')) return
-        await deleteDashboard.mutateAsync(dashboard.id)
-        navigate('/reports/dashboards')
+        try {
+            await deleteDashboard.mutateAsync(dashboard.id)
+            navigate('/reports/dashboards')
+        } catch {
+            // RLS will block non-owners/non-admins — error shown via MutationCache
+        }
     }
 
     const handleTogglePin = () => {
@@ -62,8 +88,10 @@ export default function DashboardViewer() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={() => navigate('/reports/dashboards')}
                         className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        aria-label="Voltar para dashboards"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
@@ -75,34 +103,41 @@ export default function DashboardViewer() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleTogglePin}
-                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-slate-100 rounded-lg transition-colors"
-                    >
-                        {dashboard.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-                    </button>
+                    {canModify && (
+                        <button
+                            type="button"
+                            onClick={handleTogglePin}
+                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-slate-100 rounded-lg transition-colors"
+                            title={dashboard.pinned ? 'Desafixar' : 'Fixar'}
+                            aria-label={dashboard.pinned ? 'Desafixar dashboard' : 'Fixar dashboard'}
+                        >
+                            {dashboard.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                        </button>
+                    )}
                     <button
                         onClick={() => navigate(`/reports/dashboards/${id}/edit`)}
                         className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                         <Edit2 className="w-3.5 h-3.5" />
-                        Editar
+                        {canModify ? 'Editar' : 'Ver configuração'}
                     </button>
-                    <button
-                        onClick={handleDelete}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canModify && (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir dashboard"
+                            aria-label="Excluir dashboard"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/50">
-                <DashboardFilters filters={globalFilters} onChange={(f: DGF) => {
-                    setGlobalFilters(f)
-                    if (dashboard) updateDashboard.mutate({ id: dashboard.id, global_filters: f })
-                }} />
+            {/* Filters — sticky like Analytics GlobalControls */}
+            <div className="sticky top-0 z-10 px-6 py-3 border-b border-slate-200 bg-white/80 backdrop-blur-md">
+                <DashboardFilters filters={globalFilters} onChange={handleFiltersChange} />
             </div>
 
             {/* Grid */}

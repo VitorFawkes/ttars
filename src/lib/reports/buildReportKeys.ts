@@ -91,7 +91,12 @@ export function buildReportKeys(config: ReportIQR) {
     const dateDim = config.dimensions.find(d => d.dateGrouping)
     const dateGrouping = dateDim?.dateGrouping
 
-    return { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping }
+    // Breakdown key (if breakdownBy is set)
+    const breakdownKey = config.breakdownBy
+        ? (config.breakdownBy.alias ?? 'breakdown')
+        : null
+
+    return { dimensionKeys, measureKeys, labels, drillFieldMap, keyFormats, dateGrouping, breakdownKey }
 }
 
 /**

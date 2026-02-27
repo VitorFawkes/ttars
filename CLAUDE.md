@@ -17,11 +17,11 @@
 
 | Ambiente | Banco | Quando |
 |----------|-------|--------|
-| `npm run dev` (local) | **STAGING** (ivmebyvjarcvrkrbemam) | Desenvolvimento |
-| Vercel Preview (branches) | **STAGING** | PRs e testes |
+| `npm run dev` (local) | **PRODUÇÃO** (szyrzxvlptqqheizyrxu) | Desenvolvimento (staging sem dados de teste ainda) |
+| Vercel Preview (branches) | **STAGING** (ivmebyvjarcvrkrbemam) | PRs e testes |
 | Vercel Production (main) | **PRODUÇÃO** (szyrzxvlptqqheizyrxu) | Usuários finais |
 
-**Regra:** O agente SEMPRE trabalha contra staging. Produção só é tocada na etapa de promoção.
+**Regra:** Migrations SEMPRE vão para staging primeiro via script (`apply-to-staging.sh`). O dev local lê dados de produção mas NUNCA aplica SQL diretamente nele — use os scripts. Quando staging tiver dados de teste, restaurar `.env.development` a partir de `.env.development.staging`.
 
 ## Protocolo de Migrations (OBRIGATÓRIO)
 
@@ -124,11 +124,14 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useTeamPerformance | 1 | Performance por consultor (SDR/Planner/Pós) via RPC |
 | useFunnelConversion | 1 | Funil end-to-end + motivos de perda via RPC |
 | useSLAData | 1 | Violações e compliance de SLA via RPC |
-| useWhatsAppAnalytics | 1 | Métricas WhatsApp: volume, aging, response time via RPC |
+| useWhatsAppAnalytics | 2 | Métricas WhatsApp overview: volume, aging, response time, agent perf via RPC |
+| useWhatsAppConversations | 1 | Lista de conversas WhatsApp paginada/ordenável/filtrável por status via RPC |
+| useWhatsAppSpeed | 1 | SLA compliance, FRT trend, FRT por hora, IA vs Humano via RPC |
 | useOperationsData | 1 | Viagens realizadas, sub-cards, qualidade por planner via RPC |
 | useFinancialData | 1 | Receita vs margem, top destinos, receita por produto via RPC |
 | useRetentionData | 1 | Cohort de recompra + KPIs de recorrência via RPC |
 | useBriefingIA | 1 | Processa áudio de briefing do consultor via n8n webhook (Whisper + GPT-5.1) |
+| useChatIA | 1 | Chat com IA sobre conversas WhatsApp do cliente via n8n webhook (GPT-4.1-mini) |
 | useFunnelByOwner | 1 | Funil operacional com breakdown por responsável (stacked bars) via RPC |
 | useReportBuilderStore | 1 | Zustand store do Report Builder (IQR, viz, filtros, ~30 ações) |
 | useReportEngine | 2 | IQR → RPC report_query_engine → dados agregados |
@@ -139,7 +142,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useCalendarFilters | 1 | Zustand store de filtros do calendário (datas, consultores, view mode) |
 | useCalendarMeetings | 1 | Fetch de reuniões filtradas por período e consultor via React Query |
 | useMeetingDrag | 1 | Drag-and-drop de reuniões entre horários/dias no calendário |
-| useMeetingMutation | 2 | CRUD de reuniões (criar, editar, deletar, reagendar) |
+| useMeetingMutation | 2 | CRUD de reuniões (criar, editar, deletar, reagendar) + envio de convite .ics por email via n8n |
 | useTodayMeetingCount | 2 | Contagem de reuniões do dia para badge no Sidebar e Dashboard widget |
 
 ### Componentes Principais (src/components/)
@@ -155,9 +158,9 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | Leads | LeadsTable, LeadsFilters, LeadsBulkActions |
 | Trips | TripsTaxBadge, group/* (GroupDashboard, GroupTravelersList, CreateGroupModal, LinkToGroupModal) |
 | Monde | MondeWidget |
-| UI Base | src/components/ui/ — 29 componentes Radix UI (Button, Dialog, Select, etc.) |
+| UI Base | src/components/ui/ — 29 componentes Radix UI (Button, Dialog, Select, etc.) + QueryErrorState |
 | Resiliência | NetworkStatusBanner (banner offline/online no Layout) |
-| Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/OverviewView, views/TeamView, views/FunnelView, views/SLAView, views/WhatsAppView, views/OperationsView, views/FinancialView, views/RetentionView, views/PlaceholderView |
+| Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/OverviewView, views/TeamView, views/FunnelView, views/SLAView, views/WhatsAppView (4 sub-tabs: Overview, Conversas, Velocidade, Equipe&IA), views/OperationsView, views/FinancialView, views/RetentionView, views/PlaceholderView |
 | Dashboard | StatsCards, FunnelChart, RecentActivity, TodayMeetingsWidget |
 | Calendário | CalendarHeader, DayView, WeekView, MonthView, MeetingPopover, MeetingDetailDrawer |
 | Relatórios | ReportsSidebar, ReportBuilder, ReportViewer, ReportsList, builder/* (SourceSelector, FieldPicker, ConfigPanel, FilterPanel, VizSelector, ReportPreview, ComparisonToggle, SaveReportDialog), renderers/* (ChartRenderer, BarChart, LineChart, AreaChart, PieChart, Table, Kpi, Funnel, Composed, DrillDownPanel), DashboardEditor, DashboardViewer, DashboardsList, dashboard/* (DashboardGrid, WidgetCard, AddWidgetDialog, DashboardFilters) |
@@ -202,6 +205,8 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 |--------|-----------|
 | create-n8n-travel-agent.js | Cria workflow n8n do agente Julia (WhatsApp AI) por transformação do modelo |
 | create-n8n-briefing-ia.js | Cria workflow n8n "Briefing IA" (áudio consultor → Whisper → GPT-5.1 → campos CRM) |
+| create-n8n-chat-ia.js | Cria workflow n8n "Chat IA Conversas" (pergunta consultor → WhatsApp history → GPT-4.1-mini → resposta) |
+| create-n8n-meeting-invite.js | Cria workflow n8n "Meeting Invite" (email .ics via SMTP Office365) |
 
 ### Docs Extras (docs/)
 | Arquivo | O que faz |
@@ -216,6 +221,27 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 - **Frontend:** Botão "Briefing IA" em ActionButtons → BriefingIAModal → AudioRecorder (gravar/upload) → useBriefingIA hook
 - **Input:** Áudio base64 do consultor (max 10min, WebM/MP3/M4A/WAV)
 - **Output:** Briefing text + campos extraídos (destinos, orçamento, época, etc.)
+
+### Workflow n8n — Meeting Invite (Email .ics)
+- **Workflow ID:** `mBBtXxQnQqra5eoY`
+- **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/meeting-invite`
+- **10 nós** — Pipeline: Webhook → Extrai Params → Busca Reunião (tarefas+card+contato) → Busca Responsável (profiles) → Code (resolve emails + .ics RFC 5545 + meeting_link + HTML) → If Tem Emails → Send Email (SMTP Office365) → Log Activity (insere `email_sent` na tabela activities) → Resposta Sucesso / Resposta No Email
+- **Meeting Link:** Se `metadata.meeting_link` existir → LOCATION/URL no .ics + botão "Entrar na Reunião" no HTML
+- **Activity Log:** Após envio, registra `email_sent` com `source: meeting_invite` no feed do card
+- **SMTP:** `contato@welcometrips.com.br` via `smtp.office365.com:587` (STARTTLS)
+- **Credential SMTP:** ID `ZIqaH9kmOtsFI4p7` (WelcomeCRM SMTP)
+- **Frontend:** `useMeetingMutation.ts` → `sendMeetingInvite()` fire-and-forget em `createMeeting.onSuccess` e `rescheduleMeeting.onSuccess`
+- **Input:** `{ meeting_id, card_id, action: 'created'|'rescheduled', user_id }`
+- **Output:** `{ status: 'sent'|'no_email'|'error', recipients?: string[] }`
+
+### Workflow n8n — Chat IA Conversas
+- **Workflow ID:** `rvchg8mfe7vI2urS`
+- **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/chat-ia`
+- **8 nós** — Pipeline: Webhook → Extrai Params → Busca Card → Busca Contato → Busca Mensagens WhatsApp → Monta Contexto (Code) → AI Chat (GPT-5.1 Agent, temp=0) → Formata Resposta
+- **Frontend:** Aba "Chat com IA" em ConversationHistory → AIChat → useChatIA hook
+- **Input:** `{ card_id, contact_id, question, chat_history[] }`
+- **Output:** `{ answer, sources_count, card_id }`
+- **Multi-turn:** chat_history[] mantido no frontend (useState) para conversas consecutivas
 
 ### Workflow n8n — Agente Julia (WhatsApp AI)
 - **Workflow ID:** `tvh1SN7VDgy8V3VI`

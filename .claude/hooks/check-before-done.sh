@@ -59,14 +59,32 @@ if [ -n "$ALL_SQL" ]; then
   MARKER="$CWD/.claude/.migration_applied"
   if [ ! -f "$MARKER" ] || [ "$(find "$MARKER" -mmin +30 2>/dev/null)" ]; then
     echo "" >&2
-    echo "BLOQUEADO: Migrations SQL detectadas mas não verificadas:" >&2
+    echo "BLOQUEADO: Migrations SQL detectadas mas não promovidas para produção:" >&2
     echo "$ALL_SQL" | sed 's/^/  /' >&2
     echo "" >&2
-    echo "Aplique cada migration ao banco remoto e depois rode:" >&2
-    echo "  touch .claude/.migration_applied" >&2
+    echo "Workflow obrigatório:" >&2
+    echo "  1. bash .claude/hooks/apply-to-staging.sh <arquivo.sql>" >&2
+    echo "  2. Testar com npm run dev (aponta para staging)" >&2
+    echo "  3. bash .claude/hooks/promote-to-prod.sh <arquivo.sql>" >&2
+    echo "  4. touch .claude/.migration_applied" >&2
     echo "" >&2
-    echo "Veja CLAUDE.md seção 'Protocolo de Migrations' para o workflow completo." >&2
+    echo "Veja CLAUDE.md seção 'Protocolo de Migrations'." >&2
     exit 2
+  fi
+
+  # Smoke test contra produção (se marker existe, verificar que schema está ok)
+  SMOKE_SCRIPT="$CWD/.claude/hooks/schema-smoke-test.sh"
+  if [ -f "$SMOKE_SCRIPT" ]; then
+    SMOKE_OUTPUT=$("$SMOKE_SCRIPT" 2>&1)
+    SMOKE_EXIT=$?
+    if [ $SMOKE_EXIT -ne 0 ]; then
+      echo "" >&2
+      echo "BLOQUEADO: Smoke test falhou contra produção:" >&2
+      echo "$SMOKE_OUTPUT" >&2
+      echo "" >&2
+      echo "A migration pode não ter sido promovida corretamente." >&2
+      exit 2
+    fi
   fi
 fi
 

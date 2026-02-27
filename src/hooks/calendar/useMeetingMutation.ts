@@ -7,6 +7,27 @@ import type { Database } from '@/database.types'
 type TarefaInsert = Database['public']['Tables']['tarefas']['Insert']
 type TarefaUpdate = Database['public']['Tables']['tarefas']['Update']
 
+const N8N_MEETING_INVITE_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/meeting-invite'
+
+/** Fire-and-forget: envia convite .ics por email via n8n. Não bloqueia UX. */
+async function sendMeetingInvite(meetingId: string, cardId: string, action: string, userId: string) {
+    try {
+        const res = await fetch(N8N_MEETING_INVITE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ meeting_id: meetingId, card_id: cardId, action, user_id: userId }),
+        })
+        if (res.ok) {
+            const data = await res.json()
+            if (data.status === 'sent') {
+                toast.success(`Convite enviado para ${data.recipients?.length || 0} email(s)`)
+            }
+        }
+    } catch {
+        console.warn('[MeetingInvite] Falha ao enviar convite por email')
+    }
+}
+
 interface CreateMeetingData {
     card_id: string
     titulo: string
@@ -15,6 +36,7 @@ interface CreateMeetingData {
     responsavel_id?: string
     participantes_externos?: string[]
     duration_minutes?: number
+    meeting_link?: string
     status?: string
 }
 
@@ -35,6 +57,7 @@ interface RescheduleMeetingData {
     responsavel_id?: string | null
     participantes_externos?: string[] | null
     duration_minutes?: number
+    meeting_link?: string
 }
 
 export function useMeetingMutation() {
@@ -64,7 +87,7 @@ export function useMeetingMutation() {
                 participantes_externos: data.participantes_externos || null,
                 status: data.status || 'agendada',
                 concluida: false,
-                metadata: { duration_minutes: data.duration_minutes || 30 },
+                metadata: { duration_minutes: data.duration_minutes || 30, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
                 created_by: user?.id || null,
             }
 
@@ -77,9 +100,10 @@ export function useMeetingMutation() {
             if (error) throw error
             return result
         },
-        onSuccess: (_, vars) => {
+        onSuccess: (result, vars) => {
             invalidateAll(vars.card_id)
             toast.success('Reunião criada!')
+            sendMeetingInvite(result.id, vars.card_id, 'created', user?.id || '')
         },
         onError: (error: Error) => {
             toast.error(error.message || 'Erro ao criar reunião')
@@ -183,7 +207,7 @@ export function useMeetingMutation() {
                     participantes_externos: data.participantes_externos || null,
                     status: 'agendada',
                     concluida: false,
-                    metadata: { duration_minutes: data.duration_minutes || 30 },
+                    metadata: { duration_minutes: data.duration_minutes || 30, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
                     created_by: user?.id || null,
                     rescheduled_from_id: data.id,
                 } as TarefaInsert)
@@ -207,9 +231,10 @@ export function useMeetingMutation() {
             if (updateError) throw updateError
             return newMeeting
         },
-        onSuccess: (_, vars) => {
+        onSuccess: (result, vars) => {
             invalidateAll(vars.card_id)
             toast.success('Reunião reagendada!')
+            sendMeetingInvite(result.id, vars.card_id, 'rescheduled', user?.id || '')
         },
         onError: (error: Error) => {
             toast.error(error.message || 'Erro ao reagendar reunião')

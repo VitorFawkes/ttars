@@ -4,12 +4,13 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { format, startOfDay, endOfDay } from 'date-fns'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
 
 export function TodayMeetingsWidget() {
     const navigate = useNavigate()
     const { profile } = useAuth()
 
-    const { data: meetings, isLoading } = useQuery({
+    const { data: meetings, isLoading, isError, refetch } = useQuery({
         queryKey: ['today-meetings-widget', profile?.id],
         queryFn: async () => {
             const today = new Date()
@@ -52,7 +53,9 @@ export function TodayMeetingsWidget() {
                 )}
             </div>
 
-            {isLoading ? (
+            {isError ? (
+                <QueryErrorState compact onRetry={refetch} />
+            ) : isLoading ? (
                 <div className="space-y-2">
                     {[1, 2].map(i => (
                         <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />

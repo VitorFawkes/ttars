@@ -16,6 +16,7 @@ export interface SubCardStats {
 
 export interface PlannerQuality {
     planner_nome: string
+    planner_id: string
     viagens: number
     mudancas: number
     mudancas_por_viagem: number
@@ -35,10 +36,10 @@ export interface OperationsData {
 }
 
 export function useOperationsData() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'operations-summary', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'operations-summary', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_operations_summary', {
@@ -47,7 +48,7 @@ export function useOperationsData() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as OperationsData) || null

@@ -67,7 +67,7 @@ export default function CreateChildCardModal({ isOpen, onClose, parentCardId, pa
                     valor_estimado: parseFloat(formData.valor_estimado) || 0,
                     pessoa_principal_id: formData.pessoa_principal_id,
                     pipeline_stage_id: firstStage.id,
-                    status_comercial: 'em_andamento',
+                    status_comercial: 'aberto',
                     moeda: 'BRL',
                     parent_card_id: parentCardId // THE KEY LINK
                 })

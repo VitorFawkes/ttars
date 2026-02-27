@@ -13,8 +13,7 @@ interface FilterDrawerProps {
 }
 
 const STATUS_COMERCIAL_OPTIONS = [
-    { value: 'em_aberto', label: 'Em Aberto' },
-    { value: 'em_andamento', label: 'Em Andamento' },
+    { value: 'aberto', label: 'Em Aberto' },
     { value: 'pausado', label: 'Pausado' },
     { value: 'ganho', label: 'Ganho' },
     { value: 'perdido', label: 'Perdido' },

@@ -155,7 +155,7 @@ export default function OwnerSelector({
             const { data, error } = await supabase
                 .from('cards')
                 .select('sdr_owner_id')
-                .eq('status_comercial', 'em_andamento')
+                .neq('status_comercial', 'perdido')
                 .not('sdr_owner_id', 'is', null)
 
             if (error) throw error

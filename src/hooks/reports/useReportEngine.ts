@@ -32,8 +32,9 @@ export function useReportEngine({
             JSON.stringify(config?.computedMeasures),
             JSON.stringify(config?.breakdownBy),
             JSON.stringify(config?.filters),
-            config?.orderBy,
+            JSON.stringify(config?.orderBy),
             config?.limit,
+            JSON.stringify(config?.comparison),
             dateStart,
             dateEnd,
             product,
@@ -44,10 +45,10 @@ export function useReportEngine({
 
             const { data, error } = await supabase.rpc('report_query_engine', {
                 p_config: config as unknown as Json,
-                p_date_start: dateStart || undefined,
-                p_date_end: dateEnd || undefined,
-                p_product: product === 'ALL' ? undefined : product || undefined,
-                p_owner_id: ownerId || undefined,
+                p_date_start: dateStart ?? undefined,
+                p_date_end: dateEnd ?? undefined,
+                p_product: (product && product !== 'ALL') ? product : undefined,
+                p_owner_id: ownerId ?? undefined,
             })
 
             if (error) throw error

@@ -8,6 +8,7 @@ import type { ChartRendererProps } from './ChartRenderer'
 
 interface BarChartRendererProps extends ChartRendererProps {
     layout: 'vertical' | 'horizontal'
+    isBreakdown?: boolean
 }
 
 export default function BarChartRenderer({
@@ -21,6 +22,7 @@ export default function BarChartRenderer({
     dateGrouping,
     onDrillDown,
     layout,
+    isBreakdown,
 }: BarChartRendererProps) {
     const colors = getColorScheme(visualization.colorScheme)
     const dimKey = dimensionKeys[0]
@@ -44,13 +46,19 @@ export default function BarChartRenderer({
         return [autoFormat(value, fmt), labels?.[name] ?? name]
     }
 
-    if (!data.length) {
+    if (!data.length || !measureKeys.length) {
         return (
             <div className="flex items-center justify-center text-slate-400 text-sm" style={{ height: 200 }}>
                 Nenhum registro encontrado
             </div>
         )
     }
+
+    // For breakdown series: use stacked bars and always show legend
+    const useStack = isBreakdown && measureKeys.length > 1
+    const showLegend = useStack || (visualization.showLegend && measureKeys.length > 1)
+    // Skip individual cell coloring when stacked/breakdown (each series gets its own color)
+    const usePerCellColor = !useStack && measureKeys.length === 1
 
     return (
         <ResponsiveContainer width="100%" height={height}>
@@ -113,7 +121,7 @@ export default function BarChartRenderer({
                     formatter={(value: number, name: string) => formatValue(value, name)}
                     labelFormatter={(label) => labels?.[dimKey] ? `${labels[dimKey]}: ${label}` : String(label)}
                 />
-                {visualization.showLegend && measureKeys.length > 1 && (
+                {showLegend && (
                     <Legend
                         formatter={(value) => labels?.[value] ?? value}
                         wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }}
@@ -125,17 +133,18 @@ export default function BarChartRenderer({
                         dataKey={key}
                         name={labels?.[key] ?? key}
                         fill={colors[i % colors.length]}
-                        radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+                        radius={useStack ? undefined : (isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0])}
                         maxBarSize={measureKeys.length === 1 ? 80 : 60}
                         cursor="pointer"
+                        stackId={useStack ? 'stack' : undefined}
                         onClick={(entry: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                             if (entry) handleClick(entry)
                         }}
                     >
-                        {measureKeys.length === 1 && data.map((_, idx) => (
+                        {usePerCellColor && data.map((_, idx) => (
                             <Cell key={idx} fill={colors[idx % colors.length]} />
                         ))}
-                        {visualization.showDataLabels !== false && data.length <= 20 && (
+                        {visualization.showDataLabels !== false && data.length <= 20 && !useStack && (
                             <LabelList
                                 dataKey={key}
                                 position={isHorizontal ? 'right' : 'top'}

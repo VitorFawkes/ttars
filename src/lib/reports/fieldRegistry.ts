@@ -59,6 +59,17 @@ const CARDS_FIELDS: FieldDefinition[] = [
     { key: 'valor_display', label: 'Valor Display', category: 'Financeiro', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'], sqlExpression: 'COALESCE(c.valor_final, c.valor_estimado)' },
     { key: 'dias_etapa', label: 'Dias na Etapa', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(DAY FROM NOW() - COALESCE(c.stage_entered_at, c.created_at))' },
     { key: 'ciclo_dias', label: 'Ciclo de Venda (dias)', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(DAY FROM c.data_fechamento::timestamptz - c.created_at)' },
+
+    // Dimensões — Viagem
+    { key: 'c.epoca_tipo', label: 'Sazonalidade', category: 'Viagem', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
+    { key: 'c.estado_operacional', label: 'Estado Operacional', category: 'Viagem', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
+    { key: 'c.data_viagem_fim', label: 'Data Retorno', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS], sqlExpression: 'c.data_viagem_fim::timestamptz' },
+
+    // Medidas — Viagem
+    { key: 'c.group_total_pax', label: 'Total Passageiros (Grupo)', category: 'Viagem', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg', 'min', 'max'], filterOperators: [...NUMBER_OPERATORS] },
+    { key: 'c.group_capacity', label: 'Capacidade Grupo', category: 'Viagem', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'], filterOperators: [...NUMBER_OPERATORS] },
+    { key: 'c.group_total_revenue', label: 'Receita Grupo', category: 'Viagem', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'], filterOperators: [...NUMBER_OPERATORS] },
+    { key: 'duracao_viagem', label: 'Duração Viagem (dias)', category: 'Viagem', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(DAY FROM c.data_viagem_fim::timestamptz - c.data_viagem_inicio::timestamptz)' },
 ]
 
 // === SOURCE: CONTATOS ===
@@ -80,8 +91,10 @@ const PROPOSTAS_FIELDS: FieldDefinition[] = [
     { key: 'c.produto', label: 'Produto', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: ['TRIPS', 'WEDDING', 'CORP'] },
     { key: 'pr.nome', label: 'Consultor', category: 'Equipe', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
     { key: 'p.created_at', label: 'Data Criação', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
+    { key: 'p.accepted_at', label: 'Data Aceite', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
     { key: 'p.id', label: 'Quantidade', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'] },
     { key: 'p.accepted_total', label: 'Valor Aceito', category: 'Financeiro', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'] },
+    { key: 'p.version', label: 'Versão', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['avg', 'max'], filterOperators: [...NUMBER_OPERATORS] },
 ]
 
 // === SOURCE: TAREFAS ===
@@ -93,6 +106,7 @@ const TAREFAS_FIELDS: FieldDefinition[] = [
     { key: 'pr.nome', label: 'Responsável', category: 'Equipe', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
     { key: 't.created_at', label: 'Data Criação', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
     { key: 't.data_vencimento', label: 'Data Vencimento', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
+    { key: 't.concluida_em', label: 'Data Conclusão', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
     { key: 't.id', label: 'Quantidade', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'] },
     { key: 'concluidas', label: 'Concluídas', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'], sqlExpression: 'CASE WHEN t.concluida = true THEN 1 END' },
     { key: 'atrasadas', label: 'Atrasadas', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'], sqlExpression: 'CASE WHEN t.concluida = false AND t.data_vencimento < NOW() THEN 1 END' },
@@ -139,17 +153,25 @@ const CADENCIA_FIELDS: FieldDefinition[] = [
     { key: 'cdt.name', label: 'Template', category: 'Cadência', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
     { key: 'ci.status', label: 'Status', category: 'Cadência', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: ['active', 'completed', 'paused', 'cancelled'] },
     { key: 'ci.started_at', label: 'Data Início', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
+    { key: 'ci.completed_at', label: 'Data Conclusão', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
     { key: 'ci.id', label: 'Quantidade', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'] },
     { key: 'ci.successful_contacts', label: 'Contatos Com Sucesso', category: 'Resultado', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'] },
+    { key: 'ci.total_contacts_attempted', label: 'Tentativas de Contato', category: 'Resultado', role: 'measure', dataType: 'number', aggregations: ['sum', 'avg'] },
 ]
 
 // === SOURCE: HISTORICO ===
 const HISTORICO_FIELDS: FieldDefinition[] = [
-    { key: 'ps.nome', label: 'Etapa Destino', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
-    { key: 'hf.data_mudanca', label: 'Data Mudança', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS] },
-    { key: 'pr.nome', label: 'Movido Por', category: 'Equipe', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
-    { key: 'hf.id', label: 'Quantidade', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'] },
-    { key: 'hf.tempo_na_etapa_anterior', label: 'Tempo na Etapa Anterior (s)', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'] },
+    // Dimensões — Pipeline
+    { key: 'ps.nome', label: 'Etapa Destino', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic', description: 'Para qual etapa o card foi movido' },
+    { key: 'ps_anterior.nome', label: 'Etapa Origem', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic', description: 'De qual etapa o card saiu' },
+    { key: 'c.produto', label: 'Produto', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: ['TRIPS', 'WEDDING', 'CORP'], description: 'Produto do card movimentado' },
+    { key: 'c.status_comercial', label: 'Status do Card', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: ['ganho', 'perdido', 'aberto'], description: 'Status comercial atual do card' },
+    // Dimensões — Tempo & Equipe
+    { key: 'hf.data_mudanca', label: 'Data Movimentação', category: 'Tempo', role: 'dimension', dataType: 'date', dateGroupings: [...DATE_GROUPINGS], filterOperators: [...DATE_OPERATORS], description: 'Quando a mudança de etapa ocorreu' },
+    { key: 'pr.nome', label: 'Movido Por', category: 'Equipe', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic', description: 'Quem realizou a movimentação' },
+    // Medidas
+    { key: 'hf.id', label: 'Movimentações', category: 'Contagem', role: 'measure', dataType: 'number', aggregations: ['count'], description: 'Total de movimentações entre etapas' },
+    { key: 'tempo_etapa_dias', label: 'Permanência na Etapa (dias)', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(EPOCH FROM hf.tempo_na_etapa_anterior) / 86400.0', description: 'Média de dias que o card ficou na etapa antes de avançar' },
 ]
 
 // === SOURCE: EQUIPE ===
@@ -213,15 +235,110 @@ export const COMPUTED_MEASURES: Record<DataSource, ComputedMeasureDefinition[]> 
             format: 'percent',
         },
     ],
-    contatos: [],
-    propostas: [],
-    tarefas: [],
-    reunioes: [],
+    contatos: [
+        {
+            key: 'taxa_recorrencia',
+            label: 'Taxa de Recorrência',
+            category: 'Calculado',
+            description: 'Percentual de contatos com mais de 1 viagem',
+            sqlExpression: "ROUND(COUNT(CASE WHEN cs.total_trips > 1 THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+    ],
+    propostas: [
+        {
+            key: 'taxa_aceitacao',
+            label: 'Taxa de Aceitação',
+            category: 'Calculado',
+            description: 'Percentual de propostas aceitas sobre o total enviado',
+            sqlExpression: "ROUND(COUNT(CASE WHEN p.status = 'accepted' THEN 1 END)::numeric / NULLIF(COUNT(CASE WHEN p.status NOT IN ('draft') THEN 1 END), 0) * 100, 1)",
+            format: 'percent',
+        },
+        {
+            key: 'valor_medio_proposta',
+            label: 'Valor Médio por Proposta',
+            category: 'Calculado',
+            description: 'Valor médio das propostas aceitas',
+            sqlExpression: "ROUND(SUM(CASE WHEN p.status = 'accepted' THEN p.accepted_total ELSE 0 END) / NULLIF(COUNT(CASE WHEN p.status = 'accepted' THEN 1 END), 0), 0)",
+            format: 'currency',
+        },
+        {
+            key: 'taxa_rejeicao',
+            label: 'Taxa de Rejeição',
+            category: 'Calculado',
+            description: 'Percentual de propostas rejeitadas sobre o total enviado',
+            sqlExpression: "ROUND(COUNT(CASE WHEN p.status = 'rejected' THEN 1 END)::numeric / NULLIF(COUNT(CASE WHEN p.status NOT IN ('draft') THEN 1 END), 0) * 100, 1)",
+            format: 'percent',
+        },
+    ],
+    tarefas: [
+        {
+            key: 'taxa_conclusao',
+            label: 'Taxa de Conclusão',
+            category: 'Calculado',
+            description: 'Percentual de tarefas concluídas sobre o total',
+            sqlExpression: "ROUND(COUNT(CASE WHEN t.concluida = true THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+        {
+            key: 'taxa_atraso',
+            label: 'Taxa de Atraso',
+            category: 'Calculado',
+            description: 'Percentual de tarefas atrasadas (não concluídas e vencidas)',
+            sqlExpression: "ROUND(COUNT(CASE WHEN t.concluida = false AND t.data_vencimento < NOW() THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+    ],
+    reunioes: [
+        {
+            key: 'taxa_realizacao',
+            label: 'Taxa de Realização',
+            category: 'Calculado',
+            description: 'Percentual de reuniões realizadas sobre agendadas',
+            sqlExpression: "ROUND(COUNT(CASE WHEN r.status = 'realizada' THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+    ],
     mensagens: [],
     whatsapp: [],
-    documentos: [],
-    cadencia: [],
-    historico: [],
+    documentos: [
+        {
+            key: 'taxa_coleta',
+            label: 'Taxa de Coleta',
+            category: 'Calculado',
+            description: 'Percentual de documentos recebidos sobre o total solicitado',
+            sqlExpression: "ROUND(COUNT(CASE WHEN cdr.status = 'received' THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+    ],
+    cadencia: [
+        {
+            key: 'taxa_sucesso',
+            label: 'Taxa de Sucesso',
+            category: 'Calculado',
+            description: 'Percentual de cadências completadas com sucesso',
+            sqlExpression: "ROUND(COUNT(CASE WHEN ci.status = 'completed' THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1)",
+            format: 'percent',
+        },
+        {
+            key: 'media_contatos_sucesso',
+            label: 'Média de Contatos Bem-sucedidos',
+            category: 'Calculado',
+            description: 'Média de contatos com sucesso por cadência',
+            sqlExpression: "ROUND(SUM(ci.successful_contacts)::numeric / NULLIF(COUNT(*), 0), 1)",
+            format: 'number',
+        },
+    ],
+    historico: [
+        {
+            key: 'tempo_medio_dias',
+            label: 'Tempo Médio na Etapa (dias)',
+            category: 'Calculado',
+            description: 'Média de dias que os cards permanecem na etapa antes de avançar',
+            sqlExpression: "ROUND(AVG(EXTRACT(EPOCH FROM hf.tempo_na_etapa_anterior) / 86400.0)::numeric, 1)",
+            format: 'number',
+        },
+    ],
     equipe: [],
 }
 

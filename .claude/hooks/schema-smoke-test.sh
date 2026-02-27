@@ -1,0 +1,73 @@
+#!/bin/bash
+set -euo pipefail
+
+# Schema Smoke Test — verifica que queries críticas do frontend funcionam no banco
+# Pode ser chamado contra staging ou produção via env vars:
+#   SMOKE_URL, SMOKE_ANON, SMOKE_KEY (override)
+#   Ou usa VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY do .env
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/../.." || exit 1
+source .env 2>/dev/null || true
+
+URL="${SMOKE_URL:-$VITE_SUPABASE_URL}"
+ANON="${SMOKE_ANON:-$VITE_SUPABASE_ANON_KEY}"
+KEY="${SMOKE_KEY:-$SUPABASE_SERVICE_ROLE_KEY}"
+
+if [ -z "$URL" ] || [ -z "$KEY" ]; then
+  echo "SKIP: variáveis de ambiente não disponíveis"
+  exit 0
+fi
+
+FAILED=0
+TOTAL=0
+
+test_query() {
+  local name="$1"
+  local endpoint="$2"
+  TOTAL=$((TOTAL + 1))
+  local status
+  status=$(curl -s -o /dev/null -w "%{http_code}" \
+    "${URL}/rest/v1/${endpoint}" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    --max-time 10)
+
+  if [ "$status" != "200" ] && [ "$status" != "206" ]; then
+    echo "  FAIL: $name → HTTP $status" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# ── Queries que o frontend FAZ (extraídas do código) ──
+
+# Pipeline (usePipelineCards.ts + usePipelineListCards.ts)
+test_query "view_cards_acoes (colunas críticas)" \
+  "view_cards_acoes?select=id,titulo,archived_at,is_group_parent,parent_card_id,docs_total,docs_completed,pessoa_telefone_normalizado&limit=1"
+
+# Dashboard (StatsCards.tsx + FunnelChart.tsx)
+# View pode ter colunas novas (valor_total, receita_total) ou legadas (total_valor_estimado)
+# Testar apenas colunas estáveis que existem em ambas versões
+test_query "view_dashboard_funil" \
+  "view_dashboard_funil?select=etapa_nome,total_cards,etapa_ordem,produto&limit=1"
+
+# Pipeline stages (usePipelineStages.ts)
+test_query "pipeline_stages + phases join" \
+  "pipeline_stages?select=*,pipeline_phases!pipeline_stages_phase_id_fkey(order_index)&limit=1"
+
+# Dashboard reuniões (TodayMeetingsWidget.tsx)
+test_query "tarefas (deleted_at + reunião)" \
+  "tarefas?select=id,titulo,data_vencimento,deleted_at,tipo,concluida&limit=1"
+
+# Dashboard atividades (RecentActivity.tsx)
+test_query "activities + joins" \
+  "activities?select=id,tipo,descricao,created_at,card:cards!card_id(titulo),created_by_user:profiles!created_by(nome,email)&limit=1"
+
+if [ $FAILED -gt 0 ]; then
+  echo "" >&2
+  echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2
+  exit 1
+fi
+
+echo "Schema OK: $TOTAL/$TOTAL queries passaram"
+exit 0

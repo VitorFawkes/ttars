@@ -24,10 +24,10 @@ export interface RevenueByProduct {
 }
 
 export function useFinancialBreakdown() {
-    const { dateRange, granularity, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, granularity, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'financial-breakdown', dateRange.start, dateRange.end, granularity, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'financial-breakdown', dateRange.start, dateRange.end, granularity, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_financial_breakdown', {
@@ -37,7 +37,7 @@ export function useFinancialBreakdown() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as FinancialPeriod[]) || []
@@ -48,10 +48,10 @@ export function useFinancialBreakdown() {
 }
 
 export function useTopDestinations() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'top-destinations', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'top-destinations', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_top_destinations', {
@@ -61,7 +61,7 @@ export function useTopDestinations() {
                 p_mode: mode,
                 p_product: product === 'ALL' ? null : product,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as TopDestination[]) || []
@@ -72,10 +72,10 @@ export function useTopDestinations() {
 }
 
 export function useRevenueByProduct() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'revenue-by-product', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'revenue-by-product', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_revenue_by_product', {
@@ -84,7 +84,7 @@ export function useRevenueByProduct() {
                 p_mode: mode,
                 p_product: product === 'ALL' ? null : product,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as RevenueByProduct[]) || []

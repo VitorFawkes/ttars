@@ -9,8 +9,8 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
     gte: 'Maior ou igual',
     lt: 'Menor que',
     lte: 'Menor ou igual',
-    in: 'Contém',
-    not_in: 'Não contém',
+    in: 'Contém (lista)',
+    not_in: 'Não contém (lista)',
     like: 'Parecido com',
     is_null: 'É vazio',
     is_not_null: 'Não é vazio',
@@ -18,6 +18,7 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
 }
 
 const NO_VALUE_OPERATORS: FilterOperator[] = ['is_null', 'is_not_null']
+const ARRAY_OPERATORS: FilterOperator[] = ['in', 'not_in']
 
 interface FilterPanelProps {
     filters: FilterSpec[]
@@ -41,10 +42,18 @@ export default function FilterPanel({
         if (!def) return
 
         const defaultOp = def.filterOperators?.[0] ?? 'eq'
+        let defaultValue: FilterSpec['value']
+        if (NO_VALUE_OPERATORS.includes(defaultOp)) {
+            defaultValue = null
+        } else if (ARRAY_OPERATORS.includes(defaultOp)) {
+            defaultValue = []
+        } else {
+            defaultValue = ''
+        }
         onAddFilter({
             field: fieldKey,
             operator: defaultOp,
-            value: NO_VALUE_OPERATORS.includes(defaultOp) ? null : '',
+            value: defaultValue,
         })
         setAdding(false)
     }
@@ -58,9 +67,22 @@ export default function FilterPanel({
             newValue = null
         } else if (newOp === 'between') {
             newValue = ['', '']
+        } else if (ARRAY_OPERATORS.includes(newOp)) {
+            // Convert current value to array if switching to in/not_in
+            if (Array.isArray(filter.value)) {
+                newValue = filter.value
+            } else if (filter.value && String(filter.value).trim()) {
+                newValue = [String(filter.value)]
+            } else {
+                newValue = []
+            }
         } else {
-            // Reset to empty string when switching between value-based operators
-            newValue = ''
+            // Convert array back to single value if switching from in/not_in
+            if (Array.isArray(filter.value) && filter.value.length > 0) {
+                newValue = filter.value[0]
+            } else {
+                newValue = ''
+            }
         }
 
         onUpdateFilter(idx, { ...filter, operator: newOp, value: newValue })
@@ -80,6 +102,7 @@ export default function FilterPanel({
                         const operators = def?.filterOperators ?? ['eq']
                         const isNoValue = NO_VALUE_OPERATORS.includes(filter.operator)
                         const isBetween = filter.operator === 'between'
+                        const isArrayOp = ARRAY_OPERATORS.includes(filter.operator)
                         const hasOptions = def?.filterOptions && def.filterOptions !== 'dynamic'
                         const isDynamic = def?.filterOptions === 'dynamic'
 
@@ -106,7 +129,8 @@ export default function FilterPanel({
                                         ))}
                                     </select>
 
-                                    {!isNoValue && !isBetween && (
+                                    {/* Single-value inputs (eq, neq, gt, gte, lt, lte, like) */}
+                                    {!isNoValue && !isBetween && !isArrayOp && (
                                         <>
                                             {hasOptions ? (
                                                 <select
@@ -140,6 +164,15 @@ export default function FilterPanel({
                                                 />
                                             )}
                                         </>
+                                    )}
+
+                                    {/* Array-value inputs (in, not_in) — multi-select when options exist, comma-separated otherwise */}
+                                    {isArrayOp && (
+                                        <ArrayFilterInput
+                                            value={Array.isArray(filter.value) ? filter.value as string[] : []}
+                                            options={hasOptions ? (def?.filterOptions as string[]) : undefined}
+                                            onChange={(arr) => onUpdateFilter(idx, { ...filter, value: arr })}
+                                        />
                                     )}
 
                                     {/* Between: two inputs */}
@@ -207,5 +240,66 @@ export default function FilterPanel({
                 </button>
             )}
         </div>
+    )
+}
+
+/** Multi-value input for in/not_in operators */
+function ArrayFilterInput({
+    value,
+    options,
+    onChange,
+}: {
+    value: string[]
+    options?: string[]
+    onChange: (values: string[]) => void
+}) {
+    if (options) {
+        // Checkbox list for predefined options
+        return (
+            <div className="flex-1 flex flex-wrap gap-1">
+                {options.map(opt => {
+                    const isChecked = value.includes(opt)
+                    return (
+                        <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                                if (isChecked) {
+                                    onChange(value.filter(v => v !== opt))
+                                } else {
+                                    onChange([...value, opt])
+                                }
+                            }}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                                isChecked
+                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
+                                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                            }`}
+                        >
+                            {opt}
+                        </button>
+                    )
+                })}
+            </div>
+        )
+    }
+
+    // Comma-separated text input for dynamic values
+    const displayValue = value.join(', ')
+    return (
+        <input
+            type="text"
+            value={displayValue}
+            onChange={(e) => {
+                const raw = e.target.value
+                if (!raw.trim()) {
+                    onChange([])
+                } else {
+                    onChange(raw.split(',').map(s => s.trim()).filter(Boolean))
+                }
+            }}
+            placeholder="valor1, valor2, ..."
+            className="flex-1 text-[11px] bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-600 focus:ring-1 focus:ring-indigo-300 min-w-0"
+        />
     )
 }

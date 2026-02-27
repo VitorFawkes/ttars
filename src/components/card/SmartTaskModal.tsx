@@ -24,7 +24,8 @@ import {
     ChevronsUpDown,
     Star,
     UserPlus,
-    AlertTriangle
+    AlertTriangle,
+    Video
 } from 'lucide-react';
 import { findConflicts, type MeetingTimeSlot } from '@/utils/meetingConflicts';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
@@ -119,6 +120,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
     // Duration for meetings
     const [durationMinutes, setDurationMinutes] = useState(30);
+    const [meetingLink, setMeetingLink] = useState('');
 
     // Meeting Specifics
     const [meetingStatus, setMeetingStatus] = useState('agendada');
@@ -299,6 +301,25 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         enabled: !!effectiveCardId,
     });
 
+    // Fetch card stage/phase context for smart meeting titles
+    const { data: cardStageContext } = useQuery({
+        queryKey: ['card-stage-context', effectiveCardId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('cards')
+                .select('titulo, pipeline_stages(nome, pipeline_phases!pipeline_stages_phase_id_fkey(slug))')
+                .eq('id', effectiveCardId!)
+                .single();
+            if (error) return null;
+            return data as {
+                titulo: string | null;
+                pipeline_stages: { nome: string; pipeline_phases: { slug: string } | null } | null;
+            } | null;
+        },
+        staleTime: 1000 * 60 * 5,
+        enabled: !!effectiveCardId && isOpen,
+    });
+
     const { data: teamMemberIds } = useQuery({
         queryKey: ['card-team-ids', effectiveCardId],
         queryFn: async () => {
@@ -405,8 +426,11 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setCancellationReason(initialData?.motivo_cancelamento || '');
                 setOtherCategory(initialData?.categoria_outro || '');
                 setExternalParticipants(initialData?.participantes_externos || []);
-                const savedDuration = (initialData?.metadata as Record<string, unknown>)?.duration_minutes;
+                const savedMeta = initialData?.metadata as Record<string, unknown> | undefined;
+                const savedDuration = savedMeta?.duration_minutes;
                 setDurationMinutes(typeof savedDuration === 'number' ? savedDuration : 30);
+                const savedLink = savedMeta?.meeting_link;
+                setMeetingLink(typeof savedLink === 'string' ? savedLink : '');
                 setTranscricao(initialData?.transcricao || '');
                 setAiProcessResult(null);
                 setIsProcessingAI(false);
@@ -459,8 +483,12 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 if (defaultType) {
                     setType(defaultType);
                     setStep(2);
-                    const typeLabel = TASK_TYPES.find(t => t.id === defaultType)?.label || '';
-                    setTitle(typeLabel);
+                    if (defaultType === 'reuniao' && cardStageContext) {
+                        setTitle(generateSmartMeetingTitle());
+                    } else {
+                        const typeLabel = TASK_TYPES.find(t => t.id === defaultType)?.label || '';
+                        setTitle(typeLabel);
+                    }
                 } else {
                     setStep(1);
                     setType('tarefa');
@@ -492,7 +520,18 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 }
             }
         }
-    }, [isOpen, initialData, mode, user?.id, defaultType, defaultDate, defaultTime, defaultDuration]);
+    }, [isOpen, initialData, mode, user?.id, defaultType, defaultDate, defaultTime, defaultDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Update meeting title when card context loads (only for new meetings with default title)
+    useEffect(() => {
+        if (!isOpen || initialData || mode === 'reschedule') return;
+        if (type !== 'reuniao' || !cardStageContext) return;
+        // Only override if title is still a generic default (user hasn't customized it)
+        const genericTitles = ['Reunião', ''];
+        if (genericTitles.includes(title)) {
+            setTitle(generateSmartMeetingTitle());
+        }
+    }, [cardStageContext, mainContact]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Close time list when clicking outside
     useEffect(() => {
@@ -508,6 +547,33 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showRescheduleTimeList]);
 
+    // Generate contextual meeting title based on card stage/phase
+    const generateSmartMeetingTitle = () => {
+        const phaseSlug = cardStageContext?.pipeline_stages?.pipeline_phases?.slug;
+        const contactName = mainContact?.nome;
+        const firstName = contactName?.split(' ')[0];
+
+        let context: string;
+        switch (phaseSlug) {
+            case 'sdr':
+                context = 'Consultoria de Viagem';
+                break;
+            case 'planner':
+                context = 'Planejamento de Viagem';
+                break;
+            case 'pos_venda':
+                context = 'Acompanhamento de Viagem';
+                break;
+            default:
+                context = 'Reunião';
+                break;
+        }
+
+        const parts = ['Welcome Trips', context];
+        if (firstName) parts.push(firstName);
+        return parts.join(' — ');
+    };
+
     const handleTypeSelect = (selectedType: TaskType) => {
         // Reset metadata when switching types to avoid stale state
         setMetadata({});
@@ -517,10 +583,14 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         setType(selectedType);
         setStep(2);
 
-        // Reset title if it's empty or matches a known template (meaning user hasn't customized it)
+        // Smart title: context-aware for meetings, simple label for others
         if (!initialData) {
-            const typeLabel = TASK_TYPES.find(t => t.id === selectedType)?.label || '';
-            setTitle(typeLabel);
+            if (selectedType === 'reuniao' && cardStageContext) {
+                setTitle(generateSmartMeetingTitle());
+            } else {
+                const typeLabel = TASK_TYPES.find(t => t.id === selectedType)?.label || '';
+                setTitle(typeLabel);
+            }
         }
     };
 
@@ -674,9 +744,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 }
             }
 
-            // Build metadata with duration for meetings
+            // Build metadata with duration and meeting link for meetings
             const finalMetadata = type === 'reuniao'
-                ? { ...metadata, duration_minutes: durationMinutes }
+                ? { ...metadata, duration_minutes: durationMinutes, ...(meetingLink ? { meeting_link: meetingLink } : {}) }
                 : metadata;
 
             // Prepare payload
@@ -1033,6 +1103,20 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                         </div>
                                     )}
                                 </div>
+                                {type === 'reuniao' && (
+                                    <div className="grid gap-2">
+                                        <Label className="flex items-center gap-1">
+                                            <Video className="w-3.5 h-3.5" />
+                                            Link da reunião (opcional)
+                                        </Label>
+                                        <Input
+                                            type="url"
+                                            value={meetingLink}
+                                            onChange={(e) => setMeetingLink(e.target.value)}
+                                            placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                                        />
+                                    </div>
+                                )}
 
                                 {/* Conflict warning */}
                                 {meetingConflicts.length > 0 && type === 'reuniao' && (

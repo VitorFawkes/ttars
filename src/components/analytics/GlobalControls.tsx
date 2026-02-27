@@ -61,13 +61,14 @@ export default function GlobalControls() {
         product,
         mode,
         stageId,
-        ownerId,
+        ownerIds,
         setDatePreset,
         setDateRange,
         setGranularity,
         setProduct,
         setModeWithStage,
-        setOwnerId,
+        setOwnerIds,
+        toggleOwnerId,
     } = useAnalyticsFilters()
 
     const { data: stages } = usePipelineStages()
@@ -113,10 +114,13 @@ export default function GlobalControls() {
     }, [mode, stageId, stages])
 
     const ownerLabel = useMemo(() => {
-        if (!ownerId) return 'Todos'
-        const c = consultants?.find(p => p.id === ownerId)
-        return c?.nome ?? '...'
-    }, [ownerId, consultants])
+        if (ownerIds.length === 0) return 'Todos'
+        if (ownerIds.length === 1) {
+            const c = consultants?.find(p => p.id === ownerIds[0])
+            return c?.nome ?? '...'
+        }
+        return `${ownerIds.length} selecionados`
+    }, [ownerIds, consultants])
 
     const isSelected = (value: string) => {
         if (value === 'entries') return mode === 'entries'
@@ -278,39 +282,49 @@ export default function GlobalControls() {
 
                 <div className="flex-1" />
 
-                {/* Consultant filter */}
+                {/* Consultant filter (multi-select) */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button className={cn(
                             'inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500',
-                            ownerId
+                            ownerIds.length > 0
                                 ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                 : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                         )}>
                             <User className="w-3.5 h-3.5 shrink-0" />
-                            <span className="max-w-[120px] truncate">{ownerLabel}</span>
+                            <span className="max-w-[140px] truncate">{ownerLabel}</span>
                             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52 max-h-[320px] overflow-y-auto">
-                        <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                            Consultor
-                        </DropdownMenuLabel>
-                        <DropdownMenuItem
-                            onClick={() => setOwnerId(null)}
-                            className="flex items-center gap-2 text-xs font-medium"
-                        >
-                            <Check className={cn('w-3.5 h-3.5', !ownerId ? 'opacity-100' : 'opacity-0')} />
-                            Todos
-                        </DropdownMenuItem>
+                        <div className="flex items-center justify-between px-2 py-1">
+                            <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold p-0">
+                                Consultores
+                            </DropdownMenuLabel>
+                            {ownerIds.length > 0 && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setOwnerIds([]) }}
+                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium"
+                                >
+                                    Limpar
+                                </button>
+                            )}
+                        </div>
                         <DropdownMenuSeparator />
                         {(consultants || []).map((c) => (
                             <DropdownMenuItem
                                 key={c.id}
-                                onClick={() => setOwnerId(c.id)}
-                                className="flex items-center gap-2 text-xs"
+                                onClick={(e) => { e.preventDefault(); toggleOwnerId(c.id) }}
+                                className="flex items-center gap-2 text-xs cursor-pointer"
                             >
-                                <Check className={cn('w-3.5 h-3.5', ownerId === c.id ? 'opacity-100' : 'opacity-0')} />
+                                <div className={cn(
+                                    'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                                    ownerIds.includes(c.id)
+                                        ? 'bg-indigo-600 border-indigo-600'
+                                        : 'border-slate-300'
+                                )}>
+                                    {ownerIds.includes(c.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                </div>
                                 {c.nome}
                             </DropdownMenuItem>
                         ))}

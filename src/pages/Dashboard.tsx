@@ -4,9 +4,13 @@ import FunnelChart from '../components/dashboard/FunnelChart'
 import RecentActivity from '../components/dashboard/RecentActivity'
 import { ProposalAnalyticsWidget } from '../components/proposals/ProposalAnalyticsWidget'
 import { TodayMeetingsWidget } from '../components/dashboard/TodayMeetingsWidget'
+import { ErrorBoundary } from '../components/ui/ErrorBoundary'
+import { QueryErrorState } from '../components/ui/QueryErrorState'
 import type { Database } from '../database.types'
 
 type Product = Database['public']['Enums']['app_product'] | 'ALL'
+
+const sectionFallback = <QueryErrorState compact />
 
 export default function Dashboard() {
     const [productFilter, setProductFilter] = useState<Product>('ALL')
@@ -33,16 +37,26 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <StatsCards productFilter={productFilter} />
+            <ErrorBoundary fallback={sectionFallback}>
+                <StatsCards productFilter={productFilter} />
+            </ErrorBoundary>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <FunnelChart productFilter={productFilter} />
-                <ProposalAnalyticsWidget />
-                <TodayMeetingsWidget />
+                <ErrorBoundary fallback={sectionFallback}>
+                    <FunnelChart productFilter={productFilter} />
+                </ErrorBoundary>
+                <ErrorBoundary fallback={sectionFallback}>
+                    <ProposalAnalyticsWidget />
+                </ErrorBoundary>
+                <ErrorBoundary fallback={sectionFallback}>
+                    <TodayMeetingsWidget />
+                </ErrorBoundary>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-                <RecentActivity />
+                <ErrorBoundary fallback={sectionFallback}>
+                    <RecentActivity />
+                </ErrorBoundary>
             </div>
         </div>
     )

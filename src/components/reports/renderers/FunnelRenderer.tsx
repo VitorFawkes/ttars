@@ -40,8 +40,12 @@ export default function FunnelRenderer({
                     <button
                         key={i}
                         onClick={() => {
-                            if (onDrillDown && dimKey && row[dimKey] != null) {
-                                onDrillDown({ [dimKey]: row[dimKey] })
+                            if (onDrillDown) {
+                                const filters: Record<string, unknown> = {}
+                                for (const dk of dimensionKeys) {
+                                    if (row[dk] != null) filters[dk] = row[dk]
+                                }
+                                if (Object.keys(filters).length > 0) onDrillDown(filters)
                             }
                         }}
                         className="w-full group"

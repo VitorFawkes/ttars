@@ -18,8 +18,8 @@ export interface SourceMeta {
 export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     cards: {
         key: 'cards',
-        label: 'Negócios (Cards)',
-        description: 'Deals, viagens, pipeline, valores financeiros',
+        label: 'Negócios',
+        description: 'Faturamento, conversão, pipeline, ciclo de venda',
         icon: BarChart3,
         color: 'text-indigo-600',
         bgColor: 'bg-indigo-50',
@@ -27,7 +27,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     contatos: {
         key: 'contatos',
         label: 'Contatos',
-        description: 'Pessoas, clientes, dados demográficos',
+        description: 'Base de clientes, recorrência, perfil demográfico',
         icon: Users,
         color: 'text-emerald-600',
         bgColor: 'bg-emerald-50',
@@ -35,7 +35,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     propostas: {
         key: 'propostas',
         label: 'Propostas',
-        description: 'Propostas comerciais, valores, engajamento',
+        description: 'Taxa de aceite, valor médio, tempo de resposta',
         icon: FileText,
         color: 'text-blue-600',
         bgColor: 'bg-blue-50',
@@ -43,7 +43,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     tarefas: {
         key: 'tarefas',
         label: 'Tarefas',
-        description: 'Tasks, prazos, conclusões, resultados',
+        description: 'Produtividade, atrasos, taxa de conclusão',
         icon: CheckSquare,
         color: 'text-amber-600',
         bgColor: 'bg-amber-50',
@@ -51,7 +51,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     reunioes: {
         key: 'reunioes',
         label: 'Reuniões',
-        description: 'Reuniões agendadas, status, resultados',
+        description: 'Volume, taxa de realização, resultados',
         icon: Calendar,
         color: 'text-purple-600',
         bgColor: 'bg-purple-50',
@@ -59,7 +59,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     mensagens: {
         key: 'mensagens',
         label: 'Mensagens',
-        description: 'Mensagens CRM (WhatsApp, email, telefone)',
+        description: 'Volume por canal (WhatsApp, email, telefone)',
         icon: MessageCircle,
         color: 'text-cyan-600',
         bgColor: 'bg-cyan-50',
@@ -67,7 +67,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     whatsapp: {
         key: 'whatsapp',
         label: 'WhatsApp',
-        description: 'Mensagens WhatsApp detalhadas, tipos, direção',
+        description: 'Conversas, tipos de mídia, volume por fase',
         icon: MessageSquare,
         color: 'text-green-600',
         bgColor: 'bg-green-50',
@@ -75,7 +75,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     documentos: {
         key: 'documentos',
         label: 'Documentos',
-        description: 'Checklist de documentos, status de coleta',
+        description: 'Taxa de coleta, pendências, tipos solicitados',
         icon: FileCheck,
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',
@@ -83,7 +83,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     cadencia: {
         key: 'cadencia',
         label: 'Cadências',
-        description: 'Automações de vendas, instâncias, resultados',
+        description: 'Automações de follow-up, taxa de sucesso',
         icon: Zap,
         color: 'text-rose-600',
         bgColor: 'bg-rose-50',
@@ -91,7 +91,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     historico: {
         key: 'historico',
         label: 'Histórico de Etapas',
-        description: 'Movimentações entre etapas, tempo em cada',
+        description: 'Fluxo do funil, tempo por etapa, gargalos',
         icon: GitBranch,
         color: 'text-violet-600',
         bgColor: 'bg-violet-50',
@@ -99,7 +99,7 @@ export const SOURCE_MAP: Record<DataSource, SourceMeta> = {
     equipe: {
         key: 'equipe',
         label: 'Equipe',
-        description: 'Usuários, times, roles',
+        description: 'Composição dos times, distribuição por fase',
         icon: UsersRound,
         color: 'text-slate-600',
         bgColor: 'bg-slate-50',

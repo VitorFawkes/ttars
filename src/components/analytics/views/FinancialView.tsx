@@ -8,6 +8,36 @@ import {
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useFinancialBreakdown, useTopDestinations, useRevenueByProduct } from '@/hooks/analytics/useFinancialData'
+import { useAnalyticsFilters, type Granularity } from '@/hooks/analytics/useAnalyticsFilters'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
+import { formatCurrency } from '@/utils/whatsappFormatters'
+
+/** Parse financial period string to ISO start/end dates */
+function parsePeriodBounds(period: string, granularity: Granularity): { start: string; end: string } | null {
+    if (!period) return null
+    if (granularity === 'month') {
+        // "YYYY-MM" → "2025-01"
+        const parts = period.split('-')
+        if (parts.length !== 2) return null
+        const year = Number(parts[0])
+        const month = Number(parts[1])
+        if (!year || !month) return null
+        const start = new Date(year, month - 1, 1)
+        const end = new Date(year, month, 1)
+        return { start: start.toISOString(), end: end.toISOString() }
+    }
+    if (granularity === 'week' || granularity === 'day') {
+        // "YYYY-MM-DD"
+        const d = new Date(period + 'T00:00:00Z')
+        if (isNaN(d.getTime())) return null
+        const end = new Date(d)
+        if (granularity === 'week') end.setDate(end.getDate() + 7)
+        else end.setDate(end.getDate() + 1)
+        return { start: d.toISOString(), end: end.toISOString() }
+    }
+    return null
+}
 
 const PRODUCT_COLORS: Record<string, string> = {
     TRIPS: '#6366f1',
@@ -15,16 +45,14 @@ const PRODUCT_COLORS: Record<string, string> = {
     CORP: '#f97316',
 }
 
-function formatCurrency(value: number): string {
-    if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)} mi`
-    if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)} mil`
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
-}
-
 export default function FinancialView() {
-    const { data: periods, isLoading: periodsLoading, error: periodsError } = useFinancialBreakdown()
-    const { data: destinations, isLoading: destLoading, error: destError } = useTopDestinations()
-    const { data: products, isLoading: prodLoading, error: prodError } = useRevenueByProduct()
+    const drillDown = useDrillDownStore()
+    const { setProduct, granularity } = useAnalyticsFilters()
+    const { data: periods, isLoading: periodsLoading, error: periodsError, refetch: r1 } = useFinancialBreakdown()
+    const { data: destinations, isLoading: destLoading, error: destError, refetch: r2 } = useTopDestinations()
+    const { data: products, isLoading: prodLoading, error: prodError, refetch: r3 } = useRevenueByProduct()
+
+    const handleRetry = () => { r1(); r2(); r3() }
 
     const hasError = !!(periodsError || destError || prodError)
 
@@ -37,11 +65,7 @@ export default function FinancialView() {
 
     return (
         <div className="space-y-6">
-            {hasError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados financeiros. Verifique sua conexão e tente novamente.
-                </div>
-            )}
+            {hasError && <QueryErrorState compact title="Erro ao carregar dados financeiros" onRetry={handleRetry} />}
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -52,6 +76,8 @@ export default function FinancialView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={periodsLoading}
+                    onClick={() => drillDown.open({ label: 'Faturamento Total', drillStatus: 'ganho', drillSource: 'closed_deals' })}
+                    clickHint="Ver cards ganhos"
                 />
                 <KpiCard
                     title="Margem Bruta"
@@ -61,6 +87,8 @@ export default function FinancialView() {
                     color="text-indigo-600"
                     bgColor="bg-indigo-50"
                     isLoading={periodsLoading}
+                    onClick={() => drillDown.open({ label: 'Margem Bruta', drillStatus: 'ganho', drillSource: 'closed_deals' })}
+                    clickHint="Ver cards ganhos"
                 />
                 <KpiCard
                     title="Ticket Médio"
@@ -69,6 +97,8 @@ export default function FinancialView() {
                     color="text-amber-600"
                     bgColor="bg-amber-50"
                     isLoading={periodsLoading}
+                    onClick={() => drillDown.open({ label: 'Ticket Médio', drillStatus: 'ganho', drillSource: 'closed_deals' })}
+                    clickHint="Ver cards ganhos"
                 />
                 <KpiCard
                     title="Viagens Vendidas"
@@ -77,6 +107,8 @@ export default function FinancialView() {
                     color="text-slate-700"
                     bgColor="bg-slate-100"
                     isLoading={periodsLoading}
+                    onClick={() => drillDown.open({ label: 'Viagens Vendidas', drillStatus: 'ganho', drillSource: 'closed_deals' })}
+                    clickHint="Ver cards"
                 />
             </div>
 
@@ -116,8 +148,54 @@ export default function FinancialView() {
                                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
                             />
                             <Legend wrapperStyle={{ fontSize: '12px' }} />
-                            <Bar yAxisId="left" dataKey="valor_final_sum" name="Faturamento" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={30} fillOpacity={0.8} />
-                            <Line yAxisId="right" type="monotone" dataKey="receita_sum" name="Margem" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4, fill: '#22c55e' }} />
+                            <Bar
+                                yAxisId="left"
+                                dataKey="valor_final_sum"
+                                name="Faturamento"
+                                fill="#6366f1"
+                                radius={[4, 4, 0, 0]}
+                                barSize={30}
+                                fillOpacity={0.8}
+                                cursor="pointer"
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onClick={(data: any) => {
+                                    const d = data?.payload || data
+                                    const period = d?.period
+                                    const bounds = period ? parsePeriodBounds(period, granularity) : null
+                                    drillDown.open({
+                                        label: `Faturamento — ${period || 'Período'}`,
+                                        drillStatus: 'ganho',
+                                        drillSource: 'closed_deals',
+                                        drillPeriodStart: bounds?.start,
+                                        drillPeriodEnd: bounds?.end,
+                                    })
+                                }}
+                            />
+                            <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="receita_sum"
+                                name="Margem"
+                                stroke="#22c55e"
+                                strokeWidth={2.5}
+                                dot={{ r: 4, fill: '#22c55e' }}
+                                activeDot={{
+                                    r: 6, cursor: 'pointer',
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    onClick: (_e: any, payload: any) => {
+                                        const d = payload?.payload
+                                        const period = d?.period
+                                        const bounds = period ? parsePeriodBounds(period, granularity) : null
+                                        drillDown.open({
+                                            label: `Margem — ${period || 'Período'}`,
+                                            drillStatus: 'ganho',
+                                            drillSource: 'closed_deals',
+                                            drillPeriodStart: bounds?.start,
+                                            drillPeriodEnd: bounds?.end,
+                                        })
+                                    },
+                                }}
+                            />
                         </ComposedChart>
                     </ResponsiveContainer>
                 ) : (
@@ -155,7 +233,24 @@ export default function FinancialView() {
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                                     formatter={(value: number) => [formatCurrency(value), 'Receita']}
                                 />
-                                <Bar dataKey="receita_total" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={18} name="Receita" />
+                                <Bar
+                                    dataKey="receita_total"
+                                    fill="#6366f1"
+                                    radius={[0, 4, 4, 0]}
+                                    barSize={18}
+                                    name="Receita"
+                                    cursor="pointer"
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    onClick={(data: any) => {
+                                        const destino = data?.destino || data?.payload?.destino
+                                        drillDown.open({
+                                            label: `Destino: ${destino || '—'}`,
+                                            drillStatus: 'ganho',
+                                            drillSource: 'closed_deals',
+                                            drillDestino: destino || undefined,
+                                        })
+                                    }}
+                                />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
@@ -185,6 +280,15 @@ export default function FinancialView() {
                                         innerRadius={50}
                                         strokeWidth={2}
                                         stroke="#fff"
+                                        cursor="pointer"
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        onClick={(data: any) => {
+                                            const produto = data?.payload?.produto || data?.produto
+                                            if (produto && ['TRIPS', 'WEDDING', 'CORP'].includes(produto)) {
+                                                setProduct(produto as 'TRIPS' | 'WEDDING' | 'CORP')
+                                                drillDown.open({ label: `${produto} — Ganhos`, drillStatus: 'ganho', drillSource: 'closed_deals' })
+                                            }
+                                        }}
                                     >
                                         {(products || []).map((p) => (
                                             <Cell key={p.produto} fill={PRODUCT_COLORS[p.produto] || '#94a3b8'} />
@@ -198,7 +302,12 @@ export default function FinancialView() {
                             </ResponsiveContainer>
                             <div className="flex-1 space-y-3">
                                 {(products || []).map((p) => (
-                                    <div key={p.produto} className="flex items-center gap-3">
+                                    <button
+                                        key={p.produto}
+                                        className="flex items-center gap-3 w-full text-left hover:bg-slate-50 rounded-lg px-2 py-1 -mx-2 transition-colors cursor-pointer"
+                                        onClick={() => setProduct(p.produto as 'TRIPS' | 'WEDDING' | 'CORP')}
+                                        title={`Filtrar por ${p.produto}`}
+                                    >
                                         <div
                                             className="w-3 h-3 rounded-full flex-shrink-0"
                                             style={{ backgroundColor: PRODUCT_COLORS[p.produto] || '#94a3b8' }}
@@ -207,7 +316,7 @@ export default function FinancialView() {
                                             <p className="text-sm font-medium text-slate-800">{p.produto}</p>
                                             <p className="text-xs text-slate-400">{p.count_won} vendas — {formatCurrency(p.receita_total)}</p>
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>

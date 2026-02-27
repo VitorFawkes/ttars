@@ -79,7 +79,7 @@ export function useCreateDashboard() {
                 .insert({
                     title: params.title,
                     description: params.description || null,
-                    created_by: session!.user.id,
+                    created_by: session?.user?.id ?? (() => { throw new Error('Sessão expirada') })(),
                     visibility: params.visibility || 'private',
                     global_filters: (params.global_filters || {}) as unknown as { [key: string]: Json | undefined },
                 })

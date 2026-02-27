@@ -34,9 +34,10 @@ export function useSavedReport(reportId: string | undefined) {
                 .from('custom_reports')
                 .select('*')
                 .eq('id', reportId)
-                .single()
+                .maybeSingle()
 
             if (error) throw error
+            if (!data) throw new Error('Relatório não encontrado')
             return data as unknown as SavedReport
         },
         enabled: !!reportId,
@@ -63,14 +64,15 @@ export function useCreateReport() {
                     description: params.description || null,
                     config: params.config as unknown as Json,
                     visualization: params.visualization as unknown as Json,
-                    created_by: session!.user.id,
+                    created_by: session?.user?.id ?? (() => { throw new Error('Sessão expirada') })(),
                     visibility: params.visibility || 'private',
                     category: params.category || null,
                 })
                 .select()
-                .single()
+                .maybeSingle()
 
             if (error) throw error
+            if (!data) throw new Error('Falha ao criar relatório — verifique suas permissões')
             return data as unknown as SavedReport
         },
         onSuccess: () => {
@@ -107,9 +109,10 @@ export function useUpdateReport() {
                 .update(updates)
                 .eq('id', params.id)
                 .select()
-                .single()
+                .maybeSingle()
 
             if (error) throw error
+            if (!data) throw new Error('Relatório não encontrado ou sem permissão para editar')
             return data as unknown as SavedReport
         },
         onSuccess: (data: SavedReport) => {

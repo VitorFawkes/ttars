@@ -1,4 +1,4 @@
-import { X, GripVertical } from 'lucide-react'
+import { X, ChevronUp, ChevronDown } from 'lucide-react'
 import type {
     DimensionSpec, MeasureSpec, ComputedMeasureSpec,
     FieldDefinition, Aggregation, DateGrouping, ComputedMeasureDefinition,
@@ -34,8 +34,10 @@ interface ConfigPanelProps {
 
     onRemoveDimension: (field: string) => void
     onUpdateDimension: (field: string, updates: Partial<DimensionSpec>) => void
+    onReorderDimensions: (oldIndex: number, newIndex: number) => void
     onRemoveMeasure: (field: string) => void
     onUpdateMeasure: (field: string, updates: Partial<MeasureSpec>) => void
+    onReorderMeasures: (oldIndex: number, newIndex: number) => void
     onRemoveComputedMeasure: (key: string) => void
     onSetBreakdownBy: (dim: DimensionSpec | null) => void
 
@@ -53,8 +55,10 @@ export default function ConfigPanel({
     computedMeasureDefs,
     onRemoveDimension,
     onUpdateDimension,
+    onReorderDimensions,
     onRemoveMeasure,
     onUpdateMeasure,
+    onReorderMeasures,
     onRemoveComputedMeasure,
     onSetBreakdownBy,
     availableDimensions,
@@ -73,7 +77,7 @@ export default function ConfigPanel({
                     <EmptyHint>Selecione uma dimensão na lista de campos</EmptyHint>
                 ) : (
                     <div className="space-y-1">
-                        {dimensions.map((dim) => {
+                        {dimensions.map((dim, idx) => {
                             const def = getFieldDef(dim.field, dimensionDefs)
                             const isDate = def?.dataType === 'date'
                             return (
@@ -81,6 +85,8 @@ export default function ConfigPanel({
                                     key={dim.field}
                                     label={getFieldLabel(dim.field, dimensionDefs)}
                                     onRemove={() => onRemoveDimension(dim.field)}
+                                    onMoveUp={idx > 0 ? () => onReorderDimensions(idx, idx - 1) : undefined}
+                                    onMoveDown={idx < dimensions.length - 1 ? () => onReorderDimensions(idx, idx + 1) : undefined}
                                 >
                                     {isDate && def?.dateGroupings && (
                                         <select
@@ -106,13 +112,15 @@ export default function ConfigPanel({
                     <EmptyHint>Selecione uma medida na lista de campos</EmptyHint>
                 ) : (
                     <div className="space-y-1">
-                        {measures.map((m) => {
+                        {measures.map((m, idx) => {
                             const def = getFieldDef(m.field, measureDefs)
                             return (
                                 <ConfigItem
                                     key={m.field}
                                     label={getFieldLabel(m.field, measureDefs)}
                                     onRemove={() => onRemoveMeasure(m.field)}
+                                    onMoveUp={idx > 0 ? () => onReorderMeasures(idx, idx - 1) : undefined}
+                                    onMoveDown={idx < measures.length - 1 ? () => onReorderMeasures(idx, idx + 1) : undefined}
                                 >
                                     {def?.aggregations && def.aggregations.length > 1 && (
                                         <select
@@ -200,15 +208,41 @@ function EmptyHint({ children }: { children: React.ReactNode }) {
 function ConfigItem({
     label,
     onRemove,
+    onMoveUp,
+    onMoveDown,
     children,
 }: {
     label: string
     onRemove: () => void
+    onMoveUp?: () => void
+    onMoveDown?: () => void
     children?: React.ReactNode
 }) {
     return (
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1.5 group">
-            <GripVertical className="w-3 h-3 text-slate-300 flex-shrink-0" />
+            {/* Reorder buttons — only visible when item can be moved */}
+            {(onMoveUp || onMoveDown) && (
+                <div className="flex flex-col -my-0.5">
+                    <button
+                        type="button"
+                        onClick={onMoveUp}
+                        disabled={!onMoveUp}
+                        className="w-3.5 h-3.5 flex items-center justify-center text-slate-300 hover:text-indigo-500 disabled:opacity-0 transition-colors"
+                        title="Mover para cima"
+                    >
+                        <ChevronUp className="w-3 h-3" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onMoveDown}
+                        disabled={!onMoveDown}
+                        className="w-3.5 h-3.5 flex items-center justify-center text-slate-300 hover:text-indigo-500 disabled:opacity-0 transition-colors"
+                        title="Mover para baixo"
+                    >
+                        <ChevronDown className="w-3 h-3" />
+                    </button>
+                </div>
+            )}
             <span className="text-xs text-slate-700 truncate flex-1">{label}</span>
             {children}
             <button

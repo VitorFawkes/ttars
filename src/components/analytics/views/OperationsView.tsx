@@ -1,5 +1,7 @@
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-    ShieldCheck, Package, GitPullRequest, Users,
+    ShieldCheck, Package, GitPullRequest, Users, ChevronUp, ChevronDown,
 } from 'lucide-react'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
@@ -7,28 +9,62 @@ import {
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useOperationsData } from '@/hooks/analytics/useOperationsData'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { QueryErrorState } from '@/components/ui/QueryErrorState'
+import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
-function formatCurrency(value: number): string {
-    if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)} mi`
-    if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)} mil`
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
-}
+type SortKey = 'viagens' | 'mudancas' | 'mudancas_por_viagem' | 'receita'
+type SortDir = 'asc' | 'desc'
 
 export default function OperationsView() {
-    const { data: ops, isLoading, error: opsError } = useOperationsData()
+    const navigate = useNavigate()
+    const drillDown = useDrillDownStore()
+    const { data: ops, isLoading, error: opsError, refetch } = useOperationsData()
+
+    const [sortKey, setSortKey] = useState<SortKey>('viagens')
+    const [sortDir, setSortDir] = useState<SortDir>('desc')
 
     const kpis = ops?.kpis
     const subStats = ops?.sub_card_stats
-    const planners = ops?.per_planner || []
+    const planners = useMemo(() => ops?.per_planner || [], [ops?.per_planner])
     const timeline = ops?.timeline || []
+
+    const sortedPlanners = useMemo(() => {
+        if (planners.length === 0) return planners
+        return [...planners].sort((a, b) => {
+            const aVal = a[sortKey]
+            const bVal = b[sortKey]
+            if (aVal === bVal) return 0
+            const dir = sortDir === 'desc' ? -1 : 1
+            return aVal > bVal ? dir : -dir
+        })
+    }, [planners, sortKey, sortDir])
+
+    function handleSort(key: SortKey) {
+        if (key === sortKey) {
+            setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+        } else {
+            setSortKey(key)
+            setSortDir('desc')
+        }
+    }
+
+    const sortIcon = (col: SortKey) => {
+        if (col !== sortKey) return <ChevronDown className="inline w-3 h-3 ml-0.5 opacity-30" />
+        return sortDir === 'desc'
+            ? <ChevronDown className="inline w-3 h-3 ml-0.5 text-indigo-600" />
+            : <ChevronUp className="inline w-3 h-3 ml-0.5 text-indigo-600" />
+    }
 
     return (
         <div className="space-y-6">
             {opsError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
-                    Erro ao carregar dados operacionais. Verifique sua conexão e tente novamente.
-                </div>
+                <QueryErrorState
+                    compact
+                    title="Erro ao carregar dados operacionais"
+                    onRetry={() => refetch()}
+                />
             )}
 
             {/* KPIs */}
@@ -40,6 +76,8 @@ export default function OperationsView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={isLoading}
+                    onClick={() => drillDown.open({ label: 'Viagens Realizadas', drillStatus: 'ganho', drillSource: 'closed_deals' })}
+                    clickHint="Ver cards"
                 />
                 <KpiCard
                     title="Mudanças / Viagem"
@@ -58,14 +96,21 @@ export default function OperationsView() {
                     bgColor="bg-indigo-50"
                     isLoading={isLoading}
                 />
-                <KpiCard
-                    title="Planners Ativos"
-                    value={planners.length}
-                    icon={Users}
-                    color="text-slate-700"
-                    bgColor="bg-slate-100"
-                    isLoading={isLoading}
-                />
+                <button
+                    type="button"
+                    className="text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    onClick={() => navigate('/analytics/team')}
+                    title="Ver equipe"
+                >
+                    <KpiCard
+                        title="Planners Ativos"
+                        value={planners.length}
+                        icon={Users}
+                        color="text-slate-700"
+                        bgColor="bg-slate-100"
+                        isLoading={isLoading}
+                    />
+                </button>
             </div>
 
             {/* NPS Placeholder */}
@@ -100,7 +145,7 @@ export default function OperationsView() {
                             />
                             <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            <Line type="monotone" dataKey="count" name="Mudanças" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} />
+                            <Line type="monotone" dataKey="count" name="Mudanças" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} activeDot={{ r: 5 }} />
                         </LineChart>
                     </ResponsiveContainer>
                 ) : (
@@ -121,10 +166,30 @@ export default function OperationsView() {
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/50">
                                 <th className="text-left px-6 py-3 font-medium text-slate-500">Planner</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Viagens</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Mudanças</th>
-                                <th className="text-right px-4 py-3 font-medium text-slate-500">Mud./Viagem</th>
-                                <th className="text-right px-6 py-3 font-medium text-slate-500">Receita</th>
+                                <th
+                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
+                                    onClick={() => handleSort('viagens')}
+                                >
+                                    Viagens {sortIcon('viagens')}
+                                </th>
+                                <th
+                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
+                                    onClick={() => handleSort('mudancas')}
+                                >
+                                    Mudanças {sortIcon('mudancas')}
+                                </th>
+                                <th
+                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
+                                    onClick={() => handleSort('mudancas_por_viagem')}
+                                >
+                                    Mud./Viagem {sortIcon('mudancas_por_viagem')}
+                                </th>
+                                <th
+                                    className="text-right px-6 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
+                                    onClick={() => handleSort('receita')}
+                                >
+                                    Receita {sortIcon('receita')}
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -136,15 +201,19 @@ export default function OperationsView() {
                                         </td>
                                     </tr>
                                 ))
-                            ) : planners.length === 0 ? (
+                            ) : sortedPlanners.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
                                         Nenhum planner com viagens no período
                                     </td>
                                 </tr>
                             ) : (
-                                planners.map((p) => (
-                                    <tr key={p.planner_nome} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                sortedPlanners.map((p) => (
+                                    <tr
+                                        key={p.planner_nome}
+                                        className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                        onClick={() => drillDown.open({ label: `${p.planner_nome} — Viagens`, drillStatus: 'ganho', drillSource: 'closed_deals', drillOwnerId: p.planner_id })}
+                                    >
                                         <td className="px-6 py-3 font-medium text-slate-800">{p.planner_nome}</td>
                                         <td className="text-right px-4 py-3 text-slate-600">{p.viagens}</td>
                                         <td className="text-right px-4 py-3 text-slate-600">{p.mudancas}</td>
@@ -175,7 +244,7 @@ export default function OperationsView() {
                 {planners.length > 0 ? (
                     <ResponsiveContainer width="100%" height={Math.max(200, planners.length * 40 + 40)}>
                         <BarChart
-                            data={planners.map(p => ({ name: p.planner_nome, viagens: p.viagens, mudancas: p.mudancas }))}
+                            data={planners.map(p => ({ name: p.planner_nome, viagens: p.viagens, mudancas: p.mudancas, planner_id: p.planner_id }))}
                             layout="vertical"
                             margin={{ left: 10, right: 30 }}
                         >
@@ -183,7 +252,8 @@ export default function OperationsView() {
                             <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: '#334155' }} axisLine={false} tickLine={false} />
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            <Bar dataKey="viagens" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Viagens" />
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <Bar dataKey="viagens" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Viagens" cursor="pointer" onClick={(data: any) => { const d = data?.payload || data; if (d?.planner_id) drillDown.open({ label: `${d.name} — Viagens`, drillOwnerId: d.planner_id, drillStatus: 'ganho', drillSource: 'closed_deals' }) }} />
                             <Bar dataKey="mudancas" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Mudanças" />
                         </BarChart>
                     </ResponsiveContainer>

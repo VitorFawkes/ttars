@@ -354,7 +354,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     dono_atual_id: currentOwnerId,
                     origem: formData.origem,
                     origem_lead: formData.origem_lead,
-                    status_comercial: 'em_andamento',
+                    status_comercial: 'aberto',
                     moeda: 'BRL',
                     briefing_inicial: dynamicFields
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -63,13 +63,18 @@ import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 
 const queryClient = new QueryClient({
     queryCache: new QueryCache({
         onError: (error) => {
-            // Log apenas — o banner de rede cuida do feedback visual
             console.error('[QueryCache] Query error:', error.message)
+            toast.error('Erro ao carregar dados', {
+                description: error.message?.includes('42703')
+                    ? 'Atualização do sistema em andamento. Tente novamente em alguns minutos.'
+                    : 'Verifique sua conexão e tente novamente.',
+                id: 'query-error',
+            })
         },
     }),
     mutationCache: new MutationCache({

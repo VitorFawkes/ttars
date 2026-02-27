@@ -7,8 +7,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const STATUS_LABELS: Record<string, string> = {
-    em_aberto: 'Em Aberto',
-    em_andamento: 'Em Andamento',
+    aberto: 'Em Aberto',
     pausado: 'Pausado',
     ganho: 'Ganho',
     perdido: 'Perdido',

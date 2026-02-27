@@ -9,6 +9,7 @@ type TarefaRow = Database['public']['Tables']['tarefas']['Row']
 
 export interface CalendarMeeting extends TarefaRow {
     duration_minutes: number
+    meeting_link: string | null
     card: {
         id: string
         titulo: string | null
@@ -28,6 +29,14 @@ function extractDuration(metadata: unknown): number {
         if (typeof val === 'number' && val > 0) return val
     }
     return 30 // default 30 min
+}
+
+function extractMeetingLink(metadata: unknown): string | null {
+    if (metadata && typeof metadata === 'object' && 'meeting_link' in metadata) {
+        const val = (metadata as Record<string, unknown>).meeting_link
+        if (typeof val === 'string' && val.length > 0) return val
+    }
+    return null
 }
 
 export function useCalendarMeetings() {
@@ -90,6 +99,7 @@ export function useCalendarMeetings() {
             return rows.map((row) => ({
                 ...row,
                 duration_minutes: extractDuration(row.metadata),
+                meeting_link: extractMeetingLink(row.metadata),
                 responsavel: row.responsavel_id ? profileMap.get(row.responsavel_id) ?? null : null,
             })) as CalendarMeeting[]
         },

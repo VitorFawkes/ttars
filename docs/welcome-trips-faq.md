@@ -285,6 +285,37 @@ Para que você entenda claramente nosso posicionamento:
 
 ---
 
+## Perfil de Cliente e Qualificação
+
+### Quem é nosso cliente ideal?
+Pessoas que buscam ajuda para planejar uma viagem — não apenas comprar um item isolado. Nosso cliente valoriza ter alguém cuidando do planejamento, curadoria de experiências, e execução. Não precisa querer absolutamente tudo conosco, mas precisa querer o planejamento como serviço.
+
+### Vocês vendem só passagem aérea?
+Não trabalhamos com emissão isolada de passagens. Nosso serviço é o planejamento completo da experiência de viagem. Para só passagem, recomendamos sites como Google Flights, Decolar ou consultar diretamente a companhia aérea.
+
+### Vocês reservam só hotel?
+Nosso foco é o planejamento completo. Se você já tem tudo organizado e precisa apenas de uma reserva de hotel, plataformas como Booking.com ou Hotels.com podem ajudar. Agora, se quer ajuda para montar a viagem toda, incluindo escolher o hotel ideal, aí é com a gente!
+
+### Posso pegar só o roteiro e comprar por conta?
+Nosso trabalho é planejar E executar a viagem. O roteiro é parte do planejamento completo que inclui pesquisa, curadoria, cotações e reservas. Não oferecemos apenas consultoria de roteiro sem a execução.
+
+### Vocês atendem viagens com orçamento mais enxuto?
+Sim! Trabalhamos com diferentes níveis de investimento. O importante não é o valor, mas sim buscar qualidade, personalização e um serviço diferenciado. Se você quer uma viagem bem planejada dentro da sua realidade, podemos ajudar.
+
+### E se eu só quiser uma ajudinha pontual?
+Entendemos! Nosso serviço é mais robusto — é pra quem quer que a gente cuide de verdade da viagem. Para dúvidas pontuais, blogs de viagem e fóruns como o TripAdvisor são ótimas fontes. Se mais pra frente quiser um planejamento completo, estamos aqui!
+
+### Como saber se faz sentido usar a Welcome Trips?
+Se você quer:
+- Ajuda para escolher destino, hotel, passeios e experiências
+- Alguém que monte um roteiro sob medida
+- Ter tudo reservado e organizado sem estresse
+- Suporte durante a viagem toda
+
+Então faz todo sentido! Se você já sabe exatamente o que quer e só precisa fazer uma compra pontual (só passagem, só hotel), provavelmente não somos a melhor opção — e tudo bem, indicamos alternativas com prazer.
+
+---
+
 ## Informações de Contato
 
 **WhatsApp (Julia - Assistente Inteligente)**

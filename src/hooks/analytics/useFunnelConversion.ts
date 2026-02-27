@@ -20,10 +20,10 @@ export interface LossReason {
 }
 
 export function useFunnelConversion() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'funnel-conversion', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'funnel-conversion', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_conversion', {
@@ -32,7 +32,7 @@ export function useFunnelConversion() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as FunnelStageData[]) || []
@@ -43,10 +43,10 @@ export function useFunnelConversion() {
 }
 
 export function useLossReasons() {
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'loss-reasons', dateRange.start, dateRange.end, product, mode, stageId, ownerId],
+        queryKey: ['analytics', 'loss-reasons', dateRange.start, dateRange.end, product, mode, stageId, ownerIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_loss_reasons', {
@@ -55,7 +55,7 @@ export function useLossReasons() {
                 p_product: product === 'ALL' ? null : product,
                 p_mode: mode,
                 p_stage_id: stageId,
-                p_owner_id: ownerId,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             return (data as unknown as LossReason[]) || []

@@ -84,7 +84,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
                     data_viagem_fim: formData.data_viagem_fim || null,
                     origem: formData.origem.trim() || null,
                     pipeline_stage_id: firstStage.id,
-                    status_comercial: 'em_andamento',
+                    status_comercial: 'aberto',
                     moeda: 'BRL'
                 })
                 .select('id')

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import AnalyticsSidebar from '@/components/analytics/AnalyticsSidebar'
 import GlobalControls from '@/components/analytics/GlobalControls'
+import AnalyticsDrillDownDrawer from '@/components/analytics/AnalyticsDrillDownDrawer'
 
 export default function AnalyticsPage() {
     return (
@@ -14,6 +15,7 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
             </div>
+            <AnalyticsDrillDownDrawer />
         </div>
     )
 }

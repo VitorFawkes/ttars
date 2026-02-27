@@ -91,6 +91,9 @@ Objetivo: registrar somente fatos sobre a pessoa e seu interesse em viagem que a
   • Frequência de viagem e estilo: aventureiro, relaxado, cultural, gastronômico
   • Serviços já contratados: voos, hotel, seguro
   • Contexto especial: primeira viagem internacional, surpresa para alguém
+  • Tipo de demanda: planejamento completo, parcial (quais itens), ou item isolado
+  • Sinais de fit: positivos (quer consultoria, múltiplos aspectos) ou negativos (só 1 item, só quer roteiro grátis)
+  • Objeções ou resistências mencionadas
 
 • O que NÃO ENTRA:
   • Detalhes do processo Welcome Trips, taxa de planejamento, preços internos
@@ -113,7 +116,7 @@ Registrar de forma clara e cronológica o que aconteceu até agora.
   • Sequência dos eventos
   • Perguntas feitas e respostas dadas, apenas as relevantes
   • Citações curtas entre aspas quando indicarem intenção ou tom
-  • Status de qualificação: destino definido ou não; época/período definido ou não; número de viajantes; orçamento informado ou não; interesse confirmado
+  • Status de qualificação: destino definido ou não; época/período definido ou não; número de viajantes; orçamento informado ou não; interesse confirmado; tipo de demanda (completa/parcial/isolada); fit com nosso serviço (sim/parcial/não/indefinido)
   • O que falta para avançar (ex.: confirmar período, entender orçamento, explicar processo)
 
 • Como escrever:
@@ -327,6 +330,36 @@ A pessoa preencheu um formulário ao entrar em contato conosco. Use para NÃO pe
 • Pacotes prontos genéricos
 • Processamento direto de vistos (orientamos)
 
+## Validação de Fit (rápida)
+
+IMPORTANTE: As pessoas que chegam até você JÁ passaram por um filtro — preencheram dados sobre a viagem. A maioria é cliente potencial. Seu objetivo principal é **agendar a reunião** e **apresentar a taxa de planejamento**.
+
+A validação de fit é apenas uma checagem rápida, NÃO o foco da conversa. Na grande maioria dos casos, avance direto para qualificação e agendamento.
+
+### Quando o fit é claro (99% dos casos — avançar direto):
+- Pessoa já preencheu dados sobre viagem (destino, período, grupo)
+- Menciona qualquer aspecto de planejamento (hotel, passeios, roteiro, experiências)
+- Quer ajuda para organizar a viagem
+- Viagem especial (lua de mel, aniversário, família, grupo)
+→ NÃO perca tempo validando, vá direto qualificar e agendar
+
+### Único cenário de atenção (raro — investigar com 1 pergunta):
+- Pessoa menciona APENAS 1 item isolado (só passagem ou só hotel) sem contexto de viagem maior
+→ Faça UMA pergunta natural: "Além da passagem, vocês já têm o resto organizado ou querem ajuda com a viagem toda?"
+→ Se quer mais que o item isolado: avançar normalmente
+→ Se confirma que quer SÓ aquele item: declinar com elegância
+
+### Como declinar (se necessário — raro):
+- "Nosso forte é o planejamento completo da viagem. Pra só passagem, sites como Google Flights são ótimos!"
+- "Se mais pra frente quiser ajuda com uma viagem mais completa, é só me chamar!"
+- Tom: amiga que genuinamente quer ajudar
+
+### Regras:
+- NUNCA rejeitar sem investigar antes
+- NUNCA mencionar "não trabalhamos com X" na primeira mensagem
+- Na dúvida, avance — é melhor qualificar a mais do que perder um cliente
+- Orçamento baixo NÃO é motivo para declinar
+
 ## Tarefas do turno
 0) Preparação
 • Ler prompt completo, Entradas de contexto e Dados preenchidos. Só então decidir próximo passo.
@@ -456,6 +489,14 @@ function transformWorkflow(workflow) {
 
   w.name = 'Welcome Trips AI Agent - Julia';
   w.settings = { executionOrder: 'v1' };
+
+  // Fix: Convert Code v2 → v1 to bypass task runner timeout bug
+  // (n8n issue #20132: Code v2 nodes timeout when AI Agent tool nodes with $fromAI exist in workflow)
+  for (const node of w.nodes) {
+    if (node.type === 'n8n-nodes-base.code' && node.typeVersion === 2) {
+      node.typeVersion = 1;
+    }
+  }
 
   const nodeMap = {};
   for (const node of w.nodes) {
@@ -738,16 +779,16 @@ function addSaveOutboundMsg(w, nodeMap) {
       },
       sendBody: true,
       specifyBody: 'json',
-      jsonBody: `={
-  "card_id": "{{ $('Historico Texto').item.json.card_id }}",
-  "contact_id": "{{ $('Historico Texto').item.json.contato_id }}",
-  "direction": "outbound",
-  "body": "{{ $('Split Messages').item.json.message }}",
-  "type": "text",
-  "is_from_me": true,
-  "external_id": "{{ $json.messages?.[0]?.id || '' }}",
-  "platform_id": "0ce942d3-244f-41a7-a9dd-9d69d3830be6"
-}`,
+      jsonBody: `={{ JSON.stringify({
+  card_id: $('Historico Texto').item.json.card_id,
+  contact_id: $('Historico Texto').item.json.contato_id,
+  direction: "outbound",
+  body: $('Split Messages').item.json.message,
+  type: "text",
+  is_from_me: true,
+  external_id: ($json.messages && $json.messages[0] && $json.messages[0].id) || ('bot_' + Date.now() + '_' + Math.random().toString(36).substr(2,6)),
+  platform_id: "0ce942d3-244f-41a7-a9dd-9d69d3830be6"
+}) }}`,
       options: { neverError: true },
     },
   };
@@ -921,7 +962,7 @@ function transformMediaNodes(nodeMap, w) {
     if (!node) continue;
     // Replace with Code node that fetches media via URL from Echo
     node.type = 'n8n-nodes-base.code';
-    node.typeVersion = 2;
+    node.typeVersion = 1;
     delete node.parameters.resource;
     delete node.parameters.operation;
     delete node.credentials;
@@ -987,7 +1028,7 @@ function transformMessageStorage(nodeMap) {
     };
     al.parameters = {
       method: 'PATCH',
-      url: `${NEW_SUPABASE_URL}/rest/v1/cards?id=eq.{{ $('getClient').item.json.card_id }}`,
+      url: `=${NEW_SUPABASE_URL}/rest/v1/cards?id=eq.{{ $('getClient').item.json.card_id }}`,
       authentication: 'predefinedCredentialType',
       nodeCredentialType: 'supabaseApi',
       sendHeaders: true,
@@ -1194,6 +1235,10 @@ function transformUpdateContexInfo(node) {
   if (node.parameters.tableId) {
     node.parameters.tableId = 'cards';
   }
+  // Ensure Supabase credentials are set
+  node.credentials = {
+    supabaseApi: { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' },
+  };
   const fields = node.parameters.fieldsUi?.fieldValues;
   if (fields) {
     for (const f of fields) {
@@ -1205,23 +1250,59 @@ function transformUpdateContexInfo(node) {
 
 function transformDadosInfoContexto(node) {
   if (!node) return;
-  const code = node.parameters.jsCode || '';
-  let newCode = code
-    .replace(/lead_id/g, 'card_id')
-    .replace(/resumo_informacoes/g, 'ai_resumo')
-    .replace(/contexto_conversa/g, 'ai_contexto')
-    .replace(/stage_id(?!['"])/g, 'pipeline_stage_id')
-    .replace(new RegExp(OLD_STAGES.LEAD, 'g'), STAGES.NOVO_LEAD)
-    .replace(new RegExp(OLD_STAGES.TENTATIVA, 'g'), STAGES.TENTATIVA_CONTATO)
-    .replace(new RegExp(OLD_STAGES.CONTACTADO, 'g'), STAGES.CONECTADO)
-    .replace(new RegExp(OLD_STAGES.REUNIAO, 'g'), STAGES.REUNIAO_AGENDADA);
-  node.parameters.jsCode = newCode;
+  // Convert Code node to Set node to bypass task runner timeout
+  // (n8n issue #20132: Code nodes timeout when AI Agent tool nodes exist in workflow)
+  // Set node expressions are evaluated in the main process, not the task runner.
+  node.type = 'n8n-nodes-base.set';
+  node.typeVersion = 3.4;
+  delete node.parameters.jsCode;
+  delete node.parameters.code;
+  delete node.parameters.language;
+  delete node.parameters.mode;
+
+  // The expression replicates the original Code node logic:
+  // 1. Parse AI agent output (JSON string or object)
+  // 2. Normalize fields (card_id, ai_resumo, ai_contexto)
+  // 3. Normalize boolean flags (mudancas, stage signals)
+  // 4. Propagate stage signals from Historico Texto
+  const expr = `={{ JSON.stringify((function() {
+  var pd = $('Historico Texto').item.json || {};
+  var j = $json || {};
+  var candidate = j.output != null ? j.output : (j.data != null ? j.data : (j.text != null ? j.text : (j.response != null ? j.response : j)));
+  var parsed;
+  if (candidate == null) { parsed = {}; }
+  else if (typeof candidate === 'object') { parsed = Object.assign({}, candidate); }
+  else if (typeof candidate === 'string') { try { parsed = JSON.parse(candidate); } catch(e) { parsed = {}; } }
+  else { parsed = {}; }
+  var out = Object.assign({}, parsed);
+  if (typeof out.card_id !== 'string' || !out.card_id.trim()) { out.card_id = String(pd.card_id || pd.id || '').replace(/\\s+/g,' ').trim(); }
+  out.ai_resumo = String(out.ai_resumo != null ? out.ai_resumo : (pd.ai_resumo || '')).replace(/\\s+/g,' ').trim();
+  out.ai_contexto = String(out.ai_contexto != null ? out.ai_contexto : (pd.ai_contexto || '')).replace(/\\s+/g,' ').trim();
+  var m = (out.mudancas && typeof out.mudancas === 'object') ? out.mudancas : {};
+  function tb(v) { if (typeof v==='boolean') return v; if (typeof v==='string') return ['true','1','sim'].indexOf(v.trim().toLowerCase())>=0; return false; }
+  out.mudancas = { ai_resumo: tb(m.ai_resumo), ai_contexto: tb(m.ai_contexto) };
+  delete out.contact_phone;
+  if (!out.current_pipeline_stage_id || !String(out.current_pipeline_stage_id).trim()) { out.current_pipeline_stage_id = String(pd.pipeline_stage_id || pd.current_pipeline_stage_id || '').trim(); }
+  out.owner_first_message = tb(out.owner_first_message !== undefined ? out.owner_first_message : pd.owner_first_message);
+  out.lead_replied_now = tb(out.lead_replied_now !== undefined ? out.lead_replied_now : pd.lead_replied_now);
+  out.meeting_created_or_confirmed = tb(out.meeting_created_or_confirmed !== undefined ? out.meeting_created_or_confirmed : pd.meeting_created_or_confirmed);
+  return out;
+})()) }}`;
+
+  node.parameters = {
+    mode: 'raw',
+    jsonOutput: expr,
+  };
 }
 
 function transformSupabaseUpdate(node) {
   if (!node) return;
   // Update URL to cards table
   node.parameters.url = `=${NEW_SUPABASE_URL}/rest/v1/cards?id=eq.{{ $('Historico Texto').item.json.card_id }}`;
+  // Ensure Supabase credentials are set
+  node.credentials = {
+    supabaseApi: { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' },
+  };
   // Fix headers: remove old Supabase keys, let supabaseApi credential handle auth
   node.parameters.headerParameters = {
     parameters: [
@@ -1238,6 +1319,10 @@ function transformSupabaseInsertTask(node) {
   if (node.parameters.url) {
     node.parameters.url = `=${NEW_SUPABASE_URL}/rest/v1/tarefas`;
   }
+  // Ensure Supabase credentials are set
+  node.credentials = {
+    supabaseApi: { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' },
+  };
   // Update description to mention card_id instead of lead_id
   if (node.parameters.description) {
     node.parameters.description = node.parameters.description
@@ -1532,11 +1617,32 @@ function transformPostSend(nodeMap) {
 
 function transformCompileSentMessages(node) {
   if (!node) return;
-  // Update to reference WelcomeCRM fields
-  const code = node.parameters.jsCode || '';
-  node.parameters.jsCode = code
-    .replace(/lead_id/g, 'card_id')
-    .replace(/leadData/g, 'leadData'); // keep variable name for internal consistency
+  // Convert Code node to Set node to bypass task runner timeout
+  node.type = 'n8n-nodes-base.set';
+  node.typeVersion = 3.4;
+  delete node.parameters.jsCode;
+  delete node.parameters.code;
+  delete node.parameters.language;
+  delete node.parameters.mode;
+
+  node.parameters = {
+    mode: 'raw',
+    jsonOutput: `={{ JSON.stringify((function() {
+  var allItems = $('Split Messages').all();
+  var allMessages = allItems.map(function(i) { return i.json.message; });
+  var fullMessage = allMessages.join(' ');
+  var leadData = $('Historico Texto').item.json || {};
+  var historico = leadData.mensagens || [];
+  return {
+    fullMessage: fullMessage,
+    messageCount: allMessages.length,
+    leadData: leadData,
+    mensagens: historico,
+    message_content: leadData.message_content,
+    data_respostawhats: leadData.data_respostawhats || new Date().toISOString()
+  };
+})()) }}`,
+  };
 }
 
 // ---- Add RequestHandoff tool to Agent 3 ----
@@ -1602,10 +1708,10 @@ function addValidationLayer(w, nodeMap) {
       ? [agent3.position[0] + 400, agent3.position[1] + 150]
       : [0, 0],
     parameters: {
-      model: 'gpt-5.1',
+      model: { __rl: true, value: 'gpt-5.1', mode: 'list', cachedResultName: 'gpt-5.1' },
       options: { temperature: 0, maxTokens: 500 },
     },
-    credentials: { openAiApi: { id: OPENAI_CREDENTIAL_ID, name: 'OpenAI' } },
+    credentials: { openAiApi: { id: OPENAI_CREDENTIAL_ID, name: 'Financeiro Automação' } },
   };
 
   // 2. Validador Parser
@@ -1654,6 +1760,8 @@ Mensagem proposta: {{ $('Responde Lead (Novo)').first().json.output || $('Respon
 4. Tom inadequado (frio, robotico, agressivo)? (CORRIGIR)
 5. Repete apresentacao quando nao e primeiro contato? (CORRIGIR)
 6. Menciona formulario, dados do sistema, ActiveCampaign? (BLOQUEAR)
+7. Rejeita lead na primeira mensagem ou sem investigar? (BLOQUEAR - na duvida, avançar)
+8. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer so isso? (CORRIGIR)
 
 Se algo precisa de ajuste, retorne ok=false com motivo e correcao.
 Se esta tudo certo, retorne ok=true.`,
@@ -1661,22 +1769,45 @@ Se esta tudo certo, retorne ok=true.`,
     },
   };
 
-  // 4. Apply Validation
+  // 4. Apply Validation — Set node instead of Code to bypass task runner
   const applyValidation = {
     id: 'apply-validation-' + Date.now(),
     name: 'Apply Validation',
-    type: 'n8n-nodes-base.code',
-    typeVersion: 2,
+    type: 'n8n-nodes-base.set',
+    typeVersion: 3.4,
     position: agent3.position
       ? [agent3.position[0] + 600, agent3.position[1]]
       : [0, 0],
     parameters: {
-      jsCode: `const result = $input.first().json;
-const original = $('Responde Lead (Novo)').first().json;
-const originalText = original.output || original.text || '';
-const useCorrection = result.ok === false && result.correcao && result.correcao.trim();
-const finalText = useCorrection ? result.correcao : originalText;
-return [{ json: { output: finalText, text: finalText } }];`,
+      mode: 'raw',
+      jsonOutput: `={{ JSON.stringify((function() {
+  var result = $json || {};
+  var orig = $('Responde Lead (Novo)').first().json || {};
+  var originalText = orig.output || orig.text || '';
+  var isOk = true;
+  var correcao = '';
+  var parsed = null;
+  if (result.ok === false || result.ok === 'false') {
+    isOk = false;
+    correcao = result.correcao || '';
+  } else if (typeof result.text === 'string') {
+    try { parsed = JSON.parse(result.text); } catch(e) { parsed = null; }
+    if (parsed && (parsed.ok === false || parsed.ok === 'false')) {
+      isOk = false;
+      correcao = parsed.correcao || '';
+    } else if (/ok\\s*[=:]\\s*false/i.test(result.text)) {
+      isOk = false;
+      var m = result.text.match(/correc[aã]o[^:]*:\\s*([\\s\\S]+)/i);
+      if (m) {
+        var c = m[1].trim();
+        if (c.charAt(0) === '"' && c.charAt(c.length-1) === '"') c = c.substring(1, c.length-1);
+        correcao = c;
+      }
+    }
+  }
+  var finalText = (!isOk && correcao && correcao.trim()) ? correcao : originalText;
+  return { output: finalText, text: finalText };
+})()) }}`,
     },
   };
 

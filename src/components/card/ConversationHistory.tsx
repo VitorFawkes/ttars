@@ -220,7 +220,7 @@ export default function ConversationHistory({ cardId, contactId }: ConversationH
                             </div>
                         )}
 
-                        {activeTab === 'ai' && <AIChat cardId={cardId} />}
+                        {activeTab === 'ai' && <AIChat cardId={cardId} contactId={contactId} />}
                     </div>
                 </div>
             )}

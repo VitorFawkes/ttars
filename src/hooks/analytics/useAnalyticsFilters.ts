@@ -12,7 +12,8 @@ export interface AnalyticsFiltersState {
     product: 'ALL' | 'TRIPS' | 'WEDDING' | 'CORP'
     mode: AnalysisMode
     stageId: string | null
-    ownerId: string | null
+    ownerId: string | null       // Compat: derived from ownerIds[0] or null
+    ownerIds: string[]           // Multi-select: [] = todos
     origins: string[]
     activeView: string
 
@@ -23,6 +24,8 @@ export interface AnalyticsFiltersState {
     setMode: (mode: AnalysisMode) => void
     setModeWithStage: (mode: AnalysisMode, stageId: string | null) => void
     setOwnerId: (id: string | null) => void
+    setOwnerIds: (ids: string[]) => void
+    toggleOwnerId: (id: string) => void
     setOrigins: (origins: string[]) => void
     setActiveView: (view: string) => void
     reset: () => void
@@ -66,6 +69,7 @@ export const initialFiltersState = {
     mode: 'entries' as AnalysisMode,
     stageId: null as string | null,
     ownerId: null as string | null,
+    ownerIds: [] as string[],
     origins: [] as string[],
     activeView: 'overview',
 }
@@ -84,7 +88,13 @@ export const useAnalyticsFilters = create<AnalyticsFiltersState>()((set) => ({
         mode,
         stageId: mode === 'stage_entry' ? stageId : null,
     }),
-    setOwnerId: (ownerId) => set({ ownerId }),
+    setOwnerId: (ownerId) => set({ ownerId, ownerIds: ownerId ? [ownerId] : [] }),
+    setOwnerIds: (ownerIds) => set({ ownerIds, ownerId: ownerIds.length === 1 ? ownerIds[0] : null }),
+    toggleOwnerId: (id) => set((state) => {
+        const exists = state.ownerIds.includes(id)
+        const ownerIds = exists ? state.ownerIds.filter(x => x !== id) : [...state.ownerIds, id]
+        return { ownerIds, ownerId: ownerIds.length === 1 ? ownerIds[0] : null }
+    }),
     setOrigins: (origins) => set({ origins }),
     setActiveView: (activeView) => set({ activeView }),
     reset: () => set(initialFiltersState),

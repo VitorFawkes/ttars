@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { X, Loader2, Download } from 'lucide-react'
 import { autoFormat } from '@/lib/reports/formatters'
 import type { DrillDownFilters } from '@/lib/reports/reportTypes'
@@ -106,6 +107,14 @@ export default function DrillDownPanel({
     labels,
     labelFormat,
 }: DrillDownPanelProps) {
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', handleKeyDown)
+        return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [onClose])
+
     const filterDesc = Object.entries(filters)
         .map(([k, v]) => {
             const label = labels?.[k] ?? k

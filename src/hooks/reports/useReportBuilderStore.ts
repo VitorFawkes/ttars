@@ -26,6 +26,7 @@ interface ReportBuilderState {
     isDirty: boolean
     title: string
     description: string
+    visibility: 'private' | 'team' | 'everyone'
 
     // Actions — Source
     setSource: (source: DataSource) => void
@@ -34,11 +35,13 @@ interface ReportBuilderState {
     addDimension: (dim: DimensionSpec) => void
     removeDimension: (field: string) => void
     updateDimension: (field: string, updates: Partial<DimensionSpec>) => void
+    reorderDimensions: (oldIndex: number, newIndex: number) => void
 
     // Actions — Measures
     addMeasure: (measure: MeasureSpec) => void
     removeMeasure: (field: string) => void
     updateMeasure: (field: string, updates: Partial<MeasureSpec>) => void
+    reorderMeasures: (oldIndex: number, newIndex: number) => void
 
     // Actions — Computed Measures
     addComputedMeasure: (cm: ComputedMeasureSpec) => void
@@ -59,9 +62,10 @@ interface ReportBuilderState {
     setVisualization: (viz: Partial<VisualizationConfig>) => void
     setTitle: (title: string) => void
     setDescription: (desc: string) => void
+    setVisibility: (visibility: 'private' | 'team' | 'everyone') => void
 
     // Actions — Serialization
-    loadFromReport: (config: ReportIQR, viz: VisualizationConfig, reportId?: string, title?: string, description?: string) => void
+    loadFromReport: (config: ReportIQR, viz: VisualizationConfig, reportId?: string, title?: string, description?: string, visibility?: 'private' | 'team' | 'everyone') => void
     toIQR: () => ReportIQR | null
     toVisualization: () => VisualizationConfig
     markSaved: () => void
@@ -83,6 +87,7 @@ const initialState = {
     isDirty: false,
     title: '',
     description: '',
+    visibility: 'private' as const,
 }
 
 export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => ({
@@ -120,6 +125,12 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         dimensions: s.dimensions.map(d => d.field === field ? { ...d, ...updates } : d),
         isDirty: true,
     })),
+    reorderDimensions: (oldIndex, newIndex) => set((s) => {
+        const arr = [...s.dimensions]
+        const [moved] = arr.splice(oldIndex, 1)
+        arr.splice(newIndex, 0, moved)
+        return { dimensions: arr, isDirty: true }
+    }),
 
     // Measures
     addMeasure: (measure) => set((s) => ({
@@ -139,6 +150,12 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         measures: s.measures.map(m => m.field === field ? { ...m, ...updates } : m),
         isDirty: true,
     })),
+    reorderMeasures: (oldIndex, newIndex) => set((s) => {
+        const arr = [...s.measures]
+        const [moved] = arr.splice(oldIndex, 1)
+        arr.splice(newIndex, 0, moved)
+        return { measures: arr, isDirty: true }
+    }),
 
     // Computed Measures
     addComputedMeasure: (cm) => set((s) => ({
@@ -175,11 +192,12 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         visualization: { ...s.visualization, ...viz },
         isDirty: true,
     })),
-    setTitle: (title) => set({ title }),
-    setDescription: (description) => set({ description }),
+    setTitle: (title) => set({ title, isDirty: true }),
+    setDescription: (description) => set({ description, isDirty: true }),
+    setVisibility: (visibility) => set({ visibility, isDirty: true }),
 
     // Serialization
-    loadFromReport: (config, viz, reportId, title, description) => set({
+    loadFromReport: (config, viz, reportId, title, description, visibility) => set({
         source: config.source,
         dimensions: config.dimensions,
         measures: config.measures,
@@ -194,6 +212,7 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
         isDirty: false,
         title: title ?? '',
         description: description ?? '',
+        visibility: visibility ?? 'private',
     }),
 
     toIQR: (): ReportIQR | null => {

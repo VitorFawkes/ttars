@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { Video, FileText, Calendar, Sparkles, AlertCircle, CheckCircle2, Users, X, Maximize2, Edit3 } from 'lucide-react'
+import { Video, FileText, Calendar, Sparkles, AlertCircle, CheckCircle2, Users, X, Maximize2, Edit3, ExternalLink } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { format, isToday, isYesterday } from 'date-fns'
@@ -21,6 +21,7 @@ interface MeetingTask {
     feedback: string | null
     transcricao: string | null
     transcricao_metadata: { campos_extraidos?: string[]; processed_at?: string } | null
+    metadata: { duration_minutes?: number; meeting_link?: string } | null
     responsavel_id: string | null
     participantes_externos: string[] | null
     created_at: string | null
@@ -242,6 +243,20 @@ function MeetingBubble({
                         </span>
                     )}
                 </div>
+
+                {/* Meeting Link */}
+                {meeting.metadata?.meeting_link && (
+                    <a
+                        href={meeting.metadata.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-medium text-indigo-700 transition-colors"
+                    >
+                        <Video className="w-3 h-3" />
+                        Entrar na reunião
+                        <ExternalLink className="w-2.5 h-2.5 ml-auto text-indigo-400" />
+                    </a>
+                )}
 
                 {/* Status badge */}
                 <div className="flex items-center gap-2 flex-wrap">

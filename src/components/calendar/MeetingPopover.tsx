@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { format, addMinutes } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
-import { X, Edit2, CalendarClock, ExternalLink, CheckCircle2, XCircle, Users, Clock, Loader2, Eye } from 'lucide-react'
+import { X, Edit2, CalendarClock, ExternalLink, CheckCircle2, XCircle, Users, Clock, Loader2, Eye, Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { useMeetingMutation } from '@/hooks/calendar/useMeetingMutation'
@@ -30,17 +30,19 @@ export function MeetingPopover({ meeting, anchor, onClose, onEdit, onReschedule,
     const popoverRef = useRef<HTMLDivElement>(null)
     const { completeMeeting } = useMeetingMutation()
     const [showOutcomes, setShowOutcomes] = useState(false)
+    const [prevMeetingId, setPrevMeetingId] = useState(meeting.id)
+
+    // Reset showOutcomes when meeting changes (no setState in effect)
+    if (meeting.id !== prevMeetingId) {
+        setPrevMeetingId(meeting.id)
+        setShowOutcomes(false)
+    }
 
     const meetingDate = meeting.data_vencimento ? new Date(meeting.data_vencimento) : null
     const endTime = meetingDate ? addMinutes(meetingDate, meeting.duration_minutes) : null
     const status = meeting.status || 'agendada'
     const statusInfo = STATUS_BADGE[status] || STATUS_BADGE.agendada
     const isActive = !meeting.concluida && status === 'agendada'
-
-    // Reset showOutcomes when meeting changes
-    useEffect(() => {
-        setShowOutcomes(false)
-    }, [meeting.id])
 
     // Position popover to stay within viewport
     useEffect(() => {
@@ -136,6 +138,23 @@ export function MeetingPopover({ meeting, anchor, onClose, onEdit, onReschedule,
                     <X className="h-4 w-4" />
                 </button>
             </div>
+
+            {/* Meeting Link */}
+            {meeting.meeting_link && (
+                <div className="px-4 py-2 border-t border-slate-100">
+                    <a
+                        href={meeting.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-xs font-medium text-indigo-700 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Video className="h-3.5 w-3.5" />
+                        Entrar na reunião
+                        <ExternalLink className="h-3 w-3 ml-auto text-indigo-400" />
+                    </a>
+                </div>
+            )}
 
             {/* Details */}
             <div className="px-4 py-2 space-y-2 border-t border-slate-100">

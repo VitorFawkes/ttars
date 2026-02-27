@@ -66,8 +66,12 @@ export default function PieChartRenderer({
                     labelLine={false}
                     cursor="pointer"
                     onClick={(entry: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-                        if (onDrillDown && dimKey && entry?.[dimKey] != null) {
-                            onDrillDown({ [dimKey]: entry[dimKey] })
+                        if (onDrillDown && entry) {
+                            const filters: Record<string, unknown> = {}
+                            for (const dk of dimensionKeys) {
+                                if (entry[dk] != null) filters[dk] = entry[dk]
+                            }
+                            if (Object.keys(filters).length > 0) onDrillDown(filters)
                         }
                     }}
                 >
