@@ -92,7 +92,7 @@ function NavSection({ title, icon: Icon, children, defaultOpen = false }: {
 }
 
 export default function SettingsSidebar() {
-    const { } = useAuth();
+    useAuth();
     const isAdmin = true;
 
     // Fetch blocked integration events count
@@ -133,6 +133,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/cadence" icon={Zap} label="Cadências" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />
                             <NavItem to="/settings/customization/loss-reasons" icon={XCircle} label="Motivos de Perda" />
+                            <NavItem to="/settings/customization/tags" icon={Tags} label="Tags de Cards" />
                         </NavSection>
 
                         {/* ═══════════════════════════════════════════════════════════

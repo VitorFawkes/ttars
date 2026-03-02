@@ -10,6 +10,8 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useArchiveCard } from '../../hooks/useArchiveCard'
 import DeleteCardModal from '../card/DeleteCardModal'
+import { TagBadge } from '../card/TagBadge'
+import { useCardTags } from '../../hooks/useCardTags'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -44,6 +46,13 @@ export default function KanbanCard({ card }: KanbanCardProps) {
     const [showMenu, setShowMenu] = useState(false)
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const { archive, isArchiving } = useArchiveCard()
+
+    // Tags: resolve from global cache using tag_ids from view
+    const { allTags } = useCardTags()
+    const cardTagIds: string[] = (card as any).tag_ids ?? []
+    const cardTags = allTags.filter(t => cardTagIds.includes(t.id))
+    const displayTags = cardTags.slice(0, 2)
+    const extraTagCount = cardTags.length - displayTags.length
 
     const handleMenuClick = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -589,6 +598,18 @@ export default function KanbanCard({ card }: KanbanCardProps) {
                         </div>
                     )
                 })()}
+
+                {/* Tags */}
+                {cardTags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {displayTags.map(tag => (
+                            <TagBadge key={tag.id} tag={tag} size="sm" />
+                        ))}
+                        {extraTagCount > 0 && (
+                            <span className="text-[10px] text-slate-400 font-medium">+{extraTagCount}</span>
+                        )}
+                    </div>
+                )}
 
                 {/* Owner info always at bottom */}
                 <div className="mt-2 flex items-center justify-between border-t pt-2">

@@ -5,8 +5,8 @@ interface OutboundEvent {
     id: string;
     card_id: string;
     integration_id: string;
-    external_id: string;
-    event_type: 'stage_change' | 'field_update' | 'won' | 'lost';
+    external_id: string | null;
+    event_type: 'stage_change' | 'field_update' | 'won' | 'lost' | 'card_created';
     payload: Record<string, unknown>;
     status: string;
     attempts: number;
@@ -148,10 +148,88 @@ Deno.serve(async (req) => {
 
             // 4. Build API request based on event type
             let endpoint = '';
-            const method = 'PUT';
+            let httpMethod = 'PUT';
             let body: Record<string, unknown> = {};
+            let isCardCreated = false;
 
             switch (event.event_type) {
+
+                case 'card_created': {
+                    httpMethod = 'POST';
+                    endpoint = '/api/3/deals';
+                    isCardCreated = true;
+
+                    const ccPayload = event.payload as {
+                        titulo?: string;
+                        valor_estimado?: number;
+                        pipeline_stage_id?: string;
+                        target_external_stage_id?: string;
+                    };
+
+                    if (!ccPayload.target_external_stage_id) {
+                        throw new Error('card_created: target_external_stage_id not set (no outbound stage mapping for this stage)');
+                    }
+
+                    // Buscar o pipeline (group) do AC a partir do mapeamento de stage
+                    const { data: stageMapEntry } = await supabase
+                        .from('integration_stage_map')
+                        .select('pipeline_id')
+                        .eq('external_stage_id', ccPayload.target_external_stage_id)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (!stageMapEntry?.pipeline_id) {
+                        throw new Error(`card_created: No AC pipeline found for stage ${ccPayload.target_external_stage_id}`);
+                    }
+
+                    const dealValue = typeof ccPayload.valor_estimado === 'number'
+                        ? Math.round(ccPayload.valor_estimado * 100) : 0;
+
+                    const dealBody: Record<string, unknown> = {
+                        title: ccPayload.titulo || 'Novo Lead',
+                        value: dealValue,
+                        currency: 'brl',
+                        group: stageMapEntry.pipeline_id,
+                        stage: ccPayload.target_external_stage_id,
+                    };
+
+                    // Best-effort: vincular ao contato AC pelo email
+                    const { data: cardData } = await supabase
+                        .from('cards')
+                        .select('pessoa_principal_id')
+                        .eq('id', event.card_id)
+                        .maybeSingle();
+
+                    if (cardData?.pessoa_principal_id) {
+                        const { data: contactData } = await supabase
+                            .from('contatos')
+                            .select('email')
+                            .eq('id', cardData.pessoa_principal_id)
+                            .maybeSingle();
+
+                        if (contactData?.email) {
+                            try {
+                                const acContactRes = await fetch(
+                                    `${acApiUrl}/api/3/contacts?email=${encodeURIComponent(contactData.email)}`,
+                                    { headers: { 'Api-Token': acApiKey } }
+                                );
+                                if (acContactRes.ok) {
+                                    const acContacts = await acContactRes.json();
+                                    const acContact = acContacts?.contacts?.[0];
+                                    if (acContact?.id) {
+                                        dealBody.contact = String(acContact.id);
+                                    }
+                                }
+                            } catch (_) {
+                                // Contact lookup falhou — deal criado sem vínculo de contato
+                            }
+                        }
+                    }
+
+                    body = { deal: dealBody };
+                    console.log(`[integration-dispatch] Card created: "${dealBody.title}" → Stage ${ccPayload.target_external_stage_id} Pipeline ${stageMapEntry.pipeline_id}`);
+                    break;
+                }
                 case 'stage_change': {
                     endpoint = `/api/3/deals/${event.external_id}`;
                     const targetStageId = (event.payload as { target_external_stage_id?: string }).target_external_stage_id;
@@ -320,7 +398,7 @@ Deno.serve(async (req) => {
 
             // 5. Call ActiveCampaign API
             const apiResponse = await fetch(`${acApiUrl}${endpoint}`, {
-                method,
+                method: httpMethod,
                 headers: {
                     'Api-Token': acApiKey,
                     'Content-Type': 'application/json'
@@ -341,7 +419,23 @@ Deno.serve(async (req) => {
                 console.warn(`[integration-dispatch] Could not parse API response: ${parseErr}`);
             }
 
-            // 7. Mark as sent with response data for validation
+            // 7. Para card_created: salvar o external_id retornado pelo AC no card
+            if (isCardCreated && responseData?.deal?.id) {
+                const newExternalId = String(responseData.deal.id);
+                await supabase.from('cards')
+                    .update({
+                        external_id: newExternalId,
+                        external_source: 'activecampaign'
+                    })
+                    .eq('id', event.card_id);
+                // Atualizar o evento da fila com o external_id para rastreamento
+                await supabase.from('integration_outbound_queue')
+                    .update({ external_id: newExternalId })
+                    .eq('id', event.id);
+                console.log(`[integration-dispatch] Deal criado no AC com ID ${newExternalId} para card ${event.card_id}`);
+            }
+
+            // 8. Mark as sent with response data for validation
             await supabase
                 .from('integration_outbound_queue')
                 .update({

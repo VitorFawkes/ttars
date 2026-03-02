@@ -179,6 +179,10 @@ export function usePipelineListCards({
                 query = query.in('origem', filters.origem)
             }
 
+            if ((filters.tagIds?.length ?? 0) > 0) {
+                query = query.overlaps('tag_ids', filters.tagIds)
+            }
+
             // Archived Filter
             query = query.is('archived_at', null)
 

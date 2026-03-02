@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Check, ChevronsUpDown, Plane, Heart, Building2 } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Check, ChevronsUpDown, Plane, Heart, Building2, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import {
     DropdownMenu,
@@ -8,11 +8,12 @@ import {
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { useProductContext } from '../../hooks/useProductContext'
+import { useAuth } from '../../contexts/AuthContext'
 import type { Database } from '../../database.types'
 
 type Product = Database['public']['Enums']['app_product']
 
-const products: { value: Product; label: string; icon: any; color: string }[] = [
+const products: { value: Product; label: string; icon: LucideIcon; color: string }[] = [
     { value: 'TRIPS', label: 'Welcome Trips', icon: Plane, color: 'text-teal-500' },
     { value: 'WEDDING', label: 'Welcome Wedding', icon: Heart, color: 'text-rose-500' },
     { value: 'CORP', label: 'Welcome Corp', icon: Building2, color: 'text-purple-500' },
@@ -24,9 +25,26 @@ interface ProductSwitcherProps {
 
 export function ProductSwitcher({ isCollapsed = false }: ProductSwitcherProps) {
     const { currentProduct, setProduct } = useProductContext()
+    const { profile } = useAuth()
     const [open, setOpen] = useState(false)
 
-    const selectedProduct = products.find((p) => p.value === currentProduct) || products[0]
+    // Filter products based on profile.produtos (admins see all, empty = all)
+    const allowedProducts = useMemo(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profileProdutos = (profile as any)?.produtos as Product[] | null
+        if (profile?.is_admin) return products
+        if (!profileProdutos?.length) return products
+        return products.filter(p => profileProdutos.includes(p.value))
+    }, [profile])
+
+    // Auto-select: if user has only 1 product, force it
+    useEffect(() => {
+        if (allowedProducts.length === 1 && currentProduct !== allowedProducts[0].value) {
+            setProduct(allowedProducts[0].value)
+        }
+    }, [allowedProducts, currentProduct, setProduct])
+
+    const selectedProduct = allowedProducts.find((p) => p.value === currentProduct) || allowedProducts[0] || products[0]
 
     return (
         <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -56,7 +74,7 @@ export function ProductSwitcher({ isCollapsed = false }: ProductSwitcherProps) {
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[200px] p-0">
-                {products.map((product) => (
+                {allowedProducts.map((product) => (
                     <DropdownMenuItem
                         key={product.value}
                         onSelect={() => {

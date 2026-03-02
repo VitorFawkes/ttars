@@ -119,7 +119,8 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useContactQuality | 1 | Auditoria e correção em lote de qualidade de dados cadastrais |
 | useDocumentTypes | 2 | Lista tipos de documentos reutilizáveis + criação inline |
 | useDocumentCollection | 1 | CRUD de checklist de documentos por card (progress, upload, tarefas) |
-| useAnalyticsFilters | 8+ | Zustand store de filtros globais do Analytics (datas, granularidade, produto) |
+| useCardTags | 5+ | Lista global de tags (cached 5min) + CRUD para admins. useCardTagAssignments(cardId) para assign/unassign |
+| useAnalyticsFilters | 8+ | Zustand store de filtros globais do Analytics (datas, granularidade, produto, tagIds) |
 | useOverviewData | 1 | KPIs, funil e timeseries do Overview Analytics |
 | useTeamPerformance | 1 | Performance por consultor (SDR/Planner/Pós) via RPC |
 | useFunnelConversion | 1 | Funil end-to-end + motivos de perda via RPC |
@@ -150,7 +151,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 |------|-------------------|
 | Layout | Header, Sidebar, Layout, ProductSwitcher, NotificationCenter |
 | Pipeline | KanbanBoard, PipelineListView, CreateCardModal, FilterDrawer, DocumentBadge |
-| Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget, CardTeamSection, DocumentCollectionWidget, BriefingIAModal, AudioRecorder |
+| Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget, CardTeamSection, DocumentCollectionWidget, BriefingIAModal, AudioRecorder, WeddingInformation, TagBadge, TagSelector |
 | Propostas | ProposalBuilder, SectionEditor, AddItemMenu, VersionHistory |
 | Admin | StudioUnified, IntegrationBuilder, KanbanCardSettings, JuliaIAConfig |
 | Health | IntegrationHealthTab, PulseGrid, ActiveAlertsList, HealthRulesConfig |
@@ -192,6 +193,8 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | custom_reports | Relatórios customizados (IQR config + visualization) | → profiles |
 | custom_dashboards | Dashboards de relatórios com filtros globais | → profiles |
 | dashboard_widgets | Widgets no grid do dashboard | → custom_dashboards, custom_reports |
+| card_tags | Definições de tags (gerenciadas por admins): name, color, produto, is_active | → profiles (created_by) |
+| card_tag_assignments | M:N cards↔tags: assign/unassign por qualquer user autenticado | → cards, card_tags |
 
 ### Campos IA no Cards (Agente WhatsApp)
 | Coluna | Tipo | Propósito |

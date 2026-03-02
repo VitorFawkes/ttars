@@ -25,6 +25,7 @@ import MondeWidget from './MondeWidget'
 import FinanceiroWidget from './FinanceiroWidget'
 import ObservacoesEstruturadas from './ObservacoesEstruturadas'
 import TripInformation from './TripInformation'
+import WeddingInformation from './WeddingInformation'
 import DocumentCollectionWidget from './documents/DocumentCollectionWidget'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -41,6 +42,7 @@ const WIDGET_REGISTRY: Record<string, React.ComponentType<any>> = {
     financeiro: FinanceiroWidget,
     observacoes_criticas: ObservacoesEstruturadas,
     trip_info: TripInformation,
+    wedding_info: WeddingInformation,
     documentos: DocumentCollectionWidget,
 }
 
@@ -318,7 +320,9 @@ interface DynamicSectionsListProps {
 }
 
 export function DynamicSectionsList({ card, position, excludeKeys = [] }: DynamicSectionsListProps) {
-    const { data: sections = [], isLoading } = useSections()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const produto = (card as any).produto as string | undefined
+    const { data: sections = [], isLoading } = useSections(produto || 'TRIPS')
 
     const positionedSections = useMemo(() => {
         return sections

@@ -17,33 +17,40 @@ export interface Section {
     updated_at: string
     /** If set, renders a specialized widget component instead of dynamic fields */
     widget_component: string | null
+    /** Product scope: NULL = shared across all products */
+    produto: string | null
 }
 
 export type SectionPosition = 'left_column' | 'right_column'
 
 /**
- * Fetches all active sections from the database.
- * Replaces the hardcoded SECTIONS constant from admin.ts.
- * 
+ * Fetches active sections from the database, optionally filtered by product.
+ * When `produto` is provided, returns sections where produto matches OR produto is NULL (shared).
+ * Without `produto`, returns all active sections (backward compatible).
+ *
  * @example
- * const { data: sections, isLoading } = useSections()
- * const governableSections = sections?.filter(s => s.is_governable)
- * const leftSections = sections?.filter(s => s.position === 'left_column')
+ * const { data: sections } = useSections() // all sections
+ * const { data: weddingSections } = useSections('WEDDING') // WEDDING + shared
  */
-export function useSections() {
+export function useSections(produto?: string) {
     return useQuery({
-        queryKey: ['sections'],
+        queryKey: ['sections', produto || 'all'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('sections')
                 .select('*')
                 .eq('active', true)
                 .order('order_index')
 
+            if (produto) {
+                query = query.or(`produto.is.null,produto.eq.${produto}`)
+            }
+
+            const { data, error } = await query
             if (error) throw error
             return data as Section[]
         },
-        staleTime: 1000 * 30 // 30 seconds - reduced for faster updates after changes
+        staleTime: 1000 * 30
     })
 }
 

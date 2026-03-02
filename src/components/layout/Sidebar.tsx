@@ -1,18 +1,19 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, PieChart } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, PieChart, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProductContext } from '../../hooks/useProductContext'
 import NotificationCenter from './NotificationCenter'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
-const navigation = [
+const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[] }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
     { name: 'Propostas', href: '/proposals', icon: FileText },
-    { name: 'Grupos', href: '/groups', icon: Users },
+    { name: 'Grupos', href: '/groups', icon: Users, productsOnly: ['TRIPS'] },
     { name: 'Contatos', href: '/people', icon: User },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
@@ -23,8 +24,16 @@ const navigation = [
 export default function Sidebar() {
     const location = useLocation()
     const { session, signOut } = useAuth()
+    const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
+
+    const filteredNavigation = useMemo(() => {
+        return navigation.filter(item => {
+            if (!item.productsOnly) return true
+            return item.productsOnly.includes(currentProduct)
+        })
+    }, [currentProduct])
 
     const userInitials = session?.user?.email?.substring(0, 2).toUpperCase() || 'U'
     const userName = session?.user?.email?.split('@')[0] || 'Usuário'
@@ -60,7 +69,7 @@ export default function Sidebar() {
             </div>
 
             <nav className="flex-1 space-y-1 px-2 py-4">
-                {navigation.map((item) => {
+                {filteredNavigation.map((item) => {
                     const Icon = item.icon
                     const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + '/')
 

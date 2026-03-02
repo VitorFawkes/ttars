@@ -29,12 +29,12 @@ function getPeriodEnd(periodStart: string, granularity: string): string {
     const d = new Date(periodStart)
     if (isNaN(d.getTime())) return new Date().toISOString()
     if (granularity === 'day') {
-        d.setDate(d.getDate() + 1)
+        d.setUTCDate(d.getUTCDate() + 1)
     } else if (granularity === 'week') {
-        d.setDate(d.getDate() + 7)
+        d.setUTCDate(d.getUTCDate() + 7)
     } else {
-        // month (default)
-        d.setMonth(d.getMonth() + 1)
+        // month (default) — use UTC to avoid local-timezone day overflow
+        d.setUTCMonth(d.getUTCMonth() + 1)
     }
     return d.toISOString()
 }

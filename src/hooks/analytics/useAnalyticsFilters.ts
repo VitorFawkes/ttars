@@ -15,6 +15,7 @@ export interface AnalyticsFiltersState {
     ownerId: string | null       // Compat: derived from ownerIds[0] or null
     ownerIds: string[]           // Multi-select: [] = todos
     origins: string[]
+    tagIds: string[]
     activeView: string
 
     setDatePreset: (preset: DatePreset) => void
@@ -27,6 +28,8 @@ export interface AnalyticsFiltersState {
     setOwnerIds: (ids: string[]) => void
     toggleOwnerId: (id: string) => void
     setOrigins: (origins: string[]) => void
+    setTagIds: (ids: string[]) => void
+    toggleTagId: (id: string) => void
     setActiveView: (view: string) => void
     reset: () => void
 }
@@ -71,6 +74,7 @@ export const initialFiltersState = {
     ownerId: null as string | null,
     ownerIds: [] as string[],
     origins: [] as string[],
+    tagIds: [] as string[],
     activeView: 'overview',
 }
 
@@ -96,6 +100,12 @@ export const useAnalyticsFilters = create<AnalyticsFiltersState>()((set) => ({
         return { ownerIds, ownerId: ownerIds.length === 1 ? ownerIds[0] : null }
     }),
     setOrigins: (origins) => set({ origins }),
+    setTagIds: (tagIds) => set({ tagIds }),
+    toggleTagId: (id) => set((state) => ({
+        tagIds: state.tagIds.includes(id)
+            ? state.tagIds.filter(x => x !== id)
+            : [...state.tagIds, id]
+    })),
     setActiveView: (activeView) => set({ activeView }),
     reset: () => set(initialFiltersState),
 }))

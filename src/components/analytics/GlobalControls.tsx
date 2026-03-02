@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, Filter, ChevronDown, Check, User } from 'lucide-react'
+import { Calendar, Filter, ChevronDown, Check, User, Tag } from 'lucide-react'
 import { useAnalyticsFilters, type AnalysisMode, type DatePreset, type Granularity } from '@/hooks/analytics/useAnalyticsFilters'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
+import { useCardTags } from '@/hooks/useCardTags'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import {
@@ -62,6 +63,7 @@ export default function GlobalControls() {
         mode,
         stageId,
         ownerIds,
+        tagIds,
         setDatePreset,
         setDateRange,
         setGranularity,
@@ -69,11 +71,14 @@ export default function GlobalControls() {
         setModeWithStage,
         setOwnerIds,
         toggleOwnerId,
+        setTagIds,
+        toggleTagId,
     } = useAnalyticsFilters()
 
     const { data: stages } = usePipelineStages()
     const { data: phases } = usePipelinePhases()
     const { data: consultants } = useConsultants()
+    const { allTags } = useCardTags()
 
     // Group stages by phase for the Coorte section (exclude Resolucao)
     const stagesByPhase = useMemo(() => {
@@ -121,6 +126,15 @@ export default function GlobalControls() {
         }
         return `${ownerIds.length} selecionados`
     }, [ownerIds, consultants])
+
+    const tagLabel = useMemo(() => {
+        if (tagIds.length === 0) return 'Tags'
+        if (tagIds.length === 1) {
+            const t = allTags.find(t => t.id === tagIds[0])
+            return t?.name ?? 'Tag'
+        }
+        return `${tagIds.length} tags`
+    }, [tagIds, allTags])
 
     const isSelected = (value: string) => {
         if (value === 'entries') return mode === 'entries'
@@ -330,6 +344,61 @@ export default function GlobalControls() {
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                {/* Tag filter (only shown if there are tags) */}
+                {allTags.length > 0 && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button className={cn(
+                                'inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500',
+                                tagIds.length > 0
+                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            )}>
+                                <Tag className="w-3.5 h-3.5 shrink-0" />
+                                <span className="max-w-[120px] truncate">{tagLabel}</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52 max-h-[320px] overflow-y-auto">
+                            <div className="flex items-center justify-between px-2 py-1">
+                                <DropdownMenuLabel className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold p-0">
+                                    Tags
+                                </DropdownMenuLabel>
+                                {tagIds.length > 0 && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setTagIds([]) }}
+                                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium"
+                                    >
+                                        Limpar
+                                    </button>
+                                )}
+                            </div>
+                            <DropdownMenuSeparator />
+                            {allTags.filter(t => t.is_active).map((tag) => (
+                                <DropdownMenuItem
+                                    key={tag.id}
+                                    onClick={(e) => { e.preventDefault(); toggleTagId(tag.id) }}
+                                    className="flex items-center gap-2 text-xs cursor-pointer"
+                                >
+                                    <div className={cn(
+                                        'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                                        tagIds.includes(tag.id)
+                                            ? 'border-transparent'
+                                            : 'border-slate-300'
+                                    )} style={tagIds.includes(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                        {tagIds.includes(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                    </div>
+                                    <span
+                                        className="w-2 h-2 rounded-full shrink-0"
+                                        style={{ backgroundColor: tag.color }}
+                                    />
+                                    {tag.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
 
                 {/* Product filter */}
                 <div className="flex items-center gap-1">

@@ -18,10 +18,10 @@ export interface TeamMember {
 }
 
 export function useTeamPerformance(phase?: string) {
-    const { dateRange, product, mode, stageId, ownerIds } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds, tagIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'team-performance', dateRange.start, dateRange.end, product, phase, mode, stageId, ownerIds],
+        queryKey: ['analytics', 'team-performance', dateRange.start, dateRange.end, product, phase, mode, stageId, ownerIds, tagIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova, não existe nos types até deploy
             const { data, error } = await (supabase.rpc as any)('analytics_team_performance', {
@@ -32,6 +32,7 @@ export function useTeamPerformance(phase?: string) {
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
+                p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
             })
             if (error) throw error
             return (data as unknown as TeamMember[]) || []

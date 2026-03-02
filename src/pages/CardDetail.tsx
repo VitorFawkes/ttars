@@ -18,9 +18,11 @@ import SubCardsList from '../components/card/SubCardsList'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
+import { TagSelector } from '../components/card/TagSelector'
 import { ArrowLeft, Users } from 'lucide-react'
 
 import type { Database } from '../database.types'
+import { getProductLabels } from '../lib/productLabels'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -81,8 +83,10 @@ export default function CardDetail() {
 (card as any)?.card_type !== 'sub_card' &&
         !card?.is_group_parent
 
+    const labels = getProductLabels(card?.produto)
+
     if (isLoading) return <div className="p-8 text-center">Carregando...</div>
-    if (!card) return <div className="p-8 text-center">Viagem não encontrada</div>
+    if (!card) return <div className="p-8 text-center">{labels.notFound}</div>
 
     // If it is a Group Parent (Mother Trip), render the specialized layout
     if (card.is_group_parent) {
@@ -128,6 +132,11 @@ export default function CardDetail() {
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-md">
                 <CardHeader card={card} />
+            </div>
+
+            {/* Tags Row */}
+            <div className="px-6 pt-3 pb-1">
+                <TagSelector cardId={card.id!} produto={card.produto} />
             </div>
 
             {/* 2-Column Layout: Work Area + Context/Accountability */}

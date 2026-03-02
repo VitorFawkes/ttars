@@ -1781,6 +1781,66 @@ export type Database = {
           },
         ]
       }
+      card_tag_assignments: {
+        Row: {
+          id: string
+          card_id: string
+          tag_id: string
+          assigned_by: string | null
+          assigned_at: string
+        }
+        Insert: {
+          id?: string
+          card_id: string
+          tag_id: string
+          assigned_by?: string | null
+          assigned_at?: string
+        }
+        Update: {
+          id?: string
+          card_id?: string
+          tag_id?: string
+          assigned_by?: string | null
+          assigned_at?: string
+        }
+        Relationships: []
+      }
+      card_tags: {
+        Row: {
+          id: string
+          name: string
+          color: string
+          description: string | null
+          produto: string | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          color: string
+          description?: string | null
+          produto?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          color?: string
+          description?: string | null
+          produto?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cards: {
         Row: {
           ai_contexto: string | null

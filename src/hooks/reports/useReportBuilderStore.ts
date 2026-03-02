@@ -106,10 +106,10 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
     }),
 
     // Dimensions
-    addDimension: (dim) => set((s) => ({
-        dimensions: [...s.dimensions, dim],
-        isDirty: true,
-    })),
+    addDimension: (dim) => set((s) => {
+        if (s.dimensions.some(d => d.field === dim.field)) return s
+        return { dimensions: [...s.dimensions, dim], isDirty: true }
+    }),
     removeDimension: (field) => set((s) => {
         const updates: Partial<ReportBuilderState> = {
             dimensions: s.dimensions.filter(d => d.field !== field),
@@ -133,10 +133,10 @@ export const useReportBuilderStore = create<ReportBuilderState>()((set, get) => 
     }),
 
     // Measures
-    addMeasure: (measure) => set((s) => ({
-        measures: [...s.measures, measure],
-        isDirty: true,
-    })),
+    addMeasure: (measure) => set((s) => {
+        if (s.measures.some(m => m.field === measure.field)) return s
+        return { measures: [...s.measures, measure], isDirty: true }
+    }),
     removeMeasure: (field) => set((s) => {
         const updates: Partial<ReportBuilderState> = {
             measures: s.measures.filter(m => m.field !== field),

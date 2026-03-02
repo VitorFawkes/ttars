@@ -48,6 +48,7 @@ import PipelineStudio from './pages/admin/PipelineStudio'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
+import TagManagement from './pages/admin/TagManagement'
 import CRMHealth from './pages/admin/CRMHealth'
 import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
@@ -183,6 +184,7 @@ function App() {
 
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
+                    <Route path="customization/tags" element={<TagManagement />} />
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />

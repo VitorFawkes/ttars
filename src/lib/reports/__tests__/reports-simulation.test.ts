@@ -767,11 +767,8 @@ describe('formatters', () => {
 // ============================================================
 // Zustand store action sequence simulation
 // ============================================================
-describe('ReportBuilderStore action sequences', () => {
-    // We simulate the store logic without React by re-implementing the key actions
-    // This tests the state machine transitions
-
-    function createMockStore() {
+// Shared mock store for state machine tests
+function createMockStore() {
         let state = {
             source: null as string | null,
             dimensions: [] as { field: string; dateGrouping?: string; alias?: string }[],
@@ -791,6 +788,7 @@ describe('ReportBuilderStore action sequences', () => {
                 state = { ...state, source, dimensions: [], measures: [], computedMeasures: [], breakdownBy: null, filters: [], orderBy: null, isDirty: true }
             },
             addDimension: (dim: { field: string; dateGrouping?: string }) => {
+                if (state.dimensions.some(d => d.field === dim.field)) return
                 state = { ...state, dimensions: [...state.dimensions, dim], isDirty: true }
             },
             removeDimension: (field: string) => {
@@ -803,6 +801,7 @@ describe('ReportBuilderStore action sequences', () => {
                 state = { ...state, ...updates } as typeof state
             },
             addMeasure: (m: { field: string; aggregation: string }) => {
+                if (state.measures.some(existing => existing.field === m.field)) return
                 state = { ...state, measures: [...state.measures, m], isDirty: true }
             },
             removeMeasure: (field: string) => {
@@ -840,6 +839,10 @@ describe('ReportBuilderStore action sequences', () => {
                 arr.splice(newIndex, 0, moved)
                 state = { ...state, measures: arr, isDirty: true }
             },
+            addComputedMeasure: (cm: { type: string; key: string }) => {
+                if (state.computedMeasures.some(existing => existing.key === cm.key)) return
+                state = { ...state, computedMeasures: [...state.computedMeasures, cm], isDirty: true }
+            },
             setLimit: (limit: number) => {
                 state = { ...state, limit: Math.min(Math.max(1, limit), 5000), isDirty: true }
             },
@@ -860,6 +863,7 @@ describe('ReportBuilderStore action sequences', () => {
         }
     }
 
+describe('ReportBuilderStore action sequences', () => {
     it('Scenario: Build a complete report from scratch', () => {
         const store = createMockStore()
 
@@ -1024,5 +1028,247 @@ describe('ReportBuilderStore action sequences', () => {
         expect(iqr.breakdownBy).toBeUndefined()
         expect(iqr.orderBy).toBeUndefined()
         expect(iqr.comparison).toBeUndefined()
+    })
+})
+
+// ============================================================
+// DnD Cross-Component Simulation Tests
+// (Tests the handlePickerDragEnd logic extracted from ReportBuilder)
+// ============================================================
+
+describe('DnD picker-to-config simulation', () => {
+    // Simulate the handlePickerDragEnd logic from ReportBuilder
+    // This is an exact copy of the logic to test it in isolation
+    function simulateDrop(
+        store: ReturnType<typeof createMockStore>,
+        activeData: Record<string, unknown>,
+        overId: string | null,
+    ) {
+        if (!activeData || activeData.type !== 'picker-field' || !overId) return
+
+        const droppedOnAnyZone = overId === 'dropzone-dimensions' || overId === 'dropzone-measures'
+        if (!droppedOnAnyZone) return
+
+        if (activeData.role === 'dimension') {
+            const field = activeData.field as { key: string; dataType?: string }
+            const dim: { field: string; dateGrouping?: string } = { field: field.key }
+            if (field.dataType === 'date') dim.dateGrouping = 'month'
+            store.addDimension(dim)
+        } else if (activeData.role === 'measure') {
+            const field = activeData.field as { key: string; aggregations?: string[] }
+            const defaultAgg = field.aggregations?.[0] ?? 'count'
+            store.addMeasure({ field: field.key, aggregation: defaultAgg })
+        } else if (activeData.role === 'computed') {
+            store.addComputedMeasure({ type: 'computed', key: activeData.key as string })
+        }
+    }
+
+    const getStore = () => {
+        const store = createMockStore()
+        store.setSource('cards')
+        return store
+    }
+
+    it('should add dimension when dropped on dimensions zone', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-dimensions')
+
+        expect(store.get().dimensions).toHaveLength(1)
+        expect(store.get().dimensions[0].field).toBe('ps.nome')
+    })
+
+    it('should auto-set dateGrouping for date dimension', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'c.created_at', dataType: 'date' },
+        }, 'dropzone-dimensions')
+
+        expect(store.get().dimensions[0].dateGrouping).toBe('month')
+    })
+
+    it('should NOT set dateGrouping for non-date dimension', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-dimensions')
+
+        expect(store.get().dimensions[0].dateGrouping).toBeUndefined()
+    })
+
+    it('should add measure when dropped on measures zone', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'c.id', aggregations: ['count', 'count_distinct'] },
+        }, 'dropzone-measures')
+
+        expect(store.get().measures).toHaveLength(1)
+        expect(store.get().measures[0].field).toBe('c.id')
+        expect(store.get().measures[0].aggregation).toBe('count')
+    })
+
+    it('should use first aggregation as default', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'c.valor_final', aggregations: ['sum', 'avg', 'min', 'max'] },
+        }, 'dropzone-measures')
+
+        expect(store.get().measures[0].aggregation).toBe('sum')
+    })
+
+    it('should fallback to count if no aggregations defined', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'unknown_field' },
+        }, 'dropzone-measures')
+
+        expect(store.get().measures[0].aggregation).toBe('count')
+    })
+
+    it('should add computed measure when dropped on measures zone', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'computed',
+            key: 'taxa_conversao',
+            label: 'Taxa de Conversão',
+        }, 'dropzone-measures')
+
+        expect(store.get().computedMeasures).toHaveLength(1)
+        expect(store.get().computedMeasures[0].key).toBe('taxa_conversao')
+    })
+
+    it('should smart-route: dimension dropped on MEASURES zone still adds as dimension', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-measures') // Wrong zone!
+
+        // Smart-routing: adds to dimensions regardless of target zone
+        expect(store.get().dimensions).toHaveLength(1)
+        expect(store.get().dimensions[0].field).toBe('ps.nome')
+        expect(store.get().measures).toHaveLength(0)
+    })
+
+    it('should smart-route: measure dropped on DIMENSIONS zone still adds as measure', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'c.id', aggregations: ['count'] },
+        }, 'dropzone-dimensions') // Wrong zone!
+
+        // Smart-routing: adds to measures regardless of target zone
+        expect(store.get().measures).toHaveLength(1)
+        expect(store.get().measures[0].field).toBe('c.id')
+        expect(store.get().dimensions).toHaveLength(0)
+    })
+
+    it('should ignore drop outside any zone (over=null)', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, null)
+
+        expect(store.get().dimensions).toHaveLength(0)
+    })
+
+    it('should ignore non-picker drags', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'sortable-item',
+            id: 'ps.nome',
+        }, 'dropzone-dimensions')
+
+        expect(store.get().dimensions).toHaveLength(0)
+    })
+
+    it('should not add duplicate dimension via drag', () => {
+        const store = getStore()
+        // Add first via drag
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-dimensions')
+        // Try to add again via drag
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-dimensions')
+
+        expect(store.get().dimensions).toHaveLength(1)
+    })
+
+    it('should not add duplicate measure via drag', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'c.id', aggregations: ['count'] },
+        }, 'dropzone-measures')
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'measure',
+            field: { key: 'c.id', aggregations: ['count'] },
+        }, 'dropzone-measures')
+
+        expect(store.get().measures).toHaveLength(1)
+    })
+
+    it('should handle rapid sequential drops of different fields', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field', role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-dimensions')
+        simulateDrop(store, {
+            type: 'picker-field', role: 'dimension',
+            field: { key: 'c.created_at', dataType: 'date' },
+        }, 'dropzone-dimensions')
+        simulateDrop(store, {
+            type: 'picker-field', role: 'measure',
+            field: { key: 'c.id', aggregations: ['count'] },
+        }, 'dropzone-measures')
+        simulateDrop(store, {
+            type: 'picker-field', role: 'computed',
+            key: 'taxa_conversao',
+        }, 'dropzone-measures')
+
+        expect(store.get().dimensions).toHaveLength(2)
+        expect(store.get().dimensions[0].field).toBe('ps.nome')
+        expect(store.get().dimensions[1].field).toBe('c.created_at')
+        expect(store.get().dimensions[1].dateGrouping).toBe('month')
+        expect(store.get().measures).toHaveLength(1)
+        expect(store.get().computedMeasures).toHaveLength(1)
+    })
+
+    it('should ignore drop on unknown zone ID', () => {
+        const store = getStore()
+        simulateDrop(store, {
+            type: 'picker-field',
+            role: 'dimension',
+            field: { key: 'ps.nome', dataType: 'text' },
+        }, 'dropzone-unknown')
+
+        expect(store.get().dimensions).toHaveLength(0)
     })
 })

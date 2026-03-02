@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Search, Plus, Info } from 'lucide-react'
+import { useDraggable } from '@dnd-kit/core'
+import { Search, Plus, GripVertical, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FieldDefinition, Aggregation, ComputedMeasureDefinition } from '@/lib/reports/reportTypes'
 
@@ -117,12 +118,12 @@ export default function FieldPicker({
                             {fields.map((field) => {
                                 const isActive = activeKeys.includes(field.key)
                                 return (
-                                    <button
+                                    <DraggableField
                                         key={field.key}
-                                        type="button"
-                                        disabled={isActive}
-                                        title={field.description ?? field.label}
-                                        onClick={() => {
+                                        field={field}
+                                        role={tab === 'dimensions' ? 'dimension' : 'measure'}
+                                        isActive={isActive}
+                                        onAdd={() => {
                                             if (tab === 'dimensions') {
                                                 onAddDimension(field)
                                             } else {
@@ -130,23 +131,7 @@ export default function FieldPicker({
                                                 onAddMeasure(field, defaultAgg)
                                             }
                                         }}
-                                        className={cn(
-                                            'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all group',
-                                            isActive
-                                                ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
-                                                : 'text-slate-600 hover:bg-slate-50'
-                                        )}
-                                    >
-                                        <div className="min-w-0">
-                                            <span className="truncate block">{field.label}</span>
-                                            {field.description && !isActive && (
-                                                <span className="text-[10px] text-slate-400 truncate block opacity-0 group-hover:opacity-100 transition-opacity">{field.description}</span>
-                                            )}
-                                        </div>
-                                        {!isActive && (
-                                            <Plus className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                        )}
-                                    </button>
+                                    />
                                 )
                             })}
                         </div>
@@ -172,25 +157,12 @@ export default function FieldPicker({
                             {filteredCM.map((cm) => {
                                 const isActive = activeComputedMeasures.includes(cm.key)
                                 return (
-                                    <button
+                                    <DraggableComputedField
                                         key={cm.key}
-                                        type="button"
-                                        disabled={isActive}
-                                        title={cm.description}
-                                        onClick={() => onAddComputedMeasure(cm.key)}
-                                        className={cn(
-                                            'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all',
-                                            isActive
-                                                ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
-                                                : 'text-slate-600 hover:bg-slate-50'
-                                        )}
-                                    >
-                                        <div>
-                                            <span className="truncate">{cm.label}</span>
-                                            <span className="text-[10px] text-slate-400 ml-1.5">fx</span>
-                                        </div>
-                                        {!isActive && <Plus className="w-3 h-3 text-slate-400 flex-shrink-0" />}
-                                    </button>
+                                        cm={cm}
+                                        isActive={isActive}
+                                        onAdd={() => onAddComputedMeasure(cm.key)}
+                                    />
                                 )
                             })}
                         </div>
@@ -199,5 +171,109 @@ export default function FieldPicker({
                 })()}
             </div>
         </div>
+    )
+}
+
+// ============================================================
+// Draggable field item (click to add OR drag to drop zone)
+// ============================================================
+
+function DraggableField({
+    field,
+    role,
+    isActive,
+    onAdd,
+}: {
+    field: FieldDefinition
+    role: 'dimension' | 'measure'
+    isActive: boolean
+    onAdd: () => void
+}) {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: `picker:${field.key}`,
+        data: { type: 'picker-field', role, field },
+        disabled: isActive,
+    })
+
+    return (
+        <button
+            ref={setNodeRef}
+            {...attributes}
+            {...listeners}
+            type="button"
+            disabled={isActive}
+            title={field.description ?? field.label}
+            onClick={onAdd}
+            className={cn(
+                'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all group',
+                isDragging && 'opacity-40',
+                isActive
+                    ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
+                    : 'text-slate-600 hover:bg-slate-50 cursor-grab active:cursor-grabbing'
+            )}
+        >
+            <div className="flex items-center gap-1 min-w-0">
+                {!isActive && (
+                    <GripVertical className="w-3 h-3 text-slate-300 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+                <div className="min-w-0">
+                    <span className="truncate block">{field.label}</span>
+                    {field.description && !isActive && (
+                        <span className="text-[10px] text-slate-400 truncate block opacity-0 group-hover:opacity-100 transition-opacity">{field.description}</span>
+                    )}
+                </div>
+            </div>
+            {!isActive && (
+                <Plus className="w-3 h-3 text-slate-400 flex-shrink-0" />
+            )}
+        </button>
+    )
+}
+
+// ============================================================
+// Draggable computed measure item
+// ============================================================
+
+function DraggableComputedField({
+    cm,
+    isActive,
+    onAdd,
+}: {
+    cm: ComputedMeasureDefinition
+    isActive: boolean
+    onAdd: () => void
+}) {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: `picker-cm:${cm.key}`,
+        data: { type: 'picker-field', role: 'computed', key: cm.key, label: cm.label },
+        disabled: isActive,
+    })
+
+    return (
+        <button
+            ref={setNodeRef}
+            {...attributes}
+            {...listeners}
+            type="button"
+            disabled={isActive}
+            title={cm.description}
+            onClick={onAdd}
+            className={cn(
+                'flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all group',
+                isDragging && 'opacity-40',
+                isActive
+                    ? 'bg-slate-100 text-slate-400 line-through cursor-not-allowed'
+                    : 'text-slate-600 hover:bg-slate-50 cursor-grab active:cursor-grabbing'
+            )}
+        >
+            <div className="flex items-center gap-1">
+                {!isActive && (
+                    <GripVertical className="w-3 h-3 text-slate-300 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+                <span className="truncate">{cm.label}</span>
+                <span className="text-[10px] text-slate-400 ml-1.5">fx</span>
+            </div>
+            {!isActive && <Plus className="w-3 h-3 text-slate-400 flex-shrink-0" />}
+        </button>
     )
 }

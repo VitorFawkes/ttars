@@ -63,7 +63,7 @@ Responda APENAS com JSON válido. Nenhum texto antes ou depois. Sem markdown.`;
 const CODE_PREPARA_AUDIO = `// Converte base64 para binary data no item (para HTTP Request node)
 const items = $input.all();
 const audio_base64 = items[0].json.audio_base64;
-const audio_mime_type = items[0].json.audio_mime_type || 'audio/webm';
+let audio_mime_type = items[0].json.audio_mime_type || 'audio/webm';
 const card_id = items[0].json.card_id;
 const user_id = items[0].json.user_id;
 
@@ -71,8 +71,17 @@ if (!audio_base64 || audio_base64.length < 100) {
   throw new Error('Audio base64 vazio ou muito curto.');
 }
 
+// Normalizar MIME types não-padrão que o Whisper não reconhece
+if (audio_mime_type === 'audio/m4a' || audio_mime_type === 'audio/x-m4a') {
+  audio_mime_type = 'audio/mp4';
+}
+// Remover codecs do MIME (ex: audio/webm;codecs=opus → audio/webm)
+if (audio_mime_type.includes(';')) {
+  audio_mime_type = audio_mime_type.split(';')[0].trim();
+}
+
 const ext = audio_mime_type.includes('webm') ? 'webm'
-  : audio_mime_type.includes('mp4') || audio_mime_type.includes('m4a') ? 'mp4'
+  : audio_mime_type.includes('mp4') ? 'm4a'
   : audio_mime_type.includes('mpeg') || audio_mime_type.includes('mp3') ? 'mp3'
   : audio_mime_type.includes('wav') ? 'wav'
   : audio_mime_type.includes('aiff') ? 'aiff'
@@ -1057,13 +1066,15 @@ async function main() {
 
   if (existing) {
     console.log(`📝 Workflow encontrado (ID: ${existing.id}). Atualizando...`);
+    // PUT (não PATCH) — garante que nodes/connections são 100% substituídos
     const res = await fetch(`${N8N_API_URL}/api/v1/workflows/${existing.id}`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: {
         'X-N8N-API-KEY': API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        name: workflow.name,
         nodes: workflow.nodes,
         connections: workflow.connections,
         settings: workflow.settings

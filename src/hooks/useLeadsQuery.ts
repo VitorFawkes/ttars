@@ -1,6 +1,7 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useProductContext } from './useProductContext'
 import { type LeadsFilterState } from './useLeadsFilters'
 import type { Database } from '../database.types'
 import { prepareSearchTerms } from '../lib/utils'
@@ -23,9 +24,10 @@ interface LeadsQueryResult {
 export function useLeadsQuery({ filters, enabled = true }: UseLeadsQueryProps) {
     const { session } = useAuth()
     const isAuthReady = !!session?.user?.id
+    const { currentProduct } = useProductContext()
 
     return useQuery({
-        queryKey: ['leads', filters],
+        queryKey: ['leads', filters, currentProduct],
         enabled: enabled && isAuthReady,
         placeholderData: keepPreviousData,
         queryFn: async (): Promise<LeadsQueryResult> => {
@@ -131,6 +133,11 @@ export function useLeadsQuery({ filters, enabled = true }: UseLeadsQueryProps) {
                 query = query.lte('tempo_sem_contato', filters.diasSemContatoMax)
             }
 
+            // Tag filter — usa overlaps no array tag_ids da view
+            if ((filters.tagIds?.length ?? 0) > 0) {
+                query = (query as ReturnType<typeof query.overlaps>).overlaps('tag_ids', filters.tagIds)
+            }
+
             // Archived filter — por padrão esconde, toggle em LeadsFilters permite mostrar
             if (!filters.showArchived) {
                 query = query.is('archived_at', null)
@@ -138,6 +145,11 @@ export function useLeadsQuery({ filters, enabled = true }: UseLeadsQueryProps) {
 
             // Exclude group parents
             query = query.eq('is_group_parent', false)
+
+            // Product filter — always scoped to current product
+            if (currentProduct) {
+                query = query.eq('produto', currentProduct)
+            }
 
             // Sorting
             if (filters.sortBy) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core'
 import { ArrowLeft, Save, Copy, Loader2, AlertCircle } from 'lucide-react'
 import { useReportBuilderStore } from '@/hooks/reports/useReportBuilderStore'
 import { useFieldRegistry } from '@/hooks/reports/useFieldRegistry'
@@ -32,6 +33,41 @@ export default function ReportBuilder() {
 
     const [saveOpen, setSaveOpen] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
+
+    // Cross-component DnD: FieldPicker → ConfigPanel
+    const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null)
+    const outerSensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    )
+    const handlePickerDragStart = useCallback((event: DragStartEvent) => {
+        const data = event.active.data.current
+        if (data?.type === 'picker-field') {
+            setActiveDragLabel(data.field?.label ?? data.label ?? data.key ?? '')
+        }
+    }, [])
+    const handlePickerDragEnd = useCallback((event: DragEndEvent) => {
+        setActiveDragLabel(null)
+        const { active, over } = event
+        const data = active.data.current
+        if (!data || data.type !== 'picker-field' || !over) return
+
+        // Smart-add: auto-route to correct zone based on field role
+        // Even if user drops on wrong zone, add to the correct one
+        const droppedOnAnyZone = over.id === 'dropzone-dimensions' || over.id === 'dropzone-measures'
+        if (!droppedOnAnyZone) return
+
+        if (data.role === 'dimension') {
+            const dim: { field: string; dateGrouping?: DateGrouping } = { field: data.field.key }
+            if (data.field.dataType === 'date') dim.dateGrouping = 'month'
+            store.addDimension(dim)
+        } else if (data.role === 'measure') {
+            const defaultAgg = data.field.aggregations?.[0] ?? 'count'
+            store.addMeasure({ field: data.field.key, aggregation: defaultAgg })
+        } else if (data.role === 'computed') {
+            store.addComputedMeasure({ type: 'computed', key: data.key })
+        }
+    }, [store])
+    const handlePickerDragCancel = useCallback(() => setActiveDragLabel(null), [])
 
     // Load existing report when editing, or template when creating from template
     const { data: existingReport, isLoading: reportLoading, error: reportError } = useSavedReport(id)
@@ -220,7 +256,12 @@ export default function ReportBuilder() {
 
                     {/* Field picker + config — only when source selected */}
                     {store.source && (
-                        <>
+                        <DndContext
+                            sensors={outerSensors}
+                            onDragStart={handlePickerDragStart}
+                            onDragEnd={handlePickerDragEnd}
+                            onDragCancel={handlePickerDragCancel}
+                        >
                             <FieldPicker
                                 dimensions={registry.dimensions}
                                 measures={registry.measures}
@@ -276,7 +317,15 @@ export default function ReportBuilder() {
                                 value={store.comparison}
                                 onChange={store.setComparison}
                             />
-                        </>
+
+                            <DragOverlay dropAnimation={null}>
+                                {activeDragLabel && (
+                                    <div className="bg-white shadow-lg rounded-md px-3 py-1.5 text-xs font-medium text-slate-700 border border-indigo-200 whitespace-nowrap">
+                                        {activeDragLabel}
+                                    </div>
+                                )}
+                            </DragOverlay>
+                        </DndContext>
                     )}
                 </div>
 

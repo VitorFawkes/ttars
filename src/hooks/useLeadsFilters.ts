@@ -24,6 +24,7 @@ export interface LeadsFilterState {
     diasSemContatoMax?: number
     origem?: string[]
     showArchived?: boolean
+    tagIds?: string[]
     // Pagination
     page: number
     pageSize: number
@@ -39,6 +40,7 @@ interface LeadsFiltersStore {
     togglePrioridade: (prioridade: string) => void
     togglePipeline: (pipelineId: string) => void
     toggleOrigem: (origem: string) => void
+    toggleTag: (tagId: string) => void
     toggleArchived: () => void
     setPage: (page: number) => void
     setPageSize: (pageSize: number) => void
@@ -115,6 +117,14 @@ export const useLeadsFilters = create<LeadsFiltersStore>()(
                 return { filters: { ...state.filters, origem: updated, page: 1 } }
             }),
 
+            toggleTag: (tagId) => set((state) => {
+                const current = state.filters.tagIds || []
+                const updated = current.includes(tagId)
+                    ? current.filter(id => id !== tagId)
+                    : [...current, tagId]
+                return { filters: { ...state.filters, tagIds: updated, page: 1 } }
+            }),
+
             toggleArchived: () => set((state) => ({
                 filters: { ...state.filters, showArchived: !state.filters.showArchived, page: 1 }
             })),
@@ -149,7 +159,8 @@ export const useLeadsFilters = create<LeadsFiltersStore>()(
                     filters.valorMax !== undefined ||
                     filters.diasSemContatoMin !== undefined ||
                     filters.diasSemContatoMax !== undefined ||
-                    filters.showArchived
+                    filters.showArchived ||
+                    (filters.tagIds?.length ?? 0) > 0
                 )
             }
         }),

@@ -46,22 +46,42 @@ export const TRIPS_FIELD_REGISTRY: Record<string, FieldConfig> = {
     }
 }
 
-// For WEDDING product (future expansion)
+// For WEDDING product — key fields for proposal auto-fill and card defaults
 export const WEDDING_FIELD_REGISTRY: Record<string, FieldConfig> = {
-    data_casamento: {
-        name: 'data_casamento',
-        component: TextFieldInput, // Could be a DateField
+    ww_data_casamento: {
+        name: 'ww_data_casamento',
+        component: TextFieldInput,
         label: 'Data do Casamento'
     },
-    local: {
-        name: 'local',
+    ww_destino: {
+        name: 'ww_destino',
         component: TextFieldInput,
-        label: 'Local'
+        label: 'Destino'
     },
-    num_convidados: {
-        name: 'num_convidados',
-        component: TextFieldInput, // Could be a NumberField
+    ww_tipo_casamento: {
+        name: 'ww_tipo_casamento',
+        component: TextFieldInput,
+        label: 'Tipo de Casamento'
+    },
+    ww_orcamento_faixa: {
+        name: 'ww_orcamento_faixa',
+        component: TextFieldInput,
+        label: 'Orçamento'
+    },
+    ww_num_convidados: {
+        name: 'ww_num_convidados',
+        component: TextFieldInput,
         label: 'Número de Convidados'
+    },
+    ww_nome_parceiro: {
+        name: 'ww_nome_parceiro',
+        component: TextFieldInput,
+        label: 'Nome do(a) Noivo(a) 2'
+    },
+    ww_closer_valor_contrato: {
+        name: 'ww_closer_valor_contrato',
+        component: TextFieldInput,
+        label: 'Valor do Contrato'
     }
 }
 

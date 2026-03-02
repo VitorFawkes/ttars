@@ -60,6 +60,9 @@ const CARDS_FIELDS: FieldDefinition[] = [
     { key: 'dias_etapa', label: 'Dias na Etapa', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(DAY FROM NOW() - COALESCE(c.stage_entered_at, c.created_at))' },
     { key: 'ciclo_dias', label: 'Ciclo de Venda (dias)', category: 'Velocidade', role: 'measure', dataType: 'number', aggregations: ['avg', 'min', 'max'], sqlExpression: 'EXTRACT(DAY FROM c.data_fechamento::timestamptz - c.created_at)' },
 
+    // Dimensões — Tags
+    { key: 'tag_id', label: 'Tag do Card', category: 'Pipeline', role: 'dimension', dataType: 'text', filterOperators: ['in', 'not_in', 'is_null', 'is_not_null'], filterOptions: 'dynamic', description: 'Tags atribuídas ao card (filtro por tag)' },
+
     // Dimensões — Viagem
     { key: 'c.epoca_tipo', label: 'Sazonalidade', category: 'Viagem', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },
     { key: 'c.estado_operacional', label: 'Estado Operacional', category: 'Viagem', role: 'dimension', dataType: 'text', filterOperators: [...TEXT_OPERATORS], filterOptions: 'dynamic' },

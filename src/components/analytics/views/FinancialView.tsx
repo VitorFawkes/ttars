@@ -23,8 +23,8 @@ function parsePeriodBounds(period: string, granularity: Granularity): { start: s
         const year = Number(parts[0])
         const month = Number(parts[1])
         if (!year || !month) return null
-        const start = new Date(year, month - 1, 1)
-        const end = new Date(year, month, 1)
+        const start = new Date(Date.UTC(year, month - 1, 1))
+        const end = new Date(Date.UTC(year, month, 1))
         return { start: start.toISOString(), end: end.toISOString() }
     }
     if (granularity === 'week' || granularity === 'day') {

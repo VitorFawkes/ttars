@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { X, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
-import { useDrillDownStore, useAnalyticsDrillDownQuery, type DrillDownCard } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { X, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Filter } from 'lucide-react'
+import { useDrillDownStore, useAnalyticsDrillDownQuery, type DrillDownCard, type DrillSource } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
@@ -27,7 +28,7 @@ const BASE_COLUMNS: ColumnDef[] = [
 
 function getColumns(source?: string): ColumnDef[] {
     const cols = [...BASE_COLUMNS]
-    if (source === 'current_stage') {
+    if (source === 'current_stage' || source === 'stage_entries') {
         // Insert "Na Etapa Desde" after "Etapa"
         const idx = cols.findIndex(c => c.key === 'etapa_nome')
         cols.splice(idx + 1, 0, { key: 'stage_entered_at', label: 'Na Etapa Desde', sortable: true })
@@ -38,6 +39,27 @@ function getColumns(source?: string): ColumnDef[] {
         cols.splice(idx, 0, { key: 'data_fechamento', label: 'Fechamento', sortable: true })
     }
     return cols
+}
+
+function getFilterDescription(source: DrillSource | undefined, dateStart: string, dateEnd: string): string | null {
+    const fmtDate = (iso: string) => {
+        const d = new Date(iso)
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+    const range = `${fmtDate(dateStart)} — ${fmtDate(dateEnd)}`
+    switch (source) {
+        case 'stage_entries':
+        case 'macro_funnel':
+            return `Cards que entraram na etapa entre ${range}`
+        case 'closed_deals':
+            return `Cards ganhos com fechamento entre ${range}`
+        case 'current_stage':
+            return `Cards ativos criados entre ${range}`
+        case 'lost_deals':
+            return `Cards perdidos entre ${range}`
+        default:
+            return `Período: ${range}`
+    }
 }
 
 function formatDate(iso: string | null) {
@@ -97,8 +119,13 @@ function CellValue({ col, row }: { col: ColumnDef; row: DrillDownCard }) {
 export default function AnalyticsDrillDownDrawer() {
     const { isOpen, context, page, sortBy, sortDir, close, setPage, toggleSort } = useDrillDownStore()
     const { data, isLoading } = useAnalyticsDrillDownQuery()
+    const { dateRange } = useAnalyticsFilters()
     const overlayRef = useRef<HTMLDivElement>(null)
     const columns = useMemo(() => getColumns(context?.drillSource), [context?.drillSource])
+    const filterDesc = useMemo(
+        () => getFilterDescription(context?.drillSource as DrillSource, dateRange.start, dateRange.end),
+        [context?.drillSource, dateRange.start, dateRange.end],
+    )
 
     // Close on Escape
     useEffect(() => {
@@ -155,9 +182,20 @@ export default function AnalyticsDrillDownDrawer() {
                         <h2 className="text-sm font-semibold text-slate-800 truncate">
                             {context?.label}
                         </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                            {totalCount > 0 ? `${totalCount} card${totalCount !== 1 ? 's' : ''} encontrado${totalCount !== 1 ? 's' : ''}` : 'Carregando...'}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-slate-400">
+                                {totalCount > 0 ? `${totalCount} card${totalCount !== 1 ? 's' : ''} encontrado${totalCount !== 1 ? 's' : ''}` : 'Carregando...'}
+                            </p>
+                            {filterDesc && (
+                                <>
+                                    <span className="text-slate-300">·</span>
+                                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                                        <Filter className="w-3 h-3" />
+                                        {filterDesc}
+                                    </p>
+                                </>
+                            )}
+                        </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
                         {data && data.rows.length > 0 && (

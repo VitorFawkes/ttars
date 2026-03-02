@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText } from 'lucide-react'
+import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText, Tag } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { cn } from '../../lib/utils'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { ALL_ORIGEM_OPTIONS } from '../../lib/constants/origem'
+import { useCardTags } from '../../hooks/useCardTags'
 
 
 interface FilterDrawerProps {
@@ -32,6 +33,7 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
 
     // Use cached data from React Query
     const { data: options } = useFilterOptions()
+    const { tags: availableTags } = useCardTags()
 
     // Local state for the form
     const [localFilters, setLocalFilters] = useState(filters || {})
@@ -63,7 +65,7 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
         setFilters({})
     }
 
-    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem' | 'docStatus', value: string) => {
+    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem' | 'docStatus' | 'tagIds', value: string) => {
         setLocalFilters(prev => {
             const current = (prev[field] as string[]) || []
             const updated = current.includes(value)
@@ -499,6 +501,45 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                             </div>
                         </div>
                     </div>
+
+                    {/* Tags */}
+                    {availableTags.length > 0 && (
+                        <div className="p-6 border-t border-gray-100 space-y-4">
+                            <div className="flex items-center gap-2">
+                                <Tag className="w-4 h-4 text-gray-400" />
+                                <h3 className="text-sm font-semibold text-gray-700">Tags</h3>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="flex flex-wrap gap-2">
+                                    {availableTags.map(tag => {
+                                        const selected = (localFilters.tagIds || []).includes(tag.id)
+                                        return (
+                                            <button
+                                                key={tag.id}
+                                                onClick={() => toggleSelection('tagIds', tag.id)}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all"
+                                                style={selected ? {
+                                                    backgroundColor: tag.color + '25',
+                                                    color: tag.color,
+                                                    borderColor: tag.color + '60',
+                                                } : {
+                                                    backgroundColor: 'white',
+                                                    color: '#6b7280',
+                                                    borderColor: '#e5e7eb',
+                                                }}
+                                            >
+                                                <span
+                                                    className="w-2 h-2 rounded-full shrink-0"
+                                                    style={{ backgroundColor: tag.color }}
+                                                />
+                                                {tag.name}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                 </div>
 
