@@ -8,11 +8,13 @@ import {
     ShieldCheck,
     DollarSign,
     Repeat,
+    Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
     { to: '/analytics/overview', icon: LayoutDashboard, label: 'Visão Geral' },
+    { to: '/analytics/pipeline', icon: Activity, label: 'Pipeline Atual' },
     { to: '/analytics/team', icon: Users, label: 'Equipe' },
     { to: '/analytics/funnel', icon: GitBranch, label: 'Funil End-to-End' },
     { to: '/analytics/sla', icon: Timer, label: 'Velocidade & SLA' },

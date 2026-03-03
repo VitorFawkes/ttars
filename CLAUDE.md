@@ -58,7 +58,11 @@ touch .claude/.migration_applied
 - NUNCA usar `SUPABASE_ACCESS_TOKEN` (produção) direto. Sempre via script `promote-to-prod.sh`
 - NUNCA pular o staging. Se urgente, aplicar no staging primeiro mesmo assim.
 - Se a migration falhar no staging, corrigir ANTES de promover.
-- O Stop hook BLOQUEIA se detectar `.sql` novo sem marker `.claude/.migration_applied`
+- O Stop hook BLOQUEIA se detectar `.sql` novo/modificado sem registro no `.claude/.migration_log`
+- `promote-to-prod.sh` registra automaticamente cada arquivo no log
+- Após terminar todas migrations, rodar `touch .claude/.migration_applied` (backward compat)
+- **NUNCA deixe migrations intermediárias/rascunho no disco** — se uma migration foi supersedida por outra, DELETE o arquivo antigo
+- Após aplicar em produção, **commitar o arquivo .sql** no git para evitar acúmulo de untracked files
 
 ## Arquitetura (3 Suns)
 Toda entidade orbita 3 entidades centrais: `cards`, `contatos`, `profiles`.
@@ -79,7 +83,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | Grupos | GroupsPage.tsx | Gestão de viagens em grupo |
 | Propostas | ProposalsPage.tsx | Listagem de propostas |
 | Editor Proposta | ProposalBuilderV4.tsx | Editor moderno de propostas |
-| Analytics | analytics/AnalyticsPage.tsx | Dashboard analítico — layout sidebar + 8 views (Zustand + React Query + RPCs) |
+| Analytics | analytics/AnalyticsPage.tsx | Dashboard analítico — layout sidebar + 9 views (Zustand + React Query + RPCs) |
 | Monde Preview | MondePreviewPage.tsx | Preview integração Monde |
 | Pipeline Studio | admin/PipelineStudio.tsx | Config de pipeline (stages, phases) |
 | Usuários | admin/UserManagement.tsx | Gestão de usuários/roles |
@@ -134,6 +138,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | useBriefingIA | 1 | Processa áudio de briefing do consultor via n8n webhook (Whisper + GPT-5.1) |
 | useChatIA | 1 | Chat com IA sobre conversas WhatsApp do cliente via n8n webhook (GPT-4.1-mini) |
 | useFunnelByOwner | 1 | Funil operacional com breakdown por responsável (stacked bars) via RPC |
+| usePipelineCurrent | 1 | Snapshot do pipeline aberto: KPIs, stages, aging, owners, top deals via RPC |
 | useReportBuilderStore | 1 | Zustand store do Report Builder (IQR, viz, filtros, ~30 ações) |
 | useReportEngine | 2 | IQR → RPC report_query_engine → dados agregados |
 | useReportDrillDown | 1 | Drill-down em ponto do gráfico → registros individuais via RPC |
@@ -161,7 +166,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | Monde | MondeWidget |
 | UI Base | src/components/ui/ — 29 componentes Radix UI (Button, Dialog, Select, etc.) + QueryErrorState |
 | Resiliência | NetworkStatusBanner (banner offline/online no Layout) |
-| Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/OverviewView, views/TeamView, views/FunnelView, views/SLAView, views/WhatsAppView (4 sub-tabs: Overview, Conversas, Velocidade, Equipe&IA), views/OperationsView, views/FinancialView, views/RetentionView, views/PlaceholderView |
+| Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/OverviewView, views/PipelineCurrentView, views/TeamView, views/FunnelView, views/SLAView, views/WhatsAppView (4 sub-tabs: Overview, Conversas, Velocidade, Equipe&IA), views/OperationsView, views/FinancialView, views/RetentionView, views/PlaceholderView |
 | Dashboard | StatsCards, FunnelChart, RecentActivity, TodayMeetingsWidget |
 | Calendário | CalendarHeader, DayView, WeekView, MonthView, MeetingPopover, MeetingDetailDrawer |
 | Relatórios | ReportsSidebar, ReportBuilder, ReportViewer, ReportsList, builder/* (SourceSelector, FieldPicker, ConfigPanel, FilterPanel, VizSelector, ReportPreview, ComparisonToggle, SaveReportDialog), renderers/* (ChartRenderer, BarChart, LineChart, AreaChart, PieChart, Table, Kpi, Funnel, Composed, DrillDownPanel), DashboardEditor, DashboardViewer, DashboardsList, dashboard/* (DashboardGrid, WidgetCard, AddWidgetDialog, DashboardFilters) |

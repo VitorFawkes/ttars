@@ -31,6 +31,7 @@ import WhatsAppView from './components/analytics/views/WhatsAppView'
 import OperationsView from './components/analytics/views/OperationsView'
 import FinancialView from './components/analytics/views/FinancialView'
 import RetentionView from './components/analytics/views/RetentionView'
+import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 
@@ -66,16 +67,35 @@ import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
 
+function isNetworkError(error: Error): boolean {
+    const msg = error.message?.toLowerCase() ?? ''
+    return (
+        !navigator.onLine ||
+        msg.includes('failed to fetch') ||
+        msg.includes('networkerror') ||
+        msg.includes('load failed') ||
+        msg.includes('network request failed') ||
+        error.name === 'TypeError' && msg.includes('fetch')
+    )
+}
+
 const queryClient = new QueryClient({
     queryCache: new QueryCache({
         onError: (error) => {
             console.error('[QueryCache] Query error:', error.message)
-            toast.error('Erro ao carregar dados', {
-                description: error.message?.includes('42703')
-                    ? 'Atualização do sistema em andamento. Tente novamente em alguns minutos.'
-                    : 'Verifique sua conexão e tente novamente.',
-                id: 'query-error',
-            })
+            if (error.message?.includes('42703')) {
+                toast.error('Erro ao carregar dados', {
+                    description: 'Atualização do sistema em andamento. Tente novamente em alguns minutos.',
+                    id: 'query-error-schema',
+                })
+            } else if (isNetworkError(error)) {
+                toast.error('Erro de conexão', {
+                    description: 'Verifique sua conexão com a internet e tente novamente.',
+                    id: 'query-error-network',
+                })
+            }
+            // Outros erros: apenas log no console, sem toast global
+            // (componentes tratam seus próprios erros via onError/isError)
         },
     }),
     mutationCache: new MutationCache({
@@ -89,7 +109,7 @@ const queryClient = new QueryClient({
             retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
             staleTime: 1000 * 60 * 2,   // 2 minutos
             gcTime: 1000 * 60 * 30,      // 30 minutos
-            refetchOnWindowFocus: 'always',
+            refetchOnWindowFocus: true,
         },
         mutations: {
             retry: 1,
@@ -130,6 +150,7 @@ function App() {
                   <Route path="/analytics" element={<AnalyticsPage />}>
                     <Route index element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="overview" element={<OverviewView />} />
+                    <Route path="pipeline" element={<PipelineCurrentView />} />
                     <Route path="team" element={<TeamView />} />
                     <Route path="funnel" element={<FunnelView />} />
                     <Route path="sla" element={<SLAView />} />

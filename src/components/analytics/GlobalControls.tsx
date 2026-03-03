@@ -64,6 +64,7 @@ export default function GlobalControls() {
         stageId,
         ownerIds,
         tagIds,
+        activeView,
         setDatePreset,
         setDateRange,
         setGranularity,
@@ -74,6 +75,8 @@ export default function GlobalControls() {
         setTagIds,
         toggleTagId,
     } = useAnalyticsFilters()
+
+    const isSnapshotView = activeView === 'pipeline'
 
     const { data: stages } = usePipelineStages()
     const { data: phases } = usePipelinePhases()
@@ -158,8 +161,14 @@ export default function GlobalControls() {
             <div className="flex items-center gap-2 min-w-0">
             {/* Left: scrollable controls */}
             <div className="flex items-center gap-3 flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                {isSnapshotView && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200">
+                        <span className="text-xs font-semibold text-indigo-700">Pipeline Atual</span>
+                        <span className="text-[10px] text-indigo-500">Snapshot em tempo real</span>
+                    </div>
+                )}
                 {/* Analysis mode dropdown — 3 sections */}
-                <DropdownMenu>
+                {!isSnapshotView && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500">
                             <span className="max-w-[200px] truncate">{triggerLabel}</span>
@@ -240,8 +249,9 @@ export default function GlobalControls() {
                             Ganho Total
                         </DropdownMenuItem>
                     </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu>}
 
+                {!isSnapshotView && <>
                 {/* Granularity toggle */}
                 <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
                     {granularities.map((g) => (
@@ -295,6 +305,7 @@ export default function GlobalControls() {
                         </button>
                     ))}
                 </div>
+                </>}
             </div>{/* end left scrollable */}
 
                 {/* Right-side filters: Tags + Consultant + Product */}
