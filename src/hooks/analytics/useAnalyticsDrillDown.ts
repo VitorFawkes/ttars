@@ -18,6 +18,7 @@ export interface DrillDownContext {
     drillPeriodStart?: string
     drillPeriodEnd?: string
     drillDestino?: string
+    excludeTerminal?: boolean
 }
 
 export interface DrillDownCard {
@@ -91,7 +92,7 @@ export function useAnalyticsDrillDownQuery() {
             dateRange.start, dateRange.end, product, mode, stageId, ownerId,
             context?.drillSource, context?.drillStageId, context?.drillOwnerId,
             context?.drillLossReason, context?.drillStatus, context?.drillPhase,
-            context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino,
+            context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino, context?.excludeTerminal,
             sortBy, sortDir, page,
         ],
         queryFn: async () => {
@@ -112,6 +113,7 @@ export function useAnalyticsDrillDownQuery() {
                 p_drill_period_end: context?.drillPeriodEnd ?? null,
                 p_drill_source: context?.drillSource ?? 'default',
                 p_drill_destino: context?.drillDestino ?? null,
+                p_exclude_terminal: context?.excludeTerminal ?? false,
                 p_sort_by: sortBy,
                 p_sort_dir: sortDir,
                 p_limit: PAGE_SIZE,

@@ -549,15 +549,37 @@ function transformWorkflow(workflow) {
   // ---- 26. Remove nodes now handled by DB trigger ----
   removeRedundantNodes(w);
 
-  // ---- 27. Normalize AI models: all gpt-5.1, only OpenAI Formatter = gpt-5.1-nano ----
+  // ---- 27. Normalize AI models: all gpt-5.1, only OpenAI Formatter = gpt-5-nano ----
   for (const node of w.nodes) {
     if (node.type === '@n8n/n8n-nodes-langchain.lmChatOpenAi' && node.parameters?.model) {
-      const targetModel = node.name === 'OpenAI Formatter' ? 'gpt-5.1-nano' : 'gpt-5.1';
+      const isFormatter = node.name === 'OpenAI Formatter';
+      const targetModel = isFormatter ? 'gpt-5-nano' : 'gpt-5.1';
       if (typeof node.parameters.model === 'object') {
         node.parameters.model.value = targetModel;
         node.parameters.model.cachedResultName = targetModel;
       } else {
         node.parameters.model = targetModel;
+      }
+      // gpt-5-nano only supports default temperature (1)
+      if (isFormatter && node.parameters.options?.temperature !== undefined) {
+        delete node.parameters.options.temperature;
+      }
+    }
+  }
+
+  // ---- 27b. Fix gpt-5-nano parser leak in Format WhatsApp Messages ----
+  // gpt-5-nano sometimes includes the output parser schema instruction as a message.
+  // Fix: add explicit "NEVER include JSON Schema instructions" to the system message.
+  for (const node of w.nodes) {
+    if (node.name === 'Format WhatsApp Messages' && node.parameters?.messages?.messageValues) {
+      const msgs = node.parameters.messages.messageValues;
+      for (const msg of msgs) {
+        if (msg.message && msg.message.includes('splitedMessage')) {
+          msg.message = msg.message.replace(
+            'Certifique-se de que a resposta siga exatamente essa estrutura',
+            'IMPORTANTE: Retorne SOMENTE o JSON com as mensagens reais do atendente. NUNCA inclua instruções de schema, formatação JSON ou textos técnicos nas mensagens.\nCertifique-se de que a resposta siga exatamente essa estrutura'
+          );
+        }
       }
     }
   }

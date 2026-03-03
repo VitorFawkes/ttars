@@ -107,7 +107,7 @@ export default function FunnelView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={funnelLoading}
-                    onClick={() => drillDown.open({ label: 'Total no Funil', drillSource: 'stage_entries' })}
+                    onClick={() => drillDown.open({ label: 'Total no Funil', drillSource: 'stage_entries', excludeTerminal: true })}
                     clickHint="Ver todos os cards"
                 />
                 <KpiCard
@@ -184,7 +184,7 @@ export default function FunnelView() {
                                 }}
                             />
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <Bar dataKey="current_count" radius={[0, 6, 6, 0]} barSize={20} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: s.stage_nome, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }}>
+                            <Bar dataKey="current_count" radius={[0, 6, 6, 0]} barSize={20} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: s.stage_nome, drillStageId: s.stage_id, drillSource: 'stage_entries', excludeTerminal: true }) }}>
                                 <LabelList dataKey="current_count" position="right" fill="#64748b" fontSize={11} offset={8} />
                                 {stages.map((_, i) => (
                                     <Cell key={i} fill={FUNNEL_COLORS[i % FUNNEL_COLORS.length]} />
@@ -227,7 +227,7 @@ export default function FunnelView() {
                                     const rateColor = rate >= 70 ? 'text-green-600' : rate >= 40 ? 'text-amber-600' : 'text-rose-600'
 
                                     return (
-                                        <tr key={stage.stage_id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => drillDown.open({ label: `${conversionRates[i].stage_nome} → ${stage.stage_nome}`, drillStageId: stage.stage_id, drillSource: 'stage_entries' })}>
+                                        <tr key={stage.stage_id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => drillDown.open({ label: `${conversionRates[i].stage_nome} → ${stage.stage_nome}`, drillStageId: stage.stage_id, drillSource: 'stage_entries', excludeTerminal: true })}>
                                             <td className="px-6 py-3 text-slate-700 font-medium max-w-[180px] truncate">{conversionRates[i].stage_nome}</td>
                                             <td className="px-4 py-3 text-slate-600 max-w-[180px] truncate">{stage.stage_nome}</td>
                                             <td className="text-right px-4 py-3 text-slate-600">{prevCount}</td>
@@ -277,9 +277,9 @@ export default function FunnelView() {
                             />
                             <Tooltip content={<TimeTooltip />} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <Bar dataKey="avg_days_in_stage" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }} />
+                            <Bar dataKey="avg_days_in_stage" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries', excludeTerminal: true }) }} />
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <Bar dataKey="p75_days_in_stage" name="p75" barSize={12} radius={[0, 4, 4, 0]} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries' }) }}>
+                            <Bar dataKey="p75_days_in_stage" name="p75" barSize={12} radius={[0, 4, 4, 0]} cursor="pointer" onClick={(data: any) => { const s = data?.payload || data; if (s?.stage_id) drillDown.open({ label: `Velocidade — ${s.stage_nome}`, drillStageId: s.stage_id, drillSource: 'stage_entries', excludeTerminal: true }) }}>
                                 <LabelList
                                     dataKey="p75_days_in_stage"
                                     position="right"

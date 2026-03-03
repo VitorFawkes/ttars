@@ -222,6 +222,7 @@ export default function TeamView() {
                                             drillOwnerId: m.user_id,
                                             drillPhase: activeTab,
                                             drillSource: 'stage_entries',
+                                            excludeTerminal: true,
                                         })}
                                         onDoubleClick={() => toggleOwnerFilter(m.user_id)}
                                     />

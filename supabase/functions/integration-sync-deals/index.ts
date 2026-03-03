@@ -47,10 +47,10 @@ async function fetchDeals(
     }
 
     while (true) {
-        let url = `${baseUrl}/api/3/deals?filters[pipeline]=${pipelineId}&limit=${limit}&offset=${offset}&orders[cdate]=DESC&include=contact,contact.fieldValues`;
+        let url = `${baseUrl}/api/3/deals?filters[pipeline]=${pipelineId}&limit=${limit}&offset=${offset}&orders[cdate]=DESC&include=dealCustomFieldData,contact,contact.fieldValues`;
 
         if (dealId) {
-            url = `${baseUrl}/api/3/deals?filters[id]=${dealId}&include=contact,contact.fieldValues`;
+            url = `${baseUrl}/api/3/deals?filters[id]=${dealId}&include=dealCustomFieldData,contact,contact.fieldValues`;
         } else if (ownerId) {
             url += `&filters[owner]=${ownerId}`;
         }
@@ -78,9 +78,11 @@ async function fetchDeals(
         const deals = data.deals || [];
         const contacts = data.contacts || [];
         const fieldValues = data.fieldValues || [];
+        const dealCustomFieldData = data.dealCustomFieldData || [];
 
-        // Merge contact data into deals if side-loaded
+        // Merge contact data and deal custom fields into deals if side-loaded
         const enrichedDeals = deals.map((deal: any) => {
+            // Merge contact data
             if (deal.contact) {
                 const contactId = deal.contact; // often just an ID string
                 const contactObj = contacts.find((c: any) => c.id === contactId);
@@ -96,6 +98,17 @@ async function fetchDeals(
                     deal.contact = contactObj; // Replace ID with full object
                 }
             }
+
+            // Merge deal custom field data (side-loaded from AC API)
+            // AC returns: { deal_id, dealCustomFieldMetum (field ID), custom_field_text_value, ... }
+            const myDealFields = dealCustomFieldData.filter((dcf: any) => dcf.deal_id === deal.id || dcf.deal === deal.id);
+            if (myDealFields.length > 0) {
+                deal.customFieldData = myDealFields.map((dcf: any) => ({
+                    id: dcf.dealCustomFieldMetum || dcf.custom_field_id,
+                    value: dcf.custom_field_text_value || dcf.custom_field_number_value || dcf.custom_field_currency_value || dcf.custom_field_date_value || ''
+                })).filter((f: any) => f.value !== '' && f.value !== null);
+            }
+
             return deal;
         });
 
@@ -305,6 +318,14 @@ Deno.serve(async (req) => {
                     ...(deal.contact?.fields ? Object.entries(deal.contact.fields).reduce((acc, [k, v]) => ({
                         ...acc,
                         [`contact[fields][${k}]`]: v
+                    }), {}) : {}),
+                    // Flatten deal custom fields for mapping (from dealCustomFieldData side-load)
+                    // Format matches webhook format: deal[fields][INDEX][id] and deal[fields][INDEX][value]
+                    ...(deal.customFieldData ? deal.customFieldData.reduce((acc: Record<string, any>, cf: any, idx: number) => ({
+                        ...acc,
+                        [`deal[fields][${idx}][id]`]: cf.id,
+                        [`deal[fields][${idx}][value]`]: cf.value,
+                        [`deal[fields][${idx}][key]`]: `field_${cf.id}`
                     }), {}) : {}),
                     // AC deal dates (for correct created_at on cards)
                     cdate: deal.cdate,

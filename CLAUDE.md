@@ -211,6 +211,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 | create-n8n-briefing-ia.js | Cria workflow n8n "Briefing IA" (áudio consultor → Whisper → GPT-5.1 → campos CRM) |
 | create-n8n-chat-ia.js | Cria workflow n8n "Chat IA Conversas" (pergunta consultor → WhatsApp history → GPT-4.1-mini → resposta) |
 | create-n8n-meeting-invite.js | Cria workflow n8n "Meeting Invite" (email .ics via SMTP Office365) |
+| create-n8n-transcript-workflow.js | Cria workflow n8n "Transcrição Reunião" (texto reunião → GPT-5.1 → campos CRM + briefing) |
 
 ### Docs Extras (docs/)
 | Arquivo | O que faz |
@@ -225,6 +226,17 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 - **Frontend:** Botão "Briefing IA" em ActionButtons → BriefingIAModal → AudioRecorder (gravar/upload) → useBriefingIA hook
 - **Input:** Áudio base64 do consultor (max 10min, WebM/MP3/M4A/WAV)
 - **Output:** Briefing text + campos extraídos (destinos, orçamento, época, etc.)
+
+### Workflow n8n — Transcrição Reunião (Extração de Campos)
+- **Workflow ID:** `mhQgSQQ2MMk8KxPE`
+- **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/transcript-process`
+- **15 nós** — Pipeline: Webhook → Extrai Params → Busca Card → Busca Config → **Busca Visibilidade (stage_field_config)** → Monta Contexto (filtra campos ocultos) → AI Extrator (GPT-5.1 Agent) → Valida Output → If Tem Atualização → Busca produto_data → Merge Dados → Atualiza Card (RPC) → Atualiza Metadata Tarefa → Log Activity → Sucesso/Sem Atualização
+- **Reusa:** `get_ai_extraction_config()` e `update_card_from_ai_extraction()` (mesmos do Briefing IA)
+- **Frontend:** SmartTaskModal (ao completar reunião com transcrição + toggle "Processar com IA") + MeetingTimeline (reprocessar) + MeetingModal
+- **Input:** `{ card_id, meeting_id, transcription }` (texto, não áudio)
+- **Output:** `{ status: 'success'|'no_update', campos_extraidos: string[], campos_atualizados: {} }`
+- **Metadata:** Atualiza `tarefas.transcricao_metadata` com `{ processed_at, campos_extraidos[] }`
+- **Deploy:** `source .env && node scripts/create-n8n-transcript-workflow.js`
 
 ### Workflow n8n — Meeting Invite (Email .ics)
 - **Workflow ID:** `mBBtXxQnQqra5eoY`
