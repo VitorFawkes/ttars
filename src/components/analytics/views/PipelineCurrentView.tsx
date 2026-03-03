@@ -17,7 +17,6 @@ import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { usePipelineCurrent, type PipelineCurrentAging } from '@/hooks/analytics/usePipelineCurrent'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
-import { useProductContext } from '@/hooks/useProductContext'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
@@ -68,23 +67,20 @@ function agingCellColor(count: number): string {
 export default function PipelineCurrentView() {
     const navigate = useNavigate()
     const drillDown = useDrillDownStore()
-    const { setActiveView, setDatePreset, setProduct } = useAnalyticsFilters()
-    const { currentProduct } = useProductContext()
+    const { setActiveView, setDatePreset } = useAnalyticsFilters()
 
     const { data, isLoading, error, refetch } = usePipelineCurrent()
 
-    // Sync analytics product filter with global ProductSwitcher + hide date pickers
+    // Hide date pickers for this snapshot view
     useEffect(() => {
-        const prev = useAnalyticsFilters.getState()
+        const prevPreset = useAnalyticsFilters.getState().datePreset
         setActiveView('pipeline')
         setDatePreset('all_time')
-        setProduct(currentProduct)
         return () => {
             setActiveView('overview')
-            setDatePreset(prev.datePreset)
-            setProduct(prev.product)
+            setDatePreset(prevPreset)
         }
-    }, [setActiveView, setDatePreset, setProduct, currentProduct])
+    }, [setActiveView, setDatePreset])
 
     const kpis = data?.kpis || {
         total_open: 0, total_value: 0, avg_ticket: 0,

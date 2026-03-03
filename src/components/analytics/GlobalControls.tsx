@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, Filter, ChevronDown, Check, User, Tag } from 'lucide-react'
+import { Calendar, ChevronDown, Check, User, Tag } from 'lucide-react'
 import { useAnalyticsFilters, type AnalysisMode, type DatePreset, type Granularity } from '@/hooks/analytics/useAnalyticsFilters'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
@@ -31,13 +31,6 @@ const granularities: { value: Granularity; label: string }[] = [
     { value: 'month', label: 'Mês' },
 ]
 
-const products = [
-    { value: 'ALL', label: 'Todos' },
-    { value: 'TRIPS', label: 'Trips' },
-    { value: 'WEDDING', label: 'Wedding' },
-    { value: 'CORP', label: 'Corp' },
-] as const
-
 function useConsultants() {
     return useQuery({
         queryKey: ['analytics', 'consultants-list'],
@@ -59,7 +52,6 @@ export default function GlobalControls() {
         datePreset,
         dateRange,
         granularity,
-        product,
         mode,
         stageId,
         ownerIds,
@@ -68,7 +60,6 @@ export default function GlobalControls() {
         setDatePreset,
         setDateRange,
         setGranularity,
-        setProduct,
         setModeWithStage,
         setOwnerIds,
         toggleOwnerId,
@@ -414,24 +405,6 @@ export default function GlobalControls() {
                     </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Product filter */}
-                <div className="flex items-center gap-1 pl-1 border-l border-slate-200">
-                    <Filter className="w-3.5 h-3.5 text-slate-400" />
-                    {products.map((p) => (
-                        <button
-                            key={p.value}
-                            onClick={() => setProduct(p.value)}
-                            className={cn(
-                                'px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors',
-                                product === p.value
-                                    ? 'bg-indigo-100 text-indigo-700'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                            )}
-                        >
-                            {p.label}
-                        </button>
-                    ))}
-                </div>
                 </div>
             </div>
         </div>
