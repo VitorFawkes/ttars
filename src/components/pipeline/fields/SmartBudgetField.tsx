@@ -226,7 +226,7 @@ export default function SmartBudgetField({
         return (
             <FieldWrapper label={label} required={required} helpText={helpText}>
                 {parsed?.display ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-900">
+                    <div className="flex items-center gap-2 text-xs text-gray-900">
                         <DollarSign className="h-4 w-4 text-gray-400" />
                         <span className="font-medium">{parsed.display}</span>
                     </div>
@@ -246,7 +246,7 @@ export default function SmartBudgetField({
                 {quantidadeViajantes > 0 && (
                     <div className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
                         <Users className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm text-blue-800">
+                        <span className="text-xs text-blue-800">
                             <strong>{quantidadeViajantes}</strong> {quantidadeViajantes === 1 ? 'viajante' : 'viajantes'}
                         </span>
                     </div>
@@ -260,7 +260,7 @@ export default function SmartBudgetField({
                         className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                         <div className="text-left">
-                            <div className="text-sm font-medium text-gray-900">{selectedTipo?.label}</div>
+                            <div className="text-xs font-medium text-gray-900">{selectedTipo?.label}</div>
                             <div className="text-xs text-gray-500">{selectedTipo?.description}</div>
                         </div>
                         <ChevronDown className={cn(
@@ -282,7 +282,7 @@ export default function SmartBudgetField({
                                     )}
                                 >
                                     <div className="text-left">
-                                        <div className="text-sm font-medium text-gray-900">{tipo.label}</div>
+                                        <div className="text-xs font-medium text-gray-900">{tipo.label}</div>
                                         <div className="text-xs text-gray-500">{tipo.description}</div>
                                     </div>
                                     {localData.tipo === tipo.value && (
@@ -301,7 +301,7 @@ export default function SmartBudgetField({
                             {localData.tipo === 'total' ? 'Valor total' : 'Valor por pessoa'}
                         </label>
                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-sm">R$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-xs">R$</span>
                             <input
                                 type="number"
                                 min="0"
@@ -309,7 +309,7 @@ export default function SmartBudgetField({
                                 value={localData.valor || ''}
                                 onChange={(e) => handleValueChange(parseFloat(e.target.value) || 0)}
                                 onBlur={() => onSave?.()}
-                                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base font-semibold"
+                                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-semibold"
                                 placeholder="0"
                             />
                         </div>
@@ -323,7 +323,7 @@ export default function SmartBudgetField({
                             <div>
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Mínimo</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">R$</span>
                                     <input
                                         type="number"
                                         min="0"
@@ -331,7 +331,7 @@ export default function SmartBudgetField({
                                         value={localData.valor_min || ''}
                                         onChange={(e) => handleRangeChange('valor_min', parseFloat(e.target.value) || 0)}
                                         onBlur={() => onSave?.()}
-                                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-medium"
+                                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-xs font-medium"
                                         placeholder="10000"
                                     />
                                 </div>
@@ -339,7 +339,7 @@ export default function SmartBudgetField({
                             <div>
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Máximo</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">R$</span>
                                     <input
                                         type="number"
                                         min="0"
@@ -347,7 +347,7 @@ export default function SmartBudgetField({
                                         value={localData.valor_max || ''}
                                         onChange={(e) => handleRangeChange('valor_max', parseFloat(e.target.value) || 0)}
                                         onBlur={() => onSave?.()}
-                                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-medium"
+                                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-xs font-medium"
                                         placeholder="15000"
                                     />
                                 </div>
@@ -361,10 +361,10 @@ export default function SmartBudgetField({
                     <div className="p-3 bg-green-50 rounded-lg border border-green-100">
                         <div className="flex items-center gap-2 mb-1.5">
                             <Calculator className="h-3.5 w-3.5 text-green-600" />
-                            <span className="text-sm font-bold text-green-900">Resumo</span>
+                            <span className="text-xs font-bold text-green-900">Resumo</span>
                         </div>
 
-                        <div className="text-base font-bold text-green-800 mb-1.5">
+                        <div className="text-sm font-bold text-green-800 mb-1">
                             {localData.display}
                         </div>
 

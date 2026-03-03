@@ -61,7 +61,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
 
     return (
         <div className="rounded-lg border bg-white p-3 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Pessoas</h3>
+            <h3 className="text-xs font-semibold text-gray-900 mb-2">Pessoas</h3>
 
             <div className="space-y-2.5">
                 {/* Primary Contact */}
@@ -69,11 +69,11 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                     <div className="group relative bg-gray-50 rounded-lg p-2.5 border border-gray-100 hover:border-indigo-100 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 rounded-full bg-white border border-gray-300 flex items-center justify-center text-indigo-600 font-semibold text-sm shadow-sm">
+                                <div className="h-8 w-8 rounded-full bg-white border border-gray-300 flex items-center justify-center text-indigo-600 font-semibold text-xs shadow-sm">
                                     {getContactInitials(primary || {})}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-900">
+                                    <p className="text-xs font-semibold text-gray-900">
                                         {displayNome}
                                     </p>
                                     <p className="text-xs text-gray-500">Contato Principal</p>
@@ -118,7 +118,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                         <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center mb-1.5 group-hover:bg-white group-hover:shadow-sm transition-all">
                             <Plus className="h-4 w-4 text-gray-400 group-hover:text-indigo-600" />
                         </div>
-                        <p className="text-sm font-medium text-gray-600 group-hover:text-indigo-700">Definir Contato Principal</p>
+                        <p className="text-xs font-medium text-gray-600 group-hover:text-indigo-700">Definir Contato Principal</p>
                         <p className="text-xs text-gray-400 group-hover:text-indigo-500/70">Quem negocia/paga pela viagem</p>
                     </button>
                 )}

@@ -294,7 +294,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         <XCircle className={`w-5 h-5 ${outcomeResult === outcome.outcome_key ? 'text-indigo-600' : 'text-gray-500'}`} />
                     )}
                 </div>
-                <span className="font-medium text-sm">{outcome.outcome_label}</span>
+                <span className="font-medium text-xs">{outcome.outcome_label}</span>
                 {outcomeResult === outcome.outcome_key && (
                     <div className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
                 )}
@@ -305,7 +305,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
             <div className="px-3 py-2 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-gray-500" />
                     Agenda & Tarefas
                     {tasks && tasks.length > 0 && (
@@ -358,7 +358,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         <div className="w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
                             <CheckCircle2 className="w-5 h-5 text-gray-300" />
                         </div>
-                        <p className="text-sm font-medium text-gray-900">Tudo em dia!</p>
+                        <p className="text-xs font-medium text-gray-900">Tudo em dia!</p>
                         <p className="text-xs text-gray-500 mt-1">Nenhuma tarefa pendente para este card.</p>
                         <button
                             onClick={() => { setEditingTask(null); setModalMode('create'); setIsModalOpen(true); }}
@@ -398,7 +398,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className={`text-sm font-medium text-gray-900 truncate pr-2 ${task.concluida && !isRescheduled(task) ? 'line-through text-gray-500' : ''}`}>
+                                            <p className={`text-xs font-medium text-gray-900 truncate pr-2 ${task.concluida && !isRescheduled(task) ? 'line-through text-gray-500' : ''}`}>
                                                 {task.titulo}
                                             </p>
                                             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex-shrink-0 capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>
@@ -554,7 +554,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                 <DialogContent className="sm:max-w-[500px] p-0 gap-0 max-h-[85vh] flex flex-col">
                     <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-50 bg-gray-50/30 flex-shrink-0">
                         <DialogTitle className="text-xl font-semibold text-gray-900">Como foi essa tarefa?</DialogTitle>
-                        <p className="text-sm text-gray-500 mt-1">Registre o resultado para manter o histórico atualizado.</p>
+                        <p className="text-xs text-gray-500 mt-1">Registre o resultado para manter o histórico atualizado.</p>
                     </DialogHeader>
 
                     <div className="p-6 space-y-6 overflow-y-auto max-h-[50vh]">

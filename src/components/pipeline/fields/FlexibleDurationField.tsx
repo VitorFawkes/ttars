@@ -122,7 +122,7 @@ export default function FlexibleDurationField({
         return (
             <FieldWrapper label={label} required={required} helpText={helpText}>
                 {value?.display ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-900">
+                    <div className="flex items-center gap-2 text-xs text-gray-900">
                         <Clock className="h-4 w-4 text-gray-400" />
                         <span>{value.display}</span>
                     </div>
@@ -177,9 +177,9 @@ export default function FlexibleDurationField({
                             onChange={(e) => handleMinChange(e.target.value)}
                             onBlur={() => onSave?.()}
                             placeholder="7"
-                            className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                             dias
                         </span>
                     </div>
@@ -198,7 +198,7 @@ export default function FlexibleDurationField({
                                     onChange={(e) => handleMinChange(e.target.value)}
                                     onBlur={() => onSave?.()}
                                     placeholder="7"
-                                    className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                                     dias
@@ -216,7 +216,7 @@ export default function FlexibleDurationField({
                                     onChange={(e) => handleMaxChange(e.target.value)}
                                     onBlur={() => onSave?.()}
                                     placeholder="10"
-                                    className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                                     dias
@@ -230,7 +230,7 @@ export default function FlexibleDurationField({
                 {!isIndefinido && typeof diasMin === 'number' && diasMin > 0 && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-lg border border-purple-100">
                         <Clock className="h-3.5 w-3.5 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-900">
+                        <span className="text-xs font-medium text-purple-900">
                             {buildDisplay(diasMin, tipo === 'range' && typeof diasMax === 'number' ? diasMax : diasMin)}
                         </span>
                     </div>
@@ -244,7 +244,7 @@ export default function FlexibleDurationField({
                         onChange={() => handleTipoChange(isIndefinido ? 'fixo' : 'indefinido')}
                         className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
-                    <span className="text-sm text-gray-600">Não definiu ainda</span>
+                    <span className="text-xs text-gray-600">Não definiu ainda</span>
                 </label>
             </div>
         </FieldWrapper>

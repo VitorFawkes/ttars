@@ -363,7 +363,7 @@ export default function UniversalFieldRenderer({
                                             updateValue(newSelected, newExplanations)
                                         }}
                                         className={cn(
-                                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200",
+                                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200",
                                             "border-2 hover:scale-105 active:scale-95",
                                             isSelected
                                                 ? `${colors.selectedBg} ${colors.selectedText} border-transparent shadow-sm`
@@ -444,7 +444,7 @@ export default function UniversalFieldRenderer({
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">Marque os itens aplicáveis:</label>
                         <div className="space-y-2 bg-gray-50/50 p-3 rounded-lg border border-gray-200">
                             {options.length === 0 ? (
-                                <p className="text-sm text-gray-400 italic">Nenhuma opção configurada.</p>
+                                <p className="text-xs text-gray-400 italic">Nenhuma opção configurada.</p>
                             ) : (
                                 options.map((opt: any, idx: number) => {
                                     const optValue = typeof opt === 'object' ? opt.value : opt
@@ -584,7 +584,7 @@ export default function UniversalFieldRenderer({
                                 type="number"
                                 value={value || ''}
                                 onChange={(e) => onChange?.(parseFloat(e.target.value) || 0)}
-                                className="pl-12 text-sm font-semibold"
+                                className="pl-12 text-xs font-semibold"
                                 placeholder="0,00"
                             />
                         </div>
@@ -599,7 +599,7 @@ export default function UniversalFieldRenderer({
                             <div className="flex-1">
                                 <label className="text-xs font-medium text-gray-500 mb-0.5 block">Mínimo</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">R$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-medium">R$</span>
                                     <Input
                                         type="number"
                                         value={currencyRangeValue?.min ?? ''}
@@ -613,7 +613,7 @@ export default function UniversalFieldRenderer({
                             <div className="flex-1">
                                 <label className="text-xs font-medium text-gray-500 mb-0.5 block">Máximo</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">R$</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-medium">R$</span>
                                     <Input
                                         type="number"
                                         value={currencyRangeValue?.max ?? ''}

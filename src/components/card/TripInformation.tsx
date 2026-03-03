@@ -172,7 +172,7 @@ function FieldCard({ icon: Icon, iconColor, label, value }: FieldCardProps) {
                 </div>
                 <span className="text-[11px] font-medium text-gray-500 uppercase">{label}</span>
             </div>
-            <div className="text-sm font-medium text-gray-900 pl-5">
+            <div className="text-xs font-medium text-gray-900 pl-5">
                 {value || '-'}
             </div>
         </div>
@@ -424,7 +424,7 @@ export default function TripInformation({ card }: TripInformationProps) {
             {/* VIEW SWITCHER */}
             <div className="border-b border-gray-200 bg-gray-50/50 px-3 pt-2">
                 <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-2">
                         Informações da Viagem
                     </h3>
 
@@ -566,7 +566,7 @@ export default function TripInformation({ card }: TripInformationProps) {
                 isCorrection={correctionMode}
             >
                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">Qual o motivo desta viagem?</label>
+                    <label className="block text-xs font-medium text-gray-700">Qual o motivo desta viagem?</label>
                     <Input
                         type="text"
                         value={editedData.motivo || ''}
@@ -585,10 +585,10 @@ export default function TripInformation({ card }: TripInformationProps) {
                 isCorrection={correctionMode}
             >
                 <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700">Quais destinos estão sendo considerados?</label>
+                    <label className="block text-xs font-medium text-gray-700">Quais destinos estão sendo considerados?</label>
                     <div className="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-lg shadow-sm bg-white min-h-[100px] content-start">
                         {editedData.destinos?.map((dest, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+                            <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">
                                 <MapPin className="h-3 w-3" /> {dest}
                                 <button
                                     type="button"
@@ -619,7 +619,7 @@ export default function TripInformation({ card }: TripInformationProps) {
                                     }
                                 }
                             }}
-                            className="flex-1 min-w-[120px] border-none shadow-none focus-visible:ring-0 p-1 text-base bg-transparent h-auto"
+                            className="flex-1 min-w-[120px] border-none shadow-none focus-visible:ring-0 p-1 text-sm bg-transparent h-auto"
                             placeholder={editedData.destinos?.length ? "" : "Digite um destino..."}
                             autoFocus
                         />
@@ -684,14 +684,14 @@ export default function TripInformation({ card }: TripInformationProps) {
                             }}
                         />
                         <div className="flex-1">
-                            <p className="text-sm font-bold text-indigo-900">É Cortesia?</p>
+                            <p className="text-xs font-bold text-indigo-900">É Cortesia?</p>
                             <p className="text-xs text-indigo-700">Marque se não haverá cobrança de taxa.</p>
                         </div>
                     </div>
 
                     {editedData.taxa_planejamento !== 'Cortesia' && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Valor da Taxa (R$)</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-2">Valor da Taxa (R$)</label>
                             <div className="relative">
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
                                 <Input
@@ -701,7 +701,7 @@ export default function TripInformation({ card }: TripInformationProps) {
                                         ...editedData,
                                         taxa_planejamento: parseFloat(e.target.value) || 0
                                     })}
-                                    className="pl-12 text-lg font-semibold"
+                                    className="pl-12 text-sm font-semibold"
                                     placeholder="0,00"
                                     autoFocus
                                 />

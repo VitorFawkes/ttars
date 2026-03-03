@@ -177,7 +177,7 @@ export default function FlexibleDateField({
         return (
             <FieldWrapper label={label} required={required} helpText={helpText}>
                 {parsed?.display ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-900">
+                    <div className="flex items-center gap-2 text-xs text-gray-900">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <span>{parsed.display}</span>
                         {parsed.flexivel && (
@@ -207,7 +207,7 @@ export default function FlexibleDateField({
                         className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                         <div className="text-left">
-                            <div className="text-sm font-medium text-gray-900">{selectedTipo?.label}</div>
+                            <div className="text-xs font-medium text-gray-900">{selectedTipo?.label}</div>
                             <div className="text-xs text-gray-500">{selectedTipo?.description}</div>
                         </div>
                         <ChevronDown className={cn(
@@ -229,7 +229,7 @@ export default function FlexibleDateField({
                                     )}
                                 >
                                     <div className="text-left">
-                                        <div className="text-sm font-medium text-gray-900">{tipo.label}</div>
+                                        <div className="text-xs font-medium text-gray-900">{tipo.label}</div>
                                         <div className="text-xs text-gray-500">{tipo.description}</div>
                                     </div>
                                     {localData.tipo === tipo.value && (
@@ -253,7 +253,7 @@ export default function FlexibleDateField({
                                     updateData({ mes_inicio: mes, mes_fim: mes })
                                 }}
                                 onBlur={() => onSave?.()}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
                             >
                                 <option value="">Selecione...</option>
                                 {MESES.map(m => (
@@ -267,7 +267,7 @@ export default function FlexibleDateField({
                                 value={localData.ano || ''}
                                 onChange={(e) => updateData({ ano: parseInt(e.target.value) })}
                                 onBlur={() => onSave?.()}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
                             >
                                 {years.map(y => (
                                     <option key={y.value} value={y.value}>{y.label}</option>
@@ -286,7 +286,7 @@ export default function FlexibleDateField({
                                     value={localData.mes_inicio || ''}
                                     onChange={(e) => updateData({ mes_inicio: parseInt(e.target.value) })}
                                     onBlur={() => onSave?.()}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
                                 >
                                     <option value="">Selecione...</option>
                                     {MESES.map(m => (
@@ -300,7 +300,7 @@ export default function FlexibleDateField({
                                     value={localData.mes_fim || ''}
                                     onChange={(e) => updateData({ mes_fim: parseInt(e.target.value) })}
                                     onBlur={() => onSave?.()}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
                                 >
                                     <option value="">Selecione...</option>
                                     {MESES.map(m => (
@@ -315,7 +315,7 @@ export default function FlexibleDateField({
                                 value={localData.ano || ''}
                                 onChange={(e) => updateData({ ano: parseInt(e.target.value) })}
                                 onBlur={() => onSave?.()}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs bg-white"
                             >
                                 {years.map(y => (
                                     <option key={y.value} value={y.value}>{y.label}</option>
@@ -342,7 +342,7 @@ export default function FlexibleDateField({
                                     })
                                 }}
                                 onBlur={() => onSave?.()}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs"
                             />
                         </div>
                         <div>
@@ -359,7 +359,7 @@ export default function FlexibleDateField({
                                     })
                                 }}
                                 onBlur={() => onSave?.()}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs"
                             />
                         </div>
                     </div>
@@ -367,7 +367,7 @@ export default function FlexibleDateField({
 
                 {localData.tipo === 'indefinido' && (
                     <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-600 text-center">
+                        <p className="text-xs text-gray-600 text-center">
                             O cliente ainda não definiu a época da viagem
                         </p>
                     </div>
@@ -383,7 +383,7 @@ export default function FlexibleDateField({
                             className="h-4 w-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500"
                         />
                         <div>
-                            <span className="text-sm font-medium text-amber-900">Datas flexíveis</span>
+                            <span className="text-xs font-medium text-amber-900">Datas flexíveis</span>
                             <p className="text-xs text-amber-700">Cliente pode ajustar as datas se necessário</p>
                         </div>
                     </label>
@@ -394,7 +394,7 @@ export default function FlexibleDateField({
                     <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
                         <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-indigo-600" />
-                            <span className="text-sm font-medium text-indigo-900">{localData.display}</span>
+                            <span className="text-xs font-medium text-indigo-900">{localData.display}</span>
                             {localData.flexivel && (
                                 <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
                                     Flexível
