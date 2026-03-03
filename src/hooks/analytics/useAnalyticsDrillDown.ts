@@ -84,12 +84,12 @@ const PAGE_SIZE = 50
 
 export function useAnalyticsDrillDownQuery() {
     const { isOpen, context, page, sortBy, sortDir } = useDrillDownStore()
-    const { dateRange, product, mode, stageId, ownerId } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerId, ownerIds, tagIds } = useAnalyticsFilters()
 
     return useQuery({
         queryKey: [
             'analytics', 'drill-down',
-            dateRange.start, dateRange.end, product, mode, stageId, ownerId,
+            dateRange.start, dateRange.end, product, mode, stageId, ownerId, ownerIds, tagIds,
             context?.drillSource, context?.drillStageId, context?.drillOwnerId,
             context?.drillLossReason, context?.drillStatus, context?.drillPhase,
             context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino, context?.excludeTerminal,
@@ -118,6 +118,8 @@ export function useAnalyticsDrillDownQuery() {
                 p_sort_dir: sortDir,
                 p_limit: PAGE_SIZE,
                 p_offset: page * PAGE_SIZE,
+                p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
             })
             if (error) throw error
             const rows = (data as unknown as DrillDownCard[]) || []
