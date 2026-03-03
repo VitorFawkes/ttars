@@ -35,6 +35,8 @@ interface WhatsAppMessage {
     media_url: string | null;
     media_content: string | null;
     status: string | null;
+    has_error: boolean | null;
+    error_message: string | null;
     created_at: string | null;
     sent_by_user_name: string | null;
     fase_label: string | null;
@@ -114,6 +116,13 @@ function groupMessagesByDate(messages: WhatsAppMessage[]) {
 function getStatusIcon(message: WhatsAppMessage) {
     if (!message.is_from_me) return null;
 
+    if (message.status === 'failed' || message.has_error) {
+        return (
+            <span title={message.error_message || 'Falha no envio'}>
+                <AlertCircle className="w-3 h-3 text-red-400" />
+            </span>
+        );
+    }
     if (message.status === 'read') {
         return <CheckCheck className="w-3 h-3 text-blue-500" />;
     }
@@ -375,6 +384,19 @@ function MessageBubble({ message }: { message: WhatsAppMessage }) {
                     </div>
                 )}
 
+                {/* Error banner for failed messages */}
+                {(message.status === 'failed' || message.has_error) && (
+                    <div className={cn(
+                        "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded mt-1",
+                        message.is_from_me
+                            ? "bg-red-600/30 text-red-100"
+                            : "bg-red-50 text-red-600 border border-red-200"
+                    )}>
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{message.error_message || 'Falha no envio da mensagem'}</span>
+                    </div>
+                )}
+
                 {/* Footer: Time + Status */}
                 <div className={cn(
                     "flex items-center gap-1 justify-end text-[10px]",
@@ -414,7 +436,7 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
             const { data, error } = await (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('whatsapp_messages') as any)
-                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, created_at, sent_by_user_name, fase_label')
+                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label')
                 .eq('contact_id', contactId)
                 .order('created_at', { ascending: true })
                 .limit(200);
