@@ -245,6 +245,52 @@ Deno.serve(async (req) => {
                 case 'field_update': {
                     endpoint = `/api/3/deals/${event.external_id}`;
 
+                    // ── _observacoes_note: sync observações via AC Notes API ──
+                    const obsNote = (event.payload as Record<string, unknown>)?._observacoes_note as
+                        { sdr?: Record<string, unknown>; planner?: Record<string, unknown>; pos_venda?: Record<string, unknown> } | undefined;
+
+                    if (obsNote && event.external_id) {
+                        try {
+                            const sections: string[] = [];
+                            const formatSection = (title: string, data: Record<string, unknown> | undefined) => {
+                                if (!data || Object.keys(data).length === 0) return;
+                                const lines = Object.entries(data)
+                                    .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+                                    .map(([k, v]) => `• ${k.replace(/_/g, ' ')}: ${String(v)}`);
+                                if (lines.length > 0) {
+                                    sections.push(`── ${title} ──\n${lines.join('\n')}`);
+                                }
+                            };
+                            formatSection('SDR / Briefing', obsNote.sdr);
+                            formatSection('Planner / Observações Críticas', obsNote.planner);
+                            formatSection('Pós-Venda', obsNote.pos_venda);
+
+                            if (sections.length > 0) {
+                                const noteBody = `[CRM Observações — ${new Date().toLocaleDateString('pt-BR')}]\n\n${sections.join('\n\n')}`;
+
+                                const noteRes = await fetch(`${acApiUrl}/api/3/notes`, {
+                                    method: 'POST',
+                                    headers: { 'Api-Token': acApiKey, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        note: {
+                                            note: noteBody,
+                                            relid: Number(event.external_id),
+                                            reltype: 'deal',
+                                        }
+                                    })
+                                });
+
+                                if (noteRes.ok) {
+                                    console.log(`[integration-dispatch] Note synced for deal ${event.external_id}`);
+                                } else {
+                                    console.warn(`[integration-dispatch] Note API failed: ${noteRes.status} ${await noteRes.text()}`);
+                                }
+                            }
+                        } catch (noteErr) {
+                            console.warn(`[integration-dispatch] Note sync error:`, noteErr);
+                        }
+                    }
+
                     // Translate CRM field names → AC field IDs using integration_outbound_field_map
                     const standardFields: Record<string, unknown> = {};
                     const customFields: Array<{ customFieldId: number; fieldValue: string }> = [];
@@ -254,7 +300,7 @@ Deno.serve(async (req) => {
                     // e.g. observacoes: { o_que_e_importante: "..." } → o_que_e_importante: "..."
                     const flatPayload: Record<string, unknown> = {};
                     for (const [key, val] of Object.entries(event.payload || {})) {
-                        if (METADATA_FIELDS.has(key)) continue;
+                        if (METADATA_FIELDS.has(key) || key === '_observacoes_note') continue;
                         if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
                             // Keep the key itself if it has a mapping (e.g. orcamento → deal[value])
                             if (fieldMapLookup.has(key)) {
@@ -326,11 +372,25 @@ Deno.serve(async (req) => {
                                     continue;
                                 }
                                 // Arrays (e.g. destinos: ["Japão", "Brasil"]) → comma-separated string
+                                // Rich objects: extract best value for AC field type
+                                //   - DuracaoViagem (dias_max) → number for AC number fields
+                                //   - Other objects with display → human-readable string
                                 let fieldValue: string;
                                 if (Array.isArray(value)) {
                                     fieldValue = value.join(', ');
                                 } else if (value !== null && typeof value === 'object') {
-                                    fieldValue = JSON.stringify(value);
+                                    const obj = value as Record<string, unknown>;
+                                    if (typeof obj.dias_max === 'number') {
+                                        // DuracaoViagem (fixo/range) → send max days (AC number field)
+                                        fieldValue = String(obj.dias_max);
+                                    } else if (obj.tipo === 'indefinido' || obj.tipo === 'fixo' || obj.tipo === 'range') {
+                                        // DuracaoViagem without numeric value (indefinido) → clear AC field
+                                        fieldValue = '';
+                                    } else if (typeof obj.display === 'string' && obj.display) {
+                                        fieldValue = obj.display;
+                                    } else {
+                                        fieldValue = JSON.stringify(value);
+                                    }
                                 } else {
                                     fieldValue = String(value ?? '');
                                 }
@@ -350,11 +410,14 @@ Deno.serve(async (req) => {
 
                     // Only send if we have actual fields to update
                     if (Object.keys(standardFields).length === 0 && customFields.length === 0) {
-                        console.warn(`[integration-dispatch] No mapped fields for event ${event.id}, skipping`);
+                        const logMsg = obsNote
+                            ? `Note-only sync (no deal fields to update)`
+                            : `Skipped: No mapped fields (unmapped: ${skippedFields.join(', ')})`;
+                        console.log(`[integration-dispatch] ${logMsg} for event ${event.id}`);
                         await supabase.from('integration_outbound_queue').update({
                             status: 'sent',
                             processed_at: new Date().toISOString(),
-                            processing_log: `Skipped: No mapped fields (unmapped: ${skippedFields.join(', ')})`
+                            processing_log: logMsg
                         }).eq('id', event.id);
                         results.push({ id: event.id, status: 'sent' });
                         continue;
