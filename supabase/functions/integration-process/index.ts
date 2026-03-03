@@ -860,7 +860,14 @@ Deno.serve(async (req) => {
                 // 3.5 Prepare DB Payload
                 const dealId = payload.id || payload['deal[id]'] || payload.deal_id;
                 const title = payload.title || payload['deal[title]'] || 'Sem Título';
-                const value = parseFloat(payload.value || payload['deal[value]'] || '0');
+                // AC webhooks send deal[value] formatted with commas ("10,000.00")
+                // and deal[value_raw] as clean numeric ("10000").
+                // parseFloat("10,000.00") = 10 (stops at comma!) — use value_raw first.
+                const rawValue = payload['deal[value_raw]'] || payload.value_raw;
+                const formattedValue = payload.value || payload['deal[value]'] || '0';
+                const value = rawValue
+                    ? parseFloat(String(rawValue))
+                    : parseFloat(String(formattedValue).replace(/,/g, ''));
                 const status = mapStatus(payload.status || payload['deal[status]']);
 
                 const contactEmail = payload.contact_email || payload['deal[contact_email]'] || payload.email;
