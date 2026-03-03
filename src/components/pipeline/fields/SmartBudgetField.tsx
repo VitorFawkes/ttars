@@ -309,7 +309,7 @@ export default function SmartBudgetField({
                                 value={localData.valor || ''}
                                 onChange={(e) => handleValueChange(parseFloat(e.target.value) || 0)}
                                 onBlur={() => onSave?.()}
-                                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-semibold"
+                                className="w-full pl-10 pr-3 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-xs font-semibold"
                                 placeholder="0"
                             />
                         </div>
@@ -364,7 +364,7 @@ export default function SmartBudgetField({
                             <span className="text-xs font-bold text-green-900">Resumo</span>
                         </div>
 
-                        <div className="text-sm font-bold text-green-800 mb-1">
+                        <div className="text-xs font-bold text-green-800 mb-1">
                             {localData.display}
                         </div>
 

@@ -423,7 +423,7 @@ export default function TripInformation({ card }: TripInformationProps) {
 
             {/* VIEW SWITCHER */}
             <div className="border-b border-gray-200 bg-gray-50/50 px-3 pt-2">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                     <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-2">
                         Informações da Viagem
                     </h3>
@@ -490,13 +490,13 @@ export default function TripInformation({ card }: TripInformationProps) {
 
             {/* CONTENT AREA */}
             <div className={cn(
-                "p-3",
+                "p-2",
                 correctionMode && "bg-[#fffbf7]"
             )}>
 
                 {/* DYNAMIC WATERFALL VIEW (SDR, PLANNER, POS_VENDA, etc) */}
                 {(viewMode === SystemPhase.SDR || viewMode === SystemPhase.PLANNER || viewMode === SystemPhase.POS_VENDA || phases?.some(p => p.slug === viewMode)) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {visibleFields.length === 0 && (
                             <div className="col-span-full text-center py-8 text-gray-500 italic">
                                 Nenhum campo configurado para esta fase.
@@ -529,7 +529,7 @@ export default function TripInformation({ card }: TripInformationProps) {
 
                 {/* DYNAMIC PHASES VIEW (Generic Render) */}
                 {!['sdr', 'planner', 'pos_venda', 'marketing'].includes(viewMode) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {/* Render ALL visible fields for this dynamic phase */}
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         {getVisibleFields(card.pipeline_stage_id!).map((field: any) => (

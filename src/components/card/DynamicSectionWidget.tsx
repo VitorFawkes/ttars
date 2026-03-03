@@ -204,7 +204,7 @@ export default function DynamicSectionWidget({
                 <div className="border-b border-gray-200 bg-gray-50/50 px-3 py-2">
                     <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
                 </div>
-                <div className="p-3 space-y-2">
+                <div className="p-2 space-y-1.5">
                     <div className="h-8 bg-gray-100 rounded animate-pulse"></div>
                     <div className="h-8 bg-gray-100 rounded animate-pulse"></div>
                 </div>
@@ -228,7 +228,7 @@ export default function DynamicSectionWidget({
             className
         )}>
             {/* Header */}
-            <div className="border-b border-gray-200 bg-gray-50/50 px-3 py-2">
+            <div className="border-b border-gray-200 bg-gray-50/50 px-3 py-1.5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className={cn("p-1 rounded-lg", iconBgClass)}>
@@ -267,8 +267,8 @@ export default function DynamicSectionWidget({
             </div>
 
             {/* Content */}
-            <div className="p-3" onKeyDown={handleKeyDown}>
-                <div className="space-y-2">
+            <div className="p-2" onKeyDown={handleKeyDown}>
+                <div className="space-y-1.5">
                     {fields.map((field) => {
                         const blocking = isFieldBlocking(field.key)
                         return (

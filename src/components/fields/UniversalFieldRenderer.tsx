@@ -284,7 +284,7 @@ export default function UniversalFieldRenderer({
                     <Textarea
                         value={value || ''}
                         onChange={(e) => onChange?.(e.target.value)}
-                        className="min-h-[80px] bg-white border border-gray-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 transition-colors"
+                        className="min-h-[60px] bg-white border border-gray-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 transition-colors"
                         placeholder={field.label || ''}
                     />
                 )

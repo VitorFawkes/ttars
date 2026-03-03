@@ -298,16 +298,16 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
 
     if (isLoading) {
         return (
-            <div className="rounded-lg border bg-white p-3 shadow-sm">
-                <h3 className="text-xs font-semibold text-gray-900 mb-2">Atividades</h3>
+            <div className="rounded-lg border bg-white p-2.5 shadow-sm">
+                <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Atividades</h3>
                 <p className="text-xs text-gray-500">Carregando...</p>
             </div>
         )
     }
 
     return (
-        <div className="rounded-lg border bg-white p-3 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-900 mb-2">Atividades</h3>
+        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
+            <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Atividades</h3>
 
             {activities && activities.length > 0 ? (
                 <div className="space-y-2">

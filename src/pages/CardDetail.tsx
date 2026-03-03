@@ -124,9 +124,9 @@ export default function CardDetail() {
             </div>
 
             {/* 2-Column Layout: Work Area + Context/Accountability */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 p-4">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3 p-3 pt-2">
                 {/* CENTER COLUMN - Work Area (What to do) */}
-                <div className="min-h-0 overflow-y-auto space-y-3 pr-2 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
+                <div className="min-h-0 overflow-y-auto space-y-1.5 pr-2 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
                     {/* Sub-Card Parent Banner (if this is a sub-card) */}
                     {isSubCard && parentCard && subCardMode && (
                         <SubCardParentBanner
@@ -146,7 +146,7 @@ export default function CardDetail() {
                     {!card.parent_card_id && !card.is_group_parent && !isSubCard && (
                         <button
                             onClick={() => setShowLinkToGroup(true)}
-                            className="w-full flex items-center gap-3 p-3 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all group"
+                            className="w-full flex items-center gap-2 p-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all group"
                         >
                             <div className="p-1.5 bg-slate-100 rounded-full group-hover:bg-indigo-100 transition-colors">
                                 <Users className="w-4 h-4" />
@@ -170,10 +170,10 @@ export default function CardDetail() {
                 </div>
 
                 {/* SIDEBAR - Context & Accountability */}
-                <div className="min-h-0 overflow-y-auto space-y-3 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
+                <div className="min-h-0 overflow-y-auto space-y-1.5 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
                     {/* Sub-Cards List (for cards in Pós-venda) */}
                     {showSubCards && (
-                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
+                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-2.5">
                             <SubCardsList
                                 parentCardId={card.id!}
                                 parentTitle={card.titulo || 'Card'}

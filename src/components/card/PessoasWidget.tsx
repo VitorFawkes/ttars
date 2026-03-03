@@ -60,13 +60,13 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const displayNome = primary ? formatContactName(primary) : ''
 
     return (
-        <div className="rounded-lg border bg-white p-3 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-900 mb-2">Pessoas</h3>
+        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
+            <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Pessoas</h3>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
                 {/* Primary Contact */}
                 {primary ? (
-                    <div className="group relative bg-gray-50 rounded-lg p-2.5 border border-gray-100 hover:border-indigo-100 hover:shadow-sm transition-all">
+                    <div className="group relative bg-gray-50 rounded-lg p-2 border border-gray-100 hover:border-indigo-100 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2.5">
                                 <div className="h-8 w-8 rounded-full bg-white border border-gray-300 flex items-center justify-center text-indigo-600 font-semibold text-xs shadow-sm">
@@ -113,7 +113,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                 ) : (
                     <button
                         onClick={() => setSelectorMode('set_primary')}
-                        className="w-full flex flex-col items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group"
+                        className="w-full flex flex-col items-center justify-center py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group"
                     >
                         <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center mb-1.5 group-hover:bg-white group-hover:shadow-sm transition-all">
                             <Plus className="h-4 w-4 text-gray-400 group-hover:text-indigo-600" />
@@ -126,8 +126,8 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                 {/* Travelers - Only for TRIPS */}
                 {card.produto === 'TRIPS' && (
                     <>
-                        <div className="pt-3 border-t">
-                            <div className="flex items-center justify-between mb-2">
+                        <div className="pt-2 border-t">
+                            <div className="flex items-center justify-between mb-1.5">
                                 <p className="text-xs font-semibold text-gray-500 uppercase">
                                     Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
                                 </p>
@@ -140,7 +140,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                                 </button>
                             </div>
 
-                            <div className="space-y-2 mb-4">
+                            <div className="space-y-1.5 mb-2">
                                 <CardTravelers
                                     card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
                                     embedded={true}

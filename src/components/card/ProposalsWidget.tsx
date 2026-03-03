@@ -117,7 +117,7 @@ export function ProposalsWidget({ cardId, card }: ProposalsWidgetProps) {
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-slate-500" />
                     <h3 className="font-medium text-slate-900">Propostas</h3>

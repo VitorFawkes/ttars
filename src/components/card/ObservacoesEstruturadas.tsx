@@ -246,7 +246,7 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
         <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
             {/* Header & Tabs */}
             <div className="border-b border-gray-200 bg-gray-50/50 px-3 pt-2">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                         <div className="p-1 bg-red-100 rounded-lg">
                             <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
@@ -351,13 +351,13 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
             </div>
 
             {/* Content */}
-            <div className="p-3" onKeyDown={handleKeyDown}>
+            <div className="p-2" onKeyDown={handleKeyDown}>
                 {loadingConfig ? (
-                    <div className="flex justify-center py-8">
+                    <div className="flex justify-center py-6">
                         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                     </div>
                 ) : fields.length === 0 ? (
-                    <div className="text-center py-6">
+                    <div className="text-center py-4">
                         <p className="text-sm text-gray-500 italic">
                             Nenhum campo configurado para "Informações Importantes".
                         </p>
@@ -366,7 +366,7 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-2 gap-y-1.5">
                         {fields.map((field, index) => {
                             // Determine if field should be full width
                             const isFullWidth = ['textarea', 'multiselect', 'checklist', 'json', 'destinos'].includes(field.type) || field.key === 'destinos'

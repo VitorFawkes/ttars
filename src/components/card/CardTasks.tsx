@@ -303,8 +303,8 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
-            <div className="px-3 py-2 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-gray-500" />
                     Agenda & Tarefas
@@ -327,7 +327,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             {requiredTasks.length > 0 && (
                 <div className="border-b border-amber-100 bg-amber-50/50">
                     {requiredTasks.map((req, idx) => (
-                        <div key={idx} className="px-4 py-2 flex items-center justify-between gap-2">
+                        <div key={idx} className="px-3 py-1.5 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                                 <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                                 <span className="text-xs text-amber-800 truncate">
@@ -381,7 +381,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                             <div
                                 key={task.id}
                                 onClick={() => handleEdit(task)}
-                                className={`px-3 py-2 hover:bg-gray-50 transition-colors group relative cursor-pointer ${
+                                className={`px-3 py-1.5 hover:bg-gray-50 transition-colors group relative cursor-pointer ${
                                     isMudanca && !task.concluida
                                         ? 'border-l-4 border-l-orange-400 bg-orange-50/40'
                                         : ''

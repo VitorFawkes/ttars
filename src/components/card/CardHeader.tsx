@@ -768,9 +768,9 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 </div>
 
                 {/* Main Content: Title & Actions */}
-                <div className="px-4 py-2.5 flex flex-col gap-2">
+                <div className="px-4 py-1.5 flex flex-col gap-1.5">
                     {/* Row 1: Title */}
-                    <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-start gap-3">
                             {isEditingTitle ? (
                                 <div className="flex items-center gap-2 flex-1 max-w-2xl">
@@ -779,7 +779,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                         value={editedTitle}
                                         onChange={(e) => setEditedTitle(e.target.value)}
                                         onKeyDown={handleTitleKeyDown}
-                                        className="flex-1 text-xl font-bold text-gray-900 tracking-tight border-b-2 border-indigo-500 bg-transparent outline-none px-1 py-0.5"
+                                        className="flex-1 text-lg font-bold text-gray-900 tracking-tight border-b-2 border-indigo-500 bg-transparent outline-none px-1 py-0.5"
                                         autoFocus
                                     />
                                     <div className="flex gap-1">
@@ -801,7 +801,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 <div className="group flex items-center gap-3">
                                     <h1
                                         onClick={() => setIsEditingTitle(true)}
-                                        className="text-xl font-bold text-gray-900 tracking-tight truncate cursor-pointer hover:text-indigo-900 transition-colors"
+                                        className="text-lg font-bold text-gray-900 tracking-tight truncate cursor-pointer hover:text-indigo-900 transition-colors"
                                         title={card.titulo || ''}
                                     >
                                         {card.titulo}
@@ -1086,7 +1086,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                     </div>
 
                     {/* Row 2: Owners & Actions */}
-                    <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-gray-100">
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
                         {/* Phase columns — compact horizontal */}
                         <div className="flex items-center gap-4 flex-wrap">
                             {/* SDR */}
