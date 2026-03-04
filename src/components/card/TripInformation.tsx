@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Tag, Check, History, Plane, FileCheck, Loader2 } from 'lucide-react'
+import { Tag, Check, History, Plane, FileCheck, Loader2, X } from 'lucide-react'
 
 import { supabase } from '../../lib/supabase'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,7 +10,6 @@ import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
-import { FieldLockButton } from './FieldLockButton'
 
 import type { EpocaViagem } from '../pipeline/fields/FlexibleDateField'
 import type { DuracaoViagem } from '../pipeline/fields/FlexibleDurationField'
@@ -55,9 +54,104 @@ type ViewMode = string
 
 const EMPTY_OBJECT = {}
 
-// Full-width field types that should span both columns
-const FULL_WIDTH_TYPES = ['textarea', 'multiselect', 'checklist', 'json']
-const FULL_WIDTH_KEYS = ['destinos']
+// ═══════════════════════════════════════════════════════════
+// EditModal — popup de edição individual por campo
+// ═══════════════════════════════════════════════════════════
+
+interface EditModalProps {
+    isOpen: boolean
+    onClose: () => void
+    onSave: () => void
+    title: string
+    children: React.ReactNode
+    isSaving: boolean
+    isCorrection: boolean
+}
+
+function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorrection }: EditModalProps) {
+    if (!isOpen) return null
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+            e.preventDefault()
+            onSave()
+        }
+        if (e.key === 'Escape') {
+            onClose()
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in-0">
+            <div className="fixed inset-0" onClick={onClose} />
+            <div
+                className={cn(
+                    "relative z-50 w-full max-w-md mx-4 rounded-xl shadow-2xl border overflow-hidden animate-in zoom-in-95 fade-in-0 duration-200",
+                    isCorrection ? "bg-[#fffdf9] border-amber-200" : "bg-white border-gray-200"
+                )}
+                onKeyDown={handleKeyDown}
+            >
+                {/* Header */}
+                <div className={cn(
+                    "flex items-center justify-between px-4 py-3 border-b",
+                    isCorrection ? "bg-amber-50/50 border-amber-200" : "bg-gray-50/50 border-gray-200"
+                )}>
+                    <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+                    <button
+                        onClick={onClose}
+                        className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        <X className="h-4 w-4 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-4">
+                    {children}
+                </div>
+
+                {/* Footer */}
+                <div className={cn(
+                    "flex items-center justify-end gap-2 px-4 py-3 border-t",
+                    isCorrection ? "bg-amber-50/30 border-amber-200" : "bg-gray-50/30 border-gray-200"
+                )}>
+                    <button
+                        onClick={onClose}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={onSave}
+                        disabled={isSaving}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors",
+                            isCorrection
+                                ? "bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400"
+                                : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400"
+                        )}
+                    >
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Salvando...
+                            </>
+                        ) : (
+                            <>
+                                <Check className="h-3 w-3" />
+                                Salvar
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// TripInformation — display cards + popup edit
+// ═══════════════════════════════════════════════════════════
 
 export default function TripInformation({ card }: TripInformationProps) {
     const productData = useMemo(() => {
@@ -107,10 +201,11 @@ export default function TripInformation({ card }: TripInformationProps) {
     }, [card.pipeline_stage_id, phases, stages])
 
     const [viewMode, setViewMode] = useState<ViewMode>(derivedViewMode)
-    const [editedData, setEditedData] = useState<TripsProdutoData>({})
-    const [lastSavedData, setLastSavedData] = useState<TripsProdutoData>({})
-    const [isDirty, setIsDirty] = useState(false)
     const [correctionMode, setCorrectionMode] = useState(false)
+
+    // Edit modal state
+    const [editingField, setEditingField] = useState<string | null>(null)
+    const [editValue, setEditValue] = useState<unknown>(null)
 
     // Sync viewMode when card changes stage (render-time pattern)
     const [prevDerivedMode, setPrevDerivedMode] = useState(derivedViewMode)
@@ -126,21 +221,15 @@ export default function TripInformation({ card }: TripInformationProps) {
     }, [card.pipeline_stage_id, getVisibleFields])
 
     // Determine which data to display/edit based on ViewMode and CorrectionMode
-    const activeData = (viewMode === SystemPhase.SDR || correctionMode) ? briefingData : productData
-
-    // Sync local state when activeData changes (render-time pattern)
-    const [prevActiveDataStr, setPrevActiveDataStr] = useState('')
-    const activeDataStr = JSON.stringify(activeData)
-    if (prevActiveDataStr !== activeDataStr) {
-        setPrevActiveDataStr(activeDataStr)
-        setEditedData(activeData)
-        setLastSavedData(activeData)
-        setIsDirty(false)
-    }
+    const activeData: TripsProdutoData = (viewMode === SystemPhase.SDR || correctionMode) ? briefingData : productData
 
     // --- Mutation ---
     const updateCardMutation = useMutation({
-        mutationFn: async ({ newData, target }: { newData: TripsProdutoData, target: 'produto_data' | 'briefing_inicial' }) => {
+        mutationFn: async ({ fieldKey, fieldValue }: { fieldKey: string, fieldValue: unknown }) => {
+            const target = (correctionMode || viewMode === SystemPhase.SDR) ? 'briefing_inicial' : 'produto_data'
+            const baseData = target === 'briefing_inicial' ? briefingData : productData
+            const newData = { ...baseData, [fieldKey]: fieldValue }
+
             const updates: Record<string, unknown> = { [target]: newData }
 
             const syncNormalizedColumns = (data: TripsProdutoData) => {
@@ -209,53 +298,43 @@ export default function TripInformation({ card }: TripInformationProps) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
             queryClient.invalidateQueries({ queryKey: ['card', card.id] })
-            setLastSavedData(editedData)
-            setIsDirty(false)
+            setEditingField(null)
+            setEditValue(null)
         }
     })
 
     // --- Handlers ---
-    const handleSave = async () => {
-        if (!isDirty) return
-        const target = (correctionMode || viewMode === SystemPhase.SDR) ? 'briefing_inicial' : 'produto_data'
+    const handleFieldEdit = useCallback((fieldKey: string) => {
+        setEditingField(fieldKey)
+        setEditValue(activeData[fieldKey] ?? null)
+    }, [activeData])
+
+    const handleCloseModal = useCallback(() => {
+        setEditingField(null)
+        setEditValue(null)
+    }, [])
+
+    const handleFieldSave = useCallback(async () => {
+        if (!editingField) return
         try {
-            await updateCardMutation.mutateAsync({ newData: editedData, target })
+            await updateCardMutation.mutateAsync({ fieldKey: editingField, fieldValue: editValue })
         } catch (error) {
-            console.error('Failed to save trip info:', error)
+            console.error('Failed to save field:', error)
         }
-    }
-
-    const handleChange = useCallback((key: string, value: unknown) => {
-        setEditedData(prev => {
-            const next = { ...prev, [key]: value }
-            setIsDirty(JSON.stringify(next) !== JSON.stringify(lastSavedData))
-            return next
-        })
-    }, [lastSavedData])
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
-            e.preventDefault()
-            handleSave()
-        }
-    }
+    }, [editingField, editValue, updateCardMutation])
 
     const switchViewMode = (slug: string) => {
-        if (isDirty) {
-            if (!confirm('Você tem alterações não salvas. Deseja descartá-las?')) return
-        }
         setViewMode(slug)
         setCorrectionMode(false)
+        setEditingField(null)
     }
 
     const toggleCorrectionMode = () => {
-        if (isDirty && correctionMode) {
-            if (!confirm('Você tem alterações não salvas. Deseja descartá-las?')) return
-        }
         setCorrectionMode(!correctionMode)
+        setEditingField(null)
     }
 
-    const getFieldStatus = (dataKey: string) => {
+    const getFieldStatus = (dataKey: string): 'ok' | 'blocking' | 'attention' => {
         if (correctionMode) return 'ok'
         const isBlocking = missingBlocking.some(req => {
             if ('field_key' in req) return req.field_key === dataKey
@@ -264,16 +343,8 @@ export default function TripInformation({ card }: TripInformationProps) {
         return isBlocking ? 'blocking' : 'ok'
     }
 
-    const formatFieldDisplayValue = (value: unknown): string => {
-        if (value === null || value === undefined || value === '') return 'Não informado'
-        if (Array.isArray(value)) return value.join(', ')
-        if (typeof value === 'object') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if ((value as any).display) return (value as any).display
-            return JSON.stringify(value)
-        }
-        return String(value)
-    }
+    // Get the field being edited
+    const editingFieldConfig = editingField ? visibleFields.find(f => f.key === editingField) : null
 
     // --- RENDER ---
     return (
@@ -302,27 +373,6 @@ export default function TripInformation({ card }: TripInformationProps) {
                                 {correctionMode ? "Sair da Correção" : "Corrigir Histórico SDR"}
                             </button>
                         )}
-
-                        {/* Save Button */}
-                        {updateCardMutation.isPending ? (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Salvando...
-                            </div>
-                        ) : isDirty ? (
-                            <button
-                                onClick={handleSave}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-                            >
-                                <Check className="h-3 w-3" />
-                                Salvar
-                            </button>
-                        ) : updateCardMutation.isSuccess ? (
-                            <div className="flex items-center gap-1 text-xs text-green-600">
-                                <Check className="h-3 w-3" />
-                                Salvo
-                            </div>
-                        ) : null}
                     </div>
                 </div>
 
@@ -360,82 +410,68 @@ export default function TripInformation({ card }: TripInformationProps) {
                 </div>
             </div>
 
-            {/* CONTENT — INLINE EDIT */}
-            <div
-                className={cn("p-2", correctionMode && "bg-[#fffbf7]")}
-                onKeyDown={handleKeyDown}
-            >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {visibleFields.length === 0 && (
-                        <div className="col-span-full text-center py-8 text-gray-500 italic">
-                            Nenhum campo configurado para esta fase.
-                            <br />
-                            <span className="text-xs">Configure na Matriz de Governança (Seção: Informações da Viagem).</span>
-                        </div>
-                    )}
+            {/* CONTENT — DISPLAY CARDS */}
+            <div className={cn("p-3", correctionMode && "bg-[#fffbf7]")}>
+                {visibleFields.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 italic">
+                        Nenhum campo configurado para esta fase.
+                        <br />
+                        <span className="text-xs">Configure na Matriz de Governança (Seção: Informações da Viagem).</span>
+                    </div>
+                )}
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {visibleFields.map(field => {
                         const status = getFieldStatus(field.key)
-                        const blocking = status === 'blocking'
-                        const isFullWidth = FULL_WIDTH_TYPES.includes(field.type) || FULL_WIDTH_KEYS.includes(field.key)
+                        const isPlanner = viewMode === SystemPhase.PLANNER && !correctionMode
 
                         return (
-                            <div
+                            <UniversalFieldRenderer
                                 key={field.key}
-                                className={cn(
-                                    "space-y-1",
-                                    isFullWidth && "col-span-1 sm:col-span-2"
-                                )}
-                            >
-                                {/* Label + status + lock */}
-                                <label className={cn(
-                                    "flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide",
-                                    blocking ? "text-red-700" : "text-gray-700"
-                                )}>
-                                    <div className={cn(
-                                        "w-1 h-1 rounded-full flex-shrink-0",
-                                        blocking ? "bg-red-500" : "bg-gray-400"
-                                    )} />
-                                    {field.label}
-                                    {blocking && (
-                                        <span className="text-[10px] text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded-full">
-                                            Obrigatório
-                                        </span>
-                                    )}
-                                    {!correctionMode && (
-                                        <FieldLockButton
-                                            fieldKey={field.key}
-                                            cardId={card.id}
-                                            size="sm"
-                                        />
-                                    )}
-                                </label>
-
-                                {/* SDR Original Reference (Planner mode only) */}
-                                {viewMode === SystemPhase.PLANNER && !correctionMode && briefingData[field.key] != null && (
-                                    <div className="text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                                        <span className="font-bold uppercase tracking-wider text-gray-400">Original SDR: </span>
-                                        {formatFieldDisplayValue(briefingData[field.key])}
-                                    </div>
-                                )}
-
-                                {/* Inline Edit Field */}
-                                <UniversalFieldRenderer
-                                    field={{
-                                        key: field.key,
-                                        label: field.label,
-                                        type: field.type,
-                                        options: field.options
-                                    }}
-                                    value={editedData[field.key]}
-                                    mode="edit"
-                                    onChange={(val) => handleChange(field.key, val)}
-                                />
-                            </div>
+                                field={{
+                                    key: field.key,
+                                    label: field.label,
+                                    type: field.type,
+                                    options: field.options
+                                }}
+                                value={activeData[field.key]}
+                                mode="display"
+                                status={status}
+                                sdrValue={isPlanner ? briefingData[field.key] : undefined}
+                                onEdit={() => handleFieldEdit(field.key)}
+                                correctionMode={correctionMode}
+                                isPlanner={isPlanner}
+                                cardId={card.id}
+                                showLockButton={!correctionMode}
+                            />
                         )
                     })}
                 </div>
             </div>
+
+            {/* EDIT MODAL */}
+            <EditModal
+                isOpen={!!editingFieldConfig}
+                onClose={handleCloseModal}
+                onSave={handleFieldSave}
+                title={editingFieldConfig?.label || ''}
+                isSaving={updateCardMutation.isPending}
+                isCorrection={correctionMode}
+            >
+                {editingFieldConfig && (
+                    <UniversalFieldRenderer
+                        field={{
+                            key: editingFieldConfig.key,
+                            label: editingFieldConfig.label,
+                            type: editingFieldConfig.type,
+                            options: editingFieldConfig.options
+                        }}
+                        value={editValue}
+                        mode="edit"
+                        onChange={(val) => setEditValue(val)}
+                    />
+                )}
+            </EditModal>
         </div>
     )
 }
