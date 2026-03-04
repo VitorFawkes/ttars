@@ -36,13 +36,35 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const briefingData = useMemo(() => (card.briefing_inicial as any) || EMPTY_OBJECT, [card.briefing_inicial])
 
+    // Derive current phase from card stage (must be before viewMode useState)
+    const derivedViewMode = useMemo(() => {
+        if (!phases) return SystemPhase.SDR
+
+        const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
+        const currentPhase = phases.find(p => p.name === currentStage?.fase)
+
+        if (currentPhase && currentPhase.slug && currentPhase.visible_in_card !== false) {
+            return currentPhase.slug
+        }
+
+        const sdrPhase = phases.find(p => p.slug === SystemPhase.SDR)
+        return (sdrPhase && sdrPhase.slug) ? sdrPhase.slug : SystemPhase.SDR
+    }, [card.pipeline_stage_id, phases, stages])
+
     // State
-    const [viewMode, setViewMode] = useState<ViewMode>(SystemPhase.SDR)
+    const [viewMode, setViewMode] = useState<ViewMode>(derivedViewMode)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [editedObs, setEditedObs] = useState<any>({})
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [lastSavedObs, setLastSavedObs] = useState<any>({})
     const [isDirty, setIsDirty] = useState(false)
+
+    // Sync viewMode when card changes stage (render-time pattern)
+    const [prevDerivedMode, setPrevDerivedMode] = useState(derivedViewMode)
+    if (prevDerivedMode !== derivedViewMode) {
+        setPrevDerivedMode(derivedViewMode)
+        setViewMode(derivedViewMode)
+    }
 
     // Determine the relevant stage ID for the current viewMode
     const viewModeStageId = useMemo(() => {
@@ -65,27 +87,6 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
 
         return card.pipeline_stage_id
     }, [viewMode, phases, stages, card.pipeline_stage_id])
-
-    // Sync ViewMode with Card Stage (render-time pattern per React docs)
-    const derivedViewMode = useMemo(() => {
-        if (!phases) return SystemPhase.SDR
-
-        const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
-        const currentPhase = phases.find(p => p.name === currentStage?.fase)
-
-        if (currentPhase && currentPhase.slug && currentPhase.visible_in_card !== false) {
-            return currentPhase.slug
-        }
-
-        const sdrPhase = phases.find(p => p.slug === SystemPhase.SDR)
-        return (sdrPhase && sdrPhase.slug) ? sdrPhase.slug : SystemPhase.SDR
-    }, [card.pipeline_stage_id, phases, stages])
-
-    const [prevDerivedMode, setPrevDerivedMode] = useState(derivedViewMode)
-    if (prevDerivedMode !== derivedViewMode) {
-        setPrevDerivedMode(derivedViewMode)
-        setViewMode(derivedViewMode)
-    }
 
     // Determine active section key based on viewMode
     const activeSectionKey = useMemo(() => {
