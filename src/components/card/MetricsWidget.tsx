@@ -34,10 +34,11 @@ export default function MetricsWidget({ card }: MetricsWidgetProps) {
 
     // Fetch all users for owner dropdown
     const { data: users } = useQuery({
-        queryKey: ['users'],
+        queryKey: ['active-profiles-list'],
         queryFn: async () => {
             const { data, error } = await (supabase.from('profiles') as any)
                 .select('id, nome')
+                .eq('active', true)
                 .order('nome')
 
             if (error) throw error

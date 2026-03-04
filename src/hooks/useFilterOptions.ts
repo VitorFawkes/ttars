@@ -13,7 +13,7 @@ export function useFilterOptions() {
         queryFn: async (): Promise<FilterOptions> => {
             // Fetch all data in parallel
             const [profilesRes, teamsRes, deptsRes] = await Promise.all([
-                supabase.from('profiles').select('id, nome, email').order('nome'),
+                supabase.from('profiles').select('id, nome, email').eq('active', true).order('nome'),
                 supabase.from('teams').select('id, name').order('name'),
                 supabase.from('departments').select('id, name').order('name')
             ])

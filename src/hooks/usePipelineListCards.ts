@@ -54,6 +54,7 @@ export function usePipelineListCards({
                 .from('profiles')
                 .select('id')
                 .eq('team_id', profile.team_id)
+                .eq('active', true)
 
             if (error) throw error
             return data.map(p => p.id)

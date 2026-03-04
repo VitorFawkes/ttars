@@ -34,6 +34,7 @@ export function MultiSelectEmail({ value = [], onChange, placeholder }: MultiSel
             const { data: profiles } = await supabase
                 .from('profiles')
                 .select('email, nome')
+                .eq('active', true)
                 .ilike('email', `%${inputValue}%`)
                 .limit(5);
 

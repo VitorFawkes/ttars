@@ -174,6 +174,7 @@ export function OutboundTriggerRulesTab({ integrationId }: OutboundTriggerRulesT
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, nome, email')
+                .eq('active', true)
                 .order('nome');
             if (error) throw error;
             return data as Profile[];

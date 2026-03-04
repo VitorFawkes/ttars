@@ -17,11 +17,12 @@ export default function ActivitiesPage() {
 
     // Fetch users for filter
     const { data: users } = useQuery({
-        queryKey: ['users-list'],
+        queryKey: ['active-profiles-list'],
         queryFn: async () => {
             const { data } = await supabase
                 .from('profiles')
                 .select('id, nome, email')
+                .eq('active', true)
                 .order('nome')
             return data || []
         }

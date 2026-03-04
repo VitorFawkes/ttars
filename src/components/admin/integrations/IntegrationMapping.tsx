@@ -180,9 +180,9 @@ export function IntegrationMapping({ integrationId: propId }: { integrationId?: 
     });
 
     const { data: internalUsers } = useQuery({
-        queryKey: ['users'],
+        queryKey: ['active-profiles-list'],
         queryFn: async () => {
-            const { data } = await supabase.from('profiles').select('id, nome, email').order('nome');
+            const { data } = await supabase.from('profiles').select('id, nome, email').eq('active', true).order('nome');
             return data?.map(u => ({ id: u.id, name: u.nome, email: u.email })) || [];
         }
     });

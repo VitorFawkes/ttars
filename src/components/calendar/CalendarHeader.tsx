@@ -60,11 +60,12 @@ export function CalendarHeader({ onNewMeeting }: CalendarHeaderProps) {
     const [userSearch, setUserSearch] = useState('')
 
     const { data: profiles } = useQuery({
-        queryKey: ['profiles-list'],
+        queryKey: ['active-profiles-list'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, nome, email')
+                .eq('active', true)
                 .order('nome')
             if (error) throw error
             return data

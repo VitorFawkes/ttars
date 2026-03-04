@@ -207,11 +207,12 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
     // Fetch profiles for responsible selection
     const { data: profiles } = useQuery({
-        queryKey: ['profiles-list'],
+        queryKey: ['active-profiles-list'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, nome, email')
+                .eq('active', true)
                 .order('nome');
             if (error) throw error;
             return data;

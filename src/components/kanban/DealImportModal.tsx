@@ -357,6 +357,7 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
         const { data } = await supabase
             .from('profiles')
             .select('id')
+            .eq('active', true)
             .or(`nome.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
             .limit(1)
         if (data && data.length > 0) return data[0].id
@@ -364,7 +365,7 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
         // 2. Fallback: match ALL words individually (handles "Tiago Abdul" → "Tiago de Mello Abdul Hak")
         const words = trimmed.split(/\s+/).filter(w => w.length >= 3)
         if (words.length >= 2) {
-            let query = supabase.from('profiles').select('id')
+            let query = supabase.from('profiles').select('id').eq('active', true)
             for (const word of words) {
                 query = query.ilike('nome', `%${word}%`)
             }
