@@ -884,14 +884,17 @@ Deno.serve(async (req) => {
                 // 3.5 Prepare DB Payload
                 const dealId = payload.id || payload['deal[id]'] || payload.deal_id;
                 const title = payload.title || payload['deal[title]'] || 'Sem Título';
-                // AC webhooks: deal[value] = reais formatado ("40,000.00")
-                // deal[value_raw] = CENTAVOS (4000000 = R$ 40.000)
+                // AC webhooks send TWO value fields:
+                //   deal[value]     = formatted string in REAIS ("15,000.00")
+                //   deal[value_raw] = unformatted number in REAIS (15000)
+                // NOTE: value_raw is already in REAIS, NOT centavos!
+                // The AC API v3 returns deal.value in CENTS, but integration-sync-deals
+                // converts to reais before passing here (deal.value / 100).
                 // parseFloat("10,000.00") = 10 (stops at comma!) — use value_raw first.
-                // IMPORTANT: value_raw is in centavos, divide by 100 for reais.
                 const rawValue = payload['deal[value_raw]'] || payload.value_raw;
                 const formattedValue = payload.value || payload['deal[value]'] || '0';
                 const value = rawValue
-                    ? parseFloat(String(rawValue)) / 100  // centavos → reais
+                    ? parseFloat(String(rawValue))  // already in REAIS
                     : parseFloat(String(formattedValue).replace(/,/g, ''));
                 const status = mapStatus(payload.status || payload['deal[status]']);
 

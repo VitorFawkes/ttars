@@ -293,11 +293,13 @@ Deno.serve(async (req) => {
                     owner: deal.owner,
                     owner_id: deal.owner,
                     title: deal.title,
-                    value: deal.value,
+                    // AC API v3 returns deal.value in CENTS (1500000 = R$15,000)
+                    // Convert to REAIS here so integration-process stores correctly
+                    value: Math.round(Number(deal.value || 0)) / 100,
                     status: deal.status,
                     'deal[id]': deal.id,
                     'deal[title]': deal.title,
-                    'deal[value]': deal.value,
+                    'deal[value]': Math.round(Number(deal.value || 0)) / 100,
                     'deal[status]': deal.status,
                     'deal[stageid]': deal.stage,
                     'deal[pipelineid]': pipelineId,
