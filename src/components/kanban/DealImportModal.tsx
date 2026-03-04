@@ -544,7 +544,7 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
                         ganho_planner: true,
                         ganho_planner_at: dataFechamento || new Date().toISOString(),
                         produto_data: { epoca_viagem: epocaViagem },
-                        origem: 'manual',
+                        origem: 'mkt',
                         status_comercial: 'ganho',
                         estado_operacional: 'finalizado',
                         moeda: 'BRL',

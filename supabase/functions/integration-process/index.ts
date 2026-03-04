@@ -1411,11 +1411,15 @@ Deno.serve(async (req) => {
                         const acUtmCampaign = topLevelUpdates.utm_campaign || finalMarketingData.utm_campaign;
 
                         // Normalize AC "Origem do lead" to our taxonomy
+                        // Valid origins: mkt, indicacao, carteira_propria, carteira_wg
                         const ORIGEM_MAP: Record<string, string> = {
                             'mkt': 'mkt', 'marketing': 'mkt',
                             'indicacao': 'indicacao', 'indicação': 'indicacao', 'referral': 'indicacao',
-                            'carteira': 'carteira', 'recorrente': 'carteira', 'recorrencia': 'carteira',
-                            'site': 'site', 'manual': 'manual', 'outro': 'outro',
+                            'carteira_propria': 'carteira_propria', 'carteira própria': 'carteira_propria',
+                            'carteira_wg': 'carteira_wg', 'carteira wg': 'carteira_wg',
+                            // Legacy mappings → default to carteira_propria
+                            'carteira': 'carteira_propria', 'recorrente': 'carteira_propria', 'recorrencia': 'carteira_propria',
+                            'site': 'mkt', 'manual': 'mkt', 'outro': 'mkt',
                         };
                         const resolvedOrigem = acOrigem ? ORIGEM_MAP[acOrigem] : null;
                         const hasUtmData = !!(acUtmSource || acUtmMedium || acUtmCampaign);
@@ -1433,8 +1437,8 @@ Deno.serve(async (req) => {
                             cardPayload.origem = 'mkt';
                             cardPayload.origem_lead = acUtmSource || null;
                         } else {
-                            // No marketing/origin info at all → fallback
-                            cardPayload.origem = 'active_campaign';
+                            // No marketing/origin info at all → fallback to marketing
+                            cardPayload.origem = 'mkt';
                         }
                         // Don't let the mapped 'origem' field overwrite our resolved value
                         delete topLevelUpdates.origem;

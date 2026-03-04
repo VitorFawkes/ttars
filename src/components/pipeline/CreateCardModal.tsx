@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, PenTool, MoreHorizontal, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
@@ -248,7 +248,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         pos_owner_id: null as string | null,
         pos_owner_nome: null as string | null,
         selectedStageId: null as string | null,
-        origem: 'manual' as string,
+        origem: '' as string,
         origem_lead: null as string | null,
         indicado_por_id: null as string | null
     })
@@ -314,7 +314,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 pessoa_principal_nome: null,
                 ...initialOwners,
                 selectedStageId: null,
-                origem: 'manual',
+                origem: '',
                 origem_lead: null,
                 indicado_por_id: null
             })
@@ -359,7 +359,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             pessoa_principal_nome: null,
             ...initialOwners,
             selectedStageId: null,
-            origem: 'manual',
+            origem: '',
             origem_lead: null,
             indicado_por_id: null
         })
@@ -593,7 +593,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 {ORIGEM_OPTIONS.map(option => {
                                     const isSelected = formData.origem === option.value
                                     const IconMap: Record<string, React.ElementType> = {
-                                        Megaphone, Users, Wallet, PenTool, MoreHorizontal
+                                        Megaphone, Users, Wallet, Briefcase
                                     }
                                     const Icon = IconMap[option.icon]
                                     return (
