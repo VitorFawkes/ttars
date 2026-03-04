@@ -9,7 +9,7 @@ interface ContactStats {
     total_trips: number
     last_trip_date: string | null
     next_trip_date: string | null
-    top_destinations: Record<string, unknown>
+    top_destinations: string[] | null
     is_group_leader: boolean
     updated_at: string
 }
