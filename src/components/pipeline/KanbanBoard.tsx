@@ -233,9 +233,10 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 if (filters.creationStartDate) query = query.gte('created_at', `${filters.creationStartDate}T00:00:00`)
                 if (filters.creationEndDate) query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
 
-                // Status & Origem
+                // Status & Origem & Tags
                 if ((filters.statusComercial?.length ?? 0) > 0) query = query.in('status_comercial', filters.statusComercial)
                 if ((filters.origem?.length ?? 0) > 0) query = query.in('origem', filters.origem)
+                if ((filters.tagIds?.length ?? 0) > 0) query = query.overlaps('tag_ids', filters.tagIds)
 
                 query = query.is('archived_at', null).eq('is_group_parent', false)
 

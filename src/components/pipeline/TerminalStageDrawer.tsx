@@ -92,9 +92,21 @@ export default function TerminalStageDrawer({
             }
 
             // Owner filters from parent
-            if ((filters.ownerIds?.length ?? 0) > 0) {
-                query = query.in('dono_atual_id', filters.ownerIds)
-            }
+            if ((filters.ownerIds?.length ?? 0) > 0) query = query.in('dono_atual_id', filters.ownerIds)
+            if ((filters.sdrIds?.length ?? 0) > 0) query = query.in('sdr_owner_id', filters.sdrIds)
+            if ((filters.plannerIds?.length ?? 0) > 0) query = query.in('vendas_owner_id', filters.plannerIds)
+            if ((filters.posIds?.length ?? 0) > 0) query = query.in('pos_owner_id', filters.posIds)
+
+            // Date filters
+            if (filters.startDate) query = query.gte('data_viagem_inicio', filters.startDate)
+            if (filters.endDate) query = query.lte('data_viagem_inicio', filters.endDate)
+            if (filters.creationStartDate) query = query.gte('created_at', `${filters.creationStartDate}T00:00:00`)
+            if (filters.creationEndDate) query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
+
+            // Status, Origem & Tags
+            if ((filters.statusComercial?.length ?? 0) > 0) query = query.in('status_comercial', filters.statusComercial)
+            if ((filters.origem?.length ?? 0) > 0) query = query.in('origem', filters.origem)
+            if ((filters.tagIds?.length ?? 0) > 0) query = query.overlaps('tag_ids', filters.tagIds)
 
             // Archived + group parent exclusion
             query = query.is('archived_at', null)

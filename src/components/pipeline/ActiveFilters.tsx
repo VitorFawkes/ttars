@@ -3,6 +3,7 @@ import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { cn } from '../../lib/utils'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { useCardTags } from '../../hooks/useCardTags'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -24,6 +25,7 @@ export function ActiveFilters() {
     const filters = rawFilters || {}
     const { data: options } = useFilterOptions()
     const { data: phasesData } = usePipelinePhases()
+    const { tags } = useCardTags()
 
     const hasFilters = Object.keys(filters).length > 0 && (
         filters.search ||
@@ -35,6 +37,7 @@ export function ActiveFilters() {
         filters.departmentIds?.length ||
         filters.phaseFilter ||
         filters.statusComercial?.length ||
+        filters.tagIds?.length ||
         filters.startDate ||
         filters.endDate ||
         filters.creationStartDate ||
@@ -124,6 +127,12 @@ export function ActiveFilters() {
                 {filters.docStatus?.map(status => (
                     <Chip key={`doc-${status}`} label={`Docs: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
                 ))}
+
+                {/* Tags */}
+                {filters.tagIds?.map(tagId => {
+                    const tag = tags.find(t => t.id === tagId)
+                    return <Chip key={`tag-${tagId}`} label={`Tag: ${tag?.name || 'Tag'}`} onRemove={() => removeFilter('tagIds', tagId)} />
+                })}
 
                 {/* Dates */}
                 {(filters.startDate || filters.endDate) && (
