@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, PenTool, MoreHorizontal, Search } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, PenTool, MoreHorizontal, Search, UserPlus, Phone, Mail } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 import ContactSelector from '../card/ContactSelector'
-import { formatContactName } from '../../lib/contactUtils'
+import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import OwnerSelector from './OwnerSelector'
 import { Input } from '../ui/Input'
 import { useAuth } from '../../contexts/AuthContext'
@@ -246,33 +246,35 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         pos_owner_nome: null as string | null,
         selectedStageId: null as string | null,
         origem: 'manual' as string,
-        origem_lead: null as string | null
+        origem_lead: null as string | null,
+        indicado_por_id: null as string | null
     })
 
     // Indicação autocomplete state
     const [indicacaoSearch, setIndicacaoSearch] = useState('')
     const [debouncedIndicacao, setDebouncedIndicacao] = useState('')
     const [showIndicacaoResults, setShowIndicacaoResults] = useState(false)
+    const [showIndicacaoContactSelector, setShowIndicacaoContactSelector] = useState(false)
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedIndicacao(indicacaoSearch), 300)
         return () => clearTimeout(timer)
     }, [indicacaoSearch])
 
-    const { data: indicacaoContacts } = useQuery({
+    const { data: indicacaoContacts, isLoading: isSearchingIndicacao } = useQuery({
         queryKey: ['indicacao-search', debouncedIndicacao],
         queryFn: async () => {
             if (!debouncedIndicacao) return []
             const { data, error } = await supabase
                 .from('contatos')
-                .select('id, nome, telefone, email')
+                .select('id, nome, sobrenome, telefone, email')
                 .is('deleted_at', null)
-                .or(`nome.ilike.%${debouncedIndicacao}%,email.ilike.%${debouncedIndicacao}%`)
-                .limit(5)
+                .or(`nome.ilike.%${debouncedIndicacao}%,sobrenome.ilike.%${debouncedIndicacao}%,email.ilike.%${debouncedIndicacao}%,telefone.ilike.%${debouncedIndicacao}%`)
+                .limit(6)
             if (error) throw error
             return data
         },
-        enabled: debouncedIndicacao.length > 2
+        enabled: debouncedIndicacao.length > 1
     })
 
     // Dynamic fields stored in briefing_inicial (for future use)
@@ -299,7 +301,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 ...initialOwners,
                 selectedStageId: null,
                 origem: 'manual',
-                origem_lead: null
+                origem_lead: null,
+                indicado_por_id: null
             })
             setIndicacaoSearch('')
         }
@@ -355,6 +358,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     dono_atual_id: currentOwnerId,
                     origem: formData.origem,
                     origem_lead: formData.origem_lead,
+                    indicado_por_id: formData.indicado_por_id,
                     status_comercial: 'aberto',
                     moeda: 'BRL',
                     briefing_inicial: dynamicFields
@@ -383,7 +387,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 ...initialOwners,
                 selectedStageId: null,
                 origem: 'manual',
-                origem_lead: null
+                origem_lead: null,
+                indicado_por_id: null
             })
             setIndicacaoSearch('')
         },
@@ -513,7 +518,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                             key={option.value}
                                             type="button"
                                             onClick={() => {
-                                                setFormData({ ...formData, origem: option.value, origem_lead: null })
+                                                setFormData({ ...formData, origem: option.value, origem_lead: null, indicado_por_id: null })
                                                 setIndicacaoSearch('')
                                                 setShowIndicacaoResults(false)
                                             }}
@@ -535,49 +540,113 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
                             {/* Sub-field: Quem indicou? (indicacao) */}
                             {needsOrigemDetalhe(formData.origem) === 'indicacao' && (
-                                <div className="relative">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-slate-700">
                                         Quem indicou?
                                     </label>
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                        <Input
-                                            value={indicacaoSearch || formData.origem_lead || ''}
-                                            onChange={(e) => {
-                                                setIndicacaoSearch(e.target.value)
-                                                setFormData({ ...formData, origem_lead: e.target.value })
-                                                setShowIndicacaoResults(true)
-                                            }}
-                                            onFocus={() => setShowIndicacaoResults(true)}
-                                            onBlur={() => setTimeout(() => setShowIndicacaoResults(false), 200)}
-                                            placeholder="Digite o nome ou busque um contato..."
-                                            className="pl-10"
-                                        />
-                                    </div>
-                                    {showIndicacaoResults && indicacaoContacts && indicacaoContacts.length > 0 && (
-                                        <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                            {indicacaoContacts.map(c => (
-                                                <button
-                                                    key={c.id}
-                                                    type="button"
-                                                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left"
-                                                    onMouseDown={(e) => {
-                                                        e.preventDefault()
-                                                        setFormData({ ...formData, origem_lead: c.nome })
-                                                        setIndicacaoSearch(c.nome || '')
-                                                        setShowIndicacaoResults(false)
-                                                    }}
-                                                >
-                                                    <div className="h-7 w-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-xs font-medium">
-                                                        {(c.nome || '?').charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-medium text-slate-900 truncate">{c.nome}</p>
-                                                        <p className="text-xs text-slate-500 truncate">{c.telefone || c.email || ''}</p>
-                                                    </div>
-                                                </button>
-                                            ))}
+
+                                    {/* Selected contact display */}
+                                    {formData.indicado_por_id && formData.origem_lead ? (
+                                        <div className="flex items-center gap-2.5 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold flex-shrink-0">
+                                                {(formData.origem_lead || '?').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium text-slate-900 truncate">{formData.origem_lead}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData({ ...formData, origem_lead: null, indicado_por_id: null })
+                                                    setIndicacaoSearch('')
+                                                }}
+                                                className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
                                         </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                                <Input
+                                                    value={indicacaoSearch}
+                                                    onChange={(e) => {
+                                                        setIndicacaoSearch(e.target.value)
+                                                        setShowIndicacaoResults(true)
+                                                    }}
+                                                    onFocus={() => setShowIndicacaoResults(true)}
+                                                    onBlur={() => setTimeout(() => setShowIndicacaoResults(false), 200)}
+                                                    placeholder="Buscar contato por nome, email, telefone..."
+                                                    className="pl-10"
+                                                />
+                                                {isSearchingIndicacao && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
+                                            </div>
+
+                                            {/* Search results dropdown */}
+                                            {showIndicacaoResults && indicacaoContacts && indicacaoContacts.length > 0 && (
+                                                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                                    {indicacaoContacts.map(c => (
+                                                        <button
+                                                            key={c.id}
+                                                            type="button"
+                                                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left"
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault()
+                                                                const displayName = formatContactName(c) || c.nome || ''
+                                                                setFormData({ ...formData, origem_lead: displayName, indicado_por_id: c.id })
+                                                                setIndicacaoSearch('')
+                                                                setShowIndicacaoResults(false)
+                                                            }}
+                                                        >
+                                                            <div className="h-7 w-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-xs font-medium flex-shrink-0">
+                                                                {getContactInitials(c)}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium text-slate-900 truncate">{formatContactName(c)}</p>
+                                                                <p className="text-xs text-slate-500 truncate">
+                                                                    {c.telefone && <><Phone className="inline h-3 w-3 mr-0.5" />{c.telefone}</>}
+                                                                    {c.telefone && c.email && ' · '}
+                                                                    {c.email && <><Mail className="inline h-3 w-3 mr-0.5" />{c.email}</>}
+                                                                </p>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* No results */}
+                                            {showIndicacaoResults && debouncedIndicacao.length > 1 && indicacaoContacts?.length === 0 && !isSearchingIndicacao && (
+                                                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-center">
+                                                    <p className="text-xs text-slate-500 mb-2">Nenhum contato encontrado</p>
+                                                </div>
+                                            )}
+
+                                            {/* Create new contact button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowIndicacaoContactSelector(true)}
+                                                className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                                            >
+                                                <UserPlus className="h-4 w-4" />
+                                                Criar novo contato
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* ContactSelector modal */}
+                                    {showIndicacaoContactSelector && (
+                                        <ContactSelector
+                                            cardId=""
+                                            addToCard={false}
+                                            onClose={() => setShowIndicacaoContactSelector(false)}
+                                            onContactAdded={(contactId, contact) => {
+                                                if (contactId && contact) {
+                                                    setFormData({ ...formData, origem_lead: contact.nome, indicado_por_id: contactId })
+                                                }
+                                                setShowIndicacaoContactSelector(false)
+                                            }}
+                                        />
                                     )}
                                 </div>
                             )}

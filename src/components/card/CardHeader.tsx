@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link } from 'lucide-react'
+import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2 } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../lib/utils'
@@ -34,6 +34,8 @@ interface TripsProdutoData {
 }
 import OwnerHistoryModal from './OwnerHistoryModal'
 import ActionButtons from './ActionButtons'
+import ContactSelector from './ContactSelector'
+import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { Button } from '../ui/Button'
 import OwnerSelector from '../pipeline/OwnerSelector'
 import { useCardTeam } from '../../hooks/useCardTeam'
@@ -66,28 +68,77 @@ interface CardHeaderProps {
 }
 
 /** Inline-editable origin badge with popover */
-function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, origem: string | null, origemLead: string | null }) {
+function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { cardId: string, origem: string | null, origemLead: string | null, indicadoPorId: string | null }) {
     const queryClient = useQueryClient()
     const [isOpen, setIsOpen] = useState(false)
     const [localOrigem, setLocalOrigem] = useState(origem)
     const [localDetalhe, setLocalDetalhe] = useState(origemLead || '')
+    const [showContactSelector, setShowContactSelector] = useState(false)
+
+    // Indicação contact search
+    const [indicacaoSearch, setIndicacaoSearch] = useState('')
+    const [debouncedIndicacao, setDebouncedIndicacao] = useState('')
+    const [showIndicacaoResults, setShowIndicacaoResults] = useState(false)
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedIndicacao(indicacaoSearch), 300)
+        return () => clearTimeout(timer)
+    }, [indicacaoSearch])
+
+    const { data: indicacaoContacts, isLoading: isSearching } = useQuery({
+        queryKey: ['indicacao-search-header', debouncedIndicacao],
+        queryFn: async () => {
+            if (!debouncedIndicacao) return []
+            const { data, error } = await supabase
+                .from('contatos')
+                .select('id, nome, sobrenome, telefone, email')
+                .is('deleted_at', null)
+                .or(`nome.ilike.%${debouncedIndicacao}%,sobrenome.ilike.%${debouncedIndicacao}%,email.ilike.%${debouncedIndicacao}%,telefone.ilike.%${debouncedIndicacao}%`)
+                .limit(6)
+            if (error) throw error
+            return data
+        },
+        enabled: debouncedIndicacao.length > 1
+    })
+
+    // Fetch linked contact info
+    const { data: linkedContact } = useQuery({
+        queryKey: ['indicado-por', indicadoPorId],
+        queryFn: async () => {
+            if (!indicadoPorId) return null
+            const { data } = await supabase
+                .from('contatos')
+                .select('id, nome, sobrenome, telefone, email')
+                .eq('id', indicadoPorId)
+                .single()
+            return data
+        },
+        enabled: !!indicadoPorId
+    })
 
     // Sync local state when props change (popover closed = source of truth is server)
     if (!isOpen && localOrigem !== origem) setLocalOrigem(origem)
     if (!isOpen && localDetalhe !== (origemLead || '')) setLocalDetalhe(origemLead || '')
 
+    const invalidateCards = () => {
+        queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+        queryClient.invalidateQueries({ queryKey: ['card', cardId] })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
+        queryClient.invalidateQueries({ queryKey: ['indicado-por'] })
+    }
+
     const mutation = useMutation({
-        mutationFn: async ({ newOrigem, newDetalhe }: { newOrigem: string, newDetalhe: string | null }) => {
+        mutationFn: async ({ newOrigem, newDetalhe, newIndicadoPorId }: { newOrigem: string, newDetalhe: string | null, newIndicadoPorId?: string | null }) => {
+            const updatePayload: Record<string, unknown> = { origem: newOrigem, origem_lead: newDetalhe }
+            if (newIndicadoPorId !== undefined) updatePayload.indicado_por_id = newIndicadoPorId
             const { error } = await supabase
                 .from('cards')
-                .update({ origem: newOrigem, origem_lead: newDetalhe })
+                .update(updatePayload)
                 .eq('id', cardId)
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
-            queryClient.invalidateQueries({ queryKey: ['card', cardId] })
-            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            invalidateCards()
             setIsOpen(false)
         }
     })
@@ -95,8 +146,8 @@ function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, o
     const handleSelect = (value: string) => {
         setLocalOrigem(value)
         if (!needsOrigemDetalhe(value)) {
-            mutation.mutate({ newOrigem: value, newDetalhe: null })
-        } else {
+            mutation.mutate({ newOrigem: value, newDetalhe: null, newIndicadoPorId: null })
+        } else if (value !== 'indicacao') {
             setLocalDetalhe('')
         }
     }
@@ -104,6 +155,22 @@ function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, o
     const handleSaveDetalhe = () => {
         if (localOrigem) {
             mutation.mutate({ newOrigem: localOrigem, newDetalhe: localDetalhe || null })
+        }
+    }
+
+    const handleSelectContact = (contact: { id: string, nome: string | null, sobrenome?: string | null }) => {
+        const displayName = formatContactName(contact) || contact.nome || ''
+        setLocalDetalhe(displayName)
+        setIndicacaoSearch('')
+        setShowIndicacaoResults(false)
+        if (localOrigem) {
+            mutation.mutate({ newOrigem: localOrigem, newDetalhe: displayName, newIndicadoPorId: contact.id })
+        }
+    }
+
+    const handleUnlinkContact = () => {
+        if (localOrigem) {
+            mutation.mutate({ newOrigem: localOrigem, newDetalhe: null, newIndicadoPorId: null })
         }
     }
 
@@ -127,7 +194,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, o
             {isOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-64 space-y-3">
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-72 space-y-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Origem do Lead</p>
                         <div className="flex flex-wrap gap-1.5">
                             {ORIGEM_OPTIONS.map(opt => (
@@ -145,17 +212,113 @@ function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, o
                                 </button>
                             ))}
                         </div>
-                        {needsOrigemDetalhe(localOrigem) && (
+
+                        {/* Indicação: contact picker */}
+                        {needsOrigemDetalhe(localOrigem) === 'indicacao' && (
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-slate-600">
-                                    {needsOrigemDetalhe(localOrigem) === 'indicacao' ? 'Quem indicou?' : 'Campanha / Fonte'}
-                                </label>
+                                <label className="text-xs font-medium text-slate-600">Quem indicou?</label>
+
+                                {/* Show linked contact */}
+                                {linkedContact ? (
+                                    <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="h-7 w-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-[10px] font-semibold flex-shrink-0">
+                                            {getContactInitials(linkedContact)}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-medium text-slate-900 truncate">{formatContactName(linkedContact)}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">
+                                                {linkedContact.telefone || linkedContact.email || ''}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={handleUnlinkContact}
+                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                            title="Remover indicação"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {/* Search input */}
+                                        <div className="relative">
+                                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                value={indicacaoSearch}
+                                                onChange={(e) => {
+                                                    setIndicacaoSearch(e.target.value)
+                                                    setShowIndicacaoResults(true)
+                                                }}
+                                                onFocus={() => setShowIndicacaoResults(true)}
+                                                onBlur={() => setTimeout(() => setShowIndicacaoResults(false), 200)}
+                                                placeholder="Buscar contato..."
+                                                className="w-full pl-7 pr-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                            {isSearching && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 animate-spin" />}
+                                        </div>
+
+                                        {/* Search results */}
+                                        {showIndicacaoResults && indicacaoContacts && indicacaoContacts.length > 0 && (
+                                            <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                                                {indicacaoContacts.map(c => (
+                                                    <button
+                                                        key={c.id}
+                                                        type="button"
+                                                        className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-left"
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault()
+                                                            handleSelectContact(c)
+                                                        }}
+                                                    >
+                                                        <div className="h-6 w-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-[10px] font-medium flex-shrink-0">
+                                                            {getContactInitials(c)}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-medium text-slate-900 truncate">{formatContactName(c)}</p>
+                                                            <p className="text-[10px] text-slate-500 truncate">
+                                                                {c.telefone && <><Phone className="inline h-2.5 w-2.5 mr-0.5" />{c.telefone}</>}
+                                                                {c.telefone && c.email && ' · '}
+                                                                {c.email && <><Mail className="inline h-2.5 w-2.5 mr-0.5" />{c.email}</>}
+                                                            </p>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* No results message */}
+                                        {showIndicacaoResults && debouncedIndicacao.length > 1 && indicacaoContacts?.length === 0 && !isSearching && (
+                                            <p className="text-[10px] text-slate-400 text-center py-1">Nenhum contato encontrado</p>
+                                        )}
+
+                                        {/* Create new contact button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowContactSelector(true)
+                                                setIsOpen(false)
+                                            }}
+                                            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                                        >
+                                            <UserPlus className="h-3.5 w-3.5" />
+                                            Criar novo contato
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Marketing: campanha/fonte text field */}
+                        {needsOrigemDetalhe(localOrigem) === 'mkt' && (
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-slate-600">Campanha / Fonte</label>
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
                                         value={localDetalhe}
                                         onChange={(e) => setLocalDetalhe(e.target.value)}
-                                        placeholder={needsOrigemDetalhe(localOrigem) === 'indicacao' ? 'Nome de quem indicou...' : 'Ex: Google Ads...'}
+                                        placeholder="Ex: Google Ads..."
                                         className="flex-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         onKeyDown={(e) => e.key === 'Enter' && handleSaveDetalhe()}
                                     />
@@ -171,6 +334,22 @@ function OrigemBadgeEditable({ cardId, origem, origemLead }: { cardId: string, o
                         )}
                     </div>
                 </>
+            )}
+
+            {/* ContactSelector modal for creating new contact */}
+            {showContactSelector && (
+                <ContactSelector
+                    cardId={cardId}
+                    addToCard={false}
+                    onClose={() => setShowContactSelector(false)}
+                    onContactAdded={(contactId, contact) => {
+                        if (contactId && contact) {
+                            const displayName = contact.nome || ''
+                            mutation.mutate({ newOrigem: 'indicacao', newDetalhe: displayName, newIndicadoPorId: contactId })
+                        }
+                        setShowContactSelector(false)
+                    }}
+                />
             )}
         </div>
     )
@@ -868,6 +1047,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 cardId={card.id}
                                 origem={card.origem}
                                 origemLead={card.origem_lead}
+                                indicadoPorId={(card as Record<string, unknown>).indicado_por_id as string | null}
                             />
 
                             {/* Mark as Lost Button OR Loss Reason Display */}
