@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, PenTool, MoreHorizontal, Search, UserPlus, Phone, Mail } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, PenTool, MoreHorizontal, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
@@ -9,9 +9,12 @@ import ContactSelector from '../card/ContactSelector'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import OwnerSelector from './OwnerSelector'
 import { Input } from '../ui/Input'
+import { Textarea } from '../ui/textarea'
+import AudioRecorder from '../card/AudioRecorder'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAllowedStages } from '../../hooks/useCardCreationRules'
 import { useToast } from '../../contexts/ToastContext'
+import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
 import type { Database } from '../../database.types'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 
@@ -285,6 +288,12 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Dynamic fields stored in briefing_inicial (for future use)
     const [dynamicFields] = useState<Record<string, unknown>>({})
 
+    // Observação + Briefing IA state
+    const [observacao, setObservacao] = useState('')
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+    const [briefingStep, setBriefingStep] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
+    const [briefingResult, setBriefingResult] = useState<BriefingIAResult | null>(null)
+
     // Get allowed stages for user's team
     const { allowedStages, isLoading: loadingStages, isAdmin } = useAllowedStages(formData.produto)
 
@@ -310,6 +319,10 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 indicado_por_id: null
             })
             setIndicacaoSearch('')
+            setObservacao('')
+            setAudioBlob(null)
+            setBriefingStep('idle')
+            setBriefingResult(null)
         }
         wasOpenRef.current = isOpen
     }, [isOpen, initialOwners])
@@ -338,6 +351,25 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
     const { toast } = useToast()
 
+    const resetForm = () => {
+        setFormData({
+            titulo: '',
+            produto: 'TRIPS',
+            pessoa_principal_id: null,
+            pessoa_principal_nome: null,
+            ...initialOwners,
+            selectedStageId: null,
+            origem: 'manual',
+            origem_lead: null,
+            indicado_por_id: null
+        })
+        setIndicacaoSearch('')
+        setObservacao('')
+        setAudioBlob(null)
+        setBriefingStep('idle')
+        setBriefingResult(null)
+    }
+
     const createCardMutation = useMutation({
         mutationFn: async () => {
             if (!pipeline || !effectiveStageId) throw new Error('Pipeline or stage not selected')
@@ -348,7 +380,13 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 ?? formData.pos_owner_id
                 ?? profile?.id
 
-            // Create the card with governance data in briefing_inicial
+            // Build briefing_inicial with observacao_livre
+            const briefingInicial = {
+                ...dynamicFields,
+                ...(observacao.trim() ? { observacao_livre: observacao.trim() } : {})
+            }
+
+            // Create the card
             const { data: card, error } = await supabase
                 .from('cards')
                 .insert({
@@ -366,7 +404,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     indicado_por_id: formData.indicado_por_id,
                     status_comercial: 'aberto',
                     moeda: 'BRL',
-                    briefing_inicial: dynamicFields
+                    briefing_inicial: briefingInicial
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any)
                 .select()
@@ -374,28 +412,6 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
             if (error) throw error
             return card
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cards'] })
-            queryClient.invalidateQueries({ queryKey: ['pipeline'] })
-            toast({
-                title: "Card criado com sucesso!",
-                type: "success"
-            })
-            onClose()
-            // Reset form with auto-fill based on user's role
-            setFormData({
-                titulo: '',
-                produto: 'TRIPS',
-                pessoa_principal_id: null,
-                pessoa_principal_nome: null,
-                ...initialOwners,
-                selectedStageId: null,
-                origem: 'manual',
-                origem_lead: null,
-                indicado_por_id: null
-            })
-            setIndicacaoSearch('')
         },
         onError: (error) => {
             console.error('Erro ao criar card:', error)
@@ -407,13 +423,75 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         }
     })
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!canSubmit) return
-        createCardMutation.mutate()
+
+        try {
+            // Step 1: Create the card
+            const card = await createCardMutation.mutateAsync()
+
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['pipeline'] })
+
+            // Step 2: If no audio, close normally
+            if (!audioBlob) {
+                toast({ title: "Card criado com sucesso!", type: "success" })
+                onClose()
+                resetForm()
+                return
+            }
+
+            // Step 3: Audio exists — trigger BriefingIA processing
+            toast({ title: "Card criado! Processando briefing com IA...", type: "success" })
+            setBriefingStep('processing')
+
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) throw new Error('Usuário não autenticado')
+
+                const result = await processBriefingIA(card.id, audioBlob, user.id)
+                setBriefingResult(result)
+                setBriefingStep('done')
+
+                if (result.status === 'success') {
+                    const count = result.campos_extraidos?.length || 0
+                    toast({
+                        title: `Briefing gerado! ${count} campo${count !== 1 ? 's' : ''} preenchido${count !== 1 ? 's' : ''}`,
+                        type: "success"
+                    })
+                } else {
+                    toast({ title: "Briefing processado, sem dados novos extraídos", type: "info" })
+                }
+
+                queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+
+                // Auto-close after brief display
+                setTimeout(() => {
+                    onClose()
+                    resetForm()
+                }, 2000)
+            } catch (err) {
+                console.error('[CreateCard] BriefingIA error:', err)
+                setBriefingStep('error')
+                setBriefingResult({ status: 'error', error: (err as Error).message })
+                toast({
+                    title: "Card criado, mas erro ao processar briefing",
+                    description: "Você pode processar o briefing depois na tela do card.",
+                    type: "warning"
+                })
+                setTimeout(() => {
+                    onClose()
+                    resetForm()
+                }, 3000)
+            }
+        } catch {
+            // Card creation error — handled by mutation.onError
+        }
     }
 
     const handleClose = () => {
-        if (createCardMutation.isPending) return
+        if (createCardMutation.isPending || briefingStep === 'processing') return
         onClose()
     }
 
@@ -671,6 +749,108 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             )}
                         </section>
 
+                        {/* Section: Observações & Briefing */}
+                        <section className="space-y-4">
+                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                Observações & Briefing
+                            </h3>
+
+                            {/* Observação textarea */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                    <FileText className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-slate-400" />
+                                    Observação
+                                </label>
+                                <Textarea
+                                    value={observacao}
+                                    onChange={(e) => setObservacao(e.target.value)}
+                                    placeholder="Observações gerais sobre o lead ou viagem..."
+                                    rows={3}
+                                    className="resize-none"
+                                    disabled={briefingStep === 'processing'}
+                                />
+                            </div>
+
+                            {/* Briefing IA (áudio) */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                    <Sparkles className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-amber-500" />
+                                    Briefing IA
+                                    <span className="text-xs text-slate-400 font-normal ml-1.5">(opcional)</span>
+                                </label>
+                                <p className="text-xs text-slate-500 mb-2">
+                                    Grave um áudio descrevendo o lead. Após criar o card, a IA extrairá os dados automaticamente.
+                                </p>
+
+                                {briefingStep === 'idle' && (
+                                    <div>
+                                        <AudioRecorder
+                                            onAudioReady={(blob) => setAudioBlob(blob)}
+                                            disabled={createCardMutation.isPending}
+                                        />
+                                        {audioBlob && (
+                                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                                                <Mic className="h-3 w-3" />
+                                                Áudio pronto. Será processado automaticamente após criar o card.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {briefingStep === 'processing' && (
+                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                        <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">
+                                                Transcrevendo e extraindo campos automaticamente
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {briefingStep === 'done' && briefingResult?.status === 'success' && (
+                                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-green-800">
+                                                Briefing gerado com sucesso!
+                                            </p>
+                                            <p className="text-xs text-green-600 mt-0.5">
+                                                {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {briefingStep === 'done' && briefingResult?.status !== 'success' && (
+                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-amber-800">
+                                                Briefing processado, sem dados novos extraídos
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {briefingStep === 'error' && (
+                                    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-red-800">
+                                                Erro no briefing IA
+                                            </p>
+                                            <p className="text-xs text-red-600 mt-0.5">
+                                                Card foi criado. Processe o briefing depois na tela do card.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
                         {/* Section: Assignment */}
                         <section className="space-y-4">
                             <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -775,12 +955,12 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     </div>
 
                     <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={handleClose} disabled={createCardMutation.isPending}>
+                        <Button variant="outline" onClick={handleClose} disabled={createCardMutation.isPending || briefingStep === 'processing'}>
                             Cancelar
                         </Button>
                         <Button
                             onClick={handleSave}
-                            disabled={!canSubmit || createCardMutation.isPending}
+                            disabled={!canSubmit || createCardMutation.isPending || briefingStep === 'processing'}
                             className={cn(
                                 "bg-indigo-600 hover:bg-indigo-700 text-white",
                                 (!canSubmit) && "opacity-50 cursor-not-allowed"
@@ -790,6 +970,16 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 <>
                                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                     Criando...
+                                </>
+                            ) : briefingStep === 'processing' ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    Processando IA...
+                                </>
+                            ) : audioBlob ? (
+                                <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    Criar & Processar IA
                                 </>
                             ) : (
                                 'Criar Card'
