@@ -6,6 +6,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 import ContactSelector from '../card/ContactSelector'
+import { formatContactName } from '../../lib/contactUtils'
 import OwnerSelector from './OwnerSelector'
 import { Input } from '../ui/Input'
 import { useAuth } from '../../contexts/AuthContext'
@@ -737,12 +738,12 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             })
                             setShowContactSelector(false)
                         } else if (contactId) {
-                            supabase.from('contatos').select('nome').eq('id', contactId).single().then(({ data }) => {
+                            supabase.from('contatos').select('nome, sobrenome').eq('id', contactId).single().then(({ data }) => {
                                 if (data) {
                                     setFormData({
                                         ...formData,
                                         pessoa_principal_id: contactId,
-                                        pessoa_principal_nome: data.nome
+                                        pessoa_principal_nome: formatContactName(data) || data.nome
                                     })
                                     setShowContactSelector(false)
                                 }

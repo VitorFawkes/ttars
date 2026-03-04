@@ -10,7 +10,7 @@ import { cn } from '../../lib/utils'
 import { useDuplicateDetection } from '../../hooks/useDuplicateDetection'
 import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
-import { formatContactName, getContactInitials } from '../../lib/contactUtils'
+import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 
 interface ContactSelectorProps {
     cardId: string
@@ -27,6 +27,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
 
     const [newContact, setNewContact] = useState({
         nome: '',
+        sobrenome: '',
         email: '',
         telefone: '',
         data_nascimento: '',
@@ -37,6 +38,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
     const { duplicates, isChecking: isCheckingDuplicates, noDuplicatesFound } = useDuplicateDetection(
         {
             nome: newContact.nome,
+            sobrenome: newContact.sobrenome,
             email: newContact.email,
             telefone: newContact.telefone,
         },
@@ -71,8 +73,10 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
     const createContactMutation = useMutation({
         mutationFn: async () => {
             setError(null)
+            const { nome, sobrenome } = sanitizeContactNames(newContact.nome, newContact.sobrenome || null)
             const payload = {
-                nome: newContact.nome,
+                nome,
+                sobrenome,
                 email: newContact.email.trim() || null,
                 telefone: newContact.telefone.trim() || null,
                 data_nascimento: newContact.data_nascimento || null,
@@ -145,7 +149,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                     }
                 }
 
-                onContactAdded(createdContact.id, createdContact)
+                onContactAdded(createdContact.id, { nome: formatContactName(createdContact) || createdContact.nome || 'Sem Nome' })
                 onClose()
             } catch (err: unknown) {
                 console.error('Error linking contact:', err)
@@ -213,7 +217,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
 
     const resetForm = () => {
         setShowCreateForm(false)
-        setNewContact({ nome: '', email: '', telefone: '', data_nascimento: '', tipo_pessoa: 'adulto' })
+        setNewContact({ nome: '', sobrenome: '', email: '', telefone: '', data_nascimento: '', tipo_pessoa: 'adulto' })
         setError(null)
     }
 
@@ -301,7 +305,12 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                         <Button
                                             onClick={() => {
                                                 setShowCreateForm(true)
-                                                setNewContact(prev => ({ ...prev, nome: searchTerm }))
+                                                const parts = searchTerm.trim().split(/\s+/)
+                                                if (parts.length > 1) {
+                                                    setNewContact(prev => ({ ...prev, nome: parts[0], sobrenome: parts.slice(1).join(' ') }))
+                                                } else {
+                                                    setNewContact(prev => ({ ...prev, nome: searchTerm }))
+                                                }
                                             }}
                                             variant="outline"
                                             className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
@@ -362,20 +371,36 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                     Dados Essenciais
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                        Nome Completo <span className="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        type="text"
-                                        value={newContact.nome}
-                                        onChange={(e) => setNewContact({ ...newContact, nome: e.target.value })}
-                                        placeholder="Ex: João Silva"
-                                        autoFocus
-                                        className={cn(
-                                            newContact.nome && "border-green-300 bg-green-50/30"
-                                        )}
-                                    />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                            Nome <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            type="text"
+                                            value={newContact.nome}
+                                            onChange={(e) => setNewContact({ ...newContact, nome: e.target.value })}
+                                            placeholder="Ex: João"
+                                            autoFocus
+                                            className={cn(
+                                                newContact.nome && "border-green-300 bg-green-50/30"
+                                            )}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                            Sobrenome
+                                        </label>
+                                        <Input
+                                            type="text"
+                                            value={newContact.sobrenome}
+                                            onChange={(e) => setNewContact({ ...newContact, sobrenome: e.target.value })}
+                                            placeholder="Ex: Silva"
+                                            className={cn(
+                                                newContact.sobrenome && "border-green-300 bg-green-50/30"
+                                            )}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Phone + Email in same section */}
