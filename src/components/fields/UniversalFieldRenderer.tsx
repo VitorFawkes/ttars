@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- dynamic field renderer handles arbitrary data shapes */
-import React from 'react'
+import React, { useState } from 'react'
 import {
     MapPin, Calendar, DollarSign, Tag, X, Check, Edit2, AlertCircle,
     Eraser, Type, Hash, CalendarDays, List, CheckSquare, Banknote, Clock
@@ -19,6 +19,61 @@ import { FieldLockButton } from '../card/FieldLockButton'
 import { useFieldLock } from '../../hooks/useFieldLock'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
+
+function DestinosChipInput({ destinos, onChange }: { destinos: string[], onChange?: (val: string[]) => void }) {
+    const [inputValue, setInputValue] = useState('')
+
+    const addDestino = (raw: string) => {
+        const val = raw.trim().replace(/,/g, '')
+        if (val && !destinos.includes(val)) {
+            onChange?.([...destinos, val])
+        }
+        setInputValue('')
+    }
+
+    const removeDestino = (index: number) => {
+        const updated = [...destinos]
+        updated.splice(index, 1)
+        onChange?.(updated)
+    }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-lg bg-white min-h-[80px] content-start">
+                {destinos.map((dest, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                        <MapPin className="h-3 w-3" /> {dest}
+                        <button
+                            type="button"
+                            onClick={() => removeDestino(i)}
+                            className="ml-0.5 p-0.5 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-200 rounded-full"
+                        >
+                            <X className="h-3 w-3" />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            addDestino(inputValue)
+                        }
+                    }}
+                    className="flex-1 min-w-[120px] border-none shadow-none focus:outline-none focus:ring-0 p-1 text-xs bg-transparent h-auto"
+                    placeholder={destinos.length ? '' : 'Digite um destino e pressione Enter...'}
+                    autoFocus
+                />
+            </div>
+            <p className="text-xs text-gray-500">
+                Pressione Enter ou vírgula para adicionar cada destino.
+            </p>
+        </div>
+    )
+}
 
 interface UniversalFieldRendererProps {
     field: Partial<SystemField>
@@ -249,33 +304,7 @@ export default function UniversalFieldRenderer({
         // Special case: destinos field uses comma-separated text input
         if (field.key === 'destinos') {
             const destinos = Array.isArray(value) ? value : []
-            const textValue = destinos.join(', ')
-
-            return (
-                <div className="space-y-3">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MapPin className="h-4 w-4 text-gray-400" />
-                        </div>
-                        <Input
-                            type="text"
-                            defaultValue={textValue}
-                            onBlur={(e) => {
-                                const newDestinos = e.target.value
-                                    .split(',')
-                                    .map((s: string) => s.trim())
-                                    .filter((s: string) => s.length > 0)
-                                onChange?.(newDestinos)
-                            }}
-                            placeholder="Ex: Paris, Londres, Roma"
-                            className="pl-10 bg-white border border-gray-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 transition-colors"
-                        />
-                    </div>
-                    <p className="text-xs text-gray-500">
-                        Separe os destinos por vírgula para identificá-los individualmente.
-                    </p>
-                </div>
-            )
+            return <DestinosChipInput destinos={destinos} onChange={onChange} />
         }
 
         switch (field.type) {
