@@ -100,7 +100,7 @@ export function useWhatsAppConversations() {
             const { data, error } = await (supabase.rpc as any)('analytics_whatsapp_conversations', {
                 p_from: dateRange.start,
                 p_to: dateRange.end,
-                p_produto: product === 'ALL' ? null : product,
+                p_produto: product,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
                 p_status: statusFilter,

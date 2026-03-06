@@ -28,7 +28,7 @@ import { Button } from '../ui/Button'
 import { useSeenCards } from '../../hooks/useSeenCards'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
-type Product = Database['public']['Enums']['app_product'] | 'ALL'
+type Product = Database['public']['Enums']['app_product']
 
 interface ProximaTarefa {
     id: string

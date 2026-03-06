@@ -68,7 +68,7 @@ export function useWhatsAppSpeed() {
             const { data, error } = await (supabase.rpc as any)('analytics_whatsapp_speed', {
                 p_from: dateRange.start,
                 p_to: dateRange.end,
-                p_produto: product === 'ALL' ? null : product,
+                p_produto: product,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_granularity: granularity,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,

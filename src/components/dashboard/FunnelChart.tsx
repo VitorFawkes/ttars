@@ -7,10 +7,10 @@ import { QueryErrorState } from '../ui/QueryErrorState'
 type Product = Database['public']['Enums']['app_product']
 
 interface FunnelChartProps {
-    productFilter?: Product | 'ALL'
+    productFilter: Product
 }
 
-export default function FunnelChart({ productFilter = 'ALL' }: FunnelChartProps) {
+export default function FunnelChart({ productFilter }: FunnelChartProps) {
     const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['dashboard-funnel', productFilter],
         queryFn: async () => {
@@ -19,9 +19,7 @@ export default function FunnelChart({ productFilter = 'ALL' }: FunnelChartProps)
                 .select('*')
                 .order('etapa_ordem')
 
-            if (productFilter !== 'ALL') {
-                query = query.eq('produto', productFilter)
-            }
+            query = query.eq('produto', productFilter)
 
             const { data, error } = await query
             if (error) throw error

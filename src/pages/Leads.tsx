@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Database, UploadCloud, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useProductContext } from '../hooks/useProductContext'
 import { useLeadsFilters } from '../hooks/useLeadsFilters'
 import { useLeadsQuery } from '../hooks/useLeadsQuery'
 import { useLeadsColumns } from '../hooks/useLeadsColumns'
@@ -13,6 +14,7 @@ import { ColumnManager } from '../components/ui/data-grid/ColumnManager'
 import DealImportModal from '../components/kanban/DealImportModal'
 
 export default function Leads() {
+    const { currentProduct } = useProductContext()
     const { filters, setPage, setPageSize } = useLeadsFilters()
     const { data: queryResult, isLoading, isError, refetch } = useLeadsQuery({ filters })
     const { columns, setColumns } = useLeadsColumns()
@@ -138,7 +140,7 @@ export default function Leads() {
             <DealImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
-                currentProduct={'TRIPS'}
+                currentProduct={currentProduct}
                 onSuccess={() => {
                     window.location.reload()
                 }}

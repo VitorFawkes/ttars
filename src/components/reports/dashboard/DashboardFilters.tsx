@@ -23,7 +23,6 @@ const DATE_PRESETS = [
 ]
 
 const PRODUCTS = [
-    { value: 'ALL', label: 'Todos' },
     { value: 'TRIPS', label: 'Trips' },
     { value: 'WEDDING', label: 'Wedding' },
     { value: 'CORP', label: 'Corp' },
@@ -87,7 +86,7 @@ export default function DashboardFilters({ filters, onChange, hideOwner }: Dashb
     const activeCount = useMemo(() => {
         let count = 0
         if (filters.datePreset && filters.datePreset !== 'all_time') count++
-        if (filters.product && filters.product !== 'ALL') count++
+        if (filters.product) count++
         if (filters.ownerId) count++
         return count
     }, [filters.datePreset, filters.product, filters.ownerId])
@@ -187,7 +186,7 @@ export default function DashboardFilters({ filters, onChange, hideOwner }: Dashb
                         onClick={() => onChange({ ...filters, product: p.value })}
                         className={cn(
                             'px-2.5 py-1 text-xs rounded-md transition-all duration-150 font-medium',
-                            (filters.product ?? 'ALL') === p.value
+                            (filters.product ?? 'TRIPS') === p.value
                                 ? 'bg-indigo-100 text-indigo-700'
                                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                         )}

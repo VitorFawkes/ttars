@@ -100,7 +100,7 @@ export function useAnalyticsDrillDownQuery() {
             const { data, error } = await (supabase.rpc as any)('analytics_drill_down_cards', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_global_stage_id: stageId,
                 p_global_owner_id: ownerId,

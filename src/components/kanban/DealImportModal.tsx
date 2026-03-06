@@ -15,7 +15,7 @@ interface DealImportModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
-    currentProduct: Product | 'ALL'
+    currentProduct: Product
 }
 
 interface Mapping {
@@ -70,7 +70,7 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
     const abortRef = useRef(false)
 
     // Resolve effective product (default to TRIPS if ALL)
-    const effectiveProduct: Product = currentProduct === 'ALL' ? 'TRIPS' : currentProduct
+    const effectiveProduct: Product = currentProduct
     const currentUserId = session?.user?.id
 
     // Fetch Pipeline ID

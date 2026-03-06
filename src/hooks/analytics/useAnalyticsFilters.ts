@@ -9,7 +9,7 @@ export interface AnalyticsFiltersState {
     datePreset: DatePreset
     dateRange: { start: string; end: string }
     granularity: Granularity
-    product: 'ALL' | 'TRIPS' | 'WEDDING' | 'CORP'
+    product: 'TRIPS' | 'WEDDING' | 'CORP'
     mode: AnalysisMode
     stageId: string | null
     ownerId: string | null       // Compat: derived from ownerIds[0] or null
@@ -21,7 +21,7 @@ export interface AnalyticsFiltersState {
     setDatePreset: (preset: DatePreset) => void
     setDateRange: (range: { start: string; end: string }) => void
     setGranularity: (g: Granularity) => void
-    setProduct: (p: 'ALL' | 'TRIPS' | 'WEDDING' | 'CORP') => void
+    setProduct: (p: 'TRIPS' | 'WEDDING' | 'CORP') => void
     setMode: (mode: AnalysisMode) => void
     setModeWithStage: (mode: AnalysisMode, stageId: string | null) => void
     setOwnerId: (id: string | null) => void
@@ -68,7 +68,7 @@ export const initialFiltersState = {
     datePreset: defaultPreset,
     dateRange: getDateRangeForPreset(defaultPreset),
     granularity: 'month' as Granularity,
-    product: 'ALL' as const,
+    product: 'TRIPS' as const,
     mode: 'entries' as AnalysisMode,
     stageId: null as string | null,
     ownerId: null as string | null,

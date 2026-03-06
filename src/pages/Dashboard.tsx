@@ -27,16 +27,16 @@ export default function Dashboard() {
                     <FunnelChart productFilter={productFilter} />
                 </ErrorBoundary>
                 <ErrorBoundary fallback={sectionFallback}>
-                    <ProposalAnalyticsWidget />
+                    <ProposalAnalyticsWidget productFilter={productFilter} />
                 </ErrorBoundary>
                 <ErrorBoundary fallback={sectionFallback}>
-                    <TodayMeetingsWidget />
+                    <TodayMeetingsWidget productFilter={productFilter} />
                 </ErrorBoundary>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
                 <ErrorBoundary fallback={sectionFallback}>
-                    <RecentActivity />
+                    <RecentActivity productFilter={productFilter} />
                 </ErrorBoundary>
             </div>
         </div>

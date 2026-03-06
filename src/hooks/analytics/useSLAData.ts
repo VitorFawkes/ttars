@@ -32,7 +32,7 @@ export function useSLAViolations() {
             const { data, error } = await (supabase.rpc as any)('analytics_sla_violations', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
@@ -57,7 +57,7 @@ export function useSLASummary() {
             const { data, error } = await (supabase.rpc as any)('analytics_sla_summary', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,

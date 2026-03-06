@@ -9,14 +9,22 @@ interface ProductState {
     setProduct: (product: Product) => void
 }
 
+const VALID_PRODUCTS = ['TRIPS', 'WEDDING', 'CORP'] as const
+
 export const useProductContext = create<ProductState>()(
     persist(
         (set) => ({
-            currentProduct: 'TRIPS', // Default
+            currentProduct: 'TRIPS',
             setProduct: (product) => set({ currentProduct: product }),
         }),
         {
             name: 'product-storage',
+            onRehydrateStorage: () => (state) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if (state && !VALID_PRODUCTS.includes(state.currentProduct as any)) {
+                    state.currentProduct = 'TRIPS'
+                }
+            },
         }
     )
 )

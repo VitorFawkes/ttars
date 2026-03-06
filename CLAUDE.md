@@ -11,6 +11,7 @@
 - IMPORTANT: Ao criar hook/página/componente novo, ATUALIZAR o MAPA DO PROJETO abaixo antes de finalizar
 - IMPORTANT: NUNCA aplicar migrations diretamente em PRODUÇÃO. Sempre STAGING primeiro. Ver "Protocolo de Migrations" abaixo.
 - IMPORTANT: Ao criar view/coluna nova usada pelo frontend, adicionar a query ao smoke test em `.claude/hooks/schema-smoke-test.sh`
+- IMPORTANT: **Isolamento de Produto é obrigatório.** NUNCA misturar dados entre TRIPS, WEDDING e CORP. Ver seção "Isolamento de Produto" abaixo.
 - Commits em português. Co-author: `Co-Authored-By: Claude <noreply@anthropic.com>`
 
 ## Ambientes (OBRIGATÓRIO ENTENDER)
@@ -67,6 +68,34 @@ touch .claude/.migration_applied
 ## Arquitetura (3 Suns)
 Toda entidade orbita 3 entidades centrais: `cards`, `contatos`, `profiles`.
 Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
+
+## Isolamento de Produto (OBRIGATÓRIO)
+
+Cada produto (TRIPS, WEDDING, CORP) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin.
+
+### Constantes
+- **`PRODUCT_PIPELINE_MAP`** centralizado em `src/lib/constants.ts` — NUNCA duplicar
+- Cada produto → 1 pipeline UUID. Usar para filtrar `pipeline_stages`, `pipeline_phases`, etc.
+
+### Frontend — Checklist para código novo
+1. Ler `useProductContext().currentProduct` (ou `useAnalyticsFilters().product` no Analytics)
+2. Passar `currentProduct` como filtro para queries Supabase (`.eq('produto', currentProduct)`)
+3. Se a query envolve `pipeline_stages`, filtrar por `pipeline_id` via `PRODUCT_PIPELINE_MAP[currentProduct]`
+4. Hooks de analytics: `p_product: product` (nunca `null` — opção "ALL" foi removida)
+5. Widgets de dashboard: aceitar prop `productFilter` e filtrar por `card.produto`
+6. Reuniões/atividades sem `card_id`: manter visíveis (não filtrar)
+7. `usePipelineStages(pipelineId?)` — passar `pipelineId` quando produto importa
+
+### Backend (SQL/RPCs) — Checklist para código novo
+1. Toda RPC que toca `cards` DEVE ter: `AND (p_product IS NULL OR c.produto::TEXT = p_product)`
+2. Toda RPC que toca `pipeline_stages` DEVE ter:
+   ```sql
+   JOIN pipelines pip ON pip.id = s.pipeline_id
+   WHERE (p_product IS NULL OR pip.produto = p_product)
+   ```
+3. JOIN correto: `pipeline_stages.pipeline_id → pipelines.id` (NÃO via `pipeline_phases` — phases não tem `pipeline_id`)
+4. Milestone lookups: filtrar por `s.pipeline_id` para evitar conflito entre `taxa_paga` (TRIPS) e `ww_taxa_paga` (WEDDING)
+5. Valor para cards abertos: `COALESCE(c.valor_final, c.valor_estimado, 0)`
 
 ---
 

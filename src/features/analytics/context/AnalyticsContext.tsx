@@ -6,7 +6,7 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 type Granularity = 'day' | 'week' | 'month';
 type AnalysisMode = 'cohort' | 'activity';
-export type Product = 'ALL' | 'TRIPS' | 'WEDDING' | 'CORP';
+export type Product = 'TRIPS' | 'WEDDING' | 'CORP';
 export type StatusFilter = 'all' | 'open' | 'won' | 'lost';
 export type DateReference = 'created' | 'trip';  // Data de criação ou data da viagem
 
@@ -53,7 +53,7 @@ interface AnalyticsContextType {
 }
 
 const defaultFilters: AnalyticsFilters = {
-    product: 'ALL',
+    product: 'TRIPS',
     ownerIds: [],
     origins: [],
     status: 'all',
@@ -127,9 +127,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         // Filter by product
-        if (filters.product !== 'ALL') {
-            filteredLeads = filteredLeads.filter(lead => lead.product === filters.product);
-        }
+        filteredLeads = filteredLeads.filter(lead => lead.product === filters.product);
 
         // Filter by status
         if (filters.status !== 'all') {
@@ -188,6 +186,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAnalytics = () => {
     const context = useContext(AnalyticsContext);
     if (!context) {

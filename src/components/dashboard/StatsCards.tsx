@@ -8,10 +8,10 @@ import { QueryErrorState } from '../ui/QueryErrorState'
 type Product = Database['public']['Enums']['app_product']
 
 interface StatsCardsProps {
-    productFilter?: Product | 'ALL'
+    productFilter: Product
 }
 
-export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
+export default function StatsCards({ productFilter }: StatsCardsProps) {
     const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['dashboard-stats', productFilter],
         queryFn: async () => {
@@ -19,9 +19,7 @@ export default function StatsCards({ productFilter = 'ALL' }: StatsCardsProps) {
                 .from('view_dashboard_funil')
                 .select('*')
 
-            if (productFilter !== 'ALL') {
-                query = query.eq('produto', productFilter)
-            }
+            query = query.eq('produto', productFilter)
 
             const { data, error } = await query
             if (error) throw error

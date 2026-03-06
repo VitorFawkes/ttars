@@ -27,7 +27,7 @@ export function useTeamPerformance(phase?: string) {
             const { data, error } = await (supabase.rpc as any)('analytics_team_performance', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_phase: phase || null,
                 p_mode: mode,
                 p_stage_id: stageId,

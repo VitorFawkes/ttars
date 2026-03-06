@@ -23,6 +23,7 @@ export default function GroupsPage() {
                 .from('cards')
                 .select('*')
                 .eq('is_group_parent', true)
+                .eq('produto', 'TRIPS')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

@@ -2,14 +2,18 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { PipelineStage } from '@/types/pipeline'
 
-export function usePipelineStages() {
+export function usePipelineStages(pipelineId?: string) {
     return useQuery({
-        queryKey: ['pipeline-stages'],
+        queryKey: ['pipeline-stages', pipelineId ?? 'all'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('pipeline_stages')
                 .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .order('ordem')
+            if (pipelineId) {
+                query = query.eq('pipeline_id', pipelineId)
+            }
+            const { data, error } = await query
 
             if (error) throw error
 

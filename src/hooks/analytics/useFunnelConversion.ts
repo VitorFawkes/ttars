@@ -30,7 +30,7 @@ export function useFunnelConversion() {
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_conversion', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
@@ -54,7 +54,7 @@ export function useLossReasons() {
             const { data, error } = await (supabase.rpc as any)('analytics_loss_reasons', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,

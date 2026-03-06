@@ -6,19 +6,27 @@ import { useAuth } from '@/contexts/AuthContext'
 import { format, startOfDay, endOfDay } from 'date-fns'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 
-export function TodayMeetingsWidget() {
+import type { Database } from '@/database.types'
+
+type Product = Database['public']['Enums']['app_product']
+
+interface TodayMeetingsWidgetProps {
+    productFilter?: Product
+}
+
+export function TodayMeetingsWidget({ productFilter }: TodayMeetingsWidgetProps) {
     const navigate = useNavigate()
     const { profile } = useAuth()
 
     const { data: meetings, isLoading, isError, refetch } = useQuery({
-        queryKey: ['today-meetings-widget', profile?.id],
+        queryKey: ['today-meetings-widget', profile?.id, productFilter],
         queryFn: async () => {
             const today = new Date()
             const { data, error } = await supabase
                 .from('tarefas')
                 .select(`
                     id, titulo, data_vencimento, status, metadata,
-                    card:cards!tarefas_card_id_fkey(id, titulo)
+                    card:cards!tarefas_card_id_fkey(id, titulo, produto)
                 `)
                 .eq('tipo', 'reuniao')
                 .eq('responsavel_id', profile!.id)
@@ -29,7 +37,13 @@ export function TodayMeetingsWidget() {
                 .order('data_vencimento', { ascending: true })
 
             if (error) throw error
-            return data || []
+            let result = data || []
+            // Filtrar por produto do card associado
+            if (productFilter) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                result = result.filter((m: any) => m.card?.produto === productFilter)
+            }
+            return result
         },
         staleTime: 1000 * 60,
         enabled: !!profile?.id,

@@ -51,7 +51,7 @@ export function useOverviewKpis() {
             const { data, error } = await (supabase.rpc as any)('analytics_overview_kpis', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
@@ -75,7 +75,7 @@ export function useFunnelData() {
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_live', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
@@ -101,7 +101,7 @@ export function useRevenueTimeseries() {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
                 p_granularity: granularity,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_mode: mode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,

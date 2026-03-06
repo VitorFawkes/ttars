@@ -28,7 +28,7 @@ export function useRetentionCohort() {
             const { data, error } = await (supabase.rpc as any)('analytics_retention_cohort', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
             })
             if (error) throw error
@@ -49,7 +49,7 @@ export function useRetentionKpis() {
             const { data, error } = await (supabase.rpc as any)('analytics_retention_kpis', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
-                p_product: product === 'ALL' ? null : product,
+                p_product: product,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
             })
             if (error) throw error

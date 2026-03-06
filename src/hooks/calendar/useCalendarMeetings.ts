@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { useProductContext } from '@/hooks/useProductContext'
 import { useCalendarFilters, getDateRange } from './useCalendarFilters'
 import type { Database } from '@/database.types'
 
@@ -41,11 +42,12 @@ function extractMeetingLink(metadata: unknown): string | null {
 
 export function useCalendarMeetings() {
     const { profile } = useAuth()
+    const { currentProduct } = useProductContext()
     const { viewMode, currentDate, teamView, selectedUserIds, statusFilter, search } = useCalendarFilters()
     const { start, end } = getDateRange(viewMode, currentDate)
 
     const query = useQuery({
-        queryKey: ['calendar-meetings', start, end, teamView, selectedUserIds, statusFilter, profile?.id],
+        queryKey: ['calendar-meetings', start, end, teamView, selectedUserIds, statusFilter, profile?.id, currentProduct],
         queryFn: async () => {
             // NOTE: responsavel join removed because tarefas_responsavel_id_fkey → auth.users,
             // not public.profiles. PostgREST can't do cross-schema joins.
@@ -54,7 +56,7 @@ export function useCalendarMeetings() {
                 .from('tarefas')
                 .select(`
                     *,
-                    card:cards!tarefas_card_id_fkey(id, titulo,
+                    card:cards!tarefas_card_id_fkey(id, titulo, produto,
                         contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)
                     )
                 `)
@@ -79,7 +81,14 @@ export function useCalendarMeetings() {
             const { data, error } = await q
             if (error) throw error
 
-            const rows = data || []
+            // Filtrar por produto do card associado
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rows = (data || []).filter((r: any) => {
+                if (!currentProduct) return true
+                // Reuniões sem card continuam visíveis
+                if (!r.card) return true
+                return r.card.produto === currentProduct
+            })
 
             // Fetch profiles for unique responsavel_ids
             const profileIds = [...new Set(rows.map(r => r.responsavel_id).filter(Boolean))] as string[]

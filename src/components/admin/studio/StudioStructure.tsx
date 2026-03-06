@@ -34,10 +34,7 @@ import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
 import { useProductContext } from '../../../hooks/useProductContext'
 import type { Database } from '../../../database.types'
 
-const PRODUCT_PIPELINE_MAP: Record<string, string> = {
-    TRIPS:   'c8022522-4a1d-411c-9387-efe03ca725ee',
-    WEDDING: 'f4611f84-ce9c-48ad-814b-dcd6081f15db',
-}
+import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row']
 type PipelinePhase = Database['public']['Tables']['pipeline_phases']['Row']

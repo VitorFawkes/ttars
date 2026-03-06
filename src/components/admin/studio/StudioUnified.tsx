@@ -40,11 +40,7 @@ const COLORS = [
     { label: 'Cinza', value: 'bg-gray-500' },
 ]
 
-// Map product → pipeline UUID (each product has its own pipeline)
-const PRODUCT_PIPELINE_MAP: Record<string, string> = {
-    TRIPS:   'c8022522-4a1d-411c-9387-efe03ca725ee',
-    WEDDING: 'f4611f84-ce9c-48ad-814b-dcd6081f15db',
-}
+import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
 
 export default function StudioUnified() {
     const queryClient = useQueryClient()

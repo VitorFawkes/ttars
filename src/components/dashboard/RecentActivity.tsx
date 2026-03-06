@@ -3,6 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { QueryErrorState } from '../ui/QueryErrorState'
+import type { Database } from '../../database.types'
+
+type Product = Database['public']['Enums']['app_product']
 
 interface Activity {
     id: string
@@ -11,6 +14,7 @@ interface Activity {
     created_at: string
     card?: {
         titulo: string
+        produto: string | null
     }
     created_by_user?: {
         nome: string | null
@@ -18,11 +22,15 @@ interface Activity {
     }
 }
 
-export default function RecentActivity() {
+interface RecentActivityProps {
+    productFilter?: Product
+}
+
+export default function RecentActivity({ productFilter }: RecentActivityProps) {
     const { data: activities, isLoading, isError, refetch } = useQuery({
-        queryKey: ['recent-activity'],
+        queryKey: ['recent-activity', productFilter],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const query = supabase
                 .from('activities')
                 .select(`
                     id,
@@ -30,18 +38,27 @@ export default function RecentActivity() {
                     descricao,
                     created_at,
                     card:cards!card_id (
-                        titulo
+                        titulo,
+                        produto
                     ),
                     created_by_user:profiles!created_by (
                         nome,
                         email
                     )
                 `)
+                .not('card_id', 'is', null)
                 .order('created_at', { ascending: false })
-                .limit(10)
+                .limit(20)
 
+            const { data, error } = await query
             if (error) throw error
-            return data as unknown as Activity[]
+
+            let result = data as unknown as Activity[]
+            // Filtrar client-side por produto (PostgREST não suporta filter em FK join facilmente)
+            if (productFilter) {
+                result = result.filter(a => a.card?.produto === productFilter)
+            }
+            return result.slice(0, 10)
         }
     })
 

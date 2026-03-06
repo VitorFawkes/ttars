@@ -39,9 +39,17 @@ interface PendingProposal {
     days_pending: number
 }
 
-export function ProposalAnalyticsWidget() {
+import type { Database } from '@/database.types'
+
+type Product = Database['public']['Enums']['app_product']
+
+interface ProposalAnalyticsWidgetProps {
+    productFilter?: Product
+}
+
+export function ProposalAnalyticsWidget({ productFilter }: ProposalAnalyticsWidgetProps) {
     const { data: stats, isLoading: loadingStats, isError: errorStats, refetch: refetchStats } = useQuery({
-        queryKey: ['proposal-stats-widget'],
+        queryKey: ['proposal-stats-widget', productFilter],
         queryFn: async () => {
             const { data: proposals, error } = await supabase
                 .from('proposals')
@@ -49,14 +57,21 @@ export function ProposalAnalyticsWidget() {
                     id,
                     status,
                     created_at,
-                    card:cards!proposals_card_id_fkey(titulo)
+                    card:cards!proposals_card_id_fkey(titulo, produto)
                 `)
                 .order('created_at', { ascending: false })
 
             if (error) throw error
 
+            // Filtrar por produto do card associado
+            let filtered = proposals || []
+            if (productFilter) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                filtered = filtered.filter((p: any) => p.card?.produto === productFilter)
+            }
+
             const stats: ProposalStats = {
-                total: proposals?.length || 0,
+                total: filtered.length,
                 draft: 0,
                 sent: 0,
                 viewed: 0,
@@ -69,7 +84,7 @@ export function ProposalAnalyticsWidget() {
             }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            proposals?.forEach((p: any) => {
+            filtered.forEach((p: any) => {
                 const status = p.status as keyof typeof stats
                 if (status in stats && typeof stats[status] === 'number') {
                     stats[status] = (stats[status] as number) + 1

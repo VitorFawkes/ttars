@@ -37,7 +37,7 @@ export function useReportDrillDown({
                 p_drill_filters: drillFiltersArray as unknown as Json,
                 p_date_start: dateStart ?? undefined,
                 p_date_end: dateEnd ?? undefined,
-                p_product: (product && product !== 'ALL') ? product : undefined,
+                p_product: product ?? undefined,
                 p_owner_id: ownerId ?? undefined,
             })
 

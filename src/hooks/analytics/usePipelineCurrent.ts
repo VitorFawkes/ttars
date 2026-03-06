@@ -71,12 +71,28 @@ export interface PipelineCurrentDeal {
     pessoa_nome: string | null
 }
 
+export interface PipelineTaskByType {
+    tipo: string
+    total: number
+    completed: number
+    pending: number
+}
+
+export interface PipelineCurrentTasks {
+    total_created: number
+    total_completed: number
+    total_pending: number
+    completion_rate: number
+    by_type: PipelineTaskByType[]
+}
+
 export interface PipelineCurrentData {
     kpis: PipelineCurrentKpis
     stages: PipelineCurrentStage[]
     aging: PipelineCurrentAging[]
     owners: PipelineCurrentOwner[]
     top_deals: PipelineCurrentDeal[]
+    tasks: PipelineCurrentTasks
 }
 
 // ── Hook Options ────────────────────────────────────────
@@ -102,7 +118,7 @@ export function usePipelineCurrent(options?: UsePipelineCurrentOptions) {
             const { data, error } = await (supabase.rpc as any)(
                 'analytics_pipeline_current',
                 {
-                    p_product: product === 'ALL' ? null : product,
+                    p_product: product,
                     p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                     p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
                     p_date_ref: dateRef,

@@ -102,13 +102,11 @@ function AnalyticsContent() {
         updateFilter('origins', updated);
     };
 
-    const hasActiveFilters = filters.product !== 'ALL' ||
-        filters.ownerIds.length > 0 ||
+    const hasActiveFilters = filters.ownerIds.length > 0 ||
         filters.origins.length > 0 ||
         filters.status !== 'all';
 
     const activeFilterCount = [
-        filters.product !== 'ALL',
         filters.ownerIds.length > 0,
         filters.origins.length > 0,
         filters.status !== 'all'
@@ -135,7 +133,7 @@ function AnalyticsContent() {
                             <select
                                 className="text-sm border-none bg-transparent focus:ring-0 text-slate-600 font-medium cursor-pointer pr-6"
                                 value={granularity}
-                                onChange={(e) => setGranularity(e.target.value as any)}
+                                onChange={(e) => setGranularity(e.target.value as 'day' | 'week' | 'month')}
                             >
                                 <option value="week">Semanal</option>
                                 <option value="month">Mensal</option>
@@ -364,14 +362,9 @@ function AnalyticsContent() {
                         {/* Active Filter Chips */}
                         {hasActiveFilters && (
                             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-100">
-                                {filters.product !== 'ALL' && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
                                         Produto: {filters.product}
-                                        <button onClick={() => updateFilter('product', 'ALL')} className="hover:bg-indigo-100 rounded-full p-0.5">
-                                            <X className="h-3 w-3" />
-                                        </button>
                                     </span>
-                                )}
                                 {filters.status !== 'all' && (
                                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
                                         Status: {filters.status === 'open' ? 'Em Aberto' : filters.status === 'won' ? 'Ganho' : 'Perdido'}
