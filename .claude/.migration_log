@@ -40,3 +40,4 @@ PENDING | supabase/migrations/20260305_product_isolation_rpcs.sql | pending_stag
 2026-03-06T14:19:23Z | supabase/migrations/20260306_revert_get_client_create_card.sql | applied_to_prod
 2026-03-06T19:25:07Z | supabase/migrations/20260306_fix_analytics_tag_helper.sql | applied_to_prod
 2026-03-06T19:25:11Z | supabase/migrations/20260306_fix_analytics_tag_helper.sql | applied_to_prod
+2026-03-06T19:45:39Z | supabase/migrations/20260306_fix_enum_cast_analytics.sql | applied_to_prod
