@@ -35,3 +35,4 @@ PENDING | supabase/migrations/20260305_product_isolation_rpcs.sql | pending_stag
 2026-03-06T12:42:37Z | supabase/migrations/20260305_product_isolation_rpcs.sql | applied_to_prod
 2026-03-06T12:50:40Z | supabase/migrations/20260307_task_sync_bidirectional.sql | applied_to_prod
 2026-03-06T13:01:12Z | supabase/migrations/20260307_pipeline_current_tasks.sql | applied_to_prod
+2026-03-06T13:14:25Z | supabase/migrations/20260306_trips_travel_planner_linha.sql | applied_to_prod

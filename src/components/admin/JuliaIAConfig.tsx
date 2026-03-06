@@ -11,6 +11,7 @@ const KNOWN_LINES = [
     { label: 'Concierge Welcome', description: 'Linha Concierge' },
     { label: 'Marketing Welcome', description: 'Linha Marketing' },
     { label: 'Extras', description: 'Linha Extras' },
+    { label: 'Trips - Travel Planner', description: 'Linha Travel Planner Trips' },
 ]
 
 export default function JuliaIAConfig() {
