@@ -4,6 +4,7 @@ import type { Database } from '../../database.types'
 import { ChevronDown, ChevronRight, Database as DatabaseIcon, Mail, Phone, User, Calendar, MapPin, Tag, RefreshCw, Clock } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { supabase } from '../../lib/supabase'
+import { ContactMeiosEditor } from './ContactMeiosEditor'
 
 type Contact = Database['public']['Tables']['contatos']['Row']
 type Card = Database['public']['Tables']['cards']['Row']
@@ -142,6 +143,11 @@ export default function ContactDetailsViewer({ contact, card }: ContactDetailsVi
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Telefones e Emails adicionais */}
+                <div className="col-span-2">
+                    <ContactMeiosEditor contactId={contact.id} readOnly />
                 </div>
 
                 {/* Additional Info */}
