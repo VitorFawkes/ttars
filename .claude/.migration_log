@@ -43,3 +43,4 @@ PENDING | supabase/migrations/20260305_product_isolation_rpcs.sql | pending_stag
 2026-03-06T19:45:39Z | supabase/migrations/20260306_fix_enum_cast_analytics.sql | applied_to_prod
 2026-03-09T14:25:16Z | supabase/migrations/20260309_fix_whatsapp_status_fallthrough.sql | applied_to_prod
 2026-03-09T14:34:54Z | supabase/migrations/20260309_fix_origem_check_allow_null.sql | applied_to_prod
+2026-03-09T14:45:15Z | supabase/migrations/20260309_fix_origem_empty_string_trigger.sql | applied_to_prod
