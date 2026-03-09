@@ -14,18 +14,30 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    v_existing_id UUID;
 BEGIN
     -- Só age se telefone mudou
     IF NEW.telefone IS DISTINCT FROM OLD.telefone THEN
         IF NEW.telefone IS NOT NULL AND TRIM(NEW.telefone) <> '' THEN
-            -- Upsert: se já existe um telefone principal, atualiza. Senão, insere.
-            INSERT INTO contato_meios (contato_id, tipo, valor, is_principal, origem)
-            VALUES (NEW.id, 'telefone', NEW.telefone, true, 'sync')
-            ON CONFLICT (tipo, valor_normalizado) WHERE valor_normalizado IS NOT NULL
-            DO UPDATE SET
-                valor = EXCLUDED.valor,
-                is_principal = true,
-                updated_at = NOW();
+            -- Verifica se já existe registro com esse valor para este contato (qualquer tipo)
+            -- Evita duplicar quando o reverse trigger (contato_meios→contatos) causa cascade
+            SELECT id INTO v_existing_id
+            FROM contato_meios
+            WHERE contato_id = NEW.id
+              AND valor = NEW.telefone
+            LIMIT 1;
+
+            IF v_existing_id IS NULL THEN
+                -- Nenhum registro com esse valor: upsert como telefone principal
+                INSERT INTO contato_meios (contato_id, tipo, valor, is_principal, origem)
+                VALUES (NEW.id, 'telefone', NEW.telefone, true, 'sync')
+                ON CONFLICT (tipo, valor_normalizado) WHERE valor_normalizado IS NOT NULL
+                DO UPDATE SET
+                    valor = EXCLUDED.valor,
+                    is_principal = true,
+                    updated_at = NOW();
+            END IF;
         END IF;
     END IF;
 
