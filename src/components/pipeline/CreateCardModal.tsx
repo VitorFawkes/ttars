@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { cn } from '../../lib/utils'
+import { cn, buildContactSearchFilter } from '../../lib/utils'
 import ContactSelector from '../card/ContactSelector'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import OwnerSelector from './OwnerSelector'
@@ -250,7 +250,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         pos_owner_id: null as string | null,
         pos_owner_nome: null as string | null,
         selectedStageId: null as string | null,
-        origem: '' as string,
+        origem: null as string | null,
         origem_lead: null as string | null,
         indicado_por_id: null as string | null
     })
@@ -270,11 +270,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         queryKey: ['indicacao-search', debouncedIndicacao],
         queryFn: async () => {
             if (!debouncedIndicacao) return []
-            const words = debouncedIndicacao.trim().split(/\s+/)
-            let searchFilter = `nome.ilike.%${debouncedIndicacao}%,sobrenome.ilike.%${debouncedIndicacao}%,email.ilike.%${debouncedIndicacao}%,telefone.ilike.%${debouncedIndicacao}%`
-            if (words.length >= 2) {
-                searchFilter += `,and(nome.ilike.%${words[0]}%,sobrenome.ilike.%${words.slice(1).join(' ')}%)`
-            }
+            const searchFilter = buildContactSearchFilter(debouncedIndicacao)
             const { data, error } = await supabase
                 .from('contatos')
                 .select('id, nome, sobrenome, telefone, email')
@@ -401,7 +397,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     vendas_owner_id: formData.vendas_owner_id,
                     pos_owner_id: formData.pos_owner_id,
                     dono_atual_id: currentOwnerId,
-                    origem: formData.origem,
+                    origem: formData.origem || null,
                     origem_lead: formData.origem_lead,
                     indicado_por_id: formData.indicado_por_id,
                     status_comercial: 'aberto',
