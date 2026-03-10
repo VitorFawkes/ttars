@@ -54,3 +54,6 @@ supabase/migrations/20260310_backfill_orphan_contacts.sql|prod|2026-03-10T12:58:
 supabase/migrations/20260310_fix_contatos_insert_rls.sql|pending_manual|2026-03-10T13:06:23Z|staging_sem_tabelas_aguardando_access_token_para_prod
 2026-03-10T14:27:06Z | supabase/migrations/20260310_fix_set_card_primary_contact.sql | applied_to_prod
 2026-03-10T14:27:06Z | supabase/migrations/20260310_fix_contatos_insert_rls.sql | already_exists_in_prod
+2026-03-10T14:52:37Z | supabase/migrations/20260310_cron_sync_pipeline6_deals.sql | applied_to_prod
+2026-03-10T14:52:51Z | supabase/migrations/20260310_traveler_card_lookup.sql | applied_to_prod
+2026-03-10T15:45:08Z | supabase/migrations/20260310_fix_reprocess_no_card_create.sql | applied_to_prod
