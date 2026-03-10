@@ -25,7 +25,7 @@ export function useChatIA(cardId: string, contactId: string | null) {
   }, [])
 
   const sendMessage = useCallback(async (question: string) => {
-    if (!question.trim() || !contactId) return
+    if (!question.trim() || (!contactId && !cardId)) return
 
     const userMsg: ChatMessage = { role: 'user', content: question.trim() }
 

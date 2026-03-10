@@ -189,7 +189,7 @@ Cada produto (TRIPS, WEDDING, CORP) tem seu próprio pipeline. Se um produto est
 | Pipeline | KanbanBoard, PipelineListView, CreateCardModal, FilterDrawer, DocumentBadge |
 | Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget, CardTeamSection, DocumentCollectionWidget, BriefingIAModal, AudioRecorder, WeddingInformation, TagBadge, TagSelector |
 | Propostas | ProposalBuilder, SectionEditor, AddItemMenu, VersionHistory |
-| Admin | StudioUnified, IntegrationBuilder, KanbanCardSettings, JuliaIAConfig |
+| Admin | StudioUnified, IntegrationBuilder, KanbanCardSettings, JuliaIAConfig, TaskSyncTab |
 | Health | IntegrationHealthTab, PulseGrid, ActiveAlertsList, HealthRulesConfig |
 | Pessoas | PeopleGrid, PersonDetailDrawer, ContactForm, ContactImportModal, DuplicateWarningPanel, DataQualityBanner, DataQualityDrawer |
 | Leads | LeadsTable, LeadsFilters, LeadsBulkActions |
@@ -287,7 +287,7 @@ Cada produto (TRIPS, WEDDING, CORP) tem seu próprio pipeline. Se um produto est
 - **Output:** `{ status: 'sent'|'no_email'|'error', recipients?: string[] }`
 
 ### Workflow n8n — Chat IA Conversas
-- **Workflow ID:** `rvchg8mfe7vI2urS`
+- **Workflow ID:** `Huo62PptqGDrARtu`
 - **Webhook:** `https://n8n-n8n.ymnmx7.easypanel.host/webhook/chat-ia`
 - **8 nós** — Pipeline: Webhook → Extrai Params → Busca Card → Busca Contato → Busca Mensagens WhatsApp → Monta Contexto (Code) → AI Chat (GPT-5.1 Agent, temp=0) → Formata Resposta
 - **Frontend:** Aba "Chat com IA" em ConversationHistory → AIChat → useChatIA hook

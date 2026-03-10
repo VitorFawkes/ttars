@@ -16,6 +16,7 @@
 const N8N_API_URL = 'https://n8n-n8n.ymnmx7.easypanel.host';
 const API_KEY = process.env.N8N_API_KEY;
 const SUPABASE_URL = 'https://szyrzxvlptqqheizyrxu.supabase.co';
+const TARGET_WORKFLOW_ID = 'fezRqL6GQFaGyJNG'; // Existing Briefing IA workflow to update
 
 // Credential IDs from existing workflows
 const SUPABASE_CREDENTIAL = { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' };
@@ -1138,37 +1139,30 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
 async function main() {
   const workflow = buildWorkflow();
 
-  console.log(`🔍 Verificando se workflow "${workflow.name}" já existe...`);
-
-  // List existing workflows
-  const listRes = await fetch(`${N8N_API_URL}/api/v1/workflows`, {
-    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' }
-  });
-  const listData = await listRes.json();
-  const existing = listData.data?.find(w => w.name === workflow.name);
+  console.log(`📝 Atualizando workflow "${workflow.name}" (ID: ${TARGET_WORKFLOW_ID})...`);
 
   let result;
 
-  if (existing) {
-    console.log(`📝 Workflow encontrado (ID: ${existing.id}). Atualizando...`);
-    // PUT (não PATCH) — garante que nodes/connections são 100% substituídos
-    const res = await fetch(`${N8N_API_URL}/api/v1/workflows/${existing.id}`, {
-      method: 'PUT',
-      headers: {
-        'X-N8N-API-KEY': API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: workflow.name,
-        nodes: workflow.nodes,
-        connections: workflow.connections,
-        settings: workflow.settings
-      })
-    });
-    result = await res.json();
+  // Try to update existing workflow by fixed ID
+  const updateRes = await fetch(`${N8N_API_URL}/api/v1/workflows/${TARGET_WORKFLOW_ID}`, {
+    method: 'PUT',
+    headers: {
+      'X-N8N-API-KEY': API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: workflow.name,
+      nodes: workflow.nodes,
+      connections: workflow.connections,
+      settings: workflow.settings
+    })
+  });
+
+  if (updateRes.ok) {
+    result = await updateRes.json();
     console.log(`✅ Workflow atualizado: ${result.id}`);
   } else {
-    console.log('🆕 Criando novo workflow...');
+    console.log(`⚠️  Workflow ${TARGET_WORKFLOW_ID} não encontrado. Criando novo...`);
     const res = await fetch(`${N8N_API_URL}/api/v1/workflows`, {
       method: 'POST',
       headers: {
@@ -1179,10 +1173,11 @@ async function main() {
     });
     result = await res.json();
     console.log(`✅ Workflow criado: ${result.id}`);
+    console.log(`⚠️  ATENÇÃO: Novo ID gerado. Atualize TARGET_WORKFLOW_ID no script e CLAUDE.md`);
   }
 
   // Activate
-  const workflowId = result.id || existing?.id;
+  const workflowId = result.id;
   if (workflowId) {
     const activateRes = await fetch(`${N8N_API_URL}/api/v1/workflows/${workflowId}/activate`, {
       method: 'POST',

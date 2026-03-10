@@ -73,6 +73,18 @@ Aja como um humano de backoffice: consolide fatos relevantes do cliente e **mant
 • Nossa última mensagem: {{ $('Historico Texto').item.json.ultima_mensagem_bot }}
 • Resposta do cliente: {{ $('Historico Texto').item.json.ultima_mensagem_lead }}
 
+# Papel do remetente
+• contact_role: {{ $('Historico Texto').item.json.contact_role }}
+• pessoa_principal_nome: {{ $('Historico Texto').item.json.pessoa_principal_nome }}
+
+## Regra VIAJANTE (contact_role = "traveler")
+Se contact_role é "traveler", esta conversa é com um ACOMPANHANTE, não com o titular do card.
+- No ai_contexto, SEMPRE prefixar informações deste remetente com "[Viajante: {{ $('Historico Texto').item.json.Nome }}]"
+  Exemplo: "[Viajante: Maria] disse que tem alergia a frutos do mar e prefere hotel all-inclusive"
+- Separar claramente o que foi dito pelo viajante vs pelo contato principal
+- No ai_resumo, incluir seção "Viajantes:" com dados específicos de cada acompanhante
+- Se é a primeira mensagem do viajante, iniciar contexto com: "[Viajante: {{ $('Historico Texto').item.json.Nome }}] entrou em contato pela primeira vez"
+
 # Resumo de Informações – o que entra e o que NÃO entra
 Objetivo: registrar somente fatos sobre a pessoa e seu interesse em viagem que ajudem qualificação, rapport e argumentação futura. Nunca copiar exemplos. **Nunca criar "placeholders"**.
 
@@ -248,6 +260,13 @@ Data nasc. atual: {{ $('Historico Texto').item.json.contato_data_nascimento }}
 • Só atualizar campo se valor for NOVO e diferente do existente
 • O contato_id vai na URL da tool UpdateContato
 
+## Regra VIAJANTE (contact_role = "traveler")
+Se contact_role é "traveler":
+- Cards: PODE atualizar ai_resumo, ai_contexto. NÃO avançar stage. NÃO alterar titulo.
+- Contatos (UpdateContato): atualizar O VIAJANTE (contato_id atual), não o titular.
+  Dados do viajante são DELE: nome, cpf, passaporte, data_nascimento, email, endereco.
+- NUNCA incluir pipeline_stage_id no patch quando contact_role é "traveler".
+
 ## Regras de estágio determinísticas
 IDs WelcomeCRM:
   1. Novo Lead \`${STAGES.NOVO_LEAD}\`
@@ -291,6 +310,18 @@ Você é Julia, Consultora de Viagens da Welcome Trips, conversando via WhatsApp
 • Primeiro contato: {{ $('Historico Texto').item.json.is_primeiro_contato }}
 • Produto: {{ $('Historico Texto').item.json.produto }}
 • SDR Owner ID: {{ $('Historico Texto').item.json.sdr_owner_id }}
+• Papel do remetente: {{ $('Historico Texto').item.json.contact_role }}
+• Nome do titular: {{ $('Historico Texto').item.json.pessoa_principal_nome }}
+
+## Comportamento VIAJANTE (contact_role = "traveler")
+Se o remetente é viajante (contact_role = "traveler"):
+1. Saudar pelo nome DESTE remetente ({{ $('Historico Texto').item.json.Nome }}), não do titular
+2. Referência: "a viagem com {{ $('Historico Texto').item.json.pessoa_principal_nome }}"
+3. NUNCA pedir taxa/pagamento/agendar reunião → direcionar ao titular
+4. PODE coletar: passaporte, CPF, data nascimento, preferências alimentares, restrições
+5. Se perguntar valores: "Vou alinhar com {{ $('Historico Texto').item.json.pessoa_principal_nome }}!"
+6. Tom: acolhedor, sem qualificação comercial
+7. NUNCA desqualificar viajante (não tem autoridade de compra)
 
 ## Dados já preenchidos (formulário — NÃO re-pergunte)
 • Destino: {{ $('Historico Texto').item.json.mkt_destino }}
@@ -549,27 +580,29 @@ function transformWorkflow(workflow) {
   // ---- 26. Remove nodes now handled by DB trigger ----
   removeRedundantNodes(w);
 
-  // ---- 27. Normalize AI models: all gpt-5.1, only OpenAI Formatter = gpt-5-nano ----
+  // ---- 27. Normalize AI models: all gpt-5.1, OpenAI Formatter = gpt-5-mini v1 ----
   for (const node of w.nodes) {
     if (node.type === '@n8n/n8n-nodes-langchain.lmChatOpenAi' && node.parameters?.model) {
       const isFormatter = node.name === 'OpenAI Formatter';
-      const targetModel = isFormatter ? 'gpt-5-nano' : 'gpt-5.1';
+      const targetModel = isFormatter ? 'gpt-5-mini' : 'gpt-5.1';
       if (typeof node.parameters.model === 'object') {
         node.parameters.model.value = targetModel;
         node.parameters.model.cachedResultName = targetModel;
       } else {
         node.parameters.model = targetModel;
       }
-      // gpt-5-nano only supports default temperature (1)
-      if (isFormatter && node.parameters.options?.temperature !== undefined) {
-        delete node.parameters.options.temperature;
+      // Downgrade OpenAI Formatter to typeVersion 1 (v1.2 has parser incompatibility)
+      if (isFormatter) {
+        node.typeVersion = 1;
+        if (node.parameters.options?.temperature !== undefined) {
+          delete node.parameters.options.temperature;
+        }
       }
     }
   }
 
   // ---- 27b. Fix gpt-5-nano parser leak in Format WhatsApp Messages ----
-  // gpt-5-nano sometimes includes the output parser schema instruction as a message.
-  // Fix: add explicit "NEVER include JSON Schema instructions" to the system message.
+  // Add explicit "NEVER include JSON Schema instructions" to the system message.
   for (const node of w.nodes) {
     if (node.name === 'Format WhatsApp Messages' && node.parameters?.messages?.messageValues) {
       const msgs = node.parameters.messages.messageValues;
@@ -582,6 +615,16 @@ function transformWorkflow(workflow) {
         }
       }
     }
+  }
+
+  // ---- 27c. Add Process Format Output node (safety net for parser failures) ----
+  // The n8n Structured Output Parser has a known bug where it silently returns {}
+  // This Code node robustly parses the chainLlm output regardless of parser behavior
+  addProcessFormatOutput(w, nodeMap);
+
+  // ---- 27d. Transform Split Messages to use 'messages' field ----
+  if (nodeMap['Split Messages']) {
+    nodeMap['Split Messages'].parameters.fieldToSplitOut = 'messages';
   }
 
   // ---- Global: Replace all remaining old Supabase refs ----
@@ -1108,6 +1151,11 @@ function transformPreparaDados(node) {
         value: "={{ $('getClient').item.json.produto || 'TRIPS' }}" },
       { id: 'sdr_owner_id', name: 'sdr_owner_id', type: 'string',
         value: "={{ $('getClient').item.json.sdr_owner_id || '' }}" },
+      // Campos de viajante (acompanhante)
+      { id: 'contact_role', name: 'contact_role', type: 'string',
+        value: "={{ $('getClient').item.json.contact_role || 'primary' }}" },
+      { id: 'pessoa_principal_nome', name: 'pessoa_principal_nome', type: 'string',
+        value: "={{ $('getClient').item.json.pessoa_principal_nome || '' }}" },
     ],
   };
 }
@@ -1840,13 +1888,12 @@ Mensagem proposta: {{ $('Responde Lead (Novo)').first().json.output || $('Respon
 ## Checar (responda ok=true se TUDO ok):
 1. Menciona IA, modelo, prompt, agente, sistema ou bastidores? (BLOQUEAR)
 2. Inventa fatos nao presentes no contexto? (BLOQUEAR)
-3. Faz mais de 2 perguntas seguidas? (CORRIGIR - max 1 pergunta)
-4. Tom inadequado (frio, robotico, agressivo)? (CORRIGIR)
-5. Repete apresentacao quando nao e primeiro contato? (CORRIGIR)
-6. Menciona formulario, dados do sistema, ActiveCampaign? (BLOQUEAR)
-7. Rejeita lead na primeira mensagem ou sem investigar? (BLOQUEAR - na duvida, avançar)
-8. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer so isso? (CORRIGIR)
-9. Se detectou Clube Med: apresentou taxa R$ 500 ou tentou agendar reuniao? (CORRIGIR - Clube Med NAO tem taxa nem reuniao, Planner entra em contato por outro numero)
+3. Tom inadequado (frio, robotico, agressivo)? (CORRIGIR)
+4. Repete apresentacao quando nao e primeiro contato? (CORRIGIR)
+5. Menciona formulario, dados do sistema, ActiveCampaign? (BLOQUEAR)
+6. Rejeita lead na primeira mensagem ou sem investigar? (BLOQUEAR - na duvida, avançar)
+7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer so isso? (CORRIGIR)
+8. Se detectou Clube Med: apresentou taxa R$ 500 ou tentou agendar reuniao? (CORRIGIR - Clube Med NAO tem taxa nem reuniao, Planner entra em contato por outro numero)
 
 Se algo precisa de ajuste, retorne ok=false com motivo e correcao.
 Se esta tudo certo, retorne ok=true.`,
@@ -1961,6 +2008,63 @@ function addUpdateContatoTool(w, nodeMap) {
   // Connect as ai_tool to Agent 2 ("Atualiza dados")
   w.connections['UpdateContato'] = {
     ai_tool: [[{ node: 'Atualiza dados', type: 'ai_tool', index: 0 }]],
+  };
+}
+
+// ---- Add Process Format Output (safety net for parser failures) ----
+function addProcessFormatOutput(w, nodeMap) {
+  const formatNode = nodeMap['Format WhatsApp Messages'];
+  const splitNode = nodeMap['Split Messages'];
+  if (!formatNode || !splitNode) return;
+
+  const processNode = {
+    id: 'process-format-output-' + Date.now(),
+    name: 'Process Format Output',
+    type: 'n8n-nodes-base.code',
+    typeVersion: 2,
+    position: formatNode.position
+      ? [formatNode.position[0] + 300, formatNode.position[1]]
+      : [0, 0],
+    parameters: {
+      jsCode: [
+        'const output = $input.first().json;',
+        'let messages = [];',
+        'try {',
+        '  if (output.output && typeof output.output === "object" && output.output.messages) {',
+        '    messages = output.output.messages;',
+        '  } else if (output.output && typeof output.output === "string") {',
+        '    const parsed = JSON.parse(output.output);',
+        '    messages = parsed.messages || [];',
+        '  } else if (output.messages) {',
+        '    messages = output.messages;',
+        '  } else if (output.text) {',
+        '    const cleaned = output.text.replace(/^```json\\n?/, "").replace(/\\n?```$/, "").trim();',
+        '    const parsed = JSON.parse(cleaned);',
+        '    messages = parsed.messages || (parsed.output ? parsed.output.messages : []) || [];',
+        '  }',
+        '} catch (e) {',
+        '  const rawText = output.output || output.text || "";',
+        '  messages = rawText ? [String(rawText)] : [];',
+        '}',
+        'messages = messages.filter(m => m && String(m).trim().length > 0).slice(0, 3);',
+        'if (messages.length === 0) {',
+        '  const fallback = output.output || output.text || "";',
+        '  messages = fallback ? [String(fallback)] : [];',
+        '}',
+        'return [{ json: { messages } }];',
+      ].join('\n'),
+    },
+  };
+
+  w.nodes.push(processNode);
+
+  // Rewire: Format → Process Format Output → Split Messages
+  // (previously: Format → Split Messages)
+  w.connections['Format WhatsApp Messages'] = {
+    main: [[{ node: 'Process Format Output', type: 'main', index: 0 }]],
+  };
+  w.connections['Process Format Output'] = {
+    main: [[{ node: 'Split Messages', type: 'main', index: 0 }]],
   };
 }
 

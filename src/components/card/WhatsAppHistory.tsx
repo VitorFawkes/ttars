@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useCardContactNames, type ContactNameInfo } from '@/hooks/useCardContactNames';
 
 interface WhatsAppMessage {
     id: string;
@@ -50,6 +51,7 @@ const FASE_COLORS: Record<string, { bg: string; text: string; border: string }> 
 
 interface WhatsAppHistoryProps {
     contactId: string | null;
+    cardId?: string | null;
     contactPhone?: string | null;
     className?: string;
 }
@@ -294,7 +296,7 @@ function MessageMedia({ message }: { message: WhatsAppMessage }) {
 }
 
 // Message bubble component
-function MessageBubble({ message }: { message: WhatsAppMessage }) {
+function MessageBubble({ message, contactNames }: { message: WhatsAppMessage; contactNames?: Record<string, ContactNameInfo> }) {
     const { body, buttons } = parseMessageContent(message.body);
     const hasContent = body || message.media_url;
 
@@ -324,10 +326,20 @@ function MessageBubble({ message }: { message: WhatsAppMessage }) {
                         {message.sent_by_user_name}
                     </div>
                 )}
-                {!message.is_from_me && message.sender_name && (
-                    <div className="flex items-center gap-1 text-xs font-medium text-primary">
+                {!message.is_from_me && (contactNames || message.sender_name) && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
                         <User className="w-3 h-3" />
-                        {message.sender_name}
+                        {contactNames?.[message.contact_id]?.nome || message.sender_name || 'Cliente'}
+                        {contactNames && Object.keys(contactNames).length > 1 && contactNames[message.contact_id]?.role === 'traveler' && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100 font-medium">
+                                Acompanhante
+                            </span>
+                        )}
+                        {contactNames && Object.keys(contactNames).length > 1 && contactNames[message.contact_id]?.role === 'primary' && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 font-medium">
+                                Titular
+                            </span>
+                        )}
                     </div>
                 )}
 
@@ -423,28 +435,32 @@ function MessageBubble({ message }: { message: WhatsAppMessage }) {
     );
 }
 
-export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) {
+export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistoryProps) {
     const queryClient = useQueryClient();
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // Prefer card_id for multi-contact support, fallback to contact_id
+    const filterKey = cardId ? 'card_id' : 'contact_id';
+    const filterValue = cardId || contactId;
+
     // Fetch messages
     const { data: messages, isLoading, refetch, error } = useQuery({
-        queryKey: ['whatsapp-messages', contactId],
+        queryKey: ['whatsapp-messages', filterKey, filterValue],
         queryFn: async () => {
-            if (!contactId) return [];
+            if (!filterValue) return [];
 
             const { data, error } = await (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('whatsapp_messages') as any)
                 .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label')
-                .eq('contact_id', contactId)
+                .eq(filterKey, filterValue)
                 .order('created_at', { ascending: true })
                 .limit(200);
 
             if (error) throw error;
             return (data || []) as WhatsAppMessage[];
         },
-        enabled: !!contactId
+        enabled: !!filterValue
     });
 
     // Auto-scroll to bottom when new messages arrive
@@ -460,20 +476,20 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
 
     // Supabase Realtime subscription for new messages
     useEffect(() => {
-        if (!contactId) return;
+        if (!filterValue) return;
 
         const channel = supabase
-            .channel(`whatsapp-messages-${contactId}`)
+            .channel(`whatsapp-messages-${filterValue}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'whatsapp_messages',
-                    filter: `contact_id=eq.${contactId}`
+                    filter: `${filterKey}=eq.${filterValue}`
                 },
                 () => {
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', contactId] });
+                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', filterKey, filterValue] });
                 }
             )
             .on(
@@ -482,11 +498,11 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'whatsapp_messages',
-                    filter: `contact_id=eq.${contactId}`
+                    filter: `${filterKey}=eq.${filterValue}`
                 },
                 () => {
                     // Refetch when media_content/body is updated by Edge Function
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', contactId] });
+                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', filterKey, filterValue] });
                 }
             )
             .subscribe();
@@ -494,7 +510,11 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [contactId, queryClient]);
+    }, [filterKey, filterValue, queryClient]);
+
+    // Contact names for multi-contact badges (only fetched when using card_id)
+    const { data: contactNames } = useCardContactNames(cardId || null);
+    const hasMultipleContacts = contactNames && Object.keys(contactNames).length > 1;
 
     const groupedMessages = messages ? groupMessagesByDate(messages) : [];
 
@@ -515,7 +535,7 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
     // Filter out messages with no content
     const hasMessages = messages && messages.some(m => m.body || m.media_url);
 
-    if (!contactId) {
+    if (!filterValue) {
         return (
             <div className={cn("flex flex-col items-center justify-center h-full text-muted-foreground p-8", className)}>
                 <AlertCircle className="w-8 h-8 mb-3" />
@@ -568,7 +588,12 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
             <div className="flex items-center justify-between px-4 py-3 border-b">
                 <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium">{messages?.filter(m => m.body || m.media_url).length || 0} mensagens</span>
+                    <span className="text-sm font-medium">
+                        {messages?.filter(m => m.body || m.media_url).length || 0} mensagens
+                        {hasMultipleContacts && (
+                            <span className="text-slate-500 ml-1">· {Object.keys(contactNames!).length} contatos</span>
+                        )}
+                    </span>
                     <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" title="Atualizando em tempo real" />
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => refetch()}>
@@ -604,7 +629,7 @@ export function WhatsAppHistory({ contactId, className }: WhatsAppHistoryProps) 
                                                 </span>
                                             </div>
                                         )}
-                                        <MessageBubble message={message} />
+                                        <MessageBubble message={message} contactNames={hasMultipleContacts ? contactNames : undefined} />
                                     </div>
                                 );
                             })}

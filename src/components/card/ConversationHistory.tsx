@@ -192,7 +192,7 @@ export default function ConversationHistory({ cardId, contactId }: ConversationH
                     <div className="p-0">
                         {activeTab === 'whatsapp' && (
                             <div className="h-[400px]">
-                                <WhatsAppHistory contactId={contactId || null} className="h-full" />
+                                <WhatsAppHistory cardId={cardId} contactId={contactId || null} className="h-full" />
                             </div>
                         )}
 

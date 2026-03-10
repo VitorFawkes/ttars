@@ -14,6 +14,7 @@
 const N8N_API_URL = 'https://n8n-n8n.ymnmx7.easypanel.host';
 const API_KEY = process.env.N8N_API_KEY;
 const SUPABASE_URL = 'https://szyrzxvlptqqheizyrxu.supabase.co';
+const TARGET_WORKFLOW_ID = 'Huo62PptqGDrARtu'; // Existing Chat IA workflow to update
 
 // Credential IDs from existing workflows
 const SUPABASE_CREDENTIAL = { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' };
@@ -123,7 +124,10 @@ for (const msg of messages) {
 
   let sender;
   if (msg.direction === 'inbound' || msg.is_from_me === false) {
-    sender = msg.sender_name || contact.nome || 'Cliente';
+    // Distinguish travelers by contact_id (different from primary contact)
+    const isPrimary = !msg.contact_id || msg.contact_id === contact.id;
+    const nameLabel = msg.sender_name || contact.nome || 'Cliente';
+    sender = isPrimary ? nameLabel : (nameLabel + ' (Acompanhante)');
   } else {
     sender = msg.sent_by_user_name || 'Equipe';
   }
@@ -281,7 +285,7 @@ function buildWorkflow() {
     // 3b. HTTP Request: Busca Mensagens WhatsApp (returns N items, or 1 empty item)
     {
       parameters: {
-        url: `=${SUPABASE_URL}/rest/v1/whatsapp_messages?contact_id=eq.{{ $('1. Extrai Params').item.json.contact_id }}&select=body,direction,is_from_me,sender_name,sent_by_user_name,message_type,media_content,created_at&order=created_at.asc&limit=500`,
+        url: `=${SUPABASE_URL}/rest/v1/whatsapp_messages?card_id=eq.{{ $('1. Extrai Params').item.json.card_id }}&select=body,direction,is_from_me,sender_name,sent_by_user_name,contact_id,message_type,media_content,created_at&order=created_at.asc&limit=500`,
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'supabaseApi',
         options: {}
@@ -420,18 +424,14 @@ Responda a pergunta acima com base EXCLUSIVAMENTE no historico de conversas forn
 async function main() {
   const workflow = buildWorkflow();
 
-  console.log(`Verificando se workflow "${workflow.name}" ja existe...`);
-
-  // List existing workflows
-  const listRes = await fetch(`${N8N_API_URL}/api/v1/workflows`, {
-    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' }
-  });
-  const listData = await listRes.json();
-  const existing = listData.data?.find(w => w.name === workflow.name);
+  console.log(`Atualizando workflow "${workflow.name}" (ID: ${TARGET_WORKFLOW_ID})...`);
 
   let result;
+  let existing = null;
 
-  if (existing) {
+  // Try to update existing workflow by ID first
+  if (TARGET_WORKFLOW_ID) {
+    existing = { id: TARGET_WORKFLOW_ID };
     console.log(`Workflow encontrado (ID: ${existing.id}). Atualizando...`);
     const res = await fetch(`${N8N_API_URL}/api/v1/workflows/${existing.id}`, {
       method: 'PATCH',
