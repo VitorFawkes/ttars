@@ -62,3 +62,5 @@ supabase/migrations/20260310_fix_contatos_insert_rls.sql|pending_manual|2026-03-
 2026-03-10T16:56:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260310_fix_external_source_duplicates.sql | applied_to_prod
 2026-03-10T16:57:22Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260310_merge_whatsapp_card_fixes.sql | applied_to_prod
 2026-03-10T17:03:00Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260310_merge_whatsapp_card_fixes.sql | applied_to_prod
+2026-03-10T16:00:00Z | supabase/migrations/20260310_add_pessoa_nome_system_field.sql | applied_to_prod
+supabase/migrations/20260310_add_pessoa_nome_system_field.sql|2026-03-10T19:31:12Z|prod

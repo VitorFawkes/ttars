@@ -126,6 +126,8 @@ export default function KanbanCard({ card }: KanbanCardProps) {
     const renderDynamicField = (fieldId: string) => {
         // 1. Handle Special/Complex Fields (Legacy Custom UI)
         switch (fieldId) {
+            case 'pessoa_nome':
+                return null // rendered separately below the title
             case 'prioridade':
                 if (!card.prioridade) return null
                 const priorityColors: Record<string, string> = {
@@ -574,6 +576,14 @@ export default function KanbanCard({ card }: KanbanCardProps) {
             <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
                 {card.titulo}
             </span>
+
+            {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
+            {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
+                <div className="flex items-center text-xs text-gray-500 -mt-0.5">
+                    <Users className="mr-1.5 h-3 w-3 flex-shrink-0 text-indigo-500" />
+                    <span className="truncate text-gray-700 font-medium">{card.pessoa_nome}</span>
+                </div>
+            )}
 
             <div className="flex flex-col gap-0.5">
                 {/* Always show product/value if available as header info */}
