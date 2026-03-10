@@ -1030,8 +1030,8 @@ Deno.serve(async (req) => {
 
                 const contactEmail = payload.contact_email || payload['deal[contact_email]'] || payload.email;
                 // Build contact name from first_name + last_name - keep separate
-                const acFirstName = payload['contact[first_name]'] || payload.contact_first_name || '';
-                const acLastName = payload['contact[last_name]'] || payload.contact_last_name || '';
+                const acFirstName = payload['contact[first_name]'] || payload.contact_first_name || payload['deal[contact_firstname]'] || '';
+                const acLastName = payload['contact[last_name]'] || payload.contact_last_name || payload['deal[contact_lastname]'] || '';
                 const contactNome = acFirstName.trim() || payload.contact_name || payload['deal[contact_name]'] || 'Sem Nome';
                 const contactSobrenome = acLastName.trim() || null;
                 const contactPhone = payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
@@ -1079,6 +1079,19 @@ Deno.serve(async (req) => {
                             })
                             .eq('id', contactId)
                             .is('external_id', null);
+                    }
+
+                    // Corrigir nome se contato existente tem 'Sem Nome' e agora temos o nome real
+                    if (contactId && contactNome !== 'Sem Nome') {
+                        await supabase
+                            .from('contatos')
+                            .update({
+                                nome: contactNome,
+                                ...(contactSobrenome ? { sobrenome: contactSobrenome } : {}),
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', contactId)
+                            .eq('nome', 'Sem Nome');
                     }
 
                     // Se não encontrou em nenhum tier → criar novo

@@ -73,6 +73,32 @@ test_query "integration_task_type_map" \
 test_query "integration_task_sync_config" \
   "integration_task_sync_config?select=id,inbound_enabled,outbound_enabled&limit=1"
 
+# ── RPCs críticas (chamadas via rpc/) ──
+
+test_rpc() {
+  local name="$1"
+  local rpc_name="$2"
+  local body="$3"
+  TOTAL=$((TOTAL + 1))
+  local status
+  status=$(curl -s -o /dev/null -w "%{http_code}" \
+    "${URL}/rest/v1/rpc/${rpc_name}" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d "${body}" \
+    --max-time 15)
+
+  if [ "$status" != "200" ] && [ "$status" != "206" ]; then
+    echo "  FAIL: $name → HTTP $status" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# RPCs críticas — testar com params corretos (leves, rápidas)
+test_rpc "analytics_pipeline_current" "analytics_pipeline_current" \
+  '{"p_product":"TRIPS"}'
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2
