@@ -1,15 +1,16 @@
 -- ============================================================
--- MIGRATION: Traveler card lookup via cards_contatos fallback
+-- MIGRATION: Merge WhatsApp card fixes (definitive version)
 -- Date: 2026-03-10
 --
--- Quando um viajante (acompanhante) envia mensagem WhatsApp,
--- o sistema agora encontra o card correto via cards_contatos
--- em vez de criar um card duplicado.
+-- Merge de 2 migrations que competiam pela mesma função:
+-- - 20260310_fix_reprocess_no_card_create.sql (skip_card_creation)
+-- - 20260310_traveler_card_lookup.sql (cards_contatos fallback)
 --
--- Mudanças:
+-- Esta versão definitiva inclui AMBOS os fixes:
 -- 1. get_client_by_phone: fallback cards_contatos + contact_role
--- 2. process_whatsapp_raw_event_v2: fallback cards_contatos
--- 3. Índice em cards_contatos(contato_id)
+-- 2. reprocess_orphan_whatsapp_for_phone: set_config skip_card_creation
+-- 3. process_whatsapp_raw_event_v2: cards_contatos fallback + skip_card_creation
+-- 4. Índice em cards_contatos(contato_id)
 -- ============================================================
 
 -- 1. Índice para performance do fallback
@@ -104,11 +105,86 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public;
 
--- 3. process_whatsapp_raw_event_v2 com fallback viajante
--- Novas colunas (se não existirem)
+-- 3. Colunas per-line (idempotente)
 ALTER TABLE whatsapp_linha_config ADD COLUMN IF NOT EXISTS criar_card boolean DEFAULT NULL;
 ALTER TABLE whatsapp_linha_config ADD COLUMN IF NOT EXISTS criar_contato boolean DEFAULT NULL;
 
+-- 4. reprocess_orphan_whatsapp_for_phone com set_config
+CREATE OR REPLACE FUNCTION reprocess_orphan_whatsapp_for_phone(p_phone TEXT)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_phone_normalized TEXT;
+    v_phone_no_country TEXT;
+    v_event_id UUID;
+    v_result JSONB;
+    v_success_count INT := 0;
+    v_fail_count INT := 0;
+    v_total INT := 0;
+BEGIN
+    v_phone_normalized := normalize_phone(p_phone);
+    v_phone_no_country := normalize_phone_brazil(p_phone);
+
+    IF v_phone_normalized IS NULL OR v_phone_normalized = '' THEN
+        RETURN jsonb_build_object('skipped', true, 'reason', 'Empty phone');
+    END IF;
+
+    -- Sinalizar que estamos em reprocessamento retroativo
+    -- process_whatsapp_raw_event_v2 vai pular card creation
+    PERFORM set_config('app.skip_card_creation', 'true', true);
+
+    FOR v_event_id IN
+        SELECT e.id
+        FROM whatsapp_raw_events e
+        WHERE e.status = 'no_contact'
+        AND (
+            normalize_phone(
+                COALESCE(e.raw_payload->'data'->>'contact_phone', e.raw_payload->>'contact_phone')
+            ) = v_phone_normalized
+            OR normalize_phone_brazil(
+                COALESCE(e.raw_payload->'data'->>'contact_phone', e.raw_payload->>'contact_phone')
+            ) = v_phone_no_country
+        )
+        ORDER BY e.created_at ASC
+        LIMIT 100
+    LOOP
+        v_total := v_total + 1;
+
+        BEGIN
+            UPDATE whatsapp_raw_events
+            SET status = 'pending', error_message = NULL
+            WHERE id = v_event_id;
+
+            SELECT process_whatsapp_raw_event_v2(v_event_id) INTO v_result;
+
+            IF v_result ? 'success' AND (v_result->>'success')::boolean = true THEN
+                v_success_count := v_success_count + 1;
+            ELSE
+                v_fail_count := v_fail_count + 1;
+            END IF;
+
+        EXCEPTION WHEN OTHERS THEN
+            v_fail_count := v_fail_count + 1;
+        END;
+    END LOOP;
+
+    -- Resetar flag
+    PERFORM set_config('app.skip_card_creation', '', true);
+
+    RETURN jsonb_build_object(
+        'reprocessed', v_total,
+        'success', v_success_count,
+        'failed', v_fail_count,
+        'phone', v_phone_no_country
+    );
+END;
+$$;
+
+-- 5. process_whatsapp_raw_event_v2 DEFINITIVO
+--    Merge de: cards_contatos fallback + skip_card_creation check
 CREATE OR REPLACE FUNCTION process_whatsapp_raw_event_v2(event_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -283,6 +359,12 @@ BEGIN
     END IF;
 
     -- ========================================
+    -- ADVISORY LOCK por telefone (serializa processamento por contato)
+    -- Previne race condition: 2 mensagens simultâneas criando contato/card duplicado
+    -- ========================================
+    PERFORM pg_advisory_xact_lock(hashtext('whatsapp_phone_' || v_phone_normalized));
+
+    -- ========================================
     -- RESOLVE CONTACT (ROBUST)
     -- ========================================
     v_contact_id := find_contact_by_whatsapp(v_phone, v_conversation_id);
@@ -346,13 +428,17 @@ BEGIN
 
         -- AUTO-CREATE CARD (per-line override > global toggle)
         IF v_card_id IS NULL AND v_contact_id IS NOT NULL THEN
-            -- Per-line setting wins when explicitly set (true/false)
-            -- NULL = fall back to global toggle WHATSAPP_CREATE_CARD
             IF v_linha_config.criar_card IS NOT NULL THEN
                 v_create_card_enabled := v_linha_config.criar_card;
             ELSE
                 SELECT (value = 'true') INTO v_create_card_enabled
                 FROM integration_settings WHERE key = 'WHATSAPP_CREATE_CARD';
+            END IF;
+
+            -- Skip card creation if called from retroactive reprocess
+            -- (triggered by contact creation from within a card)
+            IF v_create_card_enabled = true AND current_setting('app.skip_card_creation', true) = 'true' THEN
+                v_create_card_enabled := false;
             END IF;
 
             IF v_create_card_enabled = true THEN

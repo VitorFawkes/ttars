@@ -731,7 +731,7 @@ Deno.serve(async (req) => {
                             .from('tarefas')
                             .select('id')
                             .eq('external_id', String(acTaskId))
-                            .eq('external_source', 'activecampaign')
+                            .eq('external_source', 'active_campaign')
                             .maybeSingle();
 
                         const tarefaPayload: Record<string, any> = {
@@ -743,7 +743,7 @@ Deno.serve(async (req) => {
                             concluida: isComplete,
                             status: isComplete ? 'realizada' : 'agendada',
                             external_id: String(acTaskId),
-                            external_source: 'activecampaign'
+                            external_source: 'active_campaign'
                         };
                         if (isComplete) tarefaPayload.concluida_em = new Date().toISOString();
                         if (responsavelId) tarefaPayload.responsavel_id = responsavelId;
@@ -1503,6 +1503,12 @@ Deno.serve(async (req) => {
                     }
 
                     if (existingCard) {
+                        // Re-link contact if card has no contact linked (fix for sync-created orphans)
+                        if (!existingCard.pessoa_principal_id && contactId) {
+                            cardPayload.pessoa_principal_id = contactId;
+                            console.log(`[RE-LINK] Card ${existingCard.id} linked to contact ${contactId}`);
+                        }
+
                         // Correct created_at for AC cards if we have the original date
                         const acCreateDateForUpdate = payload['deal[create_date]'] || payload.cdate;
                         if (acCreateDateForUpdate && existingCard.external_source === 'active_campaign') {
