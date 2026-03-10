@@ -167,79 +167,114 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ---
 
-### 2.4 Frontend Hooks (COMPLETE - 38 hooks)
+### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-#### Section & Field Management
-| Hook | File | Purpose |
-|------|------|---------|
-| `useSections()` | `useSections.ts` | Fetch all active sections |
-| `useSectionsByPosition()` | `useSections.ts` | Filter by left/right |
-| `useGovernableSections()` | `useSections.ts` | Filter governable only |
-| `useFieldConfig()` | `useFieldConfig.ts` | Field visibility/required per stage |
-| `useStageRequiredFields()` | `useStageRequiredFields.ts` | Required fields for stage |
-| `useStageRequirements()` | `useStageRequirements.ts` | Validador completo de requisitos (fields, proposals, tasks, rules) |
-
-#### Pipeline & Cards
-| Hook | File | Purpose |
-|------|------|---------|
-| `usePipelineStages()` | `usePipelineStages.ts` | Pipeline stages data |
-| `usePipelinePhases()` | `usePipelinePhases.ts` | Pipeline phases data |
-| `usePipelineFilters()` | `usePipelineFilters.ts` | Zustand store para filtros do Kanban (persisted) |
-| `usePipelineCards()` | `usePipelineCards.ts` | **Query de cards com filtros (view_cards_acoes)** |
-| `useCardContacts()` | `useCardContacts.ts` | Contacts linked to card |
-| `useCardPeople()` | `useCardPeople.ts` | People on a card |
-| `useCardCreationRules()` | `useCardCreationRules.ts` | Who can create cards where |
-| `useDeleteCard()` | `useDeleteCard.ts` | Card deletion logic |
-| `useArchiveCard()` | `useArchiveCard.ts` | **Card archive/unarchive logic** |
-| `useQualityGate()` | `useQualityGate.ts` | Stage transition validation |
-| `useFilterOptions()` | `useFilterOptions.ts` | Filter options for pipeline |
-| `useTrips()` | `useTrips.ts` | ⚠️ **LEGADO** - Query de viagens ganhas (usar /leads) |
-| `useTripsFilters()` | `useTripsFilters.ts` | ⚠️ **LEGADO** - Zustand store para filtros de viagens |
-| `useSubCards()` | `useSubCards.ts` | **Sub-cards CRUD (change requests)** |
-| `useSubCardParent()` | `useSubCards.ts` | Get parent info for sub-cards |
-| `useFieldLock()` | `useFieldLock.ts` | **Gerencia bloqueio de campos (locked_fields)** |
-
-#### Proposals
-| Hook | File | Purpose |
-|------|------|---------|
-| `useProposals()` | `useProposals.ts` | Proposal CRUD |
-| `useProposal()` | `useProposal.ts` | Single proposal |
-| `useProposalBuilder()` | `useProposalBuilder.ts` | Builder logic |
-| `useProposalTemplates()` | `useProposalTemplates.ts` | Templates |
-| `useProposalNotifications()` | `useProposalNotifications.ts` | Notifications |
-| `useContactProposals()` | `useContactProposals.ts` | Proposals by contact |
-| `useGeneratePDF()` | `useGeneratePDF.ts` | PDF generation |
-
-#### Users & Teams
-| Hook | File | Purpose |
-|------|------|---------|
-| `useUsers()` | `useUsers.ts` | User management |
-| `useTeams()` | `useTeams.ts` | Team management |
-| `useRoles()` | `useRoles.ts` | Role management |
-| `useDepartments()` | `useDepartments.ts` | Departments |
+> **69 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
-| Hook | File | Purpose |
-|------|------|---------|
-| `useAIExtract()` | `useAIExtract.ts` | AI data extraction |
-| `useGlobalSearch()` | `useGlobalSearch.ts` | Global search |
-| `usePeopleIntelligence()` | `usePeopleIntelligence.ts` | People analytics |
+| Hook | File |
+|------|------|
+| `useAIExtract()` | `useAIExtract.ts` |
+| `useBriefingIA()` | `useBriefingIA.ts` |
+| `useChatIA()` | `useChatIA.ts` |
+| `useGlobalSearch()` | `useGlobalSearch.ts` |
 
-#### UI & UX
-| Hook | File | Purpose |
-|------|------|---------|
-| `useAutoSave()` | `useAutoSave.ts` | Auto-save functionality |
-| `useKeyboardShortcuts()` | `useKeyboardShortcuts.ts` | Global shortcuts |
-| `useBuilderKeyboardShortcuts()` | `useBuilderKeyboardShortcuts.ts` | Builder shortcuts |
-| `useHorizontalScroll()` | `useHorizontalScroll.ts` | Horizontal scroll |
-| `useBlockDragDrop()` | `useBlockDragDrop.ts` | Drag and drop |
+#### Calendar
+| Hook | File |
+|------|------|
+| `useBlockDragDrop()` | `useBlockDragDrop.ts` |
+
+#### Contacts
+| Hook | File |
+|------|------|
+| `useContactQuality()` | `useContactQuality.ts` |
+| `useDeleteContact()` | `useDeleteContact.ts` |
+| `useDuplicateDetection()` | `useDuplicateDetection.ts` |
+| `usePeopleIntelligence()` | `usePeopleIntelligence.ts` |
+| `useQualityGate()` | `useQualityGate.ts` |
+
+#### Integrations
+| Hook | File |
+|------|------|
+| `useIntegrationCatalog()` | `useIntegrationCatalog.ts` |
+| `useIntegrationHealth()` | `useIntegrationHealth.ts` |
+| `useIntegrationProviders()` | `useIntegrationProviders.ts` |
+| `useIntegrationStats()` | `useIntegrationStats.ts` |
 
 #### Other
-| Hook | File | Purpose |
-|------|------|---------|
-| `useApiKeys()` | `useApiKeys.ts` | API key management |
-| `useLibrary()` | `useLibrary.ts` | Library assets |
-| `useProductContext()` | `useProductContext.ts` | Product context |
+| Hook | File |
+|------|------|
+| `useApiKeys()` | `useApiKeys.ts` |
+| `useAutoSave()` | `useAutoSave.ts` |
+| `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useDocumentCollection()` | `useDocumentCollection.ts` |
+| `useDocumentTypes()` | `useDocumentTypes.ts` |
+| `useHorizontalScroll()` | `useHorizontalScroll.ts` |
+| `useKeyboardShortcuts()` | `useKeyboardShortcuts.ts` |
+| `useLeadQuickUpdate()` | `useLeadQuickUpdate.ts` |
+| `useLeadsColumns()` | `useLeadsColumns.ts` |
+| `useLeadsQuery()` | `useLeadsQuery.ts` |
+| `useMondeSales()` | `useMondeSales.ts` |
+| `useNetworkStatus()` | `useNetworkStatus.ts` |
+| `useProductContext()` | `useProductContext.ts` |
+| `useReceitaPermission()` | `useReceitaPermission.ts` |
+| `useTrips()` | `useTrips.ts` |
+
+#### Pipeline & Cards
+| Hook | File |
+|------|------|
+| `useArchiveCard()` | `useArchiveCard.ts` |
+| `useCardContactNames()` | `useCardContactNames.ts` |
+| `useCardContacts()` | `useCardContacts.ts` |
+| `useCardCreationRules()` | `useCardCreationRules.ts` |
+| `useCardPeople()` | `useCardPeople.ts` |
+| `useCardTags()` | `useCardTags.ts` |
+| `useCardTeam()` | `useCardTeam.ts` |
+| `useDeleteCard()` | `useDeleteCard.ts` |
+| `useFilterOptions()` | `useFilterOptions.ts` |
+| `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `usePipelineCards()` | `usePipelineCards.ts` |
+| `usePipelineFilters()` | `usePipelineFilters.ts` |
+| `usePipelineListCards()` | `usePipelineListCards.ts` |
+| `usePipelinePersistence()` | `usePipelinePersistence.ts` |
+| `usePipelinePhases()` | `usePipelinePhases.ts` |
+| `usePipelineStages()` | `usePipelineStages.ts` |
+| `usePipelines()` | `usePipelines.ts` |
+| `useSeenCards()` | `useSeenCards.ts` |
+| `useStageRequiredFields()` | `useStageRequiredFields.ts` |
+| `useStageRequirements()` | `useStageRequirements.ts` |
+| `useSubCards()` | `useSubCards.ts` |
+| `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
+| `useTripsFilters()` | `useTripsFilters.ts` |
+
+#### Proposals
+| Hook | File |
+|------|------|
+| `useBuilderKeyboardShortcuts()` | `useBuilderKeyboardShortcuts.ts` |
+| `useContactProposals()` | `useContactProposals.ts` |
+| `useGeneratePDF()` | `useGeneratePDF.ts` |
+| `useLibrary()` | `useLibrary.ts` |
+| `useProposal()` | `useProposal.ts` |
+| `useProposalBuilder()` | `useProposalBuilder.ts` |
+| `useProposalNotifications()` | `useProposalNotifications.ts` |
+| `useProposalTemplates()` | `useProposalTemplates.ts` |
+| `useProposals()` | `useProposals.ts` |
+
+#### Section & Field
+| Hook | File |
+|------|------|
+| `useFieldConfig()` | `useFieldConfig.ts` |
+| `useFieldLock()` | `useFieldLock.ts` |
+| `useSections()` | `useSections.ts` |
+
+#### Users & Teams
+| Hook | File |
+|------|------|
+| `useDepartments()` | `useDepartments.ts` |
+| `useMyTeamPhase()` | `useMyTeamPhase.ts` |
+| `useRoles()` | `useRoles.ts` |
+| `useTeams()` | `useTeams.ts` |
+| `useUsers()` | `useUsers.ts` |
 
 ### 2.4 Admin Components
 
@@ -270,70 +305,51 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SettingsLayout` | `src/components/settings/layout/SettingsLayout.tsx` | Settings pages |
 | `GroupDetailLayout` | `src/components/cards/group/GroupDetailLayout.tsx` | Group detail view |
 
-### 3.3 All Pages (COMPLETE - 28 pages)
+### 3.3 All Pages (AUTO-GENERATED)
 
-#### Core Pages (8)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `CardDetail` | `src/pages/CardDetail.tsx` | `/cards/:id` | **360° Deal View** |
-| `Pipeline` | `src/pages/Pipeline.tsx` | `/pipeline` | Kanban board |
-| `Dashboard` | `src/pages/Dashboard.tsx` | `/dashboard` | Main dashboard |
-| `People` | `src/pages/People.tsx` | `/people` | Contacts list |
-| `Leads` | `src/pages/Leads.tsx` | `/leads` | **Gestão de Leads (principal)** |
-| `Tasks` | `src/pages/Tasks.tsx` | `/tasks` | Task management |
-| `ActivitiesPage` | `src/pages/ActivitiesPage.tsx` | `/activities` | Activities view |
-| `GroupsPage` | `src/pages/GroupsPage.tsx` | `/groups` | Groups management |
+> **39 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
-#### Proposals (5)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `ProposalsPage` | `src/pages/ProposalsPage.tsx` | `/proposals` | Proposals list |
-| `ProposalBuilderV4` | `src/pages/ProposalBuilderV4.tsx` | `/proposals/:id/v4` | **Latest proposal builder** |
-| `ProposalBuilderV3` | `src/pages/ProposalBuilderV3.tsx` | `/proposals/:id/v3` | Legacy builder v3 |
-| `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` | `/proposals/:id/elite` | Elite builder |
-| `ProposalBuilder` | `src/pages/ProposalBuilder.tsx` | `/proposals/:id/edit` | Original builder |
-
-#### Admin Pages (11)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` | `/settings/pipeline/structure` | Pipeline configuration |
-| `UserManagement` | `src/pages/admin/UserManagement.tsx` | `/settings/team/members` | User admin |
-| `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` | `/settings/team/card-rules` | Creation rules |
-| `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` | `/settings/customization/categories` | Categories |
-| `CRMHealth` | `src/pages/admin/CRMHealth.tsx` | `/settings/operations/health` | System health |
-| `Lixeira` | `src/pages/admin/Lixeira.tsx` | `/settings/operations/trash` | Trash/recycle bin |
-| `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` | `/settings/customization/loss-reasons` | **Motivos de perda** |
-| `WorkflowBuilderPage` | `src/pages/admin/WorkflowBuilderPage.tsx` | `/settings/workflows/builder/:id?` | **Visual workflow builder** |
-| `WorkflowListPage` | `src/pages/admin/WorkflowListPage.tsx` | `/settings/workflows` | **Lista de workflows** |
-| `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` | `/settings/cadence` | **Lista de cadências + regras de entrada** |
-| `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` | `/settings/cadence/:id` | **Builder de cadências com day patterns** |
-
-#### Developer (1)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` | `/settings/developer-platform` | API keys, Swagger UI |
-
-#### Public Pages - No Auth (3)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `ProposalView` | `src/pages/public/ProposalView.tsx` | `/p/:token` | Public proposal view |
-| `ProposalReview` | `src/pages/public/ProposalReview.tsx` | `/p/:token/review` | Client review |
-| `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` | `/p/:token/confirmed` | Confirmation |
-
-#### Auth & Settings (2)
-| Page | Path | Route | Description |
-|------|------|-------|-------------|
-| `Login` | `src/pages/Login.tsx` | `/login` | Authentication |
-| `InvitePage` | `src/pages/InvitePage.tsx` | `/invite/:token` | User invitation |
-
-#### Páginas Legadas (NÃO UTILIZAR)
-> **AVISO:** Estas páginas existem no código mas foram substituídas. Não criar links para elas.
-
-| Page | Path | Route | Substituída por | Motivo |
-|------|------|-------|-----------------|--------|
-| `Cards` (Trips) | `src/pages/Cards.tsx` | `/trips` | `/leads` com filtro `status_comercial=ganho` | Redundante - /leads já cobre viagens ganhas |
-
----
+| Page | Path |
+|------|------|
+| `ActivitiesPage` | `src/pages/ActivitiesPage.tsx` |
+| `Analytics` | `src/pages/Analytics.tsx` |
+| `CalendarPage` | `src/pages/CalendarPage.tsx` |
+| `CardDetail` | `src/pages/CardDetail.tsx` |
+| `Cards` | `src/pages/Cards.tsx` |
+| `Dashboard` | `src/pages/Dashboard.tsx` |
+| `GroupsPage` | `src/pages/GroupsPage.tsx` |
+| `InvitePage` | `src/pages/InvitePage.tsx` |
+| `Leads` | `src/pages/Leads.tsx` |
+| `Login` | `src/pages/Login.tsx` |
+| `MondePreviewPage` | `src/pages/MondePreviewPage.tsx` |
+| `People` | `src/pages/People.tsx` |
+| `Pipeline` | `src/pages/Pipeline.tsx` |
+| `ProposalBuilder` | `src/pages/ProposalBuilder.tsx` |
+| `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` |
+| `ProposalBuilderV3` | `src/pages/ProposalBuilderV3.tsx` |
+| `ProposalBuilderV4` | `src/pages/ProposalBuilderV4.tsx` |
+| `ProposalsPage` | `src/pages/ProposalsPage.tsx` |
+| `SettingsPage` | `src/pages/SettingsPage.tsx` |
+| `Tasks` | `src/pages/Tasks.tsx` |
+| `Arquivados` | `src/pages/admin/Arquivados.tsx` |
+| `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
+| `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
+| `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
+| `Lixeira` | `src/pages/admin/Lixeira.tsx` |
+| `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
+| `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
+| `TagManagement` | `src/pages/admin/TagManagement.tsx` |
+| `UserManagement` | `src/pages/admin/UserManagement.tsx` |
+| `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
+| `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
+| `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` |
+| `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
+| `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
+| `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
+| `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
+| `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
+| `ProposalView` | `src/pages/public/ProposalView.tsx` |
+| `ReportsPage` | `src/pages/reports/ReportsPage.tsx` |
 
 ## 4. UI Component Library
 
@@ -575,9 +591,83 @@ npm run build
 
 ---
 
-## 11. Mapa de Dependencias Criticas
+## 11. Componentes Principais (por Área)
 
-### 11.1 Tabelas → Hooks → Paginas
+| Área | Componentes-chave |
+|------|-------------------|
+| Layout | Header, Sidebar, Layout, ProductSwitcher, NotificationCenter |
+| Pipeline | KanbanBoard, PipelineListView, CreateCardModal, FilterDrawer, DocumentBadge |
+| Card | CardHeader, DynamicFieldRenderer, ActivityFeed, CardFiles, StageRequirements, FinanceiroWidget, CardTeamSection, DocumentCollectionWidget, BriefingIAModal, AudioRecorder, WeddingInformation, TagBadge, TagSelector |
+| Propostas | ProposalBuilder, SectionEditor, AddItemMenu, VersionHistory |
+| Admin | StudioUnified, IntegrationBuilder, KanbanCardSettings, JuliaIAConfig, TaskSyncTab |
+| Health | IntegrationHealthTab, PulseGrid, ActiveAlertsList, HealthRulesConfig |
+| Pessoas | PeopleGrid, PersonDetailDrawer, ContactForm, ContactImportModal, DuplicateWarningPanel, DataQualityBanner, DataQualityDrawer |
+| Leads | LeadsTable, LeadsFilters, LeadsBulkActions |
+| Trips | TripsTaxBadge, group/* (GroupDashboard, GroupTravelersList, CreateGroupModal, LinkToGroupModal) |
+| Analytics | AnalyticsSidebar, GlobalControls, KpiCard, ChartCard, views/* (Overview, PipelineCurrent, Team, Funnel, SLA, WhatsApp, Operations, Financial, Retention) |
+| Dashboard | StatsCards, FunnelChart, RecentActivity, TodayMeetingsWidget |
+| Calendário | CalendarHeader, DayView, WeekView, MonthView, MeetingPopover |
+| Relatórios | ReportsSidebar, ReportBuilder, ReportViewer, builder/* (SourceSelector, FieldPicker, ConfigPanel, FilterPanel, VizSelector), renderers/* (BarChart, LineChart, PieChart, Table, Kpi, Funnel), DashboardEditor, DashboardViewer |
+
+## 12. Views Importantes
+
+| View | Propósito |
+|------|-----------|
+| `view_dashboard_funil` | Métricas do funil (StatsCards, FunnelChart) |
+| `view_cards_contatos_summary` | Cards com resumo de contatos |
+| `view_cards_acoes` | Query principal do Kanban (usePipelineCards) |
+| `v_proposal_analytics` | Performance de propostas |
+| `view_profiles_complete` | Perfis com team/role |
+| `view_contacts_full` | Lista completa de contatos (People) |
+| `view_card_360` | Detalhes completos (CardDetail) |
+| `view_integration_*` | Roteamento e auditoria de integrações |
+
+## 13. Relacionamentos-Chave
+
+```
+cards → pipeline_stages (etapa_funil_id)
+cards → contatos (pessoa_principal_id + cards_contatos M:N)
+cards → cards (parent_card_id) — viagens grupo
+activities/tarefas/mensagens → cards (card_id)
+proposals → cards (card_id)
+cadence_instances → cards (card_id)
+profiles → teams (team_id)
+pipeline_stages → pipeline_phases (phase_id)
+pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
+```
+
+## 14. Tabelas do Banco (Resumo por Função)
+
+| Tabela | Papel | FK principais |
+|--------|-------|---------------|
+| **cards** | Central — deals/viagens | → pipeline_stages, contatos, cards (parent) |
+| **contatos** | Central — pessoas | — |
+| **profiles** | Central — usuários | → teams |
+| proposals | Propostas comerciais | → cards |
+| pipeline_stages | Stages do funil | → pipeline_phases, pipelines |
+| pipeline_phases | Fases (SDR/Vendas/Pós) | → pipelines |
+| activities | Log de atividades | → cards |
+| tarefas | Tasks/tarefas | → cards |
+| cards_contatos | N:N cards↔contatos | → cards, contatos |
+| stage_field_config | Campos dinâmicos por stage | → pipeline_stages |
+| card_team_members | Equipe do card | → cards, profiles |
+| card_tags / card_tag_assignments | Tags M:N | → cards |
+| custom_reports / custom_dashboards | Relatórios | → profiles |
+| invitations | Convites com token 7 dias | → profiles, teams |
+
+## 15. Campos IA no Cards (Agente WhatsApp)
+
+| Coluna | Tipo | Propósito |
+|--------|------|-----------|
+| `ai_resumo` | TEXT | Resumo mantido pelo agente IA |
+| `ai_contexto` | TEXT | Contexto cronológico da conversa |
+| `ai_responsavel` | TEXT (default 'ia') | Quem responde: 'ia' ou 'humano' |
+
+---
+
+## 16. Mapa de Dependencias Criticas
+
+### 16.1 Tabelas → Hooks → Paginas
 
 | Tabela | Hooks que Usam | Paginas Afetadas |
 |--------|----------------|------------------|
@@ -588,7 +678,7 @@ npm run build
 | `tarefas` | useTasks, useCardTasks | CardDetail, Tasks |
 | `system_fields` | useFieldConfig, useStageRequiredFields | CardDetail (todas as sections) |
 
-### 11.2 Views Criticas
+### 16.2 Views Criticas
 
 | View | Usado Por | Se Modificar... |
 |------|-----------|-----------------|
@@ -596,7 +686,7 @@ npm run build
 | `view_contacts_full` | useContacts | Impacta lista de Pessoas |
 | `view_card_360` | CardDetail | Impacta pagina de detalhes |
 
-### 11.3 Componentes Core
+### 16.3 Componentes Core
 
 | Componente | Usado Em | Impacto |
 |------------|----------|---------|

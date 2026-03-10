@@ -368,6 +368,76 @@ class CodebaseSync:
             components_by_dir=components_by_dir
         )
 
+    # === TABLE GENERATORS ===
+
+    def _generate_hooks_table(self, hooks: list[str]) -> str:
+        """Gera tabela markdown de hooks a partir do scan do filesystem."""
+        lines = [
+            "### 2.4 Frontend Hooks (AUTO-GENERATED)",
+            "",
+            f"> **{len(hooks)} hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`",
+            "",
+        ]
+
+        # Categorizar hooks por prefixo
+        categories: dict[str, list[str]] = {}
+        for hook in hooks:
+            if hook.startswith("use"):
+                # Tenta categorizar por nome
+                name = hook[3:]  # remove "use"
+                if any(k in name.lower() for k in ["pipeline", "card", "stage", "filter", "kanban"]):
+                    cat = "Pipeline & Cards"
+                elif any(k in name.lower() for k in ["proposal", "builder", "library", "pdf"]):
+                    cat = "Proposals"
+                elif any(k in name.lower() for k in ["user", "team", "role", "department", "profile"]):
+                    cat = "Users & Teams"
+                elif any(k in name.lower() for k in ["analytics", "overview", "funnel", "sla", "whatsapp", "retention", "financial", "operation", "performance"]):
+                    cat = "Analytics"
+                elif any(k in name.lower() for k in ["calendar", "meeting", "drag"]):
+                    cat = "Calendar"
+                elif any(k in name.lower() for k in ["report", "dashboard", "saved", "field_registry"]):
+                    cat = "Reports"
+                elif any(k in name.lower() for k in ["section", "field", "requirement"]):
+                    cat = "Section & Field"
+                elif any(k in name.lower() for k in ["ai", "chat", "briefing", "extract", "search"]):
+                    cat = "AI & Search"
+                elif any(k in name.lower() for k in ["integration", "health", "cadence"]):
+                    cat = "Integrations"
+                elif any(k in name.lower() for k in ["contact", "people", "duplicate", "quality"]):
+                    cat = "Contacts"
+                else:
+                    cat = "Other"
+            else:
+                cat = "Other"
+            categories.setdefault(cat, []).append(hook)
+
+        for cat_name in sorted(categories.keys()):
+            cat_hooks = sorted(categories[cat_name])
+            lines.append(f"#### {cat_name}")
+            lines.append(f"| Hook | File |")
+            lines.append(f"|------|------|")
+            for h in cat_hooks:
+                lines.append(f"| `{h}()` | `{h}.ts` |")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _generate_pages_table(self, pages: list[str]) -> str:
+        """Gera tabela markdown de pages a partir do scan do filesystem."""
+        lines = [
+            "### 3.3 All Pages (AUTO-GENERATED)",
+            "",
+            f"> **{len(pages)} pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`",
+            "",
+            "| Page | Path |",
+            "|------|------|",
+        ]
+        for p in sorted(pages):
+            name = Path(p).stem
+            lines.append(f"| `{name}` | `src/pages/{p}` |")
+        lines.append("")
+        return "\n".join(lines)
+
     # === AUTO-FIX ===
 
     def auto_fix(self, report: SyncReport) -> bool:
@@ -408,6 +478,24 @@ class CodebaseSync:
             f"**Last Updated:** {today}",
             content
         )
+
+        # Auto-gerar tabela de hooks (substitui seção 2.4 Frontend Hooks)
+        if report.hooks.items:
+            hooks_table = self._generate_hooks_table(report.hooks.items)
+            # Encontrar e substituir seção de hooks (entre "### 2.4 Frontend Hooks" e "### 2.4 Admin")
+            hooks_pattern = r'### 2\.4 Frontend Hooks.*?(?=### 2\.4 Admin|## 3\.)'
+            if re.search(hooks_pattern, content, re.DOTALL):
+                content = re.sub(hooks_pattern, hooks_table + "\n", content, flags=re.DOTALL)
+                print_info(f"Tabela de hooks atualizada ({len(report.hooks.items)} hooks)")
+
+        # Auto-gerar tabela de pages (substitui seção 3.3 All Pages)
+        if report.pages.items:
+            pages_table = self._generate_pages_table(report.pages.items)
+            # Encontrar e substituir seção de pages (entre "### 3.3 All Pages" e próxima seção ##)
+            pages_pattern = r'### 3\.3 All Pages.*?(?=## 4\.)'
+            if re.search(pages_pattern, content, re.DOTALL):
+                content = re.sub(pages_pattern, pages_table + "\n", content, flags=re.DOTALL)
+                print_info(f"Tabela de pages atualizada ({len(report.pages.items)} pages)")
 
         self.codebase_path.write_text(content)
         return True

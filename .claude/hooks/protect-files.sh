@@ -6,7 +6,7 @@ if [ -z "$FILE" ]; then
   exit 0
 fi
 
-PROTECTED=(".env" ".env.local" "package-lock.json" ".git/")
+PROTECTED=(".env" ".env.local" ".env.development.staging" "package-lock.json" ".git/" "src/database.types.ts")
 
 for pattern in "${PROTECTED[@]}"; do
   if [[ "$FILE" == *"$pattern"* ]]; then

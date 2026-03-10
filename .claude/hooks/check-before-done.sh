@@ -33,19 +33,18 @@ if [ $? -ne 0 ]; then
 fi
 
 # Verificar se arquivos novos foram criados em diretórios-chave
-# NOTA: git diff --name-status "A" só pega staged. Arquivos criados pelo agente são UNTRACKED.
-# Por isso usamos git ls-files --others para pegar untracked + git diff para staged.
+# Se sim, CODEBASE.md deve ter sido atualizado (via npm run sync:fix)
 NEW_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^src/(hooks|pages|components)/.*\.(ts|tsx)$')
 NEW_STAGED=$(git diff --name-status 2>/dev/null | grep "^A" | grep -E 'src/(hooks|pages|components)/' | awk '{print $2}')
 NEW_FILES=$(printf "%s\n%s" "$NEW_UNTRACKED" "$NEW_STAGED" | grep -v '^$')
 if [ -n "$NEW_FILES" ]; then
-  # Verificar se CLAUDE.md foi atualizado na mesma sessão
-  CLAUDE_UPDATED=$(git diff --name-only 2>/dev/null | grep "CLAUDE.md")
-  if [ -z "$CLAUDE_UPDATED" ]; then
-    echo "Arquivos novos criados mas MAPA DO PROJETO no CLAUDE.md não foi atualizado:" >&2
+  # Verificar se CODEBASE.md foi atualizado (via npm run sync:fix)
+  CODEBASE_UPDATED=$(git diff --name-only 2>/dev/null | grep "CODEBASE.md")
+  if [ -z "$CODEBASE_UPDATED" ]; then
+    echo "Arquivos novos criados mas CODEBASE.md não foi atualizado:" >&2
     echo "$NEW_FILES" | sed 's/^/  + /' >&2
     echo "" >&2
-    echo "Adicione os novos itens à tabela correspondente no CLAUDE.md (seção MAPA DO PROJETO)." >&2
+    echo "Execute: npm run sync:fix" >&2
     exit 2
   fi
 fi
