@@ -1,5 +1,5 @@
 /**
- * Script one-time: Corrigir owners dos deals Clube Med no ActiveCampaign
+ * Script one-time: Corrigir owners dos deals Club Med no ActiveCampaign
  * e sincronizar dados completos dos contatos (nome, email, CPF, etc.)
  *
  * Uso: source .env && node scripts/fix-clube-med-ac-owners.cjs
@@ -20,7 +20,7 @@ const AC_FIELD_BIRTHDATE = '37';
 const AC_FIELD_GENDER = '33';
 const AC_FIELD_WHATSAPP = '160';
 
-// Tag para filtrar cards Clube Med
+// Tag para filtrar cards Club Med
 const CLUBE_MED_TAG_ID = '55f599ca-cf17-4f25-8210-109b4e4a4d87';
 
 // ── HTTP helpers ────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ async function main() {
         process.exit(1);
     }
 
-    console.log('=== Fix Clube Med AC Owners + Contact Sync ===\n');
+    console.log('=== Fix Club Med AC Owners + Contact Sync ===\n');
 
     // Load AC credentials from integration_settings table
     console.log('0. Carregando credenciais AC do banco...');
@@ -127,10 +127,10 @@ async function main() {
     }
     console.log(`   ${Object.keys(ownerMap).length} mappings encontrados`);
 
-    // 2. Get all Clube Med cards from CRM (with external_id = AC deal ID)
-    console.log('2. Buscando cards Clube Med do CRM...');
+    // 2. Get all Club Med cards from CRM (with external_id = AC deal ID)
+    console.log('2. Buscando cards Club Med do CRM...');
     const { data: cards } = await supabaseGet(
-        'cards?titulo=ilike.*Clube%20Med*&select=id,titulo,vendas_owner_id,dono_atual_id,external_id,pessoa_principal_id&limit=300'
+        'cards?titulo=ilike.*Club%20Med*&select=id,titulo,vendas_owner_id,dono_atual_id,external_id,pessoa_principal_id&limit=300'
     );
     console.log(`   ${cards.length} cards encontrados`);
 

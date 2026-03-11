@@ -344,22 +344,22 @@ NUNCA cite "formulário", "sistema" ou "dados do cadastro".
 ## Consulta obrigatória ao Info
 Sempre que for explicar serviços, taxa, prazos, destinos, pagamento ou objeções → consulte a ferramenta Info ANTES de responder. Responda em 1-2 frases, sem copiar literal.
 
-## DETECÇÃO CLUBE MED (PRIORIDADE)
-Keywords: "Clube Med", "Club Med", "clubmed", "ClubMed"
-Se detectar interesse em Clube Med na mensagem OU no histórico:
+## DETECÇÃO CLUB MED (PRIORIDADE)
+Keywords: "Club Med", "Club Med", "clubmed", "ClubMed"
+Se detectar interesse em Club Med na mensagem OU no histórico:
 
 ### Ações obrigatórias:
-1. Chame AssignTag com tag_name "Clube Med"
+1. Chame AssignTag com tag_name "Club Med"
 2. Qualificação SIMPLIFICADA (só 3 itens):
    a) Qual resort? (Se não informou)
    b) Datas pretendidas? (Se não informou)
    c) Quantas pessoas?
 3. NÃO apresente taxa de R$ 500
 4. NÃO tente agendar reunião
-5. Após qualificar, diga que o Planner especializado em Clube Med vai entrar em contato por outro número para dar continuidade
+5. Após qualificar, diga que o Planner especializado em Club Med vai entrar em contato por outro número para dar continuidade
 
-### Exemplo de encerramento Clube Med:
-"Que legal! Já anotei tudo aqui. Um Planner nosso especializado em Clube Med vai entrar em contato com você por outro número pra dar continuidade. Ele vai ter todas as informações que você me passou!"
+### Exemplo de encerramento Club Med:
+"Que legal! Já anotei tudo aqui. Um Planner nosso especializado em Club Med vai entrar em contato com você por outro número pra dar continuidade. Ele vai ter todas as informações que você me passou!"
 
 ## O que oferecemos (viagens personalizadas)
 • Planejamento completo, roteiro sob medida, experiências exclusivas
@@ -541,7 +541,7 @@ function transformWorkflow(workflow) {
   // ---- 17a. CheckCalendar tool (Agent 3 — calendar availability) ----
   addCheckCalendarTool(w, nodeMap);
 
-  // ---- 17b. AssignTag tool (Agent 3 — tag assignment for Clube Med) ----
+  // ---- 17b. AssignTag tool (Agent 3 — tag assignment for Club Med) ----
   addAssignTagTool(w, nodeMap);
 
   // ---- 17c. RequestHandoff tool (Agent 3 — invisible handoff to human) ----
@@ -1146,7 +1146,7 @@ function transformPreparaDados(node) {
         value: "={{ ($('getClient').item.json.marketing_data || {}).mkt_mensagem_personalizada_formulario || '' }}" },
       { id: 'utm_source', name: 'utm_source', type: 'string',
         value: "={{ ($('getClient').item.json.marketing_data || {}).utm_source || '' }}" },
-      // Produto e SDR owner para Julia (calendário + Clube Med)
+      // Produto e SDR owner para Julia (calendário + Club Med)
       { id: 'produto', name: 'produto', type: 'string',
         value: "={{ $('getClient').item.json.produto || 'TRIPS' }}" },
       { id: 'sdr_owner_id', name: 'sdr_owner_id', type: 'string',
@@ -1362,7 +1362,7 @@ function transformSupabaseInsertTask(node) {
   participantes_externos: $fromAI('email_cliente', 'Email do cliente para convite', 'string') ? [$fromAI('email_cliente', 'Email do cliente para convite', 'string')] : [],
   metadata: { duration_minutes: 30 }
 }) }}`,
-    toolDescription: 'Cria reuniao no calendario do CRM. Use quando cliente concordar com dia e horario. Solicite email antes de criar. A reuniao sera visivel para a consultora responsavel. NAO use para leads de Clube Med.',
+    toolDescription: 'Cria reuniao no calendario do CRM. Use quando cliente concordar com dia e horario. Solicite email antes de criar. A reuniao sera visivel para a consultora responsavel. NAO use para leads de Club Med.',
     options: {},
   };
 }
@@ -1758,10 +1758,10 @@ function addAssignTagTool(w, nodeMap) {
       specifyBody: 'json',
       jsonBody: `={{ JSON.stringify({
   p_card_id: $('Historico Texto').item.json.card_id,
-  p_tag_name: $fromAI('tag_name', 'Nome da tag ex: Clube Med, Interessado Disney', 'string'),
+  p_tag_name: $fromAI('tag_name', 'Nome da tag ex: Club Med, Interessado Disney', 'string'),
   p_tag_color: '#ef4444'
 }) }}`,
-      toolDescription: 'Atribui uma tag ao card do cliente. Cria a tag se nao existir. Use para marcar leads de Clube Med ou outros produtos especiais identificados na conversa.',
+      toolDescription: 'Atribui uma tag ao card do cliente. Cria a tag se nao existir. Use para marcar leads de Club Med ou outros produtos especiais identificados na conversa.',
       options: {},
     },
     credentials: {
@@ -1893,7 +1893,7 @@ Mensagem proposta: {{ $('Responde Lead (Novo)').first().json.output || $('Respon
 5. Menciona formulario, dados do sistema, ActiveCampaign? (BLOQUEAR)
 6. Rejeita lead na primeira mensagem ou sem investigar? (BLOQUEAR - na duvida, avançar)
 7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer so isso? (CORRIGIR)
-8. Se detectou Clube Med: apresentou taxa R$ 500 ou tentou agendar reuniao? (CORRIGIR - Clube Med NAO tem taxa nem reuniao, Planner entra em contato por outro numero)
+8. Se detectou Club Med: apresentou taxa R$ 500 ou tentou agendar reuniao? (CORRIGIR - Club Med NAO tem taxa nem reuniao, Planner entra em contato por outro numero)
 
 Se algo precisa de ajuste, retorne ok=false com motivo e correcao.
 Se esta tudo certo, retorne ok=true.`,
