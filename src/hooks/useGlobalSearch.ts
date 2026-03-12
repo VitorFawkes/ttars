@@ -28,24 +28,38 @@ export function useGlobalSearch() {
             const searchTerm = `%${query}%`
             const allResults: SearchResult[] = []
 
-            // Search Cards (filtered by current product)
-            const { data: cards } = await supabase
-                .from('cards')
-                .select('id, titulo, produto, status_comercial')
-                .eq('produto', currentProduct)
-                .ilike('titulo', searchTerm)
-                .limit(5)
+            // Search Cards (filtered by current product) — by title + Monde number
+            const cardIds = new Set<string>()
 
-            if (cards) {
-                cards.forEach(card => {
-                    allResults.push({
-                        id: card.id,
-                        type: 'card',
-                        title: card.titulo || 'Sem título',
-                        subtitle: `${card.produto || 'Viagem'} • ${card.status_comercial || 'Em aberto'}`,
-                        icon: '📋',
-                        href: `/cards/${card.id}`,
-                    })
+            const [{ data: cardsByTitle }, { data: cardsByMonde }] = await Promise.all([
+                supabase
+                    .from('cards')
+                    .select('id, titulo, produto, status_comercial')
+                    .eq('produto', currentProduct)
+                    .is('deleted_at', null)
+                    .ilike('titulo', searchTerm)
+                    .limit(5),
+                supabase
+                    .from('cards')
+                    .select('id, titulo, produto, status_comercial')
+                    .eq('produto', currentProduct)
+                    .is('deleted_at', null)
+                    .ilike('produto_data->>numero_venda_monde', searchTerm)
+                    .limit(5),
+            ])
+
+            const allCards = [...(cardsByTitle || []), ...(cardsByMonde || [])]
+
+            for (const card of allCards) {
+                if (cardIds.has(card.id)) continue
+                cardIds.add(card.id)
+                allResults.push({
+                    id: card.id,
+                    type: 'card',
+                    title: card.titulo || 'Sem título',
+                    subtitle: `${card.produto || 'Viagem'} • ${card.status_comercial || 'Em aberto'}`,
+                    icon: '📋',
+                    href: `/cards/${card.id}`,
                 })
             }
 

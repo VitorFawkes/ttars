@@ -447,6 +447,7 @@ export default function TripInformation({ card }: TripInformationProps) {
                                 isPlanner={isPlanner}
                                 cardId={card.id}
                                 showLockButton={!correctionMode}
+                                extraData={field.key === 'numero_venda_monde' ? activeData : undefined}
                             />
                         )
                     })}

@@ -15,6 +15,7 @@ import type { Database } from '../../database.types'
 import FlexibleDateField, { type EpocaViagem } from '../pipeline/fields/FlexibleDateField'
 import FlexibleDurationField, { type DuracaoViagem } from '../pipeline/fields/FlexibleDurationField'
 import SmartBudgetField, { type OrcamentoViagem } from '../pipeline/fields/SmartBudgetField'
+import MondeNumbersBadge from './MondeNumbersBadge'
 import { FieldLockButton } from '../card/FieldLockButton'
 import { useFieldLock } from '../../hooks/useFieldLock'
 
@@ -87,6 +88,7 @@ interface UniversalFieldRendererProps {
     isPlanner?: boolean // To show SDR section
     cardId?: string // ID do card para controle de lock
     showLockButton?: boolean // Mostrar botão de bloqueio de atualização automática
+    extraData?: Record<string, any> // Dados extras do card (ex: produto_data completo)
 }
 
 // --- HELPER FUNCTIONS ---
@@ -279,7 +281,8 @@ export default function UniversalFieldRenderer({
     correctionMode = false,
     isPlanner = false,
     cardId,
-    showLockButton = false
+    showLockButton = false,
+    extraData
 }: UniversalFieldRendererProps) {
     // Hook para verificar se o campo está bloqueado
     // O hook é seguro para chamar mesmo sem cardId (retorna valores padrão)
@@ -781,6 +784,32 @@ export default function UniversalFieldRenderer({
         const sdrDisplay = sdrValue === 'Cortesia' ? 'Cortesia' : (typeof sdrValue === 'number' ? formatBudget(sdrValue) : sdrValue)
 
         return <FieldCard icon={Banknote} iconColor="bg-emerald-100 text-emerald-600" label={field.label} value={displayValue} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+    }
+    if (field.key === 'numero_venda_monde') {
+        const historico = extraData?.numeros_venda_monde_historico
+        const hasHistorico = Array.isArray(historico) && historico.length > 0
+
+        if (hasHistorico) {
+            return (
+                <FieldCard
+                    icon={Hash}
+                    iconColor="bg-blue-100 text-blue-600"
+                    label={field.label}
+                    value={<MondeNumbersBadge primaryNumber={value} historico={historico} />}
+                    status={status}
+                    sdrValue={sdrValue}
+                    onEdit={onEdit}
+                    correctionMode={correctionMode}
+                    showSdrSection={isPlanner}
+                    cardId={cardId}
+                    showLockButton={showLockButton}
+                    fieldKey={field.key}
+                    isLocked={isLocked}
+                />
+            )
+        }
+
+        return <FieldCard icon={Hash} iconColor="bg-blue-100 text-blue-600" label={field.label} value={value} status={status} sdrValue={sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.type === 'loss_reason_selector') {
         return <FieldCard icon={Tag} iconColor="bg-red-100 text-red-600" label={field.label} value={<LossReasonDisplay value={value} />} status={status} sdrValue={sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
