@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Tag, Check, History, Plane, FileCheck, Loader2, X } from 'lucide-react'
+import { Tag, Check, Plane, FileCheck, Loader2, X } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 
 import { supabase } from '../../lib/supabase'
@@ -71,10 +71,9 @@ interface EditModalProps {
     title: string
     children: React.ReactNode
     isSaving: boolean
-    isCorrection: boolean
 }
 
-function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorrection }: EditModalProps) {
+function EditModal({ isOpen, onClose, onSave, title, children, isSaving }: EditModalProps) {
     if (!isOpen) return null
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -91,17 +90,11 @@ function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorre
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in-0">
             <div className="fixed inset-0" onClick={onClose} />
             <div
-                className={cn(
-                    "relative z-50 w-full max-w-md mx-4 rounded-xl shadow-2xl border overflow-hidden animate-in zoom-in-95 fade-in-0 duration-200",
-                    isCorrection ? "bg-[#fffdf9] border-amber-200" : "bg-white border-gray-200"
-                )}
+                className="relative z-50 w-full max-w-md mx-4 rounded-xl shadow-2xl border overflow-hidden animate-in zoom-in-95 fade-in-0 duration-200 bg-white border-gray-200"
                 onKeyDown={handleKeyDown}
             >
                 {/* Header */}
-                <div className={cn(
-                    "flex items-center justify-between px-4 py-3 border-b",
-                    isCorrection ? "bg-amber-50/50 border-amber-200" : "bg-gray-50/50 border-gray-200"
-                )}>
+                <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/50 border-gray-200">
                     <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
                     <button
                         onClick={onClose}
@@ -117,10 +110,7 @@ function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorre
                 </div>
 
                 {/* Footer */}
-                <div className={cn(
-                    "flex items-center justify-end gap-2 px-4 py-3 border-t",
-                    isCorrection ? "bg-amber-50/30 border-amber-200" : "bg-gray-50/30 border-gray-200"
-                )}>
+                <div className="flex items-center justify-end gap-2 px-4 py-3 border-t bg-gray-50/30 border-gray-200">
                     <button
                         onClick={onClose}
                         className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -130,12 +120,7 @@ function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorre
                     <button
                         onClick={onSave}
                         disabled={isSaving}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors",
-                            isCorrection
-                                ? "bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400"
-                                : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400"
-                        )}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400"
                     >
                         {isSaving ? (
                             <>
@@ -209,7 +194,6 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     }, [card.pipeline_stage_id, phases, stages])
 
     const [viewMode, setViewMode] = useState<ViewMode>(derivedViewMode)
-    const [correctionMode, setCorrectionMode] = useState(false)
 
     // Edit modal state
     const [editingField, setEditingField] = useState<string | null>(null)
@@ -228,13 +212,13 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         return getVisibleFields(card.pipeline_stage_id!, 'trip_info')
     }, [card.pipeline_stage_id, getVisibleFields])
 
-    // Determine which data to display/edit based on ViewMode and CorrectionMode
-    const activeData: TripsProdutoData = (viewMode === SystemPhase.SDR || correctionMode) ? briefingData : productData
+    // Determine which data to display/edit based on ViewMode
+    const activeData: TripsProdutoData = viewMode === SystemPhase.SDR ? briefingData : productData
 
     // --- Mutation ---
     const updateCardMutation = useMutation({
         mutationFn: async ({ fieldKey, fieldValue }: { fieldKey: string, fieldValue: unknown }) => {
-            const target = (correctionMode || viewMode === SystemPhase.SDR) ? 'briefing_inicial' : 'produto_data'
+            const target = viewMode === SystemPhase.SDR ? 'briefing_inicial' : 'produto_data'
             const baseData = target === 'briefing_inicial' ? briefingData : productData
             const newData = { ...baseData, [fieldKey]: fieldValue }
 
@@ -333,17 +317,10 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
 
     const switchViewMode = (slug: string) => {
         setViewMode(slug)
-        setCorrectionMode(false)
-        setEditingField(null)
-    }
-
-    const toggleCorrectionMode = () => {
-        setCorrectionMode(!correctionMode)
         setEditingField(null)
     }
 
     const getFieldStatus = (dataKey: string): 'ok' | 'blocking' | 'attention' => {
-        if (correctionMode) return 'ok'
         const isBlocking = missingBlocking.some(req => {
             if ('field_key' in req) return req.field_key === dataKey
             return false
@@ -370,21 +347,6 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                     </h3>
 
                     <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                        {/* Correction Toggle */}
-                        {(viewMode === SystemPhase.SDR || viewMode === SystemPhase.PLANNER) && (
-                            <button
-                                onClick={toggleCorrectionMode}
-                                className={cn(
-                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border shadow-sm",
-                                    correctionMode
-                                        ? "bg-amber-50 text-amber-900 border-amber-200 ring-2 ring-amber-100"
-                                        : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                                )}
-                            >
-                                <History className="h-3.5 w-3.5" />
-                                {correctionMode ? "Sair da Correção" : "Corrigir Histórico SDR"}
-                            </button>
-                        )}
                         {onToggleCollapse && (
                             <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
                         )}
@@ -426,7 +388,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
             </div>
 
             {/* CONTENT — DISPLAY CARDS */}
-            <div className={cn("p-3", correctionMode && "bg-[#fffbf7]")}>
+            <div className="p-3">
                 {visibleFields.length === 0 && (
                     <div className="text-center py-8 text-gray-500 italic">
                         Nenhum campo configurado para esta fase.
@@ -438,7 +400,6 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {visibleFields.map(field => {
                         const status = getFieldStatus(field.key)
-                        const isPlanner = viewMode === SystemPhase.PLANNER && !correctionMode
 
                         return (
                             <UniversalFieldRenderer
@@ -452,12 +413,9 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                                 value={activeData[field.key]}
                                 mode="display"
                                 status={status}
-                                sdrValue={isPlanner ? briefingData[field.key] : undefined}
                                 onEdit={() => handleFieldEdit(field.key)}
-                                correctionMode={correctionMode}
-                                isPlanner={isPlanner}
                                 cardId={card.id}
-                                showLockButton={!correctionMode}
+                                showLockButton
                                 extraData={field.key === 'numero_venda_monde' ? activeData : undefined}
                             />
                         )
@@ -472,7 +430,6 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                 onSave={handleFieldSave}
                 title={editingFieldConfig?.label || ''}
                 isSaving={updateCardMutation.isPending}
-                isCorrection={correctionMode}
             >
                 {editingFieldConfig && (
                     <UniversalFieldRenderer

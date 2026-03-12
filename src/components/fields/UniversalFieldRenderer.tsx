@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import {
     MapPin, Calendar, DollarSign, Tag, X, Check, Edit2, AlertCircle,
-    Eraser, Type, Hash, CalendarDays, List, CheckSquare, Banknote, Clock
+    Type, Hash, CalendarDays, List, CheckSquare, Banknote, Clock
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Input } from '../ui/Input'
@@ -82,10 +82,7 @@ interface UniversalFieldRendererProps {
     onChange?: (value: any) => void
     mode?: 'display' | 'edit'
     status?: 'ok' | 'blocking' | 'attention'
-    sdrValue?: any
     onEdit?: () => void
-    correctionMode?: boolean
-    isPlanner?: boolean // To show SDR section
     cardId?: string // ID do card para controle de lock
     showLockButton?: boolean // Mostrar botão de bloqueio de atualização automática
     extraData?: Record<string, any> // Dados extras do card (ex: produto_data completo)
@@ -158,10 +155,7 @@ const FieldCard = ({
     value,
     subValue,
     status = 'ok',
-    sdrValue,
     onEdit,
-    correctionMode,
-    showSdrSection,
     cardId,
     showLockButton,
     fieldKey,
@@ -171,35 +165,22 @@ const FieldCard = ({
         <div
             className={cn(
                 "group relative p-2.5 rounded-xl border transition-all duration-300",
-                correctionMode
-                    ? "bg-[#fdfbf7] border-amber-200/50 border-dashed hover:border-amber-300 hover:bg-[#fffdf9] cursor-pointer"
-                    : cn(
-                        "bg-white",
-                        status === 'blocking' ? "border-red-300 bg-red-50/30" :
-                            status === 'attention' ? "border-orange-300 bg-orange-50/30" :
-                                isLocked ? "border-amber-200 bg-amber-50/20" :
-                                    "border-gray-200",
-                        "hover:shadow-md cursor-pointer hover:border-indigo-300"
-                    )
+                "bg-white",
+                status === 'blocking' ? "border-red-300 bg-red-50/30" :
+                    status === 'attention' ? "border-orange-300 bg-orange-50/30" :
+                        isLocked ? "border-amber-200 bg-amber-50/20" :
+                            "border-gray-200",
+                "hover:shadow-md cursor-pointer hover:border-indigo-300"
             )}
             onClick={onEdit}
         >
-            <div className={cn(
-                "absolute top-2 right-2 flex items-center gap-1.5 transition-opacity duration-300",
-                correctionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            )}>
-                {correctionMode ? (
-                    <div className="flex items-center gap-1 text-amber-600 bg-amber-100 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                        <Eraser className="h-3 w-3" /> Corrigir
-                    </div>
-                ) : (
-                    <div className="p-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
-                        <Edit2 className="h-3.5 w-3.5" />
-                    </div>
-                )}
+            <div className="absolute top-2 right-2 flex items-center gap-1.5 transition-opacity duration-300 opacity-0 group-hover:opacity-100">
+                <div className="p-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
+                    <Edit2 className="h-3.5 w-3.5" />
+                </div>
             </div>
 
-            {status !== 'ok' && !correctionMode && (
+            {status !== 'ok' && (
                 <div className={cn(
                     "absolute -top-2 -right-2 p-1 rounded-full shadow-sm border",
                     status === 'blocking' ? "bg-red-100 border-red-200 text-red-600" : "bg-orange-100 border-orange-200 text-orange-600"
@@ -209,21 +190,14 @@ const FieldCard = ({
             )}
 
             <div className="flex items-start gap-3">
-                <div className={cn(
-                    "p-1.5 rounded-lg transition-colors shadow-sm",
-                    correctionMode ? "bg-gray-100 text-gray-400 grayscale" : iconColor
-                )}>
+                <div className={cn("p-1.5 rounded-lg transition-colors shadow-sm", iconColor)}>
                     <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
-                    <p className={cn(
-                        "text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-2",
-                        correctionMode ? "text-gray-400 font-mono" : "text-gray-500"
-                    )}>
+                    <p className="text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-2 text-gray-500">
                         {label}
                         {status === 'blocking' && <span className="text-[10px] text-red-600 font-bold font-sans bg-red-50 px-1.5 py-0.5 rounded-full">Obrigatório</span>}
-                        {/* Lock Button - Sempre visível ao lado do nome */}
-                        {showLockButton && cardId && fieldKey && !correctionMode && (
+                        {showLockButton && cardId && fieldKey && (
                             <FieldLockButton
                                 fieldKey={fieldKey}
                                 cardId={cardId}
@@ -233,10 +207,7 @@ const FieldCard = ({
                     </p>
 
                     {/* Main Value */}
-                    <div className={cn(
-                        "text-xs font-medium leading-relaxed break-words",
-                        correctionMode ? "font-mono text-gray-700 font-medium" : "text-gray-900"
-                    )}>
+                    <div className="text-xs font-medium leading-relaxed break-words text-gray-900">
                         {(() => {
                             if (value === null || value === undefined || value === '') {
                                 return status === 'blocking' ?
@@ -250,20 +221,6 @@ const FieldCard = ({
                         })()}
                     </div>
                     {subValue && <p className="text-xs text-gray-500 mt-1 font-medium">{subValue}</p>}
-
-                    {/* SDR Reference Section */}
-                    {showSdrSection && (
-                        <div className="mt-3 pt-2 border-t border-gray-100">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
-                                    Original SDR
-                                </span>
-                            </div>
-                            <div className="text-xs text-gray-600 bg-gray-50/80 p-2 rounded-lg border border-gray-200/60">
-                                {sdrValue || <span className="text-gray-400 italic">Não informado pelo SDR</span>}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
@@ -276,10 +233,7 @@ export default function UniversalFieldRenderer({
     onChange,
     mode = 'display',
     status = 'ok',
-    sdrValue,
     onEdit,
-    correctionMode = false,
-    isPlanner = false,
     cardId,
     showLockButton = false,
     extraData
@@ -717,10 +671,10 @@ export default function UniversalFieldRenderer({
 
     // 1. Specialized Fields
     if (field.key === 'motivo') {
-        return <FieldCard icon={Tag} iconColor="bg-purple-100 text-purple-600" label={field.label} value={value} status={status} sdrValue={sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Tag} iconColor="bg-purple-100 text-purple-600" label={field.label} value={value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.key === 'destinos') {
-        return <FieldCard icon={MapPin} iconColor="bg-blue-100 text-blue-600" label={field.label} value={Array.isArray(value) ? value.join(' • ') : value} status={status} sdrValue={Array.isArray(sdrValue) ? sdrValue.join(' • ') : sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={MapPin} iconColor="bg-blue-100 text-blue-600" label={field.label} value={Array.isArray(value) ? value.join(' • ') : value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     // Skip if using new flexible_date type (handled below)
     if ((field.type === 'date_range' || field.key === 'epoca_viagem') && field.type !== 'flexible_date') {
@@ -758,32 +712,17 @@ export default function UniversalFieldRenderer({
 
         const subVal = isFlexible ? '📌 Datas flexíveis' : undefined
 
-        // SDR Value Parsing
-        let sdrDisplay = undefined
-        if (sdrValue) {
-            if (typeof sdrValue === 'object') {
-                const sStart = sdrValue.start || sdrValue.inicio
-                if (sStart) sdrDisplay = formatDate(sStart)
-            } else if (typeof sdrValue === 'string' && sdrValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-                sdrDisplay = formatDate(sdrValue)
-            }
-        }
-
-        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     // Skip if using new smart_budget type (handled below)
     if (field.key === 'orcamento' && field.type !== 'smart_budget') {
         const displayVal = value?.total ? formatBudget(value.total) : undefined
         const subVal = value?.por_pessoa ? `${formatBudget(value.por_pessoa)} por pessoa` : undefined
-        const sdrDisplay = sdrValue?.total ? formatBudget(sdrValue.total) : undefined
-
-        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} subValue={subVal} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.key === 'taxa_planejamento') {
         const displayValue = value === 'Cortesia' ? 'Cortesia' : (typeof value === 'number' ? formatBudget(value) : value)
-        const sdrDisplay = sdrValue === 'Cortesia' ? 'Cortesia' : (typeof sdrValue === 'number' ? formatBudget(sdrValue) : sdrValue)
-
-        return <FieldCard icon={Banknote} iconColor="bg-emerald-100 text-emerald-600" label={field.label} value={displayValue} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Banknote} iconColor="bg-emerald-100 text-emerald-600" label={field.label} value={displayValue} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.key === 'numero_venda_monde') {
         const historico = extraData?.numeros_venda_monde_historico
@@ -797,10 +736,7 @@ export default function UniversalFieldRenderer({
                     label={field.label}
                     value={<MondeNumbersBadge primaryNumber={value} historico={historico} />}
                     status={status}
-                    sdrValue={sdrValue}
                     onEdit={onEdit}
-                    correctionMode={correctionMode}
-                    showSdrSection={isPlanner}
                     cardId={cardId}
                     showLockButton={showLockButton}
                     fieldKey={field.key}
@@ -809,10 +745,10 @@ export default function UniversalFieldRenderer({
             )
         }
 
-        return <FieldCard icon={Hash} iconColor="bg-blue-100 text-blue-600" label={field.label} value={value} status={status} sdrValue={sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Hash} iconColor="bg-blue-100 text-blue-600" label={field.label} value={value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.type === 'loss_reason_selector') {
-        return <FieldCard icon={Tag} iconColor="bg-red-100 text-red-600" label={field.label} value={<LossReasonDisplay value={value} />} status={status} sdrValue={sdrValue} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Tag} iconColor="bg-red-100 text-red-600" label={field.label} value={<LossReasonDisplay value={value} />} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
 
     // New Flexible Field Types
@@ -820,36 +756,25 @@ export default function UniversalFieldRenderer({
         const epocaValue = value as EpocaViagem | null
         const displayVal = epocaValue?.display || null
         const subVal = epocaValue?.flexivel ? '📌 Datas flexíveis' : undefined
-        const sdrEpoca = sdrValue as EpocaViagem | null
-        const sdrDisplay = sdrEpoca?.display || undefined
-
-        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
 
     if (field.type === 'flexible_duration') {
         const duracaoValue = value as DuracaoViagem | null
         const displayVal = duracaoValue?.display || null
-        const sdrDuracao = sdrValue as DuracaoViagem | null
-        const sdrDisplay = sdrDuracao?.display || undefined
-
-        return <FieldCard icon={Clock} iconColor="bg-purple-100 text-purple-600" label={field.label} value={displayVal} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Clock} iconColor="bg-purple-100 text-purple-600" label={field.label} value={displayVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
 
     if (field.type === 'smart_budget') {
         const orcamentoValue = value as OrcamentoViagem | null
         const displayVal = orcamentoValue?.display || null
-        const sdrOrcamento = sdrValue as OrcamentoViagem | null
-        const sdrDisplay = sdrOrcamento?.display || undefined
-
-        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} status={status} sdrValue={sdrDisplay} onEdit={onEdit} correctionMode={correctionMode} showSdrSection={isPlanner} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
 
     // 2. Generic Fields
     let GenericIcon = Type
     let genericColor = "bg-gray-100 text-gray-600"
     let displayValue = value
-    let sdrDisplayValue = sdrValue
-
     if (field.type === 'number') {
         GenericIcon = Hash
         genericColor = "bg-gray-100 text-gray-600"
@@ -858,7 +783,6 @@ export default function UniversalFieldRenderer({
         GenericIcon = DollarSign
         genericColor = "bg-emerald-100 text-emerald-600"
         if (typeof displayValue === 'number') displayValue = formatBudget(displayValue)
-        if (typeof sdrDisplayValue === 'number') sdrDisplayValue = formatBudget(sdrDisplayValue)
     }
     if (field.type === 'currency_range') {
         GenericIcon = DollarSign
@@ -870,17 +794,11 @@ export default function UniversalFieldRenderer({
         } else {
             displayValue = undefined
         }
-        if (typeof sdrDisplayValue === 'object' && (sdrDisplayValue?.min !== undefined || sdrDisplayValue?.max !== undefined)) {
-            const minVal = sdrDisplayValue.min !== undefined ? formatBudget(sdrDisplayValue.min) : '?'
-            const maxVal = sdrDisplayValue.max !== undefined ? formatBudget(sdrDisplayValue.max) : '?'
-            sdrDisplayValue = `${minVal} — ${maxVal}`
-        }
     }
     if (field.type === 'date') {
         GenericIcon = CalendarDays
         genericColor = "bg-orange-100 text-orange-600"
         if (typeof displayValue === 'string') displayValue = formatDate(displayValue)
-        if (typeof sdrDisplayValue === 'string') sdrDisplayValue = formatDate(sdrDisplayValue)
     }
     if (field.type === 'datetime') {
         GenericIcon = CalendarDays
@@ -896,7 +814,6 @@ export default function UniversalFieldRenderer({
             return formattedDate + formattedTime
         }
         if (typeof displayValue === 'string') displayValue = formatDateTime(displayValue)
-        if (typeof sdrDisplayValue === 'string') sdrDisplayValue = formatDateTime(sdrDisplayValue)
     }
     if (field.type === 'date_range') {
         GenericIcon = CalendarDays
@@ -926,9 +843,6 @@ export default function UniversalFieldRenderer({
             displayValue = undefined
         }
 
-        if (typeof sdrDisplayValue === 'object' && sdrDisplayValue?.start && sdrDisplayValue?.end) {
-            sdrDisplayValue = `${formatDateTime(sdrDisplayValue.start)} — ${formatDateTime(sdrDisplayValue.end)}`
-        }
     }
     if (field.type === 'select') {
         GenericIcon = List
@@ -938,7 +852,6 @@ export default function UniversalFieldRenderer({
         GenericIcon = List
         genericColor = "bg-indigo-100 text-indigo-600"
         if (Array.isArray(displayValue)) displayValue = displayValue.join(' • ')
-        if (Array.isArray(sdrDisplayValue)) sdrDisplayValue = sdrDisplayValue.join(' • ')
     }
     if (field.type === 'checklist') {
         // Checklist needs custom rendering - show actual items with check/uncheck status
@@ -1028,7 +941,6 @@ export default function UniversalFieldRenderer({
         GenericIcon = CheckSquare
         genericColor = "bg-teal-100 text-teal-600"
         displayValue = displayValue === true ? 'Sim' : (displayValue === false ? 'Não' : undefined)
-        sdrDisplayValue = sdrDisplayValue === true ? 'Sim' : (sdrDisplayValue === false ? 'Não' : undefined)
     }
     if (field.type === 'json') {
         GenericIcon = Type
@@ -1043,10 +955,7 @@ export default function UniversalFieldRenderer({
             label={field.label}
             value={displayValue}
             status={status}
-            sdrValue={sdrDisplayValue}
             onEdit={onEdit}
-            correctionMode={correctionMode}
-            showSdrSection={isPlanner}
             cardId={cardId}
             showLockButton={showLockButton}
             fieldKey={field.key}
