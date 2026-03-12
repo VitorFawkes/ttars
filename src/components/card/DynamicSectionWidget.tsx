@@ -1,20 +1,21 @@
 /**
  * DynamicSectionWidget - Production-grade section component matching ObservacoesEstruturadas patterns
- * 
+ *
  * Features:
  * - Inline editing (fields are ALWAYS editable, no toggle)
  * - Dirty state tracking with "Salvar Alterações" button
  * - Data stored in cards.produto_data[section.key]
  * - Uses UniversalFieldRenderer for consistent field rendering
  * - Respects field visibility rules from stage_field_config
+ * - Collapsible sections with auto-collapse by pipeline phase
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, Layers } from 'lucide-react'
+import { Check, Loader2, Layers, ChevronUp, ChevronDown } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
-import { useSections } from '../../hooks/useSections'
+import { useSections, type Section } from '../../hooks/useSections'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -46,11 +47,90 @@ const WIDGET_REGISTRY: Record<string, React.ComponentType<any>> = {
     documentos: DocumentCollectionWidget,
 }
 
+// ═══════════════════════════════════════════════════════════
+// Helper: resolve lucide icon name to PascalCase
+// ═══════════════════════════════════════════════════════════
+function resolveIconName(iconSlug: string | undefined | null): string | null {
+    if (!iconSlug) return null
+    return iconSlug.charAt(0).toUpperCase() +
+        iconSlug.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+}
+
+// ═══════════════════════════════════════════════════════════
+// SectionCollapseToggle - chevron button to add to any widget header
+// ═══════════════════════════════════════════════════════════
+
+interface SectionCollapseToggleProps {
+    isExpanded: boolean
+    onToggle: () => void
+}
+
+export function SectionCollapseToggle({ isExpanded, onToggle }: SectionCollapseToggleProps) {
+    return (
+        <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggle() }}
+            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            title={isExpanded ? "Recolher seção" : "Expandir seção"}
+        >
+            {isExpanded
+                ? <ChevronUp className="h-3.5 w-3.5" />
+                : <ChevronDown className="h-3.5 w-3.5" />
+            }
+        </button>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// CollapsedSectionBar - compact bar shown when a widget section is collapsed
+// ═══════════════════════════════════════════════════════════
+
+interface CollapsedSectionBarProps {
+    section: Section
+    onExpand: () => void
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function CollapsedSectionBar({ section, onExpand }: CollapsedSectionBarProps) {
+    const iconName = resolveIconName(section.icon)
+    const colorClasses = section.color || 'bg-slate-50 text-slate-700 border-slate-100'
+    const [bgClass, textClass] = colorClasses.split(' ')
+    const iconBgClass = bgClass.replace('-50', '-100')
+
+    return (
+        <button
+            type="button"
+            onClick={onExpand}
+            className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-50/50 border border-gray-300 rounded-xl transition-colors hover:bg-gray-100/80"
+        >
+            <div className="flex items-center gap-2">
+                <div className={cn("p-1 rounded-lg", iconBgClass)}>
+                    {(() => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const Icon = (iconName ? (Icons as any)[iconName] : null) || Layers
+                        return <Icon className={cn("h-3.5 w-3.5", textClass)} />
+                    })()}
+                </div>
+                <span className="text-xs font-semibold text-gray-900">
+                    {section.label}
+                </span>
+            </div>
+            <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+        </button>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// DynamicSectionWidget - field-based sections with inline editing
+// ═══════════════════════════════════════════════════════════
+
 interface DynamicSectionWidgetProps {
     card: Card
     sectionKey: string
     /** Class to apply to the wrapper */
     className?: string
+    /** Whether to start collapsed */
+    defaultCollapsed?: boolean
 }
 
 /**
@@ -60,9 +140,11 @@ interface DynamicSectionWidgetProps {
 export default function DynamicSectionWidget({
     card,
     sectionKey,
-    className
+    className,
+    defaultCollapsed = false
 }: DynamicSectionWidgetProps) {
     const queryClient = useQueryClient()
+    const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
 
     // Data Sources - Unified data from both produto_data and marketing_data
     // Priority: produto_data (manual edits) > marketing_data (integration data)
@@ -192,10 +274,7 @@ export default function DynamicSectionWidget({
     }
 
     // Get dynamic icon name for lookup
-    const iconName = section?.icon
-        ? section.icon.charAt(0).toUpperCase() +
-          section.icon.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-        : null
+    const iconName = resolveIconName(section?.icon)
 
     // Loading state
     if (loadingFields || loadingSections) {
@@ -227,8 +306,12 @@ export default function DynamicSectionWidget({
             "rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden",
             className
         )}>
-            {/* Header */}
-            <div className="border-b border-gray-200 bg-gray-50/50 px-3 py-1.5">
+            {/* Header — clickable to collapse/expand */}
+            <button
+                type="button"
+                onClick={() => setIsExpanded(prev => !prev)}
+                className="w-full border-b border-gray-200 bg-gray-50/50 px-3 py-1.5 cursor-pointer hover:bg-gray-100/80 transition-colors"
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className={cn("p-1 rounded-lg", iconBgClass)}>
@@ -243,67 +326,78 @@ export default function DynamicSectionWidget({
                         </h3>
                     </div>
 
-                    {/* Save Button */}
-                    {updateCard.isPending ? (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Salvando...
-                        </div>
-                    ) : isDirty ? (
-                        <button
-                            onClick={handleSave}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-                        >
-                            <Check className="h-3 w-3" />
-                            Salvar
-                        </button>
-                    ) : updateCard.isSuccess ? (
-                        <div className="flex items-center gap-1 text-xs text-green-600">
-                            <Check className="h-3 w-3" />
-                            Salvo
-                        </div>
-                    ) : null}
-                </div>
-            </div>
+                    <div className="flex items-center gap-2">
+                        {/* Save Button */}
+                        {updateCard.isPending ? (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500" onClick={e => e.stopPropagation()}>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Salvando...
+                            </div>
+                        ) : isDirty ? (
+                            <div
+                                role="button"
+                                onClick={(e) => { e.stopPropagation(); handleSave() }}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
+                            >
+                                <Check className="h-3 w-3" />
+                                Salvar
+                            </div>
+                        ) : updateCard.isSuccess ? (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                                <Check className="h-3 w-3" />
+                                Salvo
+                            </div>
+                        ) : null}
 
-            {/* Content */}
-            <div className="p-2" onKeyDown={handleKeyDown}>
-                <div className="space-y-1.5">
-                    {fields.map((field) => {
-                        const blocking = isFieldBlocking(field.key)
-                        return (
-                        <div key={field.key}>
-                            <label className={cn(
-                                "flex items-center gap-1 text-[11px] font-medium mb-0.5",
-                                blocking ? "text-red-700" : "text-gray-700"
-                            )}>
-                                <div className={cn(
-                                    "w-1 h-1 rounded-full",
-                                    blocking ? "bg-red-500" : "bg-gray-400"
-                                )} />
-                                {field.label}
-                                {blocking && (
-                                    <span className="text-[10px] text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded-full">
-                                        Obrigatório
-                                    </span>
-                                )}
-                            </label>
-                            <UniversalFieldRenderer
-                                field={{
-                                    key: field.key,
-                                    label: field.label,
-                                    type: field.type,
-                                    options: field.options
-                                }}
-                                value={editedData[field.key]}
-                                mode="edit"
-                                onChange={(val) => handleChange(field.key, val)}
-                            />
-                        </div>
-                        )
-                    })}
+                        {/* Collapse chevron */}
+                        {isExpanded
+                            ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                        }
+                    </div>
                 </div>
-            </div>
+            </button>
+
+            {/* Content — only visible when expanded */}
+            {isExpanded && (
+                <div className="p-2" onKeyDown={handleKeyDown}>
+                    <div className="space-y-1.5">
+                        {fields.map((field) => {
+                            const blocking = isFieldBlocking(field.key)
+                            return (
+                            <div key={field.key}>
+                                <label className={cn(
+                                    "flex items-center gap-1 text-[11px] font-medium mb-0.5",
+                                    blocking ? "text-red-700" : "text-gray-700"
+                                )}>
+                                    <div className={cn(
+                                        "w-1 h-1 rounded-full",
+                                        blocking ? "bg-red-500" : "bg-gray-400"
+                                    )} />
+                                    {field.label}
+                                    {blocking && (
+                                        <span className="text-[10px] text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded-full">
+                                            Obrigatório
+                                        </span>
+                                    )}
+                                </label>
+                                <UniversalFieldRenderer
+                                    field={{
+                                        key: field.key,
+                                        label: field.label,
+                                        type: field.type,
+                                        options: field.options
+                                    }}
+                                    value={editedData[field.key]}
+                                    mode="edit"
+                                    onChange={(val) => handleChange(field.key, val)}
+                                />
+                            </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -317,9 +411,11 @@ interface DynamicSectionsListProps {
     position: 'left_column' | 'right_column'
     /** Section keys to exclude (e.g., system sections with dedicated components) */
     excludeKeys?: string[]
+    /** Current pipeline phase slug for auto-collapse rules */
+    phaseSlug?: string | null
 }
 
-export function DynamicSectionsList({ card, position, excludeKeys = [] }: DynamicSectionsListProps) {
+export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlug }: DynamicSectionsListProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const produto = (card as any).produto as string | undefined
     const { data: sections = [], isLoading } = useSections(produto || 'TRIPS')
@@ -331,6 +427,11 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
             // Render widget-based sections OR non-system custom sections
             .filter(s => s.widget_component || !s.is_system)
     }, [sections, position, excludeKeys])
+
+    const shouldAutoCollapse = useCallback((section: Section) => {
+        if (!phaseSlug) return false
+        return (section.collapse_on_phases || []).includes(phaseSlug)
+    }, [phaseSlug])
 
     if (isLoading) {
         return (
@@ -348,18 +449,27 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
     return (
         <>
             {positionedSections.map(section => {
-                // If section has a custom widget, render it
+                const collapsed = shouldAutoCollapse(section)
+
+                // Widget-based sections: manage collapse state here, pass props to widget
                 if (section.widget_component && WIDGET_REGISTRY[section.widget_component]) {
-                    const WidgetComponent = WIDGET_REGISTRY[section.widget_component]
-                    return <WidgetComponent key={section.key} cardId={card.id!} card={card} />
+                    return (
+                        <CollapsibleWidgetSection
+                            key={section.key}
+                            section={section}
+                            card={card}
+                            defaultCollapsed={collapsed}
+                        />
+                    )
                 }
 
-                // Otherwise render as dynamic fields section
+                // Field-based sections: DynamicSectionWidget has built-in collapse
                 return (
                     <DynamicSectionWidget
                         key={section.key}
                         card={card}
                         sectionKey={section.key}
+                        defaultCollapsed={collapsed}
                     />
                 )
             })}

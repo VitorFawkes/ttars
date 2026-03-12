@@ -62,16 +62,17 @@ export default function CardDetail() {
     // Mark as seen only when the owner opens the card
     useEffect(() => {
         if (id && card) markSeen(id, card.dono_atual_id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, card?.dono_atual_id, markSeen])
 
-    // Get the card's current phase
+    // Get the card's current phase (including slug for auto-collapse rules)
     const { data: stageInfo } = useQuery({
         queryKey: ['card-stage-info', card?.pipeline_stage_id],
         queryFn: async () => {
             if (!card?.pipeline_stage_id) return null
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('fase, phase_id')
+                .select('fase, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .eq('id', card.pipeline_stage_id)
                 .single()
             if (error) return null
@@ -79,6 +80,10 @@ export default function CardDetail() {
         },
         enabled: !!card?.pipeline_stage_id,
     })
+
+    // Resolve phase slug for section auto-collapse rules
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const phaseSlug = (stageInfo?.pipeline_phases as any)?.slug as string | undefined
 
     // Compute missing task requirements for contextual indicators in CardTasks
     const { missingBlocking } = useStageRequirements((card || { id: '', pipeline_stage_id: null }) as Card)
@@ -172,6 +177,7 @@ export default function CardDetail() {
                         card={card}
                         position="left_column"
                         excludeKeys={HARDCODED_EXCLUDE_KEYS}
+                        phaseSlug={phaseSlug}
                     />
 
                     {/* Conversation History — hardcoded, always last */}
@@ -208,6 +214,7 @@ export default function CardDetail() {
                         card={card}
                         position="right_column"
                         excludeKeys={HARDCODED_EXCLUDE_KEYS}
+                        phaseSlug={phaseSlug}
                     />
 
                     {/* Activity Feed (History) */}
