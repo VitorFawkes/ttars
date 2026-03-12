@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileCheck, Plus, ClipboardList, ChevronDown, ChevronRight, UserPlus, Trash2 } from 'lucide-react'
+import { SectionCollapseToggle } from '../DynamicSectionWidget'
 import { supabase } from '../../../lib/supabase'
 import { useDocumentCollection } from '../../../hooks/useDocumentCollection'
 import { cn } from '../../../lib/utils'
@@ -13,9 +14,12 @@ type Card = Database['public']['Tables']['cards']['Row']
 interface DocumentCollectionWidgetProps {
   cardId: string
   card: Card
+  /** Collapse support — passed by CollapsibleWidgetSection */
+  isExpanded?: boolean
+  onToggleCollapse?: () => void
 }
 
-export default function DocumentCollectionWidget({ cardId, card }: DocumentCollectionWidgetProps) {
+export default function DocumentCollectionWidget({ cardId, card, isExpanded: _isExpanded, onToggleCollapse }: DocumentCollectionWidgetProps) {
   const [isSetupOpen, setIsSetupOpen] = useState(false)
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set(['__all__']))
   const [showTaskCreator, setShowTaskCreator] = useState(false)
@@ -133,8 +137,11 @@ export default function DocumentCollectionWidget({ cardId, card }: DocumentColle
 
   return (
     <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-gray-50/50 px-3 py-2">
+      {/* Header — clickable to collapse/expand */}
+      <div
+        className={cn("border-b border-gray-200 bg-gray-50/50 px-3 py-2", onToggleCollapse && "cursor-pointer hover:bg-gray-100/50 transition-colors")}
+        onClick={onToggleCollapse}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-teal-100">
@@ -155,13 +162,18 @@ export default function DocumentCollectionWidget({ cardId, card }: DocumentColle
             )}
           </div>
 
-          <button
-            onClick={() => setIsSetupOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded-lg border border-teal-200 hover:bg-teal-100 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Adicionar
-          </button>
+          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setIsSetupOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded-lg border border-teal-200 hover:bg-teal-100 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar
+            </button>
+            {onToggleCollapse && (
+              <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
+            )}
+          </div>
         </div>
 
         {/* Progress bar */}

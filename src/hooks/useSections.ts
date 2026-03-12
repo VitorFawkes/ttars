@@ -19,6 +19,8 @@ export interface Section {
     widget_component: string | null
     /** Product scope: NULL = shared across all products */
     produto: string | null
+    /** Phase slugs where this section should auto-collapse */
+    collapse_on_phases: string[]
 }
 
 export type SectionPosition = 'left_column' | 'right_column'

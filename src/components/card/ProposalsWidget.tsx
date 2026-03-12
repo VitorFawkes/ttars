@@ -21,6 +21,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -40,9 +42,12 @@ const PROPOSAL_STATUS_LABELS: Record<string, string> = {
 interface ProposalsWidgetProps {
     cardId: string
     card?: Card
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
-export function ProposalsWidget({ cardId, card }: ProposalsWidgetProps) {
+export function ProposalsWidget({ cardId, card, isExpanded, onToggleCollapse }: ProposalsWidgetProps) {
     const navigate = useNavigate()
     const [isCreating, setIsCreating] = useState(false)
 
@@ -116,8 +121,11 @@ export function ProposalsWidget({ cardId, card }: ProposalsWidgetProps) {
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+            {/* Header — clickable to collapse/expand */}
+            <div
+                className={cn("px-3 py-2 border-b border-slate-100 flex items-center justify-between", onToggleCollapse && "cursor-pointer hover:bg-slate-50/80 transition-colors")}
+                onClick={onToggleCollapse}
+            >
                 <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-slate-500" />
                     <h3 className="font-medium text-slate-900">Propostas</h3>
@@ -127,22 +135,27 @@ export function ProposalsWidget({ cardId, card }: ProposalsWidgetProps) {
                         </span>
                     )}
                 </div>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleCreateProposal}
-                    disabled={isCreating}
-                    className="h-7 px-2 text-xs"
-                >
-                    {isCreating ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                        <>
-                            <Plus className="h-3 w-3 mr-1" />
-                            Nova
-                        </>
+                <div className="flex items-center gap-1">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => { e.stopPropagation(); handleCreateProposal() }}
+                        disabled={isCreating}
+                        className="h-7 px-2 text-xs"
+                    >
+                        {isCreating ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                            <>
+                                <Plus className="h-3 w-3 mr-1" />
+                                Nova
+                            </>
+                        )}
+                    </Button>
+                    {onToggleCollapse && (
+                        <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
                     )}
-                </Button>
+                </div>
             </div>
 
             {/* Required proposal indicators */}

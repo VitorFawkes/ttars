@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { AlertTriangle, Check, Loader2, Tag, Plane, FileCheck } from 'lucide-react'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import type { Database } from '../../database.types'
@@ -21,13 +22,16 @@ type Card = Database['public']['Tables']['cards']['Row'] & {
 
 interface ObservacoesEstruturadasProps {
     card: Card
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
 type ViewMode = string
 
 const EMPTY_OBJECT = {}
 
-export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturadasProps) {
+export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded, onToggleCollapse }: ObservacoesEstruturadasProps) {
     const queryClient = useQueryClient()
     const { currentProduct } = useProductContext()
     const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
@@ -251,7 +255,11 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
         <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
             {/* Header & Tabs */}
             <div className="border-b border-gray-200 bg-gray-50/50 px-3 pt-2">
-                <div className="flex items-center justify-between mb-1">
+                {/* Title row — clickable to collapse/expand */}
+                <div
+                    className={cn("flex items-center justify-between mb-1", onToggleCollapse && "cursor-pointer")}
+                    onClick={onToggleCollapse}
+                >
                     <div className="flex items-center gap-2">
                         <div className="p-1 bg-red-100 rounded-lg">
                             <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
@@ -259,25 +267,30 @@ export default function ObservacoesEstruturadas({ card }: ObservacoesEstruturada
                         <h3 className="text-xs font-semibold text-gray-900">Informações Importantes</h3>
                     </div>
 
-                    {updateCard.isPending ? (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Salvando...
-                        </div>
-                    ) : isDirty ? (
-                        <button
-                            onClick={handleSave}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-                        >
-                            <Check className="h-3 w-3" />
-                            Salvar
-                        </button>
-                    ) : updateCard.isSuccess ? (
-                        <div className="flex items-center gap-1 text-xs text-green-600">
-                            <Check className="h-3 w-3" />
-                            Salvo
-                        </div>
-                    ) : null}
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                        {updateCard.isPending ? (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Salvando...
+                            </div>
+                        ) : isDirty ? (
+                            <button
+                                onClick={handleSave}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
+                            >
+                                <Check className="h-3 w-3" />
+                                Salvar
+                            </button>
+                        ) : updateCard.isSuccess ? (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                                <Check className="h-3 w-3" />
+                                Salvo
+                            </div>
+                        ) : null}
+                        {onToggleCollapse && (
+                            <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">

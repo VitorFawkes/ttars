@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
-import { Loader2, Plus, Trash2, Eye, EyeOff, CheckSquare, Square, LayoutTemplate, Shield, Edit2, Layers, Grid, ChevronUp, ChevronDown } from 'lucide-react'
+import { Loader2, Plus, Trash2, Eye, EyeOff, CheckSquare, Square, LayoutTemplate, Shield, Edit2, Layers, Grid, ChevronUp, ChevronDown, FoldVertical, UnfoldVertical } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { useProductContext } from '../../../hooks/useProductContext'
 import FieldInspectorDrawer from './FieldInspectorDrawer'
@@ -431,6 +431,33 @@ export default function StudioUnified() {
         })
     }, [stages, phases])
 
+    // --- Section Collapse Helpers ---
+    const isSectionCollapsedOnPhase = (section: typeof sectionsData[0], phaseSlug: string | null) => {
+        if (!phaseSlug) return false
+        return (section.collapse_on_phases || []).includes(phaseSlug)
+    }
+
+    const toggleSectionCollapse = async (sectionId: string, phaseSlug: string | null) => {
+        if (!phaseSlug) return
+        const section = sectionsData.find(s => s.id === sectionId)
+        if (!section) return
+
+        const current = section.collapse_on_phases || []
+        const next = current.includes(phaseSlug)
+            ? current.filter((s: string) => s !== phaseSlug)
+            : [...current, phaseSlug]
+
+        // Optimistic update
+        queryClient.setQueryData(['sections', currentProduct], (old: typeof sectionsData | undefined) => {
+            if (!old) return old
+            return old.map(s => s.id === sectionId ? { ...s, collapse_on_phases: next } : s)
+        })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await supabase.from('sections').update({ collapse_on_phases: next } as any).eq('id', sectionId)
+        queryClient.invalidateQueries({ queryKey: ['sections'] })
+    }
+
     if (loadingFields || loadingSections) return <div className="p-12 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" /></div>
 
     return (
@@ -605,7 +632,32 @@ export default function StudioUnified() {
                                                 {section.label}
                                             </div>
                                         </td>
-                                        <td colSpan={(viewMode === 'macro' ? phases.length : (stages?.length || 0))} className="border-y border-border"></td>
+                                        {viewMode === 'macro' ? (
+                                            phases.map(phase => {
+                                                const isCollapsed = isSectionCollapsedOnPhase(section, phase.slug)
+                                                return (
+                                                    <td key={phase.id} className="border-y border-border text-center px-2 py-2">
+                                                        <button
+                                                            onClick={() => toggleSectionCollapse(section.id, phase.slug)}
+                                                            className={cn(
+                                                                "p-1.5 rounded-md transition-all",
+                                                                isCollapsed
+                                                                    ? "bg-amber-500/20 text-amber-600 ring-1 ring-amber-500/30"
+                                                                    : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                            )}
+                                                            title={isCollapsed ? "Seção recolhida nesta fase" : "Seção aberta nesta fase"}
+                                                        >
+                                                            {isCollapsed
+                                                                ? <FoldVertical className="w-3.5 h-3.5" />
+                                                                : <UnfoldVertical className="w-3.5 h-3.5" />
+                                                            }
+                                                        </button>
+                                                    </td>
+                                                )
+                                            })
+                                        ) : (
+                                            <td colSpan={stages?.length || 0} className="border-y border-border"></td>
+                                        )}
                                     </tr>
 
                                     {/* Empty Section Message */}

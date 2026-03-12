@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, Layers, ChevronUp, ChevronDown } from 'lucide-react'
+import { Check, Loader2, Layers, ChevronDown } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -73,10 +73,7 @@ export function SectionCollapseToggle({ isExpanded, onToggle }: SectionCollapseT
             className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             title={isExpanded ? "Recolher seção" : "Expandir seção"}
         >
-            {isExpanded
-                ? <ChevronUp className="h-3.5 w-3.5" />
-                : <ChevronDown className="h-3.5 w-3.5" />
-            }
+            <ChevronDown className="h-3.5 w-3.5" />
         </button>
     )
 }
@@ -90,7 +87,6 @@ interface CollapsedSectionBarProps {
     onExpand: () => void
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CollapsedSectionBar({ section, onExpand }: CollapsedSectionBarProps) {
     const iconName = resolveIconName(section.icon)
     const colorClasses = section.color || 'bg-slate-50 text-slate-700 border-slate-100'
@@ -350,10 +346,7 @@ export default function DynamicSectionWidget({
                         ) : null}
 
                         {/* Collapse chevron */}
-                        {isExpanded
-                            ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                        }
+                        <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                 </div>
             </button>
@@ -399,6 +392,37 @@ export default function DynamicSectionWidget({
                 </div>
             )}
         </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// CollapsibleWidgetSection - Manages collapse state for widget-based sections
+// When collapsed: shows CollapsedSectionBar
+// When expanded: renders widget with isExpanded + onToggleCollapse props
+// ═══════════════════════════════════════════════════════════
+
+interface CollapsibleWidgetSectionProps {
+    section: Section
+    card: Card
+    defaultCollapsed?: boolean
+}
+
+function CollapsibleWidgetSection({ section, card, defaultCollapsed = false }: CollapsibleWidgetSectionProps) {
+    const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
+    const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
+
+    if (!isExpanded) {
+        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} />
+    }
+
+    const WidgetComponent = WIDGET_REGISTRY[section.widget_component!]
+    return (
+        <WidgetComponent
+            cardId={card.id}
+            card={card}
+            isExpanded={isExpanded}
+            onToggleCollapse={onToggleCollapse}
+        />
     )
 }
 

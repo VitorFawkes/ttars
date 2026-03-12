@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Tag, Check, History, Plane, FileCheck, Loader2, X } from 'lucide-react'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 
 import { supabase } from '../../lib/supabase'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -50,6 +51,9 @@ interface TripInformationProps {
         produto_data?: any
         [key: string]: unknown
     }
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
 type ViewMode = string
@@ -155,7 +159,7 @@ function EditModal({ isOpen, onClose, onSave, title, children, isSaving, isCorre
 // TripInformation — display cards + popup edit
 // ═══════════════════════════════════════════════════════════
 
-export default function TripInformation({ card }: TripInformationProps) {
+export default function TripInformation({ card, isExpanded: _isExpanded, onToggleCollapse }: TripInformationProps) {
     const productData = useMemo(() => {
         if (typeof card.produto_data === 'string') {
             try {
@@ -356,12 +360,16 @@ export default function TripInformation({ card }: TripInformationProps) {
 
             {/* HEADER + TABS */}
             <div className="border-b border-gray-200 bg-gray-50/50 px-3 pt-2">
-                <div className="flex items-center justify-between mb-1">
+                {/* Title row — clickable to collapse/expand */}
+                <div
+                    className={cn("flex items-center justify-between mb-1", onToggleCollapse && "cursor-pointer")}
+                    onClick={onToggleCollapse}
+                >
                     <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-2">
                         Informações da Viagem
                     </h3>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                         {/* Correction Toggle */}
                         {(viewMode === SystemPhase.SDR || viewMode === SystemPhase.PLANNER) && (
                             <button
@@ -376,6 +384,9 @@ export default function TripInformation({ card }: TripInformationProps) {
                                 <History className="h-3.5 w-3.5" />
                                 {correctionMode ? "Sair da Correção" : "Corrigir Histórico SDR"}
                             </button>
+                        )}
+                        {onToggleCollapse && (
+                            <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
                         )}
                     </div>
                 </div>

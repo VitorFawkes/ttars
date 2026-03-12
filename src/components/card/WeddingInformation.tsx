@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { Heart, Check, Loader2 } from 'lucide-react'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -25,9 +26,12 @@ interface WeddingInformationProps {
         produto_data?: any
         [key: string]: unknown
     }
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
-export default function WeddingInformation({ card }: WeddingInformationProps) {
+export default function WeddingInformation({ card, isExpanded: _isExpanded, onToggleCollapse }: WeddingInformationProps) {
     const queryClient = useQueryClient()
 
     const productData = useMemo(() => {
@@ -133,8 +137,11 @@ export default function WeddingInformation({ card }: WeddingInformationProps) {
 
     return (
         <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="border-b border-gray-200 bg-gray-50/50 px-4 py-3">
+            {/* Header — clickable to collapse/expand */}
+            <div
+                className={cn("border-b border-gray-200 bg-gray-50/50 px-4 py-3", onToggleCollapse && "cursor-pointer hover:bg-gray-100/50 transition-colors")}
+                onClick={onToggleCollapse}
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="p-1.5 rounded-lg bg-rose-100">
@@ -145,25 +152,30 @@ export default function WeddingInformation({ card }: WeddingInformationProps) {
                         </h3>
                     </div>
 
-                    {updateCard.isPending ? (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Salvando...
-                        </div>
-                    ) : isDirty ? (
-                        <button
-                            onClick={handleSave}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
-                        >
-                            <Check className="h-3 w-3" />
-                            Salvar Alterações
-                        </button>
-                    ) : updateCard.isSuccess ? (
-                        <div className="flex items-center gap-1.5 text-xs text-green-600">
-                            <Check className="h-3 w-3" />
-                            Salvo
-                        </div>
-                    ) : null}
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                        {updateCard.isPending ? (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Salvando...
+                            </div>
+                        ) : isDirty ? (
+                            <button
+                                onClick={handleSave}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors"
+                            >
+                                <Check className="h-3 w-3" />
+                                Salvar Alterações
+                            </button>
+                        ) : updateCard.isSuccess ? (
+                            <div className="flex items-center gap-1.5 text-xs text-green-600">
+                                <Check className="h-3 w-3" />
+                                Salvo
+                            </div>
+                        ) : null}
+                        {onToggleCollapse && (
+                            <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
+                        )}
+                    </div>
                 </div>
             </div>
 

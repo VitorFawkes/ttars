@@ -35,6 +35,7 @@ import {
     type MondeSaleStatus
 } from '@/hooks/useMondeSales'
 import MondeCreateSaleModal from './MondeCreateSaleModal'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 
 // ============================================
 // Types
@@ -46,6 +47,9 @@ interface MondeWidgetProps {
     /** @deprecated Now derived internally. Kept for backward-compat during migration. */
     hasAcceptedProposal?: boolean
     card?: unknown
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
 interface CardContext {
@@ -80,6 +84,8 @@ export default function MondeWidget({
     cardId,
     proposalId: externalProposalId,
     hasAcceptedProposal: externalHasAccepted,
+    isExpanded,
+    onToggleCollapse,
 }: MondeWidgetProps) {
     const navigate = useNavigate()
 
@@ -173,9 +179,12 @@ export default function MondeWidget({
     }
 
     return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            {/* Header — clickable to collapse/expand */}
+            <div
+                className={cn("px-3 py-2 border-b border-gray-100 flex items-center justify-between", onToggleCollapse && "cursor-pointer hover:bg-gray-50/80 transition-colors")}
+                onClick={onToggleCollapse}
+            >
                 <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-indigo-500" />
                     <h3 className="text-sm font-semibold text-gray-900">
@@ -188,31 +197,39 @@ export default function MondeWidget({
                     )}
                 </div>
 
-                {canCreateSale && (
-                    <div className="flex items-center gap-1">
-                        {hasAcceptedProposal && proposalId && (
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    {canCreateSale && (
+                        <>
+                            {hasAcceptedProposal && proposalId && (
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => navigate(`/cards/${cardId}/monde-preview?proposalId=${proposalId}`)}
+                                    className="text-xs text-indigo-600 hover:text-indigo-800"
+                                >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    Preview
+                                </Button>
+                            )}
                             <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={() => navigate(`/cards/${cardId}/monde-preview?proposalId=${proposalId}`)}
-                                className="text-xs text-indigo-600 hover:text-indigo-800"
+                                variant="outline"
+                                onClick={() => setShowCreateModal(true)}
+                                className="text-xs"
                             >
-                                <Eye className="w-3 h-3 mr-1" />
-                                Preview
+                                <Plus className="w-3 h-3 mr-1" />
+                                Nova Venda
                             </Button>
-                        )}
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowCreateModal(true)}
-                            className="text-xs"
-                        >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Nova Venda
-                        </Button>
-                    </div>
-                )}
+                        </>
+                    )}
+                    {onToggleCollapse && (
+                        <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
+                    )}
+                </div>
             </div>
+
+            {/* Content */}
+            <div className="p-3 space-y-4">
 
             {/* Summary */}
             {sentSales.length > 0 && (
@@ -317,6 +334,8 @@ export default function MondeWidget({
                     )}
                 </div>
             )}
+
+            </div>
 
             {/* Create Modal */}
             {showCreateModal && canCreateSale && (

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { DollarSign, TrendingUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useReceitaPermission } from '@/hooks/useReceitaPermission'
@@ -12,12 +14,15 @@ type Card = Database['public']['Tables']['cards']['Row']
 interface FinanceiroWidgetProps {
     cardId: string
     card: Card
+    /** Collapse support — passed by CollapsibleWidgetSection */
+    isExpanded?: boolean
+    onToggleCollapse?: () => void
 }
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
-export default function FinanceiroWidget({ cardId, card }: FinanceiroWidgetProps) {
+export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
     const receitaPerm = useReceitaPermission()
     const [showCostEditor, setShowCostEditor] = useState(false)
     const [showFinancialItems, setShowFinancialItems] = useState(false)
@@ -42,13 +47,17 @@ export default function FinanceiroWidget({ cardId, card }: FinanceiroWidgetProps
 
     return (
         <>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                <div className="flex items-center justify-between mb-3">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                {/* Header — clickable to collapse/expand */}
+                <div
+                    className={cn("flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50/50", onToggleCollapse && "cursor-pointer hover:bg-gray-100/50 transition-colors")}
+                    onClick={onToggleCollapse}
+                >
                     <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-amber-600" />
                         Financeiro
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                         {acceptedProposal ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
                                 Proposta
@@ -66,9 +75,14 @@ export default function FinanceiroWidget({ cardId, card }: FinanceiroWidgetProps
                                 {acceptedProposal ? 'Editar custos' : 'Editar produtos'}
                             </button>
                         )}
+                        {onToggleCollapse && (
+                            <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
+                        )}
                     </div>
                 </div>
 
+                {/* Content */}
+                <div className="px-4 pb-4">
                 {/* Valor de Venda */}
                 {card.valor_final != null && (
                     <div className="flex items-baseline justify-between mb-2">
@@ -108,6 +122,7 @@ export default function FinanceiroWidget({ cardId, card }: FinanceiroWidgetProps
                         </span>
                     </div>
                 )}
+                </div>
             </div>
 
             {/* Financial Modals */}
