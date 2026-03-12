@@ -19,38 +19,28 @@ export default function CardByConversation() {
         }
 
         async function findCard() {
-            // Find contato with its most recent card via join
-            const { data: contato, error: contatoError } = await supabase
-                .from('contatos')
-                .select('id, cards!cards_contato_id_fkey(id, created_at)')
-                .eq('last_whatsapp_conversation_id', conversationId!)
+            // Find card via whatsapp_messages.conversation_id
+            const { data: message, error: msgError } = await supabase
+                .from('whatsapp_messages')
+                .select('card_id')
+                .eq('conversation_id', conversationId!)
+                .not('card_id', 'is', null)
+                .limit(1)
                 .maybeSingle()
 
-            if (contatoError) {
-                console.error('Erro ao buscar contato:', contatoError)
-                setError('Erro ao buscar contato')
+            if (msgError) {
+                console.error('Erro ao buscar card:', msgError)
+                setError('Erro ao buscar card')
                 return
             }
 
-            if (!contato) {
-                setError('Nenhum contato encontrado para essa conversa')
+            if (!message?.card_id) {
+                setError('Nenhum card encontrado para essa conversa')
                 return
             }
-
-            // Get most recent card from the joined data
-            const cards = contato.cards as Array<{ id: string; created_at: string }> | null
-            if (!cards || cards.length === 0) {
-                setError('Nenhum card encontrado para esse contato')
-                return
-            }
-
-            // Sort by created_at desc and get first
-            const mostRecent = cards.sort((a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )[0]
 
             // Redirect to card detail
-            navigate(`/cards/${mostRecent.id}`, { replace: true })
+            navigate(`/cards/${message.card_id}`, { replace: true })
         }
 
         findCard()
