@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useSections, useSectionMutations, type Section } from '../../../hooks/useSections'
+import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, Eye, EyeOff } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -79,23 +79,25 @@ const defaultFormData: SectionFormData = {
 export default function SectionManager() {
     const { toast } = useToast()
     const { currentProduct } = useProductContext()
-    // Filter sections by current product: show product-specific sections + shared (NULL) sections
-    const { data: sections = [], isLoading } = useSections(currentProduct)
+    // Fetch ALL sections (active + inactive) so admin can toggle visibility
+    const { data: sections = [], isLoading } = useAllSections(currentProduct)
     const { createSection, updateSection, deleteSection, reorderSections } = useSectionMutations()
 
     const [isAdding, setIsAdding] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [formData, setFormData] = useState<SectionFormData>(defaultFormData)
 
-    // Separate sections by position and sort by order_index
-    const leftSections = useMemo(() =>
-        sections.filter(s => s.position === 'left_column').sort((a, b) => (a.order_index || 0) - (b.order_index || 0)),
-        [sections]
-    )
-    const rightSections = useMemo(() =>
-        sections.filter(s => s.position === 'right_column').sort((a, b) => (a.order_index || 0) - (b.order_index || 0)),
-        [sections]
-    )
+    // Separate sections by position, active first then inactive
+    const leftSections = useMemo(() => {
+        const active = sections.filter(s => s.position === 'left_column' && s.active).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+        const inactive = sections.filter(s => s.position === 'left_column' && !s.active).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+        return { active, inactive }
+    }, [sections])
+    const rightSections = useMemo(() => {
+        const active = sections.filter(s => s.position === 'right_column' && s.active).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+        const inactive = sections.filter(s => s.position === 'right_column' && !s.active).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+        return { active, inactive }
+    }, [sections])
 
     // DnD sensors
     const sensors = useSensors(
@@ -107,7 +109,8 @@ export default function SectionManager() {
         const { active, over } = event
         if (!over || active.id === over.id) return
 
-        const sectionsToReorder = position === 'left_column' ? leftSections : rightSections
+        const group = position === 'left_column' ? leftSections : rightSections
+        const sectionsToReorder = group.active
         const oldIndex = sectionsToReorder.findIndex(s => s.id === active.id)
         const newIndex = sectionsToReorder.findIndex(s => s.id === over.id)
 
@@ -175,6 +178,20 @@ export default function SectionManager() {
             toast({ title: 'Seção excluída', type: 'success' })
         } catch (err: unknown) {
             toast({ title: 'Erro ao excluir seção', description: err instanceof Error ? err.message : 'Erro desconhecido', type: 'error' })
+        }
+    }
+
+    const handleToggleActive = async (section: Section) => {
+        if (HARDCODED_SECTION_KEYS.includes(section.key)) return
+
+        try {
+            await updateSection.mutateAsync({ id: section.id, active: !section.active })
+            toast({
+                title: section.active ? 'Seção ocultada' : 'Seção reativada',
+                type: 'success'
+            })
+        } catch (err: unknown) {
+            toast({ title: 'Erro ao alterar visibilidade', description: err instanceof Error ? err.message : 'Erro desconhecido', type: 'error' })
         }
     }
 
@@ -324,85 +341,130 @@ export default function SectionManager() {
             {/* Sections List - Two Columns with Drag & Drop */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
-                <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                        ⬅️ Coluna Esquerda
-                        <Badge variant="outline" className="text-xs">{leftSections.length}</Badge>
-                    </h3>
-                    {leftSections.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center bg-muted/50 rounded-lg">
-                            Nenhuma seção nesta coluna
-                        </p>
-                    ) : (
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(e) => handleDragEnd(e, 'left_column')}
-                        >
-                            <SortableContext items={leftSections.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                                <div className="space-y-2">
-                                    {leftSections.map(section => (
-                                        <SortableSectionCard
-                                            key={section.id}
-                                            section={section}
-                                            isEditing={editingId === section.id}
-                                            onEdit={() => startEdit(section)}
-                                            onDelete={() => handleDelete(section)}
-                                        />
-                                    ))}
-                                </div>
-                            </SortableContext>
-                        </DndContext>
-                    )}
-                </div>
+                {/* Left Column */}
+                <SectionColumn
+                    label="⬅️ Coluna Esquerda"
+                    position="left_column"
+                    activeSections={leftSections.active}
+                    inactiveSections={leftSections.inactive}
+                    sensors={sensors}
+                    editingId={editingId}
+                    onDragEnd={handleDragEnd}
+                    onEdit={startEdit}
+                    onDelete={handleDelete}
+                    onToggleActive={handleToggleActive}
+                />
 
                 {/* Right Column */}
-                <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                        ➡️ Coluna Direita
-                        <Badge variant="outline" className="text-xs">{rightSections.length}</Badge>
-                    </h3>
-                    {rightSections.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center bg-muted/50 rounded-lg">
-                            Nenhuma seção nesta coluna
-                        </p>
-                    ) : (
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(e) => handleDragEnd(e, 'right_column')}
-                        >
-                            <SortableContext items={rightSections.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                                <div className="space-y-2">
-                                    {rightSections.map(section => (
-                                        <SortableSectionCard
-                                            key={section.id}
-                                            section={section}
-                                            isEditing={editingId === section.id}
-                                            onEdit={() => startEdit(section)}
-                                            onDelete={() => handleDelete(section)}
-                                        />
-                                    ))}
-                                </div>
-                            </SortableContext>
-                        </DndContext>
-                    )}
-                </div>
+                <SectionColumn
+                    label="➡️ Coluna Direita"
+                    position="right_column"
+                    activeSections={rightSections.active}
+                    inactiveSections={rightSections.inactive}
+                    sensors={sensors}
+                    editingId={editingId}
+                    onDragEnd={handleDragEnd}
+                    onEdit={startEdit}
+                    onDelete={handleDelete}
+                    onToggleActive={handleToggleActive}
+                />
             </div>
         </div>
     )
 }
 
-// Sortable SectionCard with drag handle
+// Column component with active + inactive sections
+interface SectionColumnProps {
+    label: string
+    position: 'left_column' | 'right_column'
+    activeSections: Section[]
+    inactiveSections: Section[]
+    sensors: ReturnType<typeof useSensors>
+    editingId: string | null
+    onDragEnd: (event: DragEndEvent, position: 'left_column' | 'right_column') => void
+    onEdit: (section: Section) => void
+    onDelete: (section: Section) => void
+    onToggleActive: (section: Section) => void
+}
+
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive }: SectionColumnProps) {
+    const totalCount = activeSections.length + inactiveSections.length
+
+    return (
+        <div className="space-y-3">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                {label}
+                <Badge variant="outline" className="text-xs">{totalCount}</Badge>
+            </h3>
+
+            {totalCount === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center bg-muted/50 rounded-lg">
+                    Nenhuma seção nesta coluna
+                </p>
+            ) : (
+                <>
+                    {/* Active sections with drag & drop */}
+                    {activeSections.length > 0 && (
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={(e) => onDragEnd(e, position)}
+                        >
+                            <SortableContext items={activeSections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-2">
+                                    {activeSections.map(section => (
+                                        <SortableSectionCard
+                                            key={section.id}
+                                            section={section}
+                                            isEditing={editingId === section.id}
+                                            onEdit={() => onEdit(section)}
+                                            onDelete={() => onDelete(section)}
+                                            onToggleActive={() => onToggleActive(section)}
+                                        />
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
+                    )}
+
+                    {/* Inactive sections */}
+                    {inactiveSections.length > 0 && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 pt-2">
+                                <div className="h-px flex-1 bg-border" />
+                                <span className="text-xs text-muted-foreground font-medium">Seções ocultas</span>
+                                <div className="h-px flex-1 bg-border" />
+                            </div>
+                            {inactiveSections.map(section => (
+                                <SortableSectionCard
+                                    key={section.id}
+                                    section={section}
+                                    isEditing={editingId === section.id}
+                                    onEdit={() => onEdit(section)}
+                                    onDelete={() => onDelete(section)}
+                                    onToggleActive={() => onToggleActive(section)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    )
+}
+
+// Sortable SectionCard with drag handle and visibility toggle
 interface SortableSectionCardProps {
     section: Section
     isEditing: boolean
     onEdit: () => void
     onDelete: () => void
+    onToggleActive: () => void
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
+    const isInactive = !section.active
 
     const {
         attributes,
@@ -411,7 +473,7 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete }: SortableS
         transform,
         transition,
         isDragging
-    } = useSortable({ id: section.id, disabled: isHardcoded })
+    } = useSortable({ id: section.id, disabled: isHardcoded || isInactive })
 
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
@@ -431,13 +493,18 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete }: SortableS
                 "flex items-center gap-3 p-3 rounded-lg border transition-all bg-card",
                 isEditing ? "ring-2 ring-primary border-primary" : "border-border hover:shadow-sm",
                 isDragging && "shadow-lg",
-                isHardcoded && "opacity-60"
+                isHardcoded && "opacity-60",
+                isInactive && "opacity-50 bg-muted/30"
             )}
         >
             {/* Drag Handle or Lock */}
             {isHardcoded ? (
                 <div className="p-1 text-muted-foreground/40" title="Posição fixa no CardDetail">
                     <Lock className="w-4 h-4" />
+                </div>
+            ) : isInactive ? (
+                <div className="p-1 text-muted-foreground/30">
+                    <GripVertical className="w-4 h-4" />
                 </div>
             ) : (
                 <button
@@ -451,19 +518,22 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete }: SortableS
             )}
 
             {/* Color Badge */}
-            <div className={cn("w-3 h-3 rounded-full flex-shrink-0", bgClass.replace('-50', '-500'))} />
+            <div className={cn("w-3 h-3 rounded-full flex-shrink-0", bgClass.replace('-50', '-500'), isInactive && "opacity-40")} />
 
             {/* Info */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground truncate">{section.label}</span>
+                    <span className={cn("font-medium truncate", isInactive ? "text-muted-foreground" : "text-foreground")}>{section.label}</span>
                     {isHardcoded && (
                         <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-600 bg-amber-50">FIXA</Badge>
                     )}
-                    {section.is_system && !isHardcoded && (
+                    {isInactive && (
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-300 text-slate-500 bg-slate-50">OCULTA</Badge>
+                    )}
+                    {section.is_system && !isHardcoded && !isInactive && (
                         <Badge variant="outline" className="text-[10px] py-0 px-1.5">SISTEMA</Badge>
                     )}
-                    {section.is_governable && (
+                    {section.is_governable && !isInactive && (
                         <Badge variant="secondary" className="text-[10px] py-0 px-1.5">Governavel</Badge>
                     )}
                 </div>
@@ -472,6 +542,21 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete }: SortableS
 
             {/* Actions */}
             <div className="flex items-center gap-1">
+                {/* Visibility Toggle */}
+                {!isHardcoded && (
+                    <button
+                        onClick={onToggleActive}
+                        className={cn(
+                            "p-1.5 rounded transition-colors",
+                            isInactive
+                                ? "text-muted-foreground/50 hover:text-green-600 hover:bg-green-50"
+                                : "text-muted-foreground hover:text-amber-600 hover:bg-amber-50"
+                        )}
+                        title={isInactive ? "Tornar visível" : "Ocultar seção"}
+                    >
+                        {isInactive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                )}
                 <button
                     onClick={onEdit}
                     className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded transition-colors"

@@ -116,6 +116,32 @@ export function useSectionLabelsMap() {
     }
 }
 
+/**
+ * Fetches ALL sections (active + inactive) for admin management.
+ * Used by SectionManager to allow toggling visibility.
+ */
+export function useAllSections(produto?: string) {
+    return useQuery({
+        queryKey: ['sections', 'all-include-inactive', produto || 'all'],
+        queryFn: async () => {
+            let query = supabase
+                .from('sections')
+                .select('*')
+                .order('active', { ascending: false })
+                .order('order_index')
+
+            if (produto) {
+                query = query.or(`produto.is.null,produto.eq.${produto}`)
+            }
+
+            const { data, error } = await query
+            if (error) throw error
+            return data as Section[]
+        },
+        staleTime: 1000 * 30
+    })
+}
+
 // --- MUTATIONS ---
 
 interface CreateSectionInput {
