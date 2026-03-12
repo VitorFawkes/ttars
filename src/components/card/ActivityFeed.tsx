@@ -1,6 +1,6 @@
-import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight } from 'lucide-react'
+import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatDistanceToNow, format } from 'date-fns'
@@ -302,6 +302,27 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
         }
     }, [cardId, queryClient])
 
+    const [isExpanded, setIsExpanded] = useState(!cardId) // collapsed by default on card detail
+
+    // Collapsed bar
+    if (cardId && !isExpanded) {
+        return (
+            <button
+                type="button"
+                onClick={() => setIsExpanded(true)}
+                className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-50/50 border border-gray-300 rounded-xl transition-colors hover:bg-gray-100/80"
+            >
+                <div className="flex items-center gap-2">
+                    <div className="p-1 rounded-lg bg-blue-100">
+                        <MessageSquare className="h-3.5 w-3.5 text-blue-700" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-900">Atividades</span>
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+            </button>
+        )
+    }
+
     if (isLoading) {
         return (
             <div className="rounded-lg border bg-white p-2.5 shadow-sm">
@@ -312,95 +333,117 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
     }
 
     return (
-        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Atividades</h3>
+        <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
+            {/* Header — clickable to collapse */}
+            {cardId && (
+                <button
+                    type="button"
+                    onClick={() => setIsExpanded(false)}
+                    className="w-full border-b border-gray-200 bg-gray-50/50 px-3 py-1.5 cursor-pointer hover:bg-gray-100/80 transition-colors"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="p-1 rounded-lg bg-blue-100">
+                                <MessageSquare className="h-3.5 w-3.5 text-blue-700" />
+                            </div>
+                            <h3 className="text-xs font-semibold text-gray-900">Atividades</h3>
+                        </div>
+                        <ChevronDown className="h-3.5 w-3.5 text-gray-400 rotate-180" />
+                    </div>
+                </button>
+            )}
+            {!cardId && (
+                <h3 className="text-xs font-semibold text-gray-900 px-2.5 pt-2.5 pb-1.5">Atividades</h3>
+            )}
 
-            {activities && activities.length > 0 ? (
-                <div className="space-y-2">
-                    {activities.map((activity) => {
-                        const Icon = activityIcons[activity.tipo as keyof typeof activityIcons] || activityIcons.default
-                        const colorClass = activityColors[activity.tipo as keyof typeof activityColors] || activityColors.default
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
-                        const isAiActivity = (activity.metadata as any)?.source === 'ai_agent'
-                        const userName = isAiActivity
-                            ? 'IA Julia'
-                            : (activity.created_by_user?.nome || activity.created_by_user?.email || 'Sistema')
+            <div className="p-2.5">
+                {activities && activities.length > 0 ? (
+                    <div className="space-y-2">
+                        {activities.map((activity) => {
+                            const Icon = activityIcons[activity.tipo as keyof typeof activityIcons] || activityIcons.default
+                            const colorClass = activityColors[activity.tipo as keyof typeof activityColors] || activityColors.default
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+                            const isAiActivity = (activity.metadata as any)?.source === 'ai_agent'
+                            const userName = isAiActivity
+                                ? 'IA Julia'
+                                : (activity.created_by_user?.nome || activity.created_by_user?.email || 'Sistema')
 
-                        return (
-                            <div key={activity.id} className="flex gap-2 text-xs">
-                                {/* Icon */}
-                                <div className={`h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
-                                    <Icon className="h-3 w-3" />
-                                </div>
-
-                                {/* Content */}
-                                <div className="flex-1 min-w-0">
-                                    {!cardId && activity.card?.titulo && (
-                                        <Link to={`/cards/${activity.card_id}`} className="text-xs text-indigo-600 mb-0.5 font-medium hover:underline block">
-                                            {activity.card.titulo}
-                                        </Link>
-                                    )}
-                                    <div className="flex items-center gap-1.5">
-                                        <p className="text-gray-900">{activity.descricao}</p>
-                                        {activity.party_type === 'supplier' && (
-                                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">
-                                                Fornecedor
-                                            </span>
-                                        )}
+                            return (
+                                <div key={activity.id} className="flex gap-2 text-xs">
+                                    {/* Icon */}
+                                    <div className={`h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
+                                        <Icon className="h-3 w-3" />
                                     </div>
-                                    {(() => {
-                                        const detail = getChangeDetail(activity.tipo!, activity.metadata)
-                                        if (!detail || (!detail.oldVal && !detail.newVal)) return null
-                                        return (
-                                            <div className="mt-1 flex items-center gap-1.5 text-[11px]">
-                                                {detail.oldVal && (
-                                                    <span className="px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-[140px] truncate" title={detail.oldVal}>
-                                                        {detail.oldVal}
-                                                    </span>
-                                                )}
-                                                <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                                                {detail.newVal && (
-                                                    <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-[180px] truncate" title={detail.newVal}>
-                                                        {detail.newVal}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )
-                                    })()}
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
-                                    {activity.tipo === 'task_rescheduled' && (activity.metadata as any)?.new_date && (
-                                        <div className="mt-1 text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded border border-purple-100 inline-flex items-center gap-2">
-                                            <CalendarClock className="h-3 w-3" />
-                                            <span>
-                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
-                                                Reagendada para: <span className="font-medium">{format(new Date((activity.metadata as any).new_date), "dd/MM 'às' HH:mm")}</span>
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="flex flex-col mt-0.5">
-                                        <span className="text-gray-500">
-                                            por <span className="font-medium text-gray-700">{userName}</span>
-                                            {isAiActivity && (
-                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 text-violet-700 rounded">
-                                                    <Bot className="h-2.5 w-2.5" />
-                                                    Auto
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        {!cardId && activity.card?.titulo && (
+                                            <Link to={`/cards/${activity.card_id}`} className="text-xs text-indigo-600 mb-0.5 font-medium hover:underline block">
+                                                {activity.card.titulo}
+                                            </Link>
+                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-gray-900">{activity.descricao}</p>
+                                            {activity.party_type === 'supplier' && (
+                                                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">
+                                                    Fornecedor
                                                 </span>
                                             )}
-                                        </span>
-                                        <div className="flex items-center gap-1 text-gray-400 text-[10px]">
-                                            <span>{formatDistanceToNow(new Date(activity.created_at!), { addSuffix: true, locale: ptBR })}</span>
-                                            <span>•</span>
-                                            <span>{format(new Date(activity.created_at!), "HH:mm '•' dd/MM")}</span>
+                                        </div>
+                                        {(() => {
+                                            const detail = getChangeDetail(activity.tipo!, activity.metadata)
+                                            if (!detail || (!detail.oldVal && !detail.newVal)) return null
+                                            return (
+                                                <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                                                    {detail.oldVal && (
+                                                        <span className="px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-[140px] truncate" title={detail.oldVal}>
+                                                            {detail.oldVal}
+                                                        </span>
+                                                    )}
+                                                    <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                                    {detail.newVal && (
+                                                        <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-[180px] truncate" title={detail.newVal}>
+                                                            {detail.newVal}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })()}
+                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
+                                        {activity.tipo === 'task_rescheduled' && (activity.metadata as any)?.new_date && (
+                                            <div className="mt-1 text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded border border-purple-100 inline-flex items-center gap-2">
+                                                <CalendarClock className="h-3 w-3" />
+                                                <span>
+                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
+                                                    Reagendada para: <span className="font-medium">{format(new Date((activity.metadata as any).new_date), "dd/MM 'às' HH:mm")}</span>
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="flex flex-col mt-0.5">
+                                            <span className="text-gray-500">
+                                                por <span className="font-medium text-gray-700">{userName}</span>
+                                                {isAiActivity && (
+                                                    <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 text-violet-700 rounded">
+                                                        <Bot className="h-2.5 w-2.5" />
+                                                        Auto
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <div className="flex items-center gap-1 text-gray-400 text-[10px]">
+                                                <span>{formatDistanceToNow(new Date(activity.created_at!), { addSuffix: true, locale: ptBR })}</span>
+                                                <span>•</span>
+                                                <span>{format(new Date(activity.created_at!), "HH:mm '•' dd/MM")}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            ) : (
-                <p className="text-xs text-gray-500 italic">Nenhuma atividade registrada ainda</p>
-            )}
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-xs text-gray-500 italic">Nenhuma atividade registrada ainda</p>
+                )}
+            </div>
         </div>
     )
 }
