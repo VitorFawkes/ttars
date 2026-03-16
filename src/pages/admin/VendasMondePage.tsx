@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, ExternalLink, Clock, ChevronDown, ChevronRight,
-    XCircle, Package, User as UserIcon,
+    XCircle, Package, User as UserIcon, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -513,19 +513,45 @@ export default function VendasMondePage() {
                         </p>
                     </div>
                     {step === 'idle' && (
-                        <label className="cursor-pointer">
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".csv,.xlsx,.xls"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-                            <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
-                                <Upload className="h-4 w-4" />
-                                Importar CSV
-                            </span>
-                        </label>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    const csv = [
+                                        'Venda Nº,Produto,Valor Total,Receitas',
+                                        '99001,Hotel Grand Hyatt Cancún (5 noites),"R$ 12.500,00","R$ 2.100,00"',
+                                        '99001,Aéreo GRU-CUN-GRU (LATAM),"R$ 8.750,00","R$ 1.300,00"',
+                                        '99001,Transfer Aeroporto-Hotel,"R$ 950,00","R$ 180,00"',
+                                        '99001,Passeio Isla Mujeres,"R$ 1.200,00","R$ 250,00"',
+                                        '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00"',
+                                        '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00"',
+                                    ].join('\n')
+                                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                                    const url = URL.createObjectURL(blob)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = 'teste_vendas_monde.csv'
+                                    a.click()
+                                    URL.revokeObjectURL(url)
+                                }}
+                                className="inline-flex items-center gap-2 px-3 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-lg transition-colors"
+                            >
+                                <Download className="h-4 w-4" />
+                                Baixar CSV exemplo
+                            </button>
+                            <label className="cursor-pointer">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,.xlsx,.xls"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                />
+                                <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
+                                    <Upload className="h-4 w-4" />
+                                    Importar CSV
+                                </span>
+                            </label>
+                        </div>
                     )}
                 </div>
 
