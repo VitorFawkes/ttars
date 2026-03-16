@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
-import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin } from 'lucide-react'
+import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin, PenLine, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useBriefingIA, type BriefingStep } from '@/hooks/useBriefingIA'
+import { useBriefingIA, type BriefingStep, type BriefingMode } from '@/hooks/useBriefingIA'
 import { supabase } from '@/lib/supabase'
 import type { MergeConfig } from '@/hooks/useSubCards'
 import AudioRecorder from './AudioRecorder'
@@ -26,6 +26,9 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: B
   const { step, result, process, reset } = useBriefingIA(cardId)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [showTranscription, setShowTranscription] = useState(false)
+
+  // Briefing mode: 'atualizar' adds to existing, 'novo' starts fresh
+  const [briefingMode, setBriefingMode] = useState<BriefingMode>('atualizar')
 
   // Sub-card merge config for Briefing IA
   const isSubCard = cardType === 'sub_card'
@@ -77,8 +80,8 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: B
 
   const handleProcess = useCallback(async () => {
     if (!audioBlob) return
-    await process(audioBlob)
-  }, [audioBlob, process])
+    await process(audioBlob, briefingMode)
+  }, [audioBlob, process, briefingMode])
 
   const handleNewAudio = useCallback(() => {
     reset()
@@ -135,6 +138,57 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: B
           {isIdle && (
             <>
               <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
+
+              {/* Briefing mode selector — all cards */}
+              {audioBlob && (
+                <div className="mt-4 p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
+                  <p className="text-xs font-semibold text-amber-700">
+                    Como processar este audio?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBriefingMode('atualizar')}
+                      className={cn(
+                        'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left',
+                        briefingMode === 'atualizar'
+                          ? 'bg-amber-100 border-amber-400 ring-1 ring-amber-400'
+                          : 'bg-white border-slate-200 hover:border-amber-300'
+                      )}
+                    >
+                      <PenLine className={cn('w-4 h-4 flex-shrink-0', briefingMode === 'atualizar' ? 'text-amber-700' : 'text-slate-400')} />
+                      <div>
+                        <span className={cn('text-xs font-medium block', briefingMode === 'atualizar' ? 'text-amber-800' : 'text-slate-600')}>
+                          Atualizar
+                        </span>
+                        <span className="text-[10px] text-slate-400 leading-tight block">
+                          Incorpora ao briefing existente
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBriefingMode('novo')}
+                      className={cn(
+                        'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left',
+                        briefingMode === 'novo'
+                          ? 'bg-amber-100 border-amber-400 ring-1 ring-amber-400'
+                          : 'bg-white border-slate-200 hover:border-amber-300'
+                      )}
+                    >
+                      <RefreshCw className={cn('w-4 h-4 flex-shrink-0', briefingMode === 'novo' ? 'text-amber-700' : 'text-slate-400')} />
+                      <div>
+                        <span className={cn('text-xs font-medium block', briefingMode === 'novo' ? 'text-amber-800' : 'text-slate-600')}>
+                          Novo Briefing
+                        </span>
+                        <span className="text-[10px] text-slate-400 leading-tight block">
+                          Substitui tudo e comeca do zero
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Sub-card: merge mode selector before processing */}
               {isSubCard && audioBlob && (

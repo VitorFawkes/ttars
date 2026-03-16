@@ -447,7 +447,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) throw new Error('Usuário não autenticado')
 
-                const result = await processBriefingIA(card.id, audioBlob, user.id)
+                const result = await processBriefingIA(card.id, audioBlob, user.id, 'novo')
                 setBriefingResult(result)
                 setBriefingStep('done')
 

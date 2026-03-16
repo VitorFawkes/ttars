@@ -33,10 +33,13 @@ function blobToBase64(blob: Blob): Promise<string> {
  * Standalone function to process BriefingIA via n8n webhook.
  * Reusable outside the hook context (e.g., CreateCardModal post-creation flow).
  */
+export type BriefingMode = 'novo' | 'atualizar'
+
 export async function processBriefingIA(
   cardId: string,
   audioBlob: Blob,
-  userId: string
+  userId: string,
+  mode: BriefingMode = 'atualizar'
 ): Promise<BriefingIAResult> {
   const base64 = await blobToBase64(audioBlob)
 
@@ -51,7 +54,8 @@ export async function processBriefingIA(
       card_id: cardId,
       audio_base64: base64,
       audio_mime_type: audioBlob.type || 'audio/webm',
-      user_id: userId
+      user_id: userId,
+      mode
     })
   })
 
@@ -68,7 +72,7 @@ export function useBriefingIA(cardId: string) {
   const [step, setStep] = useState<BriefingStep>('idle')
   const [result, setResult] = useState<BriefingIAResult | null>(null)
 
-  const process = useCallback(async (audioBlob: Blob) => {
+  const process = useCallback(async (audioBlob: Blob, mode: BriefingMode = 'atualizar') => {
     setStep('uploading')
     setResult(null)
 
@@ -78,7 +82,7 @@ export function useBriefingIA(cardId: string) {
 
       setStep('processing')
 
-      const data = await processBriefingIA(cardId, audioBlob, user.id)
+      const data = await processBriefingIA(cardId, audioBlob, user.id, mode)
       setResult(data)
 
       if (data.status === 'success') {

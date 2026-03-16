@@ -129,6 +129,8 @@ const CODE_MONTA_CONTEXTO = `// Monta contexto para o AI Briefing (filtra por vi
 const transcriptionData = $('3b. Extrai Transcrição').first().json;
 const cardData = $('4. Busca Card').first().json;
 const config = $('5. Busca Config').first().json;
+const mode = $('1. Extrai Params').first().json.mode || 'atualizar';
+console.log('[BriefingIA] Modo: ' + mode);
 
 // Busca campos ocultos no stage atual (retorno do step 5b)
 const hiddenFieldsRaw = $('5b. Busca Visibilidade').all().map(i => i.json);
@@ -185,11 +187,17 @@ if (fase === 'SDR') {
 }
 
 // Monta campos atuais DINAMICAMENTE (apenas visíveis)
+// Em modo 'novo', não envia dados existentes — IA trabalha do zero
 const camposAtuais = {};
-for (const field of fields) {
-  const source = field.section === 'trip_info' ? tripSource : obsSource;
-  camposAtuais[field.key] = source[field.key] || null;
+if (mode !== 'novo') {
+  for (const field of fields) {
+    const source = field.section === 'trip_info' ? tripSource : obsSource;
+    camposAtuais[field.key] = source[field.key] || null;
+  }
 }
+
+// Briefing anterior (para modo 'atualizar' — IA incorpora no novo texto)
+const briefingAnterior = mode !== 'novo' ? (tripSource.resumo_consultor || '') : '';
 
 // Monta definições de campos para o prompt (apenas visíveis)
 let fieldDefs = '';
@@ -231,7 +239,9 @@ return [{ json: {
   field_definitions: fieldDefs,
   field_config: filteredConfig,
   hidden_fields: [...hiddenKeys],
-  skip_ai: false
+  skip_ai: false,
+  mode,
+  briefing_anterior: briefingAnterior
 }}];`;
 
 const CODE_VALIDA_OUTPUT = `// Valida e estrutura output do AI (respeita visibilidade)
@@ -550,46 +560,106 @@ if (tripInfoUpdate.duracao_viagem) {
 }
 
 // ============================================================
-// MERGE: Deep merge com dados atuais (baseado na fase)
+// MERGE: Deep merge com dados atuais (baseado na fase e modo)
 // ============================================================
+
+const mode = $('6. Monta Contexto').first().json.mode || 'atualizar';
+console.log('[BriefingIA] Merge modo: ' + mode);
 
 let newProdutoData, newBriefing;
 
-if (fase === 'SDR') {
-  newBriefing = { ...currentBriefing, ...tripInfoUpdate };
-  // Garante que observacoes sub-object existe antes de espalhar
-  const obsBase = currentBriefing.observacoes || {};
-  const obsUpdated = { ...obsBase, ...observacoesUpdate };
-  // Briefing do consultor vai para observacoes.briefing (exibido pelo widget)
-  if (briefingText) {
-    obsUpdated.briefing = briefingText;
-    newBriefing.resumo_consultor = briefingText;
-    newBriefing.resumo_consultor_at = new Date().toISOString();
+if (mode === 'novo') {
+  // MODO NOVO: limpa a seção e usa apenas dados da IA
+  // Preserva locked_fields restaurando seus valores
+  if (fase === 'SDR') {
+    newBriefing = { ...tripInfoUpdate };
+    newBriefing.observacoes = { ...observacoesUpdate };
+    if (briefingText) {
+      newBriefing.observacoes.briefing = briefingText;
+      newBriefing.resumo_consultor = briefingText;
+      newBriefing.resumo_consultor_at = new Date().toISOString();
+    }
+    // Restaurar campos bloqueados
+    for (const [key, val] of Object.entries(currentBriefing)) {
+      if (lockedFields[key] === true && key !== 'observacoes') newBriefing[key] = val;
+    }
+    const lockedObs = currentBriefing.observacoes || {};
+    for (const [key, val] of Object.entries(lockedObs)) {
+      if (lockedFields[key] === true) newBriefing.observacoes[key] = val;
+    }
+    newProdutoData = currentProdutoData;
+  } else if (fase === 'Planner') {
+    newProdutoData = { ...currentProdutoData };
+    // Limpar trip_info fields e reescrever com os da IA
+    for (const f of fields) {
+      if (f.section === 'trip_info' && !lockedFields[f.key]) delete newProdutoData[f.key];
+    }
+    Object.assign(newProdutoData, tripInfoUpdate);
+    newProdutoData.observacoes_criticas = { ...observacoesUpdate };
+    const lockedObs = currentProdutoData.observacoes_criticas || {};
+    for (const [key, val] of Object.entries(lockedObs)) {
+      if (lockedFields[key] === true) newProdutoData.observacoes_criticas[key] = val;
+    }
+    if (briefingText) {
+      newProdutoData.observacoes_criticas.briefing = briefingText;
+      newProdutoData.resumo_consultor = briefingText;
+      newProdutoData.resumo_consultor_at = new Date().toISOString();
+    }
+    newBriefing = currentBriefing;
+  } else {
+    newProdutoData = { ...currentProdutoData };
+    for (const f of fields) {
+      if (f.section === 'trip_info' && !lockedFields[f.key]) delete newProdutoData[f.key];
+    }
+    Object.assign(newProdutoData, tripInfoUpdate);
+    newProdutoData.observacoes_pos_venda = { ...observacoesUpdate };
+    const lockedObs = currentProdutoData.observacoes_pos_venda || {};
+    for (const [key, val] of Object.entries(lockedObs)) {
+      if (lockedFields[key] === true) newProdutoData.observacoes_pos_venda[key] = val;
+    }
+    if (briefingText) {
+      newProdutoData.observacoes_pos_venda.briefing = briefingText;
+      newProdutoData.resumo_consultor = briefingText;
+      newProdutoData.resumo_consultor_at = new Date().toISOString();
+    }
+    newBriefing = currentBriefing;
   }
-  newBriefing.observacoes = obsUpdated;
-  newProdutoData = currentProdutoData;
-} else if (fase === 'Planner') {
-  newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
-  const obsBase = currentProdutoData.observacoes_criticas || {};
-  const obsUpdated = { ...obsBase, ...observacoesUpdate };
-  if (briefingText) {
-    obsUpdated.briefing = briefingText;
-    newProdutoData.resumo_consultor = briefingText;
-    newProdutoData.resumo_consultor_at = new Date().toISOString();
-  }
-  newProdutoData.observacoes_criticas = obsUpdated;
-  newBriefing = currentBriefing;
 } else {
-  newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
-  const obsBase = currentProdutoData.observacoes_pos_venda || {};
-  const obsUpdated = { ...obsBase, ...observacoesUpdate };
-  if (briefingText) {
-    obsUpdated.briefing = briefingText;
-    newProdutoData.resumo_consultor = briefingText;
-    newProdutoData.resumo_consultor_at = new Date().toISOString();
+  // MODO ATUALIZAR: spread merge normal (a IA já retorna valores finais corretos)
+  if (fase === 'SDR') {
+    newBriefing = { ...currentBriefing, ...tripInfoUpdate };
+    const obsBase = currentBriefing.observacoes || {};
+    const obsUpdated = { ...obsBase, ...observacoesUpdate };
+    if (briefingText) {
+      obsUpdated.briefing = briefingText;
+      newBriefing.resumo_consultor = briefingText;
+      newBriefing.resumo_consultor_at = new Date().toISOString();
+    }
+    newBriefing.observacoes = obsUpdated;
+    newProdutoData = currentProdutoData;
+  } else if (fase === 'Planner') {
+    newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
+    const obsBase = currentProdutoData.observacoes_criticas || {};
+    const obsUpdated = { ...obsBase, ...observacoesUpdate };
+    if (briefingText) {
+      obsUpdated.briefing = briefingText;
+      newProdutoData.resumo_consultor = briefingText;
+      newProdutoData.resumo_consultor_at = new Date().toISOString();
+    }
+    newProdutoData.observacoes_criticas = obsUpdated;
+    newBriefing = currentBriefing;
+  } else {
+    newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
+    const obsBase = currentProdutoData.observacoes_pos_venda || {};
+    const obsUpdated = { ...obsBase, ...observacoesUpdate };
+    if (briefingText) {
+      obsUpdated.briefing = briefingText;
+      newProdutoData.resumo_consultor = briefingText;
+      newProdutoData.resumo_consultor_at = new Date().toISOString();
+    }
+    newProdutoData.observacoes_pos_venda = obsUpdated;
+    newBriefing = currentBriefing;
   }
-  newProdutoData.observacoes_pos_venda = obsUpdated;
-  newBriefing = currentBriefing;
 }
 
 // Normalizar campos calculados (para relatórios)
@@ -677,7 +747,8 @@ function buildWorkflow() {
             { id: 'card_id', name: 'card_id', value: '={{ $json.body.card_id }}', type: 'string' },
             { id: 'audio_base64', name: 'audio_base64', value: '={{ $json.body.audio_base64 }}', type: 'string' },
             { id: 'audio_mime_type', name: 'audio_mime_type', value: '={{ $json.body.audio_mime_type || "audio/webm" }}', type: 'string' },
-            { id: 'user_id', name: 'user_id', value: '={{ $json.body.user_id }}', type: 'string' }
+            { id: 'user_id', name: 'user_id', value: '={{ $json.body.user_id }}', type: 'string' },
+            { id: 'mode', name: 'mode', value: '={{ $json.body.mode || "atualizar" }}', type: 'string' }
           ]
         },
         options: {}
@@ -816,14 +887,17 @@ Seção de dados: {{ $json.section_info.obsLabel }}
 
 ⚠️ REGRA DE FASE: Este card está na fase **{{ $json.fase }}**. Salve os dados na seção correta para essa fase. Apenas os campos listados abaixo estão HABILITADOS para este estágio — NÃO extraia campos que não estão na lista.
 
-Campos já preenchidos:
-{{ JSON.stringify($json.campos_atuais, null, 2) }}
+{{ $json.mode === 'novo' ? '⚠️ MODO: NOVO BRIEFING — Extraia TUDO que o consultor mencionou, como se fosse um card completamente novo. Ignore qualquer dado pre-existente.' : '⚠️ MODO: ATUALIZAR BRIEFING — O consultor esta COMPLEMENTANDO ou CORRIGINDO um briefing existente. Retorne o valor FINAL DESEJADO de cada campo que precisa mudar. Para arrays (destinos): se diz tambem quer X, retorne lista COMPLETA com existentes + X. Se diz nao e mais Y agora e Z, retorne lista SEM Y e COM Z. Se NAO menciona um campo, NAO o inclua.' }}
+
+{{ $json.mode !== 'novo' && $json.briefing_anterior ? '## BRIEFING ANTERIOR\\n' + $json.briefing_anterior : '' }}
+
+{{ $json.mode !== 'novo' ? 'Campos ja preenchidos:\\n' + JSON.stringify($json.campos_atuais, null, 2) : '' }}
 
 ---
 
 # TAREFA 1: BRIEFING (campo "briefing_text")
 
-Gere um resumo executivo e profissional do que foi relatado pelo consultor.
+{{ $json.mode === 'novo' ? 'Gere um resumo executivo e profissional do que foi relatado pelo consultor.' : 'Gere um resumo executivo e profissional ATUALIZADO que incorpore tanto o briefing anterior quanto as novas informacoes deste audio. O resultado deve ser um texto unico e coeso.' }}
 
 **Regras do briefing:**
 - Escreva em terceira pessoa e tom profissional: "O cliente deseja...", "O casal planeja..."
@@ -857,7 +931,7 @@ Extraia dados para os campos disponíveis abaixo. Lembre-se: o consultor está R
 2. NÃO INVENTE ou INFIRA informações não ditas
 3. Se ambíguo, NÃO inclua
 4. Respeite formatos e valores permitidos
-5. Se o campo já tem valor preenchido e a transcrição traz o MESMO dado, NÃO repita. Mas se traz dado DIFERENTE do existente, ATUALIZE (ex: campo tem "Férias Familia" mas consultor disse "Lua de mel" → extraia "Lua de mel")
+{{ $json.mode === 'novo' ? '5. Extraia TODOS os campos mencionados na transcricao, independente de dados anteriores' : '5. Se o campo ja tem valor preenchido e a transcricao traz o MESMO dado, NAO repita. Mas se traz dado DIFERENTE, ATUALIZE. Para arrays: retorne a lista FINAL COMPLETA (existentes + novos, ou existentes - removidos + novos)' }}
 6. Transcrições de áudio podem ter erros — use bom senso para nomes de destinos
 7. Para FAIXAS de valor ("entre 80 e 100 mil"), retorne {"min": 80000, "max": 100000}. Para valor POR PESSOA ("15 mil por pessoa"), retorne {"por_pessoa": 15000}. Para valor único total ("uns 50 mil"), retorne número: 50000
 8. Para FAIXAS de duração ("7 a 10 dias"), retorne objeto {"min": 7, "max": 10}. Para valor fixo ("10 dias"), retorne número: 10
@@ -987,7 +1061,8 @@ RETORNE APENAS o JSON. Sem texto, sem markdown, sem explicações.`,
           metadata: {
             campos_extraidos: Object.keys($('11. Merge Dados').item.json.campos_atualizados || {}),
             briefing_length: ($('11. Merge Dados').item.json.briefing_text || '').length,
-            source: 'briefing_ia_audio'
+            source: 'briefing_ia_audio',
+            mode: $('6. Monta Contexto').item.json.mode || 'atualizar'
           },
           created_by: $('8. Valida Output').item.json.user_id
         }) }}`,
