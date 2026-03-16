@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -41,6 +41,7 @@ interface WhatsAppMessage {
     created_at: string | null;
     sent_by_user_name: string | null;
     fase_label: string | null;
+    phone_number_label: string | null;
 }
 
 const FASE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -320,10 +321,15 @@ function MessageBubble({ message, contactNames }: { message: WhatsAppMessage; co
                 )}
             >
                 {/* Sender name (for inbound or agent name for outbound) */}
-                {message.is_from_me && message.sent_by_user_name && (
+                {message.is_from_me && (message.sent_by_user_name || message.phone_number_label) && (
                     <div className="flex items-center gap-1 text-xs font-medium text-green-100">
                         <User className="w-3 h-3" />
                         {message.sent_by_user_name}
+                        {message.phone_number_label && (
+                            <span className="text-[10px] opacity-70">
+                                {message.sent_by_user_name ? '·' : ''} {message.phone_number_label}
+                            </span>
+                        )}
                     </div>
                 )}
                 {!message.is_from_me && (contactNames || message.sender_name) && (
@@ -439,28 +445,45 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
     const queryClient = useQueryClient();
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Prefer card_id for multi-contact support, fallback to contact_id
-    const filterKey = cardId ? 'card_id' : 'contact_id';
-    const filterValue = cardId || contactId;
+    // Contact names for multi-contact badges + used to build contact_id list
+    const { data: contactNames } = useCardContactNames(cardId || null);
+    const hasMultipleContacts = contactNames && Object.keys(contactNames).length > 1;
 
-    // Fetch messages
+    // Build list of contact_ids: from card contacts (preferred) or single contactId prop
+    const contactIds = useMemo(() => {
+        if (contactNames && Object.keys(contactNames).length > 0) {
+            return Object.keys(contactNames).sort();
+        }
+        if (contactId) return [contactId];
+        return [];
+    }, [contactNames, contactId]);
+
+    const contactIdsKey = contactIds.join(',');
+
+    // Fetch messages by contact_id(s) — shows full conversation across all cards
     const { data: messages, isLoading, refetch, error } = useQuery({
-        queryKey: ['whatsapp-messages', filterKey, filterValue],
+        queryKey: ['whatsapp-messages', 'contacts', contactIdsKey],
         queryFn: async () => {
-            if (!filterValue) return [];
+            if (contactIds.length === 0) return [];
 
-            const { data, error } = await (supabase
+            const query = (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('whatsapp_messages') as any)
-                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label')
-                .eq(filterKey, filterValue)
+                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label, phone_number_label')
                 .order('created_at', { ascending: true })
                 .limit(200);
 
+            if (contactIds.length === 1) {
+                query.eq('contact_id', contactIds[0]);
+            } else {
+                query.in('contact_id', contactIds);
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
             return (data || []) as WhatsAppMessage[];
         },
-        enabled: !!filterValue
+        enabled: contactIds.length > 0
     });
 
     // Auto-scroll to bottom when new messages arrive
@@ -474,47 +497,44 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
         scrollToBottom();
     }, [messages, scrollToBottom]);
 
-    // Supabase Realtime subscription for new messages
+    // Supabase Realtime subscription — one channel per contact_id
     useEffect(() => {
-        if (!filterValue) return;
+        if (contactIds.length === 0) return;
 
-        const channel = supabase
-            .channel(`whatsapp-messages-${filterValue}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'whatsapp_messages',
-                    filter: `${filterKey}=eq.${filterValue}`
-                },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', filterKey, filterValue] });
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'whatsapp_messages',
-                    filter: `${filterKey}=eq.${filterValue}`
-                },
-                () => {
-                    // Refetch when media_content/body is updated by Edge Function
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', filterKey, filterValue] });
-                }
-            )
-            .subscribe();
+        const channels = contactIds.map(cId => {
+            return supabase
+                .channel(`whatsapp-messages-contact-${cId}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'whatsapp_messages',
+                        filter: `contact_id=eq.${cId}`
+                    },
+                    () => {
+                        queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', 'contacts', contactIdsKey] });
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'whatsapp_messages',
+                        filter: `contact_id=eq.${cId}`
+                    },
+                    () => {
+                        queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', 'contacts', contactIdsKey] });
+                    }
+                )
+                .subscribe();
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            channels.forEach(ch => supabase.removeChannel(ch));
         };
-    }, [filterKey, filterValue, queryClient]);
-
-    // Contact names for multi-contact badges (only fetched when using card_id)
-    const { data: contactNames } = useCardContactNames(cardId || null);
-    const hasMultipleContacts = contactNames && Object.keys(contactNames).length > 1;
+    }, [contactIdsKey, contactIds, queryClient]);
 
     const groupedMessages = messages ? groupMessagesByDate(messages) : [];
 
@@ -535,7 +555,7 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
     // Filter out messages with no content
     const hasMessages = messages && messages.some(m => m.body || m.media_url);
 
-    if (!filterValue) {
+    if (contactIds.length === 0) {
         return (
             <div className={cn("flex flex-col items-center justify-center h-full text-muted-foreground p-8", className)}>
                 <AlertCircle className="w-8 h-8 mb-3" />
