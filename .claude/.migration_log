@@ -78,3 +78,6 @@ supabase/migrations/20260310_add_pessoa_nome_system_field.sql|2026-03-10T19:31:1
 2026-03-12T17:14:23Z | supabase/migrations/20260313_monde_numbers_merge.sql | applied_to_prod
 2026-03-12T17:15:56Z | supabase/migrations/20260313_monde_numbers_merge.sql | applied_to_prod
 2026-03-12T18:18:46Z | supabase/migrations/20260312_add_receita_valor_display_to_view_cards_acoes.sql | applied_to_prod
+PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracked
+2026-03-16T11:50:02Z | supabase/migrations/20260313_fix_whatsapp_card_guard.sql | applied_to_prod
+2026-03-16T12:00:01Z | supabase/migrations/20260316_linha_default_owner.sql | applied_to_prod

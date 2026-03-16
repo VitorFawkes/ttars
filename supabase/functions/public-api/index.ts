@@ -89,6 +89,12 @@ app.use("/*", async (c, next) => {
     }).then();
 });
 
+// ---- Pipeline Map (must match src/lib/constants.ts) ----
+const PIPELINE_MAP: Record<string, string> = {
+    TRIPS:   'c8022522-4a1d-411c-9387-efe03ca725ee',
+    WEDDING: 'f4611f84-ce9c-48ad-814b-dcd6081f15db',
+};
+
 // ---- Schemas (Zod) ----
 
 const ErrorSchema = z.object({
@@ -143,6 +149,42 @@ const ContactDetailSchema = z.object({
         status_comercial: z.string().nullable(),
         pipeline_stage_id: z.string().nullable(),
     })).optional(),
+});
+
+const EchoWebhookSchema = z.object({
+    event: z.string().openapi({ example: "action_button.clicked" }),
+    timestamp: z.string().optional(),
+    button_label: z.string().optional(),
+    contact: z.object({
+        id: z.string().openapi({ description: "Echo conversation ID" }),
+        name: z.string().min(1),
+        phone: z.string().min(8),
+    }),
+    agent: z.object({
+        id: z.string().optional(),
+        name: z.string().optional(),
+        email: z.string().email(),
+    }).optional(),
+    organization: z.object({
+        id: z.string().optional(),
+        name: z.string().optional(),
+    }).optional(),
+    phone_number: z.object({
+        id: z.string(),
+        display_name: z.string().optional(),
+        number: z.string(),
+    }),
+});
+
+const EchoDealResponseSchema = z.object({
+    id: z.string().uuid(),
+    titulo: z.string(),
+    produto: z.string(),
+    pipeline_stage_id: z.string().uuid().nullable(),
+    contact_id: z.string().uuid(),
+    contact_created: z.boolean(),
+    dedup: z.boolean(),
+    created_at: z.string(),
 });
 
 // ---- Routes ----
@@ -234,7 +276,204 @@ app.openapi(
     }
 );
 
-// 4. List Contacts
+// 4. Create Deal from Echo (button click)
+app.openapi(
+    {
+        method: "post",
+        path: "/deals/echo",
+        summary: "Create Deal from Echo",
+        description: "Receives Echo button-click webhook, deduplicates contact/card, and creates a new deal.",
+        security: [{ apiKeyAuth: [] }],
+        request: {
+            body: {
+                content: { "application/json": { schema: EchoWebhookSchema } },
+            },
+        },
+        responses: {
+            201: {
+                description: "Deal created",
+                content: { "application/json": { schema: EchoDealResponseSchema } },
+            },
+            409: {
+                description: "Duplicate — active deal already exists for this contact",
+                content: { "application/json": { schema: z.object({ id: z.string(), titulo: z.string(), dedup: z.literal(true) }) } },
+            },
+            400: { description: "Invalid payload", content: { "application/json": { schema: ErrorSchema } } },
+            422: { description: "Phone line not configured", content: { "application/json": { schema: ErrorSchema } } },
+        },
+    },
+    async (c) => {
+        const supabase = c.get("supabase");
+        const body = await c.req.json();
+
+        // --- Step 1: Validate ---
+        const parsed = EchoWebhookSchema.safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: `Payload inválido: ${parsed.error.issues.map(i => i.message).join(', ')}` }, 400);
+        }
+        const { contact, agent, phone_number, timestamp } = parsed.data;
+
+        // --- Step 2: Resolve produto/pipeline via whatsapp_linha_config ---
+        const { data: linhaRows } = await supabase
+            .from("whatsapp_linha_config")
+            .select("produto, pipeline_id, stage_id, criar_card, criar_contato, phone_number_label, default_owner_id")
+            .or(`phone_number_id.eq.${phone_number.id},phone_number_label.eq.${phone_number.display_name || ''}`)
+            .limit(1);
+
+        const linha = linhaRows?.[0] ?? null;
+
+        if (linha?.criar_card === false) {
+            return c.json({ error: `Criação de card desabilitada para a linha "${linha.phone_number_label}"` }, 422);
+        }
+
+        const produto = linha?.produto || 'TRIPS';
+        const pipelineId = linha?.pipeline_id || PIPELINE_MAP[produto] || PIPELINE_MAP.TRIPS;
+
+        // Resolve stage: use linha config, or find first stage of pipeline
+        let stageId = linha?.stage_id || null;
+        if (!stageId) {
+            const { data: stages } = await supabase
+                .from("pipeline_stages")
+                .select("id, pipeline_phases!inner(order_index)")
+                .eq("pipeline_id", pipelineId)
+                .order("pipeline_phases(order_index)", { ascending: true })
+                .order("ordem", { ascending: true })
+                .limit(1);
+            stageId = stages?.[0]?.id || null;
+        }
+
+        // --- Step 3: Resolve owner (agent) ---
+        // default_owner_id da linha tem prioridade (ex: Mariana Volpi sempre como TP)
+        let ownerId: string | null = linha?.default_owner_id || null;
+        if (!ownerId && agent?.email) {
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("email", agent.email)
+                .limit(1)
+                .single();
+            ownerId = profile?.id || null;
+        }
+
+        // --- Step 4: Contact dedup ---
+        let contactId: string | null = null;
+        let contactCreated = false;
+
+        // 4a. Try find_contact_by_whatsapp (phone + conversation_id)
+        const { data: foundContactId } = await supabase
+            .rpc("find_contact_by_whatsapp", { p_phone: contact.phone, p_convo_id: contact.id });
+
+        if (foundContactId) {
+            contactId = foundContactId;
+        }
+
+        // 4b. Not found — create contact
+        if (!contactId) {
+            if (linha?.criar_contato === false) {
+                return c.json({ error: `Criação de contato desabilitada para a linha "${linha.phone_number_label}"` }, 422);
+            }
+
+            const nameParts = contact.name.trim().split(/\s+/);
+            const nome = nameParts[0];
+            const sobrenome = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+
+            const { data: newContact, error: contactErr } = await supabase
+                .from("contatos")
+                .insert({
+                    nome,
+                    sobrenome,
+                    telefone: contact.phone,
+                    tipo_pessoa: 'adulto',
+                    origem: 'echo',
+                    last_whatsapp_conversation_id: contact.id,
+                })
+                .select("id")
+                .single();
+
+            if (contactErr) {
+                return c.json({ error: `Erro ao criar contato: ${contactErr.message}` }, 400);
+            }
+
+            contactId = newContact.id;
+            contactCreated = true;
+
+            // Insert contato_meios for phone lookup
+            await supabase.from("contato_meios").upsert({
+                contato_id: contactId,
+                tipo: 'whatsapp',
+                valor: contact.phone,
+                is_principal: true,
+                origem: 'echo',
+            }, { onConflict: 'tipo,valor_normalizado', ignoreDuplicates: true });
+        } else {
+            // Update conversation link if not set
+            await supabase
+                .from("contatos")
+                .update({ last_whatsapp_conversation_id: contact.id })
+                .eq("id", contactId)
+                .is("last_whatsapp_conversation_id", null);
+        }
+
+        // --- Step 5: Card dedup ---
+        const { data: existingCards } = await supabase
+            .from("cards")
+            .select("id, titulo")
+            .eq("pessoa_principal_id", contactId)
+            .eq("produto", produto)
+            .not("status_comercial", "in", '("ganho","perdido")')
+            .is("deleted_at", null)
+            .limit(1);
+
+        if (existingCards && existingCards.length > 0) {
+            return c.json({ id: existingCards[0].id, titulo: existingCards[0].titulo, dedup: true }, 409);
+        }
+
+        // --- Step 6: Create card ---
+        const titulo = contact.name;
+        const { data: newCard, error: cardErr } = await supabase
+            .from("cards")
+            .insert({
+                titulo,
+                pessoa_principal_id: contactId,
+                pipeline_id: pipelineId,
+                pipeline_stage_id: stageId,
+                produto,
+                origem: 'whatsapp',
+                dono_atual_id: ownerId,
+                sdr_owner_id: ownerId,
+                status_comercial: 'aberto',
+                moeda: 'BRL',
+            })
+            .select("id, titulo, produto, pipeline_stage_id, created_at")
+            .single();
+
+        if (cardErr) {
+            return c.json({ error: `Erro ao criar card: ${cardErr.message}` }, 400);
+        }
+
+        // --- Step 7: Link contact to card ---
+        await supabase.from("cards_contatos").insert({
+            card_id: newCard.id,
+            contato_id: contactId,
+            tipo_viajante: 'adulto',
+            ordem: 0,
+        });
+
+        // --- Step 8: Return ---
+        return c.json({
+            id: newCard.id,
+            titulo: newCard.titulo,
+            produto: newCard.produto,
+            pipeline_stage_id: newCard.pipeline_stage_id,
+            contact_id: contactId,
+            contact_created: contactCreated,
+            dedup: false,
+            created_at: newCard.created_at,
+        }, 201);
+    }
+);
+
+// 5. List Contacts
 app.openapi(
     {
         method: "get",
