@@ -91,8 +91,11 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse 
     if (!receitaPerm.canView) return null
 
     const totalVenda = items.reduce((sum, i) => sum + (Number(i.sale_value) || 0), 0)
-    const totalLiquido = items.reduce((sum, i) => sum + (Number(i.supplier_cost) || 0), 0)
-    const totalReceita = totalVenda - totalLiquido
+    const totalReceita = items.reduce((sum, i) => {
+        const sv = Number(i.sale_value) || 0
+        const sc = Number(i.supplier_cost) || 0
+        return sum + (sv - sc)
+    }, 0)
     const marginPercent = totalVenda > 0 ? (totalReceita / totalVenda) * 100 : 0
 
     const handleOpenAdd = () => {
@@ -166,7 +169,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse 
                         <>
                             {/* Product list */}
                             {items.map((item) => {
-                                const itemLiquido = (Number(item.sale_value) || 0) - (Number(item.supplier_cost) || 0)
+                                const itemReceita = (Number(item.sale_value) || 0) - (Number(item.supplier_cost) || 0)
                                 return (
                                     <div
                                         key={item.id}
@@ -202,7 +205,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse 
                                                 Venda <span className="font-medium text-gray-700">{formatBRL(Number(item.sale_value) || 0)}</span>
                                             </span>
                                             <span className="text-gray-500">
-                                                Líquido <span className={cn("font-medium", itemLiquido >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(itemLiquido)}</span>
+                                                Receita <span className={cn("font-medium", itemReceita >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(itemReceita)}</span>
                                             </span>
                                         </div>
                                     </div>
@@ -218,7 +221,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse 
                                             Venda <span className="font-semibold text-gray-900">{formatBRL(totalVenda)}</span>
                                         </span>
                                         <span className="text-gray-500">
-                                            Líquido <span className={cn("font-semibold", totalReceita >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(totalReceita)}</span>
+                                            Receita <span className={cn("font-semibold", totalReceita >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(totalReceita)}</span>
                                         </span>
                                         {totalVenda > 0 && (
                                             <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
