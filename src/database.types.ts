@@ -1981,6 +1981,7 @@ export type Database = {
           is_group_parent: boolean | null
           locked_fields: Json | null
           marketing_data: Json | null
+          merge_config: Json | null
           merge_metadata: Json | null
           merged_at: string | null
           merged_by: string | null
@@ -2073,6 +2074,7 @@ export type Database = {
           is_group_parent?: boolean | null
           locked_fields?: Json | null
           marketing_data?: Json | null
+          merge_config?: Json | null
           merge_metadata?: Json | null
           merged_at?: string | null
           merged_by?: string | null
@@ -2165,6 +2167,7 @@ export type Database = {
           is_group_parent?: boolean | null
           locked_fields?: Json | null
           marketing_data?: Json | null
+          merge_config?: Json | null
           merge_metadata?: Json | null
           merged_at?: string | null
           merged_by?: string | null
@@ -4952,6 +4955,152 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monde_import_log_items: {
+        Row: {
+          card_id: string
+          card_title: string
+          created_at: string
+          error_message: string | null
+          id: string
+          import_log_id: string
+          products_count: number
+          status: string
+          total_receita: number
+          total_venda: number
+          venda_num: string
+        }
+        Insert: {
+          card_id: string
+          card_title: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          import_log_id: string
+          products_count?: number
+          status?: string
+          total_receita?: number
+          total_venda?: number
+          venda_num: string
+        }
+        Update: {
+          card_id?: string
+          card_title?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          import_log_id?: string
+          products_count?: number
+          status?: string
+          total_receita?: number
+          total_venda?: number
+          venda_num?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monde_import_log_items_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_import_log_items_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_import_log_items_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_import_log_items_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "monde_import_log_items_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_import_log_items_import_log_id_fkey"
+            columns: ["import_log_id"]
+            isOneToOne: false
+            referencedRelation: "monde_import_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monde_import_logs: {
+        Row: {
+          created_at: string
+          created_by: string
+          error_message: string | null
+          file_name: string
+          id: string
+          matched_cards: number
+          products_imported: number
+          status: string
+          total_rows: number
+          unmatched_vendas: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          file_name: string
+          id?: string
+          matched_cards?: number
+          products_imported?: number
+          status?: string
+          total_rows?: number
+          unmatched_vendas?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          file_name?: string
+          id?: string
+          matched_cards?: number
+          products_imported?: number
+          status?: string
+          total_rows?: number
+          unmatched_vendas?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monde_import_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_import_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "monde_import_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
           },
         ]
@@ -9915,6 +10064,7 @@ export type Database = {
       criar_sub_card: {
         Args: {
           p_descricao: string
+          p_merge_config?: Json
           p_mode?: string
           p_parent_id: string
           p_titulo: string

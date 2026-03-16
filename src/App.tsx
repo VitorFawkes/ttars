@@ -147,6 +147,7 @@ function App() {
                   <Route path="/cards/convo/:conversationId" element={<CardByConversation />} />
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
+                  <Route path="/vendas-monde" element={<VendasMondePage />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
@@ -237,7 +238,7 @@ function App() {
                     {/* ═══════════════════════════════════════════════════════════
                         OPERATIONS: Maintenance & Health
                     ═══════════════════════════════════════════════════════════ */}
-                    <Route path="operations/vendas-monde" element={<VendasMondePage />} />
+                    <Route path="operations/vendas-monde" element={<Navigate to="/vendas-monde" replace />} />
                     <Route path="operations/health" element={<CRMHealth />} />
                     <Route path="operations/trash" element={<Lixeira />} />
                     <Route path="operations/archive" element={<Arquivados />} />
