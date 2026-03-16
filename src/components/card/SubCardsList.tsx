@@ -9,11 +9,13 @@ import {
     XCircle,
     Clock,
     ChevronRight,
-    Loader2
+    Loader2,
+    AlertCircle
 } from 'lucide-react'
 import { useSubCards, type SubCard } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import { useToast } from '@/contexts/ToastContext'
 import CreateSubCardModal from './CreateSubCardModal'
 import MergeSubCardModal from './MergeSubCardModal'
 
@@ -31,6 +33,7 @@ export default function SubCardsList({
     canCreate
 }: SubCardsListProps) {
     const navigate = useNavigate()
+    const { toast } = useToast()
     const { subCards, isLoading, cancelSubCard, isCancelling, canMergeSubCard } = useSubCards(parentCardId)
 
     const [showCreateModal, setShowCreateModal] = useState(false)
@@ -65,15 +68,31 @@ export default function SubCardsList({
                 </div>
 
                 {canCreate && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowCreateModal(true)}
-                        className="text-xs"
-                    >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Nova Alteração
-                    </Button>
+                    activeSubCards.length > 0 ? (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toast({
+                                type: 'warning',
+                                title: 'Alteração em andamento',
+                                description: 'Conclua ou cancele a alteração atual antes de criar outra.'
+                            })}
+                            className="text-xs text-gray-400 border-gray-200"
+                        >
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Nova Alteração
+                        </Button>
+                    ) : (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowCreateModal(true)}
+                            className="text-xs"
+                        >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Nova Alteração
+                        </Button>
+                    )
                 )}
             </div>
 
@@ -160,6 +179,7 @@ export default function SubCardsList({
                 parentCardId={parentCardId}
                 parentTitle={parentTitle}
                 parentValor={parentValor}
+                onCreated={(subCardId) => navigate(`/cards/${subCardId}`)}
             />
 
             {selectedSubCardForMerge && (

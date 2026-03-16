@@ -17,7 +17,8 @@ import LinkToGroupModal from '../components/cards/group/LinkToGroupModal'
 import SubCardsList from '../components/card/SubCardsList'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
-import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
+import MergeSubCardModal from '../components/card/MergeSubCardModal'
+import { useSubCards, useSubCardParent, type SubCard } from '../hooks/useSubCards'
 import { TagSelector } from '../components/card/TagSelector'
 import { ArrowLeft, Users } from 'lucide-react'
 
@@ -34,12 +35,13 @@ export default function CardDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const [showLinkToGroup, setShowLinkToGroup] = useState(false)
+    const [showMergeModal, setShowMergeModal] = useState(false)
 
     // Mark card as seen for "new card" highlight (only owner can dismiss)
     const { markSeen } = useSeenCards()
 
     // Check if card is a sub-card and get parent info
-    const { isSubCard, subCardMode, parentCard } = useSubCardParent(id)
+    const { isSubCard, subCardMode, subCardStatus, parentCard } = useSubCardParent(id)
 
     // Get sub-cards if this is a parent
     const { canCreateSubCard } = useSubCards(id)
@@ -72,11 +74,12 @@ export default function CardDetail() {
             if (!card?.pipeline_stage_id) return null
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('fase, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
+                .select('fase, phase_id, is_planner_won, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .eq('id', card.pipeline_stage_id)
                 .single()
             if (error) return null
-            return data
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return data as any
         },
         enabled: !!card?.pipeline_stage_id,
     })
@@ -147,6 +150,8 @@ export default function CardDetail() {
                             parentId={parentCard.id}
                             parentTitle={parentCard.titulo}
                             mode={subCardMode}
+                            canMerge={!!stageInfo?.is_planner_won && subCardStatus === 'active'}
+                            onMerge={() => setShowMergeModal(true)}
                             onNavigate={() => navigate(`/cards/${parentCard.id}`)}
                         />
                     )}
@@ -229,6 +234,35 @@ export default function CardDetail() {
                 cardId={card.id!}
                 cardTitle={card.titulo || 'Viagem'}
             />
+
+            {/* Merge Sub-Card Modal (shown from sub-card page when in Ganho Planner) */}
+            {isSubCard && parentCard && showMergeModal && (
+                <MergeSubCardModal
+                    isOpen={showMergeModal}
+                    onClose={() => setShowMergeModal(false)}
+                    subCard={{
+                        id: card.id!,
+                        titulo: card.titulo || '',
+                        sub_card_mode: subCardMode || 'incremental',
+                        sub_card_status: 'active',
+                        valor_estimado: card.valor_estimado,
+                        valor_final: card.valor_final,
+                        status_comercial: card.status_comercial || 'aberto',
+                        ganho_planner: true,
+                        is_planner_won: true,
+                        etapa_nome: '',
+                        fase: stageInfo?.fase || '',
+                        merged_at: null,
+                        merge_metadata: null,
+                        merge_config: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (card as any).merge_config || null,
+                        created_at: card.created_at || '',
+                        dono_nome: null,
+                    } satisfies SubCard}
+                    parentValor={parentCard.valor_final || parentCard.valor_estimado}
+                    parentCardId={parentCard.id}
+                />
+            )}
         </div>
     )
 }

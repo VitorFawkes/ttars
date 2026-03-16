@@ -13,6 +13,7 @@ interface CreateSubCardModalProps {
     parentCardId: string
     parentTitle: string
     parentValor?: number | null
+    onCreated?: (subCardId: string) => void
 }
 
 export default function CreateSubCardModal({
@@ -20,7 +21,8 @@ export default function CreateSubCardModal({
     onClose,
     parentCardId,
     parentTitle,
-    parentValor
+    parentValor,
+    onCreated
 }: CreateSubCardModalProps) {
     const { createSubCard, isCreating } = useSubCards()
 
@@ -65,8 +67,9 @@ export default function CreateSubCardModal({
                 mergeConfig
             },
             {
-                onSuccess: () => {
+                onSuccess: (data) => {
                     handleClose()
+                    if (data.sub_card_id && onCreated) onCreated(data.sub_card_id)
                 }
             }
         )

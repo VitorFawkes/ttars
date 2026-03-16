@@ -377,9 +377,12 @@ export function useSubCardParent(cardId?: string) {
         valor_final: number | null
     } | null
 
+    const subCardStatus = query.data?.sub_card_status as SubCardStatus | null
+
     return {
         isSubCard,
         subCardMode,
+        subCardStatus,
         parentCard,
         isLoading: query.isLoading,
         error: query.error

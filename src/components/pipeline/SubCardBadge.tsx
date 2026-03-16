@@ -1,4 +1,4 @@
-import { GitBranch, Plus, RefreshCw, Link2 } from 'lucide-react'
+import { GitBranch, Plus, RefreshCw, Link2, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SubCardMode, SubCardStatus } from '@/hooks/useSubCards'
 
@@ -124,15 +124,62 @@ interface SubCardParentBannerProps {
     parentId: string
     parentTitle: string
     mode: SubCardMode
+    canMerge?: boolean
+    onMerge?: () => void
     onNavigate?: () => void
 }
 
 export function SubCardParentBanner({
     parentTitle,
     mode,
+    canMerge,
+    onMerge,
     onNavigate
 }: SubCardParentBannerProps) {
     const isIncremental = mode === 'incremental'
+
+    // When ready to merge, show prominent green CTA
+    if (canMerge) {
+        return (
+            <div className="rounded-lg border-2 border-green-400 bg-green-50 p-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-100">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-green-800">
+                                Pronto para concluir alteração
+                            </p>
+                            <p className="text-xs text-green-600">
+                                Os dados serão transferidos para: <span className="font-medium">{parentTitle}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {onNavigate && (
+                            <button
+                                onClick={onNavigate}
+                                className="text-xs px-3 py-1.5 rounded-md font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
+                                Ver Card Principal
+                            </button>
+                        )}
+                        {onMerge && (
+                            <button
+                                onClick={onMerge}
+                                className="text-xs px-4 py-1.5 rounded-md font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Concluir Alteração
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div

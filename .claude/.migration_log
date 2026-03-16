@@ -85,3 +85,4 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-16T17:58:22Z | supabase/migrations/20260316_product_readiness.sql | applied_to_prod
 2026-03-16T18:19:44Z | supabase/migrations/20260316_sub_card_text_merge.sql | applied_to_prod
 2026-03-16T18:39:15Z | supabase/migrations/20260316_monde_import_logs.sql | applied_to_prod
+2026-03-16T20:30:00Z | supabase/migrations/20260316_fix_sub_card_updated_at_and_limit.sql | applied_to_prod
