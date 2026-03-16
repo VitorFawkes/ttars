@@ -75,17 +75,25 @@ const formatDate = (iso: string) => {
         ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-const VENDA_COLUMN_ALIASES = ['venda nº', 'venda no', 'venda n.', 'nº venda', 'venda_num', 'venda numero', 'venda número']
+// Normaliza removendo acentos, º, pontuação e espaços extras
+const norm = (s: string) => s.toLowerCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[º°.]/g, '')
+    .replace(/\s+/g, ' ')
+
+const VENDA_COLUMN_ALIASES = ['venda n', 'venda no', 'n venda', 'venda_num', 'venda numero', 'num venda', 'no venda']
 const PRODUTO_ALIASES = ['produto', 'product', 'nome produto']
 const VALOR_TOTAL_ALIASES = ['valor total', 'total', 'valortotal', 'vl total']
 const RECEITA_ALIASES = ['receitas', 'receita', 'revenue']
 
 function findColumn(headers: string[], aliases: string[]): string | null {
-    const normalized = headers.map(h => h.toLowerCase().trim())
+    const normalized = headers.map(h => norm(h))
+    // Exact match
     for (const alias of aliases) {
         const idx = normalized.findIndex(h => h === alias)
         if (idx >= 0) return headers[idx]
     }
+    // Partial match
     for (const alias of aliases) {
         const idx = normalized.findIndex(h => h.includes(alias))
         if (idx >= 0) return headers[idx]
@@ -525,7 +533,7 @@ export default function VendasMondePage() {
                                         '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00"',
                                         '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00"',
                                     ].join('\n')
-                                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
                                     const url = URL.createObjectURL(blob)
                                     const a = document.createElement('a')
                                     a.href = url
