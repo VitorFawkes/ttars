@@ -10,6 +10,7 @@ set -a
 source .env 2>/dev/null || { echo "Erro: .env não encontrado" >&2; exit 1; }
 set +a
 
+
 SQL_FILE="${1:?Uso: apply-to-staging.sh <arquivo.sql>}"
 if [ ! -f "$SQL_FILE" ]; then
   echo "Erro: Arquivo não encontrado: $SQL_FILE" >&2

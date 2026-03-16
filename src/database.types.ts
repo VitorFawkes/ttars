@@ -1499,6 +1499,8 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_ready: boolean | null
+          notes: string | null
           product_type: string
           sale_value: number
           supplier_cost: number
@@ -1509,6 +1511,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_ready?: boolean | null
+          notes?: string | null
           product_type?: string
           sale_value?: number
           supplier_cost?: number
@@ -1519,6 +1523,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_ready?: boolean | null
+          notes?: string | null
           product_type?: string
           sale_value?: number
           supplier_cost?: number
@@ -5679,6 +5685,115 @@ export type Database = {
         }
         Relationships: []
       }
+      product_requirements: {
+        Row: {
+          arquivo_id: string | null
+          card_id: string
+          concluido_em: string | null
+          concluido_por: string | null
+          created_at: string | null
+          data_value: string | null
+          financial_item_id: string
+          id: string
+          notas: string | null
+          ordem: number | null
+          status: string | null
+          titulo: string
+        }
+        Insert: {
+          arquivo_id?: string | null
+          card_id: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          created_at?: string | null
+          data_value?: string | null
+          financial_item_id: string
+          id?: string
+          notas?: string | null
+          ordem?: number | null
+          status?: string | null
+          titulo: string
+        }
+        Update: {
+          arquivo_id?: string | null
+          card_id?: string
+          concluido_em?: string | null
+          concluido_por?: string | null
+          created_at?: string | null
+          data_value?: string | null
+          financial_item_id?: string
+          id?: string
+          notas?: string | null
+          ordem?: number | null
+          status?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_requirements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "product_requirements_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "product_requirements_concluido_por_fkey"
+            columns: ["concluido_por"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_financial_item_id_fkey"
+            columns: ["financial_item_id"]
+            isOneToOne: false
+            referencedRelation: "card_financial_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
@@ -8029,6 +8144,7 @@ export type Database = {
           created_at: string | null
           criar_card: boolean | null
           criar_contato: boolean | null
+          default_owner_id: string | null
           fase_label: string | null
           id: string
           phase_id: string | null
@@ -8045,6 +8161,7 @@ export type Database = {
           created_at?: string | null
           criar_card?: boolean | null
           criar_contato?: boolean | null
+          default_owner_id?: string | null
           fase_label?: string | null
           id?: string
           phase_id?: string | null
@@ -8061,6 +8178,7 @@ export type Database = {
           created_at?: string | null
           criar_card?: boolean | null
           criar_contato?: boolean | null
+          default_owner_id?: string | null
           fase_label?: string | null
           id?: string
           phase_id?: string | null
@@ -8073,6 +8191,27 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_linha_config_default_owner_id_fkey"
+            columns: ["default_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_linha_config_default_owner_id_fkey"
+            columns: ["default_owner_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_linha_config_default_owner_id_fkey"
+            columns: ["default_owner_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_linha_config_phase_id_fkey"
             columns: ["phase_id"]
@@ -8939,6 +9078,8 @@ export type Database = {
           pipeline_stage_id: string | null
           pos_owner_id: string | null
           prioridade: string | null
+          prods_ready: number | null
+          prods_total: number | null
           produto: Database["public"]["Enums"]["app_product"] | null
           produto_data: Json | null
           proxima_tarefa: Json | null

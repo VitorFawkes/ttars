@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
-import { GitBranch, Plus, RefreshCw, AlertCircle } from 'lucide-react'
-import { useSubCards, type SubCardMode } from '@/hooks/useSubCards'
+import { GitBranch, Plus, RefreshCw, AlertCircle, Copy, FileX, ArrowDownToLine, Replace } from 'lucide-react'
+import { useSubCards, type SubCardMode, type MergeConfig, DEFAULT_MERGE_CONFIG } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
 
 interface CreateSubCardModalProps {
@@ -30,6 +30,15 @@ export default function CreateSubCardModal({
         descricao: ''
     })
 
+    const [mergeConfig, setMergeConfig] = useState<MergeConfig>(DEFAULT_MERGE_CONFIG.incremental)
+
+    // Sync merge config defaults when mode changes (render-time pattern)
+    const [prevMode, setPrevMode] = useState(formData.mode)
+    if (prevMode !== formData.mode) {
+        setPrevMode(formData.mode)
+        setMergeConfig(DEFAULT_MERGE_CONFIG[formData.mode])
+    }
+
     const [errors, setErrors] = useState<{ titulo?: string; descricao?: string }>({})
 
     const handleSubmit = () => {
@@ -52,7 +61,8 @@ export default function CreateSubCardModal({
                 parentId: parentCardId,
                 titulo: formData.titulo.trim(),
                 descricao: formData.descricao.trim(),
-                mode: formData.mode
+                mode: formData.mode,
+                mergeConfig
             },
             {
                 onSuccess: () => {
@@ -64,6 +74,7 @@ export default function CreateSubCardModal({
 
     const handleClose = () => {
         setFormData({ mode: 'incremental', titulo: '', descricao: '' })
+        setMergeConfig(DEFAULT_MERGE_CONFIG.incremental)
         setErrors({})
         onClose()
     }
@@ -78,7 +89,7 @@ export default function CreateSubCardModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[520px] bg-white border-gray-200">
+            <DialogContent className="sm:max-w-[560px] bg-white border-gray-200">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl text-gray-900">
                         <GitBranch className="w-5 h-5 text-orange-500" />
@@ -206,6 +217,31 @@ export default function CreateSubCardModal({
                         )}
                     </div>
 
+                    {/* Merge Config — Data from parent */}
+                    <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-700">
+                            Dados do card pai
+                        </label>
+
+                        {/* Grupo Texto */}
+                        <MergeGroupRow
+                            label="Texto"
+                            description="Observações + Briefing"
+                            config={mergeConfig.texto}
+                            onChange={(cfg) => setMergeConfig(prev => ({ ...prev, texto: cfg }))}
+                            accentColor={formData.mode === 'incremental' ? 'orange' : 'blue'}
+                        />
+
+                        {/* Grupo Viagem */}
+                        <MergeGroupRow
+                            label="Viagem"
+                            description="Destinos, Orçamento, Época..."
+                            config={mergeConfig.viagem}
+                            onChange={(cfg) => setMergeConfig(prev => ({ ...prev, viagem: cfg }))}
+                            accentColor={formData.mode === 'incremental' ? 'orange' : 'blue'}
+                        />
+                    </div>
+
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -276,5 +312,102 @@ export default function CreateSubCardModal({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// MergeGroupRow — inline sub-component for merge config per group
+// ═══════════════════════════════════════════════════════════
+
+interface MergeGroupRowProps {
+    label: string
+    description: string
+    config: { copiar_pai: boolean; merge_mode: 'replace' | 'append' }
+    onChange: (config: { copiar_pai: boolean; merge_mode: 'replace' | 'append' }) => void
+    accentColor: 'orange' | 'blue'
+}
+
+function MergeGroupRow({ label, description, config, onChange, accentColor }: MergeGroupRowProps) {
+    const accent = accentColor === 'orange'
+        ? { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', active: 'bg-orange-100 border-orange-400 text-orange-800' }
+        : { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', active: 'bg-blue-100 border-blue-400 text-blue-800' }
+
+    return (
+        <div className={cn('p-3 rounded-lg border', accent.border, accent.bg)}>
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <span className={cn('text-sm font-semibold', accent.text)}>{label}</span>
+                    <span className="text-xs text-gray-500 ml-1.5">({description})</span>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+                {/* Copiar do pai / Começar vazio */}
+                <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">Dados iniciais</p>
+                    <div className="flex gap-1">
+                        <button
+                            type="button"
+                            onClick={() => onChange({ ...config, copiar_pai: true })}
+                            className={cn(
+                                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors',
+                                config.copiar_pai
+                                    ? accent.active
+                                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            )}
+                        >
+                            <Copy className="w-3 h-3" />
+                            Copiar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onChange({ ...config, copiar_pai: false })}
+                            className={cn(
+                                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors',
+                                !config.copiar_pai
+                                    ? accent.active
+                                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            )}
+                        >
+                            <FileX className="w-3 h-3" />
+                            Vazio
+                        </button>
+                    </div>
+                </div>
+
+                {/* No merge: Acrescentar / Substituir */}
+                <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">No merge</p>
+                    <div className="flex gap-1">
+                        <button
+                            type="button"
+                            onClick={() => onChange({ ...config, merge_mode: 'append' })}
+                            className={cn(
+                                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors',
+                                config.merge_mode === 'append'
+                                    ? accent.active
+                                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            )}
+                        >
+                            <ArrowDownToLine className="w-3 h-3" />
+                            Acrescentar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onChange({ ...config, merge_mode: 'replace' })}
+                            className={cn(
+                                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors',
+                                config.merge_mode === 'replace'
+                                    ? accent.active
+                                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                            )}
+                        >
+                            <Replace className="w-3 h-3" />
+                            Substituir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     )
 }

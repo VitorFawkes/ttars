@@ -123,6 +123,11 @@ Blocos que corrigem dados de contatos existentes (ex: nome 'Sem Nome') nao inclu
 Contact handler (L509) inclui; deal auto-fix (L1088) nao inclui. Verificar se trigger `set_updated_at` existe antes de considerar bug.
 Regra: sempre incluir `updated_at: new Date().toISOString()` em updates de correcao para simetria com o contact handler.
 
+### 38. activities INSERT usa coluna 'dados' em vez de 'metadata' — CRITICO
+Tabela `activities` tem coluna `metadata jsonb` (ver `20260201700000_create_activities_table.sql`).
+Usar `dados` na lista de colunas do INSERT causa erro de runtime no Postgres. Padrao correto: `(card_id, tipo, descricao, metadata, created_by, created_at)`.
+Visto em: `20260313_sub_card_fixes.sql` linha 142 (`merge_sub_card`).
+
 ### 36. queryKey ['users'] compartilhado com filtro diferente — ALTO
 IntegrationMapping.tsx e MetricsWidget.tsx usam `['users']` com `.eq('active', true)`. Cache poluido de useUsers.ts (sem filtro).
 **CORRETO:** Usar `['active-profiles-list']` nesses dois arquivos.

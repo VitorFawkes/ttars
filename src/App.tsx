@@ -55,6 +55,7 @@ import CRMHealth from './pages/admin/CRMHealth'
 import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
 import Arquivados from './pages/admin/Arquivados'
+import VendasMondePage from './pages/admin/VendasMondePage'
 import { IntegrationsPage } from './components/admin/integrations/IntegrationsPage'
 import DeveloperHub from './pages/developer/DeveloperHub'
 import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
@@ -236,6 +237,7 @@ function App() {
                     {/* ═══════════════════════════════════════════════════════════
                         OPERATIONS: Maintenance & Health
                     ═══════════════════════════════════════════════════════════ */}
+                    <Route path="operations/vendas-monde" element={<VendasMondePage />} />
                     <Route path="operations/health" element={<CRMHealth />} />
                     <Route path="operations/trash" element={<Lixeira />} />
                     <Route path="operations/archive" element={<Arquivados />} />

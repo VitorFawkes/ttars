@@ -4,6 +4,28 @@ import { useToast } from '../contexts/ToastContext'
 
 export type SubCardMode = 'incremental' | 'complete'
 export type SubCardStatus = 'active' | 'merged' | 'cancelled'
+export type MergeMode = 'replace' | 'append'
+
+export interface MergeGroupConfig {
+    copiar_pai: boolean
+    merge_mode: MergeMode
+}
+
+export interface MergeConfig {
+    texto: MergeGroupConfig
+    viagem: MergeGroupConfig
+}
+
+export const DEFAULT_MERGE_CONFIG: Record<SubCardMode, MergeConfig> = {
+    incremental: {
+        texto: { copiar_pai: false, merge_mode: 'append' },
+        viagem: { copiar_pai: false, merge_mode: 'append' }
+    },
+    complete: {
+        texto: { copiar_pai: true, merge_mode: 'replace' },
+        viagem: { copiar_pai: true, merge_mode: 'replace' }
+    }
+}
 
 export interface SubCard {
     id: string
@@ -13,6 +35,8 @@ export interface SubCard {
     valor_estimado: number | null
     valor_final: number | null
     status_comercial: string
+    ganho_planner: boolean
+    is_planner_won: boolean
     etapa_nome: string
     fase: string
     merged_at: string | null
@@ -21,8 +45,10 @@ export interface SubCard {
         sub_card_value?: number
         new_parent_value?: number
         mode?: SubCardMode
+        merge_config?: MergeConfig
         cancelled_reason?: string
     } | null
+    merge_config: MergeConfig | null
     created_at: string
     dono_nome: string | null
 }
@@ -32,6 +58,7 @@ interface CreateSubCardParams {
     titulo: string
     descricao: string
     mode: SubCardMode
+    mergeConfig?: MergeConfig
 }
 
 interface MergeSubCardResult {
@@ -42,6 +69,12 @@ interface MergeSubCardResult {
     new_value?: number
     mode?: SubCardMode
     proposal_id?: string
+    merge_config?: MergeConfig
+}
+
+interface MergeSubCardParams {
+    subCardId: string
+    mergeConfigOverride?: MergeConfig
 }
 
 interface CancelSubCardResult {
@@ -71,7 +104,8 @@ export function useSubCards(parentCardId?: string) {
         queryFn: async () => {
             if (!parentCardId) return []
 
-            const { data, error } = await (supabase as any)
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
                 .rpc('get_sub_cards', { p_parent_id: parentCardId })
 
             if (error) throw error
@@ -81,13 +115,15 @@ export function useSubCards(parentCardId?: string) {
 
     // Mutation: Create sub-card
     const createSubCardMutation = useMutation({
-        mutationFn: async ({ parentId, titulo, descricao, mode }: CreateSubCardParams) => {
-            const { data, error } = await (supabase as any)
+        mutationFn: async ({ parentId, titulo, descricao, mode, mergeConfig }: CreateSubCardParams) => {
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
                 .rpc('criar_sub_card', {
                     p_parent_id: parentId,
                     p_titulo: titulo,
                     p_descricao: descricao,
-                    p_mode: mode
+                    p_mode: mode,
+                    p_merge_config: mergeConfig || null
                 })
 
             if (error) throw error
@@ -133,11 +169,15 @@ export function useSubCards(parentCardId?: string) {
 
     // Mutation: Merge sub-card
     const mergeSubCardMutation = useMutation({
-        mutationFn: async (subCardId: string) => {
-            const { data, error } = await (supabase as any)
+        mutationFn: async ({ subCardId, mergeConfigOverride }: MergeSubCardParams) => {
+            const options = mergeConfigOverride
+                ? { merge_config: mergeConfigOverride }
+                : {};
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
                 .rpc('merge_sub_card', {
                     p_sub_card_id: subCardId,
-                    p_options: {}
+                    p_options: options
                 })
 
             if (error) throw error
@@ -180,7 +220,8 @@ export function useSubCards(parentCardId?: string) {
     // Mutation: Cancel sub-card
     const cancelSubCardMutation = useMutation({
         mutationFn: async ({ subCardId, motivo }: { subCardId: string; motivo?: string }) => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
                 .rpc('cancelar_sub_card', {
                     p_sub_card_id: subCardId,
                     p_motivo: motivo || null
@@ -240,9 +281,9 @@ export function useSubCards(parentCardId?: string) {
         return subCardsQuery.data.filter(sc => sc.sub_card_status === 'active').length
     }
 
-    // Helper: Check if sub-card can be merged
+    // Helper: Check if sub-card can be merged (ganho Planner, not ganho total)
     const canMergeSubCard = (subCard: SubCard) => {
-        return subCard.sub_card_status === 'active' && subCard.status_comercial === 'ganho'
+        return subCard.sub_card_status === 'active' && subCard.ganho_planner === true && subCard.is_planner_won === true
     }
 
     return {
@@ -291,7 +332,8 @@ export function useSubCardParent(cardId?: string) {
 
             // Get the card with its parent info
             // Cast to any until types are regenerated
-            const { data, error } = await (supabase as any)
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
                 .from('cards')
                 .select(`
                     id,

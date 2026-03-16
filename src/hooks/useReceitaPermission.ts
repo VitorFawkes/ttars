@@ -1,13 +1,13 @@
 /**
  * useReceitaPermission
  *
- * Desde 2026-02: TODOS podem ver e editar receita.
- * O Planner precisa inserir custos e ver margem para fechar vendas.
- * Hook mantido para compatibilidade com os 8 arquivos que o usam.
+ * Desde 2026-03: Produtos são populados via CSV na página Vendas Monde.
+ * Edição manual removida — canEdit sempre false.
+ * Hook mantido para compatibilidade com consumidores existentes.
  */
 export function useReceitaPermission() {
   return {
     canView: true,
-    canEdit: true,
+    canEdit: false,
   }
 }

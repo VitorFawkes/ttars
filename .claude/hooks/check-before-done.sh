@@ -11,7 +11,8 @@ CWD=$(echo "$INPUT" | jq -r '.cwd')
 cd "$CWD" 2>/dev/null || exit 0
 
 # Pegar APENAS arquivos TS/TSX modificados (não o projeto inteiro)
-CHANGED_FILES=$(git diff --name-only 2>/dev/null | grep -E '\.(ts|tsx)$')
+# Filtrar arquivos deletados (que não existem mais no disco)
+CHANGED_FILES=$(git diff --name-only 2>/dev/null | grep -E '\.(ts|tsx)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done)
 if [ -z "$CHANGED_FILES" ]; then
   exit 0
 fi

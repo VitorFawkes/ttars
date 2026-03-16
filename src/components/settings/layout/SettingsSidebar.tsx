@@ -19,7 +19,8 @@ import {
     Layers,
     Code,
     XCircle,
-    Zap
+    Zap,
+    FileSpreadsheet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -166,6 +167,7 @@ export default function SettingsSidebar() {
                         <NavSection title="Operações" icon={Wrench}>
                             <NavItem to="/settings/operations/health" icon={Activity} label="Saúde do Sistema" />
                             <NavItem to="/settings/operations/archive" icon={Archive} label="Arquivados" />
+                            <NavItem to="/settings/operations/vendas-monde" icon={FileSpreadsheet} label="Vendas Monde" />
                             <NavItem to="/settings/operations/trash" icon={Trash2} label="Lixeira" />
                         </NavSection>
                     </>

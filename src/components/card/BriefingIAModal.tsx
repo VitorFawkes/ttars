@@ -1,13 +1,17 @@
 import { useState, useCallback } from 'react'
-import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useBriefingIA, type BriefingStep } from '@/hooks/useBriefingIA'
+import { supabase } from '@/lib/supabase'
+import type { MergeConfig } from '@/hooks/useSubCards'
 import AudioRecorder from './AudioRecorder'
 
 interface BriefingIAModalProps {
   isOpen: boolean
   onClose: () => void
   cardId: string
+  /** Pass card_type to detect sub-cards without extra query */
+  cardType?: string | null
 }
 
 const STEP_LABELS: Record<BriefingStep, string> = {
@@ -18,10 +22,54 @@ const STEP_LABELS: Record<BriefingStep, string> = {
   error: 'Erro no processamento'
 }
 
-export default function BriefingIAModal({ isOpen, onClose, cardId }: BriefingIAModalProps) {
+export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: BriefingIAModalProps) {
   const { step, result, process, reset } = useBriefingIA(cardId)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [showTranscription, setShowTranscription] = useState(false)
+
+  // Sub-card merge config for Briefing IA
+  const isSubCard = cardType === 'sub_card'
+  const [subCardMergeConfig, setSubCardMergeConfig] = useState<{
+    texto: 'replace' | 'append'
+    viagem: 'replace' | 'append'
+  }>({ texto: 'append', viagem: 'replace' })
+
+  // Save merge_config to the sub-card when user changes it
+  const updateSubCardMergeConfig = useCallback(async (
+    group: 'texto' | 'viagem',
+    mode: 'replace' | 'append'
+  ) => {
+    const newConfig = { ...subCardMergeConfig, [group]: mode }
+    setSubCardMergeConfig(newConfig)
+
+    // Persist to card's merge_config
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merge_config pendente de regeneracao de types
+      const { data } = await (supabase as any)
+        .from('cards')
+        .select('merge_config')
+        .eq('id', cardId)
+        .single()
+
+      const current = (data?.merge_config as MergeConfig | null) || {
+        texto: { copiar_pai: false, merge_mode: 'append' },
+        viagem: { copiar_pai: false, merge_mode: 'replace' }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merge_config pendente de regeneracao de types
+      await (supabase as any)
+        .from('cards')
+        .update({
+          merge_config: {
+            ...current,
+            [group]: { ...current[group], merge_mode: mode }
+          }
+        })
+        .eq('id', cardId)
+    } catch {
+      // Non-critical — config will still be editable at merge time
+    }
+  }, [cardId, subCardMergeConfig])
 
   const handleAudioReady = useCallback((blob: Blob) => {
     setAudioBlob(blob)
@@ -85,7 +133,93 @@ export default function BriefingIAModal({ isOpen, onClose, cardId }: BriefingIAM
         <div className="px-5 py-4">
           {/* State: Idle — Show AudioRecorder */}
           {isIdle && (
-            <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
+            <>
+              <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
+
+              {/* Sub-card: merge mode selector before processing */}
+              {isSubCard && audioBlob && (
+                <div className="mt-4 p-3 rounded-lg border border-orange-200 bg-orange-50 space-y-2.5">
+                  <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Card de Alteração — como tratar os campos no merge?
+                  </p>
+
+                  {/* Texto group */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3 h-3 text-gray-500" />
+                      <span className="text-xs text-gray-700 font-medium">Texto</span>
+                      <span className="text-[10px] text-gray-400">(Obs + Briefing)</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateSubCardMergeConfig('texto', 'append')}
+                        className={cn(
+                          'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors',
+                          subCardMergeConfig.texto === 'append'
+                            ? 'bg-orange-100 border-orange-400 text-orange-800'
+                            : 'bg-white border-gray-200 text-gray-500'
+                        )}
+                      >
+                        <ArrowDownToLine className="w-2.5 h-2.5" />
+                        Acrescentar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSubCardMergeConfig('texto', 'replace')}
+                        className={cn(
+                          'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors',
+                          subCardMergeConfig.texto === 'replace'
+                            ? 'bg-orange-100 border-orange-400 text-orange-800'
+                            : 'bg-white border-gray-200 text-gray-500'
+                        )}
+                      >
+                        <Replace className="w-2.5 h-2.5" />
+                        Substituir
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Viagem group */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3 h-3 text-gray-500" />
+                      <span className="text-xs text-gray-700 font-medium">Viagem</span>
+                      <span className="text-[10px] text-gray-400">(Destinos, Orçamento...)</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateSubCardMergeConfig('viagem', 'append')}
+                        className={cn(
+                          'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors',
+                          subCardMergeConfig.viagem === 'append'
+                            ? 'bg-orange-100 border-orange-400 text-orange-800'
+                            : 'bg-white border-gray-200 text-gray-500'
+                        )}
+                      >
+                        <ArrowDownToLine className="w-2.5 h-2.5" />
+                        Acrescentar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSubCardMergeConfig('viagem', 'replace')}
+                        className={cn(
+                          'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors',
+                          subCardMergeConfig.viagem === 'replace'
+                            ? 'bg-orange-100 border-orange-400 text-orange-800'
+                            : 'bg-white border-gray-200 text-gray-500'
+                        )}
+                      >
+                        <Replace className="w-2.5 h-2.5" />
+                        Substituir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* State: Processing */}

@@ -168,6 +168,7 @@ export default function SubCardsList({
                     onClose={() => setSelectedSubCardForMerge(null)}
                     subCard={selectedSubCardForMerge}
                     parentValor={parentValor}
+                    parentCardId={parentCardId}
                 />
             )}
         </div>

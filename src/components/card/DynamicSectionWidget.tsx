@@ -405,9 +405,10 @@ interface CollapsibleWidgetSectionProps {
     section: Section
     card: Card
     defaultCollapsed?: boolean
+    phaseSlug?: string | null
 }
 
-function CollapsibleWidgetSection({ section, card, defaultCollapsed = false }: CollapsibleWidgetSectionProps) {
+function CollapsibleWidgetSection({ section, card, defaultCollapsed = false, phaseSlug }: CollapsibleWidgetSectionProps) {
     const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
@@ -422,6 +423,7 @@ function CollapsibleWidgetSection({ section, card, defaultCollapsed = false }: C
             card={card}
             isExpanded={isExpanded}
             onToggleCollapse={onToggleCollapse}
+            phaseSlug={phaseSlug || undefined}
         />
     )
 }
@@ -483,6 +485,7 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
                             section={section}
                             card={card}
                             defaultCollapsed={collapsed}
+                            phaseSlug={phaseSlug}
                         />
                     )
                 }

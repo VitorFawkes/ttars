@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, DollarSign, MapPin, Users, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText } from 'lucide-react'
+import { Calendar, DollarSign, MapPin, Users, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
@@ -611,6 +611,27 @@ export default function KanbanCard({ card }: KanbanCardProps) {
                             )}>
                                 <FileText className="w-3 h-3" />
                                 {docsCompleted}/{docsTotal} docs coletados
+                            </span>
+                        </div>
+                    )
+                })()}
+
+                {/* Product Readiness Status */}
+                {(() => {
+                    const prodsTotal = Number((card as any).prods_total) || 0
+                    const prodsReady = Number((card as any).prods_ready) || 0
+                    if (prodsTotal === 0) return null
+                    const isComplete = prodsReady >= prodsTotal
+                    return (
+                        <div className="mt-1">
+                            <span className={cn(
+                                "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border w-full justify-center",
+                                isComplete
+                                    ? "bg-green-50 text-green-700 border-green-100"
+                                    : "bg-amber-50 text-amber-700 border-amber-100"
+                            )}>
+                                <Package className="w-3 h-3" />
+                                {prodsReady}/{prodsTotal} produtos prontos
                             </span>
                         </div>
                     )

@@ -1,6 +1,6 @@
 import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatDistanceToNow, format } from 'date-fns'
@@ -303,13 +303,22 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
     }, [cardId, queryClient])
 
     const [isExpanded, setIsExpanded] = useState(!cardId) // collapsed by default on card detail
+    const sectionRef = useRef<HTMLDivElement>(null)
+
+    const handleExpand = useCallback(() => {
+        setIsExpanded(true)
+        // Scroll into view after render so the content is visible
+        requestAnimationFrame(() => {
+            sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+    }, [])
 
     // Collapsed bar
     if (cardId && !isExpanded) {
         return (
             <button
                 type="button"
-                onClick={() => setIsExpanded(true)}
+                onClick={handleExpand}
                 className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-50/50 border border-gray-300 rounded-xl transition-colors hover:bg-gray-100/80"
             >
                 <div className="flex items-center gap-2">
@@ -333,7 +342,7 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
     }
 
     return (
-        <div className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
+        <div ref={sectionRef} className="rounded-xl border border-gray-300 bg-white shadow-sm overflow-hidden">
             {/* Header — clickable to collapse */}
             {cardId && (
                 <button

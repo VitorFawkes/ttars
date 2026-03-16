@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.development.staging
 .vercel
 .env*.local
 lint_output.txt

@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-12
+> **Last Updated:** 2026-03-16
 > **Trigger:** ALWAYS ON
-> **Stats:** 114 tabelas | 38 paginas | 70 hooks | 17 views | 425 components
+> **Stats:** 115 tabelas | 40 paginas | 71 hooks | 17 views | 424 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **70 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **71 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -266,6 +266,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 |------|------|
 | `useFieldConfig()` | `useFieldConfig.ts` |
 | `useFieldLock()` | `useFieldLock.ts` |
+| `useProductRequirements()` | `useProductRequirements.ts` |
 | `useSections()` | `useSections.ts` |
 
 #### Users & Teams
@@ -308,12 +309,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **38 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **40 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
 | `ActivitiesPage` | `src/pages/ActivitiesPage.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
+| `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
@@ -340,6 +342,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `TagManagement` | `src/pages/admin/TagManagement.tsx` |
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |
+| `VendasMondePage` | `src/pages/admin/VendasMondePage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
 | `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` |

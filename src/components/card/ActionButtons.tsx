@@ -410,6 +410,7 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 isOpen={showBriefingIA}
                 onClose={() => setShowBriefingIA(false)}
                 cardId={card.id}
+                cardType={(card as Record<string, unknown>).card_type as string | undefined}
             />
         </>
     )

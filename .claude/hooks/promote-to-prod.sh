@@ -6,7 +6,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/../.." || exit 1
+set -a
 source .env 2>/dev/null || { echo "Erro: .env não encontrado" >&2; exit 1; }
+set +a
 
 SQL_FILE="${1:?Uso: promote-to-prod.sh <arquivo.sql>}"
 if [ ! -f "$SQL_FILE" ]; then
