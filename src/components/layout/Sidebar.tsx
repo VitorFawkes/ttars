@@ -29,16 +29,15 @@ export default function Sidebar() {
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isAdminOrGestor = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor'
-
     const filteredNavigation = useMemo(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isAdminOrGestor = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor'
         return navigation.filter(item => {
             if (item.adminOnly && !isAdminOrGestor) return false
             if (item.productsOnly && !item.productsOnly.includes(currentProduct)) return false
             return true
         })
-    }, [currentProduct, isAdminOrGestor])
+    }, [currentProduct, profile])
 
     const userInitials = session?.user?.email?.substring(0, 2).toUpperCase() || 'U'
     const userName = session?.user?.email?.split('@')[0] || 'Usuário'
