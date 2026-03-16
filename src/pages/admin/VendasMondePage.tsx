@@ -343,42 +343,50 @@ export default function VendasMondePage() {
             const matched: MatchedCard[] = []
             const matchedNums = new Set<string>()
 
-            const BATCH_SIZE = 50
-            for (let i = 0; i < uniqueVendaNums.length; i += BATCH_SIZE) {
-                const batch = uniqueVendaNums.slice(i, i + BATCH_SIZE)
-
-                const { data: cards, error } = await supabase
+            // Buscar cada número de venda diretamente no JSONB (filtro server-side)
+            for (const num of uniqueVendaNums) {
+                // 1. Match primário: produto_data->>numero_venda_monde
+                const { data: cards } = await supabase
                     .from('cards')
-                    .select('id, titulo, produto_data')
-                    .not('produto_data', 'is', null)
+                    .select('id, titulo')
+                    .eq('produto_data->>numero_venda_monde', num)
+                    .limit(1)
 
-                if (error) throw error
+                const card = cards?.[0]
+                if (card) {
+                    const products = grouped.get(num)!
+                    matched.push({
+                        cardId: card.id,
+                        cardTitle: (card.titulo as string) || 'Card sem título',
+                        vendaNum: num,
+                        products,
+                        totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
+                        totalReceita: products.reduce((s, p) => s + p.receita, 0),
+                    })
+                    matchedNums.add(num)
+                    continue
+                }
 
-                for (const card of cards || []) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const produtoData = card.produto_data as Record<string, any> | null
-                    if (!produtoData) continue
+                // 2. Fallback: buscar no histórico (numeros_venda_monde_historico)
+                // Usa containment operator para buscar dentro do array JSONB
+                const { data: histCards } = await supabase
+                    .from('cards')
+                    .select('id, titulo')
+                    .contains('produto_data', { numeros_venda_monde_historico: [{ numero: num }] })
+                    .limit(1)
 
-                    const mondePrimary = String(produtoData.numero_venda_monde || '').trim()
-                    const mondeHistory: Array<{ numero: string }> = produtoData.numeros_venda_monde_historico || []
-
-                    for (const num of batch) {
-                        if (matchedNums.has(num)) continue
-                        let isMatch = mondePrimary === num
-                        if (!isMatch) isMatch = mondeHistory.some(h => String(h.numero).trim() === num)
-                        if (isMatch) {
-                            const products = grouped.get(num)!
-                            matched.push({
-                                cardId: card.id,
-                                cardTitle: (card.titulo as string) || 'Card sem título',
-                                vendaNum: num,
-                                products,
-                                totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
-                                totalReceita: products.reduce((s, p) => s + p.receita, 0),
-                            })
-                            matchedNums.add(num)
-                        }
-                    }
+                const histCard = histCards?.[0]
+                if (histCard) {
+                    const products = grouped.get(num)!
+                    matched.push({
+                        cardId: histCard.id,
+                        cardTitle: (histCard.titulo as string) || 'Card sem título',
+                        vendaNum: num,
+                        products,
+                        totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
+                        totalReceita: products.reduce((s, p) => s + p.receita, 0),
+                    })
+                    matchedNums.add(num)
                 }
             }
 
