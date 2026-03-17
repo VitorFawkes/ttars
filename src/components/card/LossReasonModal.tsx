@@ -1,19 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+export interface FutureOpportunityData {
+    titulo: string;
+    scheduledDate: string;
+}
 
 interface LossReasonModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (motivoId: string, comentario: string) => void;
+    onConfirm: (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => void;
     targetStageId: string;
     targetStageName: string;
     initialMotivoId?: string | null;
@@ -31,9 +37,26 @@ export default function LossReasonModal({
     initialComentario,
     isEditing = false
 }: LossReasonModalProps) {
-    const [motivoId, setMotivoId] = useState('');
-    const [comentario, setComentario] = useState('');
+    const [motivoId, setMotivoId] = useState(initialMotivoId || '');
+    const [comentario, setComentario] = useState(initialComentario || '');
     const [error, setError] = useState<string | null>(null);
+
+    // Future opportunity fields
+    const [futureTitle, setFutureTitle] = useState('');
+    const [futureDate, setFutureDate] = useState('');
+
+    // Reset or pre-fill state when modal opens
+    /* eslint-disable react-hooks/set-state-in-effect */
+    useEffect(() => {
+        if (isOpen) {
+            setMotivoId(initialMotivoId || '');
+            setComentario(initialComentario || '');
+            setFutureTitle('');
+            setFutureDate('');
+            setError(null);
+        }
+    }, [isOpen, initialMotivoId, initialComentario]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // 1. Get Governance Rules for this stage
     const { getFieldConfig } = useFieldConfig();
@@ -60,14 +83,20 @@ export default function LossReasonModal({
         enabled: isOpen
     });
 
-    // Reset or pre-fill state when opening
-    useEffect(() => {
-        if (isOpen) {
-            setMotivoId(initialMotivoId || '');
-            setComentario(initialComentario || '');
-            setError(null);
-        }
-    }, [isOpen, initialMotivoId, initialComentario]);
+    // Detect if selected reason is "Oportunidade Futura"
+    const isFutureOpportunity = useMemo(() => {
+        if (!motivoId || !reasons) return false;
+        const selected = reasons.find(r => r.id === motivoId);
+        return selected?.nome?.toLowerCase().includes('oportunidade futura') ?? false;
+    }, [motivoId, reasons]);
+
+    // Min date = tomorrow
+    const minDate = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return d.toISOString().split('T')[0];
+    }, []);
+
 
     const handleConfirm = () => {
         setError(null);
@@ -83,7 +112,23 @@ export default function LossReasonModal({
             return;
         }
 
-        onConfirm(motivoId, comentario);
+        // Future opportunity validation
+        if (isFutureOpportunity) {
+            if (!futureTitle.trim()) {
+                setError('Informe o título do card que será criado na data agendada.');
+                return;
+            }
+            if (!futureDate) {
+                setError('Informe a data de retorno para a oportunidade futura.');
+                return;
+            }
+        }
+
+        const futureData = isFutureOpportunity
+            ? { titulo: futureTitle.trim(), scheduledDate: futureDate }
+            : undefined;
+
+        onConfirm(motivoId, comentario, futureData);
     };
 
     const reasonOptions = reasons?.map(r => ({ value: r.id, label: r.nome })) || [];
@@ -137,6 +182,50 @@ export default function LossReasonModal({
                         )}
                     </div>
 
+                    {/* Future Opportunity Fields — conditional */}
+                    {isFutureOpportunity && (
+                        <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-blue-700">
+                                <CalendarClock className="w-4 h-4" />
+                                <span className="text-sm font-medium">
+                                    Este card será reaberto automaticamente na data agendada
+                                </span>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-1 text-blue-900">
+                                    Título do card futuro <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    type="text"
+                                    value={futureTitle}
+                                    onChange={(e) => setFutureTitle(e.target.value)}
+                                    placeholder="Ex: Retomar viagem Europa — Família Silva"
+                                    className={cn(
+                                        "bg-white",
+                                        error && !futureTitle.trim() && "border-red-300"
+                                    )}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-1 text-blue-900">
+                                    Data de retorno <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    type="date"
+                                    value={futureDate}
+                                    onChange={(e) => setFutureDate(e.target.value)}
+                                    min={minDate}
+                                    className={cn(
+                                        "bg-white",
+                                        error && !futureDate && "border-red-300"
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {/* Comentario Textarea */}
                     <div className="space-y-2">
                         <Label className="flex items-center gap-1">
@@ -161,9 +250,19 @@ export default function LossReasonModal({
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+                        className={cn(
+                            "text-white border-transparent",
+                            isFutureOpportunity
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "bg-red-600 hover:bg-red-700"
+                        )}
                     >
-                        {isEditing ? 'Salvar Alterações' : 'Confirmar Perda'}
+                        {isEditing
+                            ? 'Salvar Alterações'
+                            : isFutureOpportunity
+                                ? 'Confirmar e Agendar Retorno'
+                                : 'Confirmar Perda'
+                        }
                     </Button>
                 </DialogFooter>
             </DialogContent>

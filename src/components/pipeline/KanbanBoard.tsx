@@ -684,7 +684,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 if (card) {
                     try {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        await (supabase.from as any)('future_opportunities').insert({
+                        await (supabase as any).from('future_opportunities').insert({
                             source_card_id: pendingMove.cardId,
                             source_type: 'lost_future',
                             titulo: futureOpportunity.titulo,

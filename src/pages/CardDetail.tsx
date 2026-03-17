@@ -172,6 +172,33 @@ export default function CardDetail() {
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3 p-3 pt-2">
                 {/* CENTER COLUMN - Work Area (What to do) */}
                 <div className="min-h-0 overflow-y-auto space-y-1.5 pr-2 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
+                    {/* Future Opportunity Origin Banner */}
+                    {isFutureOpportunity && card.parent_card_id && (
+                        <div className="rounded-lg border-2 border-blue-300 bg-blue-50 p-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
+                                        <CalendarClock className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-blue-800">
+                                            Oportunidade Futura
+                                        </p>
+                                        <p className="text-xs text-blue-600">
+                                            Originado de: <span className="font-medium">{futureOriginCard?.titulo || 'Card anterior'}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => navigate(`/cards/${card.parent_card_id}`)}
+                                    className="text-xs px-3 py-1.5 rounded-md font-medium text-blue-700 bg-white border border-blue-200 hover:bg-blue-100 transition-colors"
+                                >
+                                    Ver card original
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Sub-Card Parent Banner (if this is a sub-card) */}
                     {isSubCard && parentCard && subCardMode && (
                         <SubCardParentBanner

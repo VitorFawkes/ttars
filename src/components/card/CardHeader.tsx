@@ -45,7 +45,7 @@ import { supabase } from '../../lib/supabase'
 import { useQualityGate } from '../../hooks/useQualityGate'
 import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
-import LossReasonModal from './LossReasonModal'
+import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
@@ -714,7 +714,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     }
 
-    const handleLossConfirm = async (motivoId: string, comentario: string) => {
+    const handleLossConfirm = async (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => {
         // Check if we're just editing the loss reason (card already in perdido)
         const isJustEditingReason = card.status_comercial === 'perdido' &&
             pendingLossMove?.stageId === card.pipeline_stage_id
@@ -757,6 +757,26 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['card', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['cards'] })
+            }
+
+            // Create future opportunity if scheduled
+            if (futureOpportunity) {
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela pendente de regeneração de types
+                    await (supabase as any).from('future_opportunities').insert({
+                        source_card_id: card.id,
+                        source_type: 'lost_future',
+                        titulo: futureOpportunity.titulo,
+                        scheduled_date: futureOpportunity.scheduledDate,
+                        descricao: comentario || null,
+                        produto: card.produto,
+                        pipeline_id: card.pipeline_id,
+                        responsavel_id: card.dono_atual_id,
+                        pessoa_principal_id: card.pessoa_principal_id,
+                    } as Record<string, unknown>)
+                } catch (err) {
+                    console.error('Erro ao agendar oportunidade futura:', err)
+                }
             }
 
             setPendingLossMove(null)
