@@ -61,7 +61,7 @@ export function GroupTravelersList({ parentId }: GroupTravelersListProps) {
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Viajantes</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Viagens</h3>
                     <p className="text-gray-500 text-sm">
                         Gerencie as viagens individuais vinculadas a este grupo.
                     </p>
