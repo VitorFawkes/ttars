@@ -454,7 +454,12 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                         value={editValue}
                         mode="edit"
                         onChange={(val) => setEditValue(val)}
-                        extraData={editingFieldConfig.key === 'numero_venda_monde' ? activeData : undefined}
+                        extraData={editingFieldConfig.key === 'numero_venda_monde'
+                            ? (typeof editValue === 'object' && editValue !== null && 'historico' in (editValue as Record<string, unknown>)
+                                ? { ...activeData, numeros_venda_monde_historico: (editValue as { historico: unknown[] }).historico }
+                                : activeData)
+                            : undefined
+                        }
                     />
                 )}
             </EditModal>
