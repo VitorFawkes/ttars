@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Save, X } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -427,82 +427,129 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
             {/* Future Opportunities — pending/failed */}
             {futureOpps && futureOpps.length > 0 && (
-                <div className="border-b border-blue-100">
-                    {futureOpps.map((opp: { id: string; titulo: string; scheduled_date: string; status: string }) => (
-                        <div key={opp.id} className={cn(
-                            "px-3 py-2",
-                            opp.status === 'failed' ? "bg-red-50" : "bg-blue-50"
-                        )}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <CalendarClock className={cn("w-3.5 h-3.5 flex-shrink-0", opp.status === 'failed' ? "text-red-500" : "text-blue-500")} />
-                                <span className={cn("text-[10px] font-semibold uppercase tracking-wider", opp.status === 'failed' ? "text-red-600" : "text-blue-600")}>
-                                    {opp.status === 'failed' ? 'Oportunidade Futura — Falhou' : 'Oportunidade Futura Agendada'}
-                                </span>
-                            </div>
+                <div className="border-b border-blue-200">
+                    {futureOpps.map((opp: { id: string; titulo: string; scheduled_date: string; status: string }) => {
+                        const isEditing = editingOppId === opp.id
+                        const isFailed = opp.status === 'failed'
 
-                            {editingOppId === opp.id ? (
-                                <div className="space-y-1.5 ml-5.5">
-                                    <input
-                                        type="text"
-                                        value={editOppTitle}
-                                        onChange={(e) => setEditOppTitle(e.target.value)}
-                                        className="w-full text-xs border border-blue-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none"
-                                        autoFocus
-                                        onKeyDown={(e) => e.key === 'Enter' && saveOppEdit()}
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="date"
-                                            value={editOppDate}
-                                            onChange={(e) => setEditOppDate(e.target.value)}
-                                            min={futureMinDate}
-                                            className="text-xs border border-blue-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none"
-                                        />
-                                        <button onClick={saveOppEdit} className="text-blue-600 hover:text-blue-800" title="Salvar">
-                                            <Save className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button onClick={() => setEditingOppId(null)} className="text-gray-400 hover:text-gray-600" title="Cancelar edição">
-                                            <X className="w-3.5 h-3.5" />
-                                        </button>
+                        return (
+                            <div
+                                key={opp.id}
+                                className={cn(
+                                    "px-3 py-1.5 group relative border-l-4",
+                                    isFailed
+                                        ? "border-l-red-400 bg-red-50/40"
+                                        : "border-l-blue-400 bg-blue-50/40"
+                                )}
+                            >
+                                <div className="flex items-start gap-2.5">
+                                    {/* Icon */}
+                                    <div className={cn(
+                                        "mt-0.5 flex-shrink-0",
+                                        isFailed ? "text-red-400" : "text-blue-400"
+                                    )}>
+                                        <CalendarClock className="w-4 h-4" />
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between ml-5.5">
-                                    <button
-                                        onClick={() => startEditOpp(opp)}
-                                        className="text-left group flex-1 min-w-0"
-                                        title="Clique para editar"
-                                    >
-                                        <p className="text-xs font-medium text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                                            {opp.titulo}
-                                        </p>
-                                        <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
-                                            <Calendar className="w-3 h-3" />
-                                            {format(new Date(opp.scheduled_date + 'T12:00:00'), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
-                                        </p>
-                                    </button>
-                                    <div className="flex-shrink-0 ml-2">
-                                        {cancellingOppId === opp.id ? (
-                                            <button
-                                                onClick={() => cancelOpp(opp.id)}
-                                                className="text-[10px] font-medium text-red-600 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-full transition-colors"
-                                            >
-                                                Confirmar cancelamento
-                                            </button>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        {isEditing ? (
+                                            /* ── Edit Mode ── */
+                                            <div className="space-y-2">
+                                                <input
+                                                    type="text"
+                                                    value={editOppTitle}
+                                                    onChange={(e) => setEditOppTitle(e.target.value)}
+                                                    className="w-full text-xs font-medium border border-blue-300 rounded-md px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none shadow-sm"
+                                                    autoFocus
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') saveOppEdit()
+                                                        if (e.key === 'Escape') setEditingOppId(null)
+                                                    }}
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="date"
+                                                        value={editOppDate}
+                                                        onChange={(e) => setEditOppDate(e.target.value)}
+                                                        min={futureMinDate}
+                                                        className="text-xs border border-blue-300 rounded-md px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none shadow-sm"
+                                                    />
+                                                    <button
+                                                        onClick={saveOppEdit}
+                                                        className="flex items-center gap-1 text-[11px] font-medium text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-1 rounded-md transition-colors"
+                                                    >
+                                                        <Check className="w-3 h-3" />
+                                                        Salvar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setEditingOppId(null)}
+                                                        className="flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md transition-colors"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <button
-                                                onClick={() => setCancellingOppId(opp.id)}
-                                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                                title="Cancelar oportunidade"
-                                            >
-                                                <XCircle className="w-3.5 h-3.5" />
-                                            </button>
+                                            /* ── View Mode ── */
+                                            <>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="text-xs font-medium text-gray-900 truncate pr-2">
+                                                        {opp.titulo}
+                                                    </p>
+                                                    <span className={cn(
+                                                        "text-[10px] font-medium px-1.5 py-0.5 rounded border flex-shrink-0 flex items-center gap-1",
+                                                        isFailed
+                                                            ? "text-red-600 bg-red-50 border-red-200"
+                                                            : "text-blue-600 bg-blue-50 border-blue-200"
+                                                    )}>
+                                                        <CalendarClock className="w-3 h-3" />
+                                                        {isFailed ? 'Falhou' : 'Opp. Futura'}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                        <Calendar className="w-3.5 h-3.5" />
+                                                        <span>{format(new Date(opp.scheduled_date + 'T12:00:00'), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}</span>
+                                                    </div>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
+
+                                    {/* Actions — visible on hover, same pattern as tasks */}
+                                    {!isEditing && (
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => startEditOpp(opp)}
+                                                className="p-1 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            {cancellingOppId === opp.id ? (
+                                                <button
+                                                    onClick={() => cancelOpp(opp.id)}
+                                                    className="text-[10px] font-medium text-red-600 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
+                                                >
+                                                    Confirmar?
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setCancellingOppId(opp.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-100 transition-colors"
+                                                    title="Cancelar oportunidade"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                            </div>
+                        )
+                    })}
                 </div>
             )}
 
