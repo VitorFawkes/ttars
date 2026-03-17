@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         const { data: settings } = await supabase
             .from('integration_settings')
             .select('key, value')
-            .in('key', ['SHADOW_MODE_ENABLED', 'WRITE_MODE_ENABLED', 'ALLOWED_EVENT_TYPES']);
+            .in('key', ['SHADOW_MODE_ENABLED', 'WRITE_MODE_ENABLED', 'ALLOWED_EVENT_TYPES', 'DEFAULT_LOST_MOTIVO_ID']);
 
         const shadowModeSetting = settings?.find(s => s.key === 'SHADOW_MODE_ENABLED')?.value === 'true';
         const writeModeSetting = settings?.find(s => s.key === 'WRITE_MODE_ENABLED')?.value;
@@ -166,6 +166,7 @@ Deno.serve(async (req) => {
         const allowedEventTypes = allowedEventTypesSetting ? allowedEventTypesSetting.split(',').map((t: string) => t.trim()) : ['deal_add', 'deal_update', 'deal_state'];
         // FIX: Default to WRITE mode. Shadow only if EXPLICITLY enabled or writes EXPLICITLY disabled.
         // Before: !writeModeSetting caused shadow mode when setting didn't exist in DB
+        const defaultLostMotivoId = settings?.find(s => s.key === 'DEFAULT_LOST_MOTIVO_ID')?.value || null;
         const isShadowMode = shadowModeSetting || writeModeSetting === 'false';
         console.log(`[integration-process] Mode: ${isShadowMode ? 'SHADOW' : 'WRITE'} (shadow=${shadowModeSetting}, write=${writeModeSetting || 'not_set'})`);
 
@@ -1463,6 +1464,12 @@ Deno.serve(async (req) => {
                             targetStageId = finalLostStage.id;
                             topology = resolveTopology(targetStageId);
                             log += ` [AC status=lost -> forced to Fechado-Perdido (pipeline: ${topology?.pipelineName || 'unknown'})]`;
+                        }
+
+                        // Set default loss reason for AC-originated losses (only if card doesn't already have one)
+                        if (defaultLostMotivoId && !existingCard?.motivo_perda_id) {
+                            cardPayload.motivo_perda_id = defaultLostMotivoId;
+                            log += ` [motivo_perda: default=${defaultLostMotivoId}]`;
                         }
                     }
 
