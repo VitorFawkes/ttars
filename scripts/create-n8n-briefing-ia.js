@@ -32,9 +32,9 @@ if (!API_KEY) {
 // AI PROMPTS
 // ============================================================================
 
-const SYSTEM_PROMPT = `Você é um assistente de CRM especializado em viagens de alto padrão, trabalhando para a Welcome Trips — uma agência premium de planejamento de viagens personalizadas.
+const SYSTEM_PROMPT = `Você é um extrator de dados de CRM para a Welcome Trips — agência premium de viagens personalizadas.
 
-Sua função é processar relatórios verbais de consultores de viagem e transformá-los em dados estruturados para o CRM.
+Sua ÚNICA função é: receber transcrição de áudio de consultor → retornar JSON com briefing + campos estruturados.
 
 ## REGRAS ABSOLUTAS
 
@@ -48,6 +48,13 @@ Sua função é processar relatórios verbais de consultores de viagem e transfo
 8. Números devem ser números puros (sem formatação)
 9. Booleanos devem ser true ou false
 10. Para campos select/multiselect, use APENAS os valores permitidos
+
+## PROIBIÇÕES (CRÍTICO)
+- NUNCA analise ou comente sobre a qualidade/completude dos dados
+- NUNCA sugira "próximos passos", "aguardar mais informações" ou recomendações ao consultor
+- NUNCA escreva como se estivesse conversando com alguém — você é um EXTRATOR, não um assistente
+- NUNCA encha o briefing com conteúdo inventado para parecer mais completo
+- Se a transcrição é curta, o briefing DEVE ser curto (1-3 frases). Não invente.
 
 ## QUALIDADE
 - Prefira não extrair a extrair informação duvidosa
@@ -245,7 +252,12 @@ return [{ json: {
 }}];`;
 
 const CODE_VALIDA_OUTPUT = `// Valida e estrutura output do AI (respeita visibilidade)
-const aiOutput = $('7. AI Briefing').first().json.output || '{}';
+const aiNode = $('7. AI Briefing').first().json;
+// Agent node pode retornar em diferentes paths dependendo da versão
+const aiOutput = aiNode.output || aiNode.text || aiNode.message || aiNode.content || '{}';
+console.log('[BriefingIA] AI output type:', typeof aiOutput, '| keys:', Object.keys(aiNode).join(','));
+console.log('[BriefingIA] AI output preview:', String(aiOutput).substring(0, 500));
+
 const contextData = $('6. Monta Contexto').first().json;
 const config = contextData.field_config;
 const card_id = contextData.card_id;
@@ -254,23 +266,50 @@ const transcription = contextData.transcription;
 const hiddenFields = new Set(contextData.hidden_fields || []);
 const fields = config.fields || [];
 
-// Parse AI JSON
+// Parse AI JSON — tentar múltiplas estratégias
 let parsed = {};
 try {
   let clean = aiOutput;
   if (typeof clean === 'string') {
+    // Remover markdown wrapping
     clean = clean.replace(/\\\`\\\`\\\`json\\n?/g, '').replace(/\\\`\\\`\\\`\\n?/g, '').trim();
+    // Remover qualquer texto antes do primeiro { e depois do último }
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.substring(firstBrace, lastBrace + 1);
+    }
     parsed = JSON.parse(clean);
-  } else {
+  } else if (typeof clean === 'object' && clean !== null) {
     parsed = clean;
   }
 } catch (e) {
   console.log('[BriefingIA] Erro ao parsear JSON do AI:', e.message);
+  console.log('[BriefingIA] Raw output:', String(aiOutput).substring(0, 1000));
   parsed = {};
 }
 
 const briefingText = parsed.briefing_text || '';
-const camposRaw = parsed.campos || parsed.extracted_fields || {};
+
+// Tentar extrair campos de múltiplos formatos possíveis
+let camposRaw = parsed.campos || parsed.extracted_fields || {};
+
+// Fallback: se campos está vazio, verificar se a IA colocou campos no root do JSON
+if (Object.keys(camposRaw).length === 0) {
+  const knownFieldKeys = new Set(fields.map(f => f.key));
+  const rootCampos = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key !== 'briefing_text' && key !== 'campos' && key !== 'extracted_fields' && knownFieldKeys.has(key)) {
+      rootCampos[key] = value;
+    }
+  }
+  if (Object.keys(rootCampos).length > 0) {
+    console.log('[BriefingIA] Campos encontrados no root do JSON (fallback):', Object.keys(rootCampos).join(', '));
+    camposRaw = rootCampos;
+  }
+}
+
+console.log('[BriefingIA] Briefing length:', briefingText.length, '| Campos raw keys:', Object.keys(camposRaw).join(','));
 
 // Validação DINÂMICA baseada na config (mesmo padrão do Atualizador Campos)
 const fieldMap = {};
@@ -897,16 +936,23 @@ Seção de dados: {{ $json.section_info.obsLabel }}
 
 # TAREFA 1: BRIEFING (campo "briefing_text")
 
-{{ $json.mode === 'novo' ? 'Gere um resumo executivo e profissional do que foi relatado pelo consultor.' : 'Gere um resumo executivo e profissional ATUALIZADO que incorpore tanto o briefing anterior quanto as novas informacoes deste audio. O resultado deve ser um texto unico e coeso.' }}
+{{ $json.mode === 'novo' ? 'Gere um resumo factual do que foi relatado pelo consultor.' : 'Gere um resumo factual ATUALIZADO que incorpore tanto o briefing anterior quanto as novas informacoes deste audio. O resultado deve ser um texto unico e coeso.' }}
 
 **Regras do briefing:**
 - Escreva em terceira pessoa e tom profissional: "O cliente deseja...", "O casal planeja..."
-- Organize por temas: perfil do viajante, destino, época/duração, orçamento, preferências, restrições
-- Inclua TODOS os detalhes relevantes mencionados, sem omitir nada importante
+- APENAS resuma o que o consultor DISSE. Nada mais, nada menos.
+- Se a transcrição é curta (1-2 frases), o briefing deve ser curto (1-3 frases). NUNCA encha com conteúdo inventado.
+- Organize por temas quando houver conteúdo suficiente: destino, época/duração, orçamento, preferências
 - Limpe repetições e hesitações típicas de fala transcrita, mas preserve toda a informação
-- Se o consultor mencionou ações pendentes ("preciso enviar proposta", "vou agendar reunião"), registre como "Próximos Passos" no final
+- PROIBIDO: "Próximos Passos", "Aguardar", sugestões, análises, recomendações
+- PROIBIDO: comentar sobre o que FALTA no briefing ou sobre qualidade dos dados
 - Máximo 600 palavras
 - NÃO invente informações que o consultor não mencionou
+
+**Exemplo:**
+Transcrição: "Esse cliente está indo para Maldivas e precisa fazer uma rota diferenciada"
+Briefing correto: "O cliente deseja viajar para as Maldivas com um roteiro diferenciado e personalizado."
+Briefing ERRADO: "O cliente mencionou interesse em Maldivas com necessidade de rota diferenciada, mas ainda sem outros parâmetros definidos. Próximos Passos: Aguardar novos relatos..."
 
 # TAREFA 2: CAMPOS ESTRUTURADOS
 
