@@ -21,6 +21,109 @@ import { useFieldLock } from '../../hooks/useFieldLock'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
 
+interface MondeHistoricoEntry {
+    numero: string
+    origem: 'original' | 'sub_card' | 'manual'
+    sub_card_id: string | null
+    sub_card_titulo: string | null
+    adicionado_em: string
+}
+
+function MondeNumbersChipInput({
+    primaryNumber,
+    historico,
+    onChange
+}: {
+    primaryNumber: string | null | undefined
+    historico: MondeHistoricoEntry[]
+    onChange?: (val: { primary: string | null, historico: MondeHistoricoEntry[] }) => void
+}) {
+    const [inputValue, setInputValue] = useState('')
+
+    // Internal state for the entries — initialized from props, then managed locally
+    const [entries, setEntries] = useState<MondeHistoricoEntry[]>(() => {
+        if (historico.length > 0) return historico
+        if (primaryNumber) {
+            return [{
+                numero: String(primaryNumber),
+                origem: 'original' as const,
+                sub_card_id: null,
+                sub_card_titulo: null,
+                adicionado_em: new Date().toISOString()
+            }]
+        }
+        return []
+    })
+
+    const addNumber = (raw: string) => {
+        const val = raw.trim().replace(/[^0-9]/g, '')
+        if (!val) { setInputValue(''); return }
+        if (entries.some(e => e.numero === val)) { setInputValue(''); return }
+
+        const newEntry: MondeHistoricoEntry = {
+            numero: val,
+            origem: 'manual',
+            sub_card_id: null,
+            sub_card_titulo: null,
+            adicionado_em: new Date().toISOString()
+        }
+        const updated = [...entries, newEntry]
+        setEntries(updated)
+        onChange?.({ primary: val, historico: updated })
+        setInputValue('')
+    }
+
+    const removeNumber = (index: number) => {
+        const updated = [...entries]
+        updated.splice(index, 1)
+        setEntries(updated)
+        const newPrimary = updated.length > 0 ? updated[updated.length - 1].numero : null
+        onChange?.({ primary: newPrimary, historico: updated })
+    }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-lg bg-white min-h-[80px] content-start">
+                {entries.map((entry, i) => (
+                    <span key={`${entry.numero}-${i}`} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                        <Hash className="h-3 w-3" /> {entry.numero}
+                        {entry.origem === 'sub_card' && (
+                            <span className="text-[9px] text-blue-500 ml-0.5">(alt)</span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => removeNumber(i)}
+                            className="ml-0.5 p-0.5 text-blue-400 hover:text-blue-600 hover:bg-blue-200 rounded-full"
+                        >
+                            <X className="h-3 w-3" />
+                        </button>
+                    </span>
+                ))}
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value.replace(/[^0-9]/g, ''))}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            addNumber(inputValue)
+                        }
+                    }}
+                    onBlur={() => { if (inputValue.trim()) addNumber(inputValue) }}
+                    className="flex-1 min-w-[120px] border-none shadow-none focus:outline-none focus:ring-0 p-1 text-xs bg-transparent h-auto"
+                    placeholder={entries.length ? 'Adicionar outro número...' : 'Digite o número e pressione Enter...'}
+                    autoFocus
+                />
+            </div>
+            <p className="text-xs text-gray-500">
+                Pressione Enter ou vírgula para adicionar cada número. O último adicionado será o principal.
+            </p>
+        </div>
+    )
+}
+
 function DestinosChipInput({ destinos, onChange }: { destinos: string[], onChange?: (val: string[]) => void }) {
     const [inputValue, setInputValue] = useState('')
 
@@ -258,6 +361,24 @@ export default function UniversalFieldRenderer({
 
     // --- EDIT MODE ---
     if (mode === 'edit') {
+        // Special case: numero_venda_monde supports multiple numbers
+        if (field.key === 'numero_venda_monde') {
+            const existingHistorico: MondeHistoricoEntry[] = Array.isArray(extraData?.numeros_venda_monde_historico)
+                ? extraData.numeros_venda_monde_historico
+                : []
+            // value may be a plain string/number (initial) or structured { primary, historico } after edits
+            const initialPrimary = typeof value === 'object' && value !== null && 'primary' in value
+                ? value.primary
+                : (value != null ? String(value) : null)
+            return (
+                <MondeNumbersChipInput
+                    primaryNumber={initialPrimary}
+                    historico={existingHistorico}
+                    onChange={(result) => onChange?.(result)}
+                />
+            )
+        }
+
         // Special case: destinos field uses comma-separated text input
         if (field.key === 'destinos') {
             const destinos = Array.isArray(value) ? value : []

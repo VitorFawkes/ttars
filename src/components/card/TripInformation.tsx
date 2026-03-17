@@ -220,7 +220,19 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         mutationFn: async ({ fieldKey, fieldValue }: { fieldKey: string, fieldValue: unknown }) => {
             const target = viewMode === SystemPhase.SDR ? 'briefing_inicial' : 'produto_data'
             const baseData = target === 'briefing_inicial' ? briefingData : productData
-            const newData = { ...baseData, [fieldKey]: fieldValue }
+
+            // Special handling: numero_venda_monde returns { primary, historico }
+            let newData: Record<string, unknown>
+            if (fieldKey === 'numero_venda_monde' && typeof fieldValue === 'object' && fieldValue !== null && 'primary' in fieldValue && 'historico' in fieldValue) {
+                const mondeResult = fieldValue as { primary: string | null, historico: unknown[] }
+                newData = {
+                    ...baseData,
+                    numero_venda_monde: mondeResult.primary,
+                    numeros_venda_monde_historico: mondeResult.historico
+                }
+            } else {
+                newData = { ...baseData, [fieldKey]: fieldValue }
+            }
 
             const updates: Record<string, unknown> = { [target]: newData }
 
@@ -442,6 +454,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                         value={editValue}
                         mode="edit"
                         onChange={(val) => setEditValue(val)}
+                        extraData={editingFieldConfig.key === 'numero_venda_monde' ? activeData : undefined}
                     />
                 )}
             </EditModal>
