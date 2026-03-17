@@ -1425,6 +1425,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 initialMotivoId={card.motivo_perda_id}
                 initialComentario={card.motivo_perda_comentario}
                 isEditing={card.status_comercial === 'perdido'}
+                cardTitle={card.titulo || undefined}
             />
         </>
     )

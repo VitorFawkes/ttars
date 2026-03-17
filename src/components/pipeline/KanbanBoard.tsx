@@ -889,6 +889,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         onConfirm={handleConfirmLossReason}
                                         targetStageId={pendingMove.stageId}
                                         targetStageName={pendingMove.targetStageName}
+                                        cardTitle={allCards?.find(c => c.id === pendingMove.cardId)?.titulo || undefined}
                                     />
                                 </>
                             )}

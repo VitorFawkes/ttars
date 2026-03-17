@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
@@ -25,6 +24,7 @@ interface LossReasonModalProps {
     initialMotivoId?: string | null;
     initialComentario?: string | null;
     isEditing?: boolean;
+    cardTitle?: string;
 }
 
 export default function LossReasonModal({
@@ -35,7 +35,8 @@ export default function LossReasonModal({
     targetStageName,
     initialMotivoId,
     initialComentario,
-    isEditing = false
+    isEditing = false,
+    cardTitle
 }: LossReasonModalProps) {
     const [motivoId, setMotivoId] = useState(initialMotivoId || '');
     const [comentario, setComentario] = useState(initialComentario || '');
@@ -51,11 +52,11 @@ export default function LossReasonModal({
         if (isOpen) {
             setMotivoId(initialMotivoId || '');
             setComentario(initialComentario || '');
-            setFutureTitle('');
+            setFutureTitle(cardTitle ? `${cardTitle} — Oportunidade Futura` : '');
             setFutureDate('');
             setError(null);
         }
-    }, [isOpen, initialMotivoId, initialComentario]);
+    }, [isOpen, initialMotivoId, initialComentario, cardTitle]);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     // 1. Get Governance Rules for this stage
@@ -131,8 +132,6 @@ export default function LossReasonModal({
         onConfirm(motivoId, comentario, futureData);
     };
 
-    const reasonOptions = reasons?.map(r => ({ value: r.id, label: r.nome })) || [];
-
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-[500px]">
@@ -167,18 +166,19 @@ export default function LossReasonModal({
                         {isLoading ? (
                             <div className="h-10 w-full bg-slate-100 animate-pulse rounded-md" />
                         ) : (
-                            <Select
+                            <select
                                 value={motivoId}
-                                onChange={setMotivoId}
-                                options={[
-                                    { value: '', label: 'Selecione um motivo...' },
-                                    ...reasonOptions
-                                ]}
+                                onChange={(e) => setMotivoId(e.target.value)}
                                 className={cn(
-                                    "w-full",
+                                    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer",
                                     error && !motivoId && isMotivoRequired && "border-red-300 ring-red-100"
                                 )}
-                            />
+                            >
+                                <option value="">Selecione um motivo...</option>
+                                {reasons?.map(r => (
+                                    <option key={r.id} value={r.id}>{r.nome}</option>
+                                ))}
+                            </select>
                         )}
                     </div>
 

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Save, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -13,6 +13,7 @@ import { Button } from '../ui/Button'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import type { Database } from '../../database.types'
+import { cn } from '../../lib/utils'
 
 type Tarefa = Database['public']['Tables']['tarefas']['Row']
 type TarefaUpdate = Database['public']['Tables']['tarefas']['Update']
@@ -99,6 +100,83 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
+
+    // Fetch pending future opportunities for this card
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: futureOpps } = useQuery<any[]>({
+        queryKey: ['future-opportunities', cardId],
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any)
+                .from('future_opportunities')
+                .select('id, titulo, scheduled_date, status')
+                .eq('source_card_id', cardId)
+                .in('status', ['pending', 'failed'])
+                .order('scheduled_date')
+            if (error) throw error
+            return data || []
+        }
+    })
+
+    // Inline edit state for future opportunities
+    const [editingOppId, setEditingOppId] = useState<string | null>(null)
+    const [editOppTitle, setEditOppTitle] = useState('')
+    const [editOppDate, setEditOppDate] = useState('')
+    const [cancellingOppId, setCancellingOppId] = useState<string | null>(null)
+
+    // Min date for future opportunities = tomorrow
+    const futureMinDate = (() => {
+        const d = new Date()
+        d.setDate(d.getDate() + 1)
+        return d.toISOString().split('T')[0]
+    })()
+
+    const startEditOpp = (opp: { id: string; titulo: string; scheduled_date: string }) => {
+        setEditingOppId(opp.id)
+        setEditOppTitle(opp.titulo)
+        setEditOppDate(opp.scheduled_date)
+    }
+
+    const saveOppEdit = async () => {
+        if (!editingOppId || !editOppTitle.trim() || !editOppDate) return
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).from('future_opportunities').update({
+                titulo: editOppTitle.trim(),
+                scheduled_date: editOppDate
+            } as Record<string, unknown>).eq('id', editingOppId)
+            queryClient.invalidateQueries({ queryKey: ['future-opportunities', cardId] })
+            setEditingOppId(null)
+            toast.success('Oportunidade futura atualizada')
+        } catch (err) {
+            console.error('Erro ao atualizar oportunidade futura:', err)
+            toast.error('Erro ao atualizar')
+        }
+    }
+
+    const cancelOpp = async (oppId: string) => {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).from('future_opportunities').update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString()
+            } as Record<string, unknown>).eq('id', oppId)
+            queryClient.invalidateQueries({ queryKey: ['future-opportunities', cardId] })
+            setCancellingOppId(null)
+            toast.success('Oportunidade futura cancelada')
+        } catch (err) {
+            console.error('Erro ao cancelar oportunidade futura:', err)
+            toast.error('Erro ao cancelar')
+        }
+    }
+
+    // Reset cancel confirmation if clicking elsewhere
+    useEffect(() => {
+        if (cancellingOppId) {
+            const timer = setTimeout(() => setCancellingOppId(null), 5000)
+            return () => clearTimeout(timer)
+        }
+    }, [cancellingOppId])
 
     const getProfileName = (id: string | null | undefined) => {
         if (!id || !profiles) return null
@@ -342,6 +420,87 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                 <Plus className="w-3 h-3" />
                                 Criar
                             </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Future Opportunities — pending/failed */}
+            {futureOpps && futureOpps.length > 0 && (
+                <div className="border-b border-blue-100">
+                    {futureOpps.map((opp: { id: string; titulo: string; scheduled_date: string; status: string }) => (
+                        <div key={opp.id} className={cn(
+                            "px-3 py-2",
+                            opp.status === 'failed' ? "bg-red-50" : "bg-blue-50"
+                        )}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <CalendarClock className={cn("w-3.5 h-3.5 flex-shrink-0", opp.status === 'failed' ? "text-red-500" : "text-blue-500")} />
+                                <span className={cn("text-[10px] font-semibold uppercase tracking-wider", opp.status === 'failed' ? "text-red-600" : "text-blue-600")}>
+                                    {opp.status === 'failed' ? 'Oportunidade Futura — Falhou' : 'Oportunidade Futura Agendada'}
+                                </span>
+                            </div>
+
+                            {editingOppId === opp.id ? (
+                                <div className="space-y-1.5 ml-5.5">
+                                    <input
+                                        type="text"
+                                        value={editOppTitle}
+                                        onChange={(e) => setEditOppTitle(e.target.value)}
+                                        className="w-full text-xs border border-blue-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                                        autoFocus
+                                        onKeyDown={(e) => e.key === 'Enter' && saveOppEdit()}
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="date"
+                                            value={editOppDate}
+                                            onChange={(e) => setEditOppDate(e.target.value)}
+                                            min={futureMinDate}
+                                            className="text-xs border border-blue-300 rounded px-2 py-1 bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                                        />
+                                        <button onClick={saveOppEdit} className="text-blue-600 hover:text-blue-800" title="Salvar">
+                                            <Save className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => setEditingOppId(null)} className="text-gray-400 hover:text-gray-600" title="Cancelar edição">
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between ml-5.5">
+                                    <button
+                                        onClick={() => startEditOpp(opp)}
+                                        className="text-left group flex-1 min-w-0"
+                                        title="Clique para editar"
+                                    >
+                                        <p className="text-xs font-medium text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                                            {opp.titulo}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5">
+                                            <Calendar className="w-3 h-3" />
+                                            {format(new Date(opp.scheduled_date + 'T12:00:00'), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                                        </p>
+                                    </button>
+                                    <div className="flex-shrink-0 ml-2">
+                                        {cancellingOppId === opp.id ? (
+                                            <button
+                                                onClick={() => cancelOpp(opp.id)}
+                                                className="text-[10px] font-medium text-red-600 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-full transition-colors"
+                                            >
+                                                Confirmar cancelamento
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setCancellingOppId(opp.id)}
+                                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Cancelar oportunidade"
+                                            >
+                                                <XCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

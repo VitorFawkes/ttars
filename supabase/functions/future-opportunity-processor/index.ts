@@ -30,13 +30,13 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // 1. Buscar oportunidades pendentes cuja data já chegou
+    // 1. Buscar oportunidades pendentes ou com falha cuja data já chegou
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
     const { data: pendingOpps, error: fetchError } = await supabase
       .from("future_opportunities")
-      .select("id, source_type, titulo, source_card_id")
-      .eq("status", "pending")
+      .select("id, source_type, titulo, source_card_id, status")
+      .in("status", ["pending", "failed"])
       .lte("scheduled_date", today)
       .order("scheduled_date", { ascending: true });
 
@@ -90,16 +90,24 @@ serve(async (req) => {
           console.log(`✓ ${opp.source_type} processado: ${opp.titulo} (opp ${opp.id})`);
           results.push({ id: opp.id, success: true });
         } else {
-          console.error(`✗ Falha RPC para ${opp.id}: ${result?.error}`);
-          results.push({ id: opp.id, success: false, error: result?.error });
+          const errMsg = result?.error || "RPC retornou falha sem detalhe";
+          console.error(`✗ Falha RPC para ${opp.id}: ${errMsg}`);
+          // Marcar como failed para visibilidade no frontend
+          await supabase.from("future_opportunities").update({
+            status: "failed",
+            metadata: { error: errMsg, failed_at: new Date().toISOString() },
+          }).eq("id", opp.id);
+          results.push({ id: opp.id, success: false, error: errMsg });
         }
       } catch (err) {
-        console.error(`✗ Erro ao processar ${opp.id}:`, err);
-        results.push({
-          id: opp.id,
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`✗ Erro ao processar ${opp.id}:`, errMsg);
+        // Marcar como failed para retry e visibilidade
+        await supabase.from("future_opportunities").update({
+          status: "failed",
+          metadata: { error: errMsg, failed_at: new Date().toISOString() },
+        }).eq("id", opp.id);
+        results.push({ id: opp.id, success: false, error: errMsg });
       }
     }
 
