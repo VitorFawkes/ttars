@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -123,6 +123,21 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     const [editOppTitle, setEditOppTitle] = useState('')
     const [editOppDate, setEditOppDate] = useState('')
     const [cancellingOppId, setCancellingOppId] = useState<string | null>(null)
+    const editOppRef = useRef<HTMLDivElement>(null)
+
+    // Click outside to close edit mode
+    const handleClickOutsideOpp = useCallback((e: MouseEvent) => {
+        if (editOppRef.current && !editOppRef.current.contains(e.target as Node)) {
+            setEditingOppId(null)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (editingOppId) {
+            document.addEventListener('mousedown', handleClickOutsideOpp)
+            return () => document.removeEventListener('mousedown', handleClickOutsideOpp)
+        }
+    }, [editingOppId, handleClickOutsideOpp])
 
     // Min date for future opportunities = tomorrow
     const futureMinDate = (() => {
@@ -452,7 +467,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                     </div>
 
                                     {/* Content */}
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0" ref={isEditing ? editOppRef : undefined}>
                                         {isEditing ? (
                                             /* ── Edit Mode ── */
                                             <div className="space-y-2">

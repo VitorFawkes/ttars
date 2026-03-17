@@ -774,7 +774,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                         responsavel_id: card.dono_atual_id,
                         pessoa_principal_id: card.pessoa_principal_id,
                     } as Record<string, unknown>)
-                    queryClient.invalidateQueries({ queryKey: ['future-opportunities', card.id] })
+                    await queryClient.refetchQueries({ queryKey: ['future-opportunities', card.id] })
                 } catch (err) {
                     console.error('Erro ao agendar oportunidade futura:', err)
                 }

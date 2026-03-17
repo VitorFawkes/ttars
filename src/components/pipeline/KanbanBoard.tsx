@@ -696,7 +696,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                             pessoa_principal_id: card.pessoa_principal_id,
                             created_by: session?.user?.id || null,
                         } as Record<string, unknown>)
-                        queryClient.invalidateQueries({ queryKey: ['future-opportunities', pendingMove.cardId] })
+                        await queryClient.refetchQueries({ queryKey: ['future-opportunities', pendingMove.cardId] })
                     } catch (err) {
                         console.error('Erro ao agendar oportunidade futura:', err)
                     }
