@@ -142,6 +142,13 @@ export default function DynamicSectionWidget({
     const queryClient = useQueryClient()
     const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
 
+    // Sync collapse state when defaultCollapsed changes (render-time pattern)
+    const [prevDefaultCollapsed, setPrevDefaultCollapsed] = useState(defaultCollapsed)
+    if (prevDefaultCollapsed !== defaultCollapsed) {
+        setPrevDefaultCollapsed(defaultCollapsed)
+        if (defaultCollapsed) setIsExpanded(false)
+    }
+
     // Data Sources - Unified data from both produto_data and marketing_data
     // Priority: produto_data (manual edits) > marketing_data (integration data)
     const productData = useMemo(() => {
@@ -411,6 +418,13 @@ interface CollapsibleWidgetSectionProps {
 function CollapsibleWidgetSection({ section, card, defaultCollapsed = false, phaseSlug }: CollapsibleWidgetSectionProps) {
     const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
+
+    // Sync collapse state when defaultCollapsed changes (render-time pattern)
+    const [prevDefaultCollapsed, setPrevDefaultCollapsed] = useState(defaultCollapsed)
+    if (prevDefaultCollapsed !== defaultCollapsed) {
+        setPrevDefaultCollapsed(defaultCollapsed)
+        if (defaultCollapsed) setIsExpanded(false)
+    }
 
     if (!isExpanded) {
         return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} />

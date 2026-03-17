@@ -52,16 +52,18 @@ export default function Sidebar() {
             onMouseLeave={() => setIsExpanded(false)}
         >
             {/* Header */}
-            <div className="flex h-16 items-center px-4 gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
-                    <span className="text-sm font-bold text-white">W</span>
-                </div>
-                <span className={cn(
-                    "text-lg font-semibold tracking-tight whitespace-nowrap transition-opacity duration-200",
-                    isExpanded ? "opacity-100" : "opacity-0"
-                )}>
-                    Welcome CRM
-                </span>
+            <div className={cn(
+                "flex items-center justify-center transition-all duration-300",
+                isExpanded ? "h-20 px-3" : "h-16 px-1"
+            )}>
+                <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className={cn(
+                        "object-contain brightness-0 invert transition-all duration-300",
+                        isExpanded ? "w-full max-w-[180px]" : "w-full max-w-[48px]"
+                    )}
+                />
             </div>
 
             {/* Global Product Switcher - Always visible, adapts to collapsed state */}

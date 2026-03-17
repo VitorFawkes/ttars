@@ -1,13 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, Eye, EyeOff } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, Eye, EyeOff, FoldVertical } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
 import { Select } from '../../ui/Select'
 import { Badge } from '../../ui/Badge'
 import { useToast } from '../../../contexts/ToastContext'
+import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
+import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
+import { supabase } from '../../../lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import {
     DndContext,
     closestCenter,
@@ -78,10 +82,35 @@ const defaultFormData: SectionFormData = {
 
 export default function SectionManager() {
     const { toast } = useToast()
+    const queryClient = useQueryClient()
     const { currentProduct } = useProductContext()
+    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
     // Fetch ALL sections (active + inactive) so admin can toggle visibility
     const { data: sections = [], isLoading } = useAllSections(currentProduct)
     const { createSection, updateSection, deleteSection, reorderSections } = useSectionMutations()
+    const { data: phases = [] } = usePipelinePhases(pipelineId)
+
+    // Collapse toggle per phase
+    const toggleSectionCollapse = async (sectionId: string, phaseSlug: string | null) => {
+        if (!phaseSlug) return
+        const section = sections.find(s => s.id === sectionId)
+        if (!section) return
+
+        const current = section.collapse_on_phases || []
+        const next = current.includes(phaseSlug)
+            ? current.filter((s: string) => s !== phaseSlug)
+            : [...current, phaseSlug]
+
+        // Optimistic update
+        queryClient.setQueryData(['sections', 'all-include-inactive', currentProduct], (old: typeof sections | undefined) => {
+            if (!old) return old
+            return old.map(s => s.id === sectionId ? { ...s, collapse_on_phases: next } : s)
+        })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await supabase.from('sections').update({ collapse_on_phases: next } as any).eq('id', sectionId)
+        queryClient.invalidateQueries({ queryKey: ['sections'] })
+    }
 
     const [isAdding, setIsAdding] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -353,6 +382,8 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    phases={phases}
+                    onToggleCollapse={toggleSectionCollapse}
                 />
 
                 {/* Right Column */}
@@ -367,6 +398,8 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    phases={phases}
+                    onToggleCollapse={toggleSectionCollapse}
                 />
             </div>
         </div>
@@ -385,9 +418,11 @@ interface SectionColumnProps {
     onEdit: (section: Section) => void
     onDelete: (section: Section) => void
     onToggleActive: (section: Section) => void
+    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
+    onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive }: SectionColumnProps) {
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases, onToggleCollapse }: SectionColumnProps) {
     const totalCount = activeSections.length + inactiveSections.length
 
     return (
@@ -420,6 +455,8 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                             onEdit={() => onEdit(section)}
                                             onDelete={() => onDelete(section)}
                                             onToggleActive={() => onToggleActive(section)}
+                                            phases={phases}
+                                            onToggleCollapse={onToggleCollapse}
                                         />
                                     ))}
                                 </div>
@@ -443,6 +480,8 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                     onEdit={() => onEdit(section)}
                                     onDelete={() => onDelete(section)}
                                     onToggleActive={() => onToggleActive(section)}
+                                    phases={phases}
+                                    onToggleCollapse={onToggleCollapse}
                                 />
                             ))}
                         </div>
@@ -460,11 +499,16 @@ interface SortableSectionCardProps {
     onEdit: () => void
     onDelete: () => void
     onToggleActive: () => void
+    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
+    onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases, onToggleCollapse }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
     const isInactive = !section.active
+    const [showCollapse, setShowCollapse] = useState(false)
+    const collapsePhases = section.collapse_on_phases || []
+    const hasCollapseRules = collapsePhases.length > 0
 
     const {
         attributes,
@@ -490,7 +534,7 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
             ref={setNodeRef}
             style={style}
             className={cn(
-                "flex items-center gap-3 p-3 rounded-lg border transition-all bg-card",
+                "flex flex-wrap items-center gap-3 p-3 rounded-lg border transition-all bg-card",
                 isEditing ? "ring-2 ring-primary border-primary" : "border-border hover:shadow-sm",
                 isDragging && "shadow-lg",
                 isHardcoded && "opacity-60",
@@ -542,6 +586,21 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
 
             {/* Actions */}
             <div className="flex items-center gap-1">
+                {/* Collapse Rules Toggle */}
+                {!isHardcoded && !isInactive && (
+                    <button
+                        onClick={() => setShowCollapse(prev => !prev)}
+                        className={cn(
+                            "p-1.5 rounded transition-colors",
+                            hasCollapseRules || showCollapse
+                                ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
+                                : "text-muted-foreground hover:text-amber-600 hover:bg-amber-50"
+                        )}
+                        title="Auto-recolher por fase"
+                    >
+                        <FoldVertical className="w-4 h-4" />
+                    </button>
+                )}
                 {/* Visibility Toggle */}
                 {!isHardcoded && (
                     <button
@@ -574,6 +633,32 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                     </button>
                 )}
             </div>
+
+            {/* Collapse Rules Panel */}
+            {showCollapse && (
+                <div className="w-full border-t border-border pt-2 mt-1">
+                    <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Auto-recolher nas fases:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {phases.map(phase => {
+                            const isCollapsed = collapsePhases.includes(phase.slug || '')
+                            return (
+                                <button
+                                    key={phase.id}
+                                    onClick={() => onToggleCollapse(section.id, phase.slug)}
+                                    className={cn(
+                                        "px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
+                                        isCollapsed
+                                            ? "bg-amber-100 text-amber-700 border-amber-300"
+                                            : "bg-muted/50 text-muted-foreground border-border hover:border-amber-300 hover:text-amber-600"
+                                    )}
+                                >
+                                    {phase.name}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
