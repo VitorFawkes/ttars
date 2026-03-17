@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -204,6 +204,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const contentRef = useRef<HTMLDivElement>(null)
     const [showContactSelector, setShowContactSelector] = useState(false)
     const [showMoreStages, setShowMoreStages] = useState(false)
+    const [showMoreOwners, setShowMoreOwners] = useState(false)
+    const [showObservacoes, setShowObservacoes] = useState(false)
     const { currentProduct } = useProductContext()
 
     // Scroll to top when modal opens or when returning from ContactSelector
@@ -295,8 +297,22 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Get allowed stages for user's team
     const { allowedStages, isLoading: loadingStages, isAdmin } = useAllowedStages(formData.produto)
 
-    // Derived: effective stage ID (user selection or first available)
-    const effectiveStageId = formData.selectedStageId ?? (allowedStages.length > 0 ? allowedStages[0].id : null)
+    // Determine user's phase for smart defaults
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
+    const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR' : userPhaseSlug === 'planner' ? 'Planner' : userPhaseSlug === 'pos_venda' ? 'Pós-venda' : null
+
+    // Derived: effective stage ID — prefers first stage of user's phase, then first available
+    const effectiveStageId = useMemo(() => {
+        if (formData.selectedStageId) return formData.selectedStageId
+        if (allowedStages.length === 0) return null
+        // Try to find first stage matching user's phase
+        if (userPhaseName) {
+            const phaseStage = allowedStages.find(s => s.fase === userPhaseName)
+            if (phaseStage) return phaseStage.id
+        }
+        return allowedStages[0].id
+    }, [formData.selectedStageId, allowedStages, userPhaseName])
 
     // Track last isOpen state to detect modal opening
     const wasOpenRef = useRef(false)
@@ -321,9 +337,12 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             setAudioBlob(null)
             setBriefingStep('idle')
             setBriefingResult(null)
+            setShowMoreOwners(false)
+            setShowObservacoes(false)
+            setShowMoreStages(false)
         }
         wasOpenRef.current = isOpen
-    }, [isOpen, initialOwners])
+    }, [isOpen, initialOwners, currentProduct])
 
 
     // Get pipeline ID for the selected product
@@ -504,14 +523,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-6 py-4">
-                        {/* Section: Basic Info */}
+                    <div className="space-y-5 py-4">
+                        {/* Section 1: Título + Contato (essential) */}
                         <section className="space-y-4">
-                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                                Informações Básicas
-                            </h3>
-
                             {/* Title */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -563,19 +577,138 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 )}
                             </div>
 
-                            {/* Product (locked to current product) */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    Produto
-                                </label>
-                                <div className="w-full h-11 px-4 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 flex items-center text-sm">
-                                    {currentProduct}
-                                </div>
+                            {/* Product - compact inline */}
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span>Produto:</span>
+                                <span className="px-2 py-0.5 bg-slate-100 rounded font-medium text-slate-700">{currentProduct}</span>
                             </div>
                         </section>
 
-                        {/* Section: Lead Origin */}
-                        <section className="space-y-4">
+                        <div className="border-t border-slate-100" />
+
+                        {/* Section 2: Etapa Inicial — moved up for quick context */}
+                        <section className="space-y-3">
+                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Criar card em <span className="text-red-500">*</span>
+                            </h3>
+
+                            {loadingStages ? (
+                                <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                    <span className="ml-2 text-sm text-slate-500">Carregando etapas...</span>
+                                </div>
+                            ) : allowedStages.length === 0 ? (
+                                <div className="text-center py-3 px-4 text-sm text-amber-600 bg-amber-50 rounded-lg border border-amber-200">
+                                    Nenhuma etapa disponível para seu time.
+                                </div>
+                            ) : (
+                                <QuickStageSelector
+                                    stages={allowedStages}
+                                    selectedStageId={effectiveStageId}
+                                    onSelect={(id) => setFormData({ ...formData, selectedStageId: id })}
+                                    showMore={showMoreStages}
+                                    onToggleMore={() => setShowMoreStages(!showMoreStages)}
+                                />
+                            )}
+
+                            {isAdmin && (
+                                <p className="text-xs text-slate-500">
+                                    Você tem acesso a todas as etapas (admin).
+                                </p>
+                            )}
+                        </section>
+
+                        <div className="border-t border-slate-100" />
+
+                        {/* Section 3: Atribuição — primary owner visible, others collapsible */}
+                        <section className="space-y-3">
+                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                                Atribuição
+                            </h3>
+
+                            {(() => {
+                                const effectivePhase = userPhaseSlug ?? (profile?.is_admin ? 'planner' : null)
+
+                                const allOwnerFields = [
+                                    { key: 'sdr', label: 'SDR Responsável', value: formData.sdr_owner_id, phaseSlug: 'sdr' as const, placeholder: 'Selecionar SDR',
+                                      onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, sdr_owner_id: id, sdr_owner_nome: nome }) },
+                                    { key: 'planner', label: 'Planner Responsável', value: formData.vendas_owner_id, phaseSlug: 'planner' as const, placeholder: 'Selecionar Planner',
+                                      onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, vendas_owner_id: id, vendas_owner_nome: nome }) },
+                                    { key: 'pos_venda', label: 'Pós-venda Responsável', value: formData.pos_owner_id, phaseSlug: 'pos_venda' as const, placeholder: 'Selecionar Pós-venda',
+                                      onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, pos_owner_id: id, pos_owner_nome: nome }) },
+                                ]
+
+                                const primaryOwner = allOwnerFields.find(o => o.key === effectivePhase) ?? allOwnerFields[1] // fallback to Planner
+                                const otherOwners = allOwnerFields.filter(o => o.key !== primaryOwner.key)
+
+                                return (
+                                    <>
+                                        {/* Primary owner - always visible */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                                {primaryOwner.label}
+                                            </label>
+                                            <OwnerSelector
+                                                value={primaryOwner.value}
+                                                onChange={primaryOwner.onChange}
+                                                product={formData.produto}
+                                                showNoSdrOption={true}
+                                                placeholder={primaryOwner.placeholder}
+                                                phaseSlug={primaryOwner.phaseSlug}
+                                            />
+                                        </div>
+
+                                        {/* Other owners - collapsible */}
+                                        <div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMoreOwners(!showMoreOwners)}
+                                                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors py-1 px-2 -mx-2 rounded hover:bg-slate-50"
+                                            >
+                                                <ChevronRight className={cn(
+                                                    'h-4 w-4 transition-transform duration-200',
+                                                    showMoreOwners && 'rotate-90'
+                                                )} />
+                                                Outros responsáveis
+                                                {(() => {
+                                                    const filledCount = otherOwners.filter(o => o.value).length
+                                                    return filledCount > 0 ? (
+                                                        <span className="ml-1 px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded-full">{filledCount}</span>
+                                                    ) : null
+                                                })()}
+                                            </button>
+
+                                            {showMoreOwners && (
+                                                <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                    {otherOwners.map(owner => (
+                                                        <div key={owner.key}>
+                                                            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                                                {owner.label}
+                                                            </label>
+                                                            <OwnerSelector
+                                                                value={owner.value}
+                                                                onChange={owner.onChange}
+                                                                product={formData.produto}
+                                                                showNoSdrOption={true}
+                                                                placeholder={owner.placeholder}
+                                                                phaseSlug={owner.phaseSlug}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )
+                            })()}
+                        </section>
+
+                        <div className="border-t border-slate-100" />
+
+                        {/* Section 4: Origem do Lead */}
+                        <section className="space-y-3">
                             <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
                                 Origem do Lead
@@ -741,208 +874,125 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             )}
                         </section>
 
-                        {/* Section: Observações & Briefing */}
-                        <section className="space-y-4">
-                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                        {/* Section 5: Observações & Briefing — collapsible at bottom */}
+                        <section>
+                            <button
+                                type="button"
+                                onClick={() => setShowObservacoes(!showObservacoes)}
+                                className="flex items-center gap-2 w-full text-left py-2 px-2 -mx-2 rounded hover:bg-slate-50 transition-colors"
+                            >
+                                <ChevronRight className={cn(
+                                    'h-4 w-4 text-slate-400 transition-transform duration-200',
+                                    showObservacoes && 'rotate-90'
+                                )} />
                                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                Observações & Briefing
-                            </h3>
+                                <span className="text-sm font-medium text-slate-700">Observações & Briefing</span>
+                                <span className="text-xs text-slate-400 font-normal">(opcional)</span>
+                                {/* Indicator when content exists */}
+                                {(observacao.trim() || audioBlob) && (
+                                    <span className="ml-auto px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                                        {[observacao.trim() && 'nota', audioBlob && 'áudio'].filter(Boolean).join(' + ')}
+                                    </span>
+                                )}
+                            </button>
 
-                            {/* Observação textarea */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    <FileText className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-slate-400" />
-                                    Observação
-                                </label>
-                                <Textarea
-                                    value={observacao}
-                                    onChange={(e) => setObservacao(e.target.value)}
-                                    placeholder="Observações gerais sobre o lead ou viagem..."
-                                    rows={3}
-                                    className="resize-none"
-                                    disabled={briefingStep === 'processing'}
-                                />
-                            </div>
-
-                            {/* Briefing IA (áudio) */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    <Sparkles className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-amber-500" />
-                                    Briefing IA
-                                    <span className="text-xs text-slate-400 font-normal ml-1.5">(opcional)</span>
-                                </label>
-                                <p className="text-xs text-slate-500 mb-2">
-                                    Grave um áudio descrevendo o lead. Após criar o card, a IA extrairá os dados automaticamente.
-                                </p>
-
-                                {briefingStep === 'idle' && (
+                            {showObservacoes && (
+                                <div className="space-y-4 pt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    {/* Observação textarea */}
                                     <div>
-                                        <AudioRecorder
-                                            onAudioReady={(blob) => setAudioBlob(blob)}
-                                            disabled={createCardMutation.isPending}
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                            <FileText className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-slate-400" />
+                                            Observação
+                                        </label>
+                                        <Textarea
+                                            value={observacao}
+                                            onChange={(e) => setObservacao(e.target.value)}
+                                            placeholder="Observações gerais sobre o lead ou viagem..."
+                                            rows={3}
+                                            className="resize-none"
+                                            disabled={briefingStep === 'processing'}
                                         />
-                                        {audioBlob && (
-                                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                                                <Mic className="h-3 w-3" />
-                                                Áudio pronto. Será processado automaticamente após criar o card.
-                                            </p>
+                                    </div>
+
+                                    {/* Briefing IA (áudio) */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-amber-500" />
+                                            Briefing IA
+                                            <span className="text-xs text-slate-400 font-normal ml-1.5">(opcional)</span>
+                                        </label>
+                                        <p className="text-xs text-slate-500 mb-2">
+                                            Grave um áudio descrevendo o lead. Após criar o card, a IA extrairá os dados automaticamente.
+                                        </p>
+
+                                        {briefingStep === 'idle' && (
+                                            <div>
+                                                <AudioRecorder
+                                                    onAudioReady={(blob) => setAudioBlob(blob)}
+                                                    disabled={createCardMutation.isPending}
+                                                />
+                                                {audioBlob && (
+                                                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                                                        <Mic className="h-3 w-3" />
+                                                        Áudio pronto. Será processado automaticamente após criar o card.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {briefingStep === 'processing' && (
+                                            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
+                                                    <p className="text-xs text-amber-600 mt-0.5">
+                                                        Transcrevendo e extraindo campos automaticamente
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {briefingStep === 'done' && briefingResult?.status === 'success' && (
+                                            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                                <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-green-800">
+                                                        Briefing gerado com sucesso!
+                                                    </p>
+                                                    <p className="text-xs text-green-600 mt-0.5">
+                                                        {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {briefingStep === 'done' && briefingResult?.status !== 'success' && (
+                                            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-amber-800">
+                                                        Briefing processado, sem dados novos extraídos
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {briefingStep === 'error' && (
+                                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-red-800">
+                                                        Erro no briefing IA
+                                                    </p>
+                                                    <p className="text-xs text-red-600 mt-0.5">
+                                                        Card foi criado. Processe o briefing depois na tela do card.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
-                                )}
-
-                                {briefingStep === 'processing' && (
-                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                        <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">
-                                                Transcrevendo e extraindo campos automaticamente
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {briefingStep === 'done' && briefingResult?.status === 'success' && (
-                                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-medium text-green-800">
-                                                Briefing gerado com sucesso!
-                                            </p>
-                                            <p className="text-xs text-green-600 mt-0.5">
-                                                {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {briefingStep === 'done' && briefingResult?.status !== 'success' && (
-                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-medium text-amber-800">
-                                                Briefing processado, sem dados novos extraídos
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {briefingStep === 'error' && (
-                                    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-medium text-red-800">
-                                                Erro no briefing IA
-                                            </p>
-                                            <p className="text-xs text-red-600 mt-0.5">
-                                                Card foi criado. Processe o briefing depois na tela do card.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* Section: Assignment */}
-                        <section className="space-y-4">
-                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                                Atribuição
-                            </h3>
-
-                            {/* SDR Responsável */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    SDR Responsável
-                                </label>
-                                <OwnerSelector
-                                    value={formData.sdr_owner_id}
-                                    onChange={(id, nome) => setFormData({
-                                        ...formData,
-                                        sdr_owner_id: id,
-                                        sdr_owner_nome: nome
-                                    })}
-                                    product={formData.produto}
-                                    showNoSdrOption={true}
-                                    phaseSlug="sdr"
-                                />
-                            </div>
-
-                            {/* Planner Responsável */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    Planner Responsável
-                                </label>
-                                <OwnerSelector
-                                    value={formData.vendas_owner_id}
-                                    onChange={(id, nome) => setFormData({
-                                        ...formData,
-                                        vendas_owner_id: id,
-                                        vendas_owner_nome: nome
-                                    })}
-                                    product={formData.produto}
-                                    showNoSdrOption={true}
-                                    placeholder="Selecionar Planner"
-                                    phaseSlug="planner"
-                                />
-                            </div>
-
-                            {/* Pós Responsável */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    Pós-venda Responsável
-                                </label>
-                                <OwnerSelector
-                                    value={formData.pos_owner_id}
-                                    onChange={(id, nome) => setFormData({
-                                        ...formData,
-                                        pos_owner_id: id,
-                                        pos_owner_nome: nome
-                                    })}
-                                    product={formData.produto}
-                                    showNoSdrOption={true}
-                                    placeholder="Selecionar Pós-venda"
-                                    phaseSlug="pos_venda"
-                                />
-                            </div>
-                        </section>
-
-                        {/* Section: Stage Selection */}
-                        <section className="space-y-4">
-                            <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                Etapa Inicial
-                            </h3>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Criar card em <span className="text-red-500">*</span>
-                                </label>
-                                {loadingStages ? (
-                                    <div className="flex items-center justify-center py-4">
-                                        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                                        <span className="ml-2 text-sm text-slate-500">Carregando etapas...</span>
-                                    </div>
-                                ) : allowedStages.length === 0 ? (
-                                    <div className="text-center py-3 px-4 text-sm text-amber-600 bg-amber-50 rounded-lg border border-amber-200">
-                                        Nenhuma etapa disponível para seu time.
-                                    </div>
-                                ) : (
-                                    <QuickStageSelector
-                                        stages={allowedStages}
-                                        selectedStageId={effectiveStageId}
-                                        onSelect={(id) => setFormData({ ...formData, selectedStageId: id })}
-                                        showMore={showMoreStages}
-                                        onToggleMore={() => setShowMoreStages(!showMoreStages)}
-                                    />
-                                )}
-
-                                {isAdmin && (
-                                    <p className="mt-1.5 text-xs text-slate-500">
-                                        Você tem acesso a todas as etapas (admin).
-                                    </p>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </section>
                     </div>
 

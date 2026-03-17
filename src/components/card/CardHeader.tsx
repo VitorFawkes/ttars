@@ -411,9 +411,9 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
     // Fetch pipeline stages with proper Kanban ordering (phase order_index -> stage ordem)
     const { data: stages } = useQuery({
-        queryKey: ['pipeline-stages-ordered'],
+        queryKey: ['pipeline-stages-ordered', pipelineId],
         queryFn: async () => {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('pipeline_stages')
                 .select(`
                     id,
@@ -426,6 +426,12 @@ export default function CardHeader({ card }: CardHeaderProps) {
                     pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index)
                 `)
                 .eq('ativo', true)
+
+            if (pipelineId) {
+                query = query.eq('pipeline_id', pipelineId)
+            }
+
+            const { data, error } = await query
 
             if (error) throw error
 
