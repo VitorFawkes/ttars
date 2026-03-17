@@ -14,6 +14,7 @@ import {
     TableRow,
 } from "@/components/ui/Table";
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Database } from '../../../database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -24,6 +25,7 @@ interface GroupTravelersListProps {
 
 export function GroupTravelersList({ parentId }: GroupTravelersListProps) {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [children, setChildren] = useState<Card[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +61,7 @@ export function GroupTravelersList({ parentId }: GroupTravelersListProps) {
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Viajantes & Sub-Deals</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Viajantes</h3>
                     <p className="text-gray-500 text-sm">
                         Gerencie as viagens individuais vinculadas a este grupo.
                     </p>
@@ -145,6 +147,8 @@ export function GroupTravelersList({ parentId }: GroupTravelersListProps) {
                                                     if (confirm('Tem certeza que deseja remover este viajante do grupo? O card não será excluído, apenas desvinculado.')) {
                                                         await supabase.from('cards').update({ parent_card_id: null }).eq('id', child.id);
                                                         fetchChildren();
+                                                        queryClient.invalidateQueries({ queryKey: ['card-detail', parentId] });
+                                                        queryClient.invalidateQueries({ queryKey: ['groups-gallery'] });
                                                     }
                                                 }}
                                             >

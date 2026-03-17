@@ -14,7 +14,7 @@ interface GroupDetailLayoutProps {
 export default function GroupDetailLayout({ card, onUpdate }: GroupDetailLayoutProps) {
     return (
         <div className="h-full flex flex-col bg-transparent">
-            {/* Header / Hero Section */}
+            {/* Header */}
             <div className="bg-white border-b border-gray-200 px-6 py-6">
                 <div className="flex items-start justify-between">
                     <div>
@@ -49,13 +49,8 @@ export default function GroupDetailLayout({ card, onUpdate }: GroupDetailLayoutP
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 <div className="max-w-7xl mx-auto space-y-6">
 
-                    {/* The Dashboard Component (Existing) */}
                     <GroupDashboard card={card} onRefresh={onUpdate} />
-
-                    {/* Sub-Deals Section */}
                     <GroupTravelersList parentId={card.id!} />
-
-                    {/* Rooming List Section */}
                     <GroupRoomingList parentId={card.id!} />
 
                 </div>

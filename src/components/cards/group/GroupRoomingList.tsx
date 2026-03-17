@@ -111,7 +111,7 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `rooming_list_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `lista_passageiros_${new Date().toISOString().split('T')[0]}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -122,7 +122,7 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Rooming List Unificada</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Lista de Passageiros</h3>
                     <p className="text-gray-500 text-sm">
                         Lista consolidada de todos os passageiros deste grupo.
                     </p>
@@ -158,7 +158,7 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
                         {loading ? (
                             <TableRow>
                                 <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                                    Carregando rooming list...
+                                    Carregando lista de passageiros...
                                 </TableCell>
                             </TableRow>
                         ) : filteredItems.length === 0 ? (

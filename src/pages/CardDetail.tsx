@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import CardHeader from '../components/card/CardHeader'
 import { useStageRequirements, type TaskRequirement } from '../hooks/useStageRequirements'
@@ -15,12 +15,13 @@ import { ParentLinkBanner } from '../components/cards/group/ParentLinkBanner'
 import GroupDetailLayout from '../components/cards/group/GroupDetailLayout'
 import LinkToGroupModal from '../components/cards/group/LinkToGroupModal'
 import SubCardsList from '../components/card/SubCardsList'
+import FutureOpportunitySection from '../components/card/FutureOpportunitySection'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import MergeSubCardModal from '../components/card/MergeSubCardModal'
 import { useSubCards, useSubCardParent, type SubCard } from '../hooks/useSubCards'
 import { TagSelector } from '../components/card/TagSelector'
-import { ArrowLeft, Users } from 'lucide-react'
+import { ArrowLeft, Users, CalendarClock } from 'lucide-react'
 
 import type { Database } from '../database.types'
 import { getProductLabels } from '../lib/productLabels'
@@ -34,6 +35,7 @@ const HARDCODED_EXCLUDE_KEYS = ['agenda_tarefas', 'historico_conversas', 'people
 export default function CardDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
     const [showLinkToGroup, setShowLinkToGroup] = useState(false)
     const [showMergeModal, setShowMergeModal] = useState(false)
 
@@ -94,10 +96,36 @@ export default function CardDetail() {
         .filter((r): r is TaskRequirement => r.requirement_type === 'task')
         .map(r => ({ label: r.label, task_tipo: r.task_tipo, task_require_completed: r.task_require_completed }))
 
+    // Check if this card is a future opportunity
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isFutureOpportunity = (card as any)?.card_type === 'future_opportunity'
+
+    // Get parent card title for future opportunity banner
+    const { data: futureOriginCard } = useQuery({
+        queryKey: ['future-origin-card', card?.parent_card_id],
+        enabled: isFutureOpportunity && !!card?.parent_card_id,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('cards')
+                .select('id, titulo')
+                .eq('id', card!.parent_card_id!)
+                .single()
+            if (error) return null
+            return data
+        }
+    })
+
     // Determine if we can show sub-cards functionality
     const showSubCards = stageInfo?.fase === 'Pós-venda' &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (card as any)?.card_type !== 'sub_card' &&
+        !card?.is_group_parent
+
+    // Show future opportunities section in Planner or Pós-venda (not for sub-cards)
+    const showFutureOpportunities =
+        (stageInfo?.fase === 'Planner' || stageInfo?.fase === 'Pós-venda') &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (card as any)?.card_type !== 'sub_card' &&
         !card?.is_group_parent
 
     const labels = getProductLabels(card?.produto)
@@ -158,7 +186,14 @@ export default function CardDetail() {
 
                     {/* Group Child Banner (if this is a group child) */}
                     {card.parent_card_id && !isSubCard && (
-                        <ParentLinkBanner parentId={card.parent_card_id} />
+                        <ParentLinkBanner
+                            parentId={card.parent_card_id}
+                            cardId={card.id!}
+                            onUnlinked={() => {
+                                queryClient.invalidateQueries({ queryKey: ['card-detail', id] })
+                                queryClient.invalidateQueries({ queryKey: ['groups-gallery'] })
+                            }}
+                        />
                     )}
 
                     {/* Link to Group (if card is not linked and not a group itself) */}
@@ -206,6 +241,18 @@ export default function CardDetail() {
                                 })}
                             />
                         </div>
+                    )}
+
+                    {/* Future Opportunities (for cards in Planner or Pós-venda) */}
+                    {showFutureOpportunities && (
+                        <FutureOpportunitySection
+                            cardId={card.id!}
+                            cardTitle={card.titulo || 'Card'}
+                            produto={card.produto}
+                            pipelineId={card.pipeline_id}
+                            responsavelId={card.dono_atual_id}
+                            pessoaPrincipalId={card.pessoa_principal_id}
+                        />
                     )}
 
                     {/* Pessoas — hardcoded */}
