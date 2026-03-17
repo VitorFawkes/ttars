@@ -19,7 +19,7 @@ import KanbanPhaseGroup from './KanbanPhaseGroup'
 import { Users } from 'lucide-react'
 import StageChangeModal from '../card/StageChangeModal'
 import QualityGateModal from '../card/QualityGateModal'
-import LossReasonModal from '../card/LossReasonModal'
+import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
 import MergeSubCardModal from '../card/MergeSubCardModal'
 import type { SubCard } from '../../hooks/useSubCards'
 import { useQualityGate } from '../../hooks/useQualityGate'
@@ -669,7 +669,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     }
 
-    const handleConfirmLossReason = (motivoId: string, comentario: string) => {
+    const handleConfirmLossReason = async (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => {
         if (pendingMove) {
             moveCardMutation.mutate({
                 cardId: pendingMove.cardId,
@@ -677,6 +677,31 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 motivoId,
                 comentario
             })
+
+            // Create future opportunity if scheduled
+            if (futureOpportunity) {
+                const card = allCards?.find(c => c.id === pendingMove.cardId)
+                if (card) {
+                    try {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase.from as any)('future_opportunities').insert({
+                            source_card_id: pendingMove.cardId,
+                            source_type: 'lost_future',
+                            titulo: futureOpportunity.titulo,
+                            scheduled_date: futureOpportunity.scheduledDate,
+                            descricao: comentario || null,
+                            produto: card.produto,
+                            pipeline_id: card.pipeline_id,
+                            responsavel_id: card.dono_atual_id,
+                            pessoa_principal_id: card.pessoa_principal_id,
+                            created_by: session?.user?.id || null,
+                        } as Record<string, unknown>)
+                    } catch (err) {
+                        console.error('Erro ao agendar oportunidade futura:', err)
+                    }
+                }
+            }
+
             setLossReasonModalOpen(false)
             setPendingMove(null)
         }
