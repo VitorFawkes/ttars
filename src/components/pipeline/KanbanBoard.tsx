@@ -747,8 +747,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     // If phasesData is not loaded yet, we might want to show a loader or fallback
     // We map over the phasesData to ensure order and color
     const phases = phasesData || []
-    const displayPhases = filters.phaseFilter
-        ? phases.filter(p => p.id === filters.phaseFilter)
+    const displayPhases = filters.phaseFilters?.length
+        ? phases.filter(p => filters.phaseFilters!.includes(p.id))
         : [...phases]
 
     // Calculate Totals for Sticky Footer (usar allCards para incluir terminal)

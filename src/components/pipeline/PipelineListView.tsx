@@ -90,11 +90,11 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         [fullStages]
     )
 
-    // Computar IDs de stages da fase filtrada (para phaseFilter)
+    // Computar IDs de stages das fases filtradas (para phaseFilters)
     const phaseStageIds = useMemo(() => {
-        if (!filters.phaseFilter || !stages) return undefined
-        return stages.filter(s => s.phase_id === filters.phaseFilter).map(s => s.id)
-    }, [filters.phaseFilter, stages])
+        if (!filters.phaseFilters?.length || !stages) return undefined
+        return stages.filter(s => s.phase_id && filters.phaseFilters!.includes(s.phase_id)).map(s => s.id)
+    }, [filters.phaseFilters, stages])
 
     const { data: queryResult, isLoading } = usePipelineListCards({
         productFilter,

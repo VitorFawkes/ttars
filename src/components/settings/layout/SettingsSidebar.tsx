@@ -20,6 +20,7 @@ import {
     Code,
     XCircle,
     Zap,
+    Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -158,6 +159,7 @@ export default function SettingsSidebar() {
                         ═══════════════════════════════════════════════════════════ */}
                         <NavSection title="Time" icon={UsersIcon}>
                             <NavItem to="/settings/team/members" icon={UsersIcon} label="Membros da Equipe" />
+                            <NavItem to="/settings/team/phase-visibility" icon={Eye} label="Visibilidade de Fases" />
                         </NavSection>
 
                         {/* ═══════════════════════════════════════════════════════════

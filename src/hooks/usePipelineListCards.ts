@@ -17,7 +17,7 @@ interface UsePipelineListCardsProps {
     groupFilters: GroupFilters
     includeTerminalStages?: boolean
     terminalStageIds?: string[]
-    phaseStageIds?: string[] // Stage IDs filtrados por phaseFilter
+    phaseStageIds?: string[] // Stage IDs filtrados por phaseFilters
     page?: number
     pageSize?: number
 }

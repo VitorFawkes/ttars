@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-17
+> **Last Updated:** 2026-03-19
 > **Trigger:** ALWAYS ON
-> **Stats:** 117 tabelas | 40 paginas | 72 hooks | 17 views | 425 components
+> **Stats:** 120 tabelas | 41 paginas | 73 hooks | 17 views | 425 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **72 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **73 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -216,7 +216,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMondeSales()` | `useMondeSales.ts` |
+| `useMyVisiblePhases()` | `useMyVisiblePhases.ts` |
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
+| `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
 | `useProductContext()` | `useProductContext.ts` |
 | `useProducts()` | `useProducts.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
@@ -227,7 +229,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 |------|------|
 | `useArchiveCard()` | `useArchiveCard.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
-| `useCardContacts()` | `useCardContacts.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |
 | `useCardTags()` | `useCardTags.ts` |
@@ -311,7 +312,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **40 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -341,6 +342,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
+| `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `TagManagement` | `src/pages/admin/TagManagement.tsx` |
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |

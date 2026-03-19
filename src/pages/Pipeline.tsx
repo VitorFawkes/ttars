@@ -7,7 +7,7 @@ import CreateCardModal from '../components/pipeline/CreateCardModal'
 
 import { usePipelineFilters } from '../hooks/usePipelineFilters'
 import { useProductContext } from '../hooks/useProductContext'
-import { useMyTeamPhase } from '../hooks/useMyTeamPhase'
+import { useMyVisiblePhases } from '../hooks/useMyVisiblePhases'
 import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
@@ -32,18 +32,18 @@ export default function Pipeline() {
     } = usePipelineFilters()
     const { currentProduct } = useProductContext()
     const { profile } = useAuth()
-    const { data: myTeamPhase } = useMyTeamPhase()
+    const { data: visiblePhases } = useMyVisiblePhases()
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
 
-    // Auto-filter: agentes (não-admin) veem inicialmente apenas a fase do seu time
+    // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
     const isAdmin = profile?.is_admin === true
     useEffect(() => {
-        if (_phaseAutoApplied || isAdmin || !myTeamPhase) return
-        setAll({ filters: { ...filters, phaseFilter: myTeamPhase.id }, _phaseAutoApplied: true })
-    }, [myTeamPhase, isAdmin, _phaseAutoApplied]) // eslint-disable-line react-hooks/exhaustive-deps
+        if (_phaseAutoApplied || isAdmin || !visiblePhases?.length) return
+        setAll({ filters: { ...filters, phaseFilters: visiblePhases }, _phaseAutoApplied: true })
+    }, [visiblePhases, isAdmin, _phaseAutoApplied]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
     const [viewType, setViewType] = useState<'kanban' | 'list'>(() => {

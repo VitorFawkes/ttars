@@ -51,6 +51,7 @@ import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
 import TagManagement from './pages/admin/TagManagement'
+import PhaseVisibilitySettings from './pages/admin/PhaseVisibilitySettings'
 import CRMHealth from './pages/admin/CRMHealth'
 import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
@@ -233,6 +234,7 @@ function App() {
                         TEAM: Users, Roles, Teams
                     ═══════════════════════════════════════════════════════════ */}
                     <Route path="team/members" element={<UserManagement />} />
+                    <Route path="team/phase-visibility" element={<PhaseVisibilitySettings />} />
                     <Route path="team/card-rules" element={<CardCreationRulesPage />} />
 
                     {/* ═══════════════════════════════════════════════════════════

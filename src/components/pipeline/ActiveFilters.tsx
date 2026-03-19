@@ -38,7 +38,7 @@ export function ActiveFilters() {
         filters.posIds?.length ||
         filters.teamIds?.length ||
         filters.departmentIds?.length ||
-        filters.phaseFilter ||
+        filters.phaseFilters?.length ||
         filters.statusComercial?.length ||
         filters.tagIds?.length ||
         filters.noTag ||
@@ -114,13 +114,17 @@ export function ActiveFilters() {
                     return <Chip key={id} label={`Depto: ${name}`} onRemove={() => removeFilter('departmentIds', id)} />
                 })}
 
-                {/* Phase Filter */}
-                {filters.phaseFilter && (
-                    <Chip
-                        label={`Fase: ${phasesData?.find(p => p.id === filters.phaseFilter)?.name || 'Fase'}`}
-                        onRemove={() => removeFilter('phaseFilter')}
-                    />
-                )}
+                {/* Phase Filters */}
+                {filters.phaseFilters?.map(phaseId => {
+                    const phase = phasesData?.find(p => p.id === phaseId)
+                    return (
+                        <Chip
+                            key={`phase-${phaseId}`}
+                            label={`Fase: ${phase?.name || 'Fase'}`}
+                            onRemove={() => removeFilter('phaseFilters', phaseId)}
+                        />
+                    )
+                })}
 
                 {/* Status Comercial */}
                 {filters.statusComercial?.map(status => (
