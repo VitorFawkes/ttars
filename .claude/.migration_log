@@ -92,3 +92,4 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-17T16:31:01Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260317_ai_extraction_enrich_new_fields.sql | applied_to_prod
 2026-03-17T17:10:27Z | supabase/migrations/20260317_future_opportunities.sql | applied_to_prod
 2026-03-17T19:17:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260317_future_opportunities_reliability.sql | applied_to_prod
+2026-03-19T16:23:13Z | supabase/migrations/20260319_auto_advance_stages.sql | applied_to_prod
