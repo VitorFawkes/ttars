@@ -18,8 +18,7 @@ import SubCardsList from '../components/card/SubCardsList'
 import FutureOpportunitySection from '../components/card/FutureOpportunitySection'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
-import MergeSubCardModal from '../components/card/MergeSubCardModal'
-import { useSubCards, useSubCardParent, type SubCard } from '../hooks/useSubCards'
+import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
 import { TagSelector } from '../components/card/TagSelector'
 import { ArrowLeft, Users, CalendarClock } from 'lucide-react'
 
@@ -37,13 +36,12 @@ export default function CardDetail() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [showLinkToGroup, setShowLinkToGroup] = useState(false)
-    const [showMergeModal, setShowMergeModal] = useState(false)
 
     // Mark card as seen for "new card" highlight (only owner can dismiss)
     const { markSeen } = useSeenCards()
 
     // Check if card is a sub-card and get parent info
-    const { isSubCard, subCardMode, subCardStatus, parentCard } = useSubCardParent(id)
+    const { isSubCard, parentCard } = useSubCardParent(id)
 
     // Get sub-cards if this is a parent
     const { canCreateSubCard } = useSubCards(id)
@@ -115,10 +113,10 @@ export default function CardDetail() {
         }
     })
 
-    // Determine if we can show sub-cards functionality
-    const showSubCards = stageInfo?.fase === 'Pós-venda' &&
+    // Determine if we can show sub-cards (itens da viagem) — any phase, not sub-cards or groups
+    const showSubCards =
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(card as any)?.card_type !== 'sub_card' &&
+        (card as any)?.card_type !== 'sub_card' &&
         !card?.is_group_parent
 
     // Show future opportunities section in Planner or Pós-venda (not for sub-cards)
@@ -200,13 +198,10 @@ export default function CardDetail() {
                     )}
 
                     {/* Sub-Card Parent Banner (if this is a sub-card) */}
-                    {isSubCard && parentCard && subCardMode && (
+                    {isSubCard && parentCard && (
                         <SubCardParentBanner
                             parentId={parentCard.id}
                             parentTitle={parentCard.titulo}
-                            mode={subCardMode}
-                            canMerge={!!stageInfo?.is_planner_won && subCardStatus === 'active'}
-                            onMerge={() => setShowMergeModal(true)}
                             onNavigate={() => navigate(`/cards/${parentCard.id}`)}
                         />
                     )}
@@ -261,9 +256,8 @@ export default function CardDetail() {
                                 parentTitle={card.titulo || 'Card'}
                                 parentValor={card.valor_final || card.valor_estimado}
                                 canCreate={canCreateSubCard({
-                                    card_type: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(card as any).card_type,
-                                    fase: stageInfo?.fase,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    card_type: (card as any).card_type,
                                     is_group_parent: card.is_group_parent
                                 })}
                             />
@@ -309,34 +303,6 @@ export default function CardDetail() {
                 cardTitle={card.titulo || 'Viagem'}
             />
 
-            {/* Merge Sub-Card Modal (shown from sub-card page when in Ganho Planner) */}
-            {isSubCard && parentCard && showMergeModal && (
-                <MergeSubCardModal
-                    isOpen={showMergeModal}
-                    onClose={() => setShowMergeModal(false)}
-                    subCard={{
-                        id: card.id!,
-                        titulo: card.titulo || '',
-                        sub_card_mode: subCardMode || 'incremental',
-                        sub_card_status: 'active',
-                        valor_estimado: card.valor_estimado,
-                        valor_final: card.valor_final,
-                        status_comercial: card.status_comercial || 'aberto',
-                        ganho_planner: true,
-                        is_planner_won: true,
-                        etapa_nome: '',
-                        fase: stageInfo?.fase || '',
-                        merged_at: null,
-                        merge_metadata: null,
-                        merge_config: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (card as any).merge_config || null,
-                        created_at: card.created_at || '',
-                        dono_nome: null,
-                    } satisfies SubCard}
-                    parentValor={parentCard.valor_final || parentCard.valor_estimado}
-                    parentCardId={parentCard.id}
-                />
-            )}
         </div>
     )
 }

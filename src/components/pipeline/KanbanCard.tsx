@@ -478,9 +478,12 @@ export default function KanbanCard({ card }: KanbanCardProps) {
             className={cn(
                 "group relative flex cursor-grab flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md active:cursor-grabbing",
                 isDragging && "opacity-0",
-                isUnseen
-                    ? "border-l-4 border-l-emerald-500 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-emerald-50/40 hover:border-l-emerald-600"
-                    : "border-gray-200 hover:border-gray-300"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (card as any).card_type === 'sub_card'
+                    ? "border-l-4 border-l-purple-400 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-purple-50/30"
+                    : isUnseen
+                        ? "border-l-4 border-l-emerald-500 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-emerald-50/40 hover:border-l-emerald-600"
+                        : "border-gray-200 hover:border-gray-300"
             )}
         >
             <div className="flex items-start justify-between gap-2">
@@ -542,19 +545,24 @@ export default function KanbanCard({ card }: KanbanCardProps) {
                 </div>
             )}
 
-            {/* Sub-Card Badges */}
-            {(card as any).card_type === 'sub_card' && (card as any).sub_card_mode && (
-                <SubCardBadge
-                    mode={(card as any).sub_card_mode}
-                    status={(card as any).sub_card_status}
-                    variant="small"
-                />
+            {/* Sub-Card: show parent name + badge */}
+            {(card as any).card_type === 'sub_card' && (
+                <div className="flex items-center gap-1.5 text-[10px] text-purple-600 bg-purple-50/50 px-2 py-1 rounded border border-purple-200/50 w-fit">
+                    <SubCardBadge
+                        status={(card as any).sub_card_status}
+                        variant="small"
+                    />
+                    {(card as any).parent_card_title && (
+                        <span className="truncate max-w-[140px] font-medium">
+                            de: {(card as any).parent_card_title}
+                        </span>
+                    )}
+                </div>
             )}
 
             {/* Active Sub-Cards Count (for parent cards) */}
             {(card as any).active_sub_cards_count > 0 && (card as any).card_type !== 'sub_card' && (
                 <SubCardBadge
-                    mode="incremental"
                     activeCount={(card as any).active_sub_cards_count}
                     variant="small"
                 />

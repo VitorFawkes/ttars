@@ -3,29 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 
 export type SubCardMode = 'incremental' | 'complete'
-export type SubCardStatus = 'active' | 'merged' | 'cancelled'
-export type MergeMode = 'replace' | 'append'
-
-export interface MergeGroupConfig {
-    copiar_pai: boolean
-    merge_mode: MergeMode
-}
-
-export interface MergeConfig {
-    texto: MergeGroupConfig
-    viagem: MergeGroupConfig
-}
-
-export const DEFAULT_MERGE_CONFIG: Record<SubCardMode, MergeConfig> = {
-    incremental: {
-        texto: { copiar_pai: false, merge_mode: 'append' },
-        viagem: { copiar_pai: false, merge_mode: 'append' }
-    },
-    complete: {
-        texto: { copiar_pai: true, merge_mode: 'replace' },
-        viagem: { copiar_pai: true, merge_mode: 'replace' }
-    }
-}
+export type SubCardStatus = 'active' | 'merged' | 'cancelled' | 'completed'
 
 export interface SubCard {
     id: string
@@ -45,36 +23,24 @@ export interface SubCard {
         sub_card_value?: number
         new_parent_value?: number
         mode?: SubCardMode
-        merge_config?: MergeConfig
         cancelled_reason?: string
     } | null
-    merge_config: MergeConfig | null
+    merge_config: Record<string, unknown> | null
     created_at: string
     dono_nome: string | null
+    // V2 fields
+    progress_percent: number
+    phase_slug: string | null
+    financial_items_count: number
+    financial_items_ready: number
+    data_fechamento: string | null
+    sub_card_agregado_em: string | null
 }
 
 interface CreateSubCardParams {
     parentId: string
     titulo: string
     descricao: string
-    mode: SubCardMode
-    mergeConfig?: MergeConfig
-}
-
-interface MergeSubCardResult {
-    success: boolean
-    error?: string
-    parent_id?: string
-    old_value?: number
-    new_value?: number
-    mode?: SubCardMode
-    proposal_id?: string
-    merge_config?: MergeConfig
-}
-
-interface MergeSubCardParams {
-    subCardId: string
-    mergeConfigOverride?: MergeConfig
 }
 
 interface CancelSubCardResult {
@@ -85,13 +51,13 @@ interface CancelSubCardResult {
 }
 
 /**
- * Hook for managing sub-cards (change requests)
+ * Hook for managing sub-cards (itens da viagem)
  *
  * Features:
- * - Create sub-cards from parent cards in Pós-venda
- * - List sub-cards for a parent
- * - Merge completed sub-cards back to parent
+ * - Create sub-cards from parent cards (any phase)
+ * - List sub-cards for a parent with progress info
  * - Cancel sub-cards
+ * - Value aggregates automatically when sub-card enters Pós-venda
  */
 export function useSubCards(parentCardId?: string) {
     const queryClient = useQueryClient()
@@ -115,15 +81,13 @@ export function useSubCards(parentCardId?: string) {
 
     // Mutation: Create sub-card
     const createSubCardMutation = useMutation({
-        mutationFn: async ({ parentId, titulo, descricao, mode, mergeConfig }: CreateSubCardParams) => {
+        mutationFn: async ({ parentId, titulo, descricao }: CreateSubCardParams) => {
             const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
             await (supabase as any)
                 .rpc('criar_sub_card', {
                     p_parent_id: parentId,
                     p_titulo: titulo,
-                    p_descricao: descricao,
-                    p_mode: mode,
-                    p_merge_config: mergeConfig || null
+                    p_descricao: descricao
                 })
 
             if (error) throw error
@@ -143,7 +107,7 @@ export function useSubCards(parentCardId?: string) {
 
             return result
         },
-        onSuccess: (data, variables) => {
+        onSuccess: (_, variables) => {
             // Invalidate queries
             queryClient.invalidateQueries({ queryKey: ['sub-cards', variables.parentId] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
@@ -152,66 +116,14 @@ export function useSubCards(parentCardId?: string) {
 
             toast({
                 type: 'success',
-                title: 'Card de alteração criado',
-                description: data.mode === 'incremental'
-                    ? 'O valor será somado ao card principal após o merge'
-                    : 'O valor substituirá o card principal após o merge'
+                title: 'Item da viagem criado',
+                description: 'O valor será agregado ao card principal quando entrar em Pós-venda'
             })
         },
         onError: (error: Error) => {
             toast({
                 type: 'error',
-                title: 'Erro ao criar card de alteração',
-                description: error.message
-            })
-        }
-    })
-
-    // Mutation: Merge sub-card
-    const mergeSubCardMutation = useMutation({
-        mutationFn: async ({ subCardId, mergeConfigOverride }: MergeSubCardParams) => {
-            const options = mergeConfigOverride
-                ? { merge_config: mergeConfigOverride }
-                : {};
-            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
-            await (supabase as any)
-                .rpc('merge_sub_card', {
-                    p_sub_card_id: subCardId,
-                    p_options: options
-                })
-
-            if (error) throw error
-
-            const result = data as MergeSubCardResult
-
-            if (!result.success) {
-                throw new Error(result.error || 'Erro ao fazer merge do card de alteração')
-            }
-
-            return result
-        },
-        onSuccess: (data) => {
-            // Invalidate queries
-            queryClient.invalidateQueries({ queryKey: ['sub-cards'] })
-            queryClient.invalidateQueries({ queryKey: ['cards'] })
-            queryClient.invalidateQueries({ queryKey: ['card'] })
-            queryClient.invalidateQueries({ queryKey: ['tarefas'] })
-            queryClient.invalidateQueries({ queryKey: ['atividades'] })
-
-            const modeText = data.mode === 'incremental'
-                ? `Valor somado: ${formatCurrency(data.old_value || 0)} + ${formatCurrency((data.new_value || 0) - (data.old_value || 0))} = ${formatCurrency(data.new_value || 0)}`
-                : `Novo valor: ${formatCurrency(data.new_value || 0)}`
-
-            toast({
-                type: 'success',
-                title: 'Alteração concluída',
-                description: modeText
-            })
-        },
-        onError: (error: Error) => {
-            toast({
-                type: 'error',
-                title: 'Erro ao concluir alteração',
+                title: 'Erro ao criar item da viagem',
                 description: error.message
             })
         }
@@ -246,14 +158,14 @@ export function useSubCards(parentCardId?: string) {
 
             toast({
                 type: 'success',
-                title: 'Alteração cancelada',
-                description: 'O card de alteração foi cancelado'
+                title: 'Item cancelado',
+                description: 'O item da viagem foi cancelado'
             })
         },
         onError: (error: Error) => {
             toast({
                 type: 'error',
-                title: 'Erro ao cancelar alteração',
+                title: 'Erro ao cancelar item',
                 description: error.message
             })
         }
@@ -262,16 +174,14 @@ export function useSubCards(parentCardId?: string) {
     // Helper: Check if card can have sub-cards created
     const canCreateSubCard = (card: {
         card_type?: string | null
-        fase?: string | null
         is_group_parent?: boolean | null
     }) => {
-        // Must be in Pós-venda phase
-        if (card.fase !== 'Pós-venda') return false
         // Cannot be a sub-card itself
         if (card.card_type === 'sub_card') return false
-        // Cannot be a group parent (for now)
+        // Cannot be a future opportunity
+        if (card.card_type === 'future_opportunity') return false
+        // Cannot be a group parent
         if (card.is_group_parent) return false
-
         return true
     }
 
@@ -279,11 +189,6 @@ export function useSubCards(parentCardId?: string) {
     const getActiveSubCardsCount = () => {
         if (!subCardsQuery.data) return 0
         return subCardsQuery.data.filter(sc => sc.sub_card_status === 'active').length
-    }
-
-    // Helper: Check if sub-card can be merged (ganho Planner, not ganho total)
-    const canMergeSubCard = (subCard: SubCard) => {
-        return subCard.sub_card_status === 'active' && subCard.ganho_planner === true && subCard.is_planner_won === true
     }
 
     return {
@@ -296,28 +201,16 @@ export function useSubCards(parentCardId?: string) {
         createSubCard: createSubCardMutation.mutate,
         isCreating: createSubCardMutation.isPending,
 
-        mergeSubCard: mergeSubCardMutation.mutate,
-        isMerging: mergeSubCardMutation.isPending,
-
         cancelSubCard: cancelSubCardMutation.mutate,
         isCancelling: cancelSubCardMutation.isPending,
 
         // Helpers
         canCreateSubCard,
-        canMergeSubCard,
         getActiveSubCardsCount,
 
         // Refetch
         refetch: subCardsQuery.refetch
     }
-}
-
-// Utility function
-function formatCurrency(value: number): string {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-    }).format(value)
 }
 
 /**

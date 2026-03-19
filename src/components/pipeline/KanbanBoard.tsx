@@ -20,8 +20,6 @@ import { Users } from 'lucide-react'
 import StageChangeModal from '../card/StageChangeModal'
 import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
-import MergeSubCardModal from '../card/MergeSubCardModal'
-import type { SubCard } from '../../hooks/useSubCards'
 import { useQualityGate } from '../../hooks/useQualityGate'
 import type { Database } from '../../database.types'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -380,12 +378,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [lossReasonModalOpen, setLossReasonModalOpen] = useState(false)
-    const [mergeModalData, setMergeModalData] = useState<{
-        subCard: SubCard
-        parentValor: number | null
-        parentCardId: string | undefined
-    } | null>(null)
-
     const [pendingMove, setPendingMove] = useState<{
         cardId: string,
         stageId: string,
@@ -470,59 +462,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const card = active.data.current as Card
 
         if (stageId === currentStageId) return
-
-        // --- SYNC GATE 0: Sub-Card Merge (planner won) ---
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sub-card fields pendente de regeneracao de types
-        const isSubCard = (card as any)?.card_type === 'sub_card' && (card as any)?.sub_card_status === 'active'
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- is_planner_won pendente de regeneracao de types
-        const isPlannerWonStage = (targetStage as any)?.is_planner_won === true
-
-        if (isSubCard && isPlannerWonStage) {
-            // Move the card first, then offer merge
-            const rollback = applyOptimisticMove(cardId, stageId)
-            try {
-                const { error } = await supabase.rpc('mover_card', {
-                    p_card_id: cardId,
-                    p_nova_etapa_id: stageId,
-                })
-                if (error) throw error
-
-                // Build SubCard for merge modal
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parent_card_id pendente de regeneracao de types
-                const parentCardId = (card as any)?.parent_card_id
-                const parentCard = allCards?.find(c => c.id === parentCardId)
-                const parentValor = parentCard?.valor_final ?? parentCard?.valor_estimado ?? null
-
-                const subCardData: SubCard = {
-                    id: cardId,
-                    titulo: card?.titulo || '',
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sub_card_mode pendente de regeneracao de types
-                    sub_card_mode: (card as any)?.sub_card_mode || 'incremental',
-                    sub_card_status: 'active',
-                    valor_estimado: card?.valor_estimado ?? null,
-                    valor_final: card?.valor_final ?? null,
-                    status_comercial: card?.status_comercial || 'aberto',
-                    ganho_planner: true,
-                    is_planner_won: true,
-                    etapa_nome: targetStage?.nome || '',
-                    fase: '',
-                    merged_at: null,
-                    merge_metadata: null,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merge_config pendente de regeneracao de types
-                    merge_config: (card as any)?.merge_config || null,
-                    created_at: card?.created_at || '',
-                    dono_nome: null
-                }
-
-                setMergeModalData({ subCard: subCardData, parentValor, parentCardId })
-                queryClient.invalidateQueries({ queryKey: ['cards'] })
-                queryClient.invalidateQueries({ queryKey: ['sub-cards'] })
-            } catch (err) {
-                console.error('Error moving sub-card:', err)
-                rollback()
-            }
-            return
-        }
 
         // --- SYNC GATE 1: Loss Stage ---
         const isLostStage = targetStage?.is_lost === true ||
@@ -895,15 +834,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                 </>
                             )}
 
-                            {mergeModalData && (
-                                <MergeSubCardModal
-                                    isOpen={!!mergeModalData}
-                                    onClose={() => setMergeModalData(null)}
-                                    subCard={mergeModalData.subCard}
-                                    parentValor={mergeModalData.parentValor}
-                                    parentCardId={mergeModalData.parentCardId}
-                                />
-                            )}
                         </div>
                     </DndContext>
                 </div>

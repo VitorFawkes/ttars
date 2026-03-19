@@ -3,7 +3,8 @@ import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown,
 import { cn } from '@/lib/utils'
 import { useBriefingIA, type BriefingStep, type BriefingMode } from '@/hooks/useBriefingIA'
 import { supabase } from '@/lib/supabase'
-import type { MergeConfig } from '@/hooks/useSubCards'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MergeConfig = Record<string, any>
 import AudioRecorder from './AudioRecorder'
 
 interface BriefingIAModalProps {
