@@ -95,3 +95,5 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-19T16:23:13Z | supabase/migrations/20260319_auto_advance_stages.sql | applied_to_prod
 2026-03-19T16:28:38Z | supabase/migrations/20260319_whatsapp_group_support.sql | applied_to_prod
 2026-03-19T16:32:26Z | supabase/migrations/20260319_fix_whatsapp_status_dedup.sql | applied_to_prod
+2026-03-19T16:48:19Z | supabase/migrations/20260319_phase_visibility_rules.sql | applied_to_prod
+2026-03-19T16:52:40Z | supabase/migrations/20260319_fix_swap_primary_contact.sql | applied_to_prod

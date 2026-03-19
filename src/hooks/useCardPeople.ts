@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { toast } from 'sonner'
 
 
 // Manual definition to match actual DB schema (database.types.ts is out of sync)
@@ -96,35 +97,33 @@ export function useCardPeople(cardId: string | undefined) {
             queryClient.setQueryData(['card-people', cardId], (old: CardPerson[] | undefined) => {
                 if (!old) return []
 
-                // Find the person being promoted
                 const promotedPerson = old.find(p => p.id === contactId)
-                if (!promotedPerson) return old // Should not happen
+                if (!promotedPerson) return old
 
-                // Filter out the promoted person from their old position
-                const others = old.filter(p => p.id !== contactId)
-
-                // If there was an existing primary, they are effectively removed from the list (unless we demote them)
-                // In this "Swap" logic, the old primary disappears from the list entirely unless they were also a traveler (impossible state)
-                // To be robust: remove any existing primary from the list
-                const othersWithoutOldPrimary = others.filter(p => p.role !== 'primary')
-
-                // Return new list: New Primary + Others (who are all travelers now)
-                return [
-                    { ...promotedPerson, role: 'primary' } as CardPerson,
-                    ...othersWithoutOldPrimary
-                ]
+                // Swap: novo primary sobe, antigo primary vira viajante
+                return old.map(p => {
+                    if (p.id === contactId) {
+                        return { ...p, role: 'primary' as const }
+                    }
+                    if (p.role === 'primary') {
+                        return { ...p, role: 'traveler' as const }
+                    }
+                    return p
+                })
             })
 
             return { previousPeople }
         },
-        onError: (_, __, context) => {
+        onError: (err, __, context) => {
             if (context?.previousPeople) {
                 queryClient.setQueryData(['card-people', cardId], context.previousPeople)
             }
-            alert('Erro ao definir contato principal')
+            const message = err instanceof Error ? err.message : 'Erro desconhecido'
+            toast.error('Erro ao trocar contato principal', { description: message })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['card-people', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card-contacts', cardId] }) // Sync CardTravelers
             queryClient.invalidateQueries({ queryKey: ['card', cardId] }) // Keep legacy sync
         }
     })

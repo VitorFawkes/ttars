@@ -103,6 +103,11 @@ test_rpc() {
   fi
 }
 
+# ── Contato Principal swap (cards_contatos unique constraint) ──
+
+test_query "cards_contatos table" \
+  "cards_contatos?select=id,card_id,contato_id&limit=1"
+
 # ── WhatsApp Groups ──
 
 test_query "whatsapp_groups table" \
