@@ -67,7 +67,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse,
             >
                 <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                     <Package className="h-4 w-4 text-amber-600" />
-                    Produtos
+                    Produto - Vendas
                     {isPostSales && items.length > 0 && (
                         <span className={cn(
                             "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
