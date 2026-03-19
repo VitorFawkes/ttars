@@ -13,13 +13,30 @@ BEGIN;
 -- 1. FUTURE_OPPORTUNITIES: source_type constraint + data
 -- ══════════════════════════════════════════════════════════════
 
--- Atualizar dados existentes ANTES de alterar constraint
+-- Dropar QUALQUER check constraint na coluna source_type (nome pode variar)
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        WHERE rel.relname = 'future_opportunities'
+          AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) LIKE '%source_type%'
+    LOOP
+        EXECUTE format('ALTER TABLE future_opportunities DROP CONSTRAINT %I', r.conname);
+        RAISE NOTICE 'Dropped constraint: %', r.conname;
+    END LOOP;
+END $$;
+
+-- Agora atualizar dados (sem constraint bloqueando)
 UPDATE future_opportunities
 SET source_type = 'won_future'
 WHERE source_type = 'won_upsell';
 
--- Dropar constraint antiga e criar nova
-ALTER TABLE future_opportunities DROP CONSTRAINT IF EXISTS future_opportunities_source_type_check;
+-- Criar constraint nova
 ALTER TABLE future_opportunities ADD CONSTRAINT future_opportunities_source_type_check
     CHECK (source_type IN ('lost_future', 'won_future'));
 

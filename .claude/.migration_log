@@ -106,3 +106,5 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-19T20:27:01Z | supabase/migrations/20260317_ai_extraction_enrich_new_fields.sql | preexisting_untracked
 2026-03-19T20:27:01Z | supabase/migrations/20260320_sub_cards_v2_itens_viagem.sql | preexisting_untracked
 2026-03-19T20:47:23Z | supabase/migrations/20260319_rename_won_upsell_to_won_future.sql | applied_to_prod
+2026-03-19T20:53:45Z | supabase/migrations/20260319_rename_won_upsell_to_won_future.sql | applied_to_prod
+2026-03-19T20:54:30Z | supabase/migrations/20260319_rename_won_upsell_to_won_future.sql | applied_to_prod
