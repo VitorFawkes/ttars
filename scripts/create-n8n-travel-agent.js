@@ -823,9 +823,9 @@ function transformProcessWebhookData(node) {
   node.parameters.assignments = {
     assignments: [
       { id: 'skip', name: 'skip', type: 'boolean',
-        value: "={{ $('Webhook').item.json.body.event !== 'message.received' }}" },
+        value: "={{ $('Webhook').item.json.body.event !== 'message.received' || $('Webhook').item.json.body.is_group === true }}" },
       { id: 'skip_reason', name: 'skip_reason', type: 'string',
-        value: "={{ $('Webhook').item.json.body.event !== 'message.received' ? $('Webhook').item.json.body.event : '' }}" },
+        value: "={{ $('Webhook').item.json.body.event !== 'message.received' ? $('Webhook').item.json.body.event : ($('Webhook').item.json.body.is_group === true ? 'group_message' : '') }}" },
       { id: 'message_id', name: 'message_id', type: 'string',
         value: "={{ $('Webhook').item.json.body.whatsapp_message_id || $('Webhook').item.json.body.message_id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` }}" },
       { id: 'instance', name: 'instance', type: 'string', value: 'WelcomeTrips' },
@@ -878,6 +878,10 @@ function transformProcessWebhookData(node) {
         value: "={{ $('Webhook').item.json.body.media?.mime_type || null }}" },
       { id: 'timestamp', name: 'timestamp', type: 'string',
         value: "={{ $('Webhook').item.json.body.ts_iso || new Date().toISOString() }}" },
+      { id: 'is_group', name: 'is_group', type: 'boolean',
+        value: "={{ $('Webhook').item.json.body.is_group === true }}" },
+      { id: 'group_name', name: 'group_name', type: 'string',
+        value: "={{ $('Webhook').item.json.body.group?.name || '' }}" },
     ],
   };
 }

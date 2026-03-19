@@ -103,6 +103,14 @@ test_rpc() {
   fi
 }
 
+# ── WhatsApp Groups ──
+
+test_query "whatsapp_groups table" \
+  "whatsapp_groups?select=id,group_jid,card_id&limit=1"
+
+test_query "whatsapp_messages group cols" \
+  "whatsapp_messages?select=id,is_group,group_jid,group_name&limit=1"
+
 # RPCs críticas — testar com params corretos (leves, rápidas)
 test_rpc "analytics_pipeline_current" "analytics_pipeline_current" \
   '{"p_product":"TRIPS"}'

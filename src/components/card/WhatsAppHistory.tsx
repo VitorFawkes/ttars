@@ -9,6 +9,7 @@ import {
     RefreshCw,
     AlertCircle,
     User,
+    Users,
     Play,
     Pause,
     FileText,
@@ -42,6 +43,9 @@ interface WhatsAppMessage {
     sent_by_user_name: string | null;
     fase_label: string | null;
     phone_number_label: string | null;
+    is_group: boolean | null;
+    group_jid: string | null;
+    group_name: string | null;
 }
 
 const FASE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -348,6 +352,14 @@ function MessageBubble({ message, contactNames }: { message: WhatsAppMessage; co
                         )}
                     </div>
                 )}
+                {message.is_group && message.group_name && (
+                    <div className="flex items-center gap-1 text-[9px] font-medium text-slate-500">
+                        <Users className="w-3 h-3" />
+                        <span className="px-1.5 py-0.5 bg-slate-100 rounded-full border border-slate-200">
+                            {message.group_name}
+                        </span>
+                    </div>
+                )}
 
                 {/* Media content */}
                 <MessageMedia message={message} />
@@ -469,7 +481,7 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
             const query = (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('whatsapp_messages') as any)
-                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label, phone_number_label')
+                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label, phone_number_label, is_group, group_jid, group_name')
                 .order('created_at', { ascending: true })
                 .limit(200);
 
