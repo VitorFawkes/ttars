@@ -54,8 +54,7 @@ test_query "view_cards_acoes (colunas críticas)" \
   "view_cards_acoes?select=id,titulo,archived_at,is_group_parent,parent_card_id,docs_total,docs_completed,pessoa_telefone_normalizado&limit=1"
 
 # Dashboard (StatsCards.tsx + FunnelChart.tsx)
-# View pode ter colunas novas (valor_total, receita_total) ou legadas (total_valor_estimado)
-# Testar apenas colunas estáveis que existem em ambas versões
+# View V2: mantém etapa_nome/etapa_ordem (backward compat) + stage_id, stage_nome, fase, ordem, sub_card_count
 test_query "view_dashboard_funil" \
   "view_dashboard_funil?select=etapa_nome,total_cards,etapa_ordem,produto&limit=1"
 
