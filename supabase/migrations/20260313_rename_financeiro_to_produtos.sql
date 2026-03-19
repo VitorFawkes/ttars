@@ -1,6 +1,6 @@
--- Renomear seção "Financeiro" para "Produtos" e trocar ícone
+-- Renomear seção "Financeiro" para "Produto - Vendas" e trocar ícone
 UPDATE sections
-SET label = 'Produtos',
+SET label = 'Produto - Vendas',
     icon = 'package',
     updated_at = NOW()
 WHERE key = 'financeiro';
