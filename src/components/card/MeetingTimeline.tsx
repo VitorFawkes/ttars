@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { processAIExtraction } from '@/hooks/useAIExtraction'
 
 // Interface for meeting task (tarefa tipo reuniao)
 interface MeetingTask {
@@ -31,8 +32,6 @@ interface MeetingTimelineProps {
     cardId: string
     className?: string
 }
-
-const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/transcript-process'
 
 // Helper para formatar nomes de campos extraídos
 const formatCampoLabel = (campo: string): string => {
@@ -142,53 +141,43 @@ function MeetingBubble({
 
             if (error) throw error
 
-            // Process with AI if requested
+            // Process with AI if requested (unified webhook)
             if (processWithAI && transcricao.length >= 50) {
-                const response = await fetch(N8N_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        card_id: cardId,
-                        meeting_id: meeting.id,
-                        transcription: transcricao
-                    })
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) throw new Error('Usuário não autenticado')
+
+                const result = await processAIExtraction(cardId, 'meeting_transcript', user.id, {
+                    transcription: transcricao,
+                    meetingId: meeting.id
                 })
 
-                if (response.ok) {
-                    const result = await response.json()
-                    // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
-                    const camposRaw = result.campos_extraidos || result.campos_atualizados
-                    const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : [])
-                    if (result.status === 'success' && campos.length > 0) {
-                        toast.success(
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-lg">✨</span>
-                                    <p className="font-semibold">IA atualizou {campos.length} campos!</p>
-                                </div>
-                                <div className="bg-white/20 rounded-lg p-2">
-                                    <ul className="text-xs space-y-0.5">
-                                        {campos.slice(0, 6).map((campo: string) => (
-                                            <li key={campo} className="flex items-center gap-1.5">
-                                                <span className="text-green-300">✓</span>
-                                                {formatCampoLabel(campo)}
-                                            </li>
-                                        ))}
-                                        {campos.length > 6 && (
-                                            <li className="text-white/70 pl-4">+{campos.length - 6} campos</li>
-                                        )}
-                                    </ul>
-                                </div>
-                                <p className="text-[10px] opacity-70">Recarregue o card para ver os dados atualizados</p>
-                            </div>,
-                            { duration: 6000 }
-                        )
-                    } else {
-                        toast.success('Transcrição salva! Nenhuma informação nova identificada.')
-                    }
+                const campos = result.campos_extraidos || []
+                if (result.status === 'success' && campos.length > 0) {
+                    toast.success(
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">✨</span>
+                                <p className="font-semibold">IA atualizou {campos.length} campos!</p>
+                            </div>
+                            <div className="bg-white/20 rounded-lg p-2">
+                                <ul className="text-xs space-y-0.5">
+                                    {campos.slice(0, 6).map((campo: string) => (
+                                        <li key={campo} className="flex items-center gap-1.5">
+                                            <span className="text-green-300">✓</span>
+                                            {formatCampoLabel(campo)}
+                                        </li>
+                                    ))}
+                                    {campos.length > 6 && (
+                                        <li className="text-white/70 pl-4">+{campos.length - 6} campos</li>
+                                    )}
+                                </ul>
+                            </div>
+                            <p className="text-[10px] opacity-70">Recarregue o card para ver os dados atualizados</p>
+                        </div>,
+                        { duration: 6000 }
+                    )
                 } else {
-                    toast.success('Transcrição salva!')
-                    toast.error('Não foi possível processar com IA. Tente novamente.')
+                    toast.success('Transcrição salva! Nenhuma informação nova identificada.')
                 }
             } else {
                 toast.success('Transcrição salva!')

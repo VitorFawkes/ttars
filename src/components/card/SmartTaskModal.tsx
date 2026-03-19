@@ -31,8 +31,7 @@ import { findConflicts, type MeetingTimeSlot } from '@/utils/meetingConflicts';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-
-const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/transcript-process';
+import { processAIExtraction } from '@/hooks/useAIExtraction';
 
 // Helper para formatar nomes de campos extraídos pela IA
 const formatCampoLabel = (campo: string): string => {
@@ -632,24 +631,14 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         setAiProcessResult(null);
 
         try {
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    card_id: effectiveCardId,
-                    meeting_id: taskId || 'preview', // Use 'preview' if no task ID yet
-                    transcription: transcriptionText
-                })
+            if (!user?.id) throw new Error('Usuário não autenticado');
+
+            const result = await processAIExtraction(effectiveCardId!, 'meeting_transcript', user.id, {
+                transcription: transcriptionText,
+                meetingId: taskId || undefined
             });
 
-            if (!response.ok) {
-                throw new Error('Erro ao processar transcrição');
-            }
-
-            const result = await response.json();
-            // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
-            const camposRaw = result.campos_extraidos || result.campos_atualizados;
-            const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : []);
+            const campos = result.campos_extraidos || [];
             const normalizedResult = { ...result, campos_extraidos: campos };
             setAiProcessResult(normalizedResult);
 
@@ -897,7 +886,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setSubmitPhase('processing_ai');
                 const aiResult = await processTranscriptionWithAI(taskId, transcricao, false); // false = não mostrar toast aqui
 
-                if (aiResult?.status === 'success' && aiResult.campos_extraidos?.length > 0) {
+                if (aiResult?.status === 'success' && (aiResult.campos_extraidos?.length ?? 0) > 0) {
                     setSubmitPhase('done');
                     // Mostra resultado por 2 segundos antes de fechar
                     await new Promise(resolve => setTimeout(resolve, 2500));

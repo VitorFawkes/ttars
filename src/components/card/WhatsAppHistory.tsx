@@ -456,7 +456,6 @@ function MessageBubble({ message, contactNames }: { message: WhatsAppMessage; co
 export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistoryProps) {
     const queryClient = useQueryClient();
     const scrollRef = useRef<HTMLDivElement>(null);
-
     // Contact names for multi-contact badges + used to build contact_id list
     const { data: contactNames } = useCardContactNames(cardId || null);
     const hasMultipleContacts = contactNames && Object.keys(contactNames).length > 1;
@@ -628,9 +627,11 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
                     </span>
                     <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" title="Atualizando em tempo real" />
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => refetch()}>
-                    <RefreshCw className="w-3 h-3" />
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => refetch()}>
+                        <RefreshCw className="w-3 h-3" />
+                    </Button>
+                </div>
             </div>
 
             {/* Messages */}

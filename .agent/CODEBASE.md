@@ -705,3 +705,4 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
 
+

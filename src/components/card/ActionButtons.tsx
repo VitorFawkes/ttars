@@ -1,13 +1,21 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles } from 'lucide-react'
+import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCreateProposal } from '@/hooks/useProposal'
 import { useAuth } from '@/contexts/AuthContext'
 import { useArchiveCard } from '@/hooks/useArchiveCard'
+import { useAIExtraction } from '@/hooks/useAIExtraction'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import DeleteCardModal from './DeleteCardModal'
 import BriefingIAModal from './BriefingIAModal'
+import TranscriptionIAModal from './TranscriptionIAModal'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -34,6 +42,8 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     })
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [showBriefingIA, setShowBriefingIA] = useState(false)
+    const [showTranscriptionIA, setShowTranscriptionIA] = useState(false)
+    const aiExtraction = useAIExtraction(card.id)
 
     const { archive, isArchiving } = useArchiveCard({
         onSuccess: () => navigate('/pipeline')
@@ -282,14 +292,59 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     {isCreatingProposal ? 'Criando...' : 'Proposta'}
                 </button>
 
-                <button
-                    onClick={() => setShowBriefingIA(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors text-xs font-medium"
-                    title="Briefing IA — Enviar áudio e preencher campos automaticamente"
-                >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Briefing IA
-                </button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors text-xs font-medium"
+                            disabled={aiExtraction.step === 'processing' || aiExtraction.step === 'uploading'}
+                        >
+                            {aiExtraction.step === 'processing' || aiExtraction.step === 'uploading' ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    IA analisando...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    Usar IA
+                                    <ChevronDown className="h-3 w-3 ml-0.5 opacity-70" />
+                                </>
+                            )}
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem
+                            onClick={() => aiExtraction.extract('whatsapp')}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            <MessageSquare className="h-4 w-4 text-green-600" />
+                            <div>
+                                <div className="text-sm font-medium">Ler conversa WhatsApp</div>
+                                <div className="text-xs text-slate-500">Julia analisa as mensagens</div>
+                            </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={() => setShowBriefingIA(true)}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            <Mic className="h-4 w-4 text-amber-600" />
+                            <div>
+                                <div className="text-sm font-medium">Briefing por áudio</div>
+                                <div className="text-xs text-slate-500">Gravar ou enviar áudio</div>
+                            </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={() => setShowTranscriptionIA(true)}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            <FileText className="h-4 w-4 text-purple-600" />
+                            <div>
+                                <div className="text-sm font-medium">Transcrição de reunião</div>
+                                <div className="text-xs text-slate-500">Colar transcrição e extrair dados</div>
+                            </div>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
 
                 {profile?.is_admin === true && (
                     <button
@@ -411,6 +466,13 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 onClose={() => setShowBriefingIA(false)}
                 cardId={card.id}
                 cardType={(card as Record<string, unknown>).card_type as string | undefined}
+            />
+
+            <TranscriptionIAModal
+                isOpen={showTranscriptionIA}
+                onClose={() => setShowTranscriptionIA(false)}
+                cardId={card.id}
+                cardTitle={card.titulo || undefined}
             />
         </>
     )

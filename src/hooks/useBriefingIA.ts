@@ -2,69 +2,28 @@ import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { processAIExtraction, type AIExtractionResult } from './useAIExtraction'
 
-const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/briefing-ia'
-
-export interface BriefingIAResult {
-  status: 'success' | 'no_update' | 'error' | 'transcription_empty'
-  briefing_text?: string
-  campos_atualizados?: Record<string, unknown>
-  campos_extraidos?: string[]
-  transcription?: string
-  message?: string
-  error?: string
-}
+export type BriefingIAResult = AIExtractionResult
 
 export type BriefingStep = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const result = reader.result as string
-      resolve(result.split(',')[1]) // Remove data:...;base64, prefix
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
-
-/**
- * Standalone function to process BriefingIA via n8n webhook.
- * Reusable outside the hook context (e.g., CreateCardModal post-creation flow).
- */
 export type BriefingMode = 'novo' | 'atualizar'
 
+/**
+ * Standalone function to process BriefingIA via unified n8n webhook.
+ * Reusable outside the hook context (e.g., CreateCardModal post-creation flow).
+ */
 export async function processBriefingIA(
   cardId: string,
   audioBlob: Blob,
   userId: string,
   mode: BriefingMode = 'atualizar'
 ): Promise<BriefingIAResult> {
-  const base64 = await blobToBase64(audioBlob)
-
-  if (base64.length < 100) {
-    throw new Error('Áudio muito curto ou vazio')
-  }
-
-  const response = await fetch(N8N_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      card_id: cardId,
-      audio_base64: base64,
-      audio_mime_type: audioBlob.type || 'audio/webm',
-      user_id: userId,
-      mode
-    })
+  return processAIExtraction(cardId, 'briefing_audio', userId, {
+    audioBlob,
+    mode
   })
-
-  if (!response.ok) {
-    const errText = await response.text()
-    throw new Error(`Erro ${response.status}: ${errText}`)
-  }
-
-  return response.json()
 }
 
 export function useBriefingIA(cardId: string) {

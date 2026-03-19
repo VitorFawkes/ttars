@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-
-const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/transcript-process'
+import { processAIExtraction } from '@/hooks/useAIExtraction'
 
 interface Reuniao {
     id: string
@@ -77,7 +76,7 @@ export default function MeetingModal({ isOpen, onClose, cardId, meeting, userId 
         }
     }, [isOpen, meeting])
 
-    // Process transcription with AI
+    // Process transcription with AI (unified webhook)
     const processTranscriptionWithAI = async (meetingId: string, transcriptionText: string) => {
         if (!transcriptionText || transcriptionText.trim().length < 50) {
             return null // Transcrição muito curta para processar
@@ -87,30 +86,21 @@ export default function MeetingModal({ isOpen, onClose, cardId, meeting, userId 
         setAiResult(null)
 
         try {
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    card_id: cardId,
-                    meeting_id: meetingId,
-                    transcription: transcriptionText
-                })
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) throw new Error('Usuário não autenticado')
+
+            const result = await processAIExtraction(cardId, 'meeting_transcript', user.id, {
+                transcription: transcriptionText,
+                meetingId
             })
 
-            if (!response.ok) {
-                throw new Error('Erro ao processar transcrição')
-            }
-
-            const result = await response.json()
-            // Normaliza: workflow pode retornar campos_extraidos (array) ou campos_atualizados (object)
-            const camposRaw = result.campos_extraidos || result.campos_atualizados
-            const campos: string[] = Array.isArray(camposRaw) ? camposRaw : (camposRaw ? Object.keys(camposRaw) : [])
-            setAiResult({ ...result, campos_extraidos: campos })
+            const campos = result.campos_extraidos || []
+            setAiResult({ status: result.status, campos_extraidos: campos })
 
             if (result.status === 'success' && campos.length > 0) {
                 toast.success(`IA extraiu ${campos.length} campos!`)
-                // Invalidar cache do card para mostrar dados atualizados
                 queryClient.invalidateQueries({ queryKey: ['card', cardId] })
+                queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             } else if (result.status === 'no_update' || campos.length === 0) {
                 toast.info('IA não encontrou novas informações na transcrição')
             }
