@@ -179,6 +179,8 @@ const sections = config.sections || {};
 
 const produtoData = cardData.produto_data || {};
 const briefingData = cardData.briefing_inicial || {};
+const lockedFields = cardData.locked_fields || {};
+const lockedKeys = Object.keys(lockedFields).filter(k => lockedFields[k] === true);
 const fase = cardData.pipeline_stages?.fase || 'SDR';
 const stageName = cardData.pipeline_stages?.nome || '';
 
@@ -351,6 +353,11 @@ let aiPrompt = '# TAREFA: Atualizar CRM com informações da conversa WhatsApp\\
   + '# CAMPOS DISPONÍVEIS (visíveis nesta etapa)\\n\\n'
   + fieldDefs + '\\n\\n'
   + '---\\n\\n'
+  + (lockedKeys.length > 0
+    ? '# CAMPOS BLOQUEADOS (NÃO EXTRAIR)\\n\\n'
+      + 'Os seguintes campos estão BLOQUEADOS pelo usuário. NÃO inclua na saída:\\n'
+      + lockedKeys.map(k => '- ' + k).join('\\n') + '\\n\\n'
+    : '')
   + '# FORMATO DE SAÍDA\\n\\n'
   + 'Retorne APENAS um JSON válido com os campos que devem ser ATUALIZADOS.\\n'
   + '- NÃO inclua campos que já estão corretos\\n'
@@ -422,6 +429,8 @@ const fields = source === 'briefing_audio' ? allFields : allFields.filter(f => f
 
 const produtoData = cardData.produto_data || {};
 const briefingData = cardData.briefing_inicial || {};
+const lockedFields = cardData.locked_fields || {};
+const lockedKeys = Object.keys(lockedFields).filter(k => lockedFields[k] === true);
 const fase = cardData.pipeline_stages?.fase || 'SDR';
 const stageName = cardData.pipeline_stages?.nome || '';
 
@@ -504,6 +513,11 @@ if (source === 'briefing_audio') {
     + '# TAREFA 2: CAMPOS ESTRUTURADOS\\n\\n'
     + 'Extraia dados CONFIRMADOS para os campos abaixo.\\n\\n'
     + '## CAMPOS DISPONÍVEIS\\n' + fieldDefs + '\\n\\n'
+    + (lockedKeys.length > 0
+      ? '# CAMPOS BLOQUEADOS (NÃO EXTRAIR)\\n\\n'
+        + 'Os seguintes campos estão BLOQUEADOS pelo usuário. NÃO inclua na saída:\\n'
+        + lockedKeys.map(k => '- ' + k).join('\\n') + '\\n\\n'
+      : '')
     + '# REGRAS\\n'
     + '1. APENAS informações CONFIRMADAS\\n'
     + '2. NÃO INVENTE\\n'
@@ -531,6 +545,11 @@ if (source === 'briefing_audio') {
     + '# TAREFA 2: CAMPOS ESTRUTURADOS\\n\\n'
     + 'Extraia dados do CLIENTE.\\n\\n'
     + '## CAMPOS DISPONÍVEIS\\n' + fieldDefs + '\\n\\n'
+    + (lockedKeys.length > 0
+      ? '# CAMPOS BLOQUEADOS (NÃO EXTRAIR)\\n\\n'
+        + 'Os seguintes campos estão BLOQUEADOS pelo usuário. NÃO inclua na saída:\\n'
+        + lockedKeys.map(k => '- ' + k).join('\\n') + '\\n\\n'
+      : '')
     + '# REGRAS\\n'
     + '1. APENAS informações do CLIENTE\\n'
     + '2. NÃO INVENTE\\n'

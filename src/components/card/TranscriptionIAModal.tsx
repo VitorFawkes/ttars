@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, FileText, Sparkles, CheckCircle, AlertCircle, Video, Calendar, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { X, FileText, Sparkles, CheckCircle, AlertCircle, Video, Calendar, Clock, ChevronDown, ChevronUp, Users, PenLine, RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -31,6 +31,7 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
 
   // Transcription
   const [transcricao, setTranscricao] = useState('')
+  const [mode, setMode] = useState<'atualizar' | 'novo'>('atualizar')
 
   // Task creation toggle
   const [createTask, setCreateTask] = useState(true)
@@ -52,6 +53,7 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
 
   const handleClose = () => {
     setTranscricao('')
+    setMode('atualizar')
     setCreateTask(true)
     setTaskTitle('')
     setMeetingDate(getDefaultDate())
@@ -137,7 +139,8 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
       // Process with AI
       const aiResult = await processAIExtraction(cardId, 'meeting_transcript', authUser.id, {
         transcription: transcricao,
-        meetingId
+        meetingId,
+        mode
       })
 
       setResult(aiResult)
@@ -217,6 +220,55 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
                 <p className="text-xs text-gray-400 mt-1">
                   {transcricao.length} caracteres {transcricao.length > 0 && transcricao.length < 50 && '(mín. 50)'}
                 </p>
+              </div>
+
+              {/* Mode selector: atualizar vs novo */}
+              <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 space-y-2">
+                <p className="text-xs font-semibold text-purple-700">
+                  Como processar esta transcrição?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMode('atualizar')}
+                    className={cn(
+                      'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left',
+                      mode === 'atualizar'
+                        ? 'bg-purple-100 border-purple-400 ring-1 ring-purple-400'
+                        : 'bg-white border-slate-200 hover:border-purple-300'
+                    )}
+                  >
+                    <PenLine className={cn('w-4 h-4 flex-shrink-0', mode === 'atualizar' ? 'text-purple-700' : 'text-slate-400')} />
+                    <div>
+                      <span className={cn('text-xs font-medium block', mode === 'atualizar' ? 'text-purple-800' : 'text-slate-600')}>
+                        Atualizar
+                      </span>
+                      <span className="text-[10px] text-slate-400 leading-tight block">
+                        Incorpora ao briefing existente
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('novo')}
+                    className={cn(
+                      'flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left',
+                      mode === 'novo'
+                        ? 'bg-purple-100 border-purple-400 ring-1 ring-purple-400'
+                        : 'bg-white border-slate-200 hover:border-purple-300'
+                    )}
+                  >
+                    <RefreshCw className={cn('w-4 h-4 flex-shrink-0', mode === 'novo' ? 'text-purple-700' : 'text-slate-400')} />
+                    <div>
+                      <span className={cn('text-xs font-medium block', mode === 'novo' ? 'text-purple-800' : 'text-slate-600')}>
+                        Novo Briefing
+                      </span>
+                      <span className="text-[10px] text-slate-400 leading-tight block">
+                        Substitui tudo e começa do zero
+                      </span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Create task toggle + form */}
