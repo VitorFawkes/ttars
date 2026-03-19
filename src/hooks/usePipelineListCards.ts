@@ -45,9 +45,11 @@ export function usePipelineListCards({
     const { session, profile } = useAuth()
 
     // Fetch Team Members for Team View
+    // Users without team_id belong to ALL teams → skip query, show all
+    const hasTeam = !!profile?.team_id
     const { data: myTeamMembers } = useQuery({
         queryKey: ['my-team-members', profile?.team_id],
-        enabled: !!profile?.team_id && viewMode === 'MANAGER' && subView === 'TEAM_VIEW',
+        enabled: hasTeam && viewMode === 'MANAGER' && subView === 'TEAM_VIEW',
         queryFn: async () => {
             if (!profile?.team_id) return []
             const { data, error } = await supabase
@@ -65,9 +67,9 @@ export function usePipelineListCards({
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
-        (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
+        (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
     const isAuthReady = !!session?.user?.id
-    const isTeamReady = subView !== 'TEAM_VIEW' || (myTeamMembers && myTeamMembers.length > 0)
+    const isTeamReady = subView !== 'TEAM_VIEW' || !hasTeam || (myTeamMembers && myTeamMembers.length > 0)
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
@@ -88,8 +90,12 @@ export function usePipelineListCards({
                     query = query.eq('dono_atual_id', session.user.id)
                 }
             } else if (viewMode === 'MANAGER') {
-                if (subView === 'TEAM_VIEW' && myTeamMembers && myTeamMembers.length > 0) {
-                    query = query.in('dono_atual_id', myTeamMembers)
+                if (subView === 'TEAM_VIEW') {
+                    // Filter by team members if user has a team; no team = belongs to all teams
+                    if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
+                        query = query.in('dono_atual_id', myTeamMembers)
+                    }
+                    // !hasTeam → no filter applied (show all)
                 }
                 if (subView === 'FORECAST') {
                     const startOfMonth = new Date(); startOfMonth.setDate(1)

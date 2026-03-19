@@ -41,10 +41,12 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
     const hasPersonFilter = uniquePersonFilterIds.length > 0
 
     // Fetch team member IDs when in TEAM_VIEW (and no person filter overriding)
-    const needsTeam = viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && !hasPersonFilter
+    // Users without team_id belong to ALL teams → no filter needed
+    const hasTeam = !!profile?.team_id
+    const needsTeam = hasTeam && viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && !hasPersonFilter
     const { data: teamMemberIds } = useQuery({
         queryKey: ['my-team-members', profile?.team_id],
-        enabled: !!profile?.team_id && needsTeam,
+        enabled: needsTeam,
         queryFn: async () => {
             if (!profile?.team_id) return []
             const { data, error } = await supabase
@@ -70,7 +72,13 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
         effectiveIds = undefined // no filter — show all
         showOwner = true
     } else if (viewMode === 'MANAGER' && subView === 'TEAM_VIEW') {
-        effectiveIds = teamMemberIds || []
+        if (hasTeam) {
+            // Has team → show only team members
+            effectiveIds = teamMemberIds || []
+        } else {
+            // No team → belongs to all teams → show all
+            effectiveIds = undefined
+        }
         showOwner = true
     } else {
         // MY_QUEUE, FORECAST, ATTENTION → only my tasks
