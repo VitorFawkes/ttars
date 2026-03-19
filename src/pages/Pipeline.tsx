@@ -41,6 +41,20 @@ export default function Pipeline() {
     // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
     const isAdmin = profile?.is_admin === true
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isGestor = (profile as any)?.role_info?.name === 'gestor'
+    const canViewTeam = isAdmin || isGestor
+    const canViewAll = isAdmin || isGestor
+
+    // Guard: if user lost access to current view (e.g. role changed), reset to MY_QUEUE
+    useEffect(() => {
+        if (subView === 'TEAM_VIEW' && !canViewTeam) {
+            setViewMode('AGENT'); setSubView('MY_QUEUE')
+        } else if (subView === 'ALL' && !canViewAll) {
+            setViewMode('AGENT'); setSubView('MY_QUEUE')
+        }
+    }, [canViewTeam, canViewAll, subView, setViewMode, setSubView])
+
     useEffect(() => {
         if (_phaseAutoApplied || isAdmin || !visiblePhases?.length) return
         setAll({ filters: { ...filters, phaseFilters: visiblePhases }, _phaseAutoApplied: true })
@@ -147,28 +161,32 @@ export default function Pipeline() {
                                     >
                                         Minha Fila
                                     </button>
-                                    <button
-                                        onClick={() => { setViewMode('MANAGER'); setSubView('TEAM_VIEW'); }}
-                                        className={cn(
-                                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
-                                            viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
-                                                ? "bg-primary text-white shadow-sm"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                                        )}
-                                    >
-                                        Visão de Time
-                                    </button>
-                                    <button
-                                        onClick={() => { setViewMode('MANAGER'); setSubView('ALL'); }}
-                                        className={cn(
-                                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
-                                            subView === 'ALL'
-                                                ? "bg-primary text-white shadow-sm"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                                        )}
-                                    >
-                                        Todos
-                                    </button>
+                                    {canViewTeam && (
+                                        <button
+                                            onClick={() => { setViewMode('MANAGER'); setSubView('TEAM_VIEW'); }}
+                                            className={cn(
+                                                "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
+                                                viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
+                                                    ? "bg-primary text-white shadow-sm"
+                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                            )}
+                                        >
+                                            Visão de Time
+                                        </button>
+                                    )}
+                                    {canViewAll && (
+                                        <button
+                                            onClick={() => { setViewMode('MANAGER'); setSubView('ALL'); }}
+                                            className={cn(
+                                                "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
+                                                subView === 'ALL'
+                                                    ? "bg-primary text-white shadow-sm"
+                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                            )}
+                                        >
+                                            Todos
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Group Filters (2 Chips - Linked/Solo) */}

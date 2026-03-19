@@ -4,11 +4,12 @@ import type { MyDayOpportunity } from '../../hooks/useMyDayOpportunities'
 
 interface MyDayOpportunityCardProps {
     opportunity: MyDayOpportunity
+    showOwner?: boolean
 }
 
-export function MyDayOpportunityCard({ opportunity }: MyDayOpportunityCardProps) {
-    const isUpsell = opportunity.source_type === 'won_upsell'
-    const typeLabel = isUpsell ? 'Sub-card' : 'Novo card'
+export function MyDayOpportunityCard({ opportunity, showOwner }: MyDayOpportunityCardProps) {
+    const isFutureItem = opportunity.source_type === 'won_future'
+    const typeLabel = isFutureItem ? 'Sub-card' : 'Novo card'
 
     const parts = opportunity.scheduled_date.split('-')
     const dateStr = `${parts[2]}/${parts[1]}`
@@ -53,8 +54,8 @@ export function MyDayOpportunityCard({ opportunity }: MyDayOpportunityCardProps)
                 Origem: {opportunity.source_card_titulo}
             </p>
 
-            {/* Countdown */}
-            <div className="flex items-center mt-auto pt-1 border-t border-amber-100">
+            {/* Countdown + owner */}
+            <div className="flex items-center justify-between mt-auto pt-1 border-t border-amber-100">
                 <span className={cn(
                     "text-xs font-medium px-2 py-0.5 rounded-full",
                     opportunity.days_until <= 3
@@ -63,6 +64,16 @@ export function MyDayOpportunityCard({ opportunity }: MyDayOpportunityCardProps)
                 )}>
                     {daysText}
                 </span>
+                {showOwner && opportunity.responsavel_nome && (
+                    <div className="flex items-center gap-1.5">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex-shrink-0">
+                            {opportunity.responsavel_nome.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[11px] text-slate-500 truncate max-w-[70px]">
+                            {opportunity.responsavel_nome.split(' ')[0]}
+                        </span>
+                    </div>
+                )}
             </div>
         </a>
     )

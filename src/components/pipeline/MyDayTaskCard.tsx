@@ -19,11 +19,12 @@ const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; colo
 interface MyDayTaskCardProps {
     task: MyDayTask
     isOverdue?: boolean
+    showOwner?: boolean
     onComplete: (taskId: string) => void
     isCompleting?: boolean
 }
 
-export function MyDayTaskCard({ task, isOverdue, onComplete, isCompleting }: MyDayTaskCardProps) {
+export function MyDayTaskCard({ task, isOverdue, showOwner, onComplete, isCompleting }: MyDayTaskCardProps) {
     const config = TASK_TYPE_CONFIG[task.tipo] || TASK_TYPE_CONFIG.tarefa
     const Icon = config.icon
 
@@ -94,12 +95,25 @@ export function MyDayTaskCard({ task, isOverdue, onComplete, isCompleting }: MyD
                 )}
             </div>
 
-            {/* Actions */}
+            {/* Footer: owner + actions */}
             <div className="flex items-center gap-1.5 mt-auto pt-1 border-t border-slate-100">
+                {showOwner && task.responsavel_nome && (
+                    <div className="flex items-center gap-1.5 mr-auto min-w-0">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex-shrink-0">
+                            {task.responsavel_nome.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[11px] text-slate-500 truncate max-w-[70px]">
+                            {task.responsavel_nome.split(' ')[0]}
+                        </span>
+                    </div>
+                )}
                 <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onComplete(task.id) }}
                     disabled={isCompleting}
-                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors disabled:opacity-50"
+                    className={cn(
+                        "flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors disabled:opacity-50",
+                        showOwner && task.responsavel_nome ? "" : "mr-auto"
+                    )}
                 >
                     <Check className="h-3 w-3" />
                     Concluir

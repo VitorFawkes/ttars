@@ -5,7 +5,7 @@ import { useToast } from '../contexts/ToastContext'
 export interface FutureOpportunity {
     id: string
     source_card_id: string
-    source_type: 'lost_future' | 'won_upsell'
+    source_type: 'lost_future' | 'won_future'
     scheduled_date: string
     titulo: string
     descricao: string | null
@@ -19,7 +19,7 @@ export interface FutureOpportunity {
 
 interface CreateFutureOpportunityParams {
     sourceCardId: string
-    sourceType: 'lost_future' | 'won_upsell'
+    sourceType: 'lost_future' | 'won_future'
     titulo: string
     descricao?: string
     scheduledDate: string

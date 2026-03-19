@@ -5,7 +5,7 @@
  *
  * Processa oportunidades futuras agendadas:
  * - lost_future → cria card novo independente via RPC criar_card_oportunidade_futura
- * - won_upsell → cria sub-card via RPC criar_sub_card_futuro
+ * - won_future → cria sub-card via RPC criar_sub_card_futuro
  *
  * Cards SÓ são criados quando scheduled_date <= hoje (nunca antes).
  */
@@ -73,7 +73,7 @@ serve(async (req) => {
 
           if (error) throw error;
           result = data;
-        } else if (opp.source_type === "won_upsell") {
+        } else if (opp.source_type === "won_future") {
           // Caso 2: Card Planner/Pós-Venda → sub-card
           const { data, error } = await supabase.rpc(
             "criar_sub_card_futuro",

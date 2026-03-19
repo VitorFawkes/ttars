@@ -34,16 +34,36 @@ if (!API_KEY) {
 
 const SYSTEM_PROMPT = `Você é um extrator de dados de CRM para a Welcome Trips — agência premium de viagens personalizadas.
 
-Sua ÚNICA função é: receber transcrição de áudio de consultor → retornar JSON com briefing + campos estruturados.
+Sua ÚNICA função é: receber transcrição de áudio → retornar JSON com briefing + campos estruturados.
 
-## REGRAS ABSOLUTAS
+## TIPO DE ÁUDIO
 
-1. EXTRAIA APENAS informações mencionadas explicitamente na transcrição
-2. NUNCA invente ou infira informações não ditas pelo consultor
+A transcrição pode ser de DOIS tipos (identifique automaticamente):
+
+**Tipo A — Relato do consultor:** O consultor narra sozinho o que conversou com o cliente. Fala em terceira pessoa: "O cliente quer...", "Ele falou que..."
+**Tipo B — Conversa ao vivo:** Áudio da conversa entre consultor e cliente. Contém diálogo com perguntas e respostas de ambos os lados.
+
+Identifique o tipo pelo padrão de fala e aplique as regras corretas.
+
+## REGRAS PARA CONVERSA AO VIVO (Tipo B) — CRÍTICO
+
+Quando a transcrição é um diálogo entre consultor e cliente:
+
+1. **PERGUNTAS do consultor NÃO são dados.** "Qual o orçamento?", "Vocês pensam em ir quando?" → NÃO extraia.
+2. **SUGESTÕES e HIPÓTESES do consultor NÃO são dados.** "E se fosse Maldivas?", "Uma opção seria 10 dias" → NÃO extraia, EXCETO se o cliente confirmar.
+3. **RESPOSTAS e CONFIRMAÇÕES do cliente SÃO dados.** "Nosso orçamento é uns 50 mil", "Sim, adoramos Maldivas", "Pode ser em julho" → EXTRAIA.
+4. **Confirmação implícita do cliente:** Se o consultor sugere algo e o cliente concorda ("tá bom", "pode ser", "gostei", "fechado"), a sugestão vira dado confirmado.
+5. **Hesitação ou incerteza do cliente NÃO é dado.** "Não sei ainda", "A gente tá pensando", "Talvez" → NÃO extraia.
+6. **Use a ÚLTIMA posição do cliente.** Se o cliente muda de ideia durante a conversa, use a decisão mais recente.
+
+## REGRAS ABSOLUTAS (ambos os tipos)
+
+1. EXTRAIA APENAS informações confirmadas/decididas
+2. NUNCA invente ou infira informações não ditas
 3. Se houver ambiguidade, NÃO inclua o campo
 4. Respeite os formatos e valores permitidos de cada campo
-5. Campos com dados existentes: SOMENTE atualize se o consultor trouxe informação NOVA ou DIFERENTE
-6. Se o consultor NÃO mencionou um campo, NÃO o inclua (mantém o existente)
+5. Campos com dados existentes: SOMENTE atualize se houve informação NOVA ou DIFERENTE
+6. Se um campo NÃO foi mencionado, NÃO o inclua (mantém o existente)
 7. Transcrição de áudio pode ter erros de reconhecimento: "maldives" = "Maldivas", "tailândia" pode estar como "tailando", etc. Use bom senso
 8. Números devem ser números puros (sem formatação)
 9. Booleanos devem ser true ou false
@@ -58,8 +78,8 @@ Sua ÚNICA função é: receber transcrição de áudio de consultor → retorna
 
 ## QUALIDADE
 - Prefira não extrair a extrair informação duvidosa
-- Se o consultor for vago, não inclua
-- Se houver contradição na transcrição, use a informação mais recente
+- Perguntas e sugestões NÃO confirmadas = informação duvidosa
+- Se houver contradição, use a posição mais recente do cliente
 
 ## SAÍDA
 Responda APENAS com JSON válido. Nenhum texto antes ou depois. Sem markdown.`;
@@ -132,17 +152,18 @@ return [{ json: {
   transcription
 }}];`;
 
-const CODE_MONTA_CONTEXTO = `// Monta contexto para o AI Briefing (filtra por visibilidade do stage)
+const CODE_MONTA_CONTEXTO = `// Monta contexto para o AI Briefing (V2 — campos de system_fields com visibilidade por stage)
 const transcriptionData = $('3b. Extrai Transcrição').first().json;
 const cardData = $('4. Busca Card').first().json;
 const config = $('5. Busca Config').first().json;
 const mode = $('1. Extrai Params').first().json.mode || 'atualizar';
 console.log('[BriefingIA] Modo: ' + mode);
 
-// Busca campos ocultos no stage atual (retorno do step 5b)
-const hiddenFieldsRaw = $('5b. Busca Visibilidade').all().map(i => i.json);
-const hiddenKeys = new Set(hiddenFieldsRaw.map(r => r.field_key).filter(Boolean));
-console.log('[BriefingIA] Campos ocultos no stage: ' + (hiddenKeys.size > 0 ? [...hiddenKeys].join(', ') : '(nenhum)'));
+// V2: visibilidade já vem na config (is_visible por campo)
+const allFields = config.fields || [];
+const visibleKeys = new Set(allFields.filter(f => f.is_visible !== false).map(f => f.key));
+const hiddenKeys = new Set(allFields.filter(f => f.is_visible === false).map(f => f.key));
+console.log('[BriefingIA] Campos visíveis: ' + visibleKeys.size + ' | Ocultos: ' + hiddenKeys.size);
 
 // Se a transcrição falhou, retornar erro direto
 if (transcriptionData.status === 'transcription_empty') {
@@ -160,15 +181,11 @@ const briefingData = cardData.briefing_inicial || {};
 const fase = cardData.pipeline_stages?.fase || 'SDR';
 const stageName = cardData.pipeline_stages?.nome || '';
 const stageId = cardData.pipeline_stage_id || '';
-const allFields = config.fields || [];
 const sections = config.sections || {};
 
-// FILTRAR: remover campos ocultos no stage atual
-const fields = allFields.filter(f => !hiddenKeys.has(f.key));
-const removedCount = allFields.length - fields.length;
-if (removedCount > 0) {
-  console.log('[BriefingIA] Removidos ' + removedCount + ' campos ocultos. Restam ' + fields.length + ' campos visíveis.');
-}
+// IA recebe TODOS os campos — visíveis são prioritários
+const fields = allFields;
+console.log('[BriefingIA] Total campos para IA: ' + fields.length);
 
 // Mapa de seções por fase
 const SECTION_MAP = {
@@ -206,7 +223,7 @@ if (mode !== 'novo') {
 // Briefing anterior (para modo 'atualizar' — IA incorpora no novo texto)
 const briefingAnterior = mode !== 'novo' ? (tripSource.resumo_consultor || '') : '';
 
-// Monta definições de campos para o prompt (apenas visíveis)
+// Monta definições de campos para o prompt (todos os campos, marcando visibilidade)
 let fieldDefs = '';
 let currentSection = '';
 let num = 1;
@@ -218,7 +235,8 @@ for (const f of fields) {
     fieldDefs += '\\n## SEÇÃO: ' + sectionLabel + '\\n\\n';
   }
 
-  fieldDefs += '### ' + num + '. ' + f.key + ' (' + f.type + ')\\n';
+  const visTag = f.is_visible !== false ? '[VISÍVEL]' : '[OCULTO]';
+  fieldDefs += '### ' + num + '. ' + f.key + ' (' + f.type + ') ' + visTag + '\\n';
   fieldDefs += '**Pergunta:** ' + f.question + '\\n';
   if (f.format) fieldDefs += '**Formato:** ' + f.format + '\\n';
   if (f.examples) fieldDefs += '**Exemplos válidos:** ' + f.examples + '\\n';
@@ -321,12 +339,7 @@ const camposValidados = {};
 for (const [key, value] of Object.entries(camposRaw)) {
   if (value === undefined || value === null || value === '') continue;
 
-  // Safety net: rejeitar campos ocultos no stage atual
-  if (hiddenFields.has(key)) {
-    console.log('[BriefingIA] Campo oculto rejeitado na validação: ' + key);
-    continue;
-  }
-
+  // Campos ocultos no stage passam normalmente — proteção fica com locked_fields
   const fieldDef = fieldMap[key];
   if (!fieldDef) continue;
 
@@ -444,10 +457,17 @@ for (const f of fields) {
   fieldSectionMap[f.key] = f.section;
 }
 
-// Separar campos extraídos por seção, respeitando locked_fields
+// Mapa de labels para formatação legível
+const fieldLabelMap = {};
+for (const f of fields) {
+  fieldLabelMap[f.key] = f.label || f.key;
+}
+
+// Separar campos extraídos por seção, respeitando locked_fields e visibilidade
 const tripInfoUpdate = {};
 const observacoesUpdate = {};
 const camposAtualizados = {};
+const camposOcultosTexto = []; // Campos ocultos no stage → viram texto na observação
 
 for (const [key, value] of Object.entries(camposExtraidos)) {
   // Respeitar campos bloqueados
@@ -455,9 +475,20 @@ for (const [key, value] of Object.entries(camposExtraidos)) {
     console.log('[BriefingIA] Campo bloqueado, ignorando: ' + key);
     continue;
   }
-  // Respeitar campos ocultos no stage
+
+  // Campos OCULTOS no stage → redirecionar para observações como texto
   if (hiddenFields.has(key)) {
-    console.log('[BriefingIA] Campo oculto no stage, ignorando: ' + key);
+    const label = fieldLabelMap[key] || key;
+    let displayValue = value;
+    if (Array.isArray(value)) {
+      displayValue = value.join(', ');
+    } else if (typeof value === 'object' && value !== null) {
+      // Extrair display se existir, senão resumir
+      displayValue = value.display || value.valor || value.tipo || JSON.stringify(value);
+    }
+    camposOcultosTexto.push(label + ': ' + displayValue);
+    console.log('[BriefingIA] Campo oculto no stage → observação: ' + key + ' = ' + displayValue);
+    camposAtualizados[key] = '→ obs';
     continue;
   }
 
@@ -468,6 +499,14 @@ for (const [key, value] of Object.entries(camposExtraidos)) {
     observacoesUpdate[key] = value;
   }
   camposAtualizados[key] = value;
+}
+
+// Se há campos ocultos extraídos, montar nota para anexar ao briefing no merge
+let notasCamposOcultos = '';
+if (camposOcultosTexto.length > 0) {
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  notasCamposOcultos = '\\n\\n📋 Mencionado no áudio (' + dataHoje + '): ' + camposOcultosTexto.join(' · ');
+  console.log('[BriefingIA] Nota campos ocultos: ' + notasCamposOcultos);
 }
 
 // ============================================================
@@ -605,6 +644,10 @@ if (tripInfoUpdate.duracao_viagem) {
 const mode = $('6. Monta Contexto').first().json.mode || 'atualizar';
 console.log('[BriefingIA] Merge modo: ' + mode);
 
+// briefingComNotas = briefing da IA + notas de campos ocultos (se houver)
+const briefingComNotas = (briefingText || '') + notasCamposOcultos;
+const temBriefingFinal = briefingComNotas.trim().length > 0;
+
 let newProdutoData, newBriefing;
 
 if (mode === 'novo') {
@@ -613,9 +656,9 @@ if (mode === 'novo') {
   if (fase === 'SDR') {
     newBriefing = { ...tripInfoUpdate };
     newBriefing.observacoes = { ...observacoesUpdate };
-    if (briefingText) {
-      newBriefing.observacoes.briefing = briefingText;
-      newBriefing.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      newBriefing.observacoes.briefing = briefingComNotas;
+      newBriefing.resumo_consultor = briefingComNotas;
       newBriefing.resumo_consultor_at = new Date().toISOString();
     }
     // Restaurar campos bloqueados
@@ -639,9 +682,9 @@ if (mode === 'novo') {
     for (const [key, val] of Object.entries(lockedObs)) {
       if (lockedFields[key] === true) newProdutoData.observacoes_criticas[key] = val;
     }
-    if (briefingText) {
-      newProdutoData.observacoes_criticas.briefing = briefingText;
-      newProdutoData.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      newProdutoData.observacoes_criticas.briefing = briefingComNotas;
+      newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
     newBriefing = currentBriefing;
@@ -656,9 +699,9 @@ if (mode === 'novo') {
     for (const [key, val] of Object.entries(lockedObs)) {
       if (lockedFields[key] === true) newProdutoData.observacoes_pos_venda[key] = val;
     }
-    if (briefingText) {
-      newProdutoData.observacoes_pos_venda.briefing = briefingText;
-      newProdutoData.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      newProdutoData.observacoes_pos_venda.briefing = briefingComNotas;
+      newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
     newBriefing = currentBriefing;
@@ -669,9 +712,9 @@ if (mode === 'novo') {
     newBriefing = { ...currentBriefing, ...tripInfoUpdate };
     const obsBase = currentBriefing.observacoes || {};
     const obsUpdated = { ...obsBase, ...observacoesUpdate };
-    if (briefingText) {
-      obsUpdated.briefing = briefingText;
-      newBriefing.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      obsUpdated.briefing = briefingComNotas;
+      newBriefing.resumo_consultor = briefingComNotas;
       newBriefing.resumo_consultor_at = new Date().toISOString();
     }
     newBriefing.observacoes = obsUpdated;
@@ -680,9 +723,9 @@ if (mode === 'novo') {
     newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
     const obsBase = currentProdutoData.observacoes_criticas || {};
     const obsUpdated = { ...obsBase, ...observacoesUpdate };
-    if (briefingText) {
-      obsUpdated.briefing = briefingText;
-      newProdutoData.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      obsUpdated.briefing = briefingComNotas;
+      newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
     newProdutoData.observacoes_criticas = obsUpdated;
@@ -691,9 +734,9 @@ if (mode === 'novo') {
     newProdutoData = { ...currentProdutoData, ...tripInfoUpdate };
     const obsBase = currentProdutoData.observacoes_pos_venda || {};
     const obsUpdated = { ...obsBase, ...observacoesUpdate };
-    if (briefingText) {
-      obsUpdated.briefing = briefingText;
-      newProdutoData.resumo_consultor = briefingText;
+    if (temBriefingFinal) {
+      obsUpdated.briefing = briefingComNotas;
+      newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
     newProdutoData.observacoes_pos_venda = obsUpdated;
@@ -862,13 +905,16 @@ function buildWorkflow() {
       credentials: { supabaseApi: SUPABASE_CREDENTIAL }
     },
 
-    // 5. HTTP Request: Busca Config
+    // 5. HTTP Request: Busca Config (V2 — lê de system_fields + stage visibility)
     {
       parameters: {
         method: 'POST',
-        url: `${SUPABASE_URL}/rest/v1/rpc/get_ai_extraction_config`,
+        url: `${SUPABASE_URL}/rest/v1/rpc/get_ai_extraction_config_v2`,
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'supabaseApi',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_stage_id: $('4. Busca Card').item.json.pipeline_stage_id || null }) }}`,
         options: {}
       },
       name: '5. Busca Config',
@@ -911,10 +957,9 @@ function buildWorkflow() {
         promptType: 'define',
         text: `=# CONTEXTO
 
-Um CONSULTOR da Welcome Trips acabou de gravar um áudio relatando o que conversou com o cliente.
-⚠️ IMPORTANTE: Esta é uma transcrição de ÁUDIO do CONSULTOR, não do cliente diretamente. O consultor está RELATANDO em terceira pessoa o que foi discutido.
+Um CONSULTOR da Welcome Trips gravou um áudio. Pode ser um RELATO (consultor narrando sozinho) ou uma CONVERSA AO VIVO com o cliente. Identifique o tipo e aplique as regras do system prompt.
 
-## TRANSCRIÇÃO DO CONSULTOR
+## TRANSCRIÇÃO
 """
 {{ $json.transcription }}
 """
@@ -924,9 +969,9 @@ Título: {{ $json.titulo }}
 Fase do Pipeline: {{ $json.fase }} (Etapa: {{ $json.stage_name }})
 Seção de dados: {{ $json.section_info.obsLabel }}
 
-⚠️ REGRA DE FASE: Este card está na fase **{{ $json.fase }}**. Salve os dados na seção correta para essa fase. Apenas os campos listados abaixo estão HABILITADOS para este estágio — NÃO extraia campos que não estão na lista.
+⚠️ REGRA DE FASE: Este card está na fase **{{ $json.fase }}**. Extraia TODOS os campos mencionados, sejam visíveis ou ocultos no stage atual.
 
-{{ $json.mode === 'novo' ? '⚠️ MODO: NOVO BRIEFING — Extraia TUDO que o consultor mencionou, como se fosse um card completamente novo. Ignore qualquer dado pre-existente.' : '⚠️ MODO: ATUALIZAR BRIEFING — O consultor esta COMPLEMENTANDO ou CORRIGINDO um briefing existente. Retorne o valor FINAL DESEJADO de cada campo que precisa mudar. Para arrays (destinos): se diz tambem quer X, retorne lista COMPLETA com existentes + X. Se diz nao e mais Y agora e Z, retorne lista SEM Y e COM Z. Se NAO menciona um campo, NAO o inclua.' }}
+{{ $json.mode === 'novo' ? '⚠️ MODO: NOVO BRIEFING — Extraia TUDO que foi confirmado/decidido, como se fosse um card completamente novo. Ignore qualquer dado pre-existente.' : '⚠️ MODO: ATUALIZAR BRIEFING — COMPLEMENTANDO ou CORRIGINDO um briefing existente. Retorne o valor FINAL DESEJADO de cada campo que precisa mudar. Para arrays (destinos): se diz tambem quer X, retorne lista COMPLETA com existentes + X. Se diz nao e mais Y agora e Z, retorne lista SEM Y e COM Z. Se NAO menciona um campo, NAO o inclua.' }}
 
 {{ $json.mode !== 'novo' && $json.briefing_anterior ? '## BRIEFING ANTERIOR\\n' + $json.briefing_anterior : '' }}
 
@@ -936,48 +981,52 @@ Seção de dados: {{ $json.section_info.obsLabel }}
 
 # TAREFA 1: BRIEFING (campo "briefing_text")
 
-{{ $json.mode === 'novo' ? 'Gere um resumo factual do que foi relatado pelo consultor.' : 'Gere um resumo factual ATUALIZADO que incorpore tanto o briefing anterior quanto as novas informacoes deste audio. O resultado deve ser um texto unico e coeso.' }}
+{{ $json.mode === 'novo' ? 'Gere um resumo factual das decisões/informações confirmadas.' : 'Gere um resumo factual ATUALIZADO que incorpore tanto o briefing anterior quanto as novas informacoes deste audio. O resultado deve ser um texto unico e coeso.' }}
 
 **Regras do briefing:**
 - Escreva em terceira pessoa e tom profissional: "O cliente deseja...", "O casal planeja..."
-- APENAS resuma o que o consultor DISSE. Nada mais, nada menos.
+- APENAS resuma informações CONFIRMADAS/DECIDIDAS. Perguntas do consultor e respostas vagas do cliente não entram.
 - Se a transcrição é curta (1-2 frases), o briefing deve ser curto (1-3 frases). NUNCA encha com conteúdo inventado.
 - Organize por temas quando houver conteúdo suficiente: destino, época/duração, orçamento, preferências
 - Limpe repetições e hesitações típicas de fala transcrita, mas preserve toda a informação
 - PROIBIDO: "Próximos Passos", "Aguardar", sugestões, análises, recomendações
 - PROIBIDO: comentar sobre o que FALTA no briefing ou sobre qualidade dos dados
 - Máximo 600 palavras
-- NÃO invente informações que o consultor não mencionou
+- NÃO invente informações não confirmadas
 
-**Exemplo:**
-Transcrição: "Esse cliente está indo para Maldivas e precisa fazer uma rota diferenciada"
+**Exemplos:**
+Transcrição (relato): "Esse cliente está indo para Maldivas e precisa fazer uma rota diferenciada"
 Briefing correto: "O cliente deseja viajar para as Maldivas com um roteiro diferenciado e personalizado."
-Briefing ERRADO: "O cliente mencionou interesse em Maldivas com necessidade de rota diferenciada, mas ainda sem outros parâmetros definidos. Próximos Passos: Aguardar novos relatos..."
+
+Transcrição (conversa): "Consultor: E vocês pensaram em destino? Cliente: A gente quer Maldivas. Consultor: E orçamento? Cliente: Não sei ainda, a gente tá vendo."
+Briefing correto: "O cliente deseja viajar para as Maldivas." (orçamento NÃO entra — cliente não definiu)
 
 # TAREFA 2: CAMPOS ESTRUTURADOS
 
-Extraia dados para os campos disponíveis abaixo. Lembre-se: o consultor está RELATANDO o que o cliente disse.
+Extraia dados CONFIRMADOS para os campos disponíveis abaixo. Se for conversa ao vivo, extraia APENAS o que o cliente confirmou/decidiu — perguntas e sugestões do consultor NÃO são dados.
 
 **Exemplos de interpretação:**
-- Consultor: "Ele quer ir pra Itália" → destinos: ["Itália"]
-- Consultor: "Orçamento deles é uns 50 mil" → orcamento: 50000
-- Consultor: "Entre 80 e 100 mil de orçamento" → orcamento: {"min": 80000, "max": 100000}
-- Consultor: "Uns 15 mil por pessoa" → orcamento: {"por_pessoa": 15000}
-- Consultor: "Viagem de 7 a 10 dias" → duracao_viagem: {"min": 7, "max": 10}
-- Consultor: "São 4 pessoas, o casal e dois filhos" → quantidade_viajantes: 4
-- Consultor: "Querem ir em setembro ou outubro" → epoca_viagem: "setembro-outubro"
-- Consultor: "Ela é vegetariana" → restricoes_alimentares: "vegetariana"
-- Consultor: "É a primeira viagem internacional deles" → observação relevante
+- Relato: "Ele quer ir pra Itália" → destinos: ["Itália"]
+- Conversa: "Consultor: E se fosse Itália? Cliente: Adorei, pode ser!" → destinos: ["Itália"] (confirmou)
+- Conversa: "Consultor: Que tal Itália? Cliente: Hmm, não sei..." → NÃO extrair destinos (não confirmou)
+- "Orçamento deles é uns 50 mil" → orcamento: 50000
+- "Entre 80 e 100 mil de orçamento" → orcamento: {"min": 80000, "max": 100000}
+- "Uns 15 mil por pessoa" → orcamento: {"por_pessoa": 15000}
+- "Viagem de 7 a 10 dias" → duracao_viagem: {"min": 7, "max": 10}
+- "São 4 pessoas, o casal e dois filhos" → quantidade_viajantes: 4
+- "Querem ir em setembro ou outubro" → epoca_viagem: "setembro-outubro"
+- Conversa: "Consultor: Quantos viajantes? Cliente: Somos 4" → quantidade_viajantes: 4
+- Conversa: "Consultor: Vocês querem ir quando? Cliente: Ah, ainda estamos vendo" → NÃO extrair (indefinido)
 
 ## CAMPOS DISPONÍVEIS
 {{ $json.field_definitions }}
 
 # REGRAS DE EXTRAÇÃO
-1. APENAS informações explicitamente mencionadas na transcrição
+1. APENAS informações CONFIRMADAS/DECIDIDAS — perguntas e sugestões não confirmadas NÃO são dados
 2. NÃO INVENTE ou INFIRA informações não ditas
-3. Se ambíguo, NÃO inclua
+3. Se ambíguo ou hesitante, NÃO inclua
 4. Respeite formatos e valores permitidos
-{{ $json.mode === 'novo' ? '5. Extraia TODOS os campos mencionados na transcricao, independente de dados anteriores' : '5. Se o campo ja tem valor preenchido e a transcricao traz o MESMO dado, NAO repita. Mas se traz dado DIFERENTE, ATUALIZE. Para arrays: retorne a lista FINAL COMPLETA (existentes + novos, ou existentes - removidos + novos)' }}
+{{ $json.mode === 'novo' ? '5. Extraia TODOS os campos confirmados na transcricao, independente de dados anteriores' : '5. Se o campo ja tem valor preenchido e a transcricao traz o MESMO dado, NAO repita. Mas se traz dado DIFERENTE, ATUALIZE. Para arrays: retorne a lista FINAL COMPLETA (existentes + novos, ou existentes - removidos + novos)' }}
 6. Transcrições de áudio podem ter erros — use bom senso para nomes de destinos
 7. Para FAIXAS de valor ("entre 80 e 100 mil"), retorne {"min": 80000, "max": 100000}. Para valor POR PESSOA ("15 mil por pessoa"), retorne {"por_pessoa": 15000}. Para valor único total ("uns 50 mil"), retorne número: 50000
 8. Para FAIXAS de duração ("7 a 10 dias"), retorne objeto {"min": 7, "max": 10}. Para valor fixo ("10 dias"), retorne número: 10

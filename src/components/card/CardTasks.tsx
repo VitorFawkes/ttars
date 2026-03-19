@@ -358,7 +358,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         const map: Record<string, string> = {
             voo: 'Voo', hotel: 'Hotel', datas: 'Datas', financeiro: 'Financeiro',
             transfer: 'Transfer', passeio: 'Passeio', erro: 'Erro Op.',
-            fornecedor: 'Fornecedor', upsell: 'Upsell', outro: 'Outro'
+            fornecedor: 'Fornecedor', upgrade: 'Upgrade / Adição', upsell: 'Upsell', outro: 'Outro'
         }
         return map[key] || key
     }

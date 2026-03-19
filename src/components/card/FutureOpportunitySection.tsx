@@ -219,7 +219,7 @@ function PendingItem({
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Clock className="w-3 h-3" />
                         <span>{formatDate(opportunity.scheduled_date)}</span>
-                        {opportunity.sub_card_mode && opportunity.source_type === 'won_upsell' && (
+                        {opportunity.sub_card_mode && opportunity.source_type === 'won_future' && (
                             <span className={cn(
                                 'px-1.5 py-0.5 rounded text-xs font-medium',
                                 opportunity.sub_card_mode === 'incremental'
@@ -331,7 +331,7 @@ function CreateFutureOpportunityModal({
         onCreate(
             {
                 sourceCardId: cardId,
-                sourceType: 'won_upsell',
+                sourceType: 'won_future',
                 titulo: titulo.trim(),
                 descricao: descricao.trim(),
                 scheduledDate,

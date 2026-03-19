@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { CalendarCheck, ChevronDown, ChevronRight, CheckCircle2, TrendingUp } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '../../lib/utils'
 import { startOfDay, endOfDay } from 'date-fns'
+import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabase'
+import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { useMyDayTasks } from '../../hooks/useMyDayTasks'
 import { useMyDayOpportunities } from '../../hooks/useMyDayOpportunities'
 import { MyDayTaskCard } from './MyDayTaskCard'
@@ -21,10 +25,71 @@ type SectionKey = string | null
 const COLLAPSED_KEY = 'myday_collapsed'
 
 export function MyDayBar({ productFilter }: MyDayBarProps) {
+    const { profile } = useAuth()
+    const { viewMode, subView, filters } = usePipelineFilters()
+
+    // --- Derive who to show based on Pipeline state ---
+    // Collect ALL person IDs from Pipeline filters (ownerIds, sdrIds, plannerIds, posIds)
+    const personFilterIds = [
+        ...(filters.ownerIds || []),
+        ...(filters.sdrIds || []),
+        ...(filters.plannerIds || []),
+        ...(filters.posIds || []),
+    ]
+    // Deduplicate
+    const uniquePersonFilterIds = [...new Set(personFilterIds)]
+    const hasPersonFilter = uniquePersonFilterIds.length > 0
+
+    // Fetch team member IDs when in TEAM_VIEW (and no person filter overriding)
+    const needsTeam = viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && !hasPersonFilter
+    const { data: teamMemberIds } = useQuery({
+        queryKey: ['my-team-members', profile?.team_id],
+        enabled: !!profile?.team_id && needsTeam,
+        queryFn: async () => {
+            if (!profile?.team_id) return []
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('team_id', profile.team_id)
+                .eq('active', true)
+            if (error) throw error
+            return data.map(p => p.id)
+        },
+    })
+
+    // Build the effective responsavelIds list
+    // Person filter takes priority > TEAM_VIEW > ALL > MY_QUEUE
+    let effectiveIds: string[] | undefined // undefined = no filter (show all)
+    let showOwner = false
+
+    if (hasPersonFilter) {
+        // Person filter from drawer overrides everything
+        effectiveIds = uniquePersonFilterIds
+        showOwner = true
+    } else if (viewMode === 'MANAGER' && subView === 'ALL') {
+        effectiveIds = undefined // no filter — show all
+        showOwner = true
+    } else if (viewMode === 'MANAGER' && subView === 'TEAM_VIEW') {
+        effectiveIds = teamMemberIds || []
+        showOwner = true
+    } else {
+        // MY_QUEUE, FORECAST, ATTENTION → only my tasks
+        effectiveIds = profile?.id ? [profile.id] : []
+        showOwner = false
+    }
+
     const [isCollapsed, setIsCollapsed] = useState(() =>
         localStorage.getItem(COLLAPSED_KEY) === 'true'
     )
     const [expandedSection, setExpandedSection] = useState<SectionKey>(null)
+
+    // Reset expanded section when effective filter changes
+    const filterKey = effectiveIds ? effectiveIds.join(',') : '__all__'
+    const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+    if (prevFilterKey !== filterKey) {
+        setPrevFilterKey(filterKey)
+        setExpandedSection(null)
+    }
 
     const {
         buckets,
@@ -34,13 +99,13 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
         isLoading: tasksLoading,
         completeTask,
         isCompleting,
-    } = useMyDayTasks(productFilter)
+    } = useMyDayTasks({ productFilter, responsavelIds: effectiveIds })
 
     const {
         opportunities,
         count: opportunitiesCount,
         isLoading: oppsLoading,
-    } = useMyDayOpportunities(productFilter)
+    } = useMyDayOpportunities({ productFilter, responsavelIds: effectiveIds })
 
     const isLoading = tasksLoading || oppsLoading
 
@@ -57,41 +122,35 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
 
     // Match opportunities to day buckets by scheduled_date
     const getOpportunitiesForBucket = (bucketKey: string): MyDayOpportunity[] => {
-        if (bucketKey === 'overdue') return [] // opportunities don't go overdue
+        if (bucketKey === 'overdue') return []
         const bucket = buckets.find(b => b.key === bucketKey)
         if (!bucket?.date) return []
         const dayStart = startOfDay(bucket.date)
         const dayEnd = endOfDay(bucket.date)
         return opportunities.filter(o => {
-            const d = new Date(o.scheduled_date + 'T12:00:00') // noon to avoid TZ issues
+            const d = new Date(o.scheduled_date + 'T12:00:00')
             return d >= dayStart && d <= dayEnd
         })
     }
 
-    // Get tasks for expanded section
     const expandedBucket = buckets.find(b => b.key === expandedSection)
     const showFutureOpportunities = expandedSection === 'future-opportunities'
 
-    // Items in expanded bucket (tasks + opportunities mixed in day view)
     const expandedOpps = expandedSection && expandedSection !== 'future-opportunities'
         ? getOpportunitiesForBucket(expandedSection)
         : []
     const hasExpandedContent = (expandedBucket?.tasks.length || 0) + expandedOpps.length > 0 || showFutureOpportunities
 
-    // Pill counts include opportunities in each day
     const getPillCount = (bucketKey: string, taskCount: number): number => {
         return taskCount + getOpportunitiesForBucket(bucketKey).length
     }
 
-    // All empty state
     const isEmpty = total === 0 && opportunitiesCount === 0
-
-    // Summary badge for collapsed state
     const urgentCount = overdue + today
 
     return (
         <div className="flex-shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-sm">
-            {/* Collapsed state: single line */}
+            {/* Collapsed state */}
             {isCollapsed ? (
                 <button
                     onClick={toggleCollapsed}
@@ -118,14 +177,19 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                 <>
                     {/* Pills bar */}
                     <div className="px-6 py-2 flex items-center gap-3 overflow-x-auto scrollbar-hide">
+                        {/* Collapse toggle + label */}
                         <button
                             onClick={toggleCollapsed}
                             className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-70 transition-opacity"
                         >
                             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                             <CalendarCheck className="h-4 w-4 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Meu Dia</span>
                         </button>
+
+                        <span className="text-xs font-medium text-slate-500 whitespace-nowrap flex-shrink-0">Meu Dia</span>
+
+                        {/* Separator */}
+                        <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
 
                         {isLoading ? (
                             <div className="flex gap-2">
@@ -140,7 +204,6 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                                {/* Overdue pill */}
                                 <Pill
                                     label="Atrasadas"
                                     count={overdue}
@@ -148,8 +211,6 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                                     isActive={expandedSection === 'overdue'}
                                     onClick={() => toggleSection('overdue')}
                                 />
-
-                                {/* Today pill */}
                                 <Pill
                                     label="Hoje"
                                     count={getPillCount('today', today)}
@@ -157,8 +218,6 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                                     isActive={expandedSection === 'today'}
                                     onClick={() => toggleSection('today')}
                                 />
-
-                                {/* Day pills (next 7 days) */}
                                 {buckets.slice(2).map(bucket => (
                                     <Pill
                                         key={bucket.key}
@@ -169,8 +228,6 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                                         onClick={() => toggleSection(bucket.key)}
                                     />
                                 ))}
-
-                                {/* Future Opportunities pill */}
                                 {opportunitiesCount > 0 && (
                                     <>
                                         <div className="w-px h-5 bg-slate-200 flex-shrink-0 mx-0.5" />
@@ -193,25 +250,23 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                         <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-3 animate-in slide-in-from-top-2 duration-200">
                             <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
                                 {showFutureOpportunities ? (
-                                    // Dedicated future opportunities view: all of them
                                     opportunities.map(opp => (
-                                        <MyDayOpportunityCard key={opp.id} opportunity={opp} />
+                                        <MyDayOpportunityCard key={opp.id} opportunity={opp} showOwner={showOwner} />
                                     ))
                                 ) : (
                                     <>
-                                        {/* Tasks for this bucket */}
                                         {expandedBucket?.tasks.map(task => (
                                             <MyDayTaskCard
                                                 key={task.id}
                                                 task={task}
                                                 isOverdue={expandedSection === 'overdue'}
+                                                showOwner={showOwner}
                                                 onComplete={completeTask}
                                                 isCompleting={isCompleting}
                                             />
                                         ))}
-                                        {/* Opportunities that fall on this day */}
                                         {expandedOpps.map(opp => (
-                                            <MyDayOpportunityCard key={opp.id} opportunity={opp} />
+                                            <MyDayOpportunityCard key={opp.id} opportunity={opp} showOwner={showOwner} />
                                         ))}
                                     </>
                                 )}

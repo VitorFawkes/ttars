@@ -20,6 +20,7 @@ export interface MyDayTask {
     card_titulo: string
     contato_nome: string | null
     responsavel_id: string | null
+    responsavel_nome: string | null
 }
 
 export type DayBucket = {
@@ -29,24 +30,34 @@ export type DayBucket = {
     tasks: MyDayTask[]
 }
 
+interface UseMyDayTasksOptions {
+    productFilter: Product
+    /** IDs to filter by. undefined = no filter (all). [] = no results. */
+    responsavelIds?: string[]
+}
+
 /**
- * Hook that fetches all pending tasks for the current user
- * grouped into time buckets: overdue, today, and next 7 days
+ * Hook that fetches pending tasks grouped into time buckets.
+ * - responsavelIds = undefined → all tasks (no filter)
+ * - responsavelIds = [userId] → only that user's tasks
+ * - responsavelIds = [a, b, c] → tasks for those users (team or filtered)
+ * - responsavelIds = [] → returns empty (waiting for data)
  */
-export function useMyDayTasks(productFilter: Product) {
+export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOptions) {
     const { profile } = useAuth()
     const queryClient = useQueryClient()
 
-    const query = useQuery({
-        queryKey: ['my-day-tasks', profile?.id, productFilter],
-        queryFn: async () => {
-            if (!profile?.id) return []
+    // Don't fire query if responsavelIds is an empty array (still loading team members, etc.)
+    const isReady = responsavelIds === undefined || responsavelIds.length > 0
 
+    const query = useQuery({
+        queryKey: ['my-day-tasks', productFilter, responsavelIds],
+        queryFn: async () => {
             const now = new Date()
-            const rangeStart = subDays(startOfDay(now), 30) // up to 30 days overdue
+            const rangeStart = subDays(startOfDay(now), 30)
             const rangeEnd = endOfDay(addDays(now, 7))
 
-            const { data, error } = await supabase
+            let q = supabase
                 .from('tarefas')
                 .select(`
                     id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id,
@@ -54,12 +65,22 @@ export function useMyDayTasks(productFilter: Product) {
                         contato:contatos!cards_pessoa_principal_id_fkey(nome)
                     )
                 `)
-                .eq('responsavel_id', profile.id)
                 .eq('concluida', false)
                 .is('deleted_at', null)
                 .gte('data_vencimento', rangeStart.toISOString())
                 .lte('data_vencimento', rangeEnd.toISOString())
                 .order('data_vencimento', { ascending: true })
+
+            // Apply responsavel filter
+            if (responsavelIds !== undefined) {
+                if (responsavelIds.length === 1) {
+                    q = q.eq('responsavel_id', responsavelIds[0])
+                } else {
+                    q = q.in('responsavel_id', responsavelIds)
+                }
+            }
+
+            const { data, error } = await q
 
             if (error) throw error
 
@@ -71,7 +92,18 @@ export function useMyDayTasks(productFilter: Product) {
                 result = result.filter((t: any) => t.card?.produto === productFilter)
             }
 
-            // Map to MyDayTask
+            // Fetch profile names for responsavel_id (no FK exists between tarefas→profiles)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const uniqueIds = [...new Set(result.map((t: any) => t.responsavel_id).filter(Boolean))]
+            let profileMap: Record<string, string> = {}
+            if (uniqueIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, nome')
+                    .in('id', uniqueIds)
+                profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.nome || '']))
+            }
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return result.map((t: any) => ({
                 id: t.id,
@@ -84,10 +116,11 @@ export function useMyDayTasks(productFilter: Product) {
                 card_titulo: t.card?.titulo || '',
                 contato_nome: t.card?.contato?.nome || null,
                 responsavel_id: t.responsavel_id,
+                responsavel_nome: t.responsavel_id ? (profileMap[t.responsavel_id] || null) : null,
             })) as MyDayTask[]
         },
-        staleTime: 1000 * 60, // 1 min
-        enabled: !!profile?.id,
+        staleTime: 1000 * 60,
+        enabled: !!profile?.id && isReady,
     })
 
     // Complete task mutation
@@ -117,18 +150,13 @@ export function useMyDayTasks(productFilter: Product) {
     // Group tasks into buckets
     const buckets = groupIntoBuckets(query.data || [])
 
-    // Summary counts
     const overdue = buckets.find(b => b.key === 'overdue')?.tasks.length || 0
     const today = buckets.find(b => b.key === 'today')?.tasks.length || 0
-    const weekTotal = buckets
-        .filter(b => b.key !== 'overdue' && b.key !== 'today')
-        .reduce((sum, b) => sum + b.tasks.length, 0)
 
     return {
         buckets,
         overdue,
         today,
-        weekTotal,
         total: (query.data || []).length,
         isLoading: query.isLoading,
         completeTask: completeMutation.mutate,
@@ -143,14 +171,12 @@ function groupIntoBuckets(tasks: MyDayTask[]): DayBucket[] {
 
     const buckets: DayBucket[] = []
 
-    // Overdue bucket
     const overdueTasks = tasks.filter(t => {
         if (!t.data_vencimento) return false
         return new Date(t.data_vencimento) < todayStart
     })
     buckets.push({ key: 'overdue', label: 'Atrasadas', date: null, tasks: overdueTasks })
 
-    // Today bucket
     const todayTasks = tasks.filter(t => {
         if (!t.data_vencimento) return false
         const d = new Date(t.data_vencimento)
@@ -158,7 +184,6 @@ function groupIntoBuckets(tasks: MyDayTask[]): DayBucket[] {
     })
     buckets.push({ key: 'today', label: 'Hoje', date: now, tasks: todayTasks })
 
-    // Next 7 days (one bucket per day)
     for (let i = 1; i <= 7; i++) {
         const day = addDays(now, i)
         const dayStart = startOfDay(day)
@@ -171,14 +196,9 @@ function groupIntoBuckets(tasks: MyDayTask[]): DayBucket[] {
         })
 
         const label = format(day, "EEE dd", { locale: ptBR })
-            .replace(/^\w/, c => c.toUpperCase()) // capitalize first letter
+            .replace(/^\w/, c => c.toUpperCase())
 
-        buckets.push({
-            key: `day-${i}`,
-            label,
-            date: day,
-            tasks: dayTasks,
-        })
+        buckets.push({ key: `day-${i}`, label, date: day, tasks: dayTasks })
     }
 
     return buckets
