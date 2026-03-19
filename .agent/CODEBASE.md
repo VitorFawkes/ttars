@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-19
 > **Trigger:** ALWAYS ON
-> **Stats:** 120 tabelas | 41 paginas | 73 hooks | 17 views | 425 components
+> **Stats:** 120 tabelas | 41 paginas | 76 hooks | 17 views | 428 components
 
 ---
 
@@ -169,12 +169,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **73 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **76 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
 |------|------|
 | `useAIExtract()` | `useAIExtract.ts` |
+| `useAIExtraction()` | `useAIExtraction.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
@@ -216,6 +217,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMondeSales()` | `useMondeSales.ts` |
+| `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
+| `useMyDayTasks()` | `useMyDayTasks.ts` |
 | `useMyVisiblePhases()` | `useMyVisiblePhases.ts` |
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |

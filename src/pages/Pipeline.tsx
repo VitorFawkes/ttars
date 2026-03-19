@@ -23,6 +23,7 @@ import {
 } from "../components/ui/dropdown-menu"
 
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
+import { MyDayBar } from '../components/pipeline/MyDayBar'
 
 export default function Pipeline() {
     const navigate = useNavigate()
@@ -290,6 +291,9 @@ export default function Pipeline() {
                     </div>
                 </div>
 
+
+                {/* My Day Bar: Tasks overview */}
+                <MyDayBar productFilter={currentProduct} />
 
                 {/* Board Container: Fills remaining space, passes padding prop for alignment */}
                 <div className={cn(
