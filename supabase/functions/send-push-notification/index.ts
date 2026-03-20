@@ -127,16 +127,19 @@ serve(async (req: Request) => {
     const results = await Promise.allSettled(
       subscriptions.map(async (sub) => {
         try {
-          await webpush.sendNotification(
+          const result = await webpush.sendNotification(
             {
               endpoint: sub.endpoint,
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
             payload
           );
+          console.log(`[push] Sent to ${sub.user_id} — status: ${result.statusCode}`);
           sent++;
         } catch (err: unknown) {
           const statusCode = (err as { statusCode?: number })?.statusCode;
+          const errBody = (err as { body?: string })?.body;
+          console.error(`[push] Failed for ${sub.user_id} — status: ${statusCode}, body: ${errBody}`);
           if (statusCode === 410 || statusCode === 404) {
             // Subscription expirada — marcar para remoção
             staleIds.push(sub.id);

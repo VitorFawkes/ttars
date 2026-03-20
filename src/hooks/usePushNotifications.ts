@@ -75,10 +75,18 @@ export function usePushNotifications() {
 
     if (!supported) return
 
-    navigator.serviceWorker.getRegistration('/sw-push.js').then((reg) => {
-      if (!reg) return
+    // Registrar SW proativamente e verificar subscription existente
+    navigator.serviceWorker.register('/sw-push.js').then((reg) => {
       reg.pushManager.getSubscription().then((sub) => {
         setIsSubscribed(!!sub)
+      })
+    }).catch(() => {
+      // Fallback: tentar buscar registro existente por scope
+      navigator.serviceWorker.getRegistration('/').then((reg) => {
+        if (!reg) return
+        reg.pushManager.getSubscription().then((sub) => {
+          setIsSubscribed(!!sub)
+        })
       })
     })
   }, [profile?.id])
