@@ -421,9 +421,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                     ordem,
                     fase,
                     phase_id,
-                    is_lost,
-                    is_won,
-                    pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index)
+                    pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index, slug)
                 `)
                 .eq('ativo', true)
 
@@ -441,17 +439,9 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 const phaseOrderB = (b.pipeline_phases as { order_index?: number } | null)?.order_index ?? 999
                 if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
                 return a.ordem - b.ordem
-            }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; is_lost?: boolean; is_won?: boolean }[]
+            }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; pipeline_phases?: { id: string; name: string; order_index: number; slug: string } | null }[]
         }
     })
-
-    // Find lost stage for the "Mark as Lost" button
-    // Verifica tanto a flag is_lost quanto o nome da stage (fallback)
-    const lostStage = stages?.find(s =>
-        s.is_lost === true ||
-        s.nome?.toLowerCase().includes('perdido') ||
-        s.nome?.toLowerCase().includes('lost')
-    )
 
     // Derived fields
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
@@ -656,9 +646,10 @@ export default function CardHeader({ card }: CardHeaderProps) {
         const sourceStageData = stages?.find(s => s.id === card.pipeline_stage_id)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
         const explicitTargetPhaseId = (targetStageData as any)?.target_phase_id as string | null
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types
+        /* eslint-disable @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types */
         const srcPhaseId = (sourceStageData as any)?.phase_id as string | null
         const destPhaseId = (targetStageData as any)?.phase_id as string | null
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         const isCrossPhaseMove = srcPhaseId && destPhaseId && srcPhaseId !== destPhaseId
         const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
         if (handoffPhaseId) {
@@ -748,17 +739,16 @@ export default function CardHeader({ card }: CardHeaderProps) {
             setPendingLossMove(null)
             setLossReasonModalOpen(false)
         } else if (pendingLossMove) {
-            // Move to lost stage via RPC (trigger will set status_comercial='perdido')
-            const { error } = await supabase.rpc('mover_card', {
+            // Mark as lost via RPC (card stays at current stage)
+            const { error } = await supabase.rpc('marcar_perdido', {
                 p_card_id: card.id,
-                p_nova_etapa_id: pendingLossMove.stageId,
-                p_motivo_perda_id: motivoId || undefined,
-                p_motivo_perda_comentario: comentario || undefined
+                p_motivo_perda_id: motivoId || null,
+                p_motivo_perda_comentario: comentario || null
             })
 
             if (error) {
-                console.error('Failed to move card to lost stage:', error)
-                alert('Erro ao mover card: ' + error.message)
+                console.error('Failed to mark card as lost:', error)
+                alert('Erro ao marcar como perdido: ' + error.message)
             } else {
                 queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['card', card.id] })
@@ -795,11 +785,86 @@ export default function CardHeader({ card }: CardHeaderProps) {
     }
 
     const handleMarkAsLost = () => {
-        if (lostStage) {
-            setPendingLossMove({ stageId: lostStage.id, stageName: lostStage.nome })
-            setLossReasonModalOpen(true)
+        setPendingLossMove({ stageId: card.pipeline_stage_id || '', stageName: currentStage?.nome || 'Etapa Atual' })
+        setLossReasonModalOpen(true)
+    }
+
+    // Marcar Ganho via RPC
+    const marcarGanhoMutation = useMutation({
+        mutationFn: async (novoDonoId?: string) => {
+            const { data, error } = await supabase.rpc('marcar_ganho', {
+                p_card_id: card.id,
+                p_novo_dono_id: novoDonoId || null
+            })
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
+        },
+        onError: (error) => {
+            console.error('Failed to mark as won:', error)
+            alert('Erro ao marcar como ganho: ' + error.message)
+        }
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reservado para futura UI de ganho
+    const handleMarkAsWon = () => {
+        const currentPhaseSlug = currentStage?.pipeline_phases?.slug
+        const isFinalPhase = currentPhaseSlug === 'pos_venda' || currentPhaseSlug === 'resolucao'
+
+        if (isFinalPhase) {
+            marcarGanhoMutation.mutate()
+        } else {
+            const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
+            const nextPhaseStages = stages?.filter(s => {
+                const phaseOrder = s.pipeline_phases?.order_index ?? 999
+                return phaseOrder > currentPhaseOrder
+            }).sort((a, b) => {
+                const phaseOrderA = a.pipeline_phases?.order_index ?? 999
+                const phaseOrderB = b.pipeline_phases?.order_index ?? 999
+                if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
+                return a.ordem - b.ordem
+            })
+
+            const nextStage = nextPhaseStages?.[0]
+            if (nextStage) {
+                const targetPhase = phasesData?.find(p => p.id === nextStage.phase_id)
+                setPendingStageChange({
+                    stageId: nextStage.id,
+                    targetStageName: `Ganho ${currentStage?.pipeline_phases?.name || currentFase}`,
+                    currentOwnerId: card.dono_atual_id || undefined,
+                    targetPhaseId: nextStage.phase_id || undefined,
+                    targetPhaseName: targetPhase?.name || nextStage.pipeline_phases?.name || 'Próxima Fase'
+                })
+                setStageChangeModalOpen(true)
+            } else {
+                marcarGanhoMutation.mutate()
+            }
         }
     }
+
+    // Reabrir card via RPC
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reservado para futura UI de reabrir
+    const reabrirCardMutation = useMutation({
+        mutationFn: async () => {
+            const { error } = await supabase.rpc('reabrir_card', { p_card_id: card.id })
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
+        },
+        onError: (error) => {
+            console.error('Failed to reopen card:', error)
+            alert('Erro ao reabrir card: ' + error.message)
+        }
+    })
 
     const handleConfirmQualityGate = () => {
         if (pendingStageChange) {
@@ -810,9 +875,10 @@ export default function CardHeader({ card }: CardHeaderProps) {
             const sourceStage = stages?.find(s => s.id === card.pipeline_stage_id)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
             const explicitPhaseId = (targetStage as any)?.target_phase_id as string | null
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types
+            /* eslint-disable @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types */
             const srcPhaseId2 = (sourceStage as any)?.phase_id as string | null
             const destPhaseId2 = (targetStage as any)?.phase_id as string | null
+            /* eslint-enable @typescript-eslint/no-explicit-any */
             const isCrossPhase = srcPhaseId2 && destPhaseId2 && srcPhaseId2 !== destPhaseId2
             const phaseId = explicitPhaseId || (isCrossPhase ? destPhaseId2 : null) || null
 
@@ -833,8 +899,15 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
     const handleConfirmStageChange = (newOwnerId: string) => {
         if (pendingStageChange) {
-            updateOwnerMutation.mutate({ field: 'dono_atual_id', userId: newOwnerId })
-            updateStageMutation.mutate(pendingStageChange.stageId)
+            const isWinHandoff = pendingStageChange.targetStageName.startsWith('Ganho ')
+            if (isWinHandoff) {
+                // Win handoff: call marcar_ganho RPC with new owner
+                marcarGanhoMutation.mutate(newOwnerId)
+            } else {
+                // Normal cross-phase move
+                updateOwnerMutation.mutate({ field: 'dono_atual_id', userId: newOwnerId })
+                updateStageMutation.mutate(pendingStageChange.stageId)
+            }
             setStageChangeModalOpen(false)
             setPendingStageChange(null)
         }

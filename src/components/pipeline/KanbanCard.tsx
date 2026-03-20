@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package } from 'lucide-react'
+import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
@@ -19,6 +19,8 @@ type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
 interface KanbanCardProps {
     card: Card
+    onWin?: (cardId: string) => void
+    onLoss?: (cardId: string) => void
 }
 
 
@@ -26,14 +28,17 @@ interface KanbanCardProps {
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
 
-export default function KanbanCard({ card }: KanbanCardProps) {
+export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
 
+    const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
+
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id!,
-        data: card
+        data: card,
+        disabled: isClosedCard
     })
 
     const style = {
@@ -481,14 +486,18 @@ export default function KanbanCard({ card }: KanbanCardProps) {
             {...attributes}
             onClick={handleClick}
             className={cn(
-                "group relative flex cursor-grab flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md active:cursor-grabbing",
+                "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md",
+                isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (card as any).card_type === 'sub_card'
-                    ? "border-l-4 border-l-purple-400 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-purple-50/30"
-                    : isUnseen
-                        ? "border-l-4 border-l-emerald-500 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-emerald-50/40 hover:border-l-emerald-600"
-                        : "border-gray-200 hover:border-gray-300"
+                card.status_comercial === 'ganho' && "border-green-300 bg-green-50/40 opacity-80",
+                card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
+                !isClosedCard && (
+                    (card as any).card_type === 'sub_card'
+                        ? "border-l-4 border-l-purple-400 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-purple-50/30"
+                        : isUnseen
+                            ? "border-l-4 border-l-emerald-500 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-emerald-50/40 hover:border-l-emerald-600"
+                            : "border-gray-200 hover:border-gray-300"
+                )
             )}
         >
             <div className="flex items-start justify-between gap-2">
@@ -541,6 +550,44 @@ export default function KanbanCard({ card }: KanbanCardProps) {
                     )}
                 </div>
             </div>
+
+            {/* Status Badge (Ganho/Perdido) */}
+            {card.status_comercial === 'ganho' && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full w-fit border border-green-200">
+                    <Trophy className="h-3 w-3" />
+                    Ganho
+                </div>
+            )}
+            {card.status_comercial === 'perdido' && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full w-fit border border-red-200">
+                    <XCircle className="h-3 w-3" />
+                    Perdido
+                </div>
+            )}
+
+            {/* Win/Loss Hover Action Buttons */}
+            {!isClosedCard && (onWin || onLoss) && (
+                <div className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    {onWin && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onWin(card.id!) }}
+                            className="flex items-center justify-center h-7 w-7 rounded-full bg-green-500 text-white shadow-md hover:bg-green-600 hover:scale-110 transition-all"
+                            title="Marcar como Ganho"
+                        >
+                            <Trophy className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                    {onLoss && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onLoss(card.id!) }}
+                            className="flex items-center justify-center h-7 w-7 rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 hover:scale-110 transition-all"
+                            title="Marcar como Perdido"
+                        >
+                            <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Group Parent Badge */}
             {card.is_group_parent && (
