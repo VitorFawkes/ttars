@@ -243,6 +243,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
             queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] }) // Update header counts
             queryClient.invalidateQueries({ queryKey: ['card-tasks-completed', cardId] }) // Update requirements
+            queryClient.invalidateQueries({ queryKey: ['cards'] }) // Atualizar kanban (proxima_tarefa na view)
         },
         onError: (error: Error) => {
             console.error('Mutation error:', error)

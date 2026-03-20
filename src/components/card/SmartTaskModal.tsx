@@ -906,6 +906,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             queryClient.invalidateQueries({ queryKey: ['reunioes', effectiveCardId] }); // Refresh meetings tab
             queryClient.invalidateQueries({ queryKey: ['calendar-meetings'] });
             queryClient.invalidateQueries({ queryKey: ['today-meeting-count'] });
+            queryClient.invalidateQueries({ queryKey: ['cards'] }); // Atualizar kanban (proxima_tarefa na view)
 
             onSuccess?.();
             onClose();

@@ -507,6 +507,7 @@ export function MeetingTimeline({ cardId, className }: MeetingTimelineProps) {
         queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
         queryClient.invalidateQueries({ queryKey: ['card', cardId] })
         queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+        queryClient.invalidateQueries({ queryKey: ['cards'] })
     }
 
     const groupedMeetings = meetings ? groupMeetingsByDate(meetings) : []
