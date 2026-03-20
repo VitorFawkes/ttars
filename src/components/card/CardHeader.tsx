@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -792,13 +792,14 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reservado para futura UI de ganho
     const handleMarkAsWon = () => {
         const currentPhaseSlug = currentStage?.pipeline_phases?.slug
         const isFinalPhase = currentPhaseSlug === 'pos_venda' || currentPhaseSlug === 'resolucao'
 
         if (isFinalPhase) {
-            marcarGanhoMutation.mutate(undefined)
+            if (confirm('Confirmar que a viagem foi concluída com sucesso?')) {
+                marcarGanhoMutation.mutate(undefined)
+            }
         } else {
             const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
             const nextPhaseStages = stages?.filter(s => {
@@ -1043,50 +1044,133 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
                 {/* Main Content: Title & Actions */}
                 <div className="px-4 py-1.5 flex flex-col gap-1.5">
-                    {/* Row 1: Title */}
+                    {/* Row 1: Title + Status Actions */}
                     <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-start gap-3">
-                            {isEditingTitle ? (
-                                <div className="flex items-center gap-2 flex-1 max-w-2xl">
-                                    <input
-                                        type="text"
-                                        value={editedTitle}
-                                        onChange={(e) => setEditedTitle(e.target.value)}
-                                        onKeyDown={handleTitleKeyDown}
-                                        className="flex-1 text-lg font-bold text-gray-900 tracking-tight border-b-2 border-indigo-500 bg-transparent outline-none px-1 py-0.5"
-                                        autoFocus
-                                    />
-                                    <div className="flex gap-1">
-                                        <button onClick={handleTitleSave} className="p-2 bg-green-100 hover:bg-green-200 rounded-lg text-green-700 transition-colors">
-                                            <Check className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setIsEditingTitle(false)
-                                                setEditedTitle(card.titulo || '')
-                                            }}
-                                            className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
+                        <div className="flex items-center gap-3 justify-between">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {isEditingTitle ? (
+                                    <div className="flex items-center gap-2 flex-1 max-w-2xl">
+                                        <input
+                                            type="text"
+                                            value={editedTitle}
+                                            onChange={(e) => setEditedTitle(e.target.value)}
+                                            onKeyDown={handleTitleKeyDown}
+                                            className="flex-1 text-xl font-bold text-gray-900 tracking-tight border-b-2 border-indigo-500 bg-transparent outline-none px-1 py-0.5"
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-1">
+                                            <button onClick={handleTitleSave} className="p-2 bg-green-100 hover:bg-green-200 rounded-lg text-green-700 transition-colors">
+                                                <Check className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setIsEditingTitle(false)
+                                                    setEditedTitle(card.titulo || '')
+                                                }}
+                                                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="group flex items-center gap-3">
-                                    <h1
-                                        onClick={() => setIsEditingTitle(true)}
-                                        className="text-lg font-bold text-gray-900 tracking-tight truncate cursor-pointer hover:text-indigo-900 transition-colors"
-                                        title={card.titulo || ''}
-                                    >
-                                        {card.titulo}
-                                    </h1>
-                                    <Edit2
-                                        onClick={() => setIsEditingTitle(true)}
-                                        className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer hover:text-indigo-600"
-                                    />
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="group flex items-center gap-3 min-w-0">
+                                        <h1
+                                            onClick={() => setIsEditingTitle(true)}
+                                            className="text-xl font-bold text-gray-900 tracking-tight truncate cursor-pointer hover:text-indigo-900 transition-colors"
+                                            title={card.titulo || ''}
+                                        >
+                                            {card.titulo}
+                                        </h1>
+                                        <Edit2
+                                            onClick={() => setIsEditingTitle(true)}
+                                            className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer hover:text-indigo-600 shrink-0"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Status Action Buttons — right side of title */}
+                            <div className="flex items-center gap-2 shrink-0">
+                                {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (() => {
+                                    const phaseSlug = currentStage?.pipeline_phases?.slug
+                                    const isFinal = phaseSlug === 'pos_venda' || phaseSlug === 'resolucao'
+                                    const winLabel = phaseSlug === 'sdr' ? 'Qualificado'
+                                        : phaseSlug === 'planner' ? 'Venda Fechada'
+                                        : isFinal ? 'Viagem Concluída'
+                                        : 'Ganho'
+                                    const WinIcon = isFinal ? CheckCircle2 : ArrowRight
+                                    const winColor = isFinal
+                                        ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                                        : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+
+                                    return (
+                                        <>
+                                            <button
+                                                onClick={handleMarkAsWon}
+                                                disabled={marcarGanhoMutation.isPending}
+                                                className={cn("px-3 py-1 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5", winColor)}
+                                            >
+                                                <WinIcon className="h-3.5 w-3.5" />
+                                                {marcarGanhoMutation.isPending ? 'Marcando...' : winLabel}
+                                            </button>
+                                            <button
+                                                onClick={handleMarkAsLost}
+                                                className="px-3 py-1 rounded-lg border border-red-200 bg-white text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                                            >
+                                                <XCircle className="h-3.5 w-3.5" />
+                                                Perdido
+                                            </button>
+                                        </>
+                                    )
+                                })()}
+                            </div>
                         </div>
+
+                        {/* Status Banners — ganho or perdido */}
+                        {card.status_comercial === 'ganho' && (
+                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200">
+                                <div className="flex items-center gap-1.5 text-green-700 font-semibold text-sm">
+                                    <Trophy className="h-4 w-4" />
+                                    Ganho
+                                </div>
+                                <button
+                                    onClick={() => reabrirCardMutation.mutate()}
+                                    disabled={reabrirCardMutation.isPending}
+                                    className="ml-auto px-2 py-0.5 rounded-md border border-green-300 bg-white text-green-700 text-xs font-medium hover:bg-green-100 transition-colors flex items-center gap-1"
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                    {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
+                                </button>
+                            </div>
+                        )}
+                        {card.status_comercial === 'perdido' && (
+                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                                <div className="flex items-center gap-1.5 text-red-700 font-semibold text-sm">
+                                    <XCircle className="h-4 w-4" />
+                                    Perdido
+                                </div>
+                                <LossReasonBadge
+                                    motivoId={card.motivo_perda_id}
+                                    comentario={card.motivo_perda_comentario}
+                                    onClick={() => {
+                                        setPendingLossMove({
+                                            stageId: card.pipeline_stage_id || '',
+                                            stageName: currentStage?.nome || 'Perdido'
+                                        })
+                                        setLossReasonModalOpen(true)
+                                    }}
+                                />
+                                <button
+                                    onClick={() => reabrirCardMutation.mutate()}
+                                    disabled={reabrirCardMutation.isPending}
+                                    className="ml-auto px-2 py-0.5 rounded-md border border-red-300 bg-white text-red-700 text-xs font-medium hover:bg-red-100 transition-colors flex items-center gap-1"
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                    {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
+                                </button>
+                            </div>
+                        )}
 
                         {/* Metadata Row: Badges | Value | Trip Date */}
                         <div className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -1096,14 +1180,6 @@ export default function CardHeader({ card }: CardHeaderProps) {
                             )}>
                                 {currentFase}
                             </span>
-
-                            {/* Operational Badge */}
-                            {getOperationalBadge()}
-
-                            {/* Status Selector */}
-                            <StatusSelector
-                                currentStatus={card.status_comercial}
-                            />
 
                             {/* Origin Badge (editable) */}
                             <OrigemBadgeEditable
@@ -1303,73 +1379,8 @@ export default function CardHeader({ card }: CardHeaderProps) {
                         </div>
                     </div>
 
-                    {/* Actions Row: Win/Loss/Reopen + Milestones */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Win/Loss/Reopen Action Buttons */}
-                        {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (
-                            <>
-                                <button
-                                    onClick={handleMarkAsWon}
-                                    disabled={marcarGanhoMutation.isPending}
-                                    className="px-2 py-0.5 rounded-md border border-green-200 bg-white text-green-600 text-xs font-medium hover:bg-green-50 transition-colors flex items-center gap-1"
-                                >
-                                    <Trophy className="h-3 w-3" />
-                                    {marcarGanhoMutation.isPending ? 'Marcando...' : 'Ganho'}
-                                </button>
-                                <button
-                                    onClick={handleMarkAsLost}
-                                    className="px-2 py-0.5 rounded-md border border-red-200 bg-white text-red-600 text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
-                                >
-                                    <XCircle className="h-3 w-3" />
-                                    Perdido
-                                </button>
-                            </>
-                        )}
-                        {(card.status_comercial === 'ganho' || card.status_comercial === 'perdido') && (
-                            <button
-                                onClick={() => reabrirCardMutation.mutate()}
-                                disabled={reabrirCardMutation.isPending}
-                                className="px-2 py-0.5 rounded-md border border-blue-200 bg-white text-blue-600 text-xs font-medium hover:bg-blue-50 transition-colors flex items-center gap-1"
-                            >
-                                <RotateCcw className="h-3 w-3" />
-                                {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
-                            </button>
-                        )}
-
-                        {/* Loss Reason Display - when card is lost */}
-                        {card.status_comercial === 'perdido' && (
-                            <LossReasonBadge
-                                motivoId={card.motivo_perda_id}
-                                comentario={card.motivo_perda_comentario}
-                                onClick={() => {
-                                    setPendingLossMove({
-                                        stageId: card.pipeline_stage_id || '',
-                                        stageName: currentStage?.nome || 'Perdido'
-                                    })
-                                    setLossReasonModalOpen(true)
-                                }}
-                            />
-                        )}
-
-                        {/* Marcos do Funil (ganhos por fase) */}
-                        {(card.ganho_sdr || card.ganho_planner || card.ganho_pos) && (
-                            <div className="flex items-center gap-1 ml-auto" title="Marcos alcançados no funil de vendas">
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wide mr-1">Marcos:</span>
-                                {card.ganho_sdr && (
-                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-medium" title="Qualificado pelo SDR">SDR</span>
-                                )}
-                                {card.ganho_planner && (
-                                    <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200 text-[10px] font-medium" title="Venda fechada">Planner</span>
-                                )}
-                                {card.ganho_pos && (
-                                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium" title="Viagem concluída">Pós</span>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Row 2: Owners & Actions */}
-                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
+                    {/* Owners & Actions */}
+                    <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-gray-100 bg-slate-50/30 -mx-4 px-4 pb-1">
                         {/* Phase columns — compact horizontal */}
                         <div className="flex items-center gap-4 flex-wrap">
                             {/* SDR */}
@@ -1431,8 +1442,9 @@ export default function CardHeader({ card }: CardHeaderProps) {
                             </div>
                         </div>
 
-                        {/* Actions */}
+                        {/* Operational Badge + Actions */}
                         <div className="flex items-center gap-2 shrink-0">
+                            {getOperationalBadge()}
                             {missingBlocking.length > 0 && (
                                 <Button
                                     variant="outline"
@@ -1556,23 +1568,3 @@ function LossReasonBadge({ motivoId, comentario, onClick }: { motivoId?: string 
     )
 }
 
-function StatusSelector({ currentStatus }: { currentStatus: string | null }) {
-    const statusConfig: Record<string, { label: string, color: string }> = {
-        'aberto': { label: 'Em Aberto', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        'ganho': { label: 'Ganho', color: 'bg-green-100 text-green-800 border-green-200' },
-        'perdido': { label: 'Perdido', color: 'bg-red-100 text-red-800 border-red-200' },
-    }
-
-    const config = statusConfig[currentStatus || 'aberto'] || statusConfig['aberto']
-
-    return (
-        <span
-            className={cn(
-                "px-2.5 py-0.5 rounded-md border text-xs font-medium uppercase tracking-wide",
-                config.color
-            )}
-        >
-            {config.label}
-        </span>
-    )
-}

@@ -566,28 +566,35 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
             )}
 
             {/* Win/Loss Hover Action Buttons */}
-            {!isClosedCard && (onWin || onLoss) && (
-                <div className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    {onWin && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onWin(card.id!) }}
-                            className="flex items-center justify-center h-7 w-7 rounded-full bg-green-500 text-white shadow-md hover:bg-green-600 hover:scale-110 transition-all"
-                            title="Marcar como Ganho"
-                        >
-                            <Trophy className="h-3.5 w-3.5" />
-                        </button>
-                    )}
-                    {onLoss && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onLoss(card.id!) }}
-                            className="flex items-center justify-center h-7 w-7 rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 hover:scale-110 transition-all"
-                            title="Marcar como Perdido"
-                        >
-                            <XCircle className="h-3.5 w-3.5" />
-                        </button>
-                    )}
-                </div>
-            )}
+            {!isClosedCard && (onWin || onLoss) && (() => {
+                const fase = card.fase?.toLowerCase() || ''
+                const winTitle = fase.includes('sdr') ? 'Qualificado → Planner'
+                    : fase.includes('planner') ? 'Venda Fechada → Pós-venda'
+                    : fase.includes('pos') || fase.includes('pós') ? 'Viagem Concluída'
+                    : 'Marcar como Ganho'
+                return (
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        {onWin && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onWin(card.id!) }}
+                                className="flex items-center justify-center h-7 w-7 rounded-full bg-green-500 text-white shadow-md hover:bg-green-600 hover:scale-110 transition-all"
+                                title={winTitle}
+                            >
+                                <Trophy className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                        {onLoss && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onLoss(card.id!) }}
+                                className="flex items-center justify-center h-7 w-7 rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 hover:scale-110 transition-all"
+                                title="Marcar como Perdido"
+                            >
+                                <XCircle className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+                )
+            })()}
 
             {/* Group Parent Badge */}
             {card.is_group_parent && (

@@ -516,8 +516,9 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const phaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentStage?.fase
 
-        // Se pós-venda/resolução → ganho final, sem handoff
+        // Se pós-venda/resolução → ganho final, com confirmação
         if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') {
+            if (!confirm('Confirmar que a viagem foi concluída com sucesso?')) return
             const executeWin = async () => {
                 try {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
