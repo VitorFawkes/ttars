@@ -113,3 +113,6 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-19T21:19:08Z | supabase/migrations/20260320_fix_sub_cards_v2_prod.sql | applied_to_prod
 2026-03-19T21:20:37Z | supabase/migrations/20260320_fix_sub_cards_v2_prod.sql | applied_to_prod
 2026-03-20T12:44:45Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260320_drop_reports_module.sql | applied_to_prod
+2026-03-20T13:07:29Z | supabase/migrations/20260320_push_subscriptions.sql | applied_to_prod
+2026-03-20T13:07:36Z | supabase/migrations/20260320_push_trigger_lead_assigned.sql | applied_to_prod
+2026-03-20T13:07:39Z | supabase/migrations/20260320_push_cron_task_expiring.sql | applied_to_prod

@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import { ThemeBoundary } from "../ui/ThemeBoundary";
 import { useProposalNotifications } from '@/hooks/useProposalNotifications';
 import { usePipelinePersistence } from '@/hooks/usePipelinePersistence';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { GlobalSearchProvider } from '@/components/search/GlobalSearchProvider';
 import { GlobalSearchModal } from '@/components/search/GlobalSearchModal';
 import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
@@ -17,6 +18,8 @@ export default function Layout() {
     useProposalNotifications()
     // Enable per-user pipeline filter persistence
     usePipelinePersistence()
+    // Enable push notifications (registers SW, checks subscription)
+    usePushNotifications()
 
     if (loading) {
         return (
