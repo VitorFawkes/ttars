@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, ArrowUpDown, Calendar, Clock, CheckSquare, Search } from 'lucide-react'
+import { Filter, Link, User, Users, ArrowUpDown, Calendar, Clock, CheckSquare, Search } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -160,6 +160,18 @@ export default function Pipeline() {
                                         )}
                                     >
                                         Minha Fila
+                                    </button>
+                                    <button
+                                        onClick={() => { setViewMode('AGENT'); setSubView('MY_ASSISTS'); }}
+                                        className={cn(
+                                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center gap-1.5",
+                                            viewMode === 'AGENT' && subView === 'MY_ASSISTS'
+                                                ? "bg-indigo-600 text-white shadow-sm"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                        )}
+                                    >
+                                        <Users className="h-3.5 w-3.5" />
+                                        Assistidos
                                     </button>
                                     {canViewTeam && (
                                         <button

@@ -5,6 +5,7 @@ import { type ViewMode, type SubView, type FilterState, type GroupFilters } from
 import type { Database } from '../database.types'
 import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
+import { useMyAssistCardIds } from './useMyAssistCardIds'
 
 type Product = Database['public']['Enums']['app_product']
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
@@ -66,17 +67,22 @@ export function usePipelineListCards({
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
+    // Fetch card IDs where user is a team member (for MY_ASSISTS view)
+    const { data: myAssistCardIds } = useMyAssistCardIds(subView === 'MY_ASSISTS')
+
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+        (viewMode === 'AGENT' && subView === 'MY_ASSISTS') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
     const isAuthReady = !!session?.user?.id
     const isTeamReady = subView !== 'TEAM_VIEW' || !hasTeam || (myTeamMembers && myTeamMembers.length > 0)
+    const isAssistsReady = subView !== 'MY_ASSISTS' || myAssistCardIds !== undefined
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     return useQuery({
-        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, includeTerminalStages, terminalStageIds, phaseStageIds, page, pageSize],
+        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, includeTerminalStages, terminalStageIds, phaseStageIds, page, pageSize],
         placeholderData: keepPreviousData,
-        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady,
+        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async (): Promise<PipelineListResult> => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico
             let query = (supabase.from('view_cards_acoes') as any)
@@ -88,6 +94,12 @@ export function usePipelineListCards({
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE' && session?.user?.id) {
                     query = query.eq('dono_atual_id', session.user.id)
+                } else if (subView === 'MY_ASSISTS') {
+                    if (myAssistCardIds && myAssistCardIds.length > 0) {
+                        query = query.in('id', myAssistCardIds)
+                    } else {
+                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
+                    }
                 }
             } else if (viewMode === 'MANAGER') {
                 if (subView === 'TEAM_VIEW') {

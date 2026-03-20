@@ -80,6 +80,10 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
             effectiveIds = undefined
         }
         showOwner = true
+    } else if (subView === 'MY_ASSISTS') {
+        // MY_ASSISTS → show tasks for cards I'm assisting (still my tasks)
+        effectiveIds = profile?.id ? [profile.id] : []
+        showOwner = true
     } else {
         // MY_QUEUE, FORECAST, ATTENTION → only my tasks
         effectiveIds = profile?.id ? [profile.id] : []

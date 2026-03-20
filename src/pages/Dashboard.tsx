@@ -3,6 +3,7 @@ import FunnelChart from '../components/dashboard/FunnelChart'
 import RecentActivity from '../components/dashboard/RecentActivity'
 import { ProposalAnalyticsWidget } from '../components/proposals/ProposalAnalyticsWidget'
 import { TodayMeetingsWidget } from '../components/dashboard/TodayMeetingsWidget'
+import { AssistantStatsWidget } from '../components/dashboard/AssistantStatsWidget'
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { QueryErrorState } from '../components/ui/QueryErrorState'
 import { useProductContext } from '../hooks/useProductContext'
@@ -29,9 +30,14 @@ export default function Dashboard() {
                 <ErrorBoundary fallback={sectionFallback}>
                     <ProposalAnalyticsWidget productFilter={productFilter} />
                 </ErrorBoundary>
-                <ErrorBoundary fallback={sectionFallback}>
-                    <TodayMeetingsWidget productFilter={productFilter} />
-                </ErrorBoundary>
+                <div className="space-y-6">
+                    <ErrorBoundary fallback={sectionFallback}>
+                        <TodayMeetingsWidget productFilter={productFilter} />
+                    </ErrorBoundary>
+                    <ErrorBoundary fallback={sectionFallback}>
+                        <AssistantStatsWidget productFilter={productFilter} />
+                    </ErrorBoundary>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6">

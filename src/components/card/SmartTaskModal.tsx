@@ -28,6 +28,7 @@ import {
     Video
 } from 'lucide-react';
 import { findConflicts, type MeetingTimeSlot } from '@/utils/meetingConflicts';
+import { sendMeetingInvite } from '@/hooks/calendar/useMeetingMutation';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -877,6 +878,22 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
             if (error) throw error;
 
+            // Enviar convite por email se é reunião com meeting_link
+            if (type === 'reuniao' && meetingLink) {
+                const previousLink = (initialData?.metadata as Record<string, unknown> | undefined)?.meeting_link as string | undefined;
+                const isNewMeeting = !initialData?.id;
+                const isReschedule = mode === 'reschedule';
+                const linkWasAdded = !previousLink && !!meetingLink;
+                if (isNewMeeting || isReschedule || linkWasAdded) {
+                    const meetingId = newMeetingId || initialData?.id;
+                    if (meetingId) {
+                        const action = isReschedule ? 'rescheduled' : 'created';
+                        // Fire-and-forget: não bloqueia o fluxo
+                        sendMeetingInvite(meetingId, effectiveCardId!, action, user?.id || '')
+                    }
+                }
+            }
+
             // Process transcription with AI if meeting is realized, has transcription, AND toggle is ON
             const taskId = initialData?.id || newMeetingId;
             const shouldProcessAI = type === 'reuniao' && meetingStatus === 'realizada' && transcricao && transcricao.trim().length >= 50 && taskId && processWithAI && !aiProcessResult;
@@ -1251,6 +1268,34 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                     placeholder="Digite o e-mail e pressione Enter..."
                                 />
                             </div>
+                        )}
+
+                        {/* Email invite feedback banner */}
+                        {type === 'reuniao' && meetingStatus === 'agendada' && (
+                            (() => {
+                                const emailCount = externalParticipants.length + (mainContact?.email && !externalParticipants.includes(mainContact.email) ? 1 : 0);
+                                const hasLink = !!meetingLink;
+                                const hasEmails = emailCount > 0;
+                                if (hasLink && hasEmails) return (
+                                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                                        Um convite será enviado para {emailCount} email(s) ao salvar
+                                    </p>
+                                );
+                                if (hasEmails && !hasLink) return (
+                                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                                        Adicione um link de reunião para enviar convite por email
+                                    </p>
+                                );
+                                if (hasLink && !hasEmails) return (
+                                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                                        Adicione participantes para enviar convite por email
+                                    </p>
+                                );
+                                return null;
+                            })()
                         )}
 
                         {/* Meeting Status & Logic */}

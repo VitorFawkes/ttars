@@ -159,6 +159,10 @@ export function useCardTeam(cardId: string | undefined, card?: CardOwners | null
         onSuccess: () => {
             toast.success('Membro adicionado à equipe')
             queryClient.invalidateQueries({ queryKey: ['card-team', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card-team-counts-global'] })
+            queryClient.invalidateQueries({ queryKey: ['my-assist-card-ids'] })
+            queryClient.invalidateQueries({ queryKey: ['assist-notification-cards'] })
+            queryClient.invalidateQueries({ queryKey: ['assistant-stats'] })
         },
         onError: (error: Error) => {
             toast.error(error.message)
@@ -176,6 +180,10 @@ export function useCardTeam(cardId: string | undefined, card?: CardOwners | null
         onSuccess: () => {
             toast.success('Membro removido da equipe')
             queryClient.invalidateQueries({ queryKey: ['card-team', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card-team-counts-global'] })
+            queryClient.invalidateQueries({ queryKey: ['my-assist-card-ids'] })
+            queryClient.invalidateQueries({ queryKey: ['assist-notification-cards'] })
+            queryClient.invalidateQueries({ queryKey: ['assistant-stats'] })
         },
         onError: (error: Error) => {
             toast.error('Erro ao remover membro: ' + error.message)

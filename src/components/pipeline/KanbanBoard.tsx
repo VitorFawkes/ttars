@@ -31,6 +31,7 @@ import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import { ScrollArrows } from '../ui/ScrollArrows'
 import { usePipelineCards } from '../../hooks/usePipelineCards'
+import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
 import TerminalStageDrawer from './TerminalStageDrawer'
 import { useAuth } from '../../contexts/AuthContext'
 import { prepareSearchTerms } from '../../lib/utils'
@@ -55,6 +56,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
     const [terminalDrawer, setTerminalDrawer] = useState<{ stage: Stage, totalCards: number, totalValue: number } | null>(null)
+    const { data: myAssistCardIds, isSuccess: isAssistsLoaded } = useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_ASSISTS')
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])
@@ -157,17 +159,18 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     })
 
     // Guards de auth (mesma logica de usePipelineCards para evitar query sem filtro de dono)
-    const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+    const needsAuth = (viewMode === 'AGENT' && (subView === 'MY_QUEUE' || subView === 'MY_ASSISTS')) ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
     const isAuthReady = !!session?.user?.id
     const isTeamReady = subView !== 'TEAM_VIEW' || (myTeamMembers && myTeamMembers.length > 0)
+    const isAssistsReady = subView !== 'MY_ASSISTS' || isAssistsLoaded
 
     // Fetch cards de stages terminais — per-stage com count: 'exact' (LIMIT 50 cada)
     type TerminalStageResult = { stageId: string, cards: Card[], totalCount: number }
     const terminalStageQueries = useQueries({
         queries: terminalStageIds.map(stageId => ({
-            queryKey: ['terminal-cards', stageId, productFilter, viewMode, subView, filters, groupFilters, myTeamMembers],
-            enabled: !needsAuth || (isAuthReady && isTeamReady),
+            queryKey: ['terminal-cards', stageId, productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, myAssistCardIds],
+            enabled: !needsAuth || (isAuthReady && isTeamReady && isAssistsReady),
             staleTime: 1000 * 60 * 2,
             queryFn: async (): Promise<TerminalStageResult> => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -180,6 +183,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 // Smart View Filters (mesmos do usePipelineCards)
                 if (viewMode === 'AGENT' && subView === 'MY_QUEUE' && session?.user?.id) {
                     query = query.eq('dono_atual_id', session.user.id)
+                } else if (viewMode === 'AGENT' && subView === 'MY_ASSISTS') {
+                    if (myAssistCardIds && myAssistCardIds.length > 0) {
+                        query = query.in('id', myAssistCardIds)
+                    } else {
+                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
+                    }
                 } else if (viewMode === 'MANAGER') {
                     if (subView === 'TEAM_VIEW' && myTeamMembers && myTeamMembers.length > 0) {
                         query = query.in('dono_atual_id', myTeamMembers)

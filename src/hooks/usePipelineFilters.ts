@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type ViewMode = 'AGENT' | 'MANAGER'
-export type SubView = 'MY_QUEUE' | 'ATTENTION' | 'TEAM_VIEW' | 'FORECAST' | 'ALL'
+export type SubView = 'MY_QUEUE' | 'MY_ASSISTS' | 'ATTENTION' | 'TEAM_VIEW' | 'FORECAST' | 'ALL'
 
 export type SortBy = 'created_at' | 'updated_at' | 'data_viagem_inicio' | 'data_proxima_tarefa'
 export type SortDirection = 'asc' | 'desc'

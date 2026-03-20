@@ -10,21 +10,29 @@ type TarefaUpdate = Database['public']['Tables']['tarefas']['Update']
 const N8N_MEETING_INVITE_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/meeting-invite'
 
 /** Fire-and-forget: envia convite .ics por email via n8n. Não bloqueia UX. */
-async function sendMeetingInvite(meetingId: string, cardId: string, action: string, userId: string) {
+export async function sendMeetingInvite(meetingId: string, cardId: string, action: string, userId: string) {
     try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000)
         const res = await fetch(N8N_MEETING_INVITE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ meeting_id: meetingId, card_id: cardId, action, user_id: userId }),
+            signal: controller.signal,
         })
+        clearTimeout(timeout)
         if (res.ok) {
             const data = await res.json()
             if (data.status === 'sent') {
                 toast.success(`Convite enviado para ${data.recipients?.length || 0} email(s)`)
+            } else if (data.status === 'no_email') {
+                toast.warning('Nenhum email de destinatário encontrado para enviar convite')
             }
+        } else {
+            toast.error('Falha ao enviar convite por email')
         }
     } catch {
-        console.warn('[MeetingInvite] Falha ao enviar convite por email')
+        toast.error('Falha ao enviar convite por email — verifique sua conexão')
     }
 }
 

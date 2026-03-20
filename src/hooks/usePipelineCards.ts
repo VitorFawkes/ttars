@@ -5,6 +5,7 @@ import { type ViewMode, type SubView, type FilterState, type GroupFilters } from
 import type { Database } from '../database.types'
 import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
+import { useMyAssistCardIds } from './useMyAssistCardIds'
 
 type Product = Database['public']['Enums']['app_product']
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
@@ -44,18 +45,23 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
+    // Fetch card IDs where user is a team member (for MY_ASSISTS view)
+    const { data: myAssistCardIds } = useMyAssistCardIds(subView === 'MY_ASSISTS')
+
     // Aguardar auth antes de disparar query para evitar busca sem filtro de dono (timeout)
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+        (viewMode === 'AGENT' && subView === 'MY_ASSISTS') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
     const isAuthReady = !!session?.user?.id
     const isTeamReady = subView !== 'TEAM_VIEW' || !hasTeam || (myTeamMembers && myTeamMembers.length > 0)
+    const isAssistsReady = subView !== 'MY_ASSISTS' || myAssistCardIds !== undefined
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, terminalStageIds],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, terminalStageIds],
         placeholderData: keepPreviousData,
-        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady,
+        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico
             let query = (supabase.from('view_cards_acoes') as any)
@@ -69,6 +75,14 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     // Filter by current user
                     if (session?.user?.id) {
                         query = query.eq('dono_atual_id', session.user.id)
+                    }
+                } else if (subView === 'MY_ASSISTS') {
+                    // Filter by cards where user is a team member (assistant)
+                    if (myAssistCardIds && myAssistCardIds.length > 0) {
+                        query = query.in('id', myAssistCardIds)
+                    } else {
+                        // Sem cards assistidos — forçar zero resultados
+                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
                     }
                 }
                 // 'ATTENTION' logic would go here (e.g. overdue)

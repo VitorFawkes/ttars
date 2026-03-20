@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, DollarSign, MapPin, Users, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package } from 'lucide-react'
+import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
@@ -13,6 +13,7 @@ import DeleteCardModal from '../card/DeleteCardModal'
 import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
+import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -57,6 +58,10 @@ export default function KanbanCard({ card }: KanbanCardProps) {
     const cardTags = allTags.filter(t => cardTagIds.includes(t.id))
     const displayTags = cardTags.slice(0, 2)
     const extraTagCount = cardTags.length - displayTags.length
+
+    // Team members indicator (assistentes/apoio) — global batch query, O(1) lookup
+    const teamCounts = useCardTeamCounts()
+    const teamMemberCount = teamCounts.get(card.id!) || 0
 
     const handleMenuClick = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -680,12 +685,20 @@ export default function KanbanCard({ card }: KanbanCardProps) {
                             </>
                         )}
                     </div>
-                    {card.tarefas_pendentes ? (
-                        <div className="flex items-center gap-1 text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded-full">
-                            <AlertCircle className="h-3 w-3" />
-                            {card.tarefas_pendentes}
-                        </div>
-                    ) : null}
+                    <div className="flex items-center gap-1.5">
+                        {teamMemberCount > 0 && (
+                            <div className="flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full" title="Equipe de apoio atribuída">
+                                <UserPlus className="h-3 w-3" />
+                                {teamMemberCount}
+                            </div>
+                        )}
+                        {card.tarefas_pendentes ? (
+                            <div className="flex items-center gap-1 text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded-full">
+                                <AlertCircle className="h-3 w-3" />
+                                {card.tarefas_pendentes}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             </div>
 

@@ -709,3 +709,4 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
 
 
+
