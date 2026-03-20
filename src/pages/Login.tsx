@@ -44,7 +44,7 @@ export default function Login() {
                 <div className="flex flex-col items-center">
                     <img
                         src="/logo-light.png"
-                        alt="TARS"
+                        alt="TTARS"
                         className="w-64 object-contain"
                     />
                     <p className="mt-3 text-sm text-gray-600">

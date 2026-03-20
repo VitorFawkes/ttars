@@ -61,7 +61,7 @@ export default function Sidebar() {
             )}>
                 <img
                     src={isExpanded ? "/logo-dark.png" : "/icon-light.png"}
-                    alt="TARS"
+                    alt="TTARS"
                     className={cn(
                         "object-contain transition-all duration-300",
                         isExpanded ? "w-full max-w-[180px]" : "w-10 brightness-0 invert"
