@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, BellRing, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProductContext } from '../../hooks/useProductContext'
 import NotificationCenter from './NotificationCenter'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { toast } from 'sonner'
 
 const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -27,6 +29,17 @@ export default function Sidebar() {
     const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
+    const { isSupported: pushSupported, isSubscribed: pushSubscribed, isLoading: pushLoading, subscribe: pushSubscribe } = usePushNotifications()
+    const showPushCta = pushSupported && !pushSubscribed
+
+    const handleEnablePush = async () => {
+        const ok = await pushSubscribe()
+        if (ok) {
+            toast.success('Notificacoes push ativadas!')
+        } else {
+            toast.error('Verifique as permissoes do navegador.')
+        }
+    }
 
     const filteredNavigation = useMemo(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,6 +125,33 @@ export default function Sidebar() {
                     )
                 })}
             </nav>
+
+            {/* Push notification CTA — disappears when activated */}
+            {showPushCta && (
+                <div className="px-2 pb-2">
+                    <button
+                        onClick={handleEnablePush}
+                        disabled={pushLoading}
+                        title={!isExpanded ? 'Ativar notificacoes' : undefined}
+                        className={cn(
+                            "w-full flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200",
+                            pushLoading && "opacity-50 cursor-not-allowed"
+                        )}
+                    >
+                        <div className="relative flex-shrink-0">
+                            <BellRing className="h-5 w-5" />
+                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
+                        </div>
+                        <span className={cn(
+                            "ml-3 whitespace-nowrap transition-opacity duration-200",
+                            isExpanded ? "opacity-100" : "opacity-0 w-0"
+                        )}>
+                            Ativar notificacoes
+                        </span>
+                    </button>
+                </div>
+            )}
 
             {/* User section */}
             <div className="border-t border-primary/20 p-2">
