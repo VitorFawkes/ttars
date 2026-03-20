@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, PieChart, FileSpreadsheet, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
@@ -18,7 +18,6 @@ const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?:
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Relatórios', href: '/reports', icon: PieChart },
     { name: 'Configurações', href: '/settings', icon: Settings },
 ]
 

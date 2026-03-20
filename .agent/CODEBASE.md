@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-19
+> **Last Updated:** 2026-03-20
 > **Trigger:** ALWAYS ON
-> **Stats:** 120 tabelas | 41 paginas | 76 hooks | 17 views | 428 components
+> **Stats:** 117 tabelas | 40 paginas | 76 hooks | 17 views | 399 components
 
 ---
 
@@ -315,7 +315,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **40 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -359,7 +359,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |
-| `ReportsPage` | `src/pages/reports/ReportsPage.tsx` |
 
 ## 4. UI Component Library
 

@@ -17,13 +17,6 @@ import ProposalBuilderV4 from './pages/ProposalBuilderV4'
 import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
-import ReportsPage from './pages/reports/ReportsPage'
-import ReportsList from './components/reports/ReportsList'
-import ReportBuilder from './components/reports/ReportBuilder'
-import ReportViewer from './components/reports/ReportViewer'
-import DashboardsList from './components/reports/DashboardsList'
-import DashboardEditor from './components/reports/DashboardEditor'
-import DashboardViewer from './components/reports/DashboardViewer'
 import OverviewView from './components/analytics/views/OverviewView'
 import TeamView from './components/analytics/views/TeamView'
 import FunnelView from './components/analytics/views/FunnelView'
@@ -163,17 +156,6 @@ function App() {
                     <Route path="operations" element={<OperationsView />} />
                     <Route path="financial" element={<FinancialView />} />
                     <Route path="retention" element={<RetentionView />} />
-                  </Route>
-                  {/* Custom Reports (módulo separado do Analytics) */}
-                  <Route path="/reports" element={<ReportsPage />}>
-                    <Route index element={<ReportsList />} />
-                    <Route path="new" element={<ReportBuilder />} />
-                    <Route path=":id" element={<ReportViewer />} />
-                    <Route path=":id/edit" element={<ReportBuilder />} />
-                    <Route path="dashboards" element={<DashboardsList />} />
-                    <Route path="dashboards/new" element={<DashboardEditor />} />
-                    <Route path="dashboards/:id" element={<DashboardViewer />} />
-                    <Route path="dashboards/:id/edit" element={<DashboardEditor />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
