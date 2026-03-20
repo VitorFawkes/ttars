@@ -57,14 +57,14 @@ export default function Sidebar() {
             {/* Header */}
             <div className={cn(
                 "flex items-center justify-center transition-all duration-300",
-                isExpanded ? "h-20 px-3" : "h-16 px-1"
+                isExpanded ? "h-20 px-3" : "h-20 px-1"
             )}>
                 <img
                     src={isExpanded ? "/logo-dark.png" : "/icon-light.png"}
                     alt="TARS"
                     className={cn(
                         "object-contain transition-all duration-300",
-                        isExpanded ? "w-full max-w-[180px]" : "w-12 h-12 brightness-0 invert"
+                        isExpanded ? "w-full max-w-[180px]" : "w-full p-1 brightness-0 invert"
                     )}
                 />
             </div>
