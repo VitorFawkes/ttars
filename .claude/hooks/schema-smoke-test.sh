@@ -119,6 +119,36 @@ test_query "whatsapp_messages group cols" \
 test_rpc "analytics_pipeline_current" "analytics_pipeline_current" \
   '{"p_product":"TRIPS"}'
 
+# RPCs de ganho/perdido — verificar que existem (aceitar qualquer status != 404)
+test_rpc_exists() {
+  local name="$1"
+  local rpc_name="$2"
+  local body="$3"
+  TOTAL=$((TOTAL + 1))
+  local status
+  status=$(curl -s -o /dev/null -w "%{http_code}" \
+    "${URL}/rest/v1/rpc/${rpc_name}" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d "${body}" \
+    --max-time 15)
+
+  if [ "$status" = "404" ]; then
+    echo "  FAIL: $name → RPC não existe (HTTP 404)" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+test_rpc_exists "marcar_ganho RPC exists" "marcar_ganho" \
+  '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
+
+test_rpc_exists "marcar_perdido RPC exists" "marcar_perdido" \
+  '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
+
+test_rpc_exists "reabrir_card RPC exists" "reabrir_card" \
+  '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2

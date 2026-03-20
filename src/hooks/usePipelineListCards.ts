@@ -16,8 +16,7 @@ interface UsePipelineListCardsProps {
     subView: SubView
     filters: FilterState
     groupFilters: GroupFilters
-    includeTerminalStages?: boolean
-    terminalStageIds?: string[]
+    showClosedCards?: boolean
     phaseStageIds?: string[] // Stage IDs filtrados por phaseFilters
     page?: number
     pageSize?: number
@@ -37,8 +36,7 @@ export function usePipelineListCards({
     subView,
     filters,
     groupFilters,
-    includeTerminalStages = false,
-    terminalStageIds,
+    showClosedCards = false,
     phaseStageIds,
     page = 1,
     pageSize = 50
@@ -80,7 +78,7 @@ export function usePipelineListCards({
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     return useQuery({
-        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, includeTerminalStages, terminalStageIds, phaseStageIds, page, pageSize],
+        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, phaseStageIds, page, pageSize],
         placeholderData: keepPreviousData,
         enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async (): Promise<PipelineListResult> => {
@@ -188,8 +186,11 @@ export function usePipelineListCards({
                 query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
             }
 
+            // Status Comercial Filter — default: só cards ativos
             if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
+            } else if (!showClosedCards) {
+                query = query.in('status_comercial', ['aberto', 'pausado'])
             }
 
             if ((filters.origem?.length ?? 0) > 0) {
@@ -204,11 +205,6 @@ export function usePipelineListCards({
 
             // Archived Filter
             query = query.is('archived_at', null)
-
-            // Terminal Stages Filter — default: excluir concluídos/perdidos
-            if (!includeTerminalStages && terminalStageIds && terminalStageIds.length > 0) {
-                query = query.not('pipeline_stage_id', 'in', `(${terminalStageIds.join(',')})`)
-            }
 
             // Phase Filter — filtrar por stages da fase selecionada
             if (phaseStageIds && phaseStageIds.length > 0) {

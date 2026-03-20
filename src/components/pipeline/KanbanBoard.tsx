@@ -400,7 +400,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 if (isWinHandoff) {
                     // Win handoff — chama marcar_ganho com novo dono
                     try {
-                        const { error } = await supabase.rpc('marcar_ganho', {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+                        const { error } = await (supabase as any).rpc('marcar_ganho', {
                             p_card_id: pendingMove.cardId,
                             p_novo_dono_id: newOwnerId
                         })
@@ -461,7 +462,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         if (pendingMove) {
             try {
                 // Marcar como perdido via RPC (card permanece na etapa atual)
-                const { error } = await supabase.rpc('marcar_perdido', {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+                const { error } = await (supabase as any).rpc('marcar_perdido', {
                     p_card_id: pendingMove.cardId,
                     p_motivo_perda_id: motivoId || null,
                     p_motivo_perda_comentario: comentario || null
@@ -518,7 +520,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') {
             const executeWin = async () => {
                 try {
-                    const { error } = await supabase.rpc('marcar_ganho', { p_card_id: cardId })
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+                    const { error } = await (supabase as any).rpc('marcar_ganho', { p_card_id: cardId })
                     if (error) throw error
                     queryClient.invalidateQueries({ queryKey: ['cards'] })
                     queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })

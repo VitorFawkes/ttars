@@ -16,11 +16,10 @@ interface UsePipelineCardsProps {
     subView: SubView
     filters: FilterState
     groupFilters: GroupFilters
-    excludeTerminalStages?: boolean
-    terminalStageIds?: string[]
+    showClosedCards?: boolean
 }
 
-export function usePipelineCards({ productFilter, viewMode, subView, filters, groupFilters, excludeTerminalStages, terminalStageIds }: UsePipelineCardsProps) {
+export function usePipelineCards({ productFilter, viewMode, subView, filters, groupFilters, showClosedCards }: UsePipelineCardsProps) {
     const { session, profile } = useAuth()
 
     // Fetch Team Members for Team View
@@ -59,7 +58,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, terminalStageIds],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards],
         placeholderData: keepPreviousData,
         enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async () => {
@@ -181,8 +180,11 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             }
 
             // Status Comercial Filter
+            // Se filtro explícito definido, usar. Senão, default: só cards ativos (ocultar ganhos/perdidos)
             if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
+            } else if (!showClosedCards) {
+                query = query.in('status_comercial', ['aberto', 'pausado'])
             }
 
             // Origem Filter
@@ -199,11 +201,6 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
 
             // Archived Filter — esconder cards arquivados do pipeline
             query = query.is('archived_at', null)
-
-            // Terminal Stages Filter — excluir Viagem Concluída e Perdido do Kanban
-            if (excludeTerminalStages && terminalStageIds && terminalStageIds.length > 0) {
-                query = query.not('pipeline_stage_id', 'in', `(${terminalStageIds.join(',')})`)
-            }
 
             // Apply Sorting
             if (filters.sortBy && filters.sortBy !== 'data_proxima_tarefa') {

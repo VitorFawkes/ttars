@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, Users, ArrowUpDown, Calendar, Clock, CheckSquare, Search } from 'lucide-react'
+import { Filter, Link, User, Users, ArrowUpDown, Calendar, Clock, CheckSquare, Search, Eye, EyeOff } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -37,6 +37,7 @@ export default function Pipeline() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+    const [showClosedCards, setShowClosedCards] = useState(false)
 
     // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
@@ -293,6 +294,21 @@ export default function Pipeline() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
+                                {/* Toggle Closed Cards */}
+                                <button
+                                    onClick={() => setShowClosedCards(!showClosedCards)}
+                                    className={cn(
+                                        "flex items-center px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm transition-all border",
+                                        showClosedCards
+                                            ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                            : "text-gray-700 bg-white hover:bg-gray-50 border-gray-200"
+                                    )}
+                                    title={showClosedCards ? 'Ocultar ganhos/perdidos' : 'Mostrar ganhos/perdidos'}
+                                >
+                                    {showClosedCards ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2 text-gray-500" />}
+                                    {showClosedCards ? 'Ocultar Finalizados' : 'Ver Finalizados'}
+                                </button>
+
                                 {/* Smart Filter Button */}
                                 <button
                                     onClick={() => setIsFilterDrawerOpen(true)}
@@ -336,6 +352,7 @@ export default function Pipeline() {
                             viewMode={viewMode}
                             subView={subView}
                             filters={filters}
+                            showClosedCards={showClosedCards}
                             className="h-full px-8 pb-4" // Shared horizontal padding
                         />
                     ) : (
@@ -344,6 +361,7 @@ export default function Pipeline() {
                             viewMode={viewMode}
                             subView={subView}
                             filters={filters}
+                            showClosedCards={showClosedCards}
                             onCardClick={(cardId) => {
                                 navigate(`/cards/${cardId}`)
                             }}

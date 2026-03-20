@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, Eye, EyeOff, FileText } from 'lucide-react'
+import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trophy, XCircle } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
 import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -22,7 +22,7 @@ import { useArchiveCard } from '../../hooks/useArchiveCard'
 import DeleteCardModal from '../card/DeleteCardModal'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Button } from '../ui/Button'
@@ -44,10 +44,11 @@ interface PipelineListViewProps {
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
+    showClosedCards?: boolean
     onCardClick?: (cardId: string) => void
 }
 
-export default function PipelineListView({ productFilter, viewMode, subView, filters }: PipelineListViewProps) {
+export default function PipelineListView({ productFilter, viewMode, subView, filters, showClosedCards = false }: PipelineListViewProps) {
     const queryClient = useQueryClient()
     const { groupFilters } = usePipelineFilters()
     const { isNew: isCardNew } = useSeenCards()
@@ -57,38 +58,13 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const pipelineId = PRODUCT_PIPELINE_MAP[productFilter]
     const { data: stages } = usePipelineStages(pipelineId)
 
-    // Paginação e toggle de concluídos/perdidos
+    // Paginação
     const [currentPage, setCurrentPage] = useState(1)
-    const [includeTerminal, setIncludeTerminal] = useState(false)
 
     // Resetar página ao mudar filtros ou toggle
     useEffect(() => {
         setCurrentPage(1)
-    }, [filters, includeTerminal])
-
-    // Buscar stages completos (com is_won/is_lost) para identificar stages terminais
-    const { data: fullStages } = useQuery({
-        queryKey: ['stages-full', pipelineId],
-        queryFn: async () => {
-            let query = supabase
-                .from('pipeline_stages')
-                .select('id, is_won, is_lost')
-                .eq('ativo', true)
-            if (pipelineId) {
-                query = query.eq('pipeline_id', pipelineId)
-            }
-            const { data, error } = await query
-            if (error) throw error
-            return data
-        },
-        staleTime: 1000 * 60 * 5,
-    })
-
-    // Computar IDs de stages terminais
-    const terminalStageIds = useMemo(() =>
-        (fullStages || []).filter(s => s.is_won || s.is_lost).map(s => s.id),
-        [fullStages]
-    )
+    }, [filters, showClosedCards])
 
     // Computar IDs de stages das fases filtradas (para phaseFilters)
     const phaseStageIds = useMemo(() => {
@@ -102,8 +78,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         subView,
         filters,
         groupFilters,
-        includeTerminalStages: includeTerminal,
-        terminalStageIds,
+        showClosedCards,
         phaseStageIds,
         page: currentPage,
         pageSize: 50
@@ -409,9 +384,21 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
             ),
             renderCell: (card) => (
                 <div className="flex flex-col">
-                    <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
-                        {card.titulo}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                        <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
+                            {card.titulo}
+                        </Link>
+                        {card.status_comercial === 'ganho' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                                <Trophy className="h-2.5 w-2.5" /> Ganho
+                            </span>
+                        )}
+                        {card.status_comercial === 'perdido' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                <XCircle className="h-2.5 w-2.5" /> Perdido
+                            </span>
+                        )}
+                    </div>
                     <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <UserIcon className="h-3 w-3" />
                         {card.pessoa_nome || 'Sem cliente'}
@@ -948,20 +935,6 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         Limpar filtros
                     </button>
                 )}
-
-                {/* Toggle Concluídos/Perdidos */}
-                <button
-                    onClick={() => setIncludeTerminal(!includeTerminal)}
-                    className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
-                        includeTerminal
-                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                            : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
-                    )}
-                >
-                    {includeTerminal ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                    {includeTerminal ? 'Com Concluídos' : 'Sem Concluídos'}
-                </button>
 
                 {/* Results count */}
                 <span className="ml-auto text-xs text-gray-500">

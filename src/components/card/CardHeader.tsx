@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2 } from 'lucide-react'
+import { ArrowLeft, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -740,7 +740,8 @@ export default function CardHeader({ card }: CardHeaderProps) {
             setLossReasonModalOpen(false)
         } else if (pendingLossMove) {
             // Mark as lost via RPC (card stays at current stage)
-            const { error } = await supabase.rpc('marcar_perdido', {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { error } = await (supabase as any).rpc('marcar_perdido', {
                 p_card_id: card.id,
                 p_motivo_perda_id: motivoId || null,
                 p_motivo_perda_comentario: comentario || null
@@ -792,7 +793,8 @@ export default function CardHeader({ card }: CardHeaderProps) {
     // Marcar Ganho via RPC
     const marcarGanhoMutation = useMutation({
         mutationFn: async (novoDonoId?: string) => {
-            const { data, error } = await supabase.rpc('marcar_ganho', {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { data, error } = await (supabase as any).rpc('marcar_ganho', {
                 p_card_id: card.id,
                 p_novo_dono_id: novoDonoId || null
             })
@@ -817,7 +819,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
         const isFinalPhase = currentPhaseSlug === 'pos_venda' || currentPhaseSlug === 'resolucao'
 
         if (isFinalPhase) {
-            marcarGanhoMutation.mutate()
+            marcarGanhoMutation.mutate(undefined)
         } else {
             const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
             const nextPhaseStages = stages?.filter(s => {
@@ -842,16 +844,16 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 })
                 setStageChangeModalOpen(true)
             } else {
-                marcarGanhoMutation.mutate()
+                marcarGanhoMutation.mutate(undefined)
             }
         }
     }
 
     // Reabrir card via RPC
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reservado para futura UI de reabrir
     const reabrirCardMutation = useMutation({
         mutationFn: async () => {
-            const { error } = await supabase.rpc('reabrir_card', { p_card_id: card.id })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { error } = await (supabase as any).rpc('reabrir_card', { p_card_id: card.id })
             if (error) throw error
         },
         onSuccess: () => {
@@ -1164,13 +1166,34 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 indicadoPorId={card.indicado_por_id}
                             />
 
-                            {/* Mark as Lost Button OR Loss Reason Display */}
-                            {card.status_comercial !== 'perdido' && lostStage && (
+                            {/* Win/Loss/Reopen Action Buttons */}
+                            {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (
+                                <>
+                                    <button
+                                        onClick={handleMarkAsWon}
+                                        disabled={marcarGanhoMutation.isPending}
+                                        className="px-2 py-0.5 rounded-md border border-green-200 bg-white text-green-600 text-xs font-medium hover:bg-green-50 transition-colors flex items-center gap-1"
+                                    >
+                                        <Trophy className="h-3 w-3" />
+                                        {marcarGanhoMutation.isPending ? 'Marcando...' : 'Ganho'}
+                                    </button>
+                                    <button
+                                        onClick={handleMarkAsLost}
+                                        className="px-2 py-0.5 rounded-md border border-red-200 bg-white text-red-600 text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
+                                    >
+                                        <XCircle className="h-3 w-3" />
+                                        Perdido
+                                    </button>
+                                </>
+                            )}
+                            {(card.status_comercial === 'ganho' || card.status_comercial === 'perdido') && (
                                 <button
-                                    onClick={handleMarkAsLost}
-                                    className="px-2 py-0.5 rounded-md border border-red-200 bg-white text-red-600 text-xs font-medium hover:bg-red-50 transition-colors"
+                                    onClick={() => reabrirCardMutation.mutate()}
+                                    disabled={reabrirCardMutation.isPending}
+                                    className="px-2 py-0.5 rounded-md border border-blue-200 bg-white text-blue-600 text-xs font-medium hover:bg-blue-50 transition-colors flex items-center gap-1"
                                 >
-                                    Marcar Perdido
+                                    <RotateCcw className="h-3 w-3" />
+                                    {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
                                 </button>
                             )}
 

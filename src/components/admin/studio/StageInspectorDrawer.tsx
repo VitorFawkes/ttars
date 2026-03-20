@@ -243,37 +243,8 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                 </select>
                             </div>
 
-                            {/* Status Final */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Status Final</label>
-                                <p className="text-xs text-gray-500 mb-3">Define se esta etapa altera o status comercial do card.</p>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.is_won || false}
-                                            onChange={e => setFormData({ ...formData, is_won: e.target.checked, is_lost: e.target.checked ? false : formData.is_lost })}
-                                            className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Ganho Total</span>
-                                            <p className="text-xs text-gray-500">Status comercial = "ganho"</p>
-                                        </div>
-                                    </label>
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.is_lost || false}
-                                            onChange={e => setFormData({ ...formData, is_lost: e.target.checked, is_won: e.target.checked ? false : formData.is_won })}
-                                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Perdido</span>
-                                            <p className="text-xs text-gray-500">Status comercial = "perdido"</p>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
+                            {/* Status Final — desativado: ganho/perdido agora são ações, não etapas */}
+                            {/* is_won e is_lost mantidos no banco para compatibilidade, mas não editáveis */}
 
                             {/* Marcos por Seção */}
                             <div className="border-t border-gray-200 pt-4">
