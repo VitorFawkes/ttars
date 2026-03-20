@@ -105,25 +105,25 @@ export default function NotificationSettings() {
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">1</span>
                 <p className="text-xs text-amber-800">
-                  Na <strong>barra de endereço</strong> do Chrome, clique no ícone de <strong>cadeado</strong> (ou ícone de ajustes) que fica à esquerda da URL
+                  Olhe a <strong>barra de endereço</strong> do navegador — à esquerda da URL, há um ícone de <strong>duas barrinhas com controles deslizantes</strong> (parece um equalizador). Clique nele.
                 </p>
               </div>
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">2</span>
                 <p className="text-xs text-amber-800">
-                  No menu que abrir, clique em <strong>"Configurações do site"</strong>
+                  No painel que abrir, você verá as permissões do site. Localize <strong>"Notificações"</strong> — estará marcado como <strong>"Bloquear"</strong>.
                 </p>
               </div>
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">3</span>
                 <p className="text-xs text-amber-800">
-                  Encontre <strong>"Notificações"</strong> e altere de <strong>"Bloquear"</strong> para <strong>"Permitir"</strong>
+                  Clique em <strong>"Bloquear"</strong> e altere para <strong>"Permitir"</strong>.
                 </p>
               </div>
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">4</span>
                 <p className="text-xs text-amber-800">
-                  <strong>Recarregue esta página</strong> (F5 ou Ctrl+R) e ative o switch abaixo
+                  <strong>Recarregue esta página</strong> (F5 ou Ctrl+R) e ative o switch abaixo.
                 </p>
               </div>
             </div>
