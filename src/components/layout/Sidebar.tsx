@@ -64,7 +64,7 @@ export default function Sidebar() {
                     alt="TARS"
                     className={cn(
                         "object-contain transition-all duration-300",
-                        isExpanded ? "w-full max-w-[180px]" : "w-full p-1 brightness-0 invert"
+                        isExpanded ? "w-full max-w-[180px]" : "w-full brightness-0 invert"
                     )}
                 />
             </div>
