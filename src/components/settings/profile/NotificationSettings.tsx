@@ -12,20 +12,20 @@ const NOTIFICATION_TYPES: {
 }[] = [
   {
     key: 'lead_assigned',
-    label: 'Novo lead atribuido',
-    description: 'Quando um card e atribuido a voce',
+    label: 'Novo lead atribuído',
+    description: 'Quando um card é atribuído a você',
     icon: UserPlus,
   },
   {
     key: 'task_expiring',
     label: 'Tarefa vence em breve',
-    description: 'Quando uma tarefa vence nos proximos 60 minutos',
+    description: 'Quando uma tarefa vence nos próximos 60 minutos',
     icon: Clock,
   },
   {
     key: 'task_overdue',
     label: 'Tarefa atrasada',
-    description: 'Quando uma tarefa passa do prazo sem ser concluida',
+    description: 'Quando uma tarefa passa do prazo sem ser concluída',
     icon: AlertTriangle,
   },
   {
@@ -36,8 +36,8 @@ const NOTIFICATION_TYPES: {
   },
   {
     key: 'meeting_reminder',
-    label: 'Lembrete de reuniao',
-    description: '30 minutos antes de uma reuniao agendada',
+    label: 'Lembrete de reunião',
+    description: '30 minutos antes de uma reunião agendada',
     icon: Calendar,
   },
 ]
@@ -56,13 +56,13 @@ export default function NotificationSettings() {
   const handleMasterToggle = async () => {
     if (isSubscribed) {
       const ok = await unsubscribe()
-      if (ok) toast.info('Notificacoes push desativadas')
+      if (ok) toast.info('Notificações push desativadas')
     } else {
       const ok = await subscribe()
       if (ok) {
-        toast.success('Notificacoes push ativadas!')
+        toast.success('Notificações push ativadas!')
       } else {
-        toast.error('Nao foi possivel ativar. Verifique as permissoes do navegador.')
+        toast.error('Não foi possível ativar. Verifique as permissões do navegador.')
       }
     }
   }
@@ -70,14 +70,14 @@ export default function NotificationSettings() {
   const handleTypeToggle = async (key: NotificationType, current: boolean) => {
     const ok = await updatePreference(key, !current)
     if (!ok) {
-      toast.error('Erro ao salvar preferencia')
+      toast.error('Erro ao salvar preferência')
     }
   }
 
   if (!isSupported) {
     return (
       <div className="text-center py-12 text-slate-500">
-        <p className="text-sm">Seu navegador nao suporta notificacoes push.</p>
+        <p className="text-sm">Seu navegador não suporta notificações push.</p>
         <p className="text-xs mt-1">Use Chrome, Edge, Firefox ou Safari para ativar.</p>
       </div>
     )
@@ -88,7 +88,7 @@ export default function NotificationSettings() {
       {/* Master toggle */}
       <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200 bg-slate-50">
         <div>
-          <h4 className="text-sm font-semibold text-slate-900">Notificacoes push no desktop</h4>
+          <h4 className="text-sm font-semibold text-slate-900">Notificações push no desktop</h4>
           <p className="text-xs text-slate-500 mt-0.5">
             Receba alertas mesmo com o CRM fechado (o navegador precisa estar aberto)
           </p>
@@ -102,7 +102,7 @@ export default function NotificationSettings() {
 
       {/* Per-type toggles */}
       <div>
-        <h4 className="text-sm font-medium text-slate-700 mb-3">Tipos de notificacao</h4>
+        <h4 className="text-sm font-medium text-slate-700 mb-3">Tipos de notificação</h4>
         <div className="space-y-1">
           {NOTIFICATION_TYPES.map(({ key, label, description, icon: Icon }) => {
             const enabled = preferences[key]
@@ -142,7 +142,7 @@ export default function NotificationSettings() {
       {/* Info footer */}
       {isSubscribed && preferences.enabled && (
         <p className="text-xs text-slate-400 text-center pt-2">
-          As notificacoes aparecem no desktop do navegador, mesmo com a aba do CRM fechada.
+          As notificações aparecem no desktop do navegador, mesmo com a aba do CRM fechada.
         </p>
       )}
     </div>

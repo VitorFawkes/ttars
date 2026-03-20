@@ -10,11 +10,33 @@ import { Loader2, Save, User, Shield, BellRing } from 'lucide-react';
 import AvatarUpload from './AvatarUpload';
 import SecuritySettings from './SecuritySettings';
 import NotificationSettings from './NotificationSettings';
+import { useSearchParams } from 'react-router-dom';
 
 export default function ProfileSettings() {
     const { user, profile } = useAuth();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'general';
+    const [activeTab, setActiveTab] = useState(initialTab);
+
+    // Sync tab from URL changes (e.g. sidebar CTA click)
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && tab !== activeTab) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        if (value === 'general') {
+            searchParams.delete('tab');
+        } else {
+            searchParams.set('tab', value);
+        }
+        setSearchParams(searchParams, { replace: true });
+    };
 
     // Form State
     const [name, setName] = useState('');
@@ -63,7 +85,7 @@ export default function ProfileSettings() {
                 <p className="text-muted-foreground">Gerencie suas informações pessoais e segurança.</p>
             </div>
 
-            <Tabs defaultValue="general" className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="grid w-full grid-cols-3 lg:w-[600px] mb-8">
                     <TabsTrigger value="general" className="gap-2">
                         <User className="w-4 h-4" />
@@ -71,11 +93,11 @@ export default function ProfileSettings() {
                     </TabsTrigger>
                     <TabsTrigger value="security" className="gap-2">
                         <Shield className="w-4 h-4" />
-                        Seguranca
+                        Segurança
                     </TabsTrigger>
                     <TabsTrigger value="notifications" className="gap-2">
                         <BellRing className="w-4 h-4" />
-                        Notificacoes
+                        Notificações
                     </TabsTrigger>
                 </TabsList>
 
