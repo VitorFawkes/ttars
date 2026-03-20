@@ -123,13 +123,13 @@ export function useAllowedStages(product: string) {
                 const { data, error } = await supabase
                     .from('pipeline_stages')
                     .select(`
-                        id, 
-                        nome, 
+                        id,
+                        nome,
                         ordem,
                         fase,
                         phase_id,
                         pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
-                        pipelines!inner(produto)
+                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
                     `)
                     .eq('ativo', true)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested filter typing
@@ -167,7 +167,7 @@ export function useAllowedStages(product: string) {
                         fase,
                         phase_id,
                         pipeline_phases!pipeline_stages_phase_id_fkey(order_index),
-                        pipelines!inner(produto)
+                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
                     )
                 `)
                 .eq('team_id', teamId)
@@ -200,7 +200,7 @@ export function useAllowedStages(product: string) {
                     .select(`
                         id, nome, ordem, fase, phase_id,
                         pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
-                        pipelines!inner(produto)
+                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
                     `)
                     .eq('ativo', true)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested filter typing
