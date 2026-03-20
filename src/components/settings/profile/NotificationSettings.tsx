@@ -1,7 +1,7 @@
 import { usePushNotifications, type NotificationType } from '@/hooks/usePushNotifications'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { UserPlus, Clock, AlertTriangle, FileText, Calendar } from 'lucide-react'
+import { UserPlus, Clock, AlertTriangle, FileText, Calendar, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NOTIFICATION_TYPES: {
@@ -47,6 +47,7 @@ export default function NotificationSettings() {
     isSupported,
     isSubscribed,
     isLoading,
+    permissionState,
     preferences,
     subscribe,
     unsubscribe,
@@ -61,6 +62,8 @@ export default function NotificationSettings() {
       const ok = await subscribe()
       if (ok) {
         toast.success('Notificações push ativadas!')
+      } else if (Notification.permission === 'denied') {
+        toast.error('Notificações bloqueadas. Desbloqueie nas configurações do navegador.')
       } else {
         toast.error('Não foi possível ativar. Verifique as permissões do navegador.')
       }
@@ -83,8 +86,51 @@ export default function NotificationSettings() {
     )
   }
 
+  const isBlocked = permissionState === 'denied'
+
   return (
     <div className="space-y-6">
+      {/* Blocked banner */}
+      {isBlocked && (
+        <div className="flex gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50">
+          <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-amber-900">
+              Notificações bloqueadas no navegador
+            </h4>
+            <p className="text-xs text-amber-700">
+              As notificações foram bloqueadas anteriormente. Para desbloquear, siga estes passos:
+            </p>
+            <div className="space-y-2 mt-1">
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">1</span>
+                <p className="text-xs text-amber-800">
+                  Na <strong>barra de endereço</strong> do Chrome, clique no ícone de <strong>cadeado</strong> (ou ícone de ajustes) que fica à esquerda da URL
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">2</span>
+                <p className="text-xs text-amber-800">
+                  No menu que abrir, clique em <strong>"Configurações do site"</strong>
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">3</span>
+                <p className="text-xs text-amber-800">
+                  Encontre <strong>"Notificações"</strong> e altere de <strong>"Bloquear"</strong> para <strong>"Permitir"</strong>
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold flex items-center justify-center">4</span>
+                <p className="text-xs text-amber-800">
+                  <strong>Recarregue esta página</strong> (F5 ou Ctrl+R) e ative o switch abaixo
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Master toggle */}
       <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200 bg-slate-50">
         <div>
@@ -96,7 +142,7 @@ export default function NotificationSettings() {
         <Switch
           checked={isSubscribed && preferences.enabled}
           onCheckedChange={handleMasterToggle}
-          disabled={isLoading}
+          disabled={isLoading || isBlocked}
         />
       </div>
 

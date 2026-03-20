@@ -48,12 +48,17 @@ export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
   const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES)
 
   // Check support, subscription, and load preferences on mount
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY
     setIsSupported(supported)
+
+    if ('Notification' in window) {
+      setPermissionState(Notification.permission)
+    }
 
     if (!profile?.id) return
 
@@ -84,6 +89,7 @@ export function usePushNotifications() {
 
     try {
       const permission = await Notification.requestPermission()
+      setPermissionState(permission)
       if (permission !== 'granted') {
         setIsLoading(false)
         return false
@@ -199,6 +205,7 @@ export function usePushNotifications() {
     isSupported,
     isSubscribed,
     isLoading,
+    permissionState,
     preferences,
     subscribe,
     unsubscribe,
