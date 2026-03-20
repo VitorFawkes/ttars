@@ -66,11 +66,39 @@ serve(async (req: Request) => {
       );
     }
 
-    // Buscar subscriptions dos usuários
+    // Checar preferências dos usuários (se type informado)
+    const notificationType = type || "general";
+    let allowedUserIds = [...user_ids];
+
+    if (notificationType !== "general") {
+      const { data: prefs } = await supabase
+        .from("push_notification_preferences")
+        .select("user_id, enabled, " + notificationType)
+        .in("user_id", user_ids);
+
+      if (prefs?.length) {
+        const blockedUsers = new Set(
+          prefs
+            .filter((p: Record<string, unknown>) => !p.enabled || p[notificationType] === false)
+            .map((p: Record<string, unknown>) => p.user_id)
+        );
+        allowedUserIds = user_ids.filter((id: string) => !blockedUsers.has(id));
+      }
+      // Se user não tem row de preferências, envia (backward compat)
+    }
+
+    if (!allowedUserIds.length) {
+      return new Response(
+        JSON.stringify({ sent: 0, failed: 0, skipped: user_ids.length, message: "All users opted out" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Buscar subscriptions dos usuários permitidos
     const { data: subscriptions, error: fetchError } = await supabase
       .from("push_subscriptions")
       .select("id, user_id, endpoint, p256dh, auth")
-      .in("user_id", user_ids);
+      .in("user_id", allowedUserIds);
 
     if (fetchError) {
       throw new Error(`Failed to fetch subscriptions: ${fetchError.message}`);

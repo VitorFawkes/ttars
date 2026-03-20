@@ -6,9 +6,10 @@ import { Input } from '../../ui/Input';
 import { Label } from '../../ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { useToast } from '../../../contexts/ToastContext';
-import { Loader2, Save, User, Shield } from 'lucide-react';
+import { Loader2, Save, User, Shield, BellRing } from 'lucide-react';
 import AvatarUpload from './AvatarUpload';
 import SecuritySettings from './SecuritySettings';
+import NotificationSettings from './NotificationSettings';
 
 export default function ProfileSettings() {
     const { user, profile } = useAuth();
@@ -63,14 +64,18 @@ export default function ProfileSettings() {
             </div>
 
             <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 lg:w-[400px] mb-8">
+                <TabsList className="grid w-full grid-cols-3 lg:w-[600px] mb-8">
                     <TabsTrigger value="general" className="gap-2">
                         <User className="w-4 h-4" />
                         Dados Pessoais
                     </TabsTrigger>
                     <TabsTrigger value="security" className="gap-2">
                         <Shield className="w-4 h-4" />
-                        Segurança
+                        Seguranca
+                    </TabsTrigger>
+                    <TabsTrigger value="notifications" className="gap-2">
+                        <BellRing className="w-4 h-4" />
+                        Notificacoes
                     </TabsTrigger>
                 </TabsList>
 
@@ -135,6 +140,12 @@ export default function ProfileSettings() {
                 <TabsContent value="security" className="animate-in fade-in-50 duration-500">
                     <div className="bg-card rounded-xl border border-border p-8 shadow-sm">
                         <SecuritySettings />
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="notifications" className="animate-in fade-in-50 duration-500">
+                    <div className="bg-card rounded-xl border border-border p-8 shadow-sm">
+                        <NotificationSettings />
                     </div>
                 </TabsContent>
             </Tabs>

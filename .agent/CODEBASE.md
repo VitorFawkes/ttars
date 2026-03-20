@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-20
 > **Trigger:** ALWAYS ON
-> **Stats:** 118 tabelas | 40 paginas | 77 hooks | 17 views | 399 components
+> **Stats:** 119 tabelas | 40 paginas | 79 hooks | 17 views | 400 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **77 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **79 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -206,6 +206,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useApiKeys()` | `useApiKeys.ts` |
+| `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useDocumentCollection()` | `useDocumentCollection.ts` |
@@ -240,6 +241,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useDeleteCard()` | `useDeleteCard.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineFilters()` | `usePipelineFilters.ts` |
 | `usePipelineListCards()` | `usePipelineListCards.ts` |

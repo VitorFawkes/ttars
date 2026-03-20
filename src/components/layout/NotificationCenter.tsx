@@ -1,11 +1,9 @@
-import { Bell, AlertCircle, AlertTriangle, Info, MessageSquare, Zap, ArrowUpRight, Building2, Timer, BellRing } from 'lucide-react'
+import { Bell, AlertCircle, AlertTriangle, Info, MessageSquare, Zap, ArrowUpRight, Building2, Timer } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useHealthAlerts, type HealthAlert } from '@/hooks/useIntegrationHealth'
-import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { toast } from 'sonner'
 
 const SEVERITY_ICON = {
     critical: { icon: AlertCircle,   color: 'text-red-500' },
@@ -124,7 +122,6 @@ export default function NotificationCenter({ triggerClassName }: { triggerClassN
     const [isOpen, setIsOpen] = useState(false)
     const navigate = useNavigate()
     const { data: alerts } = useHealthAlerts(false)
-    const { isSupported: pushSupported, isSubscribed: pushSubscribed, isLoading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
 
     const unreadCount = alerts?.filter(a => a.status === 'active').length ?? 0
     const criticalCount = alerts?.filter(a => a.rule?.severity === 'critical').length ?? 0
@@ -132,20 +129,6 @@ export default function NotificationCenter({ triggerClassName }: { triggerClassN
     const handleNavigateToHealth = () => {
         setIsOpen(false)
         navigate('/settings/operations/health?tab=integrations')
-    }
-
-    const handleTogglePush = async () => {
-        if (pushSubscribed) {
-            const ok = await pushUnsubscribe()
-            if (ok) toast.info('Notificacoes push desativadas')
-        } else {
-            const ok = await pushSubscribe()
-            if (ok) {
-                toast.success('Notificacoes push ativadas!')
-            } else {
-                toast.error('Nao foi possivel ativar. Verifique as permissoes do navegador.')
-            }
-        }
     }
 
     return (
@@ -180,29 +163,6 @@ export default function NotificationCenter({ triggerClassName }: { triggerClassN
                                 </span>
                             )}
                         </div>
-
-                        {/* Push notifications toggle */}
-                        {pushSupported && (
-                            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <BellRing className={cn('w-4 h-4', pushSubscribed ? 'text-indigo-600' : 'text-slate-400')} />
-                                    <span className="text-sm text-slate-700">Notificacoes push</span>
-                                </div>
-                                <button
-                                    onClick={handleTogglePush}
-                                    disabled={pushLoading}
-                                    className={cn(
-                                        'text-xs font-medium px-3 py-1 rounded-full transition-colors',
-                                        pushSubscribed
-                                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                                        pushLoading && 'opacity-50 cursor-not-allowed'
-                                    )}
-                                >
-                                    {pushLoading ? '...' : pushSubscribed ? 'Ativado' : 'Ativar'}
-                                </button>
-                            </div>
-                        )}
 
                         <div className="max-h-96 overflow-y-auto">
                             {!alerts?.length ? (

@@ -15,18 +15,60 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
+export type NotificationType =
+  | 'lead_assigned'
+  | 'task_expiring'
+  | 'task_overdue'
+  | 'proposal_status'
+  | 'meeting_reminder'
+
+export interface PushPreferences {
+  enabled: boolean
+  lead_assigned: boolean
+  task_expiring: boolean
+  task_overdue: boolean
+  proposal_status: boolean
+  meeting_reminder: boolean
+}
+
+const DEFAULT_PREFERENCES: PushPreferences = {
+  enabled: true,
+  lead_assigned: true,
+  task_expiring: true,
+  task_overdue: true,
+  proposal_status: true,
+  meeting_reminder: true,
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any
+
 export function usePushNotifications() {
   const { profile } = useAuth()
   const [isSupported, setIsSupported] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES)
 
-  // Check support and existing subscription on mount
+  // Check support, subscription, and load preferences on mount
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY
     setIsSupported(supported)
 
-    if (!supported || !profile?.id) return
+    if (!profile?.id) return
+
+    // Load preferences
+    db.from('push_notification_preferences')
+      .select('*')
+      .eq('user_id', profile.id)
+      .maybeSingle()
+      .then(({ data }: { data: PushPreferences | null }) => {
+        if (data) {
+          setPreferences(data)
+        }
+      })
+
+    if (!supported) return
 
     navigator.serviceWorker.getRegistration('/sw-push.js').then((reg) => {
       if (!reg) return
@@ -41,18 +83,15 @@ export function usePushNotifications() {
     setIsLoading(true)
 
     try {
-      // 1. Request permission (must be from user gesture)
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         setIsLoading(false)
         return false
       }
 
-      // 2. Register service worker
       const registration = await navigator.serviceWorker.register('/sw-push.js')
       await navigator.serviceWorker.ready
 
-      // 3. Subscribe to push
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -63,9 +102,8 @@ export function usePushNotifications() {
         throw new Error('Invalid subscription data')
       }
 
-      // 4. Save to database (table created by migration, types regenerated after)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      // Save subscription
+      const { error } = await db
         .from('push_subscriptions')
         .upsert(
           {
@@ -80,6 +118,15 @@ export function usePushNotifications() {
 
       if (error) throw error
 
+      // Create/update preferences with enabled = true
+      await db
+        .from('push_notification_preferences')
+        .upsert(
+          { user_id: profile.id, enabled: true, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        )
+
+      setPreferences((prev) => ({ ...prev, enabled: true }))
       setIsSubscribed(true)
       return true
     } catch (err) {
@@ -100,9 +147,7 @@ export function usePushNotifications() {
         const subscription = await registration.pushManager.getSubscription()
         if (subscription) {
           await subscription.unsubscribe()
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          await db
             .from('push_subscriptions')
             .delete()
             .eq('user_id', profile.id)
@@ -110,6 +155,15 @@ export function usePushNotifications() {
         }
       }
 
+      // Update preferences
+      await db
+        .from('push_notification_preferences')
+        .upsert(
+          { user_id: profile.id, enabled: false, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        )
+
+      setPreferences((prev) => ({ ...prev, enabled: false }))
       setIsSubscribed(false)
       return true
     } catch (err) {
@@ -120,5 +174,34 @@ export function usePushNotifications() {
     }
   }, [profile?.id])
 
-  return { isSupported, isSubscribed, isLoading, subscribe, unsubscribe }
+  const updatePreference = useCallback(async (key: NotificationType, value: boolean) => {
+    if (!profile?.id) return false
+
+    try {
+      const { error } = await db
+        .from('push_notification_preferences')
+        .upsert(
+          { user_id: profile.id, [key]: value, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        )
+
+      if (error) throw error
+
+      setPreferences((prev) => ({ ...prev, [key]: value }))
+      return true
+    } catch (err) {
+      console.error('[Push] Update preference failed:', err)
+      return false
+    }
+  }, [profile?.id])
+
+  return {
+    isSupported,
+    isSubscribed,
+    isLoading,
+    preferences,
+    subscribe,
+    unsubscribe,
+    updatePreference,
+  }
 }
