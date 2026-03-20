@@ -188,6 +188,15 @@ BEGIN
         RAISE EXCEPTION 'Fase % não suporta ação de ganho', v_phase_slug;
     END IF;
 
+    -- Registrar activity
+    INSERT INTO activities (card_id, tipo, descricao, metadata)
+    VALUES (
+        p_card_id,
+        'section_won',
+        'Seção ganha: ' || v_phase_slug,
+        v_result
+    );
+
     RETURN v_result;
 END;
 $fn$;
@@ -236,6 +245,19 @@ BEGIN
         motivo_perda_comentario = p_motivo_perda_comentario,
         updated_at = NOW()
     WHERE id = p_card_id;
+
+    -- Registrar activity
+    INSERT INTO activities (card_id, tipo, descricao, metadata)
+    VALUES (
+        p_card_id,
+        'card_lost',
+        'Card marcado como perdido',
+        jsonb_build_object(
+            'motivo_perda_id', p_motivo_perda_id,
+            'motivo_perda_comentario', p_motivo_perda_comentario,
+            'stage_id', (SELECT pipeline_stage_id FROM cards WHERE id = p_card_id)
+        )
+    );
 END;
 $fn$;
 
@@ -273,6 +295,15 @@ BEGIN
         motivo_perda_comentario = NULL,
         updated_at = NOW()
     WHERE id = p_card_id;
+
+    -- Registrar activity
+    INSERT INTO activities (card_id, tipo, descricao, metadata)
+    VALUES (
+        p_card_id,
+        'card_reopened',
+        'Card reaberto',
+        '{}'::jsonb
+    );
 END;
 $fn$;
 
