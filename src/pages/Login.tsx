@@ -43,8 +43,8 @@ export default function Login() {
             <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-md">
                 <div className="flex flex-col items-center">
                     <img
-                        src="/logo.png"
-                        alt="Logo"
+                        src="/logo-light.png"
+                        alt="TARS"
                         className="w-64 object-contain"
                     />
                     <p className="mt-3 text-sm text-gray-600">

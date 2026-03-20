@@ -438,7 +438,7 @@ WHERE s_cur.id = c.pipeline_stage_id
 -- ============================================================================
 
 UPDATE pipeline_stages
-SET ativo = false, updated_at = NOW()
+SET ativo = false
 WHERE (is_won = true OR is_lost = true)
   AND ativo = true;
 

@@ -60,11 +60,11 @@ export default function Sidebar() {
                 isExpanded ? "h-20 px-3" : "h-16 px-1"
             )}>
                 <img
-                    src="/logo.png"
-                    alt="Logo"
+                    src={isExpanded ? "/logo-dark.png" : "/icon-dark.png"}
+                    alt="TARS"
                     className={cn(
-                        "object-contain brightness-0 invert transition-all duration-300",
-                        isExpanded ? "w-full max-w-[180px]" : "w-full max-w-[48px]"
+                        "object-contain transition-all duration-300",
+                        isExpanded ? "w-full max-w-[180px]" : "w-10 h-10"
                     )}
                 />
             </div>

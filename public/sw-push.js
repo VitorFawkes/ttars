@@ -13,8 +13,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || '',
-    icon: '/logo.png',
-    badge: '/logo.png',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: data.tag || data.type || 'default',
     data: { url: data.url || '/' },
     requireInteraction: true,
