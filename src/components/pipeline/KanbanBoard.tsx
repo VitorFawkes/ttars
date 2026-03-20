@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { cn } from '../../lib/utils'
 import {
     DndContext,
@@ -11,7 +11,7 @@ import {
     type DragEndEvent,
     type DragStartEvent
 } from '@dnd-kit/core'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import KanbanColumn from './KanbanColumn'
 import KanbanCard from './KanbanCard'
@@ -32,9 +32,7 @@ import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import { ScrollArrows } from '../ui/ScrollArrows'
 import { usePipelineCards } from '../../hooks/usePipelineCards'
 import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
-import TerminalStageDrawer from './TerminalStageDrawer'
 import { useAuth } from '../../contexts/AuthContext'
-import { prepareSearchTerms } from '../../lib/utils'
 
 type Product = Database['public']['Enums']['app_product']
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
@@ -45,18 +43,18 @@ interface KanbanBoardProps {
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
+    showClosedCards?: boolean
     className?: string // Allow parent to control layout/padding
 }
 
-export default function KanbanBoard({ productFilter, viewMode, subView, filters: propFilters, className }: KanbanBoardProps) {
+export default function KanbanBoard({ productFilter, viewMode, subView, filters: propFilters, showClosedCards, className }: KanbanBoardProps) {
     const filters = propFilters || {}
     const queryClient = useQueryClient()
     const [activeCard, setActiveCard] = useState<Card | null>(null)
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
-    const [terminalDrawer, setTerminalDrawer] = useState<{ stage: Stage, totalCards: number, totalValue: number } | null>(null)
-    const { data: myAssistCardIds, isSuccess: isAssistsLoaded } = useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_ASSISTS')
+    useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_ASSISTS') // Pre-fetch for usePipelineCards
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])
@@ -141,168 +139,33 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     })
 
-    // Computar IDs de stages terminais (Viagem Concluída, Fechado - Perdido) para excluir do Kanban
-    const terminalStageIds = useMemo(() =>
-        (stages || []).filter(s => s.is_won || s.is_lost).map(s => s.id),
-        [stages]
-    )
-
-    // Fetch Cards de stages ativos — exclui stages terminais
-    const { data: cards, isError, refetch, myTeamMembers } = usePipelineCards({
+    // Fetch Cards — filtra por status (oculta ganhos/perdidos por padrão)
+    const { data: cards, isError, refetch } = usePipelineCards({
         productFilter,
         viewMode,
         subView,
         filters,
         groupFilters,
-        excludeTerminalStages: true,
-        terminalStageIds
+        showClosedCards
     })
 
-    // Guards de auth (mesma logica de usePipelineCards para evitar query sem filtro de dono)
-    const needsAuth = (viewMode === 'AGENT' && (subView === 'MY_QUEUE' || subView === 'MY_ASSISTS')) ||
-        (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
-    const isAuthReady = !!session?.user?.id
-    const isTeamReady = subView !== 'TEAM_VIEW' || (myTeamMembers && myTeamMembers.length > 0)
-    const isAssistsReady = subView !== 'MY_ASSISTS' || isAssistsLoaded
-
-    // Fetch cards de stages terminais — per-stage com count: 'exact' (LIMIT 50 cada)
-    type TerminalStageResult = { stageId: string, cards: Card[], totalCount: number }
-    const terminalStageQueries = useQueries({
-        queries: terminalStageIds.map(stageId => ({
-            queryKey: ['terminal-cards', stageId, productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, myAssistCardIds],
-            enabled: !needsAuth || (isAuthReady && isTeamReady && isAssistsReady),
-            staleTime: 1000 * 60 * 2,
-            queryFn: async (): Promise<TerminalStageResult> => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let query = (supabase.from('view_cards_acoes') as any)
-                    .select('*', { count: 'exact' })
-                    .eq('pipeline_stage_id', stageId)
-
-                query = query.eq('produto', productFilter)
-
-                // Smart View Filters (mesmos do usePipelineCards)
-                if (viewMode === 'AGENT' && subView === 'MY_QUEUE' && session?.user?.id) {
-                    query = query.eq('dono_atual_id', session.user.id)
-                } else if (viewMode === 'AGENT' && subView === 'MY_ASSISTS') {
-                    if (myAssistCardIds && myAssistCardIds.length > 0) {
-                        query = query.in('id', myAssistCardIds)
-                    } else {
-                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
-                    }
-                } else if (viewMode === 'MANAGER') {
-                    if (subView === 'TEAM_VIEW' && myTeamMembers && myTeamMembers.length > 0) {
-                        query = query.in('dono_atual_id', myTeamMembers)
-                    }
-                    if (subView === 'FORECAST') {
-                        const startOfMonth = new Date(); startOfMonth.setDate(1);
-                        const endOfMonth = new Date(startOfMonth); endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-                        query = query.gte('data_fechamento', startOfMonth.toISOString()).lt('data_fechamento', endOfMonth.toISOString())
-                    }
-                }
-
-                // Search (paridade completa com usePipelineCards)
-                if (filters.search) {
-                    const { original, normalized, digitsOnly } = prepareSearchTerms(filters.search)
-                    if (original) {
-                        const textFields = [
-                            `titulo.ilike.%${original}%`,
-                            `pessoa_nome.ilike.%${original}%`,
-                            `origem.ilike.%${original}%`,
-                            `dono_atual_nome.ilike.%${original}%`,
-                            `sdr_owner_nome.ilike.%${original}%`,
-                            `vendas_nome.ilike.%${original}%`,
-                            `pessoa_email.ilike.%${original}%`,
-                            `external_id.ilike.%${original}%`
-                        ]
-                        if (normalized) {
-                            textFields.push(`pessoa_telefone_normalizado.ilike.%${normalized}%`)
-                            textFields.push(`pessoa_telefone.ilike.%${original}%`)
-                        } else if (digitsOnly) {
-                            textFields.push(`pessoa_telefone_normalizado.ilike.%${digitsOnly}%`)
-                            textFields.push(`pessoa_telefone.ilike.%${original}%`)
-                        } else {
-                            textFields.push(`pessoa_telefone.ilike.%${original}%`)
-                        }
-                        query = query.or(textFields.join(','))
-                    }
-                }
-
-                // Owner Filters (paridade completa com usePipelineCards)
-                if ((filters.ownerIds?.length ?? 0) > 0) query = query.in('dono_atual_id', filters.ownerIds)
-                if ((filters.sdrIds?.length ?? 0) > 0) query = query.in('sdr_owner_id', filters.sdrIds)
-                if ((filters.plannerIds?.length ?? 0) > 0) query = query.in('vendas_owner_id', filters.plannerIds)
-                if ((filters.posIds?.length ?? 0) > 0) query = query.in('pos_owner_id', filters.posIds)
-
-                // Date Filters
-                if (filters.startDate) query = query.gte('data_viagem_inicio', filters.startDate)
-                if (filters.endDate) query = query.lte('data_viagem_inicio', filters.endDate)
-                if (filters.creationStartDate) query = query.gte('created_at', `${filters.creationStartDate}T00:00:00`)
-                if (filters.creationEndDate) query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
-
-                // Status & Origem & Tags
-                if ((filters.statusComercial?.length ?? 0) > 0) query = query.in('status_comercial', filters.statusComercial)
-                if ((filters.origem?.length ?? 0) > 0) query = query.in('origem', filters.origem)
-                if (filters.noTag) query = query.or('tag_ids.is.null,tag_ids.eq.{}')
-                else if ((filters.tagIds?.length ?? 0) > 0) query = query.overlaps('tag_ids', filters.tagIds)
-
-                query = query.is('archived_at', null).eq('is_group_parent', false)
-
-                const { showLinked, showSolo } = groupFilters
-                if (showLinked && !showSolo) query = query.not('parent_card_id', 'is', null)
-                else if (showSolo && !showLinked) query = query.is('parent_card_id', null)
-
-                query = query.order('created_at', { ascending: false }).limit(50)
-
-                const { data, count, error } = await query
-                if (error) throw error
-                return { stageId, cards: data as Card[], totalCount: count ?? 0 }
-            }
-        }))
-    })
-
-    // Derivar terminal cards e counts per-stage
-    const terminalCards = useMemo(() =>
-        terminalStageQueries.flatMap(q => q.data?.cards || []),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [terminalStageQueries.map(q => q.dataUpdatedAt).join()]
-    )
-    const terminalCountByStage = useMemo(() => {
-        const map: Record<string, number> = {}
-        for (const q of terminalStageQueries) {
-            if (q.data) map[q.data.stageId] = q.data.totalCount
-        }
-        return map
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [terminalStageQueries.map(q => q.dataUpdatedAt).join()])
-
-    // Merge: cards ativos + cards terminais (limitados a 50 por stage)
-    const allCards = useMemo(() => {
-        const active = cards || []
-        return [...active, ...terminalCards]
-    }, [cards, terminalCards])
+    const allCards = cards || []
 
     // Helper: apply optimistic cache update and return rollback function
     const applyOptimisticMove = (cardId: string, stageId: string): (() => void) => {
         const newStage = stages?.find(s => s.id === stageId)
-        const isTargetTerminal = terminalStageIds.includes(stageId)
 
         queryClient.cancelQueries({ queryKey: ['cards'] })
-        queryClient.cancelQueries({ queryKey: ['terminal-cards'] })
 
         // Snapshot all card queries for rollback
         const cardSnapshots: [readonly unknown[], Card[] | undefined][] = []
         for (const [key, data] of queryClient.getQueriesData<Card[]>({ queryKey: ['cards'] })) {
             cardSnapshots.push([key, data ? [...data] : undefined])
         }
-        const termSnapshots: [readonly unknown[], TerminalStageResult | undefined][] = []
-        for (const [key, data] of queryClient.getQueriesData<TerminalStageResult>({ queryKey: ['terminal-cards'] })) {
-            termSnapshots.push([key, data ? { ...data, cards: [...data.cards] } : undefined])
-        }
 
         // Move card in all matching card queries
         queryClient.setQueriesData<Card[]>({ queryKey: ['cards'] }, (old) => {
             if (!old) return old
-            if (isTargetTerminal) return old.filter(c => c.id !== cardId)
             return old.map(c => c.id !== cardId ? c : {
                 ...c,
                 pipeline_stage_id: stageId,
@@ -311,48 +174,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             })
         })
 
-        // Handle move TO terminal
-        if (isTargetTerminal) {
-            const movedCard = allCards.find(c => c.id === cardId)
-            if (movedCard) {
-                queryClient.setQueriesData<TerminalStageResult>(
-                    { queryKey: ['terminal-cards', stageId] },
-                    (old) => {
-                        if (!old) return old
-                        const updated = { ...movedCard, pipeline_stage_id: stageId, etapa_nome: newStage?.nome || movedCard.etapa_nome }
-                        return { ...old, cards: [updated, ...old.cards].slice(0, 50), totalCount: old.totalCount + 1 }
-                    }
-                )
-            }
-        }
-
-        // Handle move FROM terminal to active
-        if (!isTargetTerminal) {
-            const currentCard = allCards.find(c => c.id === cardId)
-            const isFromTerminal = currentCard && terminalStageIds.includes(currentCard.pipeline_stage_id as string)
-            if (isFromTerminal && currentCard) {
-                queryClient.setQueriesData<TerminalStageResult>(
-                    { queryKey: ['terminal-cards'] },
-                    (old) => {
-                        if (!old) return old
-                        if (!old.cards.some(c => c.id === cardId)) return old
-                        return { ...old, cards: old.cards.filter(c => c.id !== cardId), totalCount: Math.max(0, old.totalCount - 1) }
-                    }
-                )
-                queryClient.setQueriesData<Card[]>({ queryKey: ['cards'] }, (old) => {
-                    const updated = { ...currentCard, pipeline_stage_id: stageId, fase: newStage?.fase || currentCard.fase, etapa_nome: newStage?.nome || currentCard.etapa_nome }
-                    if (!old) return [updated]
-                    if (old.some(c => c.id === cardId)) return old
-                    return [...old, updated]
-                })
-            }
-        }
-
         return () => {
             for (const [key, data] of cardSnapshots) {
-                queryClient.setQueryData(key, data)
-            }
-            for (const [key, data] of termSnapshots) {
                 queryClient.setQueryData(key, data)
             }
         }
@@ -376,9 +199,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             context?.rollback?.()
         },
         onSuccess: () => {
-            // Only refetch after successful mutation
             queryClient.invalidateQueries({ queryKey: ['cards'] })
-            queryClient.invalidateQueries({ queryKey: ['terminal-cards'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
         }
@@ -472,18 +293,10 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
         if (stageId === currentStageId) return
 
-        // --- SYNC GATE 1: Loss Stage ---
-        const isLostStage = targetStage?.is_lost === true ||
-            targetStage?.nome?.toLowerCase().includes('perdido') ||
-            targetStage?.nome?.toLowerCase().includes('lost')
+        // Card ganho/perdido não pode ser arrastado
+        if (card.status_comercial === 'ganho' || card.status_comercial === 'perdido') return
 
-        if (isLostStage) {
-            setPendingMove({ cardId, stageId, targetStageName: targetStage?.nome || 'Perdido' })
-            setLossReasonModalOpen(true)
-            return
-        }
-
-        // --- SYNC GATE 2: Field & rule validation (no network calls) ---
+        // --- SYNC GATE 1: Field & rule validation (no network calls) ---
         const syncResult = validateMoveSync(card as unknown as Record<string, unknown>, stageId)
 
         if (syncResult.missingRules?.some(r => r.key === 'lost_reason_required')) {
@@ -567,7 +380,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             })
             if (error) throw error
             queryClient.invalidateQueries({ queryKey: ['cards'] })
-            queryClient.invalidateQueries({ queryKey: ['terminal-cards'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
         } catch (err) {
@@ -582,24 +394,44 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     const handleConfirmStageChange = (newOwnerId: string) => {
         if (pendingMove) {
-            const updateOwner = async () => {
-                const { error } = await supabase.from('cards')
-                    .update({ dono_atual_id: newOwnerId })
-                    .eq('id', pendingMove.cardId)
+            const isWinHandoff = pendingMove.targetStageName.startsWith('Ganho ')
 
-                if (error) {
-                    console.error('Error updating owner:', error)
-                    alert('Erro ao atualizar responsável.')
-                    return
+            const execute = async () => {
+                if (isWinHandoff) {
+                    // Win handoff — chama marcar_ganho com novo dono
+                    try {
+                        const { error } = await supabase.rpc('marcar_ganho', {
+                            p_card_id: pendingMove.cardId,
+                            p_novo_dono_id: newOwnerId
+                        })
+                        if (error) throw error
+                        queryClient.invalidateQueries({ queryKey: ['cards'] })
+                        queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                    } catch (err) {
+                        console.error('Erro ao marcar como ganho:', err)
+                    }
+                } else {
+                    // Normal cross-phase move — update owner then move
+                    const { error } = await supabase.from('cards')
+                        .update({ dono_atual_id: newOwnerId })
+                        .eq('id', pendingMove.cardId)
+
+                    if (error) {
+                        console.error('Error updating owner:', error)
+                        alert('Erro ao atualizar responsável.')
+                        return
+                    }
+
+                    moveCardMutation.mutate({ cardId: pendingMove.cardId, stageId: pendingMove.stageId })
                 }
 
-                moveCardMutation.mutate({ cardId: pendingMove.cardId, stageId: pendingMove.stageId })
                 setStageChangeModalOpen(false)
                 setPendingMove(null)
                 setActiveCard(null)
             }
 
-            updateOwner()
+            execute()
         }
     }
 
@@ -627,41 +459,104 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     const handleConfirmLossReason = async (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => {
         if (pendingMove) {
-            moveCardMutation.mutate({
-                cardId: pendingMove.cardId,
-                stageId: pendingMove.stageId,
-                motivoId,
-                comentario
-            })
+            try {
+                // Marcar como perdido via RPC (card permanece na etapa atual)
+                const { error } = await supabase.rpc('marcar_perdido', {
+                    p_card_id: pendingMove.cardId,
+                    p_motivo_perda_id: motivoId || null,
+                    p_motivo_perda_comentario: comentario || null
+                })
+                if (error) throw error
 
-            // Create future opportunity if scheduled
-            if (futureOpportunity) {
-                const card = allCards?.find(c => c.id === pendingMove.cardId)
-                if (card) {
-                    try {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        await (supabase as any).from('future_opportunities').insert({
-                            source_card_id: pendingMove.cardId,
-                            source_type: 'lost_future',
-                            titulo: futureOpportunity.titulo,
-                            scheduled_date: futureOpportunity.scheduledDate,
-                            descricao: comentario || null,
-                            produto: card.produto,
-                            pipeline_id: card.pipeline_id,
-                            responsavel_id: card.dono_atual_id,
-                            pessoa_principal_id: card.pessoa_principal_id,
-                            created_by: session?.user?.id || null,
-                        } as Record<string, unknown>)
-                        await queryClient.refetchQueries({ queryKey: ['future-opportunities', pendingMove.cardId] })
-                    } catch (err) {
-                        console.error('Erro ao agendar oportunidade futura:', err)
+                // Create future opportunity if scheduled
+                if (futureOpportunity) {
+                    const card = allCards?.find(c => c.id === pendingMove.cardId)
+                    if (card) {
+                        try {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            await (supabase as any).from('future_opportunities').insert({
+                                source_card_id: pendingMove.cardId,
+                                source_type: 'lost_future',
+                                titulo: futureOpportunity.titulo,
+                                scheduled_date: futureOpportunity.scheduledDate,
+                                descricao: comentario || null,
+                                produto: card.produto,
+                                pipeline_id: card.pipeline_id,
+                                responsavel_id: card.dono_atual_id,
+                                pessoa_principal_id: card.pessoa_principal_id,
+                                created_by: session?.user?.id || null,
+                            } as Record<string, unknown>)
+                            await queryClient.refetchQueries({ queryKey: ['future-opportunities', pendingMove.cardId] })
+                        } catch (err) {
+                            console.error('Erro ao agendar oportunidade futura:', err)
+                        }
                     }
                 }
+
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+            } catch (err) {
+                console.error('Erro ao marcar como perdido:', err)
             }
 
             setLossReasonModalOpen(false)
             setPendingMove(null)
         }
+    }
+
+    // Win handler — chamado pelo KanbanCard via onWin callback
+    const handleWin = (cardId: string) => {
+        const card = allCards?.find(c => c.id === cardId)
+        if (!card) return
+
+        const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const phaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentStage?.fase
+
+        // Se pós-venda/resolução → ganho final, sem handoff
+        if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') {
+            const executeWin = async () => {
+                try {
+                    const { error } = await supabase.rpc('marcar_ganho', { p_card_id: cardId })
+                    if (error) throw error
+                    queryClient.invalidateQueries({ queryKey: ['cards'] })
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                } catch (err) {
+                    console.error('Erro ao marcar como ganho:', err)
+                }
+            }
+            executeWin()
+            return
+        }
+
+        // Para SDR ou Planner → precisa de handoff (escolher novo dono)
+        const nextPhaseSlug = phaseSlug === 'sdr' ? 'planner' : 'pos_venda'
+        const nextPhase = phasesData?.find(p => p.slug === nextPhaseSlug)
+
+        setPendingMove({
+            cardId,
+            stageId: '', // será ignorado — o RPC decide a etapa destino
+            targetStageName: `Ganho ${phaseSlug === 'sdr' ? 'SDR' : 'Planner'}`,
+            currentOwnerId: card.dono_atual_id || undefined,
+            targetPhaseId: nextPhase?.id,
+            targetPhaseName: nextPhase?.name || nextPhaseSlug
+        })
+        setStageChangeModalOpen(true)
+    }
+
+    // Loss handler — chamado pelo KanbanCard via onLoss callback
+    const handleLoss = (cardId: string) => {
+        const card = allCards?.find(c => c.id === cardId)
+        if (!card) return
+
+        setPendingMove({
+            cardId,
+            stageId: card.pipeline_stage_id as string,
+            targetStageName: 'Perdido'
+        })
+        setLossReasonModalOpen(true)
     }
 
     if (isError) {
@@ -772,9 +667,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                             cards={phaseCards}
                                         >
                                             {phaseStages.map((stage) => {
-                                                const isTerminal = terminalStageIds.includes(stage.id)
                                                 const stageCards = allCards.filter(c => c.pipeline_stage_id === stage.id)
-                                                const stageTotalCount = isTerminal ? terminalCountByStage[stage.id] : undefined
 
                                                 return (
                                                     <KanbanColumn
@@ -782,11 +675,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                         stage={stage}
                                                         cards={stageCards}
                                                         phaseColor={phase.color}
-                                                        totalCount={stageTotalCount}
-                                                        onShowMore={isTerminal && stageTotalCount != null && stageTotalCount > stageCards.length ? () => {
-                                                            const stageValue = stageCards.reduce((acc, c) => acc + (c.valor_display || c.valor_estimado || 0), 0)
-                                                            setTerminalDrawer({ stage, totalCards: stageTotalCount, totalValue: stageValue })
-                                                        } : undefined}
+                                                        onWin={handleWin}
+                                                        onLoss={handleLoss}
                                                     />
                                                 )
                                             })}
@@ -855,23 +745,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     </DndContext>
                 </div>
             </div>
-
-            {/* Terminal Stage Drawer */}
-            {terminalDrawer && (
-                <TerminalStageDrawer
-                    isOpen={!!terminalDrawer}
-                    onClose={() => setTerminalDrawer(null)}
-                    stage={terminalDrawer.stage}
-                    totalCards={terminalDrawer.totalCards}
-                    totalValue={terminalDrawer.totalValue}
-                    productFilter={productFilter}
-                    viewMode={viewMode}
-                    subView={subView}
-                    filters={filters}
-                    groupFilters={groupFilters}
-                    myTeamMembers={myTeamMembers}
-                />
-            )}
 
             {/* Footer - Part of flex layout, not fixed */}
             <div className="flex-shrink-0 h-16 bg-white/95 backdrop-blur-2xl border-t border-primary/10 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex items-center justify-between px-6 z-50">
