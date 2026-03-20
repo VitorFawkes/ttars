@@ -237,7 +237,7 @@ function buildWorkflow() {
         assignments: {
           assignments: [
             { id: 'card_id', name: 'card_id', value: '={{ $json.body.card_id }}', type: 'string' },
-            { id: 'contact_id', name: 'contact_id', value: '={{ $json.body.contact_id }}', type: 'string' },
+            { id: 'contact_id', name: 'contact_id', value: '={{ $json.body.contact_id || "" }}', type: 'string' },
             { id: 'question', name: 'question', value: '={{ $json.body.question }}', type: 'string' },
             { id: 'chat_history', name: 'chat_history', value: '={{ JSON.stringify($json.body.chat_history || []) }}', type: 'string' }
           ]
@@ -267,9 +267,10 @@ function buildWorkflow() {
     },
 
     // 3. HTTP Request: Busca Contato (returns 1 item)
+    // continueOnFail handles null/empty contact_id gracefully (Supabase 400 on invalid UUID)
     {
       parameters: {
-        url: `=${SUPABASE_URL}/rest/v1/contatos?id=eq.{{ $('1. Extrai Params').item.json.contact_id }}&select=nome,email,telefone,tipo_cliente`,
+        url: `=${SUPABASE_URL}/rest/v1/contatos?id=eq.{{ $('1. Extrai Params').item.json.contact_id || '00000000-0000-0000-0000-000000000000' }}&select=nome,email,telefone,tipo_cliente`,
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'supabaseApi',
         options: {}
@@ -279,7 +280,9 @@ function buildWorkflow() {
       typeVersion: 4.2,
       position: [780, 300],
       credentials: { supabaseApi: SUPABASE_CREDENTIAL },
-      alwaysOutputData: true
+      alwaysOutputData: true,
+      onError: 'continueRegularOutput',
+      continueOnFail: true
     },
 
     // 3b. HTTP Request: Busca Mensagens WhatsApp (returns N items, or 1 empty item)
@@ -472,16 +475,6 @@ async function main() {
     console.log(`Workflow ${activateData.active ? 'ativado' : 'inativo'}`);
     console.log(`\nWebhook URL: ${N8N_API_URL}/webhook/chat-ia`);
     console.log(`Editor: ${N8N_API_URL}/workflow/${workflowId}`);
-  }
-
-  // Cleanup old duplicate workflows
-  const duplicates = listData.data?.filter(w => w.name === workflow.name && w.id !== workflowId) || [];
-  for (const dup of duplicates) {
-    console.log(`Removendo workflow duplicado: ${dup.id}`);
-    await fetch(`${N8N_API_URL}/api/v1/workflows/${dup.id}`, {
-      method: 'DELETE',
-      headers: { 'X-N8N-API-KEY': API_KEY }
-    });
   }
 
   console.log('\nPre-requisitos:');

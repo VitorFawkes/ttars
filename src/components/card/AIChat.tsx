@@ -39,8 +39,8 @@ export default function AIChat({ cardId, contactId }: AIChatProps) {
         setInput('')
     }
 
-    // No contact or card linked
-    if (!contactId && !cardId) {
+    // Chat needs a contact with WhatsApp history to work
+    if (!contactId) {
         return (
             <div className="flex flex-col items-center justify-center h-[400px] text-slate-500 p-8">
                 <AlertCircle className="h-10 w-10 mb-3 text-slate-300" />

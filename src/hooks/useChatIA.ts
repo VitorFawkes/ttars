@@ -42,6 +42,10 @@ export function useChatIA(cardId: string, contactId: string | null) {
     const controller = new AbortController()
     abortRef.current = controller
 
+    // Timeout after 2 minutes (AI processing can be slow for large conversations)
+    let timedOut = false
+    const timeoutId = setTimeout(() => { timedOut = true; controller.abort() }, 120_000)
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuario nao autenticado')
@@ -63,12 +67,23 @@ export function useChatIA(cardId: string, contactId: string | null) {
         throw new Error(`Erro ${response.status}: ${errText}`)
       }
 
-      const data = await response.json()
-      const answer = data.answer || 'Nao consegui gerar uma resposta. Tente reformular a pergunta.'
+      // n8n responseMode 'lastNode' may return array or object
+      const raw = await response.json()
+      const data = Array.isArray(raw) ? raw[0] : raw
+      const answer = data?.answer || 'Nao consegui gerar uma resposta. Tente reformular a pergunta.'
 
       setMessages(prev => [...prev, { role: 'assistant', content: answer }])
     } catch (error) {
-      if ((error as Error).name === 'AbortError') return
+      if ((error as Error).name === 'AbortError') {
+        if (timedOut) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'A consulta demorou mais que o esperado. Tente uma pergunta mais especifica.'
+          }])
+          setIsLoading(false)
+        }
+        return
+      }
 
       console.error('[ChatIA] Erro:', error)
       const errorMsg = (error as Error).message || 'Erro desconhecido'
@@ -78,6 +93,7 @@ export function useChatIA(cardId: string, contactId: string | null) {
       }])
       toast.error('Erro ao consultar IA')
     } finally {
+      clearTimeout(timeoutId)
       setIsLoading(false)
     }
   }, [cardId, contactId])
