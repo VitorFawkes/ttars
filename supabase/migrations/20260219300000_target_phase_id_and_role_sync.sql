@@ -20,8 +20,7 @@ ALTER TABLE pipeline_stages
 UPDATE pipeline_stages ps
 SET target_phase_id = pp.id
 FROM pipeline_phases pp
-WHERE pp.pipeline_id = ps.pipeline_id
-  AND pp.slug = CASE ps.target_role
+WHERE pp.slug = CASE ps.target_role
     WHEN 'sdr' THEN 'sdr'
     WHEN 'vendas' THEN 'planner'
     WHEN 'pos_venda' THEN 'pos_venda'

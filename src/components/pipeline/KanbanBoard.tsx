@@ -493,17 +493,25 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             return
         }
 
-        // --- SYNC GATE 3: Governance (target_phase_id) ---
+        // --- SYNC GATE 3: Governance — cross-phase handoff ---
+        // Detecta mudança de fase (SDR→Planner, Planner→Pós-venda, etc.)
+        // e força troca de responsável via StageChangeModal
+        const sourceStage = stages?.find((s) => s.id === currentStageId)
+        const sourcePhaseId = sourceStage?.phase_id
+        const destPhaseId = targetStage?.phase_id
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
-        const targetPhaseId = (targetStage as any)?.target_phase_id as string | null
-        if (targetPhaseId) {
-            const targetPhase = phasesData?.find(p => p.id === targetPhaseId)
+        const explicitTargetPhaseId = (targetStage as any)?.target_phase_id as string | null
+        const isCrossPhaseMove = sourcePhaseId && destPhaseId && sourcePhaseId !== destPhaseId
+        const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
+
+        if (handoffPhaseId) {
+            const targetPhase = phasesData?.find(p => p.id === handoffPhaseId)
             setPendingMove({
                 cardId, stageId,
                 currentOwnerId: active.data.current?.dono_atual_id,
                 sdrName: active.data.current?.sdr_owner_id ? 'SDR Atual' : undefined,
                 targetStageName: targetStage?.nome || 'Nova Etapa',
-                targetPhaseId,
+                targetPhaseId: handoffPhaseId,
                 targetPhaseName: targetPhase?.name || 'Nova Fase'
             })
             setStageChangeModalOpen(true)

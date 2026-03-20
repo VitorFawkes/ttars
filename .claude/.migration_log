@@ -116,3 +116,5 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-20T13:07:29Z | supabase/migrations/20260320_push_subscriptions.sql | applied_to_prod
 2026-03-20T13:07:36Z | supabase/migrations/20260320_push_trigger_lead_assigned.sql | applied_to_prod
 2026-03-20T13:07:39Z | supabase/migrations/20260320_push_cron_task_expiring.sql | applied_to_prod
+2026-03-20T13:36:52Z | supabase/migrations/20260219300000_target_phase_id_and_role_sync.sql | applied_to_prod
+2026-03-20T13:37:00Z | supabase/migrations/20260320_fix_planner_cards_dono_atual.sql | applied_to_prod
