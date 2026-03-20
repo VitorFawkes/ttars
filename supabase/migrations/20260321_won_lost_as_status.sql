@@ -393,12 +393,17 @@ UPDATE cards c
 SET
     pipeline_stage_id = COALESCE(
         -- Buscar old_stage_id da activity que moveu para a etapa perdida
+        -- (somente se o stage ainda existir no banco)
         (
             SELECT (a.metadata->>'old_stage_id')::UUID
             FROM activities a
+            JOIN pipeline_stages s_old ON s_old.id = (a.metadata->>'old_stage_id')::UUID
             WHERE a.card_id = c.id
               AND a.tipo = 'stage_changed'
               AND (a.metadata->>'new_stage_id')::UUID = c.pipeline_stage_id
+              AND s_old.ativo = true
+              AND COALESCE(s_old.is_won, false) = false
+              AND COALESCE(s_old.is_lost, false) = false
             ORDER BY a.created_at DESC
             LIMIT 1
         ),
