@@ -201,6 +201,12 @@ export function usePipelineListCards({
                 query = query.overlaps('tag_ids', filters.tagIds)
             }
 
+            // Milestone Filter (ganho_sdr, ganho_planner, ganho_pos) — OR logic
+            if ((filters.milestones?.length ?? 0) > 0) {
+                const milestoneConditions = filters.milestones!.map(m => `${m}.is.true`).join(',')
+                query = query.or(milestoneConditions)
+            }
+
             // Archived Filter
             query = query.is('archived_at', null)
 

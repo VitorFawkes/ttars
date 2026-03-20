@@ -47,7 +47,8 @@ export function ActiveFilters() {
         filters.creationStartDate ||
         filters.creationEndDate ||
         filters.docStatus?.length ||
-        filters.includeAssists
+        filters.includeAssists ||
+        filters.milestones?.length
     )
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic filter removal needs flexible typing
@@ -136,6 +137,12 @@ export function ActiveFilters() {
                 {filters.statusComercial?.map(status => (
                     <Chip key={status} label={`Status: ${STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('statusComercial', status)} />
                 ))}
+
+                {/* Milestones */}
+                {filters.milestones?.map(m => {
+                    const labels: Record<string, string> = { ganho_sdr: 'Marco: SDR', ganho_planner: 'Marco: Planner', ganho_pos: 'Marco: Pós' }
+                    return <Chip key={m} label={labels[m] || m} onRemove={() => removeFilter('milestones', m)} />
+                })}
 
                 {/* Doc Status */}
                 {filters.docStatus?.map(status => (

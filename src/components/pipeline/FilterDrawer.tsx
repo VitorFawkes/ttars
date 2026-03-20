@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText, Tag } from 'lucide-react'
+import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText, Tag, Trophy } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { cn } from '../../lib/utils'
@@ -24,6 +24,12 @@ const DOC_STATUS_OPTIONS = [
     { value: 'pendente', label: 'Pendente', color: 'bg-amber-500 text-white border-amber-500' },
     { value: 'completo', label: 'Completo', color: 'bg-green-500 text-white border-green-500' },
     { value: 'sem_documentos', label: 'Sem Documentos', color: 'bg-gray-500 text-white border-gray-500' },
+]
+
+const MILESTONE_OPTIONS = [
+    { value: 'ganho_sdr', label: 'Ganho SDR', description: 'Qualificado pelo SDR', color: 'bg-blue-500 text-white border-blue-500' },
+    { value: 'ganho_planner', label: 'Ganho Planner', description: 'Venda fechada', color: 'bg-purple-500 text-white border-purple-500' },
+    { value: 'ganho_pos', label: 'Ganho Pós', description: 'Viagem concluída', color: 'bg-emerald-500 text-white border-emerald-500' },
 ]
 
 
@@ -65,7 +71,7 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
         setFilters({})
     }
 
-    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem' | 'docStatus' | 'tagIds', value: string) => {
+    const toggleSelection = (field: 'ownerIds' | 'sdrIds' | 'plannerIds' | 'posIds' | 'teamIds' | 'departmentIds' | 'statusComercial' | 'origem' | 'docStatus' | 'tagIds' | 'milestones', value: string) => {
         setLocalFilters(prev => {
             const current = (prev[field] as string[]) || []
             const updated = current.includes(value)
@@ -195,6 +201,36 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                                                     : "bg-primary text-white border-primary shadow-sm"
                                                     : "border-gray-200 text-gray-600 hover:border-primary/50 hover:text-primary bg-white"
                                             )}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Marcos do Funil */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                            <Trophy className="h-3 w-3" /> Marcos do Funil
+                        </h3>
+                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <p className="text-xs text-gray-400 mb-3">Filtra cards que alcançaram estes marcos, independente do status atual</p>
+                            <div className="flex flex-wrap gap-2">
+                                {MILESTONE_OPTIONS.map(opt => {
+                                    const isSelected = (localFilters.milestones || []).includes(opt.value)
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => toggleSelection('milestones', opt.value)}
+                                            className={cn(
+                                                "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
+                                                isSelected
+                                                    ? opt.color + " shadow-sm"
+                                                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                                            )}
+                                            title={opt.description}
                                         >
                                             {opt.label}
                                         </button>

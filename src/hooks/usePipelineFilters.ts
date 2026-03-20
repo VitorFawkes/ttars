@@ -29,6 +29,7 @@ export interface FilterState {
     tagIds?: string[]
     noTag?: boolean
     includeAssists?: boolean // Incluir cards onde o usuário é assistente
+    milestones?: string[] // Marcos do funil: 'ganho_sdr' | 'ganho_planner' | 'ganho_pos'
 }
 
 export interface GroupFilters {
