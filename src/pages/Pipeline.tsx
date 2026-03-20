@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, Users, ArrowUpDown, Calendar, Clock, CheckSquare, Search, Eye, EyeOff } from 'lucide-react'
+import { Filter, Link, User, ArrowUpDown, Calendar, Clock, CheckSquare, Search, Eye, EyeOff } from 'lucide-react'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -162,18 +162,6 @@ export default function Pipeline() {
                                     >
                                         Minha Fila
                                     </button>
-                                    <button
-                                        onClick={() => { setViewMode('AGENT'); setSubView('MY_ASSISTS'); }}
-                                        className={cn(
-                                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center gap-1.5",
-                                            viewMode === 'AGENT' && subView === 'MY_ASSISTS'
-                                                ? "bg-indigo-600 text-white shadow-sm"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                                        )}
-                                    >
-                                        <Users className="h-3.5 w-3.5" />
-                                        Assistidos
-                                    </button>
                                     {canViewTeam && (
                                         <button
                                             onClick={() => { setViewMode('MANAGER'); setSubView('TEAM_VIEW'); }}
@@ -202,7 +190,7 @@ export default function Pipeline() {
                                     )}
                                 </div>
 
-                                {/* Group Filters (2 Chips - Linked/Solo) */}
+                                {/* Group Filters + Closed Cards Toggle */}
                                 <div className="flex items-center space-x-2 border-l border-gray-200 pl-4">
                                     <button
                                         onClick={() => setGroupFilters({ ...groupFilters, showLinked: !groupFilters.showLinked })}
@@ -227,6 +215,19 @@ export default function Pipeline() {
                                     >
                                         <User className="h-3 w-3 mr-1.5" />
                                         Avulsas
+                                    </button>
+                                    <button
+                                        onClick={() => setShowClosedCards(!showClosedCards)}
+                                        className={cn(
+                                            "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
+                                            showClosedCards
+                                                ? "bg-amber-100 text-amber-700 border-amber-300 shadow-sm"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                        )}
+                                        title={showClosedCards ? 'Ocultar ganhos/perdidos' : 'Mostrar ganhos/perdidos'}
+                                    >
+                                        {showClosedCards ? <EyeOff className="h-3 w-3 mr-1.5" /> : <Eye className="h-3 w-3 mr-1.5" />}
+                                        Finalizados
                                     </button>
                                 </div>
                             </div>
@@ -293,21 +294,6 @@ export default function Pipeline() {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-
-                                {/* Toggle Closed Cards */}
-                                <button
-                                    onClick={() => setShowClosedCards(!showClosedCards)}
-                                    className={cn(
-                                        "flex items-center px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm transition-all border",
-                                        showClosedCards
-                                            ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                                            : "text-gray-700 bg-white hover:bg-gray-50 border-gray-200"
-                                    )}
-                                    title={showClosedCards ? 'Ocultar ganhos/perdidos' : 'Mostrar ganhos/perdidos'}
-                                >
-                                    {showClosedCards ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2 text-gray-500" />}
-                                    {showClosedCards ? 'Ocultar Finalizados' : 'Ver Finalizados'}
-                                </button>
 
                                 {/* Smart Filter Button */}
                                 <button

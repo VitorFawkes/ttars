@@ -28,6 +28,7 @@ export interface FilterState {
     docStatus?: string[] // 'pendente' | 'completo' | 'sem_documentos'
     tagIds?: string[]
     noTag?: boolean
+    includeAssists?: boolean // Incluir cards onde o usuário é assistente
 }
 
 export interface GroupFilters {

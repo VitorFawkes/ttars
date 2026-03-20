@@ -1127,37 +1127,6 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 onSelect={handleStatusSelect}
                             />
 
-                            {/* Marcos do Funil (ganhos por fase) */}
-                            {(card.ganho_sdr || card.ganho_planner || card.ganho_pos) && (
-                                <div className="flex items-center gap-1" title="Marcos alcançados no funil de vendas">
-                                    <span className="text-[10px] text-gray-400 uppercase tracking-wide mr-1">Marcos:</span>
-                                    {card.ganho_sdr && (
-                                        <span
-                                            className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-medium"
-                                            title="Qualificado pelo SDR"
-                                        >
-                                            SDR
-                                        </span>
-                                    )}
-                                    {card.ganho_planner && (
-                                        <span
-                                            className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200 text-[10px] font-medium"
-                                            title="Venda fechada - viagem confirmada"
-                                        >
-                                            Planner
-                                        </span>
-                                    )}
-                                    {card.ganho_pos && (
-                                        <span
-                                            className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium"
-                                            title="Viagem concluída com sucesso"
-                                        >
-                                            Pós
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-
                             {/* Origin Badge (editable) */}
                             <OrigemBadgeEditable
                                 cardId={card.id}
@@ -1165,52 +1134,6 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 origemLead={card.origem_lead}
                                 indicadoPorId={card.indicado_por_id}
                             />
-
-                            {/* Win/Loss/Reopen Action Buttons */}
-                            {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (
-                                <>
-                                    <button
-                                        onClick={handleMarkAsWon}
-                                        disabled={marcarGanhoMutation.isPending}
-                                        className="px-2 py-0.5 rounded-md border border-green-200 bg-white text-green-600 text-xs font-medium hover:bg-green-50 transition-colors flex items-center gap-1"
-                                    >
-                                        <Trophy className="h-3 w-3" />
-                                        {marcarGanhoMutation.isPending ? 'Marcando...' : 'Ganho'}
-                                    </button>
-                                    <button
-                                        onClick={handleMarkAsLost}
-                                        className="px-2 py-0.5 rounded-md border border-red-200 bg-white text-red-600 text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
-                                    >
-                                        <XCircle className="h-3 w-3" />
-                                        Perdido
-                                    </button>
-                                </>
-                            )}
-                            {(card.status_comercial === 'ganho' || card.status_comercial === 'perdido') && (
-                                <button
-                                    onClick={() => reabrirCardMutation.mutate()}
-                                    disabled={reabrirCardMutation.isPending}
-                                    className="px-2 py-0.5 rounded-md border border-blue-200 bg-white text-blue-600 text-xs font-medium hover:bg-blue-50 transition-colors flex items-center gap-1"
-                                >
-                                    <RotateCcw className="h-3 w-3" />
-                                    {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
-                                </button>
-                            )}
-
-                            {/* Loss Reason Display - when card is lost */}
-                            {card.status_comercial === 'perdido' && (
-                                <LossReasonBadge
-                                    motivoId={card.motivo_perda_id}
-                                    comentario={card.motivo_perda_comentario}
-                                    onClick={() => {
-                                        setPendingLossMove({
-                                            stageId: card.pipeline_stage_id || '',
-                                            stageName: currentStage?.nome || 'Perdido'
-                                        })
-                                        setLossReasonModalOpen(true)
-                                    }}
-                                />
-                            )}
 
                             {/* Divider */}
                             <div className="h-3.5 w-px bg-gray-300" />
@@ -1400,6 +1323,71 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                 )
                             })}
                         </div>
+                    </div>
+
+                    {/* Actions Row: Win/Loss/Reopen + Milestones */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Win/Loss/Reopen Action Buttons */}
+                        {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (
+                            <>
+                                <button
+                                    onClick={handleMarkAsWon}
+                                    disabled={marcarGanhoMutation.isPending}
+                                    className="px-2 py-0.5 rounded-md border border-green-200 bg-white text-green-600 text-xs font-medium hover:bg-green-50 transition-colors flex items-center gap-1"
+                                >
+                                    <Trophy className="h-3 w-3" />
+                                    {marcarGanhoMutation.isPending ? 'Marcando...' : 'Ganho'}
+                                </button>
+                                <button
+                                    onClick={handleMarkAsLost}
+                                    className="px-2 py-0.5 rounded-md border border-red-200 bg-white text-red-600 text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
+                                >
+                                    <XCircle className="h-3 w-3" />
+                                    Perdido
+                                </button>
+                            </>
+                        )}
+                        {(card.status_comercial === 'ganho' || card.status_comercial === 'perdido') && (
+                            <button
+                                onClick={() => reabrirCardMutation.mutate()}
+                                disabled={reabrirCardMutation.isPending}
+                                className="px-2 py-0.5 rounded-md border border-blue-200 bg-white text-blue-600 text-xs font-medium hover:bg-blue-50 transition-colors flex items-center gap-1"
+                            >
+                                <RotateCcw className="h-3 w-3" />
+                                {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
+                            </button>
+                        )}
+
+                        {/* Loss Reason Display - when card is lost */}
+                        {card.status_comercial === 'perdido' && (
+                            <LossReasonBadge
+                                motivoId={card.motivo_perda_id}
+                                comentario={card.motivo_perda_comentario}
+                                onClick={() => {
+                                    setPendingLossMove({
+                                        stageId: card.pipeline_stage_id || '',
+                                        stageName: currentStage?.nome || 'Perdido'
+                                    })
+                                    setLossReasonModalOpen(true)
+                                }}
+                            />
+                        )}
+
+                        {/* Marcos do Funil (ganhos por fase) */}
+                        {(card.ganho_sdr || card.ganho_planner || card.ganho_pos) && (
+                            <div className="flex items-center gap-1 ml-auto" title="Marcos alcançados no funil de vendas">
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wide mr-1">Marcos:</span>
+                                {card.ganho_sdr && (
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-medium" title="Qualificado pelo SDR">SDR</span>
+                                )}
+                                {card.ganho_planner && (
+                                    <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200 text-[10px] font-medium" title="Venda fechada">Planner</span>
+                                )}
+                                {card.ganho_pos && (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium" title="Viagem concluída">Pós</span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Row 2: Owners & Actions */}

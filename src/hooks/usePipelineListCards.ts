@@ -65,15 +65,15 @@ export function usePipelineListCards({
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
-    // Fetch card IDs where user is a team member (for MY_ASSISTS view)
-    const { data: myAssistCardIds } = useMyAssistCardIds(subView === 'MY_ASSISTS')
+    // Fetch card IDs where user is a team member (for includeAssists filter)
+    const needsAssists = filters.includeAssists && viewMode === 'AGENT' && subView === 'MY_QUEUE'
+    const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists || false)
 
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
-        (viewMode === 'AGENT' && subView === 'MY_ASSISTS') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
     const isAuthReady = !!session?.user?.id
     const isTeamReady = subView !== 'TEAM_VIEW' || !hasTeam || (myTeamMembers && myTeamMembers.length > 0)
-    const isAssistsReady = subView !== 'MY_ASSISTS' || myAssistCardIds !== undefined
+    const isAssistsReady = !needsAssists || myAssistCardIds !== undefined
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
@@ -91,12 +91,10 @@ export function usePipelineListCards({
             // Smart View Filters
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE' && session?.user?.id) {
-                    query = query.eq('dono_atual_id', session.user.id)
-                } else if (subView === 'MY_ASSISTS') {
-                    if (myAssistCardIds && myAssistCardIds.length > 0) {
-                        query = query.in('id', myAssistCardIds)
+                    if (needsAssists && myAssistCardIds && myAssistCardIds.length > 0) {
+                        query = query.or(`dono_atual_id.eq.${session.user.id},id.in.(${myAssistCardIds.join(',')})`)
                     } else {
-                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
+                        query = query.eq('dono_atual_id', session.user.id)
                     }
                 }
             } else if (viewMode === 'MANAGER') {

@@ -46,7 +46,8 @@ export function ActiveFilters() {
         filters.endDate ||
         filters.creationStartDate ||
         filters.creationEndDate ||
-        filters.docStatus?.length
+        filters.docStatus?.length ||
+        filters.includeAssists
     )
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic filter removal needs flexible typing
@@ -72,6 +73,11 @@ export function ActiveFilters() {
         )}>
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">Filtros:</span>
+
+                {/* Assistidos */}
+                {filters.includeAssists && (
+                    <Chip label="+ Assistidos" onRemove={() => removeFilter('includeAssists')} />
+                )}
 
                 {/* Search */}
                 {filters.search && (

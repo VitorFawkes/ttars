@@ -54,7 +54,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
-    useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_ASSISTS') // Pre-fetch for usePipelineCards
+    useMyAssistCardIds(!!filters.includeAssists && viewMode === 'AGENT' && subView === 'MY_QUEUE') // Pre-fetch for usePipelineCards
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])

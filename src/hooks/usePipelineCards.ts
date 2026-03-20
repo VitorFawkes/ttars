@@ -44,16 +44,16 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
-    // Fetch card IDs where user is a team member (for MY_ASSISTS view)
-    const { data: myAssistCardIds } = useMyAssistCardIds(subView === 'MY_ASSISTS')
+    // Fetch card IDs where user is a team member (for includeAssists filter)
+    const needsAssists = filters.includeAssists && viewMode === 'AGENT' && subView === 'MY_QUEUE'
+    const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists || false)
 
     // Aguardar auth antes de disparar query para evitar busca sem filtro de dono (timeout)
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
-        (viewMode === 'AGENT' && subView === 'MY_ASSISTS') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
     const isAuthReady = !!session?.user?.id
     const isTeamReady = subView !== 'TEAM_VIEW' || !hasTeam || (myTeamMembers && myTeamMembers.length > 0)
-    const isAssistsReady = subView !== 'MY_ASSISTS' || myAssistCardIds !== undefined
+    const isAssistsReady = !needsAssists || myAssistCardIds !== undefined
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
@@ -71,17 +71,13 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             // Apply Smart View Filters
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
-                    // Filter by current user
                     if (session?.user?.id) {
-                        query = query.eq('dono_atual_id', session.user.id)
-                    }
-                } else if (subView === 'MY_ASSISTS') {
-                    // Filter by cards where user is a team member (assistant)
-                    if (myAssistCardIds && myAssistCardIds.length > 0) {
-                        query = query.in('id', myAssistCardIds)
-                    } else {
-                        // Sem cards assistidos — forçar zero resultados
-                        query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
+                        if (needsAssists && myAssistCardIds && myAssistCardIds.length > 0) {
+                            // Minha Fila + Assistidos: cards onde sou dono OU sou assistente
+                            query = query.or(`dono_atual_id.eq.${session.user.id},id.in.(${myAssistCardIds.join(',')})`)
+                        } else {
+                            query = query.eq('dono_atual_id', session.user.id)
+                        }
                     }
                 }
                 // 'ATTENTION' logic would go here (e.g. overdue)

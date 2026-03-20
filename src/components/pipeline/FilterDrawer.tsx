@@ -138,6 +138,41 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-50/50">
 
+                    {/* Section: Visão */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                            <Users className="h-3 w-3" /> Visão
+                        </h3>
+                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <label className="flex items-center justify-between cursor-pointer group">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-1.5 bg-indigo-50 rounded-lg">
+                                        <Users className="h-4 w-4 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Incluir Assistidos</span>
+                                        <p className="text-xs text-gray-400">Mostra também cards que você assiste</p>
+                                    </div>
+                                </div>
+                                <div
+                                    className={cn(
+                                        "relative w-10 h-5 rounded-full transition-colors",
+                                        localFilters.includeAssists ? "bg-indigo-600" : "bg-gray-200"
+                                    )}
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        setLocalFilters(prev => ({ ...prev, includeAssists: !prev.includeAssists || undefined }))
+                                    }}
+                                >
+                                    <div className={cn(
+                                        "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                                        localFilters.includeAssists ? "translate-x-5" : "translate-x-0.5"
+                                    )} />
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* Section: Status Comercial */}
                     <div className="space-y-4">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
