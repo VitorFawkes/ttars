@@ -441,7 +441,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 const phaseOrderB = (b.pipeline_phases as { order_index?: number } | null)?.order_index ?? 999
                 if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
                 return a.ordem - b.ordem
-            }) as { id: string; nome: string; ordem: number; fase: string; is_lost?: boolean; is_won?: boolean }[]
+            }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; is_lost?: boolean; is_won?: boolean }[]
         }
     })
 
@@ -651,18 +651,24 @@ export default function CardHeader({ card }: CardHeaderProps) {
             return
         }
 
-        // 2. Check Owner Change (qualquer stage com target_phase_id)
+        // 2. Check Owner Change — cross-phase handoff
         const targetStageData = stages?.find(s => s.id === stageId)
+        const sourceStageData = stages?.find(s => s.id === card.pipeline_stage_id)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
-        const targetPhaseId = (targetStageData as any)?.target_phase_id as string | null
-        if (targetPhaseId) {
-            const targetPhase = phasesData?.find(p => p.id === targetPhaseId)
+        const explicitTargetPhaseId = (targetStageData as any)?.target_phase_id as string | null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types
+        const srcPhaseId = (sourceStageData as any)?.phase_id as string | null
+        const destPhaseId = (targetStageData as any)?.phase_id as string | null
+        const isCrossPhaseMove = srcPhaseId && destPhaseId && srcPhaseId !== destPhaseId
+        const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
+        if (handoffPhaseId) {
+            const targetPhase = phasesData?.find(p => p.id === handoffPhaseId)
             setPendingStageChange({
                 stageId,
                 targetStageName: stageName,
                 currentOwnerId: card.dono_atual_id || undefined,
                 sdrName: card.sdr_owner_id ? 'SDR Atual' : undefined,
-                targetPhaseId,
+                targetPhaseId: handoffPhaseId,
                 targetPhaseName: targetPhase?.name || 'Nova Fase'
             })
             setStageChangeModalOpen(true)
@@ -799,10 +805,16 @@ export default function CardHeader({ card }: CardHeaderProps) {
         if (pendingStageChange) {
             setQualityGateModalOpen(false)
 
-            // Check owner change after quality gate
+            // Check owner change after quality gate — cross-phase handoff
             const targetStage = stages?.find(s => s.id === pendingStageChange.stageId)
+            const sourceStage = stages?.find(s => s.id === card.pipeline_stage_id)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
-            const phaseId = (targetStage as any)?.target_phase_id as string | null
+            const explicitPhaseId = (targetStage as any)?.target_phase_id as string | null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phase_id pendente de regeneracao de types
+            const srcPhaseId2 = (sourceStage as any)?.phase_id as string | null
+            const destPhaseId2 = (targetStage as any)?.phase_id as string | null
+            const isCrossPhase = srcPhaseId2 && destPhaseId2 && srcPhaseId2 !== destPhaseId2
+            const phaseId = explicitPhaseId || (isCrossPhase ? destPhaseId2 : null) || null
 
             if (phaseId) {
                 const targetPhase = phasesData?.find(p => p.id === phaseId)

@@ -17,6 +17,7 @@ interface AllowedStage {
     nome: string
     ordem: number
     fase: string | null
+    phase_id: string | null
 }
 
 /**
@@ -105,121 +106,38 @@ export function useCardCreationRules() {
 }
 
 /**
- * Hook to get allowed stages for the current user based on their team
- * Returns all stages if user has no team or is admin
+ * Hook to get all stages for the product, sorted by phase order then stage order.
+ * All users see all stages — the UI handles prioritizing the user's phase.
  */
 export function useAllowedStages(product: string) {
     const { profile } = useAuth()
-    const teamId = profile?.team_id
     const isAdmin = profile?.is_admin === true
 
     const { data: allowedStages = [], isLoading } = useQuery({
-        queryKey: ['allowed-stages', teamId, isAdmin, product],
+        queryKey: ['allowed-stages', product],
         queryFn: async () => {
-            // If user is admin or has no team, return all stages for the product
-            if (isAdmin || !teamId) {
-                // Get stages with their phase info, ordered by phase then stage order
-                // Filter by product via pipeline relationship
-                const { data, error } = await supabase
-                    .from('pipeline_stages')
-                    .select(`
-                        id,
-                        nome,
-                        ordem,
-                        fase,
-                        phase_id,
-                        pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
-                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
-                    `)
-                    .eq('ativo', true)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested filter typing
-                    .eq('pipelines.produto', product as any)
-
-                if (error) throw error
-
-                // Sort by phase order_index, then by stage ordem within phase
-                const sorted = (data || []).sort((a, b) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
-                    const phaseOrderA = (a.pipeline_phases as any)?.order_index ?? 999
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
-                    const phaseOrderB = (b.pipeline_phases as any)?.order_index ?? 999
-                    if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
-                    return a.ordem - b.ordem
-                })
-
-                return sorted.map(s => ({
-                    id: s.id,
-                    nome: s.nome,
-                    ordem: s.ordem,
-                    fase: s.fase // This is the phase name as text
-                })) as AllowedStage[]
-            }
-
-            // Otherwise, return only stages allowed for their team
             const { data, error } = await supabase
-                .from('card_creation_rules')
+                .from('pipeline_stages')
                 .select(`
-                    stage_id,
-                    pipeline_stages!inner(
-                        id,
-                        nome,
-                        ordem,
-                        fase,
-                        phase_id,
-                        pipeline_phases!pipeline_stages_phase_id_fkey(order_index),
-                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
-                    )
+                    id, nome, ordem, fase, phase_id,
+                    pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
+                    pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
                 `)
-                .eq('team_id', teamId)
+                .eq('ativo', true)
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested filter typing
-                .eq('pipeline_stages.pipelines.produto', product as any)
+                .eq('pipelines.produto', product as any)
 
             if (error) throw error
 
-            // Extract the stage data - filter out nulls and map to AllowedStage
-            // Sort by phase order_index first, then by stage ordem within phase
-            const stages = (data || [])
-                .map(rule => rule.pipeline_stages)
-                .filter(stage => stage !== null)
-                .map(stage => ({
-                    id: stage!.id,
-                    nome: stage!.nome,
-                    ordem: stage!.ordem,
-                    fase: stage!.fase,
+            return (data || [])
+                .sort((a, b) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
-                    _phaseOrder: (stage as any)?.pipeline_phases?.order_index ?? 999
-                }))
-                .sort((a, b) => a._phaseOrder !== b._phaseOrder ? a._phaseOrder - b._phaseOrder : a.ordem - b.ordem)
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                .map(({ _phaseOrder: _order, ...rest }) => rest)
-
-            // Fallback: time sem regras configuradas → mostrar todas as etapas
-            if (stages.length === 0) {
-                const { data: fallbackData, error: fallbackError } = await supabase
-                    .from('pipeline_stages')
-                    .select(`
-                        id, nome, ordem, fase, phase_id,
-                        pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
-                        pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
-                    `)
-                    .eq('ativo', true)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested filter typing
-                    .eq('pipelines.produto', product as any)
-
-                if (fallbackError) throw fallbackError
-
-                return (fallbackData || [])
-                    .sort((a, b) => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
-                        const pa = (a.pipeline_phases as any)?.order_index ?? 999
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
-                        const pb = (b.pipeline_phases as any)?.order_index ?? 999
-                        return pa !== pb ? pa - pb : a.ordem - b.ordem
-                    })
-                    .map(s => ({ id: s.id, nome: s.nome, ordem: s.ordem, fase: s.fase })) as AllowedStage[]
-            }
-
-            return stages as AllowedStage[]
+                    const pa = (a.pipeline_phases as any)?.order_index ?? 999
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
+                    const pb = (b.pipeline_phases as any)?.order_index ?? 999
+                    return pa !== pb ? pa - pb : a.ordem - b.ordem
+                })
+                .map(s => ({ id: s.id, nome: s.nome, ordem: s.ordem, fase: s.fase, phase_id: s.phase_id })) as AllowedStage[]
         },
         enabled: !!profile
     })
@@ -228,6 +146,6 @@ export function useAllowedStages(product: string) {
         allowedStages,
         isLoading,
         isAdmin,
-        hasTeam: !!teamId
+        hasTeam: !!profile?.team_id
     }
 }

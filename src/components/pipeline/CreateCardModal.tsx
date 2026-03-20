@@ -33,6 +33,7 @@ interface AllowedStage {
     nome: string
     ordem: number
     fase: string | null
+    phase_id: string | null
 }
 
 interface QuickStageSelectorProps {
@@ -41,6 +42,7 @@ interface QuickStageSelectorProps {
     onSelect: (stageId: string) => void
     showMore: boolean
     onToggleMore: () => void
+    userPhase: string | null
 }
 
 // Phase colors for visual differentiation
@@ -51,9 +53,8 @@ const PHASE_COLORS: Record<string, { bg: string; border: string; text: string; a
     'default': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', activeBg: 'bg-slate-100' }
 }
 
-function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onToggleMore }: QuickStageSelectorProps) {
-    // Group stages by phase and get the first stage of each phase
-    const { quickOptions, allGrouped, hasMoreOptions } = useMemo(() => {
+function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onToggleMore, userPhase }: QuickStageSelectorProps) {
+    const { primaryStages, otherPhases, hasOtherPhases } = useMemo(() => {
         const grouped = stages.reduce((acc, stage) => {
             const phase = stage.fase || 'Outros'
             if (!acc[phase]) acc[phase] = []
@@ -61,112 +62,107 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
             return acc
         }, {} as Record<string, AllowedStage[]>)
 
-        // Sort each group by ordem
         Object.values(grouped).forEach(group => group.sort((a, b) => a.ordem - b.ordem))
 
-        // Get first stage of each phase (in phase order: SDR, Planner, Pós-venda)
+        // User's phase stages shown prominently; filter out "Resolução" (Perdido etc.)
+        const primary = userPhase && grouped[userPhase]
+            ? grouped[userPhase]
+            : []
+
+        // Other phases in standard order, excluding user's phase and Resolução
         const phaseOrder = ['SDR', 'Planner', 'Pós-venda']
-        const quickOpts: { stage: AllowedStage; phase: string }[] = []
+        const others: { phase: string; stages: AllowedStage[] }[] = []
+        const allPhases = [...phaseOrder, ...Object.keys(grouped).filter(p => !phaseOrder.includes(p))]
 
-        phaseOrder.forEach(phase => {
-            if (grouped[phase]?.length > 0) {
-                quickOpts.push({ stage: grouped[phase][0], phase })
-            }
+        allPhases.forEach(phase => {
+            if (phase === userPhase || phase === 'Resolução' || !grouped[phase]) return
+            others.push({ phase, stages: grouped[phase] })
         })
 
-        // Add any other phases not in the standard order
-        Object.keys(grouped).forEach(phase => {
-            if (!phaseOrder.includes(phase) && grouped[phase]?.length > 0) {
-                quickOpts.push({ stage: grouped[phase][0], phase })
-            }
-        })
-
-        // Check if there are more stages than just the quick options
-        const totalQuickStages = quickOpts.length
-        const totalStages = stages.length
-        const hasMore = totalStages > totalQuickStages
-
-        return { quickOptions: quickOpts, allGrouped: grouped, hasMoreOptions: hasMore }
-    }, [stages])
+        return { primaryStages: primary, otherPhases: others, hasOtherPhases: others.length > 0 }
+    }, [stages, userPhase])
 
     const getPhaseColors = (phase: string) => PHASE_COLORS[phase] || PHASE_COLORS['default']
-
-    // Check if selected stage is one of the quick options
-    const selectedIsQuickOption = quickOptions.some(opt => opt.stage.id === selectedStageId)
-    const selectedStage = stages.find(s => s.id === selectedStageId)
+    const userColors = getPhaseColors(userPhase || 'default')
 
     return (
         <div className="space-y-3">
-            {/* Quick option chips - First stage of each phase */}
-            <div className="flex flex-wrap gap-2">
-                {quickOptions.map(({ stage, phase }) => {
-                    const colors = getPhaseColors(phase)
-                    const isSelected = selectedStageId === stage.id
-
-                    return (
-                        <button
-                            key={stage.id}
-                            type="button"
-                            onClick={() => onSelect(stage.id)}
-                            className={cn(
-                                'flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200',
-                                'hover:shadow-sm active:scale-[0.98]',
-                                isSelected
-                                    ? `${colors.activeBg} ${colors.border} ring-2 ring-offset-1 ring-indigo-500`
-                                    : `${colors.bg} ${colors.border} hover:border-slate-300`
-                            )}
-                        >
-                            {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600" />}
-                            <span className="text-xs font-medium text-slate-500">{phase}</span>
-                            <span className={cn('text-sm font-medium', isSelected ? 'text-slate-900' : colors.text)}>
-                                {stage.nome}
-                            </span>
-                        </button>
-                    )
-                })}
-            </div>
-
-            {/* Show selected stage if it's not a quick option */}
-            {!selectedIsQuickOption && selectedStage && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 ring-2 ring-offset-1 ring-indigo-500">
-                    <Check className="h-3.5 w-3.5 text-indigo-600" />
-                    <span className="text-xs font-medium text-slate-500">{selectedStage.fase || 'Outros'}</span>
-                    <span className="text-sm font-medium text-slate-900">{selectedStage.nome}</span>
+            {/* User's phase — all stages visible as chips */}
+            {primaryStages.length > 0 && (
+                <div className="space-y-2">
+                    <p className={cn('text-xs font-medium', userColors.text)}>
+                        {userPhase}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {primaryStages.map(stage => {
+                            const isSelected = selectedStageId === stage.id
+                            return (
+                                <button
+                                    key={stage.id}
+                                    type="button"
+                                    onClick={() => onSelect(stage.id)}
+                                    className={cn(
+                                        'flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200',
+                                        'hover:shadow-sm active:scale-[0.98]',
+                                        isSelected
+                                            ? `${userColors.activeBg} ${userColors.border} ring-2 ring-offset-1 ring-indigo-500`
+                                            : `${userColors.bg} ${userColors.border} hover:border-slate-300`
+                                    )}
+                                >
+                                    {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                                    <span className={cn('text-sm font-medium', isSelected ? 'text-slate-900' : userColors.text)}>
+                                        {stage.nome}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
                 </div>
             )}
 
-            {/* Expandable section for more stages */}
-            {hasMoreOptions && (
+            {/* Selected stage indicator when it's from another phase */}
+            {selectedStageId && !primaryStages.some(s => s.id === selectedStageId) && (
+                (() => {
+                    const sel = stages.find(s => s.id === selectedStageId)
+                    if (!sel) return null
+                    const selColors = getPhaseColors(sel.fase || 'default')
+                    return (
+                        <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border ring-2 ring-offset-1 ring-indigo-500', selColors.activeBg, selColors.border)}>
+                            <Check className="h-3.5 w-3.5 text-indigo-600" />
+                            <span className="text-xs font-medium text-slate-500">{sel.fase}</span>
+                            <span className="text-sm font-medium text-slate-900">{sel.nome}</span>
+                        </div>
+                    )
+                })()
+            )}
+
+            {/* Other phases — expandable */}
+            {hasOtherPhases && (
                 <div className="space-y-2">
                     <button
                         type="button"
                         onClick={onToggleMore}
                         className={cn(
-                            'flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors',
+                            'flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors',
                             'py-1 px-2 -mx-2 rounded hover:bg-slate-50'
                         )}
                     >
                         <ChevronDown className={cn(
-                            'h-4 w-4 transition-transform duration-200',
+                            'h-3.5 w-3.5 transition-transform duration-200',
                             showMore && 'rotate-180'
                         )} />
-                        {showMore ? 'Ocultar outras etapas' : 'Ver outras etapas'}
+                        {showMore ? 'Ocultar outras fases' : 'Criar em outra fase'}
                     </button>
 
                     {showMore && (
-                        <div className="space-y-3 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                            {Object.entries(allGrouped).map(([phase, phaseStages]) => {
-                                // Skip stages already shown as quick options (first of each phase)
-                                const otherStages = phaseStages.slice(1)
-                                if (otherStages.length === 0) return null
-
+                        <div className="space-y-3 pt-1 pl-2 border-l-2 border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {otherPhases.map(({ phase, stages: phaseStages }) => {
                                 const colors = getPhaseColors(phase)
-
                                 return (
                                     <div key={phase} className="space-y-1.5">
                                         <p className={cn('text-xs font-medium', colors.text)}>{phase}</p>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {otherStages.map(stage => {
+                                            {phaseStages.map(stage => {
                                                 const isSelected = selectedStageId === stage.id
                                                 return (
                                                     <button
@@ -177,7 +173,7 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
                                                             'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-sm transition-all duration-200',
                                                             'hover:shadow-sm active:scale-[0.98]',
                                                             isSelected
-                                                                ? 'bg-indigo-50 border-indigo-300 text-indigo-700 ring-1 ring-indigo-500'
+                                                                ? `${colors.activeBg} ${colors.border} text-slate-900 ring-1 ring-indigo-500`
                                                                 : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                                                         )}
                                                     >
@@ -302,14 +298,21 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
     const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR' : userPhaseSlug === 'planner' ? 'Planner' : userPhaseSlug === 'pos_venda' ? 'Pós-venda' : null
 
-    // Derived: effective stage ID — prefers first stage of user's phase, then first available
+    // Derived: effective stage ID — picks the main working stage for the user's phase
+    // For Planner: "Proposta em Construção" (2nd stage), not "Oportunidade" (entry stage from SDR)
+    // For SDR/Pós-venda: first stage of their phase
     const effectiveStageId = useMemo(() => {
         if (formData.selectedStageId) return formData.selectedStageId
         if (allowedStages.length === 0) return null
-        // Try to find first stage matching user's phase
         if (userPhaseName) {
-            const phaseStage = allowedStages.find(s => s.fase === userPhaseName)
-            if (phaseStage) return phaseStage.id
+            const phaseStages = allowedStages
+                .filter(s => s.fase === userPhaseName)
+                .sort((a, b) => a.ordem - b.ordem)
+            if (phaseStages.length > 0) {
+                // Planner: skip entry stage (Oportunidade), pick the working stage
+                const idx = userPhaseName === 'Planner' && phaseStages.length > 1 ? 1 : 0
+                return phaseStages[idx].id
+            }
         }
         return allowedStages[0].id
     }, [formData.selectedStageId, allowedStages, userPhaseName])
@@ -609,6 +612,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     onSelect={(id) => setFormData({ ...formData, selectedStageId: id })}
                                     showMore={showMoreStages}
                                     onToggleMore={() => setShowMoreStages(!showMoreStages)}
+                                    userPhase={userPhaseName}
                                 />
                             )}
 
