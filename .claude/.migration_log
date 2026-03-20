@@ -126,3 +126,4 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-20T17:16:35Z | supabase/migrations/20260320_notify_teams_on_assign.sql | applied_to_prod
 2026-03-20T17:32:01Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
 2026-03-20T18:57:31Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
+2026-03-20T20:22:35Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
