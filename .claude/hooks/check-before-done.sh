@@ -91,18 +91,36 @@ if [ -n "$ALL_SQL" ]; then
     fi
   fi
 
-  # Smoke test contra produção (se tem migrations, verificar que schema está ok)
+  # Smoke test — rodar contra staging se migrations pendentes, produção se promovidas
   SMOKE_SCRIPT="$CWD/.claude/hooks/schema-smoke-test.sh"
   if [ -f "$SMOKE_SCRIPT" ]; then
-    SMOKE_OUTPUT=$("$SMOKE_SCRIPT" 2>&1)
-    SMOKE_EXIT=$?
-    if [ $SMOKE_EXIT -ne 0 ]; then
-      echo "" >&2
-      echo "BLOQUEADO: Smoke test falhou contra produção:" >&2
-      echo "$SMOKE_OUTPUT" >&2
-      echo "" >&2
-      echo "A migration pode não ter sido promovida corretamente." >&2
-      exit 2
+    if [ -n "$PENDING_SQL" ]; then
+      # Migrations pendentes → testar contra STAGING
+      export SMOKE_URL="https://ivmebyvjarcvrkrbemam.supabase.co"
+      export SMOKE_ANON="${STAGING_SUPABASE_ANON_KEY:-}"
+      export SMOKE_KEY="${STAGING_SERVICE_ROLE_KEY:-}"
+      SMOKE_TARGET="staging"
+    else
+      SMOKE_TARGET="produção"
+    fi
+
+    if [ -z "${SMOKE_ANON:-}" ] && [ "$SMOKE_TARGET" = "staging" ]; then
+      echo "SKIP: credenciais de staging não disponíveis para smoke test" >&2
+    else
+      SMOKE_OUTPUT=$("$SMOKE_SCRIPT" 2>&1)
+      SMOKE_EXIT=$?
+      if [ $SMOKE_EXIT -ne 0 ]; then
+        echo "" >&2
+        echo "BLOQUEADO: Smoke test falhou contra $SMOKE_TARGET:" >&2
+        echo "$SMOKE_OUTPUT" >&2
+        echo "" >&2
+        if [ "$SMOKE_TARGET" = "staging" ]; then
+          echo "A migration precisa funcionar no staging antes de promover." >&2
+        else
+          echo "A migration pode não ter sido promovida corretamente." >&2
+        fi
+        exit 2
+      fi
     fi
   fi
 fi
