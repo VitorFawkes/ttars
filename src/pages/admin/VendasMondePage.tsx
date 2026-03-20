@@ -525,7 +525,7 @@ export default function VendasMondePage() {
                             Vendas Monde
                         </h1>
                         <p className="text-sm text-slate-500 mt-0.5">
-                            Importe os produtos dos cards a partir do CSV do sistema Monde
+                            Importe os produtos dos cards a partir do CSV ou Excel do sistema Monde
                         </p>
                     </div>
                     {step === 'idle' && (
@@ -564,7 +564,7 @@ export default function VendasMondePage() {
                                 />
                                 <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
                                     <Upload className="h-4 w-4" />
-                                    Importar CSV
+                                    Importar Planilha
                                 </span>
                             </label>
                         </div>
@@ -827,7 +827,7 @@ export default function VendasMondePage() {
                             <div className="flex flex-col items-center justify-center py-12 text-center">
                                 <FileSpreadsheet className="h-10 w-10 text-slate-200 mb-3" />
                                 <p className="text-sm text-slate-500 font-medium">Nenhuma importação realizada</p>
-                                <p className="text-xs text-slate-400 mt-1">Clique em "Importar CSV" para começar</p>
+                                <p className="text-xs text-slate-400 mt-1">Clique em "Importar Planilha" para começar</p>
                             </div>
                         ) : (
                             <div className="max-h-[500px] overflow-y-auto">

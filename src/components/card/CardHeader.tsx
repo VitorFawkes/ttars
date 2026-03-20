@@ -674,42 +674,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     }
 
-    const updateStatusMutation = useMutation({
-        mutationFn: async (vars: { status: string, motivoId?: string, comentario?: string }) => {
-            const updateData: Partial<CardBase> = { status_comercial: vars.status }
-
-            if (vars.status === 'ganho') {
-                updateData.taxa_data_status = new Date().toISOString()
-            } else if (vars.status === 'perdido') {
-                updateData.motivo_perda_id = vars.motivoId
-                updateData.motivo_perda_comentario = vars.comentario
-            }
-
-            const { error } = await supabase.from('cards')
-                .update(updateData)
-                .eq('id', card.id)
-
-            if (error) throw error
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
-            queryClient.invalidateQueries({ queryKey: ['card', card.id] })
-            queryClient.invalidateQueries({ queryKey: ['cards'] }) // Refresh lists/analytics
-            setLossReasonModalOpen(false)
-        },
-        onError: (error) => {
-            console.error('Failed to update status:', error)
-            alert('Erro ao atualizar status: ' + error.message)
-        }
-    })
-
-    const handleStatusSelect = (newStatus: string) => {
-        if (newStatus === 'perdido') {
-            setLossReasonModalOpen(true)
-        } else {
-            updateStatusMutation.mutate({ status: newStatus })
-        }
-    }
+    // Status é controlado exclusivamente pelos RPCs: marcar_ganho, marcar_perdido, reabrir_card
 
     const handleLossConfirm = async (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => {
         // Check if we're just editing the loss reason (card already in perdido)
@@ -780,8 +745,22 @@ export default function CardHeader({ card }: CardHeaderProps) {
             setPendingLossMove(null)
             setLossReasonModalOpen(false)
         } else {
-            // Fallback: just update status (legacy behavior)
-            updateStatusMutation.mutate({ status: 'perdido', motivoId, comentario })
+            // Fallback: marcar perdido via RPC (sem pendingLossMove)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).rpc('marcar_perdido', {
+                p_card_id: card.id,
+                p_motivo_perda_id: motivoId || null,
+                p_motivo_perda_comentario: comentario || null
+            })
+            if (error) {
+                console.error('Failed to mark card as lost:', error)
+                alert('Erro ao marcar como perdido: ' + error.message)
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+            }
+            setLossReasonModalOpen(false)
         }
     }
 
@@ -1124,7 +1103,6 @@ export default function CardHeader({ card }: CardHeaderProps) {
                             {/* Status Selector */}
                             <StatusSelector
                                 currentStatus={card.status_comercial}
-                                onSelect={handleStatusSelect}
                             />
 
                             {/* Origin Badge (editable) */}
@@ -1578,58 +1556,23 @@ function LossReasonBadge({ motivoId, comentario, onClick }: { motivoId?: string 
     )
 }
 
-function StatusSelector({ currentStatus, onSelect }: { currentStatus: string | null, onSelect: (status: string) => void }) {
-    const [isOpen, setIsOpen] = useState(false)
-    // Note: 'perdido' removed - use "Marcar como Perdido" button instead (moves to lost stage)
-    const statusOptions = [
-        { value: 'aberto', label: 'Em Aberto', color: 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200' },
-        { value: 'pausado', label: 'Pausado', color: 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200' }
-    ]
-
-    const statusColors: Record<string, string> = {
-        'aberto': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-        'ganho': 'bg-green-100 text-green-800 border-green-200',
-        'perdido': 'bg-red-100 text-red-800 border-red-200',
-        'pausado': 'bg-gray-100 text-gray-800 border-gray-300'
+function StatusSelector({ currentStatus }: { currentStatus: string | null }) {
+    const statusConfig: Record<string, { label: string, color: string }> = {
+        'aberto': { label: 'Em Aberto', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+        'ganho': { label: 'Ganho', color: 'bg-green-100 text-green-800 border-green-200' },
+        'perdido': { label: 'Perdido', color: 'bg-red-100 text-red-800 border-red-200' },
     }
 
-    return (
-        <div className="relative">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className={cn(
-                    "px-2.5 py-0.5 rounded-md border text-xs font-medium uppercase tracking-wide flex items-center gap-1 hover:brightness-95 transition-all",
-                    statusColors[currentStatus?.toLowerCase() as keyof typeof statusColors] || statusColors['aberto']
-                )}
-            >
-                {currentStatus?.replace('_', ' ') || 'Em Aberto'}
-                <ChevronDown className="h-3 w-3 opacity-50" />
-            </button>
+    const config = statusConfig[currentStatus || 'aberto'] || statusConfig['aberto']
 
-            {isOpen && (
-                <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-                    <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                        {statusOptions.map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => {
-                                    onSelect(option.value)
-                                    setIsOpen(false)
-                                }}
-                                className={cn(
-                                    "w-full px-3 py-2 text-left text-xs font-medium uppercase tracking-wide transition-colors flex items-center justify-between",
-                                    option.value === currentStatus ? "bg-gray-50" : "hover:bg-gray-50",
-                                    option.color.split(' ').filter(c => c.startsWith('text-')).join(' ') // Keep text color
-                                )}
-                            >
-                                {option.label}
-                                {option.value === currentStatus && <Check className="h-3 w-3" />}
-                            </button>
-                        ))}
-                    </div>
-                </>
+    return (
+        <span
+            className={cn(
+                "px-2.5 py-0.5 rounded-md border text-xs font-medium uppercase tracking-wide",
+                config.color
             )}
-        </div>
+        >
+            {config.label}
+        </span>
     )
 }

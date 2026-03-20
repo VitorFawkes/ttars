@@ -15,7 +15,6 @@ interface FilterDrawerProps {
 
 const STATUS_COMERCIAL_OPTIONS = [
     { value: 'aberto', label: 'Em Aberto' },
-    { value: 'pausado', label: 'Pausado' },
     { value: 'ganho', label: 'Ganho' },
     { value: 'perdido', label: 'Perdido' },
 ]
@@ -197,7 +196,6 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                                                 isSelected
                                                     ? opt.value === 'ganho' ? "bg-green-500 text-white border-green-500 shadow-sm"
                                                     : opt.value === 'perdido' ? "bg-red-500 text-white border-red-500 shadow-sm"
-                                                    : opt.value === 'pausado' ? "bg-gray-500 text-white border-gray-500 shadow-sm"
                                                     : "bg-primary text-white border-primary shadow-sm"
                                                     : "border-gray-200 text-gray-600 hover:border-primary/50 hover:text-primary bg-white"
                                             )}

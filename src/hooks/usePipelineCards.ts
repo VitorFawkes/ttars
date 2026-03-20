@@ -180,7 +180,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {
-                query = query.in('status_comercial', ['aberto', 'pausado'])
+                query = query.in('status_comercial', ['aberto'])
             }
 
             // Origem Filter

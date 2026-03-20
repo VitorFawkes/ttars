@@ -23,7 +23,7 @@ export interface FilterState {
     sortBy?: SortBy
     sortDirection?: SortDirection
     showArchived?: boolean // Mostrar cards arquivados
-    statusComercial?: string[] // Multi-select: em_aberto, em_andamento, pausado, ganho, perdido
+    statusComercial?: string[] // Multi-select: aberto, ganho, perdido
     origem?: string[] // Multi-select: mkt, indicacao, carteira_propria, carteira_wg (+ legacy: carteira, manual, outro, site, active_campaign, whatsapp)
     docStatus?: string[] // 'pendente' | 'completo' | 'sem_documentos'
     tagIds?: string[]

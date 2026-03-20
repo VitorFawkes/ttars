@@ -11,7 +11,6 @@ import { ptBR } from 'date-fns/locale'
 
 const STATUS_LABELS: Record<string, string> = {
     aberto: 'Em Aberto',
-    pausado: 'Pausado',
     ganho: 'Ganho',
     perdido: 'Perdido',
 }

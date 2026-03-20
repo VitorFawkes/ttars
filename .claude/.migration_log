@@ -127,3 +127,6 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-20T17:32:01Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
 2026-03-20T18:57:31Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
 2026-03-20T20:22:35Z | supabase/migrations/20260321_won_lost_as_status.sql | applied_to_prod
+2026-03-20T18:47:00Z | supabase/migrations/20260321_remove_pausado_status.sql | preexisting_untracked
+2026-03-20T21:49:01Z | supabase/migrations/20260321_remove_pausado_status.sql | applied_to_prod
+2026-03-20T21:54:53Z | supabase/migrations/20260321_remove_pausado_status.sql | applied_to_prod
