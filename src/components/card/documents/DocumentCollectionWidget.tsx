@@ -208,7 +208,7 @@ export default function DocumentCollectionWidget({ cardId, card: _card, isExpand
                     {isExpanded && (
                       <button
                         onClick={() => setConfirmDeleteContact(isConfirmingDelete ? null : contato.id)}
-                        className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-gray-300 hover:text-red-500 transition-all shrink-0"
+                        className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors shrink-0"
                         title="Remover todos os documentos deste viajante"
                       >
                         <Trash2 className="h-3 w-3" />

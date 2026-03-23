@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Circle, CheckCircle2, MoreHorizontal, Undo2, Trash2, StickyNote, Check, Pencil, FileText, Upload } from 'lucide-react'
+import { Circle, CheckCircle2, MoreHorizontal, Undo2, Trash2, StickyNote, Check, Pencil, AlertCircle } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { DocumentRequirement, DocumentModo } from '../../../hooks/useDocumentCollection'
 import { CAMPO_CONTATO_MAP } from '../../../hooks/useDocumentCollection'
@@ -70,6 +70,11 @@ export default function DocumentRequirementRow({
     setNotes(requirement.notas || '')
   }, [requirement.data_value, requirement.notas, contactFieldValue])
 
+  // Flags for incomplete received documents
+  const hasData = !!requirement.data_value
+  const hasFile = !!requirement.arquivo_id
+  const isIncomplete = isReceived && ((showData && !hasData) || (showFile && !hasFile))
+
   const handleMarkReceived = async () => {
     setIsMarking(true)
     try {
@@ -131,7 +136,7 @@ export default function DocumentRequirementRow({
     <div className={cn(
       "group relative flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border transition-colors",
       isReceived
-        ? "bg-green-50/50 border-green-200"
+        ? isIncomplete ? "bg-amber-50/50 border-amber-200" : "bg-green-50/50 border-green-200"
         : "bg-white border-gray-200 hover:border-teal-200"
     )}>
       {/* Main row */}
@@ -141,15 +146,17 @@ export default function DocumentRequirementRow({
           onClick={isReceived ? () => onUndo(requirement.id) : handleMarkReceived}
           disabled={isMarking}
           className={cn(
-            "shrink-0 transition-colors",
+            "shrink-0 transition-colors cursor-pointer",
             isReceived
-              ? "text-green-600 hover:text-green-400"
-              : "text-gray-300 hover:text-teal-500 cursor-pointer"
+              ? isIncomplete ? "text-amber-500 hover:text-amber-400" : "text-green-600 hover:text-green-400"
+              : "text-gray-300 hover:text-teal-500"
           )}
           title={isReceived ? 'Desfazer recebimento' : 'Marcar como recebido'}
         >
           {isReceived ? (
-            <CheckCircle2 className="h-4.5 w-4.5" />
+            isIncomplete
+              ? <AlertCircle className="h-4.5 w-4.5" />
+              : <CheckCircle2 className="h-4.5 w-4.5" />
           ) : (
             <Circle className="h-4.5 w-4.5" />
           )}
@@ -158,36 +165,38 @@ export default function DocumentRequirementRow({
         {/* Document name */}
         <span className={cn(
           "text-sm font-medium flex-1 min-w-0 truncate",
-          isReceived ? "text-green-800" : "text-gray-900"
+          isReceived
+            ? isIncomplete ? "text-amber-800" : "text-green-800"
+            : "text-gray-900"
         )}>
           {docType.nome}
         </span>
 
-        {/* Mode + status badges */}
+        {/* Status badges — clear text labels */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Mode badge */}
-          <span className={cn(
-            "text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5",
-            isReceived ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"
-          )}>
-            {showData && <FileText className="h-2.5 w-2.5" />}
-            {showFile && <Upload className="h-2.5 w-2.5" />}
-          </span>
-          {/* Provided badges */}
-          {requirement.data_value && (
-            <span className={cn(
-              "text-[9px] px-1.5 py-0.5 rounded font-medium",
-              isReceived ? "bg-green-100 text-green-600" : "bg-teal-50 text-teal-600"
-            )}>
-              Dados
+          {isReceived && hasData && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-600">
+              Dados ✓
             </span>
           )}
-          {requirement.arquivo_id && (
-            <span className={cn(
-              "text-[9px] px-1.5 py-0.5 rounded font-medium",
-              isReceived ? "bg-green-100 text-green-600" : "bg-teal-50 text-teal-600"
-            )}>
-              Arquivo
+          {isReceived && hasFile && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-600">
+              Arquivo ✓
+            </span>
+          )}
+          {isReceived && showData && !hasData && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-600">
+              Sem dados
+            </span>
+          )}
+          {isReceived && showFile && !hasFile && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-600">
+              Sem arquivo
+            </span>
+          )}
+          {!isReceived && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500">
+              {MODO_LABELS[modo]}
             </span>
           )}
           {requirement.notas && !showNotes && (
@@ -195,13 +204,13 @@ export default function DocumentRequirementRow({
           )}
         </div>
 
-        {/* Actions menu */}
+        {/* Actions menu — always visible */}
         <div className="relative shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-100 transition-all"
+            className="p-1 rounded hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
           >
-            <MoreHorizontal className="h-3.5 w-3.5 text-gray-400" />
+            <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
 
           {showMenu && (
@@ -223,7 +232,7 @@ export default function DocumentRequirementRow({
                     className="w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                    Editar dados
+                    {hasData ? 'Editar dados' : 'Adicionar dados'}
                   </button>
                 )}
                 <button
@@ -270,7 +279,7 @@ export default function DocumentRequirementRow({
         </div>
       </div>
 
-      {/* Data field — shown when modo includes 'dados' and pending, or when editing received */}
+      {/* Data field — shown when pending and modo includes 'dados', or when editing received */}
       {showData && (!isReceived || editingData) && (
         <div className="flex flex-col gap-1 pl-6">
           <div className="flex items-center gap-1.5">
@@ -301,7 +310,7 @@ export default function DocumentRequirementRow({
       )}
 
       {/* Show data value when received (read-only) — click to edit */}
-      {showData && isReceived && !editingData && requirement.data_value && (
+      {showData && isReceived && !editingData && hasData && (
         <button
           onClick={() => setEditingData(true)}
           className="text-xs text-green-700 pl-6 text-left hover:underline cursor-pointer"
@@ -310,7 +319,18 @@ export default function DocumentRequirementRow({
         </button>
       )}
 
-      {/* Upload zone — shown when modo includes 'arquivo' and pending */}
+      {/* Received but no data — prompt to add */}
+      {showData && isReceived && !editingData && !hasData && (
+        <button
+          onClick={() => setEditingData(true)}
+          className="text-xs text-amber-600 pl-6 text-left hover:underline cursor-pointer flex items-center gap-1"
+        >
+          <Pencil className="h-3 w-3" />
+          Adicionar {dataLabel.toLowerCase()}
+        </button>
+      )}
+
+      {/* Upload zone — shown when pending and modo includes 'arquivo' */}
       {showFile && !isReceived && (
         <div className="pl-6">
           <DocumentUploadZone
@@ -321,12 +341,22 @@ export default function DocumentRequirementRow({
       )}
 
       {/* Uploaded file indicator when received */}
-      {showFile && isReceived && requirement.arquivo_id && (
+      {showFile && isReceived && hasFile && (
         <div className="pl-6">
           <DocumentUploadZone
             onUpload={handleUpload}
             isUploading={false}
             currentFileName="Arquivo enviado"
+          />
+        </div>
+      )}
+
+      {/* Received but no file — prompt to upload */}
+      {showFile && isReceived && !hasFile && (
+        <div className="pl-6">
+          <DocumentUploadZone
+            onUpload={handleUpload}
+            isUploading={isUploading}
           />
         </div>
       )}
