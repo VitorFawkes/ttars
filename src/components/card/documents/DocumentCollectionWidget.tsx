@@ -19,37 +19,12 @@ interface DocumentCollectionWidgetProps {
   onToggleCollapse?: () => void
 }
 
-export default function DocumentCollectionWidget({ cardId, card, isExpanded: _isExpanded, onToggleCollapse }: DocumentCollectionWidgetProps) {
+export default function DocumentCollectionWidget({ cardId, card: _card, isExpanded: _isExpanded, onToggleCollapse }: DocumentCollectionWidgetProps) {
   const [isSetupOpen, setIsSetupOpen] = useState(false)
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set(['__all__']))
   const [showTaskCreator, setShowTaskCreator] = useState(false)
   const [taskResponsibleId, setTaskResponsibleId] = useState('')
   const [confirmDeleteContact, setConfirmDeleteContact] = useState<string | null>(null)
-
-  // Check phase visibility: only Planner + Pós-venda
-  const { data: stageInfo } = useQuery({
-    queryKey: ['card-stage-phase', card.pipeline_stage_id],
-    queryFn: async () => {
-      if (!card.pipeline_stage_id) return null
-      const { data, error } = await supabase
-        .from('pipeline_stages')
-        .select('fase, phase_id, pipeline_phases (slug)')
-        .eq('id', card.pipeline_stage_id)
-        .single()
-      if (error) return null
-      return data
-    },
-    enabled: !!card.pipeline_stage_id,
-    staleTime: 1000 * 60 * 5,
-  })
-
-  // Resolve phase slug
-  const phaseSlug = (stageInfo as unknown as { pipeline_phases?: { slug?: string } } | null)?.pipeline_phases?.slug || null
-  const faseStr = stageInfo?.fase || ''
-
-  // Only show in Planner and Pós-venda
-  const isVisiblePhase = phaseSlug === 'planner' || phaseSlug === 'pos_venda'
-    || faseStr === 'Planner' || faseStr === 'Pós-venda'
 
   const {
     requirements,
@@ -186,11 +161,7 @@ export default function DocumentCollectionWidget({ cardId, card, isExpanded: _is
 
       {/* Content */}
       <div className="p-3">
-        {!isVisiblePhase ? (
-          <div className="py-4 text-center text-xs text-gray-400">
-            Disponível nas fases Planner e Pós-venda
-          </div>
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="py-6 text-center text-sm text-gray-500">Carregando...</div>
         ) : requirements.length === 0 ? (
           <button
