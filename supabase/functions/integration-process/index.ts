@@ -1527,6 +1527,14 @@ Deno.serve(async (req) => {
                         log += ' [status_comercial deferred to CRM stage trigger]';
                     }
 
+                    // GUARD: Never let AC status '0' (open) overwrite a card that was
+                    // manually closed (ganho/perdido) in CRM. Only AC status '1' (won)
+                    // or '2' (lost) can change a closed card's status.
+                    if (existingCard && ['ganho', 'perdido'].includes(existingCard.status_comercial) && status === 'aberto') {
+                        delete cardPayload.status_comercial;
+                        log += ` [PROTECT_STATUS: card is ${existingCard.status_comercial}, AC sent status=0 (open) — not overwriting]`;
+                    }
+
                     if (targetStageId && topology && !skipStageUpdate) {
                         cardPayload.pipeline_stage_id = targetStageId;
                         cardPayload.pipeline_id = topology.pipelineId;
