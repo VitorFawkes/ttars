@@ -65,9 +65,9 @@ export function usePipelineListCards({
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
-    // Fetch card IDs where user is a team member (for includeAssists filter)
-    const needsAssists = filters.includeAssists && viewMode === 'AGENT' && subView === 'MY_QUEUE'
-    const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists || false)
+    // Fetch card IDs where user is a team member (assistências sempre visíveis em MY_QUEUE)
+    const needsAssists = viewMode === 'AGENT' && subView === 'MY_QUEUE'
+    const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists)
 
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
@@ -91,7 +91,7 @@ export function usePipelineListCards({
             // Smart View Filters
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE' && session?.user?.id) {
-                    if (needsAssists && myAssistCardIds && myAssistCardIds.length > 0) {
+                    if (myAssistCardIds && myAssistCardIds.length > 0) {
                         query = query.or(`dono_atual_id.eq.${session.user.id},id.in.(${myAssistCardIds.join(',')})`)
                     } else {
                         query = query.eq('dono_atual_id', session.user.id)

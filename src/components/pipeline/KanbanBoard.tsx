@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import {
     DndContext,
@@ -54,7 +54,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
-    useMyAssistCardIds(!!filters.includeAssists && viewMode === 'AGENT' && subView === 'MY_QUEUE') // Pre-fetch for usePipelineCards
+    const { data: myAssistCardIds } = useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE') // Pre-fetch + phase expansion
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])
@@ -149,7 +149,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         showClosedCards
     })
 
-    const allCards = cards || []
+    const allCards = useMemo(() => cards || [], [cards])
 
     // Helper: apply optimistic cache update and return rollback function
     const applyOptimisticMove = (cardId: string, stageId: string): (() => void) => {
@@ -563,6 +563,26 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         setLossReasonModalOpen(true)
     }
 
+    // Group stages by phase using dynamic phases
+    const displayPhases = useMemo(() => {
+        const phases = phasesData || []
+        if (!filters.phaseFilters?.length) return [...phases]
+        const visiblePhaseIds = new Set(filters.phaseFilters)
+
+        // Incluir fases dos cards assistidos (mesmo fora da visibilidade padrão)
+        if (viewMode === 'AGENT' && subView === 'MY_QUEUE' && myAssistCardIds?.length) {
+            const assistSet = new Set(myAssistCardIds)
+            for (const card of allCards) {
+                if (card.id && assistSet.has(card.id)) {
+                    const stage = stages?.find(s => s.id === card.pipeline_stage_id)
+                    if (stage?.phase_id) visiblePhaseIds.add(stage.phase_id)
+                }
+            }
+        }
+
+        return phases.filter(p => visiblePhaseIds.has(p.id))
+    }, [phasesData, filters.phaseFilters, viewMode, subView, myAssistCardIds, allCards, stages])
+
     if (isError) {
         return (
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
@@ -598,14 +618,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     }
 
-    // Group stages by phase using dynamic phases
-    // If phasesData is not loaded yet, we might want to show a loader or fallback
-    // We map over the phasesData to ensure order and color
-    const phases = phasesData || []
-    const displayPhases = filters.phaseFilters?.length
-        ? phases.filter(p => filters.phaseFilters!.includes(p.id))
-        : [...phases]
-
     // Calculate Totals for Sticky Footer (usar allCards para incluir terminal)
     const totalPipelineValue = allCards.reduce((acc, c) => acc + (c.valor_display || c.valor_estimado || 0), 0)
     const totalPipelineReceita = allCards.reduce((acc, c) => acc + (c.receita || 0), 0)
@@ -635,7 +647,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
                         <div className="flex gap-4 w-max min-w-full px-4 items-stretch pt-2 h-full">
                             <div className="flex gap-6 items-stretch h-full">
-                                {allCards.length === 0 ? (
+                                {displayPhases.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center w-[calc(100vw-20rem)] py-20 bg-white/5 rounded-xl border border-dashed border-gray-300">
                                         <div className="p-4 bg-gray-100 rounded-full mb-4">
                                             <Users className="h-8 w-8 text-gray-400" />

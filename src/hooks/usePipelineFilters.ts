@@ -28,7 +28,6 @@ export interface FilterState {
     docStatus?: string[] // 'pendente' | 'completo' | 'sem_documentos'
     tagIds?: string[]
     noTag?: boolean
-    includeAssists?: boolean // Incluir cards onde o usuário é assistente
     milestones?: string[] // Marcos do funil: 'ganho_sdr' | 'ganho_planner' | 'ganho_pos'
 }
 

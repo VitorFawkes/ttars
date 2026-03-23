@@ -46,7 +46,6 @@ export function ActiveFilters() {
         filters.creationStartDate ||
         filters.creationEndDate ||
         filters.docStatus?.length ||
-        filters.includeAssists ||
         filters.milestones?.length
     )
 
@@ -73,11 +72,6 @@ export function ActiveFilters() {
         )}>
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">Filtros:</span>
-
-                {/* Assistidos */}
-                {filters.includeAssists && (
-                    <Chip label="+ Assistidos" onRemove={() => removeFilter('includeAssists')} />
-                )}
 
                 {/* Search */}
                 {filters.search && (
