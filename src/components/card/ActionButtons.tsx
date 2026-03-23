@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { useCreateProposal } from '@/hooks/useProposal'
 import { useAuth } from '@/contexts/AuthContext'
 import { useArchiveCard } from '@/hooks/useArchiveCard'
-import { useAIExtraction } from '@/hooks/useAIExtraction'
+import { useAIExtractionReview } from '@/hooks/useAIExtractionReview'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -16,6 +16,7 @@ import {
 import DeleteCardModal from './DeleteCardModal'
 import BriefingIAModal from './BriefingIAModal'
 import TranscriptionIAModal from './TranscriptionIAModal'
+import AIExtractionReviewModal from './AIExtractionReviewModal'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -27,6 +28,9 @@ interface ActionButtonsProps {
         [key: string]: any
     }
 }
+
+// Mudar para true quando quiser reativar os botões Email e Proposta
+const SHOW_EMAIL_PROPOSAL = false
 
 export default function ActionButtons({ card }: ActionButtonsProps) {
     const navigate = useNavigate()
@@ -43,7 +47,26 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [showBriefingIA, setShowBriefingIA] = useState(false)
     const [showTranscriptionIA, setShowTranscriptionIA] = useState(false)
-    const aiExtraction = useAIExtraction(card.id)
+    const [showAIReview, setShowAIReview] = useState(false)
+    const aiReview = useAIExtractionReview(card.id)
+
+    // Auto-close review modal when extraction finishes without preview (no_update, wrong_trip, etc.)
+    // Or after applying fields (with preview) — brief delay to show success state
+    useEffect(() => {
+        if (!showAIReview || aiReview.step !== 'done') return
+        if (!aiReview.preview) {
+            // No preview = nothing to show, close immediately (toast already showed)
+            setShowAIReview(false)
+            aiReview.reset()
+        } else {
+            // Had preview = fields were applied, show success briefly then close
+            const timer = setTimeout(() => {
+                setShowAIReview(false)
+                aiReview.reset()
+            }, 1500)
+            return () => clearTimeout(timer)
+        }
+    }, [showAIReview, aiReview.step, aiReview.preview])
 
     const { archive, isArchiving } = useArchiveCard({
         onSuccess: () => navigate('/pipeline')
@@ -252,53 +275,57 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     WhatsApp
                 </button>
 
-                <button
-                    onClick={openEmailModal}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs font-medium"
-                    title="Enviar Email"
-                >
-                    <Mail className="h-3.5 w-3.5" />
-                    Email
-                </button>
+                {SHOW_EMAIL_PROPOSAL && (
+                    <button
+                        onClick={openEmailModal}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs font-medium"
+                        title="Enviar Email"
+                    >
+                        <Mail className="h-3.5 w-3.5" />
+                        Email
+                    </button>
+                )}
 
-                <button
-                    onClick={async () => {
-                        setIsCreatingProposal(true)
-                        try {
-                            const { proposal } = await createProposal.mutateAsync({
-                                cardId: card.id,
-                                title: card.titulo || 'Nova Proposta',
-                            })
-                            toast.success('Proposta criada!', { description: 'Abrindo editor...' })
-                            navigate(`/proposals/${proposal.id}/edit`)
-                        } catch (error) {
-                            console.error('Error creating proposal:', error)
-                            toast.error('Erro ao criar proposta')
-                        } finally {
-                            setIsCreatingProposal(false)
-                        }
-                    }}
-                    disabled={isCreatingProposal}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-xs font-medium disabled:opacity-50"
-                    title="Gerar Proposta"
-                >
-                    {isCreatingProposal ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    )}
-                    {isCreatingProposal ? 'Criando...' : 'Proposta'}
-                </button>
+                {SHOW_EMAIL_PROPOSAL && (
+                    <button
+                        onClick={async () => {
+                            setIsCreatingProposal(true)
+                            try {
+                                const { proposal } = await createProposal.mutateAsync({
+                                    cardId: card.id,
+                                    title: card.titulo || 'Nova Proposta',
+                                })
+                                toast.success('Proposta criada!', { description: 'Abrindo editor...' })
+                                navigate(`/proposals/${proposal.id}/edit`)
+                            } catch (error) {
+                                console.error('Error creating proposal:', error)
+                                toast.error('Erro ao criar proposta')
+                            } finally {
+                                setIsCreatingProposal(false)
+                            }
+                        }}
+                        disabled={isCreatingProposal}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-xs font-medium disabled:opacity-50"
+                        title="Gerar Proposta"
+                    >
+                        {isCreatingProposal ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        )}
+                        {isCreatingProposal ? 'Criando...' : 'Proposta'}
+                    </button>
+                )}
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors text-xs font-medium"
-                            disabled={aiExtraction.step === 'processing' || aiExtraction.step === 'uploading'}
+                            disabled={aiReview.step === 'extracting' || aiReview.step === 'applying'}
                         >
-                            {aiExtraction.step === 'processing' || aiExtraction.step === 'uploading' ? (
+                            {aiReview.step === 'extracting' || aiReview.step === 'applying' ? (
                                 <>
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     IA analisando...
@@ -314,7 +341,10 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem
-                            onClick={() => aiExtraction.extract('whatsapp')}
+                            onClick={() => {
+                                aiReview.extractPreview('whatsapp')
+                                setShowAIReview(true)
+                            }}
                             className="flex items-center gap-2 cursor-pointer"
                         >
                             <MessageSquare className="h-4 w-4 text-green-600" />
@@ -385,7 +415,7 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
             </div>
 
             {/* Email Modal */}
-            {showEmailModal && (
+            {SHOW_EMAIL_PROPOSAL && showEmailModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
                         <div className="flex items-center justify-between mb-4">
@@ -466,6 +496,11 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 onClose={() => setShowBriefingIA(false)}
                 cardId={card.id}
                 cardType={(card as Record<string, unknown>).card_type as string | undefined}
+                onRequestReview={(audioBlob, mode) => {
+                    setShowBriefingIA(false)
+                    aiReview.extractPreview('briefing_audio', { audioBlob, mode })
+                    setShowAIReview(true)
+                }}
             />
 
             <TranscriptionIAModal
@@ -473,6 +508,20 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 onClose={() => setShowTranscriptionIA(false)}
                 cardId={card.id}
                 cardTitle={card.titulo || undefined}
+                onRequestReview={(transcription, mode, meetingId) => {
+                    setShowTranscriptionIA(false)
+                    aiReview.extractPreview('meeting_transcript', { transcription, mode, meetingId })
+                    setShowAIReview(true)
+                }}
+            />
+
+            <AIExtractionReviewModal
+                isOpen={showAIReview}
+                onClose={() => { setShowAIReview(false); aiReview.reset() }}
+                step={aiReview.step}
+                preview={aiReview.preview}
+                onApply={(decisions, approveBriefing) => aiReview.applyDecisions(decisions, approveBriefing)}
+                onCancel={() => { setShowAIReview(false); aiReview.reset() }}
             />
         </>
     )

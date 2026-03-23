@@ -12,6 +12,8 @@ interface TranscriptionIAModalProps {
   onClose: () => void
   cardId: string
   cardTitle?: string
+  /** When provided, sends transcription to review modal instead of applying directly */
+  onRequestReview?: (transcription: string, mode: 'atualizar' | 'novo', meetingId?: string) => void
 }
 
 type Step = 'input' | 'processing' | 'done' | 'error'
@@ -25,7 +27,7 @@ function getDefaultTime(): string {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
-export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitle }: TranscriptionIAModalProps) {
+export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitle, onRequestReview }: TranscriptionIAModalProps) {
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
@@ -86,8 +88,71 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
     }
   }
 
+  const createMeetingTask = async (authUserId: string): Promise<string | undefined> => {
+    if (!createTask) return undefined
+
+    const title = taskTitle.trim() || `Reunião — ${cardTitle || 'Card'}`
+    const dataVencimento = new Date(`${meetingDate}T${meetingTime}:00`).toISOString()
+    const now = new Date().toISOString()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
+      card_id: cardId,
+      tipo: 'reuniao',
+      titulo: title,
+      descricao: '',
+      data_vencimento: dataVencimento,
+      responsavel_id: authUserId,
+      status: 'realizada',
+      concluida: true,
+      concluida_em: now,
+      outcome: 'realizada',
+      metadata: { duration_minutes: durationMinutes },
+      transcricao,
+      participantes_externos: externalParticipants.length > 0 ? externalParticipants : null,
+      feedback: null,
+      motivo_cancelamento: null,
+      resultado: null,
+      categoria_outro: null,
+      created_by: authUserId,
+    }
+
+    const { data: task, error } = await supabase
+      .from('tarefas')
+      .insert([payload])
+      .select('id')
+      .single()
+
+    if (error) throw error
+    return task.id
+  }
+
   const handleProcess = async () => {
     if (!canProcess) return
+
+    // Review flow: create task first (if enabled), then delegate to review modal
+    if (onRequestReview) {
+      try {
+        setStep('processing')
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (!authUser) throw new Error('Usuário não autenticado')
+
+        const meetingId = await createMeetingTask(authUser.id)
+        if (createTask) {
+          queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
+          queryClient.invalidateQueries({ queryKey: ['reunioes', cardId] })
+        }
+
+        onRequestReview(transcricao, mode, meetingId)
+        handleClose()
+      } catch (error) {
+        console.error('[TranscriptionIA] Erro ao criar reunião:', error)
+        setStep('error')
+        setResult({ status: 'error', error: (error as Error).message })
+        toast.error('Erro ao criar tarefa de reunião')
+      }
+      return
+    }
 
     setStep('processing')
     setResult(null)
@@ -96,45 +161,7 @@ export default function TranscriptionIAModal({ isOpen, onClose, cardId, cardTitl
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) throw new Error('Usuário não autenticado')
 
-      let meetingId: string | undefined
-
-      // Create meeting task matching SmartTaskModal's exact payload
-      if (createTask) {
-        const title = taskTitle.trim() || `Reunião — ${cardTitle || 'Card'}`
-        const dataVencimento = new Date(`${meetingDate}T${meetingTime}:00`).toISOString()
-        const now = new Date().toISOString()
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const payload: any = {
-          card_id: cardId,
-          tipo: 'reuniao',
-          titulo: title,
-          descricao: '',
-          data_vencimento: dataVencimento,
-          responsavel_id: authUser.id,
-          status: 'realizada',
-          concluida: true,
-          concluida_em: now,
-          outcome: 'realizada',
-          metadata: { duration_minutes: durationMinutes },
-          transcricao,
-          participantes_externos: externalParticipants.length > 0 ? externalParticipants : null,
-          feedback: null,
-          motivo_cancelamento: null,
-          resultado: null,
-          categoria_outro: null,
-          created_by: authUser.id,
-        }
-
-        const { data: task, error } = await supabase
-          .from('tarefas')
-          .insert([payload])
-          .select('id')
-          .single()
-
-        if (error) throw error
-        meetingId = task.id
-      }
+      const meetingId = await createMeetingTask(authUser.id)
 
       // Process with AI
       const aiResult = await processAIExtraction(cardId, 'meeting_transcript', authUser.id, {

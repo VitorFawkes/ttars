@@ -13,6 +13,8 @@ interface BriefingIAModalProps {
   cardId: string
   /** Pass card_type to detect sub-cards without extra query */
   cardType?: string | null
+  /** When provided, sends audio to review modal instead of applying directly */
+  onRequestReview?: (audioBlob: Blob, mode: 'atualizar' | 'novo') => void
 }
 
 const STEP_LABELS: Record<BriefingStep, string> = {
@@ -23,7 +25,7 @@ const STEP_LABELS: Record<BriefingStep, string> = {
   error: 'Erro no processamento'
 }
 
-export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: BriefingIAModalProps) {
+export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onRequestReview }: BriefingIAModalProps) {
   const { step, result, process, reset } = useBriefingIA(cardId)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [showTranscription, setShowTranscription] = useState(false)
@@ -81,8 +83,12 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType }: B
 
   const handleProcess = useCallback(async () => {
     if (!audioBlob) return
+    if (onRequestReview) {
+      onRequestReview(audioBlob, briefingMode)
+      return
+    }
     await process(audioBlob, briefingMode)
-  }, [audioBlob, process, briefingMode])
+  }, [audioBlob, process, briefingMode, onRequestReview])
 
   const handleNewAudio = useCallback(() => {
     reset()
