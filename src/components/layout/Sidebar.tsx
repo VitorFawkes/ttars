@@ -56,15 +56,23 @@ export default function Sidebar() {
         >
             {/* Header */}
             <div className={cn(
-                "flex items-center justify-center transition-all duration-300",
+                "relative flex items-center justify-center transition-all duration-300",
                 isExpanded ? "h-20 px-3" : "h-20 px-1"
             )}>
                 <img
-                    src={isExpanded ? "/logo-dark.png" : "/icon-light.png"}
+                    src="/icon-light.png"
                     alt="TTARS"
                     className={cn(
-                        "object-contain transition-all duration-300",
-                        isExpanded ? "w-full max-w-[180px]" : "w-10 brightness-0 invert"
+                        "absolute object-contain w-10 brightness-0 invert transition-opacity duration-300",
+                        isExpanded ? "opacity-0" : "opacity-100"
+                    )}
+                />
+                <img
+                    src="/logo-dark.png"
+                    alt="TTARS"
+                    className={cn(
+                        "object-contain w-full max-w-[180px] transition-opacity duration-300",
+                        isExpanded ? "opacity-100" : "opacity-0 max-w-[40px]"
                     )}
                 />
             </div>
