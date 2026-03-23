@@ -85,9 +85,6 @@ export default function DocumentCollectionWidget({ cardId, card, isExpanded: _is
     enabled: showTaskCreator,
   })
 
-  // Don't render if not in visible phase
-  if (!isVisiblePhase) return null
-
   const toggleContact = (id: string) => {
     setExpandedContacts(prev => {
       const next = new Set(prev)
@@ -189,7 +186,11 @@ export default function DocumentCollectionWidget({ cardId, card, isExpanded: _is
 
       {/* Content */}
       <div className="p-3">
-        {isLoading ? (
+        {!isVisiblePhase ? (
+          <div className="py-4 text-center text-xs text-gray-400">
+            Disponível nas fases Planner e Pós-venda
+          </div>
+        ) : isLoading ? (
           <div className="py-6 text-center text-sm text-gray-500">Carregando...</div>
         ) : requirements.length === 0 ? (
           <button
