@@ -123,7 +123,7 @@ export default function OverviewView() {
         taxa_paga_count: 0, taxa_paga_rate: 0,
         briefing_count: 0, briefing_agendado_rate: 0,
         proposta_count: 0, proposta_enviada_rate: 0,
-        viagem_confirmada_count: 0, viagem_confirmada_rate: 0,
+        ganho_planner_count: 0, ganho_planner_rate: 0,
     }
 
     // Filter stages by phase based on viewMode + hide empty stages in financial metrics
@@ -203,8 +203,8 @@ export default function OverviewView() {
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
-                    title="% Viagem Confirmada"
-                    value={`${k.viagem_confirmada_rate}% (${k.viagem_confirmada_count})`}
+                    title="% Ganho Planner"
+                    value={`${k.ganho_planner_rate}% (${k.ganho_planner_count})`}
                     icon={CheckCircle}
                     color="text-green-600"
                     bgColor="bg-green-50"

@@ -19,8 +19,8 @@ export interface OverviewKpis {
     briefing_agendado_rate: number
     proposta_count: number
     proposta_enviada_rate: number
-    viagem_confirmada_count: number
-    viagem_confirmada_rate: number
+    ganho_planner_count: number
+    ganho_planner_rate: number
 }
 
 export interface FunnelStage {

@@ -74,7 +74,7 @@ export default function CardDetail() {
             if (!card?.pipeline_stage_id) return null
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('fase, phase_id, is_planner_won, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
+                .select('fase, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .eq('id', card.pipeline_stage_id)
                 .single()
             if (error) return null

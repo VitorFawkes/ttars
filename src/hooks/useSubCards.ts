@@ -14,7 +14,6 @@ export interface SubCard {
     valor_final: number | null
     status_comercial: string
     ganho_planner: boolean
-    is_planner_won: boolean
     etapa_nome: string
     fase: string
     merged_at: string | null

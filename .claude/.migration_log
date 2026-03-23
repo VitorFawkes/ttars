@@ -130,3 +130,5 @@ PENDING | supabase/migrations/20260313_sub_card_fixes.sql | preexisting_untracke
 2026-03-20T18:47:00Z | supabase/migrations/20260321_remove_pausado_status.sql | preexisting_untracked
 2026-03-20T21:49:01Z | supabase/migrations/20260321_remove_pausado_status.sql | applied_to_prod
 2026-03-20T21:54:53Z | supabase/migrations/20260321_remove_pausado_status.sql | applied_to_prod
+PENDING | supabase/migrations/20260323_remove_viagem_confirmada_stage.sql | preexisting_untracked
+2026-03-23T20:18:17Z | supabase/migrations/20260323_remove_viagem_confirmada_stage.sql | applied_to_prod

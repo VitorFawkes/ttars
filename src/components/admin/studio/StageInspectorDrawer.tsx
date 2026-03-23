@@ -305,7 +305,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                     <option value="taxa_paga">% Taxa Paga</option>
                                     <option value="briefing">% Oportunidade</option>
                                     <option value="proposta">% Proposta Enviada</option>
-                                    <option value="viagem_confirmada">% Viagem Confirmada</option>
+                                    <option value="ganho_planner">% Ganho Planner</option>
                                 </select>
                             </div>
 
