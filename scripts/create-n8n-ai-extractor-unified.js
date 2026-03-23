@@ -71,6 +71,15 @@ Para Tipo B:
 - RESPOSTAS e CONFIRMAÇÕES do cliente SÃO dados
 - Hesitação ou incerteza do cliente NÃO é dado
 
+## DESTINOS — REGRA ESPECIAL
+Cidade mencionada NÃO é necessariamente destino. Extraia APENAS locais que o cliente demonstrou INTENÇÃO de visitar nesta viagem.
+NÃO-destinos (NUNCA extrair como destino):
+- Cidade onde o cliente MORA ("aqui em Roma faz frio", "moro em São Paulo")
+- Referências/comparações ("tipo aquele hotel em Roma", "já fui pra Roma ano passado")
+- Conexões/escalas sem pernoite
+- Destinos de viagens PASSADAS que não fazem parte desta viagem
+- Cidades mencionadas pelo CONSULTOR como sugestão não confirmada pelo cliente
+
 ## PROIBIÇÕES (CRÍTICO)
 - NUNCA analise ou comente sobre a qualidade/completude dos dados
 - NUNCA sugira "próximos passos" ou recomendações
@@ -1280,7 +1289,8 @@ function buildWorkflow() {
             { id: 'audio_mime_type', name: 'audio_mime_type', value: '={{ $json.body.audio_mime_type || "audio/webm" }}', type: 'string' },
             { id: 'transcription', name: 'transcription', value: '={{ $json.body.transcription || "" }}', type: 'string' },
             { id: 'user_id', name: 'user_id', value: '={{ $json.body.user_id || "" }}', type: 'string' },
-            { id: 'meeting_id', name: 'meeting_id', value: '={{ $json.body.meeting_id || "" }}', type: 'string' }
+            { id: 'meeting_id', name: 'meeting_id', value: '={{ $json.body.meeting_id || "" }}', type: 'string' },
+            { id: 'dry_run', name: 'dry_run', value: '={{ $json.body.dry_run === true || $json.body.dry_run === "true" ? "true" : "false" }}', type: 'string' }
           ]
         },
         options: {}
@@ -1760,6 +1770,87 @@ return [{ json: mergeData }];`,
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
       position: [3900, 480]
+    },
+
+    // 10b. Dry Run? (check if dry_run=true → return preview instead of applying)
+    {
+      parameters: {
+        conditions: {
+          boolean: [{ value1: '={{ $("1. Extrai Params").first().json.dry_run === "true" }}', value2: true }]
+        }
+      },
+      name: '10b. Dry Run?',
+      type: 'n8n-nodes-base.if',
+      typeVersion: 1,
+      position: [3770, 50]
+    },
+
+    // 10c. Monta Preview (builds preview response for dry_run)
+    {
+      parameters: {
+        jsCode: `// Monta preview para dry_run — retorna campos extraídos + atuais + config sem aplicar
+const validationData = $('8. Valida Output').first().json;
+const currentCard = $('10. Busca produto_data Atual').first().json;
+const contextData = $('6. Monta Contexto').first().json;
+const fase = contextData.fase;
+
+const currentProdutoData = currentCard.produto_data || {};
+const currentBriefing = currentCard.briefing_inicial || {};
+
+// Fonte dos campos atuais baseada na fase
+let tripSource = {};
+let obsSource = {};
+if (fase === 'SDR') {
+  tripSource = currentBriefing;
+  obsSource = currentBriefing.observacoes || {};
+} else if (fase === 'Planner') {
+  tripSource = currentProdutoData;
+  obsSource = currentProdutoData.observacoes_criticas || {};
+} else {
+  tripSource = currentProdutoData;
+  obsSource = currentProdutoData.observacoes_pos_venda || {};
+}
+
+// Montar campos atuais para comparação
+const config = validationData.field_config;
+const fields = config.fields || [];
+const camposAtuais = {};
+for (const field of fields) {
+  const source = field.section === 'trip_info' ? tripSource : obsSource;
+  camposAtuais[field.key] = source[field.key] || null;
+}
+
+return [{ json: {
+  status: 'preview',
+  card_id: validationData.card_id,
+  source: validationData.source,
+  campos_extraidos: validationData.campos_extraidos,
+  campos_atuais: camposAtuais,
+  briefing_text: validationData.briefing_text || '',
+  field_config: config,
+  _meta: validationData._meta || null,
+  fase: fase,
+  transcription: validationData.transcription || ''
+}}];`,
+        options: {}
+      },
+      name: '10c. Monta Preview',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [3950, -50]
+    },
+
+    // R3. Respond Preview
+    {
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify($input.first().json) }}',
+        options: { responseCode: 200 }
+      },
+      name: 'R3. Respond Preview',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [4200, -50]
     }
   ];
 
@@ -1843,7 +1934,16 @@ return [{ json: mergeData }];`,
       ]
     },
     '10. Busca produto_data Atual': {
-      main: [[{ node: '11. Merge Dados', type: 'main', index: 0 }]]
+      main: [[{ node: '10b. Dry Run?', type: 'main', index: 0 }]]
+    },
+    '10b. Dry Run?': {
+      main: [
+        [{ node: '10c. Monta Preview', type: 'main', index: 0 }],  // true → preview
+        [{ node: '11. Merge Dados', type: 'main', index: 0 }]       // false → apply
+      ]
+    },
+    '10c. Monta Preview': {
+      main: [[{ node: 'R3. Respond Preview', type: 'main', index: 0 }]]
     },
     '11. Merge Dados': {
       main: [[{ node: '12. Atualiza Card', type: 'main', index: 0 }]]

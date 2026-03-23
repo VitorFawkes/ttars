@@ -44,7 +44,7 @@ export default function Pipeline() {
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isGestor = (profile as any)?.role_info?.name === 'gestor'
-    const canViewTeam = isAdmin || isGestor
+    const canViewTeam = isAdmin || isGestor || !!profile?.team_id
     const canViewAll = isAdmin || isGestor
 
     // Guard: if user lost access to current view (e.g. role changed), reset to MY_QUEUE
