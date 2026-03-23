@@ -739,20 +739,12 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                             </>
                         )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        {teamMemberCount > 0 && (
-                            <div className="flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full" title="Equipe de apoio atribuída">
-                                <UserPlus className="h-3 w-3" />
-                                {teamMemberCount}
-                            </div>
-                        )}
-                        {card.tarefas_pendentes ? (
-                            <div className="flex items-center gap-1 text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded-full">
-                                <AlertCircle className="h-3 w-3" />
-                                {card.tarefas_pendentes}
-                            </div>
-                        ) : null}
-                    </div>
+                    {teamMemberCount > 0 && (
+                        <div className="flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full" title="Equipe de apoio atribuída">
+                            <UserPlus className="h-3 w-3" />
+                            {teamMemberCount}
+                        </div>
+                    )}
                 </div>
             </div>
 
