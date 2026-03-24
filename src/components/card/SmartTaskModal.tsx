@@ -1701,3 +1701,132 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         </Dialog >
     );
 }
+
+// --- Call Outcome Section (for "ja realizada" in create mode) ---
+function CallOutcomeSection({
+    type,
+    callAlreadyDone,
+    setCallAlreadyDone,
+    callOutcome,
+    setCallOutcome,
+    callFeedback,
+    setCallFeedback,
+}: {
+    type: string
+    callAlreadyDone: boolean
+    setCallAlreadyDone: (v: boolean) => void
+    callOutcome: string
+    setCallOutcome: (v: string) => void
+    callFeedback: string
+    setCallFeedback: (v: string) => void
+}) {
+    const { data: outcomes } = useTaskOutcomes();
+
+    const callOutcomes = outcomes?.filter(o =>
+        type === 'contato'
+            ? ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido', 'respondido', 'visualizado', 'enviado'].includes(o.outcome_key)
+            : o.tipo === 'ligacao'
+    ) || [];
+
+    return (
+        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+            {/* Toggle */}
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+                <div
+                    className={cn(
+                        "relative w-9 h-5 rounded-full transition-colors duration-200",
+                        callAlreadyDone ? "bg-indigo-600" : "bg-gray-200 group-hover:bg-gray-300"
+                    )}
+                    onClick={() => setCallAlreadyDone(!callAlreadyDone)}
+                >
+                    <div className={cn(
+                        "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200",
+                        callAlreadyDone && "translate-x-4"
+                    )} />
+                </div>
+                <span className="text-sm font-medium text-gray-700">
+                    {type === 'ligacao' ? 'Ligacao ja realizada' : 'Contato ja realizado'}
+                </span>
+            </label>
+
+            {/* Outcome selection */}
+            {callAlreadyDone && (
+                <div className="space-y-3 pl-1 border-l-2 border-indigo-200 ml-1">
+                    <div className="pl-3">
+                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
+                            Resultado
+                        </Label>
+                        {type === 'contato' ? (
+                            <div className="space-y-3">
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-green-700 bg-green-50 w-fit px-2 py-0.5 rounded border border-green-100">
+                                        <MessageSquare className="w-3 h-3" />
+                                        <span>WHATSAPP</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {callOutcomes.filter(o => ['respondido', 'visualizado', 'enviado'].includes(o.outcome_key)).map(o => (
+                                            <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-cyan-700 bg-cyan-50 w-fit px-2 py-0.5 rounded border border-cyan-100">
+                                        <Phone className="w-3 h-3" />
+                                        <span>LIGACAO</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {callOutcomes.filter(o => ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido'].includes(o.outcome_key)).map(o => (
+                                            <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                                {callOutcomes.map(o => (
+                                    <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="mt-3">
+                            <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                                Observacoes
+                            </Label>
+                            <Textarea
+                                value={callFeedback}
+                                onChange={e => setCallFeedback(e.target.value)}
+                                placeholder="Como foi a ligacao? Proximos passos..."
+                                className="min-h-[70px] resize-none text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function OutcomeBtn({ outcome, selected, onClick }: {
+    outcome: { outcome_key: string; outcome_label: string; is_success: boolean | null }
+    selected: boolean
+    onClick: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-medium transition-all",
+                selected
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : "border-gray-100 bg-white text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/30"
+            )}
+        >
+            <span className={cn("w-3.5 h-3.5 flex items-center justify-center rounded-full text-[10px] font-bold", selected ? "text-indigo-600" : "text-gray-400")}>
+                {outcome.is_success ? '✓' : '✕'}
+            </span>
+            {outcome.outcome_label}
+        </button>
+    );
+}

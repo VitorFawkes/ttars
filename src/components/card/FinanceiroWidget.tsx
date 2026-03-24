@@ -109,7 +109,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse,
                             isPostSales ? (
                                 <ProductItemOperational key={item.id} item={item} cardId={cardId} />
                             ) : (
-                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} />
+                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug} />
                             )
                         ))}
 
@@ -150,12 +150,14 @@ function formatDateBR(iso: string | null) {
     return `${d}/${m}/${y}`
 }
 
-function ProductItemReadOnly({ item, cardId }: { item: FinancialItem; cardId: string }) {
+function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem; cardId: string; phaseSlug?: string }) {
     const sv = Number(item.sale_value) || 0
     const sc = Number(item.supplier_cost) || 0
     const itemReceita = sv - sc
     const itemPct = sv > 0 ? (itemReceita / sv) * 100 : 0
     const hasExtras = item.fornecedor || item.representante || item.documento || item.data_inicio || item.data_fim
+    // Planners can edit obs; other ReadOnly phases see obs as read-only text
+    const isPlannerPhase = phaseSlug === 'planner'
 
     return (
         <div className="px-4 py-2.5">
@@ -179,7 +181,14 @@ function ProductItemReadOnly({ item, cardId }: { item: FinancialItem; cardId: st
             {hasExtras && (
                 <ExtraFieldsRow item={item} />
             )}
-            <ObservacoesField item={item} cardId={cardId} />
+            {isPlannerPhase ? (
+                <ObservacoesField item={item} cardId={cardId} />
+            ) : item.observacoes ? (
+                <p className="mt-1.5 text-[11px] text-gray-400 italic flex items-center gap-1">
+                    <ClipboardList className="h-3 w-3 shrink-0" />
+                    <span>{item.observacoes}</span>
+                </p>
+            ) : null}
         </div>
     )
 }
