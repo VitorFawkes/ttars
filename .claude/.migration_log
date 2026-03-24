@@ -137,3 +137,4 @@ PENDING | supabase/migrations/20260324_future_opportunities_section.sql | preexi
 2026-03-24T14:04:56Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260324_future_opportunities_section.sql | applied_to_prod
 2026-03-24T14:35:46Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260324_remove_ganho_perdido_pos_venda.sql | applied_to_prod
 2026-03-24T14:35:53Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260324_financial_item_passengers.sql | applied_to_prod
+2026-03-24T14:45:44Z | supabase/migrations/20260324_section_hidden_on_phases.sql | applied_to_prod
