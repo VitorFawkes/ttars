@@ -146,6 +146,19 @@ function parseCSVNative(text: string): Record<string, string>[] {
     const lines = text.split(/\r?\n/).filter(l => l.trim())
     if (lines.length < 2) return []
 
+    // Detectar separador pela primeira linha (header) — fora de quotes
+    const detectSep = (line: string): string => {
+        let inQ = false, semis = 0, commas = 0
+        for (const ch of line) {
+            if (ch === '"') { inQ = !inQ; continue }
+            if (inQ) continue
+            if (ch === ';') semis++
+            if (ch === ',') commas++
+        }
+        return semis > commas ? ';' : ','
+    }
+    const sep = detectSep(lines[0])
+
     const parseLine = (line: string): string[] => {
         const result: string[] = []
         let current = ''
@@ -158,7 +171,7 @@ function parseCSVNative(text: string): Record<string, string>[] {
                 else { current += ch }
             } else {
                 if (ch === '"') { inQuotes = true }
-                else if (ch === ',' || ch === ';') { result.push(current.trim()); current = '' }
+                else if (ch === sep) { result.push(current.trim()); current = '' }
                 else { current += ch }
             }
         }
@@ -166,17 +179,9 @@ function parseCSVNative(text: string): Record<string, string>[] {
         return result
     }
 
-    // Detectar separador pela primeira linha (header)
-    const semicolons = (lines[0].match(/;/g) || []).length
-    const commas = (lines[0].match(/,/g) || []).length
-    const sep = semicolons > commas ? ';' : ','
-
-    // Se separador é ponto-e-vírgula, substituir antes do parse
-    const normalize = (line: string) => sep === ';' ? line.replace(/;/g, ',') : line
-
-    const headers = parseLine(normalize(lines[0]))
+    const headers = parseLine(lines[0])
     return lines.slice(1).map(line => {
-        const values = parseLine(normalize(line))
+        const values = parseLine(line)
         const row: Record<string, string> = {}
         headers.forEach((h, i) => { row[h] = values[i] || '' })
         return row
