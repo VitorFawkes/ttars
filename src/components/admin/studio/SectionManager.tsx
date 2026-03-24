@@ -112,6 +112,28 @@ export default function SectionManager() {
         queryClient.invalidateQueries({ queryKey: ['sections'] })
     }
 
+    // Hidden toggle per phase (completely hides section for users in that phase)
+    const toggleSectionHidden = async (sectionId: string, phaseSlug: string | null) => {
+        if (!phaseSlug) return
+        const section = sections.find(s => s.id === sectionId)
+        if (!section) return
+
+        const current = section.hidden_on_phases || []
+        const next = current.includes(phaseSlug)
+            ? current.filter((s: string) => s !== phaseSlug)
+            : [...current, phaseSlug]
+
+        // Optimistic update
+        queryClient.setQueryData(['sections', 'all-include-inactive', currentProduct], (old: typeof sections | undefined) => {
+            if (!old) return old
+            return old.map(s => s.id === sectionId ? { ...s, hidden_on_phases: next } : s)
+        })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await supabase.from('sections').update({ hidden_on_phases: next } as any).eq('id', sectionId)
+        queryClient.invalidateQueries({ queryKey: ['sections'] })
+    }
+
     const [isAdding, setIsAdding] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [formData, setFormData] = useState<SectionFormData>(defaultFormData)
@@ -384,6 +406,7 @@ export default function SectionManager() {
                     onToggleActive={handleToggleActive}
                     phases={phases}
                     onToggleCollapse={toggleSectionCollapse}
+                    onToggleHidden={toggleSectionHidden}
                 />
 
                 {/* Right Column */}
@@ -400,6 +423,7 @@ export default function SectionManager() {
                     onToggleActive={handleToggleActive}
                     phases={phases}
                     onToggleCollapse={toggleSectionCollapse}
+                    onToggleHidden={toggleSectionHidden}
                 />
             </div>
         </div>
@@ -420,9 +444,10 @@ interface SectionColumnProps {
     onToggleActive: (section: Section) => void
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
     onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
+    onToggleHidden: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases, onToggleCollapse }: SectionColumnProps) {
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases, onToggleCollapse, onToggleHidden }: SectionColumnProps) {
     const totalCount = activeSections.length + inactiveSections.length
 
     return (
@@ -457,6 +482,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                             onToggleActive={() => onToggleActive(section)}
                                             phases={phases}
                                             onToggleCollapse={onToggleCollapse}
+                                            onToggleHidden={onToggleHidden}
                                         />
                                     ))}
                                 </div>
@@ -482,6 +508,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                     onToggleActive={() => onToggleActive(section)}
                                     phases={phases}
                                     onToggleCollapse={onToggleCollapse}
+                                    onToggleHidden={onToggleHidden}
                                 />
                             ))}
                         </div>
@@ -501,14 +528,18 @@ interface SortableSectionCardProps {
     onToggleActive: () => void
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
     onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
+    onToggleHidden: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases, onToggleCollapse }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases, onToggleCollapse, onToggleHidden }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
     const isInactive = !section.active
     const [showCollapse, setShowCollapse] = useState(false)
+    const [showHidden, setShowHidden] = useState(false)
     const collapsePhases = section.collapse_on_phases || []
     const hasCollapseRules = collapsePhases.length > 0
+    const hiddenPhases = section.hidden_on_phases || []
+    const hasHiddenRules = hiddenPhases.length > 0
 
     const {
         attributes,
@@ -589,7 +620,7 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                 {/* Collapse Rules Toggle */}
                 {!isHardcoded && !isInactive && (
                     <button
-                        onClick={() => setShowCollapse(prev => !prev)}
+                        onClick={() => { setShowCollapse(prev => !prev); setShowHidden(false) }}
                         className={cn(
                             "p-1.5 rounded transition-colors",
                             hasCollapseRules || showCollapse
@@ -599,6 +630,21 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                         title="Auto-recolher por fase"
                     >
                         <FoldVertical className="w-4 h-4" />
+                    </button>
+                )}
+                {/* Hidden Rules Toggle */}
+                {!isHardcoded && !isInactive && (
+                    <button
+                        onClick={() => { setShowHidden(prev => !prev); setShowCollapse(false) }}
+                        className={cn(
+                            "p-1.5 rounded transition-colors",
+                            hasHiddenRules || showHidden
+                                ? "text-red-600 bg-red-50 hover:bg-red-100"
+                                : "text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                        )}
+                        title="Ocultar completamente por fase do time"
+                    >
+                        <EyeOff className="w-4 h-4" />
                     </button>
                 )}
                 {/* Visibility Toggle */}
@@ -650,6 +696,32 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                                         isCollapsed
                                             ? "bg-amber-100 text-amber-700 border-amber-300"
                                             : "bg-muted/50 text-muted-foreground border-border hover:border-amber-300 hover:text-amber-600"
+                                    )}
+                                >
+                                    {phase.name}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Hidden Rules Panel */}
+            {showHidden && (
+                <div className="w-full border-t border-border pt-2 mt-1">
+                    <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Ocultar completamente para times da fase:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {phases.map(phase => {
+                            const isHiddenForPhase = hiddenPhases.includes(phase.slug || '')
+                            return (
+                                <button
+                                    key={phase.id}
+                                    onClick={() => onToggleHidden(section.id, phase.slug)}
+                                    className={cn(
+                                        "px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
+                                        isHiddenForPhase
+                                            ? "bg-red-100 text-red-700 border-red-300"
+                                            : "bg-muted/50 text-muted-foreground border-border hover:border-red-300 hover:text-red-600"
                                     )}
                                 >
                                     {phase.name}

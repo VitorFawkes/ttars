@@ -16,6 +16,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
+import { useMyTeamPhase } from '../../hooks/useMyTeamPhase'
+import { useAuth } from '../../contexts/AuthContext'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -462,13 +464,25 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
     const produto = (card as any).produto as string | undefined
     const { data: sections = [], isLoading } = useSections(produto || 'TRIPS')
 
+    // User's team phase for hidden_on_phases filtering (hides by VIEWER, not by card stage)
+    const { data: myPhase } = useMyTeamPhase()
+    const { profile } = useAuth()
+    const isAdmin = profile?.is_admin === true
+    const myPhaseSlug = myPhase?.slug as string | undefined
+
     const positionedSections = useMemo(() => {
         return sections
             .filter(s => s.position === position)
             .filter(s => !excludeKeys.includes(s.key))
             // Render widget-based sections OR non-system custom sections
             .filter(s => s.widget_component || !s.is_system)
-    }, [sections, position, excludeKeys])
+            // Hide sections based on user's team phase (admins see all)
+            .filter(s => {
+                if (isAdmin) return true
+                if (!myPhaseSlug) return true
+                return !(s.hidden_on_phases || []).includes(myPhaseSlug)
+            })
+    }, [sections, position, excludeKeys, isAdmin, myPhaseSlug])
 
     const shouldAutoCollapse = useCallback((section: Section) => {
         if (!phaseSlug) return false
