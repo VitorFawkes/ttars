@@ -63,7 +63,7 @@ export default function SubCardsList({
                 <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-purple-500" />
                     <h3 className="text-sm font-semibold text-gray-900">
-                        Itens da Viagem
+                        Produto Extra da Viagem
                     </h3>
                     {activeSubCards.length > 0 && (
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
@@ -80,7 +80,7 @@ export default function SubCardsList({
                         className="text-xs"
                     >
                         <Plus className="w-3 h-3 mr-1" />
-                        Novo Item
+                        Novo Produto
                     </Button>
                 )}
             </div>
@@ -202,11 +202,11 @@ export default function SubCardsList({
                 <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                     <Package className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                     <p className="text-sm text-gray-500">
-                        Nenhum item adicional
+                        Nenhum produto extra
                     </p>
                     {canCreate && (
                         <p className="text-xs text-gray-400 mt-1">
-                            Adicione quando o cliente solicitar algo novo
+                            Adicione quando o cliente solicitar um produto extra
                         </p>
                     )}
                 </div>
@@ -311,13 +311,13 @@ function SubCardItem({
 
                     <button
                         onClick={() => {
-                            if (confirm('Tem certeza que deseja cancelar este item?')) {
+                            if (confirm('Tem certeza que deseja cancelar este produto?')) {
                                 onCancel('Cancelado pelo usuário')
                             }
                         }}
                         disabled={isCancelling}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
-                        title="Cancelar item"
+                        title="Cancelar produto"
                     >
                         <XCircle className="w-4 h-4" />
                     </button>

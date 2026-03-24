@@ -91,17 +91,26 @@ export function usePipelineListCards({
             // Smart View Filters
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE' && session?.user?.id) {
+                    // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda OU assistente
+                    const ownerConditions = [
+                        `dono_atual_id.eq.${session.user.id}`,
+                        `sdr_owner_id.eq.${session.user.id}`,
+                        `vendas_owner_id.eq.${session.user.id}`,
+                        `pos_owner_id.eq.${session.user.id}`,
+                    ]
                     if (myAssistCardIds && myAssistCardIds.length > 0) {
-                        query = query.or(`dono_atual_id.eq.${session.user.id},id.in.(${myAssistCardIds.join(',')})`)
-                    } else {
-                        query = query.eq('dono_atual_id', session.user.id)
+                        ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
                     }
+                    query = query.or(ownerConditions.join(','))
                 }
             } else if (viewMode === 'MANAGER') {
                 if (subView === 'TEAM_VIEW') {
                     // Filter by team members if user has a team; no team = belongs to all teams
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
-                        query = query.in('dono_atual_id', myTeamMembers)
+                        const memberList = myTeamMembers.join(',')
+                        query = query.or(
+                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                        )
                     }
                     // !hasTeam → no filter applied (show all)
                 }
@@ -161,7 +170,10 @@ export function usePipelineListCards({
             // Team Filter — resolve teamIds para member IDs via RPC server-side
             if ((filters.teamIds?.length ?? 0) > 0 && filteredTeamMembers !== undefined) {
                 if (filteredTeamMembers.length > 0) {
-                    query = query.in('dono_atual_id', filteredTeamMembers)
+                    const memberList = filteredTeamMembers.join(',')
+                    query = query.or(
+                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                    )
                 } else {
                     // Time sem membros ativos — forçar zero resultados
                     query = query.in('dono_atual_id', ['00000000-0000-0000-0000-000000000000'])
@@ -211,11 +223,19 @@ export function usePipelineListCards({
             query = query.is('archived_at', null)
 
             // Phase Filter — filtrar por stages da fase selecionada
-            if (phaseStageIds && phaseStageIds.length > 0) {
-                query = query.in('pipeline_stage_id', phaseStageIds)
-            } else if (phaseStageIds !== undefined && phaseStageIds.length === 0) {
-                // Fase sem stages — forçar zero resultados
-                query = query.in('pipeline_stage_id', ['00000000-0000-0000-0000-000000000000'])
+            // Em MY_QUEUE, o filtro de ownership já scopa os cards — não restringir por fase
+            // para que cards de outras fases onde o usuário é SDR/Planner/Pós-Venda apareçam
+            // Em views com filtro de ownership (MY_QUEUE, TEAM_VIEW), não restringir por fase
+            // para que cards cross-phase onde o usuário/time tem role apareçam
+            const skipPhaseFilter = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+                (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
+            if (!skipPhaseFilter) {
+                if (phaseStageIds && phaseStageIds.length > 0) {
+                    query = query.in('pipeline_stage_id', phaseStageIds)
+                } else if (phaseStageIds !== undefined && phaseStageIds.length === 0) {
+                    // Fase sem stages — forçar zero resultados
+                    query = query.in('pipeline_stage_id', ['00000000-0000-0000-0000-000000000000'])
+                }
             }
 
             // Exclude group parents

@@ -72,12 +72,17 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
                     if (session?.user?.id) {
+                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda OU assistente
+                        const ownerConditions = [
+                            `dono_atual_id.eq.${session.user.id}`,
+                            `sdr_owner_id.eq.${session.user.id}`,
+                            `vendas_owner_id.eq.${session.user.id}`,
+                            `pos_owner_id.eq.${session.user.id}`,
+                        ]
                         if (myAssistCardIds && myAssistCardIds.length > 0) {
-                            // Minha Fila + Assistidos: cards onde sou dono OU sou assistente
-                            query = query.or(`dono_atual_id.eq.${session.user.id},id.in.(${myAssistCardIds.join(',')})`)
-                        } else {
-                            query = query.eq('dono_atual_id', session.user.id)
+                            ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
                         }
+                        query = query.or(ownerConditions.join(','))
                     }
                 }
                 // 'ATTENTION' logic would go here (e.g. overdue)
@@ -85,7 +90,10 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 if (subView === 'TEAM_VIEW') {
                     // Filter by team members if user has a team; no team = belongs to all teams
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
-                        query = query.in('dono_atual_id', myTeamMembers)
+                        const memberList = myTeamMembers.join(',')
+                        query = query.or(
+                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                        )
                     }
                     // !hasTeam → no filter applied (show all, same as belonging to all teams)
                 }
@@ -151,7 +159,10 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             // Team Filter — resolve teamIds para member IDs via RPC server-side
             if ((filters.teamIds?.length ?? 0) > 0 && filteredTeamMembers !== undefined) {
                 if (filteredTeamMembers.length > 0) {
-                    query = query.in('dono_atual_id', filteredTeamMembers)
+                    const memberList = filteredTeamMembers.join(',')
+                    query = query.or(
+                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                    )
                 } else {
                     // Time sem membros ativos — forçar zero resultados
                     query = query.in('dono_atual_id', ['00000000-0000-0000-0000-000000000000'])
@@ -240,6 +251,26 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     if (total === 0) return filters.docStatus!.includes('sem_documentos')
                     if (completed >= total) return filters.docStatus!.includes('completo')
                     return filters.docStatus!.includes('pendente')
+                })
+            }
+
+            // Task Status Filter (client-side — usa proxima_tarefa JSON da view)
+            if ((filters.taskStatus?.length ?? 0) > 0) {
+                const now = new Date()
+                now.setHours(0, 0, 0, 0)
+                filteredData = filteredData.filter(card => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const tarefa = card.proxima_tarefa as any
+                    if (!tarefa || !tarefa.data_vencimento) {
+                        return filters.taskStatus!.includes('sem_tarefa')
+                    }
+                    const due = new Date(tarefa.data_vencimento)
+                    due.setHours(0, 0, 0, 0)
+                    const isToday = due.getTime() === now.getTime()
+                    const isOverdue = due < now
+                    if (isOverdue) return filters.taskStatus!.includes('atrasada')
+                    if (isToday) return filters.taskStatus!.includes('para_hoje')
+                    return filters.taskStatus!.includes('em_dia')
                 })
             }
 

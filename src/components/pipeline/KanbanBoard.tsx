@@ -569,14 +569,14 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         if (!filters.phaseFilters?.length) return [...phases]
         const visiblePhaseIds = new Set(filters.phaseFilters)
 
-        // Incluir fases dos cards assistidos (mesmo fora da visibilidade padrão)
-        if (viewMode === 'AGENT' && subView === 'MY_QUEUE' && myAssistCardIds?.length) {
-            const assistSet = new Set(myAssistCardIds)
+        // Incluir fases de TODOS os cards retornados na query (mesmo fora da visibilidade padrão)
+        // Isso garante que cards onde sou SDR, Planner, Pós-Venda ou assistente apareçam
+        const isOwnershipScoped = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+            (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
+        if (isOwnershipScoped) {
             for (const card of allCards) {
-                if (card.id && assistSet.has(card.id)) {
-                    const stage = stages?.find(s => s.id === card.pipeline_stage_id)
-                    if (stage?.phase_id) visiblePhaseIds.add(stage.phase_id)
-                }
+                const stage = stages?.find(s => s.id === card.pipeline_stage_id)
+                if (stage?.phase_id) visiblePhaseIds.add(stage.phase_id)
             }
         }
 

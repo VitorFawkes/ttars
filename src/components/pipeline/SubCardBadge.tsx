@@ -11,7 +11,7 @@ interface SubCardBadgeProps {
 }
 
 /**
- * Badge to indicate sub-card (item da viagem) status
+ * Badge to indicate sub-card (produto extra da viagem) status
  *
  * - Purple: active item
  * - Shows count of active sub-cards on parent cards
@@ -35,7 +35,7 @@ export default function SubCardBadge({
                     isSmall ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
                     'bg-purple-100 text-purple-700 border border-purple-200'
                 )}
-                title={`${activeCount} item(ns) da viagem`}
+                title={`${activeCount} produto(s) extra da viagem`}
             >
                 <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
                 {activeCount}
@@ -52,7 +52,7 @@ export default function SubCardBadge({
                     isSmall ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
                     'bg-green-100 text-green-700 border border-green-200'
                 )}
-                title="Item concluído"
+                title="Produto concluído"
             >
                 <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
                 Concluído
@@ -68,7 +68,7 @@ export default function SubCardBadge({
                     isSmall ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
                     'bg-gray-100 text-gray-500 border border-gray-200'
                 )}
-                title="Item cancelado"
+                title="Produto cancelado"
             >
                 <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
                 Cancelado
@@ -86,10 +86,10 @@ export default function SubCardBadge({
                 onClick && 'cursor-pointer hover:opacity-80'
             )}
             onClick={onClick}
-            title="Item da viagem"
+            title="Produto extra da viagem"
         >
             <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
-            <span>Item</span>
+            <span>Produto</span>
         </div>
     )
 }
@@ -114,7 +114,7 @@ export function SubCardParentBanner({
                     <GitBranch className="w-4 h-4 text-purple-600" />
                 </div>
                 <div>
-                    <p className="text-xs text-gray-500">Este é um item adicional de:</p>
+                    <p className="text-xs text-gray-500">Este é um produto extra de:</p>
                     <p className="text-sm font-medium text-purple-700">
                         {parentTitle}
                     </p>

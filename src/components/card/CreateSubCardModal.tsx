@@ -70,7 +70,7 @@ export default function CreateSubCardModal({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl text-gray-900">
                         <Package className="w-5 h-5 text-purple-500" />
-                        Novo Item da Viagem
+                        Novo Produto Extra da Viagem
                     </DialogTitle>
                     <p className="text-sm text-gray-500 mt-1">
                         Vinculado a: <span className="font-medium text-gray-700">{parentTitle}</span>
@@ -81,7 +81,7 @@ export default function CreateSubCardModal({
                     {/* Info Box */}
                     <div className="p-3 rounded-lg text-sm bg-purple-50 text-purple-800 border border-purple-200">
                         <p>
-                            O item será criado como um novo card no Planner.
+                            O produto será criado como um novo card no Planner.
                             O valor será agregado ao card principal automaticamente quando entrar em Pós-venda.
                         </p>
                     </div>
@@ -131,7 +131,7 @@ export default function CreateSubCardModal({
                         disabled={isCreating}
                         className="text-white bg-purple-600 hover:bg-purple-700"
                     >
-                        {isCreating ? 'Criando...' : 'Criar Item'}
+                        {isCreating ? 'Criando...' : 'Criar Produto'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
