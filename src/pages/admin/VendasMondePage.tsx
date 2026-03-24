@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, ExternalLink, Clock, ChevronDown, ChevronRight,
-    XCircle, Package, User as UserIcon, Download,
+    XCircle, Package, User as UserIcon, Download, Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -21,6 +21,7 @@ interface CsvRow {
     produto: string
     valorTotal: number
     receita: number
+    passageiros: string[]
 }
 
 interface MatchedCard {
@@ -85,6 +86,7 @@ const VENDA_COLUMN_ALIASES = ['venda n', 'venda no', 'n venda', 'venda_num', 've
 const PRODUTO_ALIASES = ['produto', 'product', 'nome produto']
 const VALOR_TOTAL_ALIASES = ['valor total', 'total', 'valortotal', 'vl total']
 const RECEITA_ALIASES = ['receitas', 'receita', 'revenue']
+const PASSAGEIRO_ALIASES = ['passageiros', 'passageiro', 'passengers', 'pax', 'nomes passageiros']
 
 function findColumn(headers: string[], aliases: string[]): string | null {
     const normalized = headers.map(h => norm(h))
@@ -299,6 +301,7 @@ export default function VendasMondePage() {
                 const produtoCol = findColumn(headers, PRODUTO_ALIASES)
                 const valorCol = findColumn(headers, VALOR_TOTAL_ALIASES)
                 const receitaCol = findColumn(headers, RECEITA_ALIASES)
+                const passageiroCol = findColumn(headers, PASSAGEIRO_ALIASES)
 
                 if (!vendaCol) { toast.error('Coluna "Venda Nº" não encontrada'); return }
                 if (!produtoCol) { toast.error('Coluna "Produto" não encontrada'); return }
@@ -311,6 +314,9 @@ export default function VendasMondePage() {
                         produto: String(row[produtoCol] || '').trim(),
                         valorTotal: parseBRNumber(row[valorCol]),
                         receita: receitaCol ? parseBRNumber(row[receitaCol]) : 0,
+                        passageiros: passageiroCol
+                            ? String(row[passageiroCol] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean)
+                            : [],
                     }))
 
                 if (rows.length === 0) { toast.error('Nenhuma linha válida encontrada'); return }
@@ -429,10 +435,33 @@ export default function VendasMondePage() {
                 }))
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error: insertError } = await (supabase.from('card_financial_items') as any)
+                const { data: insertedItems, error: insertError } = await (supabase.from('card_financial_items') as any)
                     .insert(inserts)
+                    .select('id')
 
                 if (insertError) throw insertError
+
+                // Inserir passageiros por produto
+                const passengerRows: Array<{ financial_item_id: string; card_id: string; nome: string; ordem: number }> = []
+                if (insertedItems) {
+                    for (let j = 0; j < card.products.length; j++) {
+                        const product = card.products[j]
+                        const itemId = insertedItems[j]?.id
+                        if (!itemId || product.passageiros.length === 0) continue
+                        product.passageiros.forEach((nome: string, idx: number) => {
+                            passengerRows.push({
+                                financial_item_id: itemId,
+                                card_id: card.cardId,
+                                nome,
+                                ordem: idx,
+                            })
+                        })
+                    }
+                }
+                if (passengerRows.length > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any).from('financial_item_passengers').insert(passengerRows)
+                }
 
                 await supabase.rpc('recalcular_financeiro_manual', { p_card_id: card.cardId })
 
@@ -533,13 +562,13 @@ export default function VendasMondePage() {
                             <button
                                 onClick={() => {
                                     const csv = [
-                                        'Venda Nº,Produto,Valor Total,Receitas',
-                                        '99001,Hotel Grand Hyatt Cancún (5 noites),"R$ 12.500,00","R$ 2.100,00"',
-                                        '99001,Aéreo GRU-CUN-GRU (LATAM),"R$ 8.750,00","R$ 1.300,00"',
-                                        '99001,Transfer Aeroporto-Hotel,"R$ 950,00","R$ 180,00"',
-                                        '99001,Passeio Isla Mujeres,"R$ 1.200,00","R$ 250,00"',
-                                        '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00"',
-                                        '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00"',
+                                        'Venda Nº,Produto,Valor Total,Receitas,Passageiros',
+                                        '99001,Hotel Grand Hyatt Cancún (5 noites),"R$ 12.500,00","R$ 2.100,00","João Silva, Maria Santos"',
+                                        '99001,Aéreo GRU-CUN-GRU (LATAM),"R$ 8.750,00","R$ 1.300,00","João Silva, Maria Santos"',
+                                        '99001,Transfer Aeroporto-Hotel,"R$ 950,00","R$ 180,00","João Silva, Maria Santos"',
+                                        '99001,Passeio Isla Mujeres,"R$ 1.200,00","R$ 250,00","João Silva"',
+                                        '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00","Ana Costa"',
+                                        '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00","Ana Costa"',
                                     ].join('\n')
                                     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
                                     const url = URL.createObjectURL(blob)
@@ -600,27 +629,39 @@ export default function VendasMondePage() {
                                 ) : matchResult && (
                                     <>
                                         {/* KPI cards */}
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
-                                                <p className="text-2xl font-bold text-emerald-600">{matchResult.matched.length}</p>
-                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Cards encontrados</p>
-                                            </div>
-                                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
-                                                <p className="text-2xl font-bold text-slate-900">
-                                                    {matchResult.matched.reduce((s, m) => s + m.products.length, 0)}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Produtos a importar</p>
-                                            </div>
-                                            <div className={cn(
-                                                "bg-white border rounded-xl shadow-sm p-4 text-center",
-                                                matchResult.unmatched.length > 0 ? "border-amber-200" : "border-slate-200"
-                                            )}>
-                                                <p className={cn("text-2xl font-bold", matchResult.unmatched.length > 0 ? "text-amber-600" : "text-slate-400")}>
-                                                    {matchResult.unmatched.length}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Sem match</p>
-                                            </div>
-                                        </div>
+                                        {(() => {
+                                            const totalPax = new Set(matchResult.matched.flatMap(m => m.products.flatMap(p => p.passageiros))).size
+                                            const hasPax = totalPax > 0
+                                            return (
+                                                <div className={cn("grid gap-3", hasPax ? "grid-cols-4" : "grid-cols-3")}>
+                                                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
+                                                        <p className="text-2xl font-bold text-emerald-600">{matchResult.matched.length}</p>
+                                                        <p className="text-xs text-slate-500 font-medium mt-0.5">Cards encontrados</p>
+                                                    </div>
+                                                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
+                                                        <p className="text-2xl font-bold text-slate-900">
+                                                            {matchResult.matched.reduce((s, m) => s + m.products.length, 0)}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 font-medium mt-0.5">Produtos a importar</p>
+                                                    </div>
+                                                    {hasPax && (
+                                                        <div className="bg-white border border-indigo-200 rounded-xl shadow-sm p-4 text-center">
+                                                            <p className="text-2xl font-bold text-indigo-600">{totalPax}</p>
+                                                            <p className="text-xs text-slate-500 font-medium mt-0.5">Passageiros</p>
+                                                        </div>
+                                                    )}
+                                                    <div className={cn(
+                                                        "bg-white border rounded-xl shadow-sm p-4 text-center",
+                                                        matchResult.unmatched.length > 0 ? "border-amber-200" : "border-slate-200"
+                                                    )}>
+                                                        <p className={cn("text-2xl font-bold", matchResult.unmatched.length > 0 ? "text-amber-600" : "text-slate-400")}>
+                                                            {matchResult.unmatched.length}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 font-medium mt-0.5">Sem match</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
 
                                         {/* Matched cards list */}
                                         {matchResult.matched.length > 0 && (
@@ -639,10 +680,21 @@ export default function VendasMondePage() {
                                                                     <span className="text-xs font-mono text-slate-400">#{card.vendaNum}</span>
                                                                     <span className="text-sm font-medium text-slate-900 truncate">{card.cardTitle}</span>
                                                                 </div>
-                                                                <span className="text-xs text-slate-400 shrink-0 flex items-center gap-1">
-                                                                    <Package className="h-3 w-3" />
-                                                                    {card.products.length}
-                                                                </span>
+                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                                        <Package className="h-3 w-3" />
+                                                                        {card.products.length}
+                                                                    </span>
+                                                                    {(() => {
+                                                                        const paxCount = new Set(card.products.flatMap(p => p.passageiros)).size
+                                                                        return paxCount > 0 ? (
+                                                                            <span className="text-xs text-indigo-500 flex items-center gap-1">
+                                                                                <Users className="h-3 w-3" />
+                                                                                {paxCount}
+                                                                            </span>
+                                                                        ) : null
+                                                                    })()}
+                                                                </div>
                                                             </div>
                                                             <div className="flex items-center gap-4 text-xs text-slate-500">
                                                                 <span>Venda: <span className="font-medium text-slate-700">{formatBRL(card.totalVenda)}</span></span>
