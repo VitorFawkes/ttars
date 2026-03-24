@@ -15,7 +15,6 @@ import { ParentLinkBanner } from '../components/cards/group/ParentLinkBanner'
 import GroupDetailLayout from '../components/cards/group/GroupDetailLayout'
 import LinkToGroupModal from '../components/cards/group/LinkToGroupModal'
 import SubCardsList from '../components/card/SubCardsList'
-import FutureOpportunitySection from '../components/card/FutureOpportunitySection'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
@@ -115,13 +114,6 @@ export default function CardDetail() {
 
     // Determine if we can show sub-cards (itens da viagem) — any phase, not sub-cards or groups
     const showSubCards =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (card as any)?.card_type !== 'sub_card' &&
-        !card?.is_group_parent
-
-    // Show future opportunities section in Planner or Pós-venda (not for sub-cards)
-    const showFutureOpportunities =
-        (stageInfo?.fase === 'Planner' || stageInfo?.fase === 'Pós-venda') &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (card as any)?.card_type !== 'sub_card' &&
         !card?.is_group_parent
@@ -262,18 +254,6 @@ export default function CardDetail() {
                                 })}
                             />
                         </div>
-                    )}
-
-                    {/* Future Opportunities (for cards in Planner or Pós-venda) */}
-                    {showFutureOpportunities && (
-                        <FutureOpportunitySection
-                            cardId={card.id!}
-                            cardTitle={card.titulo || 'Card'}
-                            produto={card.produto}
-                            pipelineId={card.pipeline_id}
-                            responsavelId={card.dono_atual_id}
-                            pessoaPrincipalId={card.pessoa_principal_id}
-                        />
                     )}
 
                     {/* Pessoas — hardcoded */}

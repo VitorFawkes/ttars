@@ -28,6 +28,7 @@ import ObservacoesEstruturadas from './ObservacoesEstruturadas'
 import TripInformation from './TripInformation'
 import WeddingInformation from './WeddingInformation'
 import DocumentCollectionWidget from './documents/DocumentCollectionWidget'
+import FutureOpportunitySection from './FutureOpportunitySection'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -45,6 +46,7 @@ const WIDGET_REGISTRY: Record<string, React.ComponentType<any>> = {
     trip_info: TripInformation,
     wedding_info: WeddingInformation,
     documentos: DocumentCollectionWidget,
+    future_opportunities: FutureOpportunitySection,
 }
 
 // ═══════════════════════════════════════════════════════════

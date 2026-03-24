@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-03-24
 > **Trigger:** ALWAYS ON
-> **Stats:** 119 tabelas | 40 paginas | 81 hooks | 17 views | 401 components
+> **Stats:** 119 tabelas | 40 paginas | 83 hooks | 17 views | 401 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **81 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **83 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -228,6 +228,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useProducts()` | `useProducts.ts` |
 | `usePushNotifications()` | `usePushNotifications.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
+| `useTasksList()` | `useTasksList.ts` |
 | `useTrips()` | `useTrips.ts` |
 
 #### Pipeline & Cards
@@ -255,6 +256,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useStageRequiredFields()` | `useStageRequiredFields.ts` |
 | `useStageRequirements()` | `useStageRequirements.ts` |
 | `useSubCards()` | `useSubCards.ts` |
+| `useTaskFilters()` | `useTaskFilters.ts` |
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
 | `useTripsFilters()` | `useTripsFilters.ts` |
 
