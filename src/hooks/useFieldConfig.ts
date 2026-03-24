@@ -18,6 +18,16 @@ export interface FieldConfigResult {
     options?: Json
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sfc = () => supabase.from('section_field_config' as any)
+
+interface SectionFieldConfigRow {
+    section_key: string
+    field_key: string
+    is_visible: boolean
+    is_required: boolean
+}
+
 export function useFieldConfig() {
     // Fetch System Fields (The Dictionary)
     const { data: systemFields, isLoading: loadingFields } = useQuery({
@@ -35,7 +45,7 @@ export function useFieldConfig() {
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    // Fetch Stage Configs (The Rules)
+    // Fetch Stage Configs (The Rules — per stage)
     const { data: stageConfigs, isLoading: loadingConfigs } = useQuery({
         queryKey: ['stage-field-configs-all'],
         queryFn: async () => {
@@ -47,29 +57,44 @@ export function useFieldConfig() {
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    const isLoading = loadingFields || loadingConfigs
+    // Fetch Section Field Defaults (The Defaults — per section)
+    const { data: sectionFieldConfigs, isLoading: loadingSectionDefaults } = useQuery({
+        queryKey: ['section-field-configs'],
+        queryFn: async () => {
+            const { data, error } = await sfc().select('*')
+            if (error) throw error
+            return data as unknown as SectionFieldConfigRow[]
+        },
+        staleTime: 1000 * 60 * 5 // 5 minutes
+    })
+
+    const isLoading = loadingFields || loadingConfigs || loadingSectionDefaults
 
     // Helper: Get config for a specific field in a stage
+    // Priority: stage_field_config > section_field_config > system defaults (visible, not required)
     const getFieldConfig = useCallback((stageId: string, fieldKey: string): FieldConfigResult | null => {
         if (!systemFields) return null
 
         const field = systemFields.find(f => f.key === fieldKey)
         if (!field) return null
 
-        const config = stageConfigs?.find(c => c.stage_id === stageId && c.field_key === fieldKey)
+        const stageConfig = stageConfigs?.find(c => c.stage_id === stageId && c.field_key === fieldKey)
+        const sectionDefault = sectionFieldConfigs?.find(
+            c => c.section_key === (field.section || 'details') && c.field_key === fieldKey
+        )
 
         return {
             key: field.key,
-            label: config?.custom_label || field.label,
+            label: stageConfig?.custom_label || field.label,
             type: field.type,
             section: field.section || 'details',
-            isVisible: config?.is_visible ?? true, // Default visible
-            isRequired: config?.is_required ?? false,
-            isHeader: config?.show_in_header ?? false,
-            customLabel: config?.custom_label,
+            isVisible: stageConfig?.is_visible ?? sectionDefault?.is_visible ?? true,
+            isRequired: stageConfig?.is_required ?? sectionDefault?.is_required ?? false,
+            isHeader: stageConfig?.show_in_header ?? false,
+            customLabel: stageConfig?.custom_label,
             options: field.options
         }
-    }, [systemFields, stageConfigs])
+    }, [systemFields, stageConfigs, sectionFieldConfigs])
 
     // Helper: Get all visible fields for a stage, optionally filtered by section
     const getVisibleFields = useCallback((stageId: string, section?: string): FieldConfigResult[] => {
@@ -109,13 +134,21 @@ export function useFieldConfig() {
             })
     }, [systemFields, getFieldConfig])
 
+    // Helper: Check if a field has a section-level default
+    const hasSectionDefault = useCallback((sectionKey: string, fieldKey: string): boolean => {
+        if (!sectionFieldConfigs) return false
+        return sectionFieldConfigs.some(c => c.section_key === sectionKey && c.field_key === fieldKey)
+    }, [sectionFieldConfigs])
+
     return {
         isLoading,
         systemFields,
         stageConfigs,
+        sectionFieldConfigs,
         getFieldConfig,
         getVisibleFields,
         getHeaderFields,
-        getRequiredFields
+        getRequiredFields,
+        hasSectionDefault
     }
 }

@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
+import { useFieldConfig } from '../../../hooks/useFieldConfig'
+import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -709,12 +711,197 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
 
             {/* Stage visibility rules — only for active, non-hardcoded sections */}
             {!isHardcoded && !isInactive && (
-                <div className="w-full border-t border-border pt-3 mt-1">
+                <div className="w-full border-t border-border pt-3 mt-1 space-y-3">
                     <StageVisibilityPicker
                         sectionKey={section.key}
                         stages={stages}
                         phases={phases}
                     />
+                    {section.is_governable && (
+                        <SectionFieldDefaultsPicker sectionKey={section.key} />
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Section Field Defaults Picker ────────────────────────────────────────
+// Configure default field visibility/required at section level (applies to all stages).
+// Stage-level overrides in StageInspectorDrawer take precedence.
+
+function SectionFieldDefaultsPicker({ sectionKey }: { sectionKey: string }) {
+    const { toast } = useToast()
+    const { systemFields } = useFieldConfig()
+    const { getSectionDefaults, upsertDefault, deleteDefault } = useSectionFieldConfig()
+    const [open, setOpen] = useState(false)
+
+    const sectionFields = useMemo(() => {
+        if (!systemFields) return []
+        return systemFields.filter(f => (f.section || 'details') === sectionKey)
+    }, [systemFields, sectionKey])
+
+    const defaults = useMemo(() => getSectionDefaults(sectionKey), [getSectionDefaults, sectionKey])
+
+    const hiddenCount = defaults.filter(d => !d.is_visible).length
+    const requiredCount = defaults.filter(d => d.is_required).length
+
+    const getDefault = useCallback((fieldKey: string) => {
+        return defaults.find(d => d.field_key === fieldKey)
+    }, [defaults])
+
+    const handleToggleVisible = useCallback(async (fieldKey: string) => {
+        const current = getDefault(fieldKey)
+        const currentVisible = current?.is_visible ?? true
+        const currentRequired = current?.is_required ?? false
+
+        if (currentVisible && !current) {
+            // Currently system default (visible) → set to hidden
+            try {
+                await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: false, isRequired: currentRequired })
+            } catch {
+                toast({ title: 'Erro ao salvar padrão', type: 'error' })
+            }
+        } else if (!currentVisible) {
+            // Currently hidden → restore to visible
+            if (!currentRequired) {
+                // Both are default values → delete row
+                try {
+                    await deleteDefault.mutateAsync({ sectionKey, fieldKey })
+                } catch {
+                    toast({ title: 'Erro ao salvar padrão', type: 'error' })
+                }
+            } else {
+                try {
+                    await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: true, isRequired: currentRequired })
+                } catch {
+                    toast({ title: 'Erro ao salvar padrão', type: 'error' })
+                }
+            }
+        } else {
+            // Visible with explicit row (has required rule) → toggle to hidden
+            try {
+                await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: false, isRequired: currentRequired })
+            } catch {
+                toast({ title: 'Erro ao salvar padrão', type: 'error' })
+            }
+        }
+    }, [sectionKey, getDefault, upsertDefault, deleteDefault, toast])
+
+    const handleToggleRequired = useCallback(async (fieldKey: string) => {
+        const current = getDefault(fieldKey)
+        const currentVisible = current?.is_visible ?? true
+        const currentRequired = current?.is_required ?? false
+
+        if (!currentRequired && !current) {
+            // No row, currently not required → set to required
+            try {
+                await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: currentVisible, isRequired: true })
+            } catch {
+                toast({ title: 'Erro ao salvar padrão', type: 'error' })
+            }
+        } else if (currentRequired) {
+            // Currently required → unset
+            if (currentVisible) {
+                // Both will be default → delete row
+                try {
+                    await deleteDefault.mutateAsync({ sectionKey, fieldKey })
+                } catch {
+                    toast({ title: 'Erro ao salvar padrão', type: 'error' })
+                }
+            } else {
+                try {
+                    await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: currentVisible, isRequired: false })
+                } catch {
+                    toast({ title: 'Erro ao salvar padrão', type: 'error' })
+                }
+            }
+        } else {
+            // Explicit row, not required → set to required
+            try {
+                await upsertDefault.mutateAsync({ sectionKey, fieldKey, isVisible: currentVisible, isRequired: true })
+            } catch {
+                toast({ title: 'Erro ao salvar padrão', type: 'error' })
+            }
+        }
+    }, [sectionKey, getDefault, upsertDefault, deleteDefault, toast])
+
+    if (sectionFields.length === 0) return null
+
+    const hasRules = hiddenCount > 0 || requiredCount > 0
+    const summaryParts: string[] = []
+    if (hiddenCount > 0) summaryParts.push(`${hiddenCount} oculto(s)`)
+    if (requiredCount > 0) summaryParts.push(`${requiredCount} obrigatório(s)`)
+    const summary = hasRules ? summaryParts.join(', ') : 'todos visíveis'
+
+    return (
+        <div>
+            <button
+                onClick={() => setOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left"
+            >
+                <span className={cn("flex-shrink-0", hasRules ? "text-blue-600" : "text-muted-foreground")}>
+                    <Layers className="w-3.5 h-3.5" />
+                </span>
+                <span className={cn("text-xs font-medium", hasRules ? "text-blue-700" : "text-muted-foreground")}>
+                    Campos padrão
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 truncate">
+                    — {summary}
+                </span>
+                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? "text-blue-700" : "text-muted-foreground/40")}>
+                    {open ? '▲' : '▼'}
+                </span>
+            </button>
+
+            {open && (
+                <div className="mt-2 ml-6 space-y-1">
+                    <p className="text-[10px] text-muted-foreground/60 mb-2">
+                        Defaults para todos os stages. Override por stage no Inspector.
+                    </p>
+                    {sectionFields.map(field => {
+                        const dflt = getDefault(field.key)
+                        const isVisible = dflt?.is_visible ?? true
+                        const isRequired = dflt?.is_required ?? false
+
+                        return (
+                            <div key={field.key} className="flex items-center gap-2 py-1">
+                                <button
+                                    onClick={() => handleToggleVisible(field.key)}
+                                    className={cn(
+                                        "p-1 rounded transition-colors",
+                                        isVisible
+                                            ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                            : "text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    )}
+                                    title={isVisible ? "Visível (clique para ocultar)" : "Oculto (clique para mostrar)"}
+                                >
+                                    {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                    onClick={() => handleToggleRequired(field.key)}
+                                    className={cn(
+                                        "p-1 rounded transition-colors",
+                                        isRequired
+                                            ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                            : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                    )}
+                                    title={isRequired ? "Obrigatório (clique para remover)" : "Não obrigatório (clique para tornar)"}
+                                >
+                                    {isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                                </button>
+                                <span className={cn(
+                                    "text-xs truncate",
+                                    !isVisible ? "text-muted-foreground line-through" : "text-foreground"
+                                )}>
+                                    {field.label}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground/40 font-mono truncate">
+                                    {field.key}
+                                </span>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>

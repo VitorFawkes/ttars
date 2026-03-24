@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check } from 'lucide-react';
+import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check, Layers } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
 import { useProductContext } from '../../../hooks/useProductContext';
 import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants';
 import { useSections } from '../../../hooks/useSections';
+import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig';
 import type { Database } from '../../../database.types';
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row'];
@@ -38,6 +39,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
 
     // Sections for the current product — used to filter which fields to show
     const { data: productSections = [] } = useSections(currentProduct);
+    const { getFieldDefault } = useSectionFieldConfig();
 
     // --- Data Fetching ---
     const { data: allFields } = useQuery({
@@ -362,23 +364,44 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
 
                             {fields?.map(field => {
                                 const config = getConfig(field.key);
-                                const isVisible = config?.is_visible ?? true;
-                                const isRequired = config?.is_required ?? false;
+                                const sectionDefault = getFieldDefault(field.section || 'details', field.key);
+                                const hasStageOverride = !!config;
+                                const isVisible = config?.is_visible ?? sectionDefault?.isVisible ?? true;
+                                const isRequired = config?.is_required ?? sectionDefault?.isRequired ?? false;
+                                const isInherited = !hasStageOverride && !!sectionDefault;
 
                                 return (
-                                    <div key={field.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900">{field.label}</p>
-                                            <p className="text-xs text-gray-400">{field.section}</p>
+                                    <div key={field.key} className={cn(
+                                        "flex items-center justify-between p-3 rounded-lg border",
+                                        isInherited ? "bg-blue-50/50 border-blue-100" : "bg-gray-50 border-gray-100"
+                                    )}>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium text-gray-900">{field.label}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs text-gray-400">{field.section}</p>
+                                                    {sectionDefault && (
+                                                        <span
+                                                            className="inline-flex items-center gap-0.5 text-[10px] text-blue-500"
+                                                            title={`Padrão da seção: ${sectionDefault.isVisible ? 'visível' : 'oculto'}${sectionDefault.isRequired ? ', obrigatório' : ''}`}
+                                                        >
+                                                            <Layers className="w-3 h-3" />
+                                                            {isInherited && 'herdado'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => handleToggle(field.key, 'visible')}
                                                 className={cn(
                                                     "p-1.5 rounded transition-colors",
-                                                    isVisible ? "text-blue-600 bg-blue-50" : "text-gray-300 hover:bg-gray-200"
+                                                    isVisible
+                                                        ? isInherited ? "text-blue-400 bg-blue-50" : "text-blue-600 bg-blue-50"
+                                                        : "text-gray-300 hover:bg-gray-200"
                                                 )}
-                                                title="Visível"
+                                                title={isInherited ? "Herdado da seção (clique para override)" : "Visível"}
                                             >
                                                 {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                             </button>
@@ -386,9 +409,11 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                                 onClick={() => handleToggle(field.key, 'required')}
                                                 className={cn(
                                                     "p-1.5 rounded transition-colors",
-                                                    isRequired ? "text-red-600 bg-red-50" : "text-gray-300 hover:bg-gray-200"
+                                                    isRequired
+                                                        ? isInherited ? "text-red-400 bg-red-50" : "text-red-600 bg-red-50"
+                                                        : "text-gray-300 hover:bg-gray-200"
                                                 )}
-                                                title="Obrigatório"
+                                                title={isInherited ? "Herdado da seção (clique para override)" : "Obrigatório"}
                                             >
                                                 {isRequired ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                                             </button>

@@ -91,6 +91,10 @@ test_query "pipeline_stages + phases join" \
 test_query "stage_section_config" \
   "stage_section_config?select=id,stage_id,section_key,is_visible&limit=1"
 
+# Section field config — defaults de campos por seção (useSectionFieldConfig.ts)
+test_query "section_field_config" \
+  "section_field_config?select=id,section_key,field_key,is_visible,is_required&limit=1"
+
 # Dashboard reuniões (TodayMeetingsWidget.tsx)
 test_query "tarefas (deleted_at + reunião)" \
   "tarefas?select=id,titulo,data_vencimento,deleted_at,tipo,concluida&limit=1"
