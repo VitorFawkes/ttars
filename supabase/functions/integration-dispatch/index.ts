@@ -499,9 +499,87 @@ Deno.serve(async (req) => {
 
                 case 'lost': {
                     endpoint = `/api/3/deals/${event.external_id}`;
+
+                    // AC automation "[WW] [WT] [CRM] Perdidos sem motivo" (ID 90)
+                    // reverts deals to Open if no loss reason field is filled.
+                    // We must send the motivo de perda alongside status=2.
+                    const lostPayload = event.payload as { motivo_perda?: string };
+                    const lossFields: Array<{ customFieldId: number; fieldValue: string }> = [];
+
+                    if (lostPayload.motivo_perda && lostPayload.motivo_perda !== 'null') {
+                        // Lookup CRM loss reason name
+                        const { data: motivoRow } = await supabase
+                            .from('motivos_perda')
+                            .select('nome')
+                            .eq('id', lostPayload.motivo_perda)
+                            .single();
+
+                        const motivoNome = motivoRow?.nome || '';
+
+                        if (motivoNome) {
+                            // Map CRM motivo → AC field options
+                            // Field 2:  "Motivo de perda" (generic WW)
+                            // Field 56: "SDR WT - Motivo de Perda"
+                            // Field 59: "VND WT - Motivo de Perda"
+                            const mapField2: Record<string, string> = {
+                                'Sem resposta (Ghosting)': 'Sem Interesse',
+                                'Oportunidade Futura': 'Oportunidade futura (casamento para mais de 2 anos)',
+                                'Preço': 'Orçamento não condiz com o número de convidados/destino',
+                                'Concorrência': 'Já tem a viagem contratada',
+                                'Desistência / Sem interesse': 'Sem Interesse',
+                                'Produto não atende': 'Quer destino que não fazemos',
+                                'Outro': 'Sem Interesse',
+                                'Perdido via ActiveCampaign': 'Sem Interesse',
+                            };
+                            const mapField56: Record<string, string> = {
+                                'Sem resposta (Ghosting)': 'Não respondeu',
+                                'Oportunidade Futura': 'Oportunidade Futura',
+                                'Preço': 'Orçamento Baixo',
+                                'Concorrência': 'Lead fechou por fora',
+                                'Desistência / Sem interesse': 'Lead sem fit',
+                                'Produto não atende': 'Lead sem fit',
+                                'Outro': 'Não respondeu',
+                                'Perdido via ActiveCampaign': 'Não respondeu',
+                            };
+                            const mapField59: Record<string, string> = {
+                                'Sem resposta (Ghosting)': 'Não respondeu',
+                                'Oportunidade Futura': 'Contato Futuro',
+                                'Preço': 'Não concordou com os valores',
+                                'Concorrência': 'Fechou com concorrente',
+                                'Desistência / Sem interesse': 'Sem feat',
+                                'Produto não atende': 'Sem feat',
+                                'Outro': 'Não respondeu',
+                                'Perdido via ActiveCampaign': 'Não respondeu',
+                            };
+
+                            // Fill all 3 motivo fields to cover any AC pipeline
+                            if (mapField2[motivoNome]) {
+                                lossFields.push({ customFieldId: 2, fieldValue: mapField2[motivoNome] });
+                            }
+                            if (mapField56[motivoNome]) {
+                                lossFields.push({ customFieldId: 56, fieldValue: mapField56[motivoNome] });
+                            }
+                            if (mapField59[motivoNome]) {
+                                lossFields.push({ customFieldId: 59, fieldValue: mapField59[motivoNome] });
+                            }
+
+                            console.log(`[integration-dispatch] Lost: motivo "${motivoNome}" → ${lossFields.length} AC fields`);
+                        }
+                    }
+
+                    // Fallback: if no motivo was mapped, send a generic value
+                    // to prevent AC automation 90 from reverting the deal to Open
+                    if (lossFields.length === 0) {
+                        lossFields.push({ customFieldId: 2, fieldValue: 'Sem Interesse' });
+                        lossFields.push({ customFieldId: 56, fieldValue: 'Não respondeu' });
+                        lossFields.push({ customFieldId: 59, fieldValue: 'Não respondeu' });
+                        console.log(`[integration-dispatch] Lost: no motivo provided, using fallback values`);
+                    }
+
                     body = {
                         deal: {
-                            status: 2 // 2 = Lost in ActiveCampaign
+                            status: 2, // 2 = Lost in ActiveCampaign
+                            ...(lossFields.length > 0 ? { fields: lossFields } : {}),
                         }
                     };
                     console.log(`[integration-dispatch] Lost: Deal ${event.external_id}`);
