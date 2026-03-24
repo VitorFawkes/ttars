@@ -524,7 +524,7 @@ export default function VendasMondePage() {
             console.error('Erro ao ler arquivo:', err)
             toast.error('Erro ao ler o arquivo')
         }
-    }, [processWorkbook])
+    }, [processRows])
 
     // ─── Matching ────────────────────────────────────────────
     const matchCards = async (rows: CsvRow[]) => {
