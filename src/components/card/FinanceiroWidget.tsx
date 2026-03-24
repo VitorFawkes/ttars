@@ -1,10 +1,13 @@
 import { useState, useRef } from 'react'
-import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare } from 'lucide-react'
+import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useProductRequirements } from '@/hooks/useProductRequirements'
+import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -175,10 +178,17 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
     const [newItemTitle, setNewItemTitle] = useState('')
     const [editingNotes, setEditingNotes] = useState(false)
     const [notesValue, setNotesValue] = useState(item.notes || '')
+    const [newPassengerName, setNewPassengerName] = useState('')
 
     const { byProduct, progressByProduct, addRequirement, toggleStatus, updateRequirement, deleteRequirement, uploadFile } = useProductRequirements(cardId)
     const reqs = byProduct(item.id)
     const progress = progressByProduct(item.id)
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { byProduct: passengersByProduct, progressByProduct: paxProgressByProduct, addPassenger, toggleStatus: togglePaxStatus, updateObservation, deletePassenger } = useFinancialItemPassengers(cardId)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const passengers = passengersByProduct(item.id)
+    const paxProgress = paxProgressByProduct(item.id)
 
     const sv = Number(item.sale_value) || 0
     const sc = Number(item.supplier_cost) || 0
@@ -216,6 +226,13 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
         if (!newItemTitle.trim()) return
         addRequirement.mutate({ financialItemId: item.id, titulo: newItemTitle.trim() })
         setNewItemTitle('')
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const handleAddPassenger = () => {
+        if (!newPassengerName.trim()) return
+        addPassenger.mutate({ financialItemId: item.id, nome: newPassengerName.trim() })
+        setNewPassengerName('')
     }
 
     return (
@@ -257,7 +274,7 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         </div>
                     </div>
 
-                    {/* Progress badge */}
+                    {/* Progress badges */}
                     {progress.total > 0 && (
                         <span className={cn(
                             "text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0",
@@ -266,6 +283,17 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                                 : "bg-gray-100 text-gray-500"
                         )}>
                             {progress.completed}/{progress.total}
+                        </span>
+                    )}
+                    {paxProgress.total > 0 && (
+                        <span className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-0.5",
+                            paxProgress.completed === paxProgress.total
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-indigo-50 text-indigo-500"
+                        )}>
+                            <Users className="h-2.5 w-2.5" />
+                            {paxProgress.completed}/{paxProgress.total}
                         </span>
                     )}
                 </div>
