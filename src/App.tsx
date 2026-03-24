@@ -28,6 +28,7 @@ import RetentionView from './components/analytics/views/RetentionView'
 import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
+import Tasks from './pages/Tasks'
 
 
 import ProposalReview from './pages/public/ProposalReview'
@@ -143,6 +144,7 @@ function App() {
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />}>

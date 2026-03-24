@@ -46,7 +46,8 @@ export function ActiveFilters() {
         filters.creationStartDate ||
         filters.creationEndDate ||
         filters.docStatus?.length ||
-        filters.milestones?.length
+        filters.milestones?.length ||
+        filters.taskStatus?.length
     )
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic filter removal needs flexible typing
@@ -141,6 +142,12 @@ export function ActiveFilters() {
                 {filters.docStatus?.map(status => (
                     <Chip key={`doc-${status}`} label={`Docs: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
                 ))}
+
+                {/* Task Status */}
+                {filters.taskStatus?.map(status => {
+                    const labels: Record<string, string> = { atrasada: 'Atrasada', para_hoje: 'Para Hoje', em_dia: 'Em Dia', sem_tarefa: 'Sem Tarefa' }
+                    return <Chip key={`task-${status}`} label={`Tarefa: ${labels[status] || status}`} onRemove={() => removeFilter('taskStatus', status)} />
+                })}
 
                 {/* Tags */}
                 {filters.noTag && (

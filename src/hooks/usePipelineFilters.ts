@@ -29,6 +29,7 @@ export interface FilterState {
     tagIds?: string[]
     noTag?: boolean
     milestones?: string[] // Marcos do funil: 'ganho_sdr' | 'ganho_planner' | 'ganho_pos'
+    taskStatus?: string[] // 'atrasada' | 'para_hoje' | 'em_dia' | 'sem_tarefa'
 }
 
 export interface GroupFilters {

@@ -231,23 +231,25 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 }
 
                 const taskData = card.proxima_tarefa as any
-                const dueDate = new Date(taskData.data_vencimento)
-                const now = new Date()
-                const isLateTask = dueDate < now
-                const isToday = dueDate.toDateString() === now.toDateString()
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const due = new Date(taskData.data_vencimento)
+                due.setHours(0, 0, 0, 0)
+                const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
-                if (isLateTask) {
+                if (diffDays < 0) {
+                    const absDays = Math.abs(diffDays)
                     return (
                         <div key={fieldId} className="mt-2">
                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-red-50 text-red-700 border border-red-100 w-full justify-center animate-pulse">
                                 <AlertCircle className="w-3 h-3" />
-                                Atrasada
+                                Atrasada {absDays} {absDays === 1 ? 'dia' : 'dias'}
                             </span>
                         </div>
                     )
                 }
 
-                if (isToday) {
+                if (diffDays === 0) {
                     return (
                         <div key={fieldId} className="mt-2">
                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 w-full justify-center">
@@ -258,11 +260,22 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                     )
                 }
 
+                if (diffDays === 1) {
+                    return (
+                        <div key={fieldId} className="mt-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 w-full justify-center">
+                                <CheckSquare className="w-3 h-3" />
+                                Amanha
+                            </span>
+                        </div>
+                    )
+                }
+
                 return (
                     <div key={fieldId} className="mt-2">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 w-full justify-center">
                             <CheckSquare className="w-3 h-3" />
-                            Em Dia
+                            Em {diffDays} dias
                         </span>
                     </div>
                 )
