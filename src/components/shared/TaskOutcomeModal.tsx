@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { CheckCircle2, XCircle, Phone, MessageSquare } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '../../lib/supabase'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
+import { useTaskOutcomes } from '../../hooks/useTaskOutcomes'
 import type { Database } from '../../database.types'
 
 type TaskOutcome = Database['public']['Tables']['task_type_outcomes']['Row']
@@ -20,30 +19,25 @@ interface TaskOutcomeModalProps {
 export function TaskOutcomeModal({ open, onOpenChange, taskTipo, onConfirm }: TaskOutcomeModalProps) {
     const [outcomeResult, setOutcomeResult] = useState('')
     const [outcomeFeedback, setOutcomeFeedback] = useState('')
+    const [lastOpenState, setLastOpenState] = useState(false)
 
-    const { data: outcomes } = useQuery({
-        queryKey: ['task-outcomes'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('task_type_outcomes')
-                .select('*')
-                .order('ordem')
-            if (error) throw error
-            return data
-        },
-        staleTime: 1000 * 60 * 10,
-    })
+    const { data: outcomes } = useTaskOutcomes()
 
-    // Set default outcome when opening
-    useEffect(() => {
-        if (open && outcomes) {
-            const filtered = outcomes.filter(o => o.tipo === taskTipo)
-            if (filtered.length > 0) {
-                setOutcomeResult(filtered[0].outcome_key)
-            }
-            setOutcomeFeedback('')
-        }
-    }, [open, outcomes, taskTipo])
+    // Reset state when modal opens (without useEffect + setState)
+    const defaultOutcome = useMemo(() => {
+        if (!outcomes) return ''
+        const filtered = outcomes.filter(o => o.tipo === taskTipo)
+        return filtered.length > 0 ? filtered[0].outcome_key : ''
+    }, [outcomes, taskTipo])
+
+    // Detect open transition and reset
+    if (open && !lastOpenState) {
+        setLastOpenState(true)
+        setOutcomeResult(defaultOutcome)
+        setOutcomeFeedback('')
+    } else if (!open && lastOpenState) {
+        setLastOpenState(false)
+    }
 
     const renderOutcomeButtons = (filteredOutcomes: TaskOutcome[]) => {
         return filteredOutcomes.map((outcome) => (
@@ -70,7 +64,7 @@ export function TaskOutcomeModal({ open, onOpenChange, taskTipo, onConfirm }: Ta
         ))
     }
 
-    const taskLabel = taskTipo === 'ligacao' ? 'ligação' : taskTipo === 'contato' ? 'contato' : 'tarefa'
+    const taskLabel = (taskTipo === 'ligacao' || taskTipo === 'contato' || taskTipo === 'whatsapp') ? 'contato' : 'tarefa'
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,7 +78,7 @@ export function TaskOutcomeModal({ open, onOpenChange, taskTipo, onConfirm }: Ta
                     <div className="space-y-3">
                         <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Resultado</Label>
                         <div className="w-full">
-                            {taskTipo === 'contato' ? (
+                            {(taskTipo === 'contato' || taskTipo === 'ligacao' || taskTipo === 'whatsapp') ? (
                                 <div className="space-y-5">
                                     <div>
                                         <div className="flex items-center gap-1.5 mb-3 text-xs font-bold text-green-700 bg-green-50 w-fit px-2 py-1 rounded border border-green-100">
@@ -147,27 +141,4 @@ export function TaskOutcomeModal({ open, onOpenChange, taskTipo, onConfirm }: Ta
             </DialogContent>
         </Dialog>
     )
-}
-
-/** Check if a task type has outcomes configured */
-export function useTaskOutcomes() {
-    return useQuery({
-        queryKey: ['task-outcomes'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('task_type_outcomes')
-                .select('*')
-                .order('ordem')
-            if (error) throw error
-            return data
-        },
-        staleTime: 1000 * 60 * 10,
-    })
-}
-
-/** Returns the set of task tipos that have outcomes */
-export function useTaskTypesWithOutcomes(): Set<string> {
-    const { data: outcomes } = useTaskOutcomes()
-    if (!outcomes) return new Set()
-    return new Set(outcomes.map(o => o.tipo))
 }

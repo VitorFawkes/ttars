@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
     Search, CheckSquare, Phone, MessageSquare, Mail,
-    Calendar, FileText, Send, Users, Clock, AlertCircle, Check,
+    Calendar, FileText, Send, Clock, AlertCircle, Check,
     X, ListFilter, ChevronRight
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -13,7 +13,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTaskFilters } from '../hooks/useTaskFilters'
 import { useTasksList } from '../hooks/useTasksList'
 import { useFilterOptions } from '../hooks/useFilterOptions'
-import { TaskOutcomeModal, useTaskTypesWithOutcomes } from '../components/shared/TaskOutcomeModal'
+import { TaskOutcomeModal } from '../components/shared/TaskOutcomeModal'
+import { useTaskTypesWithOutcomes } from '../hooks/useTaskOutcomes'
 import { toast } from 'sonner'
 import type { TaskDeadlineFilter } from '../hooks/useTaskFilters'
 import type { TaskListItem } from '../hooks/useTasksList'
@@ -21,9 +22,10 @@ import type { TaskListItem } from '../hooks/useTasksList'
 // --- Task type config ---
 const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; color: string; bg: string }> = {
     tarefa: { icon: CheckSquare, label: 'Tarefa', color: 'text-slate-600', bg: 'bg-slate-100' },
-    contato: { icon: Users, label: 'Contato', color: 'text-blue-600', bg: 'bg-blue-50' },
-    ligacao: { icon: Phone, label: 'Ligacao', color: 'text-green-600', bg: 'bg-green-50' },
-    whatsapp: { icon: MessageSquare, label: 'WhatsApp', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    contato: { icon: Phone, label: 'Contato', color: 'text-blue-600', bg: 'bg-blue-50' },
+    // Legacy: ligacao/whatsapp foram unificados em "contato" — fallback para dados antigos
+    ligacao: { icon: Phone, label: 'Contato', color: 'text-blue-600', bg: 'bg-blue-50' },
+    whatsapp: { icon: MessageSquare, label: 'Contato', color: 'text-blue-600', bg: 'bg-blue-50' },
     email: { icon: Mail, label: 'Email', color: 'text-orange-600', bg: 'bg-orange-50' },
     reuniao: { icon: Calendar, label: 'Reuniao', color: 'text-purple-600', bg: 'bg-purple-50' },
     enviar_proposta: { icon: Send, label: 'Proposta', color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -244,7 +246,7 @@ export default function Tasks() {
                         <div className="min-w-[200px]">
                             <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 block">Tipo</label>
                             <div className="flex flex-wrap gap-1.5">
-                                {Object.entries(TASK_TYPE_CONFIG).map(([key, cfg]) => {
+                                {Object.entries(TASK_TYPE_CONFIG).filter(([key]) => key !== 'ligacao' && key !== 'whatsapp').map(([key, cfg]) => {
                                     const Icon = cfg.icon
                                     const isSelected = filters.tipos.includes(key)
                                     return (

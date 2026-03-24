@@ -33,7 +33,7 @@ import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { processAIExtraction } from '@/hooks/useAIExtraction';
-import { useTaskOutcomes } from '@/components/shared/TaskOutcomeModal';
+import { useTaskOutcomes } from '@/hooks/useTaskOutcomes';
 
 // Helper para formatar nomes de campos extraídos pela IA
 const formatCampoLabel = (campo: string): string => {
@@ -73,14 +73,12 @@ interface SmartTaskModalProps {
     existingMeetings?: MeetingTimeSlot[];
 }
 
-type TaskType = 'tarefa' | 'contato' | 'ligacao' | 'whatsapp' | 'email' | 'reuniao' | 'solicitacao_mudanca' | 'enviar_proposta' | 'coleta_documentos';
+type TaskType = 'tarefa' | 'contato' | 'email' | 'reuniao' | 'solicitacao_mudanca' | 'enviar_proposta' | 'coleta_documentos';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const TASK_TYPES: { id: TaskType; label: string; icon: any; color: string; activeColor: string }[] = [
     { id: 'tarefa', label: 'Tarefa', icon: CheckCircle2, color: 'text-indigo-600 bg-indigo-50 border-indigo-200', activeColor: 'ring-2 ring-indigo-500 bg-indigo-100' },
     { id: 'contato', label: 'Contato', icon: Phone, color: 'text-blue-600 bg-blue-50 border-blue-200', activeColor: 'ring-2 ring-blue-500 bg-blue-100' },
-    { id: 'ligacao', label: 'Ligação', icon: Phone, color: 'text-cyan-600 bg-cyan-50 border-cyan-200', activeColor: 'ring-2 ring-cyan-500 bg-cyan-100' },
-    { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, color: 'text-green-600 bg-green-50 border-green-200', activeColor: 'ring-2 ring-green-500 bg-green-100' },
     { id: 'email', label: 'E-mail', icon: Mail, color: 'text-blue-600 bg-blue-50 border-blue-200', activeColor: 'ring-2 ring-blue-500 bg-blue-100' },
     { id: 'reuniao', label: 'Reunião', icon: Users, color: 'text-purple-600 bg-purple-50 border-purple-200', activeColor: 'ring-2 ring-purple-500 bg-purple-100' },
     { id: 'solicitacao_mudanca', label: 'Mudança', icon: RefreshCw, color: 'text-orange-600 bg-orange-50 border-orange-200', activeColor: 'ring-2 ring-orange-500 bg-orange-100' },
@@ -90,9 +88,7 @@ const TASK_TYPES: { id: TaskType; label: string; icon: any; color: string; activ
 
 const TEMPLATES: Record<TaskType, string> = {
     tarefa: "Ex: Enviar briefing por e-mail...",
-    contato: "Ex: Realizar contato inicial...",
-    ligacao: "Ex: Ligar para confirmar detalhes...",
-    whatsapp: "Ex: WhatsApp para follow-up...",
+    contato: "Ex: Realizar contato (ligacao, WhatsApp)...",
     email: "Ex: E-mail com proposta...",
     reuniao: "Ex: Reunião de alinhamento...",
     solicitacao_mudanca: "Ex: Mudança de destino / hotel...",
@@ -750,7 +746,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 : metadata;
 
             // Determine if call is being created as already done
-            const isCallAlreadyDone = (type === 'ligacao' || type === 'contato') && callAlreadyDone && mode === 'create';
+            const isCallAlreadyDone = type === 'contato' && callAlreadyDone && mode === 'create';
 
             // Prepare payload
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1586,10 +1582,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                             />
                         </div>
 
-                        {/* Ligação/Contato: "Já realizada" toggle with outcome selection */}
-                        {(type === 'ligacao' || type === 'contato') && mode === 'create' && !initialData && (
+                        {/* Contato: "Já realizado" toggle with outcome selection */}
+                        {type === 'contato' && mode === 'create' && !initialData && (
                             <CallOutcomeSection
-                                type={type}
                                 callAlreadyDone={callAlreadyDone}
                                 setCallAlreadyDone={setCallAlreadyDone}
                                 callOutcome={callOutcome}
@@ -1704,7 +1699,6 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
 
 // --- Call Outcome Section (for "ja realizada" in create mode) ---
 function CallOutcomeSection({
-    type,
     callAlreadyDone,
     setCallAlreadyDone,
     callOutcome,
@@ -1712,7 +1706,6 @@ function CallOutcomeSection({
     callFeedback,
     setCallFeedback,
 }: {
-    type: string
     callAlreadyDone: boolean
     setCallAlreadyDone: (v: boolean) => void
     callOutcome: string
@@ -1723,9 +1716,7 @@ function CallOutcomeSection({
     const { data: outcomes } = useTaskOutcomes();
 
     const callOutcomes = outcomes?.filter(o =>
-        type === 'contato'
-            ? ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido', 'respondido', 'visualizado', 'enviado'].includes(o.outcome_key)
-            : o.tipo === 'ligacao'
+        ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido', 'respondido', 'visualizado', 'enviado'].includes(o.outcome_key)
     ) || [];
 
     return (
@@ -1745,7 +1736,7 @@ function CallOutcomeSection({
                     )} />
                 </div>
                 <span className="text-sm font-medium text-gray-700">
-                    {type === 'ligacao' ? 'Ligacao ja realizada' : 'Contato ja realizado'}
+                    Contato ja realizado
                 </span>
             </label>
 
@@ -1756,38 +1747,30 @@ function CallOutcomeSection({
                         <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
                             Resultado
                         </Label>
-                        {type === 'contato' ? (
-                            <div className="space-y-3">
-                                <div>
-                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-green-700 bg-green-50 w-fit px-2 py-0.5 rounded border border-green-100">
-                                        <MessageSquare className="w-3 h-3" />
-                                        <span>WHATSAPP</span>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {callOutcomes.filter(o => ['respondido', 'visualizado', 'enviado'].includes(o.outcome_key)).map(o => (
-                                            <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
-                                        ))}
-                                    </div>
+                        <div className="space-y-3">
+                            <div>
+                                <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-green-700 bg-green-50 w-fit px-2 py-0.5 rounded border border-green-100">
+                                    <MessageSquare className="w-3 h-3" />
+                                    <span>WHATSAPP</span>
                                 </div>
-                                <div>
-                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-cyan-700 bg-cyan-50 w-fit px-2 py-0.5 rounded border border-cyan-100">
-                                        <Phone className="w-3 h-3" />
-                                        <span>LIGACAO</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {callOutcomes.filter(o => ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido'].includes(o.outcome_key)).map(o => (
-                                            <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
-                                        ))}
-                                    </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {callOutcomes.filter(o => ['respondido', 'visualizado', 'enviado'].includes(o.outcome_key)).map(o => (
+                                        <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
+                                    ))}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                                {callOutcomes.map(o => (
-                                    <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
-                                ))}
+                            <div>
+                                <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-cyan-700 bg-cyan-50 w-fit px-2 py-0.5 rounded border border-cyan-100">
+                                    <Phone className="w-3 h-3" />
+                                    <span>LIGACAO</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {callOutcomes.filter(o => ['atendeu', 'nao_atendeu', 'caixa_postal', 'numero_invalido'].includes(o.outcome_key)).map(o => (
+                                        <OutcomeBtn key={o.outcome_key} outcome={o} selected={callOutcome === o.outcome_key} onClick={() => setCallOutcome(o.outcome_key)} />
+                                    ))}
+                                </div>
                             </div>
-                        )}
+                        </div>
 
                         <div className="mt-3">
                             <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">

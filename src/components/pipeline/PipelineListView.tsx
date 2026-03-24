@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trophy, XCircle } from 'lucide-react'
+import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MessageSquare, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trophy, XCircle } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
 import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -485,7 +485,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                                         "font-medium flex items-center gap-1.5",
                                         new Date(asProximaTarefa(card.proxima_tarefa).data_vencimento) < new Date() ? "text-red-600" : "text-gray-700"
                                     )}>
-                                        {asProximaTarefa(card.proxima_tarefa).tipo === 'ligacao' && <Phone className="h-3.5 w-3.5" />}
+                                        {(['contato', 'ligacao', 'followup'].includes(asProximaTarefa(card.proxima_tarefa).tipo || '')) && <Phone className="h-3.5 w-3.5" />}
+                                        {asProximaTarefa(card.proxima_tarefa).tipo === 'whatsapp' && <MessageSquare className="h-3.5 w-3.5" />}
                                         {asProximaTarefa(card.proxima_tarefa).tipo === 'email' && <Mail className="h-3.5 w-3.5" />}
                                         {asProximaTarefa(card.proxima_tarefa).tipo === 'reuniao' && <Calendar className="h-3.5 w-3.5" />}
                                         {!asProximaTarefa(card.proxima_tarefa).tipo && (

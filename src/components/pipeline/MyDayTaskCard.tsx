@@ -1,4 +1,4 @@
-import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Users, Send, Clock } from 'lucide-react'
+import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Send, Clock } from 'lucide-react'
 import { format, differenceInDays, isToday, isTomorrow, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '../../lib/utils'
@@ -6,9 +6,10 @@ import type { MyDayTask } from '../../hooks/useMyDayTasks'
 
 const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; color: string }> = {
     tarefa: { icon: CheckSquare, label: 'Tarefa', color: 'text-slate-500' },
-    contato: { icon: Users, label: 'Contato', color: 'text-blue-500' },
-    ligacao: { icon: Phone, label: 'Ligação', color: 'text-green-500' },
-    whatsapp: { icon: MessageSquare, label: 'WhatsApp', color: 'text-emerald-500' },
+    contato: { icon: Phone, label: 'Contato', color: 'text-blue-500' },
+    // Legacy fallback
+    ligacao: { icon: Phone, label: 'Contato', color: 'text-blue-500' },
+    whatsapp: { icon: MessageSquare, label: 'Contato', color: 'text-blue-500' },
     email: { icon: Mail, label: 'Email', color: 'text-orange-500' },
     reuniao: { icon: Calendar, label: 'Reunião', color: 'text-purple-500' },
     enviar_proposta: { icon: Send, label: 'Proposta', color: 'text-indigo-500' },

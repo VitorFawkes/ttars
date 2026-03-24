@@ -103,8 +103,6 @@ const scheduleModeOptions = [
 
 const taskTypeOptions = [
     { value: 'contato', label: 'Contato' },
-    { value: 'ligacao', label: 'Ligação' },
-    { value: 'whatsapp', label: 'WhatsApp' },
     { value: 'email', label: 'E-mail' },
     { value: 'reuniao', label: 'Reunião' },
     { value: 'followup', label: 'Follow-up' },

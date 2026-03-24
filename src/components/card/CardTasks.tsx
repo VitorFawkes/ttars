@@ -309,8 +309,8 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         switch (type) {
             case 'reuniao': return <Users className="w-4 h-4 text-purple-600" />
             case 'enviar_proposta': return <FileCheck className="w-4 h-4 text-green-600" />
-            case 'followup': return <Phone className="w-4 h-4 text-blue-600" />
-            case 'ligacao': return <Phone className="w-4 h-4 text-cyan-600" />
+            case 'contato': case 'followup': case 'ligacao': return <Phone className="w-4 h-4 text-blue-600" />
+            case 'whatsapp': return <MessageSquare className="w-4 h-4 text-blue-600" />
             case 'solicitacao_mudanca': return <RefreshCw className="w-4 h-4 text-orange-600" />
             case 'coleta_documentos': return <FileText className="w-4 h-4 text-teal-600" />
             case 'tarefa': return <CheckCircle2 className="w-4 h-4 text-indigo-600" />
@@ -322,8 +322,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         switch (type) {
             case 'reuniao': return 'Reunião'
             case 'enviar_proposta': return 'Proposta'
-            case 'followup': return 'Follow-up'
-            case 'ligacao': return 'Ligação'
+            case 'contato': case 'followup': case 'ligacao': case 'whatsapp': return 'Contato'
             case 'solicitacao_mudanca': return 'Mudança'
             case 'coleta_documentos': return 'Coleta Docs'
             case 'tarefa': return 'Tarefa'
@@ -335,8 +334,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         switch (type) {
             case 'reuniao': return 'bg-purple-50 border-purple-100 text-purple-700'
             case 'enviar_proposta': return 'bg-green-50 border-green-100 text-green-700'
-            case 'followup': return 'bg-blue-50 border-blue-100 text-blue-700'
-            case 'ligacao': return 'bg-cyan-50 border-cyan-100 text-cyan-700'
+            case 'contato': case 'followup': case 'ligacao': case 'whatsapp': return 'bg-blue-50 border-blue-100 text-blue-700'
             case 'solicitacao_mudanca': return 'bg-orange-50 border-orange-100 text-orange-700'
             case 'coleta_documentos': return 'bg-teal-50 border-teal-100 text-teal-700'
             default: return 'bg-gray-50 border-gray-100 text-gray-700'
@@ -783,7 +781,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         <div className="space-y-3">
                             <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Resultado</Label>
                             <div className="w-full">
-                                {taskToComplete?.tipo === 'contato' ? (
+                                {(taskToComplete?.tipo === 'contato' || taskToComplete?.tipo === 'ligacao' || taskToComplete?.tipo === 'whatsapp') ? (
                                     <div className="space-y-5">
                                         <div>
                                             <div className="flex items-center gap-1.5 mb-3 text-xs font-bold text-green-700 bg-green-50 w-fit px-2 py-1 rounded border border-green-100">

@@ -261,6 +261,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSeenCards()` | `useSeenCards.ts` |
 | `useStageRequiredFields()` | `useStageRequiredFields.ts` |
 | `useStageRequirements()` | `useStageRequirements.ts` |
+| `useStageSectionConfig()` | `useStageSectionConfig.ts` |
 | `useSubCards()` | `useSubCards.ts` |
 | `useTaskFilters()` | `useTaskFilters.ts` |
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
@@ -291,7 +292,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useDepartments()` | `useDepartments.ts` |
-| `useMyTeamPhase()` | `useMyTeamPhase.ts` |
 | `useRoles()` | `useRoles.ts` |
 | `useTeams()` | `useTeams.ts` |
 | `useUsers()` | `useUsers.ts` |
