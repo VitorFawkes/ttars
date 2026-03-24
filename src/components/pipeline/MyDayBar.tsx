@@ -10,8 +10,10 @@ import { useMyDayTasks } from '../../hooks/useMyDayTasks'
 import { useMyDayOpportunities } from '../../hooks/useMyDayOpportunities'
 import { MyDayTaskCard } from './MyDayTaskCard'
 import { MyDayOpportunityCard } from './MyDayOpportunityCard'
+import { TaskOutcomeModal, useTaskTypesWithOutcomes } from '../shared/TaskOutcomeModal'
 
 import type { Database } from '../../database.types'
+import type { MyDayTask } from '../../hooks/useMyDayTasks'
 import type { MyDayOpportunity } from '../../hooks/useMyDayOpportunities'
 
 type Product = Database['public']['Enums']['app_product']
@@ -111,7 +113,23 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
         isLoading: tasksLoading,
         completeTask,
         isCompleting,
+        tasks: allTasks,
     } = useMyDayTasks({ productFilter, responsavelIds: effectiveIds })
+
+    // Outcome modal
+    const [outcomeModalOpen, setOutcomeModalOpen] = useState(false)
+    const [taskToComplete, setTaskToComplete] = useState<MyDayTask | null>(null)
+    const typesWithOutcomes = useTaskTypesWithOutcomes()
+
+    const handleCompleteTask = (taskId: string) => {
+        const task = allTasks.find(t => t.id === taskId)
+        if (task && typesWithOutcomes.has(task.tipo)) {
+            setTaskToComplete(task)
+            setOutcomeModalOpen(true)
+        } else {
+            completeTask({ taskId })
+        }
+    }
 
     const {
         opportunities,
@@ -273,7 +291,7 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                                                 task={task}
                                                 isOverdue={expandedSection === 'overdue'}
                                                 showOwner={showOwner}
-                                                onComplete={completeTask}
+                                                onComplete={handleCompleteTask}
                                                 isCompleting={isCompleting}
                                             />
                                         ))}
@@ -286,6 +304,22 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
                         </div>
                     )}
                 </>
+            )}
+
+            {/* Outcome Modal */}
+            {taskToComplete && (
+                <TaskOutcomeModal
+                    open={outcomeModalOpen}
+                    onOpenChange={(open) => {
+                        setOutcomeModalOpen(open)
+                        if (!open) setTaskToComplete(null)
+                    }}
+                    taskTipo={taskToComplete.tipo}
+                    onConfirm={(outcome, feedback) => {
+                        completeTask({ taskId: taskToComplete.id, outcome, feedback })
+                        setTaskToComplete(null)
+                    }}
+                />
             )}
         </div>
     )

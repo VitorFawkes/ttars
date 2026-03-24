@@ -33,6 +33,7 @@ import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { processAIExtraction } from '@/hooks/useAIExtraction';
+import { useTaskOutcomes } from '@/components/shared/TaskOutcomeModal';
 
 // Helper para formatar nomes de campos extraídos pela IA
 const formatCampoLabel = (campo: string): string => {
@@ -151,6 +152,11 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     // Time Combobox State
     const [showRescheduleTimeList, setShowRescheduleTimeList] = useState(false);
     const rescheduleTimeListRef = useRef<HTMLDivElement>(null);
+
+    // Ligação "já realizada" state
+    const [callAlreadyDone, setCallAlreadyDone] = useState(false);
+    const [callOutcome, setCallOutcome] = useState('atendeu');
+    const [callFeedback, setCallFeedback] = useState('');
 
     // Metadata Fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -479,6 +485,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setSubmitPhase('idle');
                 setSelectedCardId('');
                 setCardSearch('');
+                setCallAlreadyDone(false);
+                setCallOutcome('atendeu');
+                setCallFeedback('');
 
                 // Handle defaultType: skip step 1 if provided
                 if (defaultType) {
@@ -740,26 +749,37 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 ? { ...metadata, duration_minutes: durationMinutes, ...(meetingLink ? { meeting_link: meetingLink } : {}) }
                 : metadata;
 
+            // Determine if call is being created as already done
+            const isCallAlreadyDone = (type === 'ligacao' || type === 'contato') && callAlreadyDone && mode === 'create';
+
             // Prepare payload
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: any = {
                 card_id: effectiveCardId,
                 titulo: title,
-                descricao: description,
+                descricao: isCallAlreadyDone ? (callFeedback || description) : description,
                 tipo: type,
                 data_vencimento: finalDate,
                 responsavel_id: finalResponsibleId,
-                status: type === 'reuniao' ? meetingStatus : 'pendente',
-                concluida: type === 'reuniao' ? ['realizada', 'cancelada', 'nao_compareceu', 'reagendada'].includes(meetingStatus) : false,
+                status: type === 'reuniao' ? meetingStatus : (isCallAlreadyDone ? 'concluida' : 'pendente'),
+                concluida: type === 'reuniao'
+                    ? ['realizada', 'cancelada', 'nao_compareceu', 'reagendada'].includes(meetingStatus)
+                    : isCallAlreadyDone,
+                ...(isCallAlreadyDone ? {
+                    concluida_em: new Date().toISOString(),
+                    outcome: callOutcome,
+                    resultado: callOutcome,
+                    feedback: callFeedback || null,
+                } : {}),
                 metadata: finalMetadata,
-                feedback: meetingFeedback || null,
+                feedback: type === 'reuniao' ? (meetingFeedback || null) : (isCallAlreadyDone ? (callFeedback || null) : null),
                 motivo_cancelamento: cancellationReason || null,
-                resultado: meetingResult || null,
+                resultado: type === 'reuniao' ? (meetingResult || null) : (isCallAlreadyDone ? callOutcome : null),
                 categoria_outro: otherCategory || null,
                 // Map status to outcome for workflow triggering
                 outcome: type === 'reuniao' && ['realizada', 'cancelada', 'nao_compareceu'].includes(meetingStatus)
                     ? meetingStatus
-                    : (type === 'reuniao' && meetingStatus === 'reagendada' ? 'remarcada' : null),
+                    : (type === 'reuniao' && meetingStatus === 'reagendada' ? 'remarcada' : (isCallAlreadyDone ? callOutcome : null)),
                 // Transcription for meetings
                 transcricao: type === 'reuniao' && meetingStatus === 'realizada' ? (transcricao || null) : null,
                 // Track who created the task (only on create, not edit)
@@ -1565,6 +1585,19 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                 className="min-h-[100px]"
                             />
                         </div>
+
+                        {/* Ligação/Contato: "Já realizada" toggle with outcome selection */}
+                        {(type === 'ligacao' || type === 'contato') && mode === 'create' && !initialData && (
+                            <CallOutcomeSection
+                                type={type}
+                                callAlreadyDone={callAlreadyDone}
+                                setCallAlreadyDone={setCallAlreadyDone}
+                                callOutcome={callOutcome}
+                                setCallOutcome={setCallOutcome}
+                                callFeedback={callFeedback}
+                                setCallFeedback={setCallFeedback}
+                            />
+                        )}
 
                         {/* Feedback visual de processamento da IA */}
                         {isSubmitting && submitPhase !== 'idle' && (

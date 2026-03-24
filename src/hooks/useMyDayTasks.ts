@@ -123,15 +123,18 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
         enabled: !!profile?.id && isReady,
     })
 
-    // Complete task mutation
+    // Complete task mutation (supports optional outcome/feedback)
     const completeMutation = useMutation({
-        mutationFn: async (taskId: string) => {
+        mutationFn: async ({ taskId, outcome, feedback }: { taskId: string; outcome?: string; feedback?: string }) => {
             const { error } = await supabase
                 .from('tarefas')
                 .update({
                     concluida: true,
                     concluida_em: new Date().toISOString(),
                     concluido_por: profile!.id,
+                    status: 'concluida',
+                    ...(outcome ? { outcome, resultado: outcome } : {}),
+                    ...(feedback ? { feedback } : {}),
                 })
                 .eq('id', taskId)
 
@@ -140,7 +143,9 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            toast.success('Tarefa concluída')
+            queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            toast.success('Tarefa concluida')
         },
         onError: (error: Error) => {
             toast.error('Erro ao concluir tarefa', { description: error.message })
@@ -161,6 +166,7 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
         isLoading: query.isLoading,
         completeTask: completeMutation.mutate,
         isCompleting: completeMutation.isPending,
+        tasks: query.data || [],
     }
 }
 
