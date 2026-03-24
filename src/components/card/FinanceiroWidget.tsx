@@ -16,7 +16,27 @@ interface FinanceiroWidgetProps {
     card: Card
     isExpanded?: boolean
     onToggleCollapse?: () => void
-    phaseSlug?: string
+}
+
+/** Derives the pipeline phase slug from the card's current stage */
+function useCardPhaseSlug(stageId: string | null) {
+    const { data } = useQuery({
+        queryKey: ['stage-phase-slug', stageId],
+        queryFn: async () => {
+            if (!stageId) return null
+            const { data, error } = await supabase
+                .from('pipeline_stages')
+                .select('pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
+                .eq('id', stageId)
+                .single()
+            if (error) return null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (data?.pipeline_phases as any)?.slug as string | null
+        },
+        enabled: !!stageId,
+        staleTime: 1000 * 60 * 5,
+    })
+    return data ?? undefined
 }
 
 const formatBRL = (value: number) =>
@@ -37,7 +57,8 @@ interface FinancialItem {
     observacoes: string | null
 }
 
-export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse, phaseSlug }: FinanceiroWidgetProps) {
+export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
+    const phaseSlug = useCardPhaseSlug(card.pipeline_stage_id)
     const isPostSales = phaseSlug === 'pos_venda'
 
     const { data: items = [], isLoading } = useQuery({
@@ -161,14 +182,19 @@ function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem;
 
     return (
         <div className="px-4 py-2.5">
-            <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-gray-900 truncate">
-                    {item.description || 'Produto'}
-                </span>
-                <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" />
-                    {itemPct.toFixed(0)}%
-                </span>
+            <div className="mb-1">
+                <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 truncate">
+                        {item.fornecedor || item.description || 'Produto'}
+                    </span>
+                    <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
+                        <TrendingUp className="h-3 w-3" />
+                        {itemPct.toFixed(0)}%
+                    </span>
+                </div>
+                {item.fornecedor && item.description && (
+                    <span className="text-[11px] text-gray-400">{item.description}</span>
+                )}
             </div>
             <div className="flex items-center gap-4 text-xs">
                 <span className="text-gray-500">
@@ -322,17 +348,31 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </button>
 
-                    {/* Name + values */}
+                    {/* Fornecedor (primary) + produto (secondary) */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                             <span className={cn(
                                 "text-sm font-medium truncate",
                                 item.is_ready ? "text-emerald-700 line-through" : "text-gray-900"
                             )}>
-                                {item.description || 'Produto'}
+                                {item.fornecedor || item.description || 'Produto'}
                             </span>
                             <span className="text-xs text-gray-500 shrink-0 ml-2">{formatBRL(sv)}</span>
                         </div>
+                        {/* Secondary line: produto type + dates (when collapsed) */}
+                        {!isOpen && (
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400 truncate">
+                                {item.fornecedor && item.description && (
+                                    <span className="truncate">{item.description}</span>
+                                )}
+                                {(item.data_inicio || item.data_fim) && (
+                                    <span className="flex items-center gap-1 shrink-0">
+                                        <Calendar className="h-3 w-3 text-gray-300" />
+                                        {formatDateBR(item.data_inicio)}{item.data_fim && item.data_fim !== item.data_inicio ? ` → ${formatDateBR(item.data_fim)}` : ''}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Progress badges */}
