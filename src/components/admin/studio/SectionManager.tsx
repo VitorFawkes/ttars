@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, Eye, EyeOff, FoldVertical } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, FoldVertical, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -82,57 +82,12 @@ const defaultFormData: SectionFormData = {
 
 export default function SectionManager() {
     const { toast } = useToast()
-    const queryClient = useQueryClient()
     const { currentProduct } = useProductContext()
     const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
     // Fetch ALL sections (active + inactive) so admin can toggle visibility
     const { data: sections = [], isLoading } = useAllSections(currentProduct)
     const { createSection, updateSection, deleteSection, reorderSections } = useSectionMutations()
     const { data: phases = [] } = usePipelinePhases(pipelineId)
-
-    // Collapse toggle per phase
-    const toggleSectionCollapse = async (sectionId: string, phaseSlug: string | null) => {
-        if (!phaseSlug) return
-        const section = sections.find(s => s.id === sectionId)
-        if (!section) return
-
-        const current = section.collapse_on_phases || []
-        const next = current.includes(phaseSlug)
-            ? current.filter((s: string) => s !== phaseSlug)
-            : [...current, phaseSlug]
-
-        // Optimistic update
-        queryClient.setQueryData(['sections', 'all-include-inactive', currentProduct], (old: typeof sections | undefined) => {
-            if (!old) return old
-            return old.map(s => s.id === sectionId ? { ...s, collapse_on_phases: next } : s)
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await supabase.from('sections').update({ collapse_on_phases: next } as any).eq('id', sectionId)
-        queryClient.invalidateQueries({ queryKey: ['sections'] })
-    }
-
-    // Hidden toggle per phase (completely hides section for users in that phase)
-    const toggleSectionHidden = async (sectionId: string, phaseSlug: string | null) => {
-        if (!phaseSlug) return
-        const section = sections.find(s => s.id === sectionId)
-        if (!section) return
-
-        const current = section.hidden_on_phases || []
-        const next = current.includes(phaseSlug)
-            ? current.filter((s: string) => s !== phaseSlug)
-            : [...current, phaseSlug]
-
-        // Optimistic update
-        queryClient.setQueryData(['sections', 'all-include-inactive', currentProduct], (old: typeof sections | undefined) => {
-            if (!old) return old
-            return old.map(s => s.id === sectionId ? { ...s, hidden_on_phases: next } : s)
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await supabase.from('sections').update({ hidden_on_phases: next } as any).eq('id', sectionId)
-        queryClient.invalidateQueries({ queryKey: ['sections'] })
-    }
 
     const [isAdding, setIsAdding] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -405,8 +360,6 @@ export default function SectionManager() {
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
                     phases={phases}
-                    onToggleCollapse={toggleSectionCollapse}
-                    onToggleHidden={toggleSectionHidden}
                 />
 
                 {/* Right Column */}
@@ -422,8 +375,6 @@ export default function SectionManager() {
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
                     phases={phases}
-                    onToggleCollapse={toggleSectionCollapse}
-                    onToggleHidden={toggleSectionHidden}
                 />
             </div>
         </div>
@@ -443,11 +394,9 @@ interface SectionColumnProps {
     onDelete: (section: Section) => void
     onToggleActive: (section: Section) => void
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
-    onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
-    onToggleHidden: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases, onToggleCollapse, onToggleHidden }: SectionColumnProps) {
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases }: SectionColumnProps) {
     const totalCount = activeSections.length + inactiveSections.length
 
     return (
@@ -463,7 +412,6 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                 </p>
             ) : (
                 <>
-                    {/* Active sections with drag & drop */}
                     {activeSections.length > 0 && (
                         <DndContext
                             sensors={sensors}
@@ -481,8 +429,6 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                             onDelete={() => onDelete(section)}
                                             onToggleActive={() => onToggleActive(section)}
                                             phases={phases}
-                                            onToggleCollapse={onToggleCollapse}
-                                            onToggleHidden={onToggleHidden}
                                         />
                                     ))}
                                 </div>
@@ -490,7 +436,6 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                         </DndContext>
                     )}
 
-                    {/* Inactive sections */}
                     {inactiveSections.length > 0 && (
                         <div className="space-y-2">
                             <div className="flex items-center gap-2 pt-2">
@@ -507,8 +452,6 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                     onDelete={() => onDelete(section)}
                                     onToggleActive={() => onToggleActive(section)}
                                     phases={phases}
-                                    onToggleCollapse={onToggleCollapse}
-                                    onToggleHidden={onToggleHidden}
                                 />
                             ))}
                         </div>
@@ -519,7 +462,121 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
     )
 }
 
-// Sortable SectionCard with drag handle and visibility toggle
+// ── Phase rule picker (reused for both collapse and hidden) ──────────────
+// Single source of truth: local state for instant feedback, synced to DB.
+interface PhaseRulePickerProps {
+    icon: React.ReactNode
+    label: string
+    description: string
+    sectionId: string
+    /** Current slugs from DB (via props) — used to seed local state */
+    serverSlugs: string[]
+    phases: { id: string; slug: string | null; name: string }[]
+    dbColumn: 'collapse_on_phases' | 'hidden_on_phases'
+    /** amber | red */
+    accent: 'amber' | 'red'
+}
+
+function PhaseRulePicker({ icon, label, description, sectionId, serverSlugs, phases, dbColumn, accent }: PhaseRulePickerProps) {
+    const { toast } = useToast()
+    const queryClient = useQueryClient()
+    const [open, setOpen] = useState(false)
+
+    // Local state = instant visual feedback. Seeded from server, kept in sync.
+    const [selected, setSelected] = useState<string[]>(serverSlugs)
+
+    // Sync when server data changes (e.g. after refetch)
+    useEffect(() => {
+        setSelected(serverSlugs)
+    }, [serverSlugs])
+
+    const toggle = useCallback(async (slug: string) => {
+        const next = selected.includes(slug)
+            ? selected.filter(s => s !== slug)
+            : [...selected, slug]
+
+        // 1. Instant local update
+        setSelected(next)
+
+        // 2. Persist to DB
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await supabase.from('sections').update({ [dbColumn]: next } as any).eq('id', sectionId)
+
+        if (error) {
+            // Revert on failure
+            setSelected(selected)
+            toast({ title: 'Erro ao salvar', description: error.message, type: 'error' })
+            return
+        }
+
+        // 3. Background refetch to keep query cache fresh (won't flicker because local state is already correct)
+        queryClient.invalidateQueries({ queryKey: ['sections'] })
+
+        const msg = dbColumn === 'hidden_on_phases'
+            ? (next.length > 0 ? `Invisível para ${next.length} fase(s)` : 'Visível para todos os times')
+            : (next.length > 0 ? `Recolhe em ${next.length} fase(s)` : 'Sem regra de recolhimento')
+        toast({ title: msg, type: 'success' })
+    }, [selected, sectionId, dbColumn, toast, queryClient])
+
+    const hasRules = selected.length > 0
+    const colors = accent === 'amber'
+        ? { active: 'bg-amber-100 text-amber-700 border-amber-300', badge: 'bg-amber-50 text-amber-600 border-amber-200', text: 'text-amber-700', icon: 'text-amber-600' }
+        : { active: 'bg-red-100 text-red-700 border-red-300', badge: 'bg-red-50 text-red-600 border-red-200', text: 'text-red-700', icon: 'text-red-600' }
+
+    return (
+        <div>
+            {/* Header row — click to expand/collapse */}
+            <button
+                onClick={() => setOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left"
+            >
+                <span className={cn("flex-shrink-0", hasRules ? colors.icon : "text-muted-foreground")}>{icon}</span>
+                <span className={cn("text-xs font-medium", hasRules ? colors.text : "text-muted-foreground")}>{label}</span>
+                <span className="text-[10px] text-muted-foreground/60 truncate">— {description}</span>
+                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? colors.text : "text-muted-foreground/40")}>
+                    {open ? '▲' : '▼'}
+                </span>
+            </button>
+
+            {/* Phase buttons — shown when expanded */}
+            {open && (
+                <div className="flex flex-wrap gap-1.5 mt-2 ml-6">
+                    {phases.map(phase => {
+                        if (!phase.slug) return null
+                        const isActive = selected.includes(phase.slug)
+                        return (
+                            <button
+                                key={phase.id}
+                                onClick={() => toggle(phase.slug!)}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
+                                    isActive
+                                        ? cn(colors.active, "shadow-sm")
+                                        : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                )}
+                            >
+                                {phase.name}
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+
+            {/* Summary badges — shown when collapsed and has rules */}
+            {!open && hasRules && (
+                <div className="flex flex-wrap gap-1 mt-1 ml-6">
+                    {phases.filter(p => p.slug && selected.includes(p.slug)).map(phase => (
+                        <span key={phase.id} className={cn("px-2 py-0.5 rounded-md text-[11px] font-medium border", colors.badge)}>
+                            {phase.name}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Sortable Section Card ────────────────────────────────────────────────
 interface SortableSectionCardProps {
     section: Section
     isEditing: boolean
@@ -527,19 +584,11 @@ interface SortableSectionCardProps {
     onDelete: () => void
     onToggleActive: () => void
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
-    onToggleCollapse: (sectionId: string, phaseSlug: string | null) => void
-    onToggleHidden: (sectionId: string, phaseSlug: string | null) => void
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases, onToggleCollapse, onToggleHidden }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
     const isInactive = !section.active
-    const [showCollapse, setShowCollapse] = useState(false)
-    const [showHidden, setShowHidden] = useState(false)
-    const collapsePhases = section.collapse_on_phases || []
-    const hasCollapseRules = collapsePhases.length > 0
-    const hiddenPhases = section.hidden_on_phases || []
-    const hasHiddenRules = hiddenPhases.length > 0
 
     const {
         attributes,
@@ -592,10 +641,10 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                 </button>
             )}
 
-            {/* Color Badge */}
+            {/* Color dot */}
             <div className={cn("w-3 h-3 rounded-full flex-shrink-0", bgClass.replace('-50', '-500'), isInactive && "opacity-40")} />
 
-            {/* Info */}
+            {/* Name + badges */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <span className={cn("font-medium truncate", isInactive ? "text-muted-foreground" : "text-foreground")}>{section.label}</span>
@@ -615,39 +664,8 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                 <span className="text-xs text-muted-foreground font-mono">{section.key}</span>
             </div>
 
-            {/* Actions */}
+            {/* Actions: on/off, edit, delete */}
             <div className="flex items-center gap-1">
-                {/* Collapse Rules Toggle */}
-                {!isHardcoded && !isInactive && (
-                    <button
-                        onClick={() => { setShowCollapse(prev => !prev); setShowHidden(false) }}
-                        className={cn(
-                            "p-1.5 rounded transition-colors",
-                            hasCollapseRules || showCollapse
-                                ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
-                                : "text-muted-foreground hover:text-amber-600 hover:bg-amber-50"
-                        )}
-                        title="Auto-recolher por fase"
-                    >
-                        <FoldVertical className="w-4 h-4" />
-                    </button>
-                )}
-                {/* Hidden Rules Toggle */}
-                {!isHardcoded && !isInactive && (
-                    <button
-                        onClick={() => { setShowHidden(prev => !prev); setShowCollapse(false) }}
-                        className={cn(
-                            "p-1.5 rounded transition-colors",
-                            hasHiddenRules || showHidden
-                                ? "text-red-600 bg-red-50 hover:bg-red-100"
-                                : "text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                        )}
-                        title="Ocultar completamente por fase do time"
-                    >
-                        <EyeOff className="w-4 h-4" />
-                    </button>
-                )}
-                {/* Visibility Toggle */}
                 {!isHardcoded && (
                     <button
                         onClick={onToggleActive}
@@ -655,11 +673,11 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                             "p-1.5 rounded transition-colors",
                             isInactive
                                 ? "text-muted-foreground/50 hover:text-green-600 hover:bg-green-50"
-                                : "text-muted-foreground hover:text-amber-600 hover:bg-amber-50"
+                                : "text-green-600 hover:text-muted-foreground hover:bg-muted"
                         )}
-                        title={isInactive ? "Tornar visível" : "Ocultar seção"}
+                        title={isInactive ? "Ativar seção" : "Desativar seção (oculta para todos)"}
                     >
-                        {isInactive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {isInactive ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
                     </button>
                 )}
                 <button
@@ -680,55 +698,29 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                 )}
             </div>
 
-            {/* Collapse Rules Panel */}
-            {showCollapse && (
-                <div className="w-full border-t border-border pt-2 mt-1">
-                    <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Auto-recolher nas fases:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {phases.map(phase => {
-                            const isCollapsed = collapsePhases.includes(phase.slug || '')
-                            return (
-                                <button
-                                    key={phase.id}
-                                    onClick={() => onToggleCollapse(section.id, phase.slug)}
-                                    className={cn(
-                                        "px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
-                                        isCollapsed
-                                            ? "bg-amber-100 text-amber-700 border-amber-300"
-                                            : "bg-muted/50 text-muted-foreground border-border hover:border-amber-300 hover:text-amber-600"
-                                    )}
-                                >
-                                    {phase.name}
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* Hidden Rules Panel */}
-            {showHidden && (
-                <div className="w-full border-t border-border pt-2 mt-1">
-                    <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Ocultar completamente para times da fase:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {phases.map(phase => {
-                            const isHiddenForPhase = hiddenPhases.includes(phase.slug || '')
-                            return (
-                                <button
-                                    key={phase.id}
-                                    onClick={() => onToggleHidden(section.id, phase.slug)}
-                                    className={cn(
-                                        "px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
-                                        isHiddenForPhase
-                                            ? "bg-red-100 text-red-700 border-red-300"
-                                            : "bg-muted/50 text-muted-foreground border-border hover:border-red-300 hover:text-red-600"
-                                    )}
-                                >
-                                    {phase.name}
-                                </button>
-                            )
-                        })}
-                    </div>
+            {/* Phase rules — only for active, non-hardcoded sections */}
+            {!isHardcoded && !isInactive && (
+                <div className="w-full border-t border-border pt-3 mt-1 space-y-2.5">
+                    <PhaseRulePicker
+                        icon={<FoldVertical className="w-3.5 h-3.5" />}
+                        label="Recolher automaticamente"
+                        description="seção começa fechada quando o card estiver nestas fases"
+                        sectionId={section.id}
+                        serverSlugs={section.collapse_on_phases || []}
+                        phases={phases}
+                        dbColumn="collapse_on_phases"
+                        accent="amber"
+                    />
+                    <PhaseRulePicker
+                        icon={<EyeOff className="w-3.5 h-3.5" />}
+                        label="Invisível para times"
+                        description="seção some do card para usuários destas fases"
+                        sectionId={section.id}
+                        serverSlugs={section.hidden_on_phases || []}
+                        phases={phases}
+                        dbColumn="hidden_on_phases"
+                        accent="red"
+                    />
                 </div>
             )}
         </div>
