@@ -7,18 +7,16 @@
  * - Data stored in cards.produto_data[section.key]
  * - Uses UniversalFieldRenderer for consistent field rendering
  * - Respects field visibility rules from stage_field_config
- * - Collapsible sections with auto-collapse by pipeline phase
+ * - Collapsible sections with stage-based visibility (stage_section_config)
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, Layers, ChevronDown, EyeOff } from 'lucide-react'
+import { Check, Loader2, Layers, ChevronDown } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
-import { usePipelinePhases } from '../../hooks/usePipelinePhases'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
-import { useMyTeamPhase } from '../../hooks/useMyTeamPhase'
+import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
@@ -91,11 +89,9 @@ export function SectionCollapseToggle({ isExpanded, onToggle }: SectionCollapseT
 interface CollapsedSectionBarProps {
     section: Section
     onExpand: () => void
-    /** Admin-only: show badge when section is hidden for some phases */
-    hiddenForPhases?: string[]
 }
 
-function CollapsedSectionBar({ section, onExpand, hiddenForPhases }: CollapsedSectionBarProps) {
+function CollapsedSectionBar({ section, onExpand }: CollapsedSectionBarProps) {
     const iconName = resolveIconName(section.icon)
     const colorClasses = section.color || 'bg-slate-50 text-slate-700 border-slate-100'
     const [bgClass, textClass] = colorClasses.split(' ')
@@ -118,12 +114,6 @@ function CollapsedSectionBar({ section, onExpand, hiddenForPhases }: CollapsedSe
                 <span className="text-xs font-semibold text-gray-900">
                     {section.label}
                 </span>
-                {hiddenForPhases && hiddenForPhases.length > 0 && (
-                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-500 border border-red-200">
-                        <EyeOff className="w-3 h-3" />
-                        Oculta para {hiddenForPhases.join(', ')}
-                    </span>
-                )}
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
         </button>
@@ -139,10 +129,6 @@ interface DynamicSectionWidgetProps {
     sectionKey: string
     /** Class to apply to the wrapper */
     className?: string
-    /** Whether to start collapsed */
-    defaultCollapsed?: boolean
-    /** Admin-only: phase names where this section is hidden */
-    hiddenForPhases?: string[]
 }
 
 /**
@@ -153,18 +139,9 @@ export default function DynamicSectionWidget({
     card,
     sectionKey,
     className,
-    defaultCollapsed = false,
-    hiddenForPhases
 }: DynamicSectionWidgetProps) {
     const queryClient = useQueryClient()
-    const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
-
-    // Sync collapse state when defaultCollapsed changes (render-time pattern)
-    const [prevDefaultCollapsed, setPrevDefaultCollapsed] = useState(defaultCollapsed)
-    if (prevDefaultCollapsed !== defaultCollapsed) {
-        setPrevDefaultCollapsed(defaultCollapsed)
-        if (defaultCollapsed) setIsExpanded(false)
-    }
+    const [isExpanded, setIsExpanded] = useState(true)
 
     // Data Sources - Unified data from both produto_data and marketing_data
     // Priority: produto_data (manual edits) > marketing_data (integration data)
@@ -344,12 +321,6 @@ export default function DynamicSectionWidget({
                         <h3 className="text-xs font-semibold text-gray-900">
                             {section?.label || sectionKey}
                         </h3>
-                        {hiddenForPhases && hiddenForPhases.length > 0 && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-500 border border-red-200">
-                                <EyeOff className="w-3 h-3" />
-                                Oculta para {hiddenForPhases.join(', ')}
-                            </span>
-                        )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -434,44 +405,24 @@ export default function DynamicSectionWidget({
 interface CollapsibleWidgetSectionProps {
     section: Section
     card: Card
-    defaultCollapsed?: boolean
-    phaseSlug?: string | null
-    /** Admin-only: phase names where this section is hidden */
-    hiddenForPhases?: string[]
 }
 
-function CollapsibleWidgetSection({ section, card, defaultCollapsed = false, phaseSlug, hiddenForPhases }: CollapsibleWidgetSectionProps) {
-    const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
+function CollapsibleWidgetSection({ section, card }: CollapsibleWidgetSectionProps) {
+    const [isExpanded, setIsExpanded] = useState(true)
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
-    // Sync collapse state when defaultCollapsed changes (render-time pattern)
-    const [prevDefaultCollapsed, setPrevDefaultCollapsed] = useState(defaultCollapsed)
-    if (prevDefaultCollapsed !== defaultCollapsed) {
-        setPrevDefaultCollapsed(defaultCollapsed)
-        if (defaultCollapsed) setIsExpanded(false)
-    }
-
     if (!isExpanded) {
-        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} hiddenForPhases={hiddenForPhases} />
+        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} />
     }
 
     const WidgetComponent = WIDGET_REGISTRY[section.widget_component!]
     return (
-        <div className="relative">
-            {hiddenForPhases && hiddenForPhases.length > 0 && (
-                <div className="absolute top-2 right-10 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-500 border border-red-200">
-                    <EyeOff className="w-3 h-3" />
-                    Oculta para {hiddenForPhases.join(', ')}
-                </div>
-            )}
-            <WidgetComponent
-                cardId={card.id}
-                card={card}
-                isExpanded={isExpanded}
-                onToggleCollapse={onToggleCollapse}
-                phaseSlug={phaseSlug || undefined}
-            />
-        </div>
+        <WidgetComponent
+            cardId={card.id}
+            card={card}
+            isExpanded={isExpanded}
+            onToggleCollapse={onToggleCollapse}
+        />
     )
 }
 
@@ -484,32 +435,20 @@ interface DynamicSectionsListProps {
     position: 'left_column' | 'right_column'
     /** Section keys to exclude (e.g., system sections with dedicated components) */
     excludeKeys?: string[]
-    /** Current pipeline phase slug for auto-collapse rules */
-    phaseSlug?: string | null
 }
 
-export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlug }: DynamicSectionsListProps) {
+export function DynamicSectionsList({ card, position, excludeKeys = [] }: DynamicSectionsListProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const produto = (card as any).produto as string | undefined
     const productKey = produto || 'TRIPS'
     const { data: sections = [], isLoading } = useSections(productKey)
 
-    // User's team phase for hidden_on_phases filtering (hides by VIEWER, not by card stage)
-    const { data: myPhase } = useMyTeamPhase()
     const { profile } = useAuth()
     const isAdmin = profile?.is_admin === true
-    const myPhaseSlug = myPhase?.slug as string | undefined
 
-    // Phase name lookup for admin badges (slug → display name)
-    const pipelineId = PRODUCT_PIPELINE_MAP[productKey as keyof typeof PRODUCT_PIPELINE_MAP]
-    const { data: phases = [] } = usePipelinePhases(pipelineId)
-    const phaseNameMap = useMemo(() => {
-        const map: Record<string, string> = {}
-        for (const p of phases) {
-            if (p.slug) map[p.slug] = p.name
-        }
-        return map
-    }, [phases])
+    // Stage-based section visibility
+    const { isSectionVisible } = useStageSectionConfig()
+    const stageId = card.pipeline_stage_id
 
     const positionedSections = useMemo(() => {
         return sections
@@ -517,26 +456,12 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
             .filter(s => !excludeKeys.includes(s.key))
             // Render widget-based sections OR non-system custom sections
             .filter(s => s.widget_component || !s.is_system)
-            // Hide sections based on user's team phase (admins see all)
+            // Hide sections based on card's pipeline stage (admins see all)
             .filter(s => {
                 if (isAdmin) return true
-                if (!myPhaseSlug) return true
-                return !(s.hidden_on_phases || []).includes(myPhaseSlug)
+                return isSectionVisible(stageId, s.key)
             })
-    }, [sections, position, excludeKeys, isAdmin, myPhaseSlug])
-
-    const shouldAutoCollapse = useCallback((section: Section) => {
-        if (!phaseSlug) return false
-        return (section.collapse_on_phases || []).includes(phaseSlug)
-    }, [phaseSlug])
-
-    /** Resolve hidden phase slugs → display names (admin-only) */
-    const getHiddenPhaseNames = useCallback((section: Section): string[] | undefined => {
-        if (!isAdmin) return undefined
-        const slugs = section.hidden_on_phases || []
-        if (slugs.length === 0) return undefined
-        return slugs.map(s => phaseNameMap[s] || s)
-    }, [isAdmin, phaseNameMap])
+    }, [sections, position, excludeKeys, isAdmin, stageId, isSectionVisible])
 
     if (isLoading) {
         return (
@@ -546,7 +471,6 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
         )
     }
 
-    // Don't render anything if no sections in this position
     if (positionedSections.length === 0) {
         return null
     }
@@ -554,31 +478,23 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
     return (
         <>
             {positionedSections.map(section => {
-                const collapsed = shouldAutoCollapse(section)
-                const hiddenForPhases = getHiddenPhaseNames(section)
-
-                // Widget-based sections: manage collapse state here, pass props to widget
+                // Widget-based sections
                 if (section.widget_component && WIDGET_REGISTRY[section.widget_component]) {
                     return (
                         <CollapsibleWidgetSection
                             key={section.key}
                             section={section}
                             card={card}
-                            defaultCollapsed={collapsed}
-                            phaseSlug={phaseSlug}
-                            hiddenForPhases={hiddenForPhases}
                         />
                     )
                 }
 
-                // Field-based sections: DynamicSectionWidget has built-in collapse
+                // Field-based sections
                 return (
                     <DynamicSectionWidget
                         key={section.key}
                         card={card}
                         sectionKey={section.key}
-                        defaultCollapsed={collapsed}
-                        hiddenForPhases={hiddenForPhases}
                     />
                 )
             })}

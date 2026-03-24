@@ -721,3 +721,4 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 
 
 
+

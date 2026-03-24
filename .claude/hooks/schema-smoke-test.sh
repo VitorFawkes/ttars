@@ -87,6 +87,10 @@ fi  # end production-only queries
 test_query "pipeline_stages + phases join" \
   "pipeline_stages?select=*,pipeline_phases!pipeline_stages_phase_id_fkey(order_index)&limit=1"
 
+# Stage section config (useStageSectionConfig.ts)
+test_query "stage_section_config" \
+  "stage_section_config?select=id,stage_id,section_key,is_visible&limit=1"
+
 # Dashboard reuniões (TodayMeetingsWidget.tsx)
 test_query "tarefas (deleted_at + reunião)" \
   "tarefas?select=id,titulo,data_vencimento,deleted_at,tipo,concluida&limit=1"

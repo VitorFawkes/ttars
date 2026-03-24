@@ -1,17 +1,17 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, FoldVertical, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
 import { Select } from '../../ui/Select'
 import { Badge } from '../../ui/Badge'
 import { useToast } from '../../../contexts/ToastContext'
+import { usePipelineStages } from '../../../hooks/usePipelineStages'
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
+import { useStageSectionConfig } from '../../../hooks/useStageSectionConfig'
 import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
-import { supabase } from '../../../lib/supabase'
-import { useQueryClient } from '@tanstack/react-query'
 import {
     DndContext,
     closestCenter,
@@ -87,6 +87,7 @@ export default function SectionManager() {
     // Fetch ALL sections (active + inactive) so admin can toggle visibility
     const { data: sections = [], isLoading } = useAllSections(currentProduct)
     const { createSection, updateSection, deleteSection, reorderSections } = useSectionMutations()
+    const { data: stages = [] } = usePipelineStages(pipelineId)
     const { data: phases = [] } = usePipelinePhases(pipelineId)
 
     const [isAdding, setIsAdding] = useState(false)
@@ -359,6 +360,7 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    stages={stages}
                     phases={phases}
                 />
 
@@ -374,6 +376,7 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    stages={stages}
                     phases={phases}
                 />
             </div>
@@ -393,10 +396,11 @@ interface SectionColumnProps {
     onEdit: (section: Section) => void
     onDelete: (section: Section) => void
     onToggleActive: (section: Section) => void
+    stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
 }
 
-function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, phases }: SectionColumnProps) {
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, stages, phases }: SectionColumnProps) {
     const totalCount = activeSections.length + inactiveSections.length
 
     return (
@@ -428,6 +432,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                             onEdit={() => onEdit(section)}
                                             onDelete={() => onDelete(section)}
                                             onToggleActive={() => onToggleActive(section)}
+                                            stages={stages}
                                             phases={phases}
                                         />
                                     ))}
@@ -451,6 +456,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                     onEdit={() => onEdit(section)}
                                     onDelete={() => onDelete(section)}
                                     onToggleActive={() => onToggleActive(section)}
+                                    stages={stages}
                                     phases={phases}
                                 />
                             ))}
@@ -462,114 +468,116 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
     )
 }
 
-// ── Phase rule picker (reused for both collapse and hidden) ──────────────
-// Single source of truth: local state for instant feedback, synced to DB.
-interface PhaseRulePickerProps {
-    icon: React.ReactNode
-    label: string
-    description: string
-    sectionId: string
-    /** Current slugs from DB (via props) — used to seed local state */
-    serverSlugs: string[]
-    phases: { id: string; slug: string | null; name: string }[]
-    dbColumn: 'collapse_on_phases' | 'hidden_on_phases'
-    /** amber | red */
-    accent: 'amber' | 'red'
+// ── Stage Visibility Picker ──────────────────────────────────────────────
+// Controls which stages hide this section. Grouped by phase for readability.
+
+interface StageVisibilityPickerProps {
+    sectionKey: string
+    stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
+    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
 }
 
-function PhaseRulePicker({ icon, label, description, sectionId, serverSlugs, phases, dbColumn, accent }: PhaseRulePickerProps) {
+function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPickerProps) {
     const { toast } = useToast()
-    const queryClient = useQueryClient()
+    const { getHiddenSections, toggleVisibility } = useStageSectionConfig()
     const [open, setOpen] = useState(false)
 
-    // Local state = instant visual feedback. Seeded from server, kept in sync.
-    const [selected, setSelected] = useState<string[]>(serverSlugs)
-
-    // Sync when server data changes (e.g. after refetch)
-    useEffect(() => {
-        setSelected(serverSlugs)
-    }, [serverSlugs])
-
-    const toggle = useCallback(async (slug: string) => {
-        const next = selected.includes(slug)
-            ? selected.filter(s => s !== slug)
-            : [...selected, slug]
-
-        // 1. Instant local update
-        setSelected(next)
-
-        // 2. Persist to DB
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await supabase.from('sections').update({ [dbColumn]: next } as any).eq('id', sectionId)
-
-        if (error) {
-            // Revert on failure
-            setSelected(selected)
-            toast({ title: 'Erro ao salvar', description: error.message, type: 'error' })
-            return
+    // Group stages by phase
+    const stagesByPhase = useMemo(() => {
+        const groups: { phase: { id: string; name: string }; stages: { id: string; nome: string }[] }[] = []
+        for (const phase of phases) {
+            const phaseStages = stages.filter(s => s.phase_id === phase.id)
+            if (phaseStages.length > 0) {
+                groups.push({ phase: { id: phase.id, name: phase.name }, stages: phaseStages })
+            }
         }
+        return groups
+    }, [stages, phases])
 
-        // 3. Background refetch to keep query cache fresh (won't flicker because local state is already correct)
-        queryClient.invalidateQueries({ queryKey: ['sections'] })
+    // Count hidden stages for this section
+    const hiddenCount = useMemo(() => {
+        return stages.filter(s => getHiddenSections(s.id).includes(sectionKey)).length
+    }, [stages, sectionKey, getHiddenSections])
 
-        const msg = dbColumn === 'hidden_on_phases'
-            ? (next.length > 0 ? `Invisível para ${next.length} fase(s)` : 'Visível para todos os times')
-            : (next.length > 0 ? `Recolhe em ${next.length} fase(s)` : 'Sem regra de recolhimento')
-        toast({ title: msg, type: 'success' })
-    }, [selected, sectionId, dbColumn, toast, queryClient])
+    const handleToggle = useCallback(async (stageId: string) => {
+        const isCurrentlyHidden = getHiddenSections(stageId).includes(sectionKey)
+        try {
+            await toggleVisibility.mutateAsync({
+                stageId,
+                sectionKey,
+                visible: isCurrentlyHidden // toggle: if hidden → make visible, if visible → hide
+            })
+        } catch {
+            toast({ title: 'Erro ao salvar visibilidade', type: 'error' })
+        }
+    }, [sectionKey, getHiddenSections, toggleVisibility, toast])
 
-    const hasRules = selected.length > 0
-    const colors = accent === 'amber'
-        ? { active: 'bg-amber-100 text-amber-700 border-amber-300', badge: 'bg-amber-50 text-amber-600 border-amber-200', text: 'text-amber-700', icon: 'text-amber-600' }
-        : { active: 'bg-red-100 text-red-700 border-red-300', badge: 'bg-red-50 text-red-600 border-red-200', text: 'text-red-700', icon: 'text-red-600' }
+    const hasRules = hiddenCount > 0
 
     return (
         <div>
-            {/* Header row — click to expand/collapse */}
+            {/* Header row */}
             <button
                 onClick={() => setOpen(prev => !prev)}
                 className="flex items-center gap-2 w-full text-left"
             >
-                <span className={cn("flex-shrink-0", hasRules ? colors.icon : "text-muted-foreground")}>{icon}</span>
-                <span className={cn("text-xs font-medium", hasRules ? colors.text : "text-muted-foreground")}>{label}</span>
-                <span className="text-[10px] text-muted-foreground/60 truncate">— {description}</span>
-                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? colors.text : "text-muted-foreground/40")}>
+                <span className={cn("flex-shrink-0", hasRules ? "text-red-600" : "text-muted-foreground")}>
+                    <EyeOff className="w-3.5 h-3.5" />
+                </span>
+                <span className={cn("text-xs font-medium", hasRules ? "text-red-700" : "text-muted-foreground")}>
+                    Visibilidade por etapa
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 truncate">
+                    — {hasRules ? `oculta em ${hiddenCount} etapa(s)` : 'visível em todas as etapas'}
+                </span>
+                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? "text-red-700" : "text-muted-foreground/40")}>
                     {open ? '▲' : '▼'}
                 </span>
             </button>
 
-            {/* Phase buttons — shown when expanded */}
+            {/* Stage grid grouped by phase */}
             {open && (
-                <div className="flex flex-wrap gap-1.5 mt-2 ml-6">
-                    {phases.map(phase => {
-                        if (!phase.slug) return null
-                        const isActive = selected.includes(phase.slug)
-                        return (
-                            <button
-                                key={phase.id}
-                                onClick={() => toggle(phase.slug!)}
-                                className={cn(
-                                    "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
-                                    isActive
-                                        ? cn(colors.active, "shadow-sm")
-                                        : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
-                                )}
-                            >
-                                {phase.name}
-                            </button>
-                        )
-                    })}
+                <div className="mt-2 ml-6 space-y-2">
+                    {stagesByPhase.map(group => (
+                        <div key={group.phase.id}>
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                {group.phase.name}
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                                {group.stages.map(stage => {
+                                    const isHidden = getHiddenSections(stage.id).includes(sectionKey)
+                                    return (
+                                        <button
+                                            key={stage.id}
+                                            onClick={() => handleToggle(stage.id)}
+                                            className={cn(
+                                                "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
+                                                isHidden
+                                                    ? "bg-red-100 text-red-700 border-red-300 shadow-sm"
+                                                    : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                            )}
+                                        >
+                                            {stage.nome}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
-            {/* Summary badges — shown when collapsed and has rules */}
+            {/* Summary badges when collapsed */}
             {!open && hasRules && (
                 <div className="flex flex-wrap gap-1 mt-1 ml-6">
-                    {phases.filter(p => p.slug && selected.includes(p.slug)).map(phase => (
-                        <span key={phase.id} className={cn("px-2 py-0.5 rounded-md text-[11px] font-medium border", colors.badge)}>
-                            {phase.name}
-                        </span>
-                    ))}
+                    {stages
+                        .filter(s => getHiddenSections(s.id).includes(sectionKey))
+                        .map(stage => (
+                            <span key={stage.id} className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-red-50 text-red-600 border-red-200">
+                                {stage.nome}
+                            </span>
+                        ))
+                    }
                 </div>
             )}
         </div>
@@ -583,10 +591,11 @@ interface SortableSectionCardProps {
     onEdit: () => void
     onDelete: () => void
     onToggleActive: () => void
+    stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
     phases: { id: string; slug: string | null; name: string; color?: string | null }[]
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, phases }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, stages, phases }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
     const isInactive = !section.active
 
@@ -698,28 +707,13 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                 )}
             </div>
 
-            {/* Phase rules — only for active, non-hardcoded sections */}
+            {/* Stage visibility rules — only for active, non-hardcoded sections */}
             {!isHardcoded && !isInactive && (
-                <div className="w-full border-t border-border pt-3 mt-1 space-y-2.5">
-                    <PhaseRulePicker
-                        icon={<FoldVertical className="w-3.5 h-3.5" />}
-                        label="Recolher automaticamente"
-                        description="seção começa fechada quando o card estiver nestas fases"
-                        sectionId={section.id}
-                        serverSlugs={section.collapse_on_phases || []}
+                <div className="w-full border-t border-border pt-3 mt-1">
+                    <StageVisibilityPicker
+                        sectionKey={section.key}
+                        stages={stages}
                         phases={phases}
-                        dbColumn="collapse_on_phases"
-                        accent="amber"
-                    />
-                    <PhaseRulePicker
-                        icon={<EyeOff className="w-3.5 h-3.5" />}
-                        label="Invisível para times"
-                        description="seção some do card para usuários destas fases"
-                        sectionId={section.id}
-                        serverSlugs={section.hidden_on_phases || []}
-                        phases={phases}
-                        dbColumn="hidden_on_phases"
-                        accent="red"
                     />
                 </div>
             )}
