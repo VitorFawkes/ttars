@@ -8,6 +8,8 @@ import { Select } from '@/components/ui/Select';
 import { toast } from 'sonner';
 import { ArrowUpRight, Check, RefreshCw, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useProductContext } from '@/hooks/useProductContext';
+import { PRODUCT_PIPELINE_MAP } from '@/lib/constants';
 
 interface WelcomeStage {
     id: string;
@@ -50,21 +52,26 @@ interface OutboundStageMappingTabProps {
 
 export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingTabProps) {
     const queryClient = useQueryClient();
+    const { currentProduct } = useProductContext();
+    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || '';
     const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
     const [selectedPipelineFilter, setSelectedPipelineFilter] = useState<string>('');
 
     // Fetch Welcome stages
     const { data: welcomeStages, isLoading: stagesLoading } = useQuery({
-        queryKey: ['welcome-stages-for-outbound'],
+        queryKey: ['welcome-stages-for-outbound', pipelineId],
         queryFn: async () => {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('pipeline_stages')
                 .select(`
                     id, nome, pipeline_id, phase_id, ordem,
-                    phase:pipeline_phases(label, color, order_index)
+                    phase:pipeline_phases!pipeline_stages_phase_id_fkey(label, color, order_index)
                 `)
-                .eq('ativo', true)
-                .order('ordem');
+                .eq('ativo', true);
+            if (pipelineId) {
+                query = query.eq('pipeline_id', pipelineId);
+            }
+            const { data, error } = await query.order('ordem');
             if (error) throw error;
             // Sort by phase order_index then stage ordem
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,7 +131,9 @@ export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingT
         mutationFn: async ({ internalStageId, externalStageId }: { internalStageId: string, externalStageId: string | null }) => {
             // Delete existing mapping for this internal stage
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types
-            await (supabase.from('integration_outbound_stage_map' as never).delete as any)()
+            await (supabase.from('integration_outbound_stage_map' as never).delete() as any)
+                .eq('integration_id', integrationId)
+                .eq('internal_stage_id', internalStageId);
 
             // If externalStageId is provided, create new mapping
             if (externalStageId) {
