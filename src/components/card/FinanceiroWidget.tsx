@@ -418,7 +418,7 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         <ExtraFieldsRow item={item} className="ml-12" />
                     )}
 
-                    {/* Observações do Planner */}
+                    {/* Observações */}
                     <ObservacoesField item={item} cardId={cardId} />
 
                     {/* Sub-items (requirements) */}
@@ -536,7 +536,7 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
 }
 
 // ═══════════════════════════════════════════════════════════
-// Observações do Planner (editable field)
+// Observações (editable field)
 // ═══════════════════════════════════════════════════════════
 
 function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: string }) {
@@ -558,6 +558,8 @@ function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: strin
         },
     })
 
+    const cancel = () => { setValue(item.observacoes || ''); setEditing(false) }
+
     return (
         <div className="ml-12">
             {editing ? (
@@ -565,12 +567,18 @@ function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: strin
                     <textarea
                         value={value}
                         onChange={e => setValue(e.target.value)}
-                        placeholder="Observações do planner sobre este produto..."
+                        onBlur={() => cancel()}
+                        onKeyDown={e => {
+                            if (e.key === 'Escape') cancel()
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.mutate(value) }
+                        }}
+                        placeholder="Observações sobre este produto..."
                         className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300"
                         rows={2}
                         autoFocus
                     />
                     <button
+                        onMouseDown={e => e.preventDefault()}
                         onClick={() => save.mutate(value)}
                         className="text-xs text-indigo-600 hover:text-indigo-800 font-medium shrink-0"
                     >
@@ -586,7 +594,7 @@ function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: strin
                     {item.observacoes ? (
                         <span className="text-gray-500 italic truncate max-w-[250px]">{item.observacoes}</span>
                     ) : (
-                        'Obs. do planner'
+                        'Observações'
                     )}
                 </button>
             )}

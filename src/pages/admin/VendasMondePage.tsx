@@ -183,13 +183,6 @@ function parseCSVNative(text: string): Record<string, string>[] {
     })
 }
 
-/** Converte rows parseados nativamente para WorkBook do XLSX (para reusar processWorkbook) */
-function csvRowsToWorkbook(rows: Record<string, string>[]): XLSX.WorkBook {
-    const sheet = XLSX.utils.json_to_sheet(rows)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1')
-    return workbook
-}
 
 // ─── Status badge ────────────────────────────────────────────
 
@@ -447,10 +440,8 @@ export default function VendasMondePage() {
     })
 
     // ─── File upload ─────────────────────────────────────────
-    const processWorkbook = useCallback(async (workbook: XLSX.WorkBook, name: string) => {
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
-
+    /** Processa array de objetos genéricos (vindo de CSV nativo ou XLSX) */
+    const processRows = useCallback(async (jsonData: Record<string, unknown>[], name: string) => {
         if (jsonData.length === 0) { toast.error('Arquivo vazio'); return }
 
         const headers = Object.keys(jsonData[0])
@@ -503,19 +494,20 @@ export default function VendasMondePage() {
 
         try {
             if (isCSV) {
-                // CSV: parser nativo UTF-8 — XLSX.js corrompe acentos mesmo com type:'string'
+                // CSV: parser nativo UTF-8 — XLSX.js corrompe acentos, não usar
                 const text = await file.text()
                 const rows = parseCSVNative(text)
-                if (rows.length === 0) { toast.error('Arquivo vazio'); return }
-                await processWorkbook(csvRowsToWorkbook(rows), file.name)
+                await processRows(rows, file.name)
             } else {
-                // XLSX/XLS: ler como ArrayBuffer
+                // XLSX/XLS: usar XLSX.js (binário, sem problema de encoding)
                 const reader = new FileReader()
                 reader.onload = async (evt) => {
                     try {
                         const data = evt.target?.result
                         const workbook = XLSX.read(data, { type: 'array' })
-                        await processWorkbook(workbook, file.name)
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+                        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+                        await processRows(jsonData, file.name)
                     } catch (err) {
                         console.error('Erro ao ler arquivo:', err)
                         toast.error('Erro ao ler o arquivo')
