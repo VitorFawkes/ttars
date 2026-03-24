@@ -16,6 +16,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
+import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
 import { useMyTeamPhase } from '../../hooks/useMyTeamPhase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
@@ -139,6 +141,8 @@ interface DynamicSectionWidgetProps {
     className?: string
     /** Whether to start collapsed */
     defaultCollapsed?: boolean
+    /** Admin-only: phase names where this section is hidden */
+    hiddenForPhases?: string[]
 }
 
 /**
@@ -149,7 +153,8 @@ export default function DynamicSectionWidget({
     card,
     sectionKey,
     className,
-    defaultCollapsed = false
+    defaultCollapsed = false,
+    hiddenForPhases
 }: DynamicSectionWidgetProps) {
     const queryClient = useQueryClient()
     const [isExpanded, setIsExpanded] = useState(!defaultCollapsed)
@@ -339,6 +344,12 @@ export default function DynamicSectionWidget({
                         <h3 className="text-xs font-semibold text-gray-900">
                             {section?.label || sectionKey}
                         </h3>
+                        {hiddenForPhases && hiddenForPhases.length > 0 && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-500 border border-red-200">
+                                <EyeOff className="w-3 h-3" />
+                                Oculta para {hiddenForPhases.join(', ')}
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -480,13 +491,25 @@ interface DynamicSectionsListProps {
 export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlug }: DynamicSectionsListProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const produto = (card as any).produto as string | undefined
-    const { data: sections = [], isLoading } = useSections(produto || 'TRIPS')
+    const productKey = produto || 'TRIPS'
+    const { data: sections = [], isLoading } = useSections(productKey)
 
     // User's team phase for hidden_on_phases filtering (hides by VIEWER, not by card stage)
     const { data: myPhase } = useMyTeamPhase()
     const { profile } = useAuth()
     const isAdmin = profile?.is_admin === true
     const myPhaseSlug = myPhase?.slug as string | undefined
+
+    // Phase name lookup for admin badges (slug → display name)
+    const pipelineId = PRODUCT_PIPELINE_MAP[productKey as keyof typeof PRODUCT_PIPELINE_MAP]
+    const { data: phases = [] } = usePipelinePhases(pipelineId)
+    const phaseNameMap = useMemo(() => {
+        const map: Record<string, string> = {}
+        for (const p of phases) {
+            if (p.slug) map[p.slug] = p.name
+        }
+        return map
+    }, [phases])
 
     const positionedSections = useMemo(() => {
         return sections
@@ -507,6 +530,14 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
         return (section.collapse_on_phases || []).includes(phaseSlug)
     }, [phaseSlug])
 
+    /** Resolve hidden phase slugs → display names (admin-only) */
+    const getHiddenPhaseNames = useCallback((section: Section): string[] | undefined => {
+        if (!isAdmin) return undefined
+        const slugs = section.hidden_on_phases || []
+        if (slugs.length === 0) return undefined
+        return slugs.map(s => phaseNameMap[s] || s)
+    }, [isAdmin, phaseNameMap])
+
     if (isLoading) {
         return (
             <div className="animate-pulse">
@@ -524,10 +555,7 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
         <>
             {positionedSections.map(section => {
                 const collapsed = shouldAutoCollapse(section)
-                // Admin badge: show which phases this section is hidden for
-                const hiddenForPhases = isAdmin && (section.hidden_on_phases || []).length > 0
-                    ? (section.hidden_on_phases || []).map(s => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
-                    : undefined
+                const hiddenForPhases = getHiddenPhaseNames(section)
 
                 // Widget-based sections: manage collapse state here, pass props to widget
                 if (section.widget_component && WIDGET_REGISTRY[section.widget_component]) {
@@ -550,6 +578,7 @@ export function DynamicSectionsList({ card, position, excludeKeys = [], phaseSlu
                         card={card}
                         sectionKey={section.key}
                         defaultCollapsed={collapsed}
+                        hiddenForPhases={hiddenForPhases}
                     />
                 )
             })}
