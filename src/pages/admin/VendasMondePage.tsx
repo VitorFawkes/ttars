@@ -397,67 +397,86 @@ export default function VendasMondePage() {
     })
 
     // ─── File upload ─────────────────────────────────────────
+    const processWorkbook = useCallback(async (workbook: XLSX.WorkBook, name: string) => {
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+
+        if (jsonData.length === 0) { toast.error('Arquivo vazio'); return }
+
+        const headers = Object.keys(jsonData[0])
+        const vendaCol = findColumn(headers, VENDA_COLUMN_ALIASES)
+        const produtoCol = findColumn(headers, PRODUTO_ALIASES)
+        const valorCol = findColumn(headers, VALOR_TOTAL_ALIASES)
+        const receitaCol = findColumn(headers, RECEITA_ALIASES)
+        const passageiroCol = findColumn(headers, PASSAGEIRO_ALIASES)
+        const fornecedorCol = findColumn(headers, FORNECEDOR_ALIASES)
+        const representanteCol = findColumn(headers, REPRESENTANTE_ALIASES)
+        const documentoCol = findColumn(headers, DOCUMENTO_ALIASES)
+        const dataInicioCol = findColumn(headers, DATA_INICIO_ALIASES)
+        const dataFimCol = findColumn(headers, DATA_FIM_ALIASES)
+
+        if (!vendaCol) { toast.error('Coluna "Venda Nº" não encontrada'); return }
+        if (!produtoCol) { toast.error('Coluna "Produto" não encontrada'); return }
+        if (!valorCol) { toast.error('Coluna "Valor Total" não encontrada'); return }
+
+        const rows: CsvRow[] = jsonData
+            .filter(row => row[vendaCol] != null && String(row[vendaCol]).trim() !== '')
+            .map(row => ({
+                vendaNum: String(row[vendaCol]).trim(),
+                produto: String(row[produtoCol] || '').trim(),
+                valorTotal: parseBRNumber(row[valorCol]),
+                receita: receitaCol ? parseBRNumber(row[receitaCol]) : 0,
+                passageiros: passageiroCol
+                    ? String(row[passageiroCol] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean)
+                    : [],
+                fornecedor: fornecedorCol ? String(row[fornecedorCol] || '').trim() : '',
+                representante: representanteCol ? String(row[representanteCol] || '').trim() : '',
+                documento: documentoCol ? String(row[documentoCol] || '').trim() : '',
+                dataInicio: dataInicioCol ? parseDateBR(row[dataInicioCol]) : null,
+                dataFim: dataFimCol ? parseDateBR(row[dataFimCol]) : null,
+            }))
+
+        if (rows.length === 0) { toast.error('Nenhuma linha válida encontrada'); return }
+
+        setParsedRows(rows)
+        setFileName(name)
+        toast.success(`${rows.length} linhas carregadas`)
+        await matchCards(rows)
+    }, [])
+
     const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
 
         setFileName(file.name)
+        const isCSV = /\.(csv|tsv|txt)$/i.test(file.name)
 
-        const reader = new FileReader()
-        reader.onload = async (evt) => {
-            try {
-                const data = evt.target?.result
-                const workbook = XLSX.read(data, { type: 'array' })
-                const sheet = workbook.Sheets[workbook.SheetNames[0]]
-                const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
-
-                if (jsonData.length === 0) { toast.error('Arquivo vazio'); return }
-
-                const headers = Object.keys(jsonData[0])
-                const vendaCol = findColumn(headers, VENDA_COLUMN_ALIASES)
-                const produtoCol = findColumn(headers, PRODUTO_ALIASES)
-                const valorCol = findColumn(headers, VALOR_TOTAL_ALIASES)
-                const receitaCol = findColumn(headers, RECEITA_ALIASES)
-                const passageiroCol = findColumn(headers, PASSAGEIRO_ALIASES)
-                const fornecedorCol = findColumn(headers, FORNECEDOR_ALIASES)
-                const representanteCol = findColumn(headers, REPRESENTANTE_ALIASES)
-                const documentoCol = findColumn(headers, DOCUMENTO_ALIASES)
-                const dataInicioCol = findColumn(headers, DATA_INICIO_ALIASES)
-                const dataFimCol = findColumn(headers, DATA_FIM_ALIASES)
-
-                if (!vendaCol) { toast.error('Coluna "Venda Nº" não encontrada'); return }
-                if (!produtoCol) { toast.error('Coluna "Produto" não encontrada'); return }
-                if (!valorCol) { toast.error('Coluna "Valor Total" não encontrada'); return }
-
-                const rows: CsvRow[] = jsonData
-                    .filter(row => row[vendaCol] != null && String(row[vendaCol]).trim() !== '')
-                    .map(row => ({
-                        vendaNum: String(row[vendaCol]).trim(),
-                        produto: String(row[produtoCol] || '').trim(),
-                        valorTotal: parseBRNumber(row[valorCol]),
-                        receita: receitaCol ? parseBRNumber(row[receitaCol]) : 0,
-                        passageiros: passageiroCol
-                            ? String(row[passageiroCol] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean)
-                            : [],
-                        fornecedor: fornecedorCol ? String(row[fornecedorCol] || '').trim() : '',
-                        representante: representanteCol ? String(row[representanteCol] || '').trim() : '',
-                        documento: documentoCol ? String(row[documentoCol] || '').trim() : '',
-                        dataInicio: dataInicioCol ? parseDateBR(row[dataInicioCol]) : null,
-                        dataFim: dataFimCol ? parseDateBR(row[dataFimCol]) : null,
-                    }))
-
-                if (rows.length === 0) { toast.error('Nenhuma linha válida encontrada'); return }
-
-                setParsedRows(rows)
-                toast.success(`${rows.length} linhas carregadas`)
-                await matchCards(rows)
-            } catch (err) {
-                console.error('Erro ao ler arquivo:', err)
-                toast.error('Erro ao ler o arquivo')
+        try {
+            if (isCSV) {
+                // CSV: ler como texto UTF-8 para preservar acentos nos headers
+                const text = await file.text()
+                const workbook = XLSX.read(text, { type: 'string' })
+                await processWorkbook(workbook, file.name)
+            } else {
+                // XLSX/XLS: ler como ArrayBuffer
+                const reader = new FileReader()
+                reader.onload = async (evt) => {
+                    try {
+                        const data = evt.target?.result
+                        const workbook = XLSX.read(data, { type: 'array' })
+                        await processWorkbook(workbook, file.name)
+                    } catch (err) {
+                        console.error('Erro ao ler arquivo:', err)
+                        toast.error('Erro ao ler o arquivo')
+                    }
+                }
+                reader.readAsArrayBuffer(file)
             }
+        } catch (err) {
+            console.error('Erro ao ler arquivo:', err)
+            toast.error('Erro ao ler o arquivo')
         }
-        reader.readAsArrayBuffer(file)
-    }, [])
+    }, [processWorkbook])
 
     // ─── Matching ────────────────────────────────────────────
     const matchCards = async (rows: CsvRow[]) => {
