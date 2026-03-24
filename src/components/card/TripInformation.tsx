@@ -206,11 +206,31 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         setViewMode(derivedViewMode)
     }
 
-    // --- Visible fields for trip_info section ---
+    // Determine the relevant stage ID for the current viewMode (tab)
+    const viewModeStageId = useMemo(() => {
+        if (!phases || !stages) return card.pipeline_stage_id
+
+        const currentPhase = phases.find(p => p.slug === viewMode)
+        if (!currentPhase) return card.pipeline_stage_id
+
+        const phaseStages = stages.filter(s =>
+            s.phase_id === currentPhase.id ||
+            (!s.phase_id && s.fase === currentPhase.name)
+        )
+
+        if (phaseStages.length > 0) {
+            return phaseStages[phaseStages.length - 1].id
+        }
+
+        return card.pipeline_stage_id
+    }, [viewMode, phases, stages, card.pipeline_stage_id])
+
+    // --- Visible fields for trip_info section (per tab) ---
     const visibleFields = useMemo(() => {
-        if (!card.pipeline_stage_id) return []
-        return getVisibleFields(card.pipeline_stage_id!, 'trip_info')
-    }, [card.pipeline_stage_id, getVisibleFields])
+        const targetStageId = viewModeStageId || card.pipeline_stage_id
+        if (!targetStageId) return []
+        return getVisibleFields(targetStageId, 'trip_info')
+    }, [viewModeStageId, card.pipeline_stage_id, getVisibleFields])
 
     // Determine which data to display/edit based on ViewMode
     const activeData: TripsProdutoData = viewMode === SystemPhase.SDR ? briefingData : productData
