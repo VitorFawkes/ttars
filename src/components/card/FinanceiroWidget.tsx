@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useProductRequirements } from '@/hooks/useProductRequirements'
 import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import type { Database } from '@/database.types'
 
@@ -184,9 +183,14 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
     const reqs = byProduct(item.id)
     const progress = progressByProduct(item.id)
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { byProduct: passengersByProduct, progressByProduct: paxProgressByProduct, addPassenger, toggleStatus: togglePaxStatus, updateObservation, deletePassenger } = useFinancialItemPassengers(cardId)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const {
+        byProduct: passengersByProduct,
+        progressByProduct: paxProgressByProduct,
+        addPassenger,
+        toggleStatus: togglePaxStatus,
+        updateObservation,
+        deletePassenger,
+    } = useFinancialItemPassengers(cardId)
     const passengers = passengersByProduct(item.id)
     const paxProgress = paxProgressByProduct(item.id)
 
@@ -228,7 +232,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
         setNewItemTitle('')
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleAddPassenger = () => {
         if (!newPassengerName.trim()) return
         addPassenger.mutate({ financialItemId: item.id, nome: newPassengerName.trim() })
@@ -349,6 +352,44 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         </button>
                     </div>
 
+                    {/* Passengers section */}
+                    <div className="ml-12 space-y-1">
+                        {passengers.length > 0 && (
+                            <>
+                                <div className="flex items-center gap-1.5 mb-1 pt-1 border-t border-gray-100">
+                                    <Users className="h-3 w-3 text-indigo-400" />
+                                    <span className="text-[10px] font-medium text-indigo-500 uppercase tracking-wide">Passageiros</span>
+                                </div>
+                                {passengers.map(pax => (
+                                    <PassengerRow
+                                        key={pax.id}
+                                        passenger={pax}
+                                        onToggle={() => togglePaxStatus.mutate(pax.id)}
+                                        onUpdateObservation={(obs) => updateObservation.mutate({ id: pax.id, observacao: obs })}
+                                        onDelete={() => deletePassenger.mutate(pax.id)}
+                                    />
+                                ))}
+                            </>
+                        )}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={newPassengerName}
+                                onChange={e => setNewPassengerName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleAddPassenger()}
+                                placeholder="Adicionar passageiro..."
+                                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                            />
+                            <button
+                                onClick={handleAddPassenger}
+                                disabled={!newPassengerName.trim()}
+                                className="text-indigo-500 hover:text-indigo-700 disabled:text-gray-300"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Notes */}
                     <div className="ml-12">
                         {editingNotes ? (
@@ -384,6 +425,98 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                     </div>
                 </div>
             )}
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// Passenger Row (passageiro de um produto)
+// ═══════════════════════════════════════════════════════════
+
+function PassengerRow({ passenger, onToggle, onUpdateObservation, onDelete }: {
+    passenger: FinancialItemPassenger
+    onToggle: () => void
+    onUpdateObservation: (obs: string) => void
+    onDelete: () => void
+}) {
+    const isDone = passenger.status === 'concluido'
+    const [showObs, setShowObs] = useState(false)
+    const [obsValue, setObsValue] = useState(passenger.observacao || '')
+
+    const handleSaveObs = () => {
+        onUpdateObservation(obsValue)
+        setShowObs(false)
+    }
+
+    return (
+        <div className="group flex items-start gap-2 py-1">
+            {/* Status checkbox */}
+            <button
+                onClick={onToggle}
+                className={cn(
+                    "flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors mt-0.5",
+                    isDone
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : "border-gray-300 hover:border-indigo-400"
+                )}
+            >
+                {isDone && <Check className="h-2.5 w-2.5" />}
+            </button>
+
+            <div className="flex-1 min-w-0">
+                <span className={cn(
+                    "text-xs",
+                    isDone ? "text-gray-400 line-through" : "text-gray-700"
+                )}>
+                    {passenger.nome}
+                </span>
+
+                {/* Observation inline */}
+                {showObs ? (
+                    <div className="flex items-center gap-1 mt-1">
+                        <input
+                            type="text"
+                            value={obsValue}
+                            onChange={e => setObsValue(e.target.value)}
+                            placeholder="Observação..."
+                            autoFocus
+                            className="flex-1 text-[11px] border border-gray-200 rounded px-1.5 py-0.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveObs() }}
+                        />
+                        <button
+                            onClick={handleSaveObs}
+                            className="text-[10px] text-indigo-600 font-medium"
+                        >
+                            OK
+                        </button>
+                    </div>
+                ) : passenger.observacao ? (
+                    <button
+                        onClick={() => { setObsValue(passenger.observacao || ''); setShowObs(true) }}
+                        className="text-[10px] text-slate-400 italic truncate block max-w-[200px]"
+                    >
+                        {passenger.observacao}
+                    </button>
+                ) : null}
+            </div>
+
+            {/* Actions (on hover) */}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                    onClick={() => { setObsValue(passenger.observacao || ''); setShowObs(true) }}
+                    className="p-0.5 text-gray-300 hover:text-indigo-500"
+                    title="Observação"
+                >
+                    <MessageSquare className="h-3 w-3" />
+                </button>
+                <button
+                    onClick={onDelete}
+                    className="p-0.5 text-gray-300 hover:text-red-500"
+                    title="Remover passageiro"
+                >
+                    <Trash2 className="h-3 w-3" />
+                </button>
+            </div>
         </div>
     )
 }
