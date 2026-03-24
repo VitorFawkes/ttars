@@ -54,7 +54,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
-    const { data: myAssistCardIds } = useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE') // Pre-fetch + phase expansion
+    // Pre-fetch para expansão de fases — valor usado indiretamente via cache do React Query
+    useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])
@@ -508,6 +509,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     }
 
     // Win handler — chamado pelo KanbanCard via onWin callback
+    // Nota: onWin NÃO é passado para colunas Pós-Venda (sem ganho/perdido nessa fase)
     const handleWin = (cardId: string) => {
         const card = allCards?.find(c => c.id === cardId)
         if (!card) return
@@ -515,25 +517,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const phaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentStage?.fase
-
-        // Se pós-venda/resolução → ganho final, com confirmação
-        if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') {
-            if (!confirm('Confirmar que a viagem foi concluída com sucesso?')) return
-            const executeWin = async () => {
-                try {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
-                    const { error } = await (supabase as any).rpc('marcar_ganho', { p_card_id: cardId })
-                    if (error) throw error
-                    queryClient.invalidateQueries({ queryKey: ['cards'] })
-                    queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
-                    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
-                } catch (err) {
-                    console.error('Erro ao marcar como ganho:', err)
-                }
-            }
-            executeWin()
-            return
-        }
 
         // Para SDR ou Planner → precisa de handoff (escolher novo dono)
         const nextPhaseSlug = phaseSlug === 'sdr' ? 'planner' : 'pos_venda'
@@ -581,7 +564,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
 
         return phases.filter(p => visiblePhaseIds.has(p.id))
-    }, [phasesData, filters.phaseFilters, viewMode, subView, myAssistCardIds, allCards, stages])
+    }, [phasesData, filters.phaseFilters, viewMode, subView, allCards, stages])
 
     if (isError) {
         return (
@@ -682,20 +665,24 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                             stages={phaseStages}
                                             cards={phaseCards}
                                         >
-                                            {phaseStages.map((stage) => {
-                                                const stageCards = allCards.filter(c => c.pipeline_stage_id === stage.id)
+                                            {(() => {
+                                                // Pós-Venda é execução — sem ganho/perdido
+                                                const isPosVenda = phase.slug === 'pos_venda' || phase.slug === 'resolucao'
+                                                return phaseStages.map((stage) => {
+                                                    const stageCards = allCards.filter(c => c.pipeline_stage_id === stage.id)
 
-                                                return (
-                                                    <KanbanColumn
-                                                        key={stage.id}
-                                                        stage={stage}
-                                                        cards={stageCards}
-                                                        phaseColor={phase.color}
-                                                        onWin={handleWin}
-                                                        onLoss={handleLoss}
-                                                    />
-                                                )
-                                            })}
+                                                    return (
+                                                        <KanbanColumn
+                                                            key={stage.id}
+                                                            stage={stage}
+                                                            cards={stageCards}
+                                                            phaseColor={phase.color}
+                                                            onWin={isPosVenda ? undefined : handleWin}
+                                                            onLoss={isPosVenda ? undefined : handleLoss}
+                                                        />
+                                                    )
+                                                })
+                                            })()}
                                         </KanbanPhaseGroup>
                                     )
                                 })}

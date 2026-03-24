@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -793,39 +793,30 @@ export default function CardHeader({ card }: CardHeaderProps) {
     })
 
     const handleMarkAsWon = () => {
-        const currentPhaseSlug = currentStage?.pipeline_phases?.slug
-        const isFinalPhase = currentPhaseSlug === 'pos_venda' || currentPhaseSlug === 'resolucao'
+        const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
+        const nextPhaseStages = stages?.filter(s => {
+            const phaseOrder = s.pipeline_phases?.order_index ?? 999
+            return phaseOrder > currentPhaseOrder
+        }).sort((a, b) => {
+            const phaseOrderA = a.pipeline_phases?.order_index ?? 999
+            const phaseOrderB = b.pipeline_phases?.order_index ?? 999
+            if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
+            return a.ordem - b.ordem
+        })
 
-        if (isFinalPhase) {
-            if (confirm('Confirmar que a viagem foi concluída com sucesso?')) {
-                marcarGanhoMutation.mutate(undefined)
-            }
-        } else {
-            const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
-            const nextPhaseStages = stages?.filter(s => {
-                const phaseOrder = s.pipeline_phases?.order_index ?? 999
-                return phaseOrder > currentPhaseOrder
-            }).sort((a, b) => {
-                const phaseOrderA = a.pipeline_phases?.order_index ?? 999
-                const phaseOrderB = b.pipeline_phases?.order_index ?? 999
-                if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
-                return a.ordem - b.ordem
+        const nextStage = nextPhaseStages?.[0]
+        if (nextStage) {
+            const targetPhase = phasesData?.find(p => p.id === nextStage.phase_id)
+            setPendingStageChange({
+                stageId: nextStage.id,
+                targetStageName: `Ganho ${currentStage?.pipeline_phases?.name || currentFase}`,
+                currentOwnerId: card.dono_atual_id || undefined,
+                targetPhaseId: nextStage.phase_id || undefined,
+                targetPhaseName: targetPhase?.name || nextStage.pipeline_phases?.name || 'Próxima Fase'
             })
-
-            const nextStage = nextPhaseStages?.[0]
-            if (nextStage) {
-                const targetPhase = phasesData?.find(p => p.id === nextStage.phase_id)
-                setPendingStageChange({
-                    stageId: nextStage.id,
-                    targetStageName: `Ganho ${currentStage?.pipeline_phases?.name || currentFase}`,
-                    currentOwnerId: card.dono_atual_id || undefined,
-                    targetPhaseId: nextStage.phase_id || undefined,
-                    targetPhaseName: targetPhase?.name || nextStage.pipeline_phases?.name || 'Próxima Fase'
-                })
-                setStageChangeModalOpen(true)
-            } else {
-                marcarGanhoMutation.mutate(undefined)
-            }
+            setStageChangeModalOpen(true)
+        } else {
+            marcarGanhoMutation.mutate(undefined)
         }
     }
 
@@ -1094,24 +1085,19 @@ export default function CardHeader({ card }: CardHeaderProps) {
                             <div className="flex items-center gap-2 shrink-0">
                                 {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (() => {
                                     const phaseSlug = currentStage?.pipeline_phases?.slug
-                                    const isFinal = phaseSlug === 'pos_venda' || phaseSlug === 'resolucao'
-                                    const winLabel = phaseSlug === 'sdr' ? 'Qualificado'
-                                        : phaseSlug === 'planner' ? 'Venda Fechada'
-                                        : isFinal ? 'Viagem Concluída'
-                                        : 'Ganho'
-                                    const WinIcon = isFinal ? CheckCircle2 : ArrowRight
-                                    const winColor = isFinal
-                                        ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
-                                        : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                    // Pós-Venda é execução/entrega — sem ganho/perdido
+                                    if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') return null
+
+                                    const winLabel = phaseSlug === 'sdr' ? 'Qualificado' : 'Venda Fechada'
 
                                     return (
                                         <>
                                             <button
                                                 onClick={handleMarkAsWon}
                                                 disabled={marcarGanhoMutation.isPending}
-                                                className={cn("px-3 py-1 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5", winColor)}
+                                                className={cn("px-3 py-1 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5", 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100')}
                                             >
-                                                <WinIcon className="h-3.5 w-3.5" />
+                                                <ArrowRight className="h-3.5 w-3.5" />
                                                 {marcarGanhoMutation.isPending ? 'Marcando...' : winLabel}
                                             </button>
                                             <button
@@ -1135,7 +1121,11 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     Ganho
                                 </div>
                                 <button
-                                    onClick={() => reabrirCardMutation.mutate()}
+                                    onClick={() => {
+                                        if (confirm('Tem certeza que deseja reabrir este card?\n\nA data de venda/ganho da fase será apagada e o card voltará a aparecer como aberto nos relatórios.')) {
+                                            reabrirCardMutation.mutate()
+                                        }
+                                    }}
                                     disabled={reabrirCardMutation.isPending}
                                     className="ml-auto px-2 py-0.5 rounded-md border border-green-300 bg-white text-green-700 text-xs font-medium hover:bg-green-100 transition-colors flex items-center gap-1"
                                 >
@@ -1162,7 +1152,11 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     }}
                                 />
                                 <button
-                                    onClick={() => reabrirCardMutation.mutate()}
+                                    onClick={() => {
+                                        if (confirm('Tem certeza que deseja reabrir este card?\n\nA data de perda será apagada e o card voltará a aparecer como aberto nos relatórios.')) {
+                                            reabrirCardMutation.mutate()
+                                        }
+                                    }}
                                     disabled={reabrirCardMutation.isPending}
                                     className="ml-auto px-2 py-0.5 rounded-md border border-red-300 bg-white text-red-700 text-xs font-medium hover:bg-red-100 transition-colors flex items-center gap-1"
                                 >
