@@ -143,7 +143,7 @@ export default function GovernanceConsole() {
             })
 
             // Add known types if missing (fallback)
-            const defaults = ['ligacao', 'reuniao', 'email', 'whatsapp', 'cobranca', 'handover']
+            const defaults = ['contato', 'reuniao', 'email', 'cobranca', 'handover']
             defaults.forEach(t => {
                 if (!uniqueTypes.has(t)) uniqueTypes.set(t, t.charAt(0).toUpperCase() + t.slice(1))
             })

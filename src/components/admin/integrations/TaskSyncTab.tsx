@@ -46,7 +46,7 @@ const AC_TASK_TYPES = [
 ];
 
 const CRM_TIPOS = [
-    { value: 'ligacao', label: 'Ligacao' },
+    { value: 'contato', label: 'Contato' },
     { value: 'tarefa', label: 'Tarefa' },
     { value: 'reuniao', label: 'Reuniao' },
     { value: 'email', label: 'Email' },
