@@ -141,6 +141,56 @@ function findColumn(headers: string[], aliases: string[]): string | null {
     return null
 }
 
+/** Parse CSV text natively — preserva UTF-8 sem corrupção do XLSX.js */
+function parseCSVNative(text: string): Record<string, string>[] {
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return []
+
+    const parseLine = (line: string): string[] => {
+        const result: string[] = []
+        let current = ''
+        let inQuotes = false
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i]
+            if (inQuotes) {
+                if (ch === '"' && line[i + 1] === '"') { current += '"'; i++ }
+                else if (ch === '"') { inQuotes = false }
+                else { current += ch }
+            } else {
+                if (ch === '"') { inQuotes = true }
+                else if (ch === ',' || ch === ';') { result.push(current.trim()); current = '' }
+                else { current += ch }
+            }
+        }
+        result.push(current.trim())
+        return result
+    }
+
+    // Detectar separador pela primeira linha (header)
+    const semicolons = (lines[0].match(/;/g) || []).length
+    const commas = (lines[0].match(/,/g) || []).length
+    const sep = semicolons > commas ? ';' : ','
+
+    // Se separador é ponto-e-vírgula, substituir antes do parse
+    const normalize = (line: string) => sep === ';' ? line.replace(/;/g, ',') : line
+
+    const headers = parseLine(normalize(lines[0]))
+    return lines.slice(1).map(line => {
+        const values = parseLine(normalize(line))
+        const row: Record<string, string> = {}
+        headers.forEach((h, i) => { row[h] = values[i] || '' })
+        return row
+    })
+}
+
+/** Converte rows parseados nativamente para WorkBook do XLSX (para reusar processWorkbook) */
+function csvRowsToWorkbook(rows: Record<string, string>[]): XLSX.WorkBook {
+    const sheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1')
+    return workbook
+}
+
 // ─── Status badge ────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -453,10 +503,11 @@ export default function VendasMondePage() {
 
         try {
             if (isCSV) {
-                // CSV: ler como texto UTF-8 para preservar acentos nos headers
+                // CSV: parser nativo UTF-8 — XLSX.js corrompe acentos mesmo com type:'string'
                 const text = await file.text()
-                const workbook = XLSX.read(text, { type: 'string' })
-                await processWorkbook(workbook, file.name)
+                const rows = parseCSVNative(text)
+                if (rows.length === 0) { toast.error('Arquivo vazio'); return }
+                await processWorkbook(csvRowsToWorkbook(rows), file.name)
             } else {
                 // XLSX/XLS: ler como ArrayBuffer
                 const reader = new FileReader()
