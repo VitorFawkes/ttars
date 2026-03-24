@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTaskFilters } from '../hooks/useTaskFilters'
 import { useTasksList } from '../hooks/useTasksList'
 import { useFilterOptions } from '../hooks/useFilterOptions'
+import { TaskOutcomeModal, useTaskTypesWithOutcomes } from '../components/shared/TaskOutcomeModal'
 import { toast } from 'sonner'
 import type { TaskDeadlineFilter } from '../hooks/useTaskFilters'
 import type { TaskListItem } from '../hooks/useTasksList'
@@ -50,17 +51,25 @@ export default function Tasks() {
     const [showFilters, setShowFilters] = useState(false)
     const [personSearch, setPersonSearch] = useState('')
 
+    // Outcome modal state
+    const [outcomeModalOpen, setOutcomeModalOpen] = useState(false)
+    const [taskToComplete, setTaskToComplete] = useState<TaskListItem | null>(null)
+    const typesWithOutcomes = useTaskTypesWithOutcomes()
+
     const profiles = options?.profiles || []
 
-    // Complete task mutation
+    // Complete task mutation (with optional outcome)
     const completeMutation = useMutation({
-        mutationFn: async (taskId: string) => {
+        mutationFn: async ({ taskId, outcome, feedback }: { taskId: string; outcome?: string; feedback?: string }) => {
             const { error } = await supabase
                 .from('tarefas')
                 .update({
                     concluida: true,
                     concluida_em: new Date().toISOString(),
                     concluido_por: profile!.id,
+                    status: 'concluida',
+                    ...(outcome ? { outcome, resultado: outcome } : {}),
+                    ...(feedback ? { feedback } : {}),
                 })
                 .eq('id', taskId)
             if (error) throw error
@@ -68,6 +77,8 @@ export default function Tasks() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
             queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
             toast.success('Tarefa concluida')
         },
         onError: (error: Error) => {
@@ -84,6 +95,10 @@ export default function Tasks() {
                     concluida: false,
                     concluida_em: null,
                     concluido_por: null,
+                    status: 'pendente',
+                    outcome: null,
+                    resultado: null,
+                    feedback: null,
                 })
                 .eq('id', taskId)
             if (error) throw error
@@ -91,12 +106,23 @@ export default function Tasks() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
             queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
             toast.success('Tarefa reaberta')
         },
         onError: (error: Error) => {
             toast.error('Erro ao reabrir tarefa', { description: error.message })
         },
     })
+
+    const handleComplete = (task: TaskListItem) => {
+        if (typesWithOutcomes.has(task.tipo)) {
+            setTaskToComplete(task)
+            setOutcomeModalOpen(true)
+        } else {
+            completeMutation.mutate({ taskId: task.id })
+        }
+    }
 
     // Count active filters
     const activeFilterCount = useMemo(() => {
@@ -369,7 +395,7 @@ export default function Tasks() {
                             <TaskRow
                                 key={task.id}
                                 task={task}
-                                onComplete={() => completeMutation.mutate(task.id)}
+                                onComplete={() => handleComplete(task)}
                                 onUncomplete={() => uncompleteMutation.mutate(task.id)}
                                 isCompleting={completeMutation.isPending}
                             />
@@ -377,8 +403,55 @@ export default function Tasks() {
                     </div>
                 )}
             </div>
+
+            {/* Outcome Modal */}
+            {taskToComplete && (
+                <TaskOutcomeModal
+                    open={outcomeModalOpen}
+                    onOpenChange={(open) => {
+                        setOutcomeModalOpen(open)
+                        if (!open) setTaskToComplete(null)
+                    }}
+                    taskTipo={taskToComplete.tipo}
+                    onConfirm={(outcome, feedback) => {
+                        completeMutation.mutate({ taskId: taskToComplete.id, outcome, feedback })
+                        setTaskToComplete(null)
+                    }}
+                />
+            )}
         </div>
     )
+}
+
+// --- Outcome label helpers ---
+const OUTCOME_LABELS: Record<string, string> = {
+    atendeu: 'Atendeu',
+    nao_atendeu: 'Nao Atendeu',
+    caixa_postal: 'Caixa Postal',
+    numero_invalido: 'Num. Invalido',
+    respondido: 'Respondido',
+    visualizado: 'Visualizado',
+    enviado: 'Enviado',
+    realizada: 'Realizada',
+    cancelada: 'Cancelada',
+    nao_compareceu: 'Nao Compareceu',
+    remarcada: 'Remarcada',
+    resolvido: 'Resolvido',
+    cancelado_cliente: 'Canc. Cliente',
+    adiada: 'Adiada',
+    escalado: 'Escalado',
+    resolvido_com_custo: 'Resol. c/ Custo',
+}
+
+const OUTCOME_STYLES: Record<string, string> = {
+    atendeu: 'text-green-600 bg-green-50 border-green-200',
+    nao_atendeu: 'text-red-600 bg-red-50 border-red-200',
+    caixa_postal: 'text-amber-600 bg-amber-50 border-amber-200',
+    numero_invalido: 'text-red-600 bg-red-50 border-red-200',
+    respondido: 'text-green-600 bg-green-50 border-green-200',
+    realizada: 'text-green-600 bg-green-50 border-green-200',
+    cancelada: 'text-red-600 bg-red-50 border-red-200',
+    resolvido: 'text-green-600 bg-green-50 border-green-200',
 }
 
 // --- Sub-components ---
@@ -531,6 +604,18 @@ function TaskRow({ task, onComplete, onUncomplete, isCompleting }: {
                     </span>
                 </div>
             )}
+
+            {/* Outcome badge (completed tasks) */}
+            {task.concluida && (task.outcome || task.resultado) && (() => {
+                const outcomeKey = task.outcome || task.resultado || ''
+                const label = OUTCOME_LABELS[outcomeKey] || outcomeKey.replace(/_/g, ' ')
+                const style = OUTCOME_STYLES[outcomeKey] || 'text-gray-600 bg-gray-50 border-gray-200'
+                return (
+                    <span className={cn("flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border", style)}>
+                        {label}
+                    </span>
+                )
+            })()}
 
             {/* Deadline badge */}
             {!task.concluida && deadlineBadge && (

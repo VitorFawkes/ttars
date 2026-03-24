@@ -13,6 +13,9 @@ export interface TaskListItem {
     concluida_em: string | null
     status: string | null
     prioridade: string | null
+    outcome: string | null
+    resultado: string | null
+    feedback: string | null
     card_id: string
     card_titulo: string
     card_produto: string | null
@@ -38,7 +41,7 @@ export function useTasksList({ filters }: UseTasksListOptions) {
             let q = supabase
                 .from('tarefas')
                 .select(`
-                    id, titulo, tipo, data_vencimento, concluida, concluida_em, status, prioridade, card_id, responsavel_id,
+                    id, titulo, tipo, data_vencimento, concluida, concluida_em, status, prioridade, outcome, resultado, feedback, card_id, responsavel_id,
                     card:cards!tarefas_card_id_fkey(id, titulo, produto,
                         contato:contatos!cards_pessoa_principal_id_fkey(nome)
                     )
@@ -147,6 +150,9 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     concluida_em: t.concluida_em,
                     status: t.status,
                     prioridade: t.prioridade,
+                    outcome: t.outcome || null,
+                    resultado: t.resultado || null,
+                    feedback: t.feedback || null,
                     card_id: t.card?.id || t.card_id,
                     card_titulo: t.card?.titulo || '',
                     card_produto: t.card?.produto || null,
