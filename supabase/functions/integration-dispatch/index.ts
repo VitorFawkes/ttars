@@ -106,13 +106,43 @@ Deno.serve(async (req) => {
     // 1b. Load outbound field mappings for field_update translation (CRM field → AC field ID)
     const { data: outboundFieldMaps } = await supabase
         .from('integration_outbound_field_map')
-        .select('internal_field, external_field_id, external_field_name, is_active')
+        .select('internal_field, external_field_id, external_field_name, is_active, value_map')
         .eq('is_active', true);
 
     const fieldMapLookup = new Map<string, string>();
+    const valueMapLookup = new Map<string, Record<string, string>>();
     for (const m of outboundFieldMaps || []) {
         if (m.internal_field && m.external_field_id) {
             fieldMapLookup.set(m.internal_field, m.external_field_id);
+            if (m.value_map && typeof m.value_map === 'object') {
+                valueMapLookup.set(m.internal_field, m.value_map as Record<string, string>);
+            }
+        }
+    }
+
+    // 1b2. Load system_fields options for auto slug→label resolution
+    // When no explicit value_map exists, use system_fields labels as fallback
+    const mappedFieldKeys = Array.from(fieldMapLookup.keys());
+    const { data: systemFieldsData } = mappedFieldKeys.length > 0
+        ? await supabase
+            .from('system_fields')
+            .select('key, options')
+            .in('key', mappedFieldKeys)
+        : { data: [] };
+
+    // Build slug→label lookup from system_fields options
+    const systemFieldOptions = new Map<string, Record<string, string>>();
+    for (const sf of systemFieldsData || []) {
+        if (!sf.options) continue;
+        const opts = Array.isArray(sf.options) ? sf.options : [];
+        const slugToLabel: Record<string, string> = {};
+        for (const opt of opts) {
+            if (typeof opt === 'object' && opt !== null && opt.value && opt.label) {
+                slugToLabel[opt.value] = opt.label;
+            }
+        }
+        if (Object.keys(slugToLabel).length > 0) {
+            systemFieldOptions.set(sf.key, slugToLabel);
         }
     }
 
@@ -446,6 +476,19 @@ Deno.serve(async (req) => {
                                     }
                                 } else {
                                     fieldValue = String(value ?? '');
+                                }
+                                // Resolve CRM slugs → AC option labels (select/radio/dropdown fields)
+                                // Priority: 1) explicit value_map  2) system_fields label  3) raw value
+                                const vMap = valueMapLookup.get(fieldId);
+                                if (vMap && fieldValue in vMap) {
+                                    // Explicit mapping configured per field (handles CRM label ≠ AC label)
+                                    fieldValue = vMap[fieldValue];
+                                } else {
+                                    // Auto-resolve: slug → label from system_fields options
+                                    const sfOpts = systemFieldOptions.get(fieldId);
+                                    if (sfOpts && fieldValue in sfOpts) {
+                                        fieldValue = sfOpts[fieldValue];
+                                    }
                                 }
                                 customFields.push({
                                     customFieldId: numericId,

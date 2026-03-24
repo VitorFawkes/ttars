@@ -258,15 +258,13 @@ Deno.serve(async (req) => {
                 const value = payload[`deal[fields][${idx}][value]`];
                 const acFieldId = payload[`deal[fields][${idx}][id]`];
 
-                if (value !== undefined) {
-                    // Use real AC field ID when available, fall back to sequential index
-                    const effectiveId = acFieldId || idx;
-                    fields[effectiveId] = value;
-
-                    // ALSO store by index for backward compat (if acFieldId differs from index)
-                    if (acFieldId && acFieldId !== idx) {
-                        fields[idx] = value;
-                    }
+                if (value !== undefined && acFieldId) {
+                    // ONLY use real AC field ID — array indices are sequential positions
+                    // that do NOT correspond to AC field IDs. Using indices causes
+                    // data corruption (e.g., index 145 maps to a completely different
+                    // field than AC field ID 145). Fields without [id] are empty/unset
+                    // and should be ignored.
+                    fields[acFieldId] = value;
                 }
             });
             return fields;
