@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { toast } from 'sonner';
+import { readFileText } from '@/lib/readFileText';
 import { Plus, RefreshCw, Trash2, Database, Loader2, Search, Upload, FileSpreadsheet, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -171,7 +172,7 @@ export function ACFieldManager({ integrationId }: ACFieldManagerProps) {
         if (!file) return;
 
         try {
-            const text = await file.text();
+            const text = await readFileText(file);
             const lines = text.split('\n').filter(line => line.trim());
 
             // Skip header if it looks like a header

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { parseBRNumber } from '@/lib/parseBRNumber'
+import { readFileText } from '@/lib/readFileText'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -139,19 +140,6 @@ function findColumn(headers: string[], aliases: string[]): string | null {
         if (idx >= 0) return headers[idx]
     }
     return null
-}
-
-/** Lê arquivo detectando encoding: tenta UTF-8 primeiro, fallback para Latin-1 (Windows-1252).
- *  CSVs exportados do Monde/Excel BR tipicamente vêm em Latin-1. */
-async function readFileWithEncodingDetection(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer()
-    // Tentar UTF-8 primeiro
-    const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
-    // Se tem U+FFFD (replacement char), o arquivo não é UTF-8 válido — usar Latin-1
-    if (utf8.includes('\uFFFD')) {
-        return new TextDecoder('windows-1252').decode(buffer)
-    }
-    return utf8
 }
 
 /** Parse CSV text natively — preserva UTF-8 sem corrupção do XLSX.js */
@@ -513,7 +501,7 @@ export default function VendasMondePage() {
         try {
             if (isCSV) {
                 // CSV: parser nativo — detecta encoding (UTF-8 ou Latin-1)
-                const text = await readFileWithEncodingDetection(file)
+                const text = await readFileText(file)
                 const rows = parseCSVNative(text)
                 await processRows(rows, file.name)
             } else {
@@ -522,7 +510,7 @@ export default function VendasMondePage() {
                 reader.onload = async (evt) => {
                     try {
                         const data = evt.target?.result
-                        const workbook = XLSX.read(data, { type: 'array' })
+                        const workbook = XLSX.read(data, { type: 'array', codepage: 65001 })
                         const sheet = workbook.Sheets[workbook.SheetNames[0]]
                         const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
                         await processRows(jsonData, file.name)
