@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users } from 'lucide-react'
+import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -29,6 +29,12 @@ interface FinancialItem {
     supplier_cost: number
     is_ready: boolean
     notes: string | null
+    fornecedor: string | null
+    representante: string | null
+    documento: string | null
+    data_inicio: string | null
+    data_fim: string | null
+    observacoes: string | null
 }
 
 export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse, phaseSlug }: FinanceiroWidgetProps) {
@@ -37,9 +43,9 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse,
     const { data: items = [], isLoading } = useQuery({
         queryKey: ['financial-items', cardId],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('card_financial_items')
-                .select('id, description, sale_value, supplier_cost, is_ready, notes')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from('card_financial_items') as any)
+                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes')
                 .eq('card_id', cardId)
                 .order('created_at')
             if (error) throw error
@@ -103,7 +109,7 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse,
                             isPostSales ? (
                                 <ProductItemOperational key={item.id} item={item} cardId={cardId} />
                             ) : (
-                                <ProductItemReadOnly key={item.id} item={item} />
+                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} />
                             )
                         ))}
 
@@ -138,11 +144,18 @@ export default function FinanceiroWidget({ cardId, isExpanded, onToggleCollapse,
 // Read-Only Item (SDR, Planner, etc.)
 // ═══════════════════════════════════════════════════════════
 
-function ProductItemReadOnly({ item }: { item: FinancialItem }) {
+function formatDateBR(iso: string | null) {
+    if (!iso) return null
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+}
+
+function ProductItemReadOnly({ item, cardId }: { item: FinancialItem; cardId: string }) {
     const sv = Number(item.sale_value) || 0
     const sc = Number(item.supplier_cost) || 0
     const itemReceita = sv - sc
     const itemPct = sv > 0 ? (itemReceita / sv) * 100 : 0
+    const hasExtras = item.fornecedor || item.representante || item.documento || item.data_inicio || item.data_fim
 
     return (
         <div className="px-4 py-2.5">
@@ -163,6 +176,42 @@ function ProductItemReadOnly({ item }: { item: FinancialItem }) {
                     Receita <span className={cn("font-medium", itemReceita >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(itemReceita)}</span>
                 </span>
             </div>
+            {hasExtras && (
+                <ExtraFieldsRow item={item} />
+            )}
+            <ObservacoesField item={item} cardId={cardId} />
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// Extra fields row (shared between ReadOnly and Operational)
+// ═══════════════════════════════════════════════════════════
+
+function ExtraFieldsRow({ item, className }: { item: FinancialItem; className?: string }) {
+    return (
+        <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-gray-500", className)}>
+            {item.fornecedor && (
+                <span className="flex items-center gap-1">
+                    <Building2 className="h-3 w-3 text-gray-400" />
+                    {item.fornecedor}
+                </span>
+            )}
+            {item.representante && (
+                <span className="text-gray-400">via {item.representante}</span>
+            )}
+            {item.documento && (
+                <span className="flex items-center gap-1">
+                    <FileText className="h-3 w-3 text-gray-400" />
+                    {item.documento}
+                </span>
+            )}
+            {(item.data_inicio || item.data_fim) && (
+                <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-gray-400" />
+                    {formatDateBR(item.data_inicio)}{item.data_fim && item.data_fim !== item.data_inicio ? ` → ${formatDateBR(item.data_fim)}` : ''}
+                </span>
+            )}
         </div>
     )
 }
@@ -315,6 +364,14 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         </span>
                     </div>
 
+                    {/* Extra fields (fornecedor, representante, doc, datas) */}
+                    {(item.fornecedor || item.representante || item.documento || item.data_inicio || item.data_fim) && (
+                        <ExtraFieldsRow item={item} className="ml-12" />
+                    )}
+
+                    {/* Observações do Planner */}
+                    <ObservacoesField item={item} cardId={cardId} />
+
                     {/* Sub-items (requirements) */}
                     {reqs.length > 0 && (
                         <div className="ml-12 space-y-1">
@@ -390,14 +447,14 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                         </div>
                     </div>
 
-                    {/* Notes */}
+                    {/* Nota operacional (pós-venda) */}
                     <div className="ml-12">
                         {editingNotes ? (
                             <div className="flex items-start gap-2">
                                 <textarea
                                     value={notesValue}
                                     onChange={e => setNotesValue(e.target.value)}
-                                    placeholder="Observação sobre este produto..."
+                                    placeholder="Nota operacional (uso interno pós-venda)..."
                                     className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 resize-none focus:outline-none focus:ring-1 focus:ring-amber-300"
                                     rows={2}
                                     autoFocus
@@ -418,12 +475,71 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                                 {item.notes ? (
                                     <span className="text-gray-500 italic truncate max-w-[200px]">{item.notes}</span>
                                 ) : (
-                                    'Adicionar observação'
+                                    'Nota operacional'
                                 )}
                             </button>
                         )}
                     </div>
                 </div>
+            )}
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// Observações do Planner (editable field)
+// ═══════════════════════════════════════════════════════════
+
+function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: string }) {
+    const queryClient = useQueryClient()
+    const [editing, setEditing] = useState(false)
+    const [value, setValue] = useState(item.observacoes || '')
+
+    const save = useMutation({
+        mutationFn: async (obs: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase.from('card_financial_items') as any)
+                .update({ observacoes: obs || null })
+                .eq('id', item.id)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['financial-items', cardId] })
+            setEditing(false)
+        },
+    })
+
+    return (
+        <div className="ml-12">
+            {editing ? (
+                <div className="flex items-start gap-2">
+                    <textarea
+                        value={value}
+                        onChange={e => setValue(e.target.value)}
+                        placeholder="Observações do planner sobre este produto..."
+                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        rows={2}
+                        autoFocus
+                    />
+                    <button
+                        onClick={() => save.mutate(value)}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium shrink-0"
+                    >
+                        Salvar
+                    </button>
+                </div>
+            ) : (
+                <button
+                    onClick={() => { setValue(item.observacoes || ''); setEditing(true) }}
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+                >
+                    <ClipboardList className="h-3 w-3" />
+                    {item.observacoes ? (
+                        <span className="text-gray-500 italic truncate max-w-[250px]">{item.observacoes}</span>
+                    ) : (
+                        'Obs. do planner'
+                    )}
+                </button>
             )}
         </div>
     )

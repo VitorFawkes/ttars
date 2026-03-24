@@ -22,6 +22,11 @@ interface CsvRow {
     valorTotal: number
     receita: number
     passageiros: string[]
+    fornecedor: string
+    representante: string
+    documento: string
+    dataInicio: string | null
+    dataFim: string | null
 }
 
 interface MatchedCard {
@@ -82,11 +87,44 @@ const norm = (s: string) => s.toLowerCase().trim()
     .replace(/[º°.]/g, '')
     .replace(/\s+/g, ' ')
 
+/** Converte data BR (dd/mm/yyyy), ISO, ou serial Excel para YYYY-MM-DD. Retorna null se inválido. */
+function parseDateBR(value: unknown): string | null {
+    if (value == null) return null
+    // Excel serial date (number)
+    if (typeof value === 'number') {
+        const epoch = new Date(Date.UTC(1899, 11, 30))
+        const d = new Date(epoch.getTime() + value * 86400000)
+        if (isNaN(d.getTime())) return null
+        return d.toISOString().slice(0, 10)
+    }
+    const s = String(value).trim()
+    if (!s) return null
+    // dd/mm/yyyy or dd-mm-yyyy
+    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+    if (brMatch) {
+        const [, dd, mm, yyyy] = brMatch
+        const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00`)
+        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+    }
+    // yyyy-mm-dd (ISO)
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+        const d = new Date(isoMatch[0] + 'T00:00:00')
+        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+    }
+    return null
+}
+
 const VENDA_COLUMN_ALIASES = ['venda n', 'venda no', 'n venda', 'venda_num', 'venda numero', 'num venda', 'no venda']
 const PRODUTO_ALIASES = ['produto', 'product', 'nome produto']
 const VALOR_TOTAL_ALIASES = ['valor total', 'total', 'valortotal', 'vl total']
 const RECEITA_ALIASES = ['receitas', 'receita', 'revenue']
 const PASSAGEIRO_ALIASES = ['passageiros', 'passageiro', 'passengers', 'pax', 'nomes passageiros']
+const FORNECEDOR_ALIASES = ['fornecedor', 'supplier', 'hotel', 'cia aerea', 'companhia']
+const REPRESENTANTE_ALIASES = ['representante', 'representative', 'agencia', 'operadora']
+const DOCUMENTO_ALIASES = ['documento', 'doc', 'confirmacao', 'localizador', 'numero confirmacao', 'n confirmacao']
+const DATA_INICIO_ALIASES = ['data inicio', 'data de inicio', 'check in', 'checkin', 'inicio', 'dt inicio']
+const DATA_FIM_ALIASES = ['data fim', 'data de fim', 'check out', 'checkout', 'fim', 'dt fim']
 
 function findColumn(headers: string[], aliases: string[]): string | null {
     const normalized = headers.map(h => norm(h))
@@ -237,6 +275,85 @@ function HistoryRow({ log }: { log: ImportLogRow }) {
     )
 }
 
+// ─── Preview card row (expandable with products) ─────────────
+
+function displayDateBR(iso: string | null) {
+    if (!iso) return null
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+}
+
+function PreviewCardRow({ card }: { card: MatchedCard }) {
+    const [expanded, setExpanded] = useState(false)
+    const paxCount = new Set(card.products.flatMap(p => p.passageiros)).size
+    const Chevron = expanded ? ChevronDown : ChevronRight
+
+    return (
+        <div>
+            <button
+                onClick={() => setExpanded(!expanded)}
+                className="w-full px-4 py-3 text-left hover:bg-slate-50/50 transition-colors"
+            >
+                <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Chevron className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span className="text-xs font-mono text-slate-400">#{card.vendaNum}</span>
+                        <span className="text-sm font-medium text-slate-900 truncate">{card.cardTitle}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {card.products.length}
+                        </span>
+                        {paxCount > 0 && (
+                            <span className="text-xs text-indigo-500 flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {paxCount}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-slate-500 ml-5">
+                    <span>Venda: <span className="font-medium text-slate-700">{formatBRL(card.totalVenda)}</span></span>
+                    <span>Receita: <span className="font-medium text-emerald-600">{formatBRL(card.totalReceita)}</span></span>
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="bg-slate-50/50 border-t border-slate-100 px-4 py-2">
+                    <div className="space-y-2">
+                        {card.products.map((p, idx) => (
+                            <div key={idx} className="flex items-start gap-3 py-1.5">
+                                <span className="text-[10px] text-slate-400 mt-0.5 shrink-0 w-4 text-right">{idx + 1}.</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-slate-700 truncate">{p.produto || 'Produto'}</span>
+                                        <span className="text-xs text-slate-500 shrink-0 ml-2">{formatBRL(p.valorTotal)}</span>
+                                    </div>
+                                    {/* Extra details */}
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-slate-400">
+                                        {p.fornecedor && <span>{p.fornecedor}</span>}
+                                        {p.representante && <span>via {p.representante}</span>}
+                                        {p.documento && <span>{p.documento}</span>}
+                                        {(p.dataInicio || p.dataFim) && (
+                                            <span>
+                                                {displayDateBR(p.dataInicio)}{p.dataFim && p.dataFim !== p.dataInicio ? ` → ${displayDateBR(p.dataFim)}` : ''}
+                                            </span>
+                                        )}
+                                        {p.passageiros.length > 0 && (
+                                            <span className="text-indigo-400">{p.passageiros.join(', ')}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Main page ───────────────────────────────────────────────
 
 type Step = 'idle' | 'preview' | 'importing' | 'done'
@@ -302,6 +419,11 @@ export default function VendasMondePage() {
                 const valorCol = findColumn(headers, VALOR_TOTAL_ALIASES)
                 const receitaCol = findColumn(headers, RECEITA_ALIASES)
                 const passageiroCol = findColumn(headers, PASSAGEIRO_ALIASES)
+                const fornecedorCol = findColumn(headers, FORNECEDOR_ALIASES)
+                const representanteCol = findColumn(headers, REPRESENTANTE_ALIASES)
+                const documentoCol = findColumn(headers, DOCUMENTO_ALIASES)
+                const dataInicioCol = findColumn(headers, DATA_INICIO_ALIASES)
+                const dataFimCol = findColumn(headers, DATA_FIM_ALIASES)
 
                 if (!vendaCol) { toast.error('Coluna "Venda Nº" não encontrada'); return }
                 if (!produtoCol) { toast.error('Coluna "Produto" não encontrada'); return }
@@ -317,6 +439,11 @@ export default function VendasMondePage() {
                         passageiros: passageiroCol
                             ? String(row[passageiroCol] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean)
                             : [],
+                        fornecedor: fornecedorCol ? String(row[fornecedorCol] || '').trim() : '',
+                        representante: representanteCol ? String(row[representanteCol] || '').trim() : '',
+                        documento: documentoCol ? String(row[documentoCol] || '').trim() : '',
+                        dataInicio: dataInicioCol ? parseDateBR(row[dataInicioCol]) : null,
+                        dataFim: dataFimCol ? parseDateBR(row[dataFimCol]) : null,
                     }))
 
                 if (rows.length === 0) { toast.error('Nenhuma linha válida encontrada'); return }
@@ -432,6 +559,11 @@ export default function VendasMondePage() {
                     description: p.produto || null,
                     sale_value: p.valorTotal,
                     supplier_cost: Math.round((p.valorTotal - p.receita) * 100) / 100,
+                    fornecedor: p.fornecedor || null,
+                    representante: p.representante || null,
+                    documento: p.documento || null,
+                    data_inicio: p.dataInicio || null,
+                    data_fim: p.dataFim || null,
                 }))
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -562,13 +694,13 @@ export default function VendasMondePage() {
                             <button
                                 onClick={() => {
                                     const csv = [
-                                        'Venda Nº,Produto,Valor Total,Receitas,Passageiros',
-                                        '99001,Hotel Grand Hyatt Cancún (5 noites),"R$ 12.500,00","R$ 2.100,00","João Silva, Maria Santos"',
-                                        '99001,Aéreo GRU-CUN-GRU (LATAM),"R$ 8.750,00","R$ 1.300,00","João Silva, Maria Santos"',
-                                        '99001,Transfer Aeroporto-Hotel,"R$ 950,00","R$ 180,00","João Silva, Maria Santos"',
-                                        '99001,Passeio Isla Mujeres,"R$ 1.200,00","R$ 250,00","João Silva"',
-                                        '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00","Ana Costa"',
-                                        '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00","Ana Costa"',
+                                        'Venda Nº,Produto,Valor Total,Receitas,Passageiros,Fornecedor,Representante,Documento,Data Início,Data Fim',
+                                        '99001,Hotel Grand Hyatt Cancún (5 noites),"R$ 12.500,00","R$ 2.100,00","João Silva, Maria Santos",Grand Hyatt,CVC,CONF-12345,10/05/2026,15/05/2026',
+                                        '99001,Aéreo GRU-CUN-GRU (LATAM),"R$ 8.750,00","R$ 1.300,00","João Silva, Maria Santos",LATAM Airlines,Consolidadora X,LOC-ABC123,10/05/2026,15/05/2026',
+                                        '99001,Transfer Aeroporto-Hotel,"R$ 950,00","R$ 180,00","João Silva, Maria Santos",Best Day,Best Day,TD-9988,,',
+                                        '99001,Passeio Isla Mujeres,"R$ 1.200,00","R$ 250,00","João Silva",Xcaret,Best Day,PSS-4455,12/05/2026,12/05/2026',
+                                        '99002,Hotel Ritz Paris (3 noites),"R$ 25.000,00","R$ 4.500,00","Ana Costa",Ritz Paris,Virtuoso,RES-77001,20/06/2026,23/06/2026',
+                                        '99002,Aéreo GRU-CDG-GRU (Air France),"R$ 15.800,00","R$ 2.800,00","Ana Costa",Air France,Consolidadora Y,E-TKT-5566,20/06/2026,23/06/2026',
                                     ].join('\n')
                                     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
                                     const url = URL.createObjectURL(blob)
@@ -672,35 +804,9 @@ export default function VendasMondePage() {
                                                         Cards que serão atualizados
                                                     </h3>
                                                 </div>
-                                                <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
+                                                <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                                                     {matchResult.matched.map((card) => (
-                                                        <div key={card.cardId} className="px-4 py-3">
-                                                            <div className="flex items-center justify-between mb-0.5">
-                                                                <div className="flex items-center gap-2 min-w-0">
-                                                                    <span className="text-xs font-mono text-slate-400">#{card.vendaNum}</span>
-                                                                    <span className="text-sm font-medium text-slate-900 truncate">{card.cardTitle}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 shrink-0">
-                                                                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                                                                        <Package className="h-3 w-3" />
-                                                                        {card.products.length}
-                                                                    </span>
-                                                                    {(() => {
-                                                                        const paxCount = new Set(card.products.flatMap(p => p.passageiros)).size
-                                                                        return paxCount > 0 ? (
-                                                                            <span className="text-xs text-indigo-500 flex items-center gap-1">
-                                                                                <Users className="h-3 w-3" />
-                                                                                {paxCount}
-                                                                            </span>
-                                                                        ) : null
-                                                                    })()}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                                <span>Venda: <span className="font-medium text-slate-700">{formatBRL(card.totalVenda)}</span></span>
-                                                                <span>Receita: <span className="font-medium text-emerald-600">{formatBRL(card.totalReceita)}</span></span>
-                                                            </div>
-                                                        </div>
+                                                        <PreviewCardRow key={card.cardId} card={card} />
                                                     ))}
                                                 </div>
                                             </div>
