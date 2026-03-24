@@ -17,16 +17,37 @@ CREATE INDEX IF NOT EXISTS idx_stage_section_config_key ON stage_section_config(
 
 COMMENT ON TABLE stage_section_config IS 'Visibilidade de seções por etapa do pipeline. Ausência = visível (default true).';
 
--- 2. Migrar dados de collapse_on_phases → stage_section_config (is_visible = false)
-INSERT INTO stage_section_config (stage_id, section_key, is_visible)
-SELECT ps.id, s.key, false
-FROM sections s
-CROSS JOIN LATERAL unnest(s.collapse_on_phases) AS phase_slug
-JOIN pipeline_phases pp ON pp.slug = phase_slug
-JOIN pipeline_stages ps ON ps.phase_id = pp.id
-WHERE s.collapse_on_phases IS NOT NULL
-  AND array_length(s.collapse_on_phases, 1) > 0
-ON CONFLICT (stage_id, section_key) DO NOTHING;
+-- 2. Migrar dados de collapse_on_phases e hidden_on_phases → stage_section_config
+-- Wraps in DO block: columns may already be dropped (idempotent re-run)
+DO $$
+BEGIN
+    -- Migrate collapse_on_phases
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sections' AND column_name = 'collapse_on_phases') THEN
+        INSERT INTO stage_section_config (stage_id, section_key, is_visible)
+        SELECT ps.id, s.key, false
+        FROM sections s
+        CROSS JOIN LATERAL unnest(s.collapse_on_phases) AS phase_slug
+        JOIN pipeline_phases pp ON pp.slug = phase_slug
+        JOIN pipeline_stages ps ON ps.phase_id = pp.id
+        WHERE s.collapse_on_phases IS NOT NULL
+          AND array_length(s.collapse_on_phases, 1) > 0
+        ON CONFLICT (stage_id, section_key) DO NOTHING;
+    END IF;
+
+    -- Migrate hidden_on_phases
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sections' AND column_name = 'hidden_on_phases') THEN
+        INSERT INTO stage_section_config (stage_id, section_key, is_visible)
+        SELECT ps.id, s.key, false
+        FROM sections s
+        CROSS JOIN LATERAL unnest(s.hidden_on_phases) AS phase_slug
+        JOIN pipeline_phases pp ON pp.slug = phase_slug
+        JOIN pipeline_stages ps ON ps.phase_id = pp.id
+        WHERE s.hidden_on_phases IS NOT NULL
+          AND array_length(s.hidden_on_phases, 1) > 0
+        ON CONFLICT (stage_id, section_key) DO NOTHING;
+    END IF;
+END
+$$;
 
 -- 3. Dropar colunas obsoletas
 ALTER TABLE sections DROP COLUMN IF EXISTS collapse_on_phases;
