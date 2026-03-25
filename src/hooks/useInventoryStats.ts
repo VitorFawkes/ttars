@@ -15,7 +15,7 @@ export function useInventoryStats() {
             const products = (data || []) as Pick<InventoryProduct, 'id' | 'current_stock' | 'unit_price' | 'low_stock_threshold' | 'active'>[]
             const totalProducts = products.length
             const totalStockValue = products.reduce((sum, p) => sum + (p.current_stock * p.unit_price), 0)
-            const lowStockCount = products.filter(p => p.current_stock <= p.low_stock_threshold).length
+            const lowStockCount = products.filter(p => p.current_stock > 0 && p.current_stock <= p.low_stock_threshold).length
             const outOfStockCount = products.filter(p => p.current_stock === 0).length
 
             return { totalProducts, totalStockValue, lowStockCount, outOfStockCount }
