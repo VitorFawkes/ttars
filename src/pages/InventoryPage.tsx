@@ -18,8 +18,8 @@ export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<TabKey>('products')
 
     return (
-        <div className="h-full overflow-y-auto bg-slate-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-16 space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Estoque</h1>
                     <p className="text-sm text-slate-500 mt-1">Gerencie produtos, movimentações e alertas de estoque</p>
