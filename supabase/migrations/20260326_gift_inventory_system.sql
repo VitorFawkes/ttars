@@ -208,7 +208,7 @@ END $$;
 -- 7. Seção "Presentes" no card (todos os produtos)
 -- ────────────────────────────────────────────────────────────
 INSERT INTO sections (key, label, icon, color, position, order_index, is_system, is_governable, active, widget_component)
-VALUES ('gifts', 'Presentes', 'gift', 'bg-pink-50 text-pink-700 border-pink-100', 'left_column', 17, true, false, true, 'gifts')
+VALUES ('gifts', 'Presentes', 'gift', 'bg-pink-50 text-pink-700 border-pink-100', 'right_column', 17, true, false, true, 'gifts')
 ON CONFLICT (key) DO UPDATE SET
   widget_component = EXCLUDED.widget_component,
   active = true;
