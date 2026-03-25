@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Upload, Loader2 } from 'lucide-react'
+import { X, Upload, Loader2, Trash2 } from 'lucide-react'
 import { useInventoryProductMutations, type InventoryProduct } from '@/hooks/useInventoryProducts'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -199,10 +199,22 @@ export default function ProductFormModal({ product, onClose }: ProductFormModalP
                                     <Upload className="h-5 w-5 text-slate-400" />
                                 </div>
                             )}
-                            <label className="cursor-pointer text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                                {uploading ? 'Enviando...' : 'Alterar imagem'}
-                                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-                            </label>
+                            <div className="flex flex-col gap-1">
+                                <label className="cursor-pointer text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                                    {uploading ? 'Enviando...' : imagePath ? 'Alterar imagem' : 'Enviar imagem'}
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                                </label>
+                                {imagePath && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setImagePath('')}
+                                        className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 font-medium"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        Remover imagem
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
