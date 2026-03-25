@@ -22,7 +22,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../contexts/ToastContext';
-import { Loader2, Search, Edit2, Trash2, Shield, Users, FileText, Mail, Key, Briefcase, Plane, Heart, Building2, ChevronUp, ChevronDown, ChevronsUpDown, KeyRound, Copy, Check } from 'lucide-react';
+import { Loader2, Search, Edit2, Trash2, Shield, Users, FileText, Mail, Key, Briefcase, Plane, Heart, Building2, ChevronUp, ChevronDown, ChevronsUpDown, KeyRound, Copy, Check, MessageSquare } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const PRODUCT_BADGES: Record<string, { label: string; icon: React.ElementType; className: string }> = {
@@ -81,6 +81,23 @@ export default function UserManagement() {
             setTeams(data || []);
         } catch (error) {
             console.error('Error fetching teams:', error);
+        }
+    };
+
+    const handleToggleTeamsNotify = async (userId: string, currentValue: boolean) => {
+        try {
+            // teams_notify_enabled ainda não está no database.types.ts
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any)
+                .from('profiles')
+                .update({ teams_notify_enabled: !currentValue })
+                .eq('id', userId);
+            if (error) throw error;
+            refetchUsers();
+            toast({ title: 'Sucesso', description: `Notificações Teams ${!currentValue ? 'ativadas' : 'desativadas'}.`, type: 'success' });
+        } catch (error) {
+            console.error('Error toggling teams notify:', error);
+            toast({ title: 'Erro', description: 'Falha ao atualizar notificações Teams.', type: 'error' });
         }
     };
 
@@ -269,19 +286,25 @@ export default function UserManagement() {
                                             </TableHead>
                                         );
                                     })}
+                                    <TableHead className="text-center">
+                                        <span className="flex items-center justify-center gap-1">
+                                            <MessageSquare className="w-3.5 h-3.5" />
+                                            Teams
+                                        </span>
+                                    </TableHead>
                                     <TableHead className="text-right">Ações</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8">
+                                        <TableCell colSpan={7} className="text-center py-8">
                                             <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredUsers.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                             Nenhum usuário encontrado.
                                         </TableCell>
                                     </TableRow>
@@ -331,6 +354,21 @@ export default function UserManagement() {
                                                 >
                                                     {user.active ? 'Ativo' : 'Inativo'}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <button
+                                                    onClick={() => handleToggleTeamsNotify(user.id, !!user.teams_notify_enabled)}
+                                                    className={cn(
+                                                        'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                                                        user.teams_notify_enabled ? 'bg-indigo-600' : 'bg-slate-200'
+                                                    )}
+                                                    title={user.teams_notify_enabled ? 'Desativar notificações Teams' : 'Ativar notificações Teams'}
+                                                >
+                                                    <span className={cn(
+                                                        'inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-sm',
+                                                        user.teams_notify_enabled ? 'translate-x-4.5' : 'translate-x-0.5'
+                                                    )} />
+                                                </button>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">

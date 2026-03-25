@@ -13,6 +13,7 @@ export interface User {
     department_id?: string | null;
     created_at: string;
     produtos?: ('TRIPS' | 'WEDDING' | 'CORP')[] | null;
+    teams_notify_enabled?: boolean;
     teams?: {
         id: string;
         name: string;

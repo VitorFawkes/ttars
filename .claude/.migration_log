@@ -157,3 +157,7 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-25T12:58:12Z | supabase/migrations/20260326_gift_item_notes.sql | applied_to_prod
 2026-03-25T13:47:20Z | supabase/migrations/20260326_gift_per_contact.sql | applied_to_prod
 2026-03-25T14:08:17Z | /tmp/fix_gift_index.sql | applied_to_prod
+2026-03-25T15:27:04Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_gift_card_nullable.sql | applied_to_prod
+2026-03-25T15:27:29Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_gift_card_nullable.sql | applied_to_prod
+2026-03-25T16:08:46Z | supabase/migrations/20260325_teams_personal_notifications.sql | applied_to_prod
+2026-03-25T16:08:53Z | supabase/migrations/20260325_teams_personal_notifications.sql | applied_to_prod

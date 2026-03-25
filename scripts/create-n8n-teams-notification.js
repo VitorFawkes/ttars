@@ -28,7 +28,6 @@ const CODE_FORMAT_AND_SEND = `
 const params = $('1. Extrai Params').first().json;
 const teamsUrl = params.teams_webhook_url;
 
-// Cada HTTP Request node retorna o primeiro item do array PostgREST
 const card = $('2. Busca Card').first().json;
 const dono = $('3. Busca Dono').first().json;
 const etapa = $('4. Busca Etapa').first().json;
@@ -38,12 +37,17 @@ if (!card || !card.id) {
   return [{ json: { status: 'error', message: 'Card nao encontrado' } }];
 }
 
+// Email do dono vem do trigger (já filtrado por teams_notify_enabled)
+const donoEmail = params.dono_email || (dono ? dono.email : null);
+if (!donoEmail) {
+  return [{ json: { status: 'skipped', reason: 'no_email', card_id: card.id } }];
+}
+
 const contatoNome = contato && contato.nome
   ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ')
   : 'Sem contato';
 
 const donoNome = dono && dono.nome ? dono.nome : 'Nao atribuido';
-const donoEmail = dono ? dono.email : null;
 const etapaNome = etapa && etapa.nome ? etapa.nome : 'Sem etapa';
 
 const valor = card.valor_final || card.valor_estimado || 0;
@@ -51,52 +55,15 @@ const valorFormatado = 'R$ ' + Number(valor).toLocaleString('pt-BR', { minimumFr
 
 const crmUrl = 'https://crmtars.vercel.app/cards/' + card.id;
 
-// Adaptive Card com info do lead
-const mentionText = donoEmail ? '<at>' + donoNome + '</at>' : donoNome;
-const mentionEntities = donoEmail ? [{
-  type: 'mention',
-  text: '<at>' + donoNome + '</at>',
-  mentioned: { id: donoEmail, name: donoNome }
-}] : [];
-
+// Payload estruturado para Power Automate rotear chat 1:1
 const payload = {
-  type: 'message',
-  attachments: [{
-    contentType: 'application/vnd.microsoft.card.adaptive',
-    contentUrl: null,
-    content: {
-      type: 'AdaptiveCard',
-      '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
-      version: '1.4',
-      msteams: { entities: mentionEntities },
-      body: [
-        {
-          type: 'TextBlock',
-          size: 'Medium',
-          weight: 'Bolder',
-          text: 'Novo Lead Atribuido - TRIPS'
-        },
-        {
-          type: 'FactSet',
-          facts: [
-            { title: 'Card', value: card.titulo || 'Sem titulo' },
-            { title: 'Contato', value: contatoNome },
-            { title: 'Atribuido a', value: mentionText },
-            { title: 'Etapa', value: etapaNome },
-            { title: 'Valor', value: valorFormatado }
-          ]
-        },
-        {
-          type: 'ActionSet',
-          actions: [{
-            type: 'Action.OpenUrl',
-            title: 'Abrir no CRM',
-            url: crmUrl
-          }]
-        }
-      ]
-    }
-  }]
+  dono_email: donoEmail,
+  dono_nome: donoNome,
+  titulo: card.titulo || 'Sem titulo',
+  contato_nome: contatoNome,
+  etapa_nome: etapaNome,
+  valor_formatado: valorFormatado,
+  crm_url: crmUrl
 };
 
 try {
@@ -107,7 +74,7 @@ try {
     body: payload,
     returnFullResponse: true
   });
-  return [{ json: { status: 'sent', card_id: card.id, dono: donoNome, contato: contatoNome, teams_status: teamsRes.statusCode } }];
+  return [{ json: { status: 'sent', card_id: card.id, dono_email: donoEmail, teams_status: teamsRes.statusCode } }];
 } catch(e) {
   return [{ json: { status: 'teams_error', card_id: card.id, error: e.message } }];
 }
@@ -138,6 +105,7 @@ function buildWorkflow() {
             { id: 'card_id', name: 'card_id', value: '={{ $json.body.card_id }}', type: 'string' },
             { id: 'dono_id', name: 'dono_id', value: '={{ $json.body.dono_id }}', type: 'string' },
             { id: 'titulo', name: 'titulo', value: '={{ $json.body.titulo }}', type: 'string' },
+            { id: 'dono_email', name: 'dono_email', value: '={{ $json.body.dono_email }}', type: 'string' },
             { id: 'teams_webhook_url', name: 'teams_webhook_url', value: '={{ $json.body.teams_webhook_url }}', type: 'string' }
           ]
         },
