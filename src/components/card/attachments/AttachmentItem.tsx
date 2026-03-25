@@ -10,6 +10,10 @@ import {
 } from '../../../lib/fileUtils'
 import type { Arquivo } from '../../../hooks/useCardAttachments'
 
+function FileTypeIcon({ mimeType, className }: { mimeType: string | null; className?: string }) {
+  return getFileIcon(mimeType)({ className })
+}
+
 interface AttachmentItemProps {
   arquivo: Arquivo
   onDelete: (id: string, path: string) => Promise<void>
@@ -28,12 +32,12 @@ export default function AttachmentItem({
   const [noteValue, setNoteValue] = useState(arquivo.descricao || '')
   const noteRef = useRef<HTMLInputElement>(null)
   const isImage = isImageMime(arquivo.mime_type)
-  const Icon = getFileIcon(arquivo.mime_type)
   const iconColor = getFileIconColor(arquivo.mime_type)
 
-  useEffect(() => {
-    setNoteValue(arquivo.descricao || '')
-  }, [arquivo.descricao])
+  const descricao = arquivo.descricao || ''
+  if (descricao !== noteValue && !isEditingNote) {
+    setNoteValue(descricao)
+  }
 
   useEffect(() => {
     if (isEditingNote && noteRef.current) {
@@ -61,94 +65,69 @@ export default function AttachmentItem({
     }
   }
 
+  // Delete confirmation overlay
+  if (confirmDelete) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-red-50 border border-red-200">
+        <span className="text-xs text-red-600 font-medium flex-1">Remover?</span>
+        <button
+          onClick={handleDelete}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          <Check className="h-3 w-3" />
+          Sim
+        </button>
+        <button
+          onClick={() => setConfirmDelete(false)}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] text-slate-500 hover:text-slate-700"
+        >
+          <X className="h-3 w-3" />
+          Não
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="group relative flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all">
-      {/* Thumbnail / Icon area */}
+    <div className="group flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+      {/* Icon or mini thumbnail */}
       <button
         type="button"
         onClick={handleClick}
-        className="relative w-full aspect-square flex items-center justify-center bg-slate-50 overflow-hidden cursor-pointer"
+        className="flex-shrink-0 h-8 w-8 rounded-md overflow-hidden flex items-center justify-center bg-slate-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
       >
         {isImage && arquivo.signedUrl ? (
           <img
             src={arquivo.signedUrl}
             alt={arquivo.nome_original}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
             loading="lazy"
           />
         ) : (
-          <div className="flex flex-col items-center gap-1">
-            <Icon className={cn('h-8 w-8', iconColor)} />
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              {getFileExtension(arquivo.nome_original)}
-            </span>
-          </div>
+          <FileTypeIcon mimeType={arquivo.mime_type} className={cn('h-4 w-4', iconColor)} />
         )}
-
-        {/* Hover overlay with actions */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-          {arquivo.signedUrl && (
-            <a
-              href={arquivo.signedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white hover:text-indigo-600 transition-colors"
-              title="Download"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setConfirmDelete(true)
-            }}
-            className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white hover:text-red-600 transition-colors"
-            title="Remover"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
       </button>
 
-      {/* Delete confirmation */}
-      {confirmDelete && (
-        <div className="absolute inset-0 z-10 bg-white/95 flex flex-col items-center justify-center gap-2 p-2">
-          <span className="text-xs text-red-600 font-medium text-center">Remover anexo?</span>
-          <div className="flex gap-1.5">
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              <Check className="h-3 w-3" />
-              Sim
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] text-slate-500 hover:text-slate-700"
-            >
-              <X className="h-3 w-3" />
-              Não
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* File info */}
-      <div className="px-2 py-1.5 space-y-0.5">
-        <p
-          className="text-[11px] font-medium text-slate-800 truncate"
-          title={arquivo.nome_original}
-        >
-          {arquivo.nome_original}
-        </p>
-        <p className="text-[10px] text-slate-400">
-          {formatFileSize(arquivo.tamanho_bytes)}
-        </p>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleClick}
+            className="text-[12px] font-medium text-slate-800 truncate hover:text-indigo-600 transition-colors cursor-pointer"
+            title={arquivo.nome_original}
+          >
+            {arquivo.nome_original}
+          </button>
+          <span className="flex-shrink-0 text-[10px] text-slate-400 uppercase font-medium">
+            {getFileExtension(arquivo.nome_original)}
+          </span>
+          <span className="flex-shrink-0 text-[10px] text-slate-400">
+            {formatFileSize(arquivo.tamanho_bytes)}
+          </span>
+        </div>
 
-        {/* Note / description */}
+        {/* Note / description - inline */}
         {isEditingNote ? (
           <input
             ref={noteRef}
@@ -164,22 +143,50 @@ export default function AttachmentItem({
               }
             }}
             placeholder="Adicionar nota..."
-            className="w-full text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            className="w-full text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 mt-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300"
           />
-        ) : (
+        ) : arquivo.descricao ? (
           <button
             type="button"
             onClick={() => setIsEditingNote(true)}
-            className={cn(
-              'w-full text-left text-[10px] truncate rounded px-1 py-0.5 -mx-1 transition-colors',
-              arquivo.descricao
-                ? 'text-slate-500 hover:bg-slate-100'
-                : 'text-slate-300 italic hover:bg-slate-50 hover:text-slate-400'
-            )}
+            className="text-[10px] text-slate-400 truncate hover:text-slate-600 transition-colors block max-w-full text-left"
           >
-            {arquivo.descricao || 'Adicionar nota...'}
+            {arquivo.descricao}
+          </button>
+        ) : null}
+      </div>
+
+      {/* Actions - visible on hover */}
+      <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!arquivo.descricao && (
+          <button
+            type="button"
+            onClick={() => setIsEditingNote(true)}
+            className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors text-[10px]"
+            title="Adicionar nota"
+          >
+            Nota
           </button>
         )}
+        {arquivo.signedUrl && (
+          <a
+            href={arquivo.signedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            title="Download"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+          title="Remover"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   )

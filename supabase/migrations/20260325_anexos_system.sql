@@ -70,10 +70,16 @@ END $$;
 -- 1. Coluna descricao na tabela arquivos (nota por arquivo)
 ALTER TABLE arquivos ADD COLUMN IF NOT EXISTS descricao TEXT;
 
--- 2. Atualizar referências FK antes de renomear a key
-UPDATE stage_section_config SET section_key = 'anexos' WHERE section_key = 'documentos';
+-- 2. FK cascade para permitir renomear sections.key sem conflito
+ALTER TABLE stage_section_config
+  DROP CONSTRAINT IF EXISTS stage_section_config_section_key_fkey;
+ALTER TABLE stage_section_config
+  ADD CONSTRAINT stage_section_config_section_key_fkey
+  FOREIGN KEY (section_key) REFERENCES sections(key)
+  ON UPDATE CASCADE ON DELETE CASCADE
+  DEFERRABLE INITIALLY DEFERRED;
 
--- 3. Atualizar seção documentos → anexos
+-- 3. Atualizar seção documentos → anexos (CASCADE propaga para stage_section_config)
 UPDATE sections
 SET key = 'anexos',
     label = 'Anexos',
@@ -82,8 +88,9 @@ SET key = 'anexos',
     widget_component = 'anexos'
 WHERE key = 'documentos';
 
--- 4. Atualizar view_cards_acoes: trocar card_document_requirements por arquivos
-CREATE OR REPLACE VIEW public.view_cards_acoes AS
+-- 4. Recriar view_cards_acoes com anexos_count (DROP necessário para remover colunas)
+DROP VIEW IF EXISTS public.view_cards_acoes;
+CREATE VIEW public.view_cards_acoes AS
 SELECT c.id,
     c.titulo,
     c.produto,

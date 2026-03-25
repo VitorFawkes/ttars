@@ -47,8 +47,8 @@ export default function AttachmentUploadZone({
 
   if (isUploading) {
     return (
-      <div className="flex items-center justify-center gap-2 px-3 py-3 border border-dashed border-indigo-300 rounded-lg bg-indigo-50 text-sm text-indigo-600">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div className="flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-indigo-300 rounded-lg bg-indigo-50 text-xs text-indigo-600">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
         {uploadProgress
           ? `Enviando ${uploadProgress.current}/${uploadProgress.total}...`
           : 'Enviando...'}
@@ -59,7 +59,7 @@ export default function AttachmentUploadZone({
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed rounded-lg cursor-pointer transition-all text-sm',
+        'flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer transition-all text-xs',
         isDragOver
           ? 'border-indigo-400 bg-indigo-50 text-indigo-600 scale-[1.01]'
           : 'border-slate-300 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-500'

@@ -19,12 +19,9 @@ interface AttachmentsWidgetProps {
   onToggleCollapse?: () => void
 }
 
-export default function AttachmentsWidget({
-  cardId,
-  card: _card,
-  isExpanded: _isExpanded,
-  onToggleCollapse,
-}: AttachmentsWidgetProps) {
+export default function AttachmentsWidget(props: AttachmentsWidgetProps) {
+  const { cardId, onToggleCollapse } = props
+  const _isExpanded = props.isExpanded
   const {
     arquivos,
     isLoading,
@@ -136,7 +133,7 @@ export default function AttachmentsWidget({
             <span className="text-xs">Nenhum anexo ainda</span>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="flex flex-col gap-0.5">
             {arquivos.map((arquivo) => (
               <AttachmentItem
                 key={arquivo.id}
