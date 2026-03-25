@@ -51,6 +51,7 @@ import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
 import Arquivados from './pages/admin/Arquivados'
 import VendasMondePage from './pages/admin/VendasMondePage'
+import InventoryPage from './pages/InventoryPage'
 import { IntegrationsPage } from './components/admin/integrations/IntegrationsPage'
 import DeveloperHub from './pages/developer/DeveloperHub'
 import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
@@ -143,6 +144,7 @@ function App() {
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
+                  <Route path="/inventory" element={<InventoryPage />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />

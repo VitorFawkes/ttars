@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-25
 > **Trigger:** ALWAYS ON
-> **Stats:** 122 tabelas | 40 paginas | 85 hooks | 17 views | 401 components
+> **Stats:** 122 tabelas | 41 paginas | 89 hooks | 17 views | 413 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **85 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **89 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -217,6 +217,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
+| `useInventoryMovements()` | `useInventoryMovements.ts` |
+| `useInventoryProducts()` | `useInventoryProducts.ts` |
+| `useInventoryStats()` | `useInventoryStats.ts` |
 | `useKeyboardShortcuts()` | `useKeyboardShortcuts.ts` |
 | `useLeadQuickUpdate()` | `useLeadQuickUpdate.ts` |
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
@@ -242,6 +245,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
+| `useCardGifts()` | `useCardGifts.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |
 | `useCardTags()` | `useCardTags.ts` |
 | `useCardTeam()` | `useCardTeam.ts` |
@@ -329,7 +333,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **40 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -340,6 +344,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Cards` | `src/pages/Cards.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
+| `InventoryPage` | `src/pages/InventoryPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |
 | `Leads` | `src/pages/Leads.tsx` |
 | `Login` | `src/pages/Login.tsx` |
