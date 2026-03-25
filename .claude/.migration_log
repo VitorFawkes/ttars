@@ -162,3 +162,6 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-25T16:08:46Z | supabase/migrations/20260325_teams_personal_notifications.sql | applied_to_prod
 2026-03-25T16:08:53Z | supabase/migrations/20260325_teams_personal_notifications.sql | applied_to_prod
 2026-03-25T17:05:25Z | supabase/migrations/20260326_fix_sub_card_v2_gaps.sql | applied_to_prod
+2026-03-25T17:17:44Z | supabase/migrations/20260326_fix_sub_card_v2_gaps.sql | applied_to_prod
+2026-03-25T17:25:17Z | supabase/migrations/20260326_sub_card_category.sql | applied_to_prod
+2026-03-25T18:18:48Z | supabase/migrations/20260326_sub_card_valor_estimado.sql | applied_to_prod
