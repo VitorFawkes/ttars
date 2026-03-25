@@ -36,7 +36,7 @@ export function getGiftItemName(item: GiftItem): string {
     return item.custom_name || item.product?.name || 'Item removido'
 }
 
-const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'enviado', 'entregue']
+const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'enviado', 'entregue']
 
 export function useCardGifts(cardId: string) {
     const queryClient = useQueryClient()

@@ -9,7 +9,7 @@ import NotificationCenter from './NotificationCenter'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 
-const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean }[] = [
+const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
@@ -19,7 +19,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?:
     { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true },
-    { name: 'Estoque', href: '/inventory', icon: Package, adminOnly: true },
+    { name: 'Estoque', href: '/inventory', icon: Package, phases: ['pos_venda'] },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Configurações', href: '/settings', icon: Settings },
 ]
@@ -37,8 +37,14 @@ export default function Sidebar() {
     const filteredNavigation = useMemo(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isAdminOrGestor = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
         return navigation.filter(item => {
             if (item.adminOnly && !isAdminOrGestor) return false
+            if (item.phases) {
+                const hasPhaseAccess = phaseSlug && item.phases.includes(phaseSlug)
+                if (!isAdminOrGestor && !hasPhaseAccess) return false
+            }
             if (item.productsOnly && !item.productsOnly.includes(currentProduct)) return false
             return true
         })

@@ -181,7 +181,7 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
                                         'text-xs',
                                         p.current_stock === 0 ? 'text-red-500' : 'text-slate-400'
                                     )}>
-                                        {p.current_stock} disp.
+                                        {p.current_stock === 0 ? 'Sem estoque' : `${p.current_stock} disp.`}
                                     </span>
                                 </button>
                             ))}
