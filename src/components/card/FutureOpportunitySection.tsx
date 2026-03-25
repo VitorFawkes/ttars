@@ -7,10 +7,22 @@ import {
     CheckCircle2,
     Clock,
     ChevronRight,
-    ChevronDown
+    ChevronDown,
+    AlertTriangle,
+    RotateCcw
 } from 'lucide-react'
 import { useFutureOpportunities, type FutureOpportunity } from '@/hooks/useFutureOpportunities'
 import { cn } from '@/lib/utils'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -28,16 +40,20 @@ export default function FutureOpportunitySection(props: FutureOpportunitySection
     const {
         pending,
         executed,
+        failed,
         isLoading,
         cancel,
-        isCancelling
+        isCancelling,
+        retry,
+        isRetrying
     } = useFutureOpportunities(cardId)
 
-    const [expandedSection, setExpandedSection] = useState<'pending' | 'executed' | null>(
+    const [expandedSection, setExpandedSection] = useState<'pending' | 'executed' | 'failed' | null>(
         'pending'
     )
+    const [cancelTarget, setCancelTarget] = useState<string | null>(null)
 
-    const total = pending.length + executed.length
+    const total = pending.length + executed.length + failed.length
 
     if (isLoading) return null
 
@@ -57,6 +73,11 @@ export default function FutureOpportunitySection(props: FutureOpportunitySection
                                 {pending.length} agendada(s)
                             </span>
                         )}
+                        {failed.length > 0 && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">
+                                {failed.length} falha(s)
+                            </span>
+                        )}
                     </div>
                     {onToggleCollapse && (
                         <ChevronDown className={cn(
@@ -70,6 +91,38 @@ export default function FutureOpportunitySection(props: FutureOpportunitySection
                     <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                         <CalendarClock className="w-6 h-6 mx-auto text-gray-300 mb-1" />
                         <p className="text-xs text-gray-400">Nenhuma oportunidade agendada</p>
+                    </div>
+                )}
+
+                {/* Failed */}
+                {isExpanded && failed.length > 0 && (
+                    <div className="space-y-2">
+                        <button
+                            onClick={() => setExpandedSection(expandedSection === 'failed' ? null : 'failed')}
+                            className="flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-800"
+                        >
+                            <ChevronRight className={cn(
+                                'w-3 h-3 transition-transform',
+                                expandedSection === 'failed' && 'rotate-90'
+                            )} />
+                            <AlertTriangle className="w-3 h-3" />
+                            Falhou ({failed.length})
+                        </button>
+
+                        {expandedSection === 'failed' && (
+                            <div className="space-y-2 pl-4">
+                                {failed.map(opp => (
+                                    <FailedItem
+                                        key={opp.id}
+                                        opportunity={opp}
+                                        onRetry={() => retry(opp.id)}
+                                        onCancel={() => setCancelTarget(opp.id)}
+                                        isRetrying={isRetrying}
+                                        isCancelling={isCancelling}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -93,11 +146,7 @@ export default function FutureOpportunitySection(props: FutureOpportunitySection
                                     <PendingItem
                                         key={opp.id}
                                         opportunity={opp}
-                                        onCancel={() => {
-                                            if (confirm('Cancelar esta oportunidade futura?')) {
-                                                cancel(opp.id)
-                                            }
-                                        }}
+                                        onCancel={() => setCancelTarget(opp.id)}
                                         isCancelling={isCancelling}
                                     />
                                 ))}
@@ -134,6 +183,30 @@ export default function FutureOpportunitySection(props: FutureOpportunitySection
                     </div>
                 )}
             </div>
+
+            {/* Cancel AlertDialog */}
+            <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Cancelar oportunidade futura</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tem certeza que deseja cancelar esta oportunidade? O card agendado não será criado.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (cancelTarget) cancel(cancelTarget)
+                                setCancelTarget(null)
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Cancelar oportunidade
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
@@ -187,6 +260,62 @@ function PendingItem({
                 >
                     <XCircle className="w-4 h-4" />
                 </button>
+            </div>
+        </div>
+    )
+}
+
+function FailedItem({
+    opportunity,
+    onRetry,
+    onCancel,
+    isRetrying,
+    isCancelling
+}: {
+    opportunity: FutureOpportunity
+    onRetry: () => void
+    onCancel: () => void
+    isRetrying: boolean
+    isCancelling: boolean
+}) {
+    const errorMsg = opportunity.metadata?.error
+
+    return (
+        <div className="p-3 rounded-lg border-l-4 border-l-red-500 bg-red-50 border border-red-200">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                            {opportunity.titulo}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Clock className="w-3 h-3" />
+                        <span>{formatDate(opportunity.scheduled_date)}</span>
+                    </div>
+                    {errorMsg && (
+                        <p className="text-xs text-red-600 mt-1 line-clamp-2">{errorMsg}</p>
+                    )}
+                </div>
+                <div className="flex gap-1">
+                    <button
+                        onClick={onRetry}
+                        disabled={isRetrying}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded disabled:opacity-50"
+                        title="Tentar novamente"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={onCancel}
+                        disabled={isCancelling}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                        title="Cancelar"
+                    >
+                        <XCircle className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
         </div>
     )

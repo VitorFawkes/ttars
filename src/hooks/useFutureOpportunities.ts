@@ -10,7 +10,8 @@ export interface FutureOpportunity {
     titulo: string
     descricao: string | null
     sub_card_mode: 'incremental' | 'complete' | null
-    status: 'pending' | 'executed' | 'cancelled'
+    status: 'pending' | 'executed' | 'cancelled' | 'failed'
+    metadata: { error?: string; failed_at?: string } | null
     created_card_id: string | null
     executed_at: string | null
     cancelled_at: string | null
@@ -128,15 +129,48 @@ export function useFutureOpportunities(cardId?: string) {
         }
     })
 
+    // Mutation: retry failed opportunity
+    const retryMutation = useMutation({
+        mutationFn: async (opportunityId: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela pendente de regeneração de types
+            const { error } = await (supabase as any)
+                .from('future_opportunities')
+                .update({
+                    status: 'pending',
+                    metadata: null
+                })
+                .eq('id', opportunityId)
+
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['future-opportunities', cardId] })
+            toast({
+                type: 'success',
+                title: 'Reprocessamento agendado',
+                description: 'A oportunidade será processada novamente'
+            })
+        },
+        onError: (error: Error) => {
+            toast({
+                type: 'error',
+                title: 'Erro ao reagendar',
+                description: error.message
+            })
+        }
+    })
+
     const pending = query.data?.filter(o => o.status === 'pending') || []
     const executed = query.data?.filter(o => o.status === 'executed') || []
     const cancelled = query.data?.filter(o => o.status === 'cancelled') || []
+    const failed = query.data?.filter(o => o.status === 'failed') || []
 
     return {
         opportunities: query.data || [],
         pending,
         executed,
         cancelled,
+        failed,
         isLoading: query.isLoading,
         error: query.error,
 
@@ -145,6 +179,9 @@ export function useFutureOpportunities(cardId?: string) {
 
         cancel: cancelMutation.mutate,
         isCancelling: cancelMutation.isPending,
+
+        retry: retryMutation.mutate,
+        isRetrying: retryMutation.isPending,
 
         refetch: query.refetch
     }

@@ -14,6 +14,16 @@ import {
 import { useSubCards, type SubCard } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import CreateSubCardModal from './CreateSubCardModal'
 
 interface SubCardsListProps {
@@ -33,7 +43,8 @@ export default function SubCardsList({
     const { subCards, isLoading, cancelSubCard, isCancelling } = useSubCards(parentCardId)
 
     const [showCreateModal, setShowCreateModal] = useState(false)
-    const [expandedSection, setExpandedSection] = useState<'active' | 'history' | null>('active')
+    const [expandedSection, setExpandedSection] = useState<'active' | 'history' | 'cancelled' | null>('active')
+    const [cancelTarget, setCancelTarget] = useState<string | null>(null)
 
     const activeSubCards = subCards.filter(sc => sc.sub_card_status === 'active')
     const completedSubCards = subCards.filter(sc => sc.sub_card_status === 'completed')
@@ -147,7 +158,7 @@ export default function SubCardsList({
                                     key={subCard.id}
                                     subCard={subCard}
                                     onNavigate={() => navigate(`/cards/${subCard.id}`)}
-                                    onCancel={(motivo) => cancelSubCard({ subCardId: subCard.id, motivo })}
+                                    onCancel={() => setCancelTarget(subCard.id)}
                                     isCancelling={isCancelling}
                                 />
                             ))}
@@ -188,12 +199,28 @@ export default function SubCardsList({
             {cancelledSubCards.length > 0 && (
                 <div className="space-y-2">
                     <button
-                        onClick={() => setExpandedSection(null)}
+                        onClick={() => setExpandedSection(expandedSection === 'cancelled' ? null : 'cancelled')}
                         className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-gray-600"
                     >
+                        <ChevronRight className={cn(
+                            'w-3 h-3 transition-transform',
+                            expandedSection === 'cancelled' && 'rotate-90'
+                        )} />
                         <XCircle className="w-3 h-3" />
                         Cancelados ({cancelledSubCards.length})
                     </button>
+
+                    {expandedSection === 'cancelled' && (
+                        <div className="space-y-2 pl-4">
+                            {cancelledSubCards.map(subCard => (
+                                <SubCardHistoryItem
+                                    key={subCard.id}
+                                    subCard={subCard}
+                                    onNavigate={() => navigate(`/cards/${subCard.id}`)}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -220,6 +247,30 @@ export default function SubCardsList({
                 parentTitle={parentTitle}
                 onCreated={(subCardId) => navigate(`/cards/${subCardId}`)}
             />
+
+            {/* Cancel AlertDialog */}
+            <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Cancelar produto extra</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tem certeza que deseja cancelar este produto? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (cancelTarget) cancelSubCard({ subCardId: cancelTarget, motivo: 'Cancelado pelo usuário' })
+                                setCancelTarget(null)
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Cancelar produto
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
@@ -228,7 +279,7 @@ export default function SubCardsList({
 interface SubCardItemProps {
     subCard: SubCard
     onNavigate: () => void
-    onCancel: (motivo?: string) => void
+    onCancel: () => void
     isCancelling: boolean
 }
 
@@ -310,11 +361,7 @@ function SubCardItem({
                     </button>
 
                     <button
-                        onClick={() => {
-                            if (confirm('Tem certeza que deseja cancelar este produto?')) {
-                                onCancel('Cancelado pelo usuário')
-                            }
-                        }}
+                        onClick={onCancel}
                         disabled={isCancelling}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
                         title="Cancelar produto"
