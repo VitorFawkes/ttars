@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Gift, Plus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, User, Calendar, Check, Clock, Truck, PackageCheck, Users, X, Package, PenLine, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Gift, Plus, Minus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, User, Calendar, Check, Clock, Truck, PackageCheck, Users, X, Package, PenLine, Search, Info } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useCardGifts, useGiftAssignment, getNextStatus, getContactDisplayName } from '@/hooks/useCardGifts'
 import type { GiftAssignment } from '@/hooks/useCardGifts'
@@ -234,7 +234,11 @@ function KitBuilder({
     isSubmitting: boolean
 }) {
     const [kitItems, setKitItems] = useState<KitItem[]>([])
-    const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set())
+    const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(() => {
+        // Auto-select if only 1 contact
+        if (contacts.length === 1) return new Set([contacts[0].id])
+        return new Set()
+    })
     const [shipDate, setShipDate] = useState('')
     const [pickerMode, setPickerMode] = useState<'idle' | 'stock' | 'custom'>('idle')
 
@@ -253,8 +257,16 @@ function KitBuilder({
     const existingProductIds = kitItems.filter(i => i.productId).map(i => i.productId!)
     const available = products.filter(p => !existingProductIds.includes(p.id))
 
-    const totalCost = kitItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-    const totalCostAll = totalCost * selectedContactIds.size
+    const numPeople = selectedContactIds.size
+    const totalCostPerPerson = kitItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+    const totalCostAll = totalCostPerPerson * numPeople
+
+    // Sync auto-select if contacts change (e.g. from 2 to 1)
+    useEffect(() => {
+        if (contacts.length === 1 && selectedContactIds.size === 0) {
+            setSelectedContactIds(new Set([contacts[0].id]))
+        }
+    }, [contacts.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const resetPicker = () => {
         setPickerMode('idle')
@@ -298,6 +310,11 @@ function KitBuilder({
         setKitItems(prev => prev.filter(i => i.id !== id))
     }
 
+    const updateItemQty = (id: string, newQty: number) => {
+        if (newQty < 1) return
+        setKitItems(prev => prev.map(i => i.id === id ? { ...i, quantity: newQty } : i))
+    }
+
     const toggleContact = (id: string) => {
         setSelectedContactIds(prev => {
             const next = new Set(prev)
@@ -316,9 +333,20 @@ function KitBuilder({
     }
 
     // Check stock availability for N contacts
-    const stockWarning = kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * selectedContactIds.size > i.stock)
+    const stockWarning = kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock)
 
-    const canSubmit = kitItems.length > 0 && selectedContactIds.size > 0 && !isSubmitting && !stockWarning
+    const canSubmit = kitItems.length > 0 && numPeople > 0 && !isSubmitting && !stockWarning
+
+    // Hint text for disabled submit
+    const submitHint = kitItems.length === 0 && numPeople === 0
+        ? 'Adicione itens e selecione pessoas'
+        : kitItems.length === 0
+            ? 'Adicione pelo menos um item'
+            : numPeople === 0
+                ? 'Selecione pelo menos uma pessoa'
+                : stockWarning
+                    ? 'Estoque insuficiente'
+                    : null
 
     const handleSubmit = () => {
         const selectedContacts = contacts
@@ -345,18 +373,18 @@ function KitBuilder({
                 <div className="space-y-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
                         <Package className="h-3.5 w-3.5" />
-                        1. Escolha os itens
+                        1. Escolha os itens do kit
                     </p>
 
                     {/* Kit items list */}
                     {kitItems.length > 0 && (
                         <div className="space-y-1.5">
                             {kitItems.map(item => {
-                                const totalNeeded = item.quantity * Math.max(selectedContactIds.size, 1)
-                                const insufficientStock = item.productId && item.stock !== undefined && selectedContactIds.size > 0 && totalNeeded > item.stock
+                                const totalNeeded = item.quantity * Math.max(numPeople, 1)
+                                const insufficientStock = !!(item.productId && item.stock !== undefined && numPeople > 0 && totalNeeded > item.stock)
                                 return (
                                     <div key={item.id} className={cn(
-                                        "flex items-center gap-3 py-2 px-3 rounded-lg",
+                                        "flex items-center gap-2 py-2 px-3 rounded-lg",
                                         insufficientStock ? 'bg-red-50 border border-red-200' : 'bg-slate-50'
                                     )}>
                                         <div className="h-7 w-7 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
@@ -381,39 +409,58 @@ function KitBuilder({
                                                     <span className="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded font-medium shrink-0">avulso</span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                                <span>{item.quantity}x {formatBRL(item.unitPrice)} /pessoa</span>
-                                                {selectedContactIds.size > 1 && (
-                                                    <span className={cn(
-                                                        "font-medium",
-                                                        insufficientStock ? 'text-red-600' : 'text-slate-500'
-                                                    )}>
-                                                        · {totalNeeded} total
-                                                        {item.stock !== undefined && ` (${item.stock} disp.)`}
+                                            <div className="flex items-center gap-1 text-xs text-slate-400 flex-wrap">
+                                                <span>{formatBRL(item.unitPrice)} un.</span>
+                                                {numPeople > 1 && item.productId && item.stock !== undefined && (
+                                                    <span className={cn("font-medium", insufficientStock ? 'text-red-600' : 'text-slate-500')}>
+                                                        · {totalNeeded} necessários ({item.stock} disp.)
                                                     </span>
                                                 )}
-                                                {selectedContactIds.size === 1 && item.stock !== undefined && item.productId && (
-                                                    <span className="text-slate-400">· {item.stock} disp.</span>
+                                                {numPeople <= 1 && item.stock !== undefined && item.productId && (
+                                                    <span>· {item.stock} disp.</span>
                                                 )}
                                             </div>
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0">
+                                        {/* Inline qty stepper */}
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                            <button
+                                                onClick={() => updateItemQty(item.id, item.quantity - 1)}
+                                                disabled={item.quantity <= 1}
+                                                className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                <Minus className="h-3 w-3" />
+                                            </button>
+                                            <span className="w-6 text-center text-sm font-medium text-slate-700 tabular-nums">{item.quantity}</span>
+                                            <button
+                                                onClick={() => updateItemQty(item.id, item.quantity + 1)}
+                                                className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0 w-20 text-right">
                                             {formatBRL(item.quantity * item.unitPrice)}
                                         </span>
                                         <button
                                             onClick={() => removeKitItem(item.id)}
-                                            className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                                            className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors shrink-0"
                                         >
                                             <X className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
                                 )
                             })}
-                            <div className="text-right text-xs text-slate-500">
-                                <span>Por pessoa: <span className="font-semibold text-slate-700">{formatBRL(totalCost)}</span></span>
-                                {selectedContactIds.size > 1 && (
-                                    <span className="ml-2">· Total ({selectedContactIds.size} pessoas): <span className="font-semibold text-slate-700">{formatBRL(totalCostAll)}</span></span>
-                                )}
+                            {/* Summary line */}
+                            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                                <span>
+                                    {kitItems.length} {kitItems.length === 1 ? 'item' : 'itens'} por pessoa
+                                </span>
+                                <span>
+                                    <span className="font-semibold text-slate-700">{formatBRL(totalCostPerPerson)}</span> /pessoa
+                                    {numPeople > 1 && (
+                                        <> · <span className="font-semibold text-slate-700">{formatBRL(totalCostAll)}</span> total ({numPeople})</>
+                                    )}
+                                </span>
                             </div>
                         </div>
                     )}
@@ -458,26 +505,33 @@ function KitBuilder({
                                     />
                                     {showList && available.length > 0 && (
                                         <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                            {available.map(p => (
-                                                <button
-                                                    key={p.id}
-                                                    onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
-                                                    disabled={p.current_stock === 0}
-                                                    className={cn(
-                                                        'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
-                                                        p.current_stock === 0 && 'opacity-40 cursor-not-allowed'
-                                                    )}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <Package className="h-3.5 w-3.5 text-slate-400" />
-                                                        <span>{p.name}</span>
-                                                        {p.unit_price > 0 && <span className="text-xs text-slate-400">{formatBRL(p.unit_price)}</span>}
-                                                    </div>
-                                                    <span className={cn('text-xs', p.current_stock === 0 ? 'text-red-500' : 'text-slate-400')}>
-                                                        {p.current_stock === 0 ? 'Sem estoque' : `${p.current_stock} disp.`}
-                                                    </span>
-                                                </button>
-                                            ))}
+                                            {available.map(p => {
+                                                const canCoverAll = numPeople === 0 || p.current_stock >= numPeople
+                                                return (
+                                                    <button
+                                                        key={p.id}
+                                                        onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
+                                                        disabled={p.current_stock === 0}
+                                                        className={cn(
+                                                            'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
+                                                            p.current_stock === 0 && 'opacity-40 cursor-not-allowed'
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <Package className="h-3.5 w-3.5 text-slate-400" />
+                                                            <span>{p.name}</span>
+                                                            {p.unit_price > 0 && <span className="text-xs text-slate-400">{formatBRL(p.unit_price)}</span>}
+                                                        </div>
+                                                        <span className={cn('text-xs', p.current_stock === 0 ? 'text-red-500' : !canCoverAll ? 'text-amber-600' : 'text-slate-400')}>
+                                                            {p.current_stock === 0
+                                                                ? 'Sem estoque'
+                                                                : !canCoverAll
+                                                                    ? `${p.current_stock} disp. (pouco)`
+                                                                    : `${p.current_stock} disp.`}
+                                                        </span>
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -502,12 +556,12 @@ function KitBuilder({
                                                 />
                                                 <button onClick={() => setQuantity(q => q + 1)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">+</button>
                                             </div>
-                                            {selectedContactIds.size > 1 && (
+                                            {numPeople > 0 && (
                                                 <span className={cn(
                                                     "text-[10px] mt-0.5 block",
-                                                    quantity * selectedContactIds.size > selectedProduct.current_stock ? 'text-red-600 font-medium' : 'text-slate-400'
+                                                    quantity * numPeople > selectedProduct.current_stock ? 'text-red-600 font-medium' : 'text-slate-400'
                                                 )}>
-                                                    = {quantity * selectedContactIds.size} unid. para {selectedContactIds.size} pessoas
+                                                    = {quantity * numPeople} unid. para {numPeople} pessoa{numPeople > 1 ? 's' : ''}
                                                 </span>
                                             )}
                                         </div>
@@ -555,7 +609,7 @@ function KitBuilder({
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-slate-500 mb-0.5 block">Quantidade</label>
+                                    <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
                                     <input
                                         type="number"
                                         min="1"
@@ -585,6 +639,9 @@ function KitBuilder({
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
                             <Users className="h-3.5 w-3.5" />
                             2. Quem vai receber?
+                            {numPeople > 0 && (
+                                <span className="text-pink-600 normal-case font-medium">({numPeople})</span>
+                            )}
                         </p>
                         {contacts.length > 1 && (
                             <button
@@ -641,16 +698,17 @@ function KitBuilder({
                 </div>
 
                 {/* Stock warning */}
-                {stockWarning && selectedContactIds.size > 0 && (
+                {stockWarning && numPeople > 0 && (
                     <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg">
                         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                         <div className="text-xs text-red-700 space-y-1">
-                            <p className="font-semibold">Estoque insuficiente</p>
-                            {kitItems.filter(i => i.productId && i.stock !== undefined && i.quantity * selectedContactIds.size > i.stock).map(i => (
+                            <p className="font-semibold">Estoque insuficiente para {numPeople} pessoa{numPeople > 1 ? 's' : ''}</p>
+                            {kitItems.filter(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock).map(i => (
                                 <p key={i.id}>
-                                    {i.productName}: precisa de {i.quantity * selectedContactIds.size}, disponível {i.stock}
+                                    {i.productName}: {i.quantity}x{numPeople} = {i.quantity * numPeople} necessários, {i.stock} disponíveis
                                 </p>
                             ))}
+                            <p className="text-red-500">Reduza a quantidade ou desmarque pessoas.</p>
                         </div>
                     </div>
                 )}
@@ -658,11 +716,14 @@ function KitBuilder({
                 {/* Submit */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <span className="text-xs text-slate-400">
-                        {selectedContactIds.size > 0 && kitItems.length > 0 && (
-                            selectedContactIds.size > 1
-                                ? <>{selectedContactIds.size} pessoas · <span className="font-semibold text-slate-600">{formatBRL(totalCostAll)}</span> total</>
-                                : <>1 pessoa · <span className="font-semibold text-slate-600">{formatBRL(totalCost)}</span></>
-                        )}
+                        {submitHint && !stockWarning
+                            ? <span className="flex items-center gap-1"><Info className="h-3 w-3" />{submitHint}</span>
+                            : numPeople > 0 && kitItems.length > 0 && (
+                                numPeople > 1
+                                    ? <>{numPeople} pessoas · <span className="font-semibold text-slate-600">{formatBRL(totalCostAll)}</span> total</>
+                                    : <>1 pessoa · <span className="font-semibold text-slate-600">{formatBRL(totalCostPerPerson)}</span></>
+                            )
+                        }
                     </span>
                     <button
                         onClick={handleSubmit}
