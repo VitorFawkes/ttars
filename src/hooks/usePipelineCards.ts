@@ -246,8 +246,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             // Anexos Filter (client-side — usa anexos_count da view)
             if ((filters.docStatus?.length ?? 0) > 0) {
                 filteredData = filteredData.filter(card => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view
-                    const count = Number((card as any).anexos_count) || 0
+                    const count = Number((card as unknown as Record<string, unknown>).anexos_count) || 0
                     if (count === 0) return filters.docStatus!.includes('sem_anexos')
                     return filters.docStatus!.includes('com_anexos')
                 })
@@ -258,12 +257,11 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 const now = new Date()
                 now.setHours(0, 0, 0, 0)
                 filteredData = filteredData.filter(card => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const tarefa = card.proxima_tarefa as any
+                    const tarefa = card.proxima_tarefa as Record<string, unknown> | null
                     if (!tarefa || !tarefa.data_vencimento) {
                         return filters.taskStatus!.includes('sem_tarefa')
                     }
-                    const due = new Date(tarefa.data_vencimento)
+                    const due = new Date(tarefa.data_vencimento as string)
                     due.setHours(0, 0, 0, 0)
                     const isToday = due.getTime() === now.getTime()
                     const isOverdue = due < now
