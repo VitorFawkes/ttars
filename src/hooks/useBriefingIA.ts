@@ -26,6 +26,21 @@ export async function processBriefingIA(
   })
 }
 
+/**
+ * Standalone function to process briefing from written text (skips Whisper).
+ */
+export async function processBriefingText(
+  cardId: string,
+  text: string,
+  userId: string,
+  mode: BriefingMode = 'atualizar'
+): Promise<BriefingIAResult> {
+  return processAIExtraction(cardId, 'briefing_text', userId, {
+    transcription: text,
+    mode
+  })
+}
+
 export function useBriefingIA(cardId: string) {
   const queryClient = useQueryClient()
   const [step, setStep] = useState<BriefingStep>('idle')
@@ -66,10 +81,45 @@ export function useBriefingIA(cardId: string) {
     }
   }, [cardId, queryClient])
 
+  const processTextInput = useCallback(async (text: string, mode: BriefingMode = 'atualizar') => {
+    setStep('uploading')
+    setResult(null)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
+      setStep('processing')
+
+      const data = await processBriefingText(cardId, text, user.id, mode)
+      setResult(data)
+
+      if (data.status === 'success') {
+        setStep('done')
+        const count = data.campos_extraidos?.length || 0
+        toast.success(`Briefing gerado! ${count} campo${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}`)
+        queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+        queryClient.invalidateQueries({ queryKey: ['card', cardId] })
+        queryClient.invalidateQueries({ queryKey: ['activity-feed', cardId] })
+      } else if (data.status === 'transcription_empty') {
+        setStep('error')
+        toast.error('Texto muito curto ou sem informações relevantes.')
+      } else {
+        setStep('done')
+        toast.info('IA não encontrou informações novas no texto')
+      }
+    } catch (error) {
+      console.error('[BriefingIA] Erro texto:', error)
+      setStep('error')
+      setResult({ status: 'error', error: (error as Error).message })
+      toast.error('Erro ao processar texto com IA')
+    }
+  }, [cardId, queryClient])
+
   const reset = useCallback(() => {
     setStep('idle')
     setResult(null)
   }, [])
 
-  return { step, result, process, reset }
+  return { step, result, process, processText: processTextInput, reset }
 }

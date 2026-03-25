@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin, PenLine, RefreshCw } from 'lucide-react'
+import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin, PenLine, RefreshCw, Mic } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useBriefingIA, type BriefingStep, type BriefingMode } from '@/hooks/useBriefingIA'
 import { supabase } from '@/lib/supabase'
@@ -19,16 +19,20 @@ interface BriefingIAModalProps {
 
 const STEP_LABELS: Record<BriefingStep, string> = {
   idle: '',
-  uploading: 'Enviando áudio...',
-  processing: 'Transcrevendo e analisando com IA...',
+  uploading: 'Enviando...',
+  processing: 'Analisando com IA...',
   done: 'Concluído!',
   error: 'Erro no processamento'
 }
 
+type InputMethod = 'audio' | 'text'
+
 export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onRequestReview }: BriefingIAModalProps) {
-  const { step, result, process, reset } = useBriefingIA(cardId)
+  const { step, result, process, processText, reset } = useBriefingIA(cardId)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [showTranscription, setShowTranscription] = useState(false)
+  const [inputMethod, setInputMethod] = useState<InputMethod>('audio')
+  const [textInput, setTextInput] = useState('')
 
   // Briefing mode: 'atualizar' adds to existing, 'novo' starts fresh
   const [briefingMode, setBriefingMode] = useState<BriefingMode>('atualizar')
@@ -81,18 +85,26 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
     setAudioBlob(blob)
   }, [])
 
-  const handleProcess = useCallback(async () => {
-    if (!audioBlob) return
-    if (onRequestReview) {
-      onRequestReview(audioBlob, briefingMode)
-      return
-    }
-    await process(audioBlob, briefingMode)
-  }, [audioBlob, process, briefingMode, onRequestReview])
+  const hasInput = inputMethod === 'audio' ? !!audioBlob : textInput.trim().length > 0
 
-  const handleNewAudio = useCallback(() => {
+  const handleProcess = useCallback(async () => {
+    if (inputMethod === 'text') {
+      if (!textInput.trim()) return
+      await processText(textInput.trim(), briefingMode)
+    } else {
+      if (!audioBlob) return
+      if (onRequestReview) {
+        onRequestReview(audioBlob, briefingMode)
+        return
+      }
+      await process(audioBlob, briefingMode)
+    }
+  }, [inputMethod, textInput, audioBlob, process, processText, briefingMode, onRequestReview])
+
+  const handleReset = useCallback(() => {
     reset()
     setAudioBlob(null)
+    setTextInput('')
     setShowTranscription(false)
   }, [reset])
 
@@ -100,6 +112,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
     if (step === 'uploading' || step === 'processing') return // Don't close while processing
     reset()
     setAudioBlob(null)
+    setTextInput('')
     setShowTranscription(false)
     onClose()
   }, [step, reset, onClose])
@@ -112,6 +125,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
   const isIdle = step === 'idle'
   const isSuccess = isDone && result?.status === 'success'
   const camposCount = result?.campos_extraidos?.length || 0
+  const isTextMode = inputMethod === 'text'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -124,7 +138,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
             </div>
             <div>
               <h3 className="text-base font-semibold text-slate-900">Briefing IA</h3>
-              <p className="text-xs text-slate-500">Grave ou envie um áudio do consultor</p>
+              <p className="text-xs text-slate-500">Grave um áudio ou escreva o briefing</p>
             </div>
           </div>
           <button
@@ -141,16 +155,65 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
 
         {/* Content */}
         <div className="px-5 py-4">
-          {/* State: Idle — Show AudioRecorder */}
+          {/* State: Idle — Show input tabs */}
           {isIdle && (
             <>
-              <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
+              {/* Input method tabs */}
+              <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-4">
+                <button
+                  type="button"
+                  onClick={() => setInputMethod('audio')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                    inputMethod === 'audio'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  <Mic className="h-3.5 w-3.5" />
+                  Áudio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMethod('text')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                    inputMethod === 'text'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  <PenLine className="h-3.5 w-3.5" />
+                  Escrever
+                </button>
+              </div>
 
-              {/* Briefing mode selector — all cards */}
-              {audioBlob && (
+              {/* Audio input */}
+              {inputMethod === 'audio' && (
+                <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
+              )}
+
+              {/* Text input */}
+              {inputMethod === 'text' && (
+                <div>
+                  <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="Descreva o briefing: destinos, datas, preferências, orçamento, número de viajantes..."
+                    rows={6}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    A IA vai extrair campos automaticamente do texto
+                  </p>
+                </div>
+              )}
+
+              {/* Briefing mode selector — show when input is ready */}
+              {hasInput && (
                 <div className="mt-4 p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
                   <p className="text-xs font-semibold text-amber-700">
-                    Como processar este audio?
+                    Como processar {isTextMode ? 'este texto' : 'este áudio'}?
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -198,7 +261,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
               )}
 
               {/* Sub-card: merge mode selector before processing */}
-              {isSubCard && audioBlob && (
+              {isSubCard && hasInput && (
                 <div className="mt-4 p-3 rounded-lg border border-orange-200 bg-orange-50 space-y-2.5">
                   <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -296,20 +359,24 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
                   {STEP_LABELS[step]}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Isso pode levar até 30 segundos dependendo do tamanho do áudio
+                  {isTextMode
+                    ? 'Analisando texto e extraindo campos...'
+                    : 'Isso pode levar até 30 segundos dependendo do tamanho do áudio'}
                 </p>
               </div>
 
               {/* Progress steps */}
               <div className="w-full max-w-xs space-y-2 mt-2">
                 <ProgressStep
-                  label="Envio do áudio"
+                  label={isTextMode ? 'Envio do texto' : 'Envio do áudio'}
                   status={step === 'uploading' ? 'active' : 'done'}
                 />
-                <ProgressStep
-                  label="Transcrição (Whisper)"
-                  status={step === 'processing' ? 'active' : step === 'uploading' ? 'pending' : 'done'}
-                />
+                {!isTextMode && (
+                  <ProgressStep
+                    label="Transcrição (Whisper)"
+                    status={step === 'processing' ? 'active' : step === 'uploading' ? 'pending' : 'done'}
+                  />
+                )}
                 <ProgressStep
                   label="Análise IA e extração de campos"
                   status={step === 'processing' ? 'active' : 'pending'}
@@ -454,25 +521,25 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
           </button>
 
           <div className="flex gap-2">
-            {/* New audio button (after done/error) */}
+            {/* Reset button (after done/error) */}
             {(isDone || isError) && (
               <button
-                onClick={handleNewAudio}
+                onClick={handleReset}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Novo Áudio
+                Tentar novamente
               </button>
             )}
 
-            {/* Process button (idle state with audio ready) */}
+            {/* Process button (idle state with input ready) */}
             {isIdle && (
               <button
                 onClick={handleProcess}
-                disabled={!audioBlob}
+                disabled={!hasInput}
                 className={cn(
                   'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all',
-                  audioBlob
+                  hasInput
                     ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-sm'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 )}

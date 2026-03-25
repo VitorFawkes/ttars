@@ -284,6 +284,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Dynamic fields stored in briefing_inicial (for future use)
     const [dynamicFields] = useState<Record<string, unknown>>({})
 
+    // Assistente (optional team member added after card creation)
+    const [assistenteId, setAssistenteId] = useState<string | null>(null)
+
     // Observação + Briefing IA state
     const [observacao, setObservacao] = useState('')
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
@@ -336,6 +339,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 indicado_por_id: null
             })
             setIndicacaoSearch('')
+            setAssistenteId(null)
             setObservacao('')
             setAudioBlob(null)
             setBriefingStep('idle')
@@ -384,6 +388,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             indicado_por_id: null
         })
         setIndicacaoSearch('')
+        setAssistenteId(null)
         setObservacao('')
         setAudioBlob(null)
         setBriefingStep('idle')
@@ -452,6 +457,27 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['pipeline'] })
+
+            // Step 1b: Insert assistant if selected
+            if (assistenteId) {
+                const selectedStage = allowedStages.find(s => s.id === effectiveStageId)
+                const stageFase = selectedStage?.fase
+                const assistRole = stageFase === 'Planner' ? 'assistente_planner'
+                    : stageFase === 'Pós-venda' ? 'assistente_pos'
+                    : 'apoio'
+                try {
+                    const { data: { user } } = await supabase.auth.getUser()
+                    await supabase.from('card_team_members').insert({
+                        card_id: card.id,
+                        profile_id: assistenteId,
+                        role: assistRole,
+                        created_by: user?.id || null,
+                    })
+                    queryClient.invalidateQueries({ queryKey: ['card-team', card.id] })
+                } catch (err) {
+                    console.warn('[CreateCard] Erro ao adicionar assistente:', err)
+                }
+            }
 
             // Step 2: If no audio, close normally
             if (!audioBlob) {
@@ -703,6 +729,22 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Assistente — optional */}
+                                        <div className="mt-3 pt-3 border-t border-slate-100">
+                                            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                                <Users className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-slate-400" />
+                                                Assistente
+                                                <span className="text-xs text-slate-400 font-normal ml-1.5">(opcional)</span>
+                                            </label>
+                                            <OwnerSelector
+                                                value={assistenteId}
+                                                onChange={(id) => setAssistenteId(id)}
+                                                product={formData.produto}
+                                                showNoSdrOption={true}
+                                                placeholder="Selecionar assistente"
+                                            />
                                         </div>
                                     </>
                                 )
