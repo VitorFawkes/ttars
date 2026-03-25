@@ -15,8 +15,9 @@ WHERE ga.card_id = c.id
   AND ga.contato_id IS NULL
   AND c.pessoa_principal_id IS NOT NULL;
 
--- 3. Drop old unique constraint on card_id alone
+-- 3. Drop old unique constraint/index on card_id alone
 ALTER TABLE card_gift_assignments DROP CONSTRAINT IF EXISTS card_gift_assignments_card_id_key;
+DROP INDEX IF EXISTS idx_card_gift_assignments_card;
 
 -- 4. Add new unique constraint (card + contact)
 ALTER TABLE card_gift_assignments

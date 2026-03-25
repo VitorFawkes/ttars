@@ -156,3 +156,4 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-25T12:56:24Z | supabase/migrations/20260326_gift_custom_items.sql | applied_to_prod
 2026-03-25T12:58:12Z | supabase/migrations/20260326_gift_item_notes.sql | applied_to_prod
 2026-03-25T13:47:20Z | supabase/migrations/20260326_gift_per_contact.sql | applied_to_prod
+2026-03-25T14:08:17Z | /tmp/fix_gift_index.sql | applied_to_prod
