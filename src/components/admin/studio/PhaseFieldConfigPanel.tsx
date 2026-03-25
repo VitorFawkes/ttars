@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useToast } from '../../../contexts/ToastContext'
-import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 interface PhaseFieldConfigPanelProps {
@@ -25,6 +25,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         })
     }, [phases, stages])
 
+    const [open, setOpen] = useState(false)
     const [activeTab, setActiveTab] = useState<string | null>(null)
 
     // Set initial tab
@@ -105,6 +106,9 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['stage-field-configs-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-configs-unified'] })
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Erro ao salvar campo', description: error.message, type: 'error' })
         }
     })
 
@@ -144,6 +148,9 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             queryClient.invalidateQueries({ queryKey: ['stage-field-configs-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-configs-unified'] })
             toast({ title: 'Stages normalizados', type: 'success' })
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Erro ao normalizar', description: error.message, type: 'error' })
         }
     })
 
@@ -159,6 +166,9 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-phases'] })
             toast({ title: 'Visibilidade da aba atualizada', type: 'success' })
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Erro ao alterar visibilidade', description: error.message, type: 'error' })
         }
     })
 
@@ -184,116 +194,151 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 
     const hasDivergence = divergentFields.size > 0
 
+    // Summary for collapsed header — count hidden fields across all phases using representative stages
+    const summaryParts: string[] = []
+    const hiddenAbas = visiblePhases.filter(p => (p.visible_in_card ?? true) === false).length
+    if (hiddenAbas > 0) summaryParts.push(`${hiddenAbas} aba(s) oculta(s)`)
+    if (hasDivergence) summaryParts.push(`${divergentFields.size} divergente(s)`)
+    const hasRules = summaryParts.length > 0
+    const summary = hasRules ? summaryParts.join(', ') : `${visiblePhases.length} abas configuráveis`
+
     return (
-        <div className="space-y-2">
-            {/* Phase tabs */}
-            <div className="flex items-center gap-1">
-                {visiblePhases.map(phase => (
-                    <button
-                        key={phase.id}
-                        onClick={() => setActiveTab(phase.id)}
-                        className={cn(
-                            "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
-                            currentTab === phase.id
-                                ? "bg-indigo-100 text-indigo-700 border-indigo-300 shadow-sm"
-                                : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
-                        )}
-                    >
-                        {phase.name}
-                    </button>
-                ))}
-            </div>
+        <div>
+            {/* Collapsible header — matching SectionFieldDefaultsPicker pattern */}
+            <button
+                onClick={() => setOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left"
+            >
+                <span className={cn("flex-shrink-0", hasRules ? "text-indigo-600" : "text-muted-foreground")}>
+                    <Layers className="w-3.5 h-3.5" />
+                </span>
+                <span className={cn("text-xs font-medium", hasRules ? "text-indigo-700" : "text-muted-foreground")}>
+                    Campos por fase
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 truncate">
+                    — {summary}
+                </span>
+                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? "text-indigo-700" : "text-muted-foreground/40")}>
+                    {open ? '▲' : '▼'}
+                </span>
+            </button>
 
-            {/* Visible in card toggle */}
-            {currentPhase && (
-                <button
-                    onClick={() => toggleVisibleInCardMutation.mutate({
-                        phaseId: currentPhase.id,
-                        visible: (currentPhase.visible_in_card ?? true) === false
-                    })}
-                    className={cn(
-                        "flex items-center gap-2 text-xs font-medium w-full text-left py-1",
-                        currentPhase.visible_in_card !== false ? "text-green-700" : "text-slate-400"
-                    )}
-                >
-                    {currentPhase.visible_in_card !== false
-                        ? <ToggleRight className="w-4 h-4" />
-                        : <ToggleLeft className="w-4 h-4" />
-                    }
-                    Mostrar aba "{currentPhase.name}" no card
-                </button>
-            )}
+            {open && (
+                <div className="mt-2 ml-6 space-y-2">
+                    <p className="text-[10px] text-muted-foreground/60 mb-2">
+                        Configure campos e visibilidade por aba/fase. Aplica a todos os stages da fase.
+                    </p>
 
-            {/* Divergence warning */}
-            {hasDivergence && (
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                    <span className="text-[11px] text-amber-700 flex-1">
-                        {divergentFields.size} campo(s) com config diferente entre etapas
-                    </span>
-                    <button
-                        onClick={() => normalizeMutation.mutate()}
-                        disabled={normalizeMutation.isPending}
-                        className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
-                    >
-                        Normalizar
-                    </button>
-                </div>
-            )}
+                    {/* Phase tabs */}
+                    <div className="flex items-center gap-1">
+                        {visiblePhases.map(phase => (
+                            <button
+                                key={phase.id}
+                                onClick={() => setActiveTab(phase.id)}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
+                                    currentTab === phase.id
+                                        ? "bg-indigo-100 text-indigo-700 border-indigo-300 shadow-sm"
+                                        : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                )}
+                            >
+                                {phase.name}
+                            </button>
+                        ))}
+                    </div>
 
-            {/* Field list */}
-            <div className="space-y-0.5">
-                {sectionFields.map(field => {
-                    const state = getFieldState(field.key)
-                    const isDivergent = divergentFields.has(field.key)
-
-                    return (
-                        <div
-                            key={field.key}
+                    {/* Visible in card toggle */}
+                    {currentPhase && (
+                        <button
+                            onClick={() => toggleVisibleInCardMutation.mutate({
+                                phaseId: currentPhase.id,
+                                visible: (currentPhase.visible_in_card ?? true) === false
+                            })}
                             className={cn(
-                                "flex items-center gap-2 py-1 px-1 rounded",
-                                isDivergent && "bg-amber-50/50"
+                                "flex items-center gap-2 text-xs font-medium w-full text-left py-1",
+                                currentPhase.visible_in_card !== false ? "text-green-700" : "text-slate-400"
                             )}
                         >
-                            <button
-                                onClick={() => handleToggleVisible(field.key)}
-                                disabled={batchUpsertMutation.isPending}
-                                className={cn(
-                                    "p-1 rounded transition-colors",
-                                    state.isVisible
-                                        ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                        : "text-red-500 hover:text-red-700 hover:bg-red-50"
-                                )}
-                                title={state.isVisible ? "Visível (clique para ocultar)" : "Oculto (clique para mostrar)"}
-                            >
-                                {state.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                                onClick={() => handleToggleRequired(field.key)}
-                                disabled={batchUpsertMutation.isPending}
-                                className={cn(
-                                    "p-1 rounded transition-colors",
-                                    state.isRequired
-                                        ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
-                                )}
-                                title={state.isRequired ? "Obrigatório (clique para remover)" : "Não obrigatório (clique para tornar)"}
-                            >
-                                {state.isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                            </button>
-                            <span className={cn(
-                                "text-xs truncate flex-1",
-                                !state.isVisible ? "text-muted-foreground line-through" : "text-foreground"
-                            )}>
-                                {field.label}
+                            {currentPhase.visible_in_card !== false
+                                ? <ToggleRight className="w-4 h-4" />
+                                : <ToggleLeft className="w-4 h-4" />
+                            }
+                            Mostrar aba "{currentPhase.name}" no card
+                        </button>
+                    )}
+
+                    {/* Divergence warning */}
+                    {hasDivergence && (
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                            <span className="text-[11px] text-amber-700 flex-1">
+                                {divergentFields.size} campo(s) com config diferente entre etapas
                             </span>
-                            {isDivergent && (
-                                <span className="text-[10px] text-amber-600 font-medium">diverge</span>
-                            )}
+                            <button
+                                onClick={() => normalizeMutation.mutate()}
+                                disabled={normalizeMutation.isPending}
+                                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
+                            >
+                                Normalizar
+                            </button>
                         </div>
-                    )
-                })}
-            </div>
+                    )}
+
+                    {/* Field list */}
+                    <div className="space-y-0.5">
+                        {sectionFields.map(field => {
+                            const state = getFieldState(field.key)
+                            const isDivergent = divergentFields.has(field.key)
+
+                            return (
+                                <div
+                                    key={field.key}
+                                    className={cn(
+                                        "flex items-center gap-2 py-1 px-1 rounded",
+                                        isDivergent && "bg-amber-50/50"
+                                    )}
+                                >
+                                    <button
+                                        onClick={() => handleToggleVisible(field.key)}
+                                        disabled={batchUpsertMutation.isPending}
+                                        className={cn(
+                                            "p-1 rounded transition-colors",
+                                            state.isVisible
+                                                ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                                : "text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        )}
+                                        title={state.isVisible ? "Visível (clique para ocultar)" : "Oculto (clique para mostrar)"}
+                                    >
+                                        {state.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                    </button>
+                                    <button
+                                        onClick={() => handleToggleRequired(field.key)}
+                                        disabled={batchUpsertMutation.isPending}
+                                        className={cn(
+                                            "p-1 rounded transition-colors",
+                                            state.isRequired
+                                                ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                        )}
+                                        title={state.isRequired ? "Obrigatório (clique para remover)" : "Não obrigatório (clique para tornar)"}
+                                    >
+                                        {state.isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                                    </button>
+                                    <span className={cn(
+                                        "text-xs truncate flex-1",
+                                        !state.isVisible ? "text-muted-foreground line-through" : "text-foreground"
+                                    )}>
+                                        {field.label}
+                                    </span>
+                                    {isDivergent && (
+                                        <span className="text-[10px] text-amber-600 font-medium">diverge</span>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
