@@ -12,7 +12,7 @@ export interface InventoryMovement {
     performed_by: string | null
     created_at: string
     product?: { name: string; sku: string }
-    performer?: { full_name: string }
+    performer?: { nome: string }
 }
 
 export function useInventoryMovements(productId?: string | null) {
@@ -23,7 +23,7 @@ export function useInventoryMovements(productId?: string | null) {
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let query = (supabase as any).from('inventory_movements')
-                .select('*, product:inventory_products(name, sku), performer:profiles!inventory_movements_performed_by_fkey(full_name)')
+                .select('*, product:inventory_products(name, sku), performer:profiles!inventory_movements_performed_by_fkey(nome)')
                 .order('created_at', { ascending: false })
                 .limit(200)
 

@@ -63,7 +63,7 @@ export default function MovementLog() {
                                     {m.quantity > 0 ? '+' : ''}{m.quantity}
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-500 max-w-[200px] truncate">{m.reason || '—'}</td>
-                                <td className="py-2.5 px-3 text-slate-500">{m.performer?.full_name ?? '—'}</td>
+                                <td className="py-2.5 px-3 text-slate-500">{m.performer?.nome ?? '—'}</td>
                             </tr>
                         )
                     })}
