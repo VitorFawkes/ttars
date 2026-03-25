@@ -351,45 +351,69 @@ function KitBuilder({
                     {/* Kit items list */}
                     {kitItems.length > 0 && (
                         <div className="space-y-1.5">
-                            {kitItems.map(item => (
-                                <div key={item.id} className="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-lg">
-                                    <div className="h-7 w-7 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                        {item.productId ? (
-                                            item.imagePath ? (
-                                                <img
-                                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${item.imagePath}`}
-                                                    alt={item.productName}
-                                                    className="h-full w-full rounded object-cover"
-                                                />
+                            {kitItems.map(item => {
+                                const totalNeeded = item.quantity * Math.max(selectedContactIds.size, 1)
+                                const insufficientStock = item.productId && item.stock !== undefined && selectedContactIds.size > 0 && totalNeeded > item.stock
+                                return (
+                                    <div key={item.id} className={cn(
+                                        "flex items-center gap-3 py-2 px-3 rounded-lg",
+                                        insufficientStock ? 'bg-red-50 border border-red-200' : 'bg-slate-50'
+                                    )}>
+                                        <div className="h-7 w-7 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                            {item.productId ? (
+                                                item.imagePath ? (
+                                                    <img
+                                                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${item.imagePath}`}
+                                                        alt={item.productName}
+                                                        className="h-full w-full rounded object-cover"
+                                                    />
+                                                ) : (
+                                                    <Package className="h-3.5 w-3.5 text-slate-300" />
+                                                )
                                             ) : (
-                                                <Package className="h-3.5 w-3.5 text-slate-300" />
-                                            )
-                                        ) : (
-                                            <PenLine className="h-3.5 w-3.5 text-pink-400" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-sm font-medium text-slate-900 truncate">{item.productName}</span>
-                                            {!item.productId && (
-                                                <span className="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded font-medium shrink-0">avulso</span>
+                                                <PenLine className="h-3.5 w-3.5 text-pink-400" />
                                             )}
                                         </div>
-                                        <span className="text-xs text-slate-400">{item.quantity}x {formatBRL(item.unitPrice)}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-sm font-medium text-slate-900 truncate">{item.productName}</span>
+                                                {!item.productId && (
+                                                    <span className="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded font-medium shrink-0">avulso</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                                <span>{item.quantity}x {formatBRL(item.unitPrice)} /pessoa</span>
+                                                {selectedContactIds.size > 1 && (
+                                                    <span className={cn(
+                                                        "font-medium",
+                                                        insufficientStock ? 'text-red-600' : 'text-slate-500'
+                                                    )}>
+                                                        · {totalNeeded} total
+                                                        {item.stock !== undefined && ` (${item.stock} disp.)`}
+                                                    </span>
+                                                )}
+                                                {selectedContactIds.size === 1 && item.stock !== undefined && item.productId && (
+                                                    <span className="text-slate-400">· {item.stock} disp.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0">
+                                            {formatBRL(item.quantity * item.unitPrice)}
+                                        </span>
+                                        <button
+                                            onClick={() => removeKitItem(item.id)}
+                                            className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
                                     </div>
-                                    <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0">
-                                        {formatBRL(item.quantity * item.unitPrice)}
-                                    </span>
-                                    <button
-                                        onClick={() => removeKitItem(item.id)}
-                                        className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            ))}
-                            <div className="text-right">
-                                <span className="text-xs text-slate-500">Total por pessoa: <span className="font-semibold text-slate-700">{formatBRL(totalCost)}</span></span>
+                                )
+                            })}
+                            <div className="text-right text-xs text-slate-500">
+                                <span>Por pessoa: <span className="font-semibold text-slate-700">{formatBRL(totalCost)}</span></span>
+                                {selectedContactIds.size > 1 && (
+                                    <span className="ml-2">· Total ({selectedContactIds.size} pessoas): <span className="font-semibold text-slate-700">{formatBRL(totalCostAll)}</span></span>
+                                )}
                             </div>
                         </div>
                     )}
@@ -466,7 +490,7 @@ function KitBuilder({
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div>
-                                            <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd</label>
+                                            <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
                                             <div className="flex items-center gap-1">
                                                 <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">-</button>
                                                 <input
@@ -478,6 +502,14 @@ function KitBuilder({
                                                 />
                                                 <button onClick={() => setQuantity(q => q + 1)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">+</button>
                                             </div>
+                                            {selectedContactIds.size > 1 && (
+                                                <span className={cn(
+                                                    "text-[10px] mt-0.5 block",
+                                                    quantity * selectedContactIds.size > selectedProduct.current_stock ? 'text-red-600 font-medium' : 'text-slate-400'
+                                                )}>
+                                                    = {quantity * selectedContactIds.size} unid. para {selectedContactIds.size} pessoas
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-end self-end ml-auto">
                                             <button
@@ -627,7 +659,9 @@ function KitBuilder({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <span className="text-xs text-slate-400">
                         {selectedContactIds.size > 0 && kitItems.length > 0 && (
-                            <>Total: <span className="font-semibold text-slate-600">{formatBRL(totalCostAll)}</span> ({selectedContactIds.size} pessoa{selectedContactIds.size > 1 ? 's' : ''})</>
+                            selectedContactIds.size > 1
+                                ? <>{selectedContactIds.size} pessoas · <span className="font-semibold text-slate-600">{formatBRL(totalCostAll)}</span> total</>
+                                : <>1 pessoa · <span className="font-semibold text-slate-600">{formatBRL(totalCost)}</span></>
                         )}
                     </span>
                     <button
