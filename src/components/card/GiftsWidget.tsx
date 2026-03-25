@@ -51,14 +51,14 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
         }
     }
 
-    const handleAddStock = async (product: InventoryProduct, quantity: number) => {
+    const handleAddStock = async (product: InventoryProduct, quantity: number, unitPrice: number) => {
         if (!assignment) return
         try {
             await addItem.mutateAsync({
                 assignmentId: assignment.id,
                 productId: product.id,
                 quantity,
-                unitPrice: product.unit_price,
+                unitPrice,
             })
             toast.success(`${product.name} adicionado`)
         } catch {
