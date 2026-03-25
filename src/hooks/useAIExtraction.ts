@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/ai-extraction-unified'
 
-export type AIExtractionSource = 'whatsapp' | 'briefing_audio' | 'briefing_text' | 'meeting_transcript'
+export type AIExtractionSource = 'whatsapp' | 'briefing_audio' | 'meeting_transcript'
 
 export interface AIExtractionMeta {
   status?: 'wrong_trip'
@@ -75,7 +75,7 @@ export async function processAIExtraction(
     body.audio_mime_type = options.audioBlob.type || 'audio/webm'
   }
 
-  if ((source === 'briefing_text' || source === 'meeting_transcript') && options.transcription) {
+  if (source === 'meeting_transcript' && options.transcription) {
     body.transcription = options.transcription
     if (options.meetingId) body.meeting_id = options.meetingId
   }
