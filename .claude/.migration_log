@@ -148,3 +148,8 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T12:16:06Z
 2026-03-25T12:21:42Z | supabase/migrations/20260325_anexos_system.sql | applied_to_prod
 2026-03-25T12:22:17Z | supabase/migrations/20260325_anexos_system.sql | applied_to_prod
+2026-03-25T12:22:41Z | supabase/migrations/20260325_fix_section_rename.sql | applied_to_prod
+2026-03-25T12:22:58Z | supabase/migrations/20260325_anexos_system.sql | applied_to_prod
+2026-03-25T12:23:40Z | supabase/migrations/20260325_fix_view_anexos.sql | applied_to_prod
+2026-03-25T12:47:56Z | supabase/migrations/20260325_fix_pipeline_stages_rls.sql | applied_to_prod
+2026-03-25T12:48:12Z | supabase/migrations/20260326_gift_inventory_system.sql | applied_to_prod

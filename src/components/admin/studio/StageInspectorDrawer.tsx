@@ -82,6 +82,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 nome: data.nome,
                 phase_id: data.phase_id,
                 fase: data.fase,
+                ativo: data.ativo,
                 is_won: data.is_won,
                 is_lost: data.is_lost,
                 is_sdr_won: data.is_sdr_won,
