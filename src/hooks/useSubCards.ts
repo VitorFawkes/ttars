@@ -2,29 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
 
-export type SubCardMode = 'incremental' | 'complete'
+export type SubCardMode = 'incremental'
 export type SubCardStatus = 'active' | 'merged' | 'cancelled' | 'completed'
+export type SubCardCategory = 'addition' | 'change'
 
 export interface SubCard {
     id: string
     titulo: string
     sub_card_mode: SubCardMode
     sub_card_status: SubCardStatus
+    sub_card_category: SubCardCategory
     valor_estimado: number | null
     valor_final: number | null
     status_comercial: string
     ganho_planner: boolean
     etapa_nome: string
     fase: string
-    merged_at: string | null
-    merge_metadata: {
-        old_parent_value?: number
-        sub_card_value?: number
-        new_parent_value?: number
-        mode?: SubCardMode
-        cancelled_reason?: string
-    } | null
-    merge_config: Record<string, unknown> | null
     created_at: string
     dono_nome: string | null
     // V2 fields
@@ -40,6 +33,8 @@ interface CreateSubCardParams {
     parentId: string
     titulo: string
     descricao: string
+    category?: SubCardCategory
+    valorEstimado?: number
 }
 
 interface CancelSubCardResult {
@@ -80,13 +75,15 @@ export function useSubCards(parentCardId?: string) {
 
     // Mutation: Create sub-card
     const createSubCardMutation = useMutation({
-        mutationFn: async ({ parentId, titulo, descricao }: CreateSubCardParams) => {
+        mutationFn: async ({ parentId, titulo, descricao, category, valorEstimado }: CreateSubCardParams) => {
             const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
             await (supabase as any)
                 .rpc('criar_sub_card', {
                     p_parent_id: parentId,
                     p_titulo: titulo,
-                    p_descricao: descricao
+                    p_descricao: descricao,
+                    p_category: category || 'addition',
+                    p_valor_estimado: valorEstimado || 0
                 })
 
             if (error) throw error

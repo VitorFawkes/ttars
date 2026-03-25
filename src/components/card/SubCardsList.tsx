@@ -9,7 +9,8 @@ import {
     Clock,
     ChevronRight,
     Loader2,
-    Package
+    Package,
+    RefreshCw
 } from 'lucide-react'
 import { useSubCards, type SubCard } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
@@ -47,8 +48,11 @@ export default function SubCardsList({
     const [cancelTarget, setCancelTarget] = useState<string | null>(null)
 
     const activeSubCards = subCards.filter(sc => sc.sub_card_status === 'active')
-    const completedSubCards = subCards.filter(sc => sc.sub_card_status === 'completed')
-    const cancelledSubCards = subCards.filter(sc => sc.sub_card_status === 'cancelled' || sc.sub_card_status === 'merged')
+    const completedSubCards = subCards.filter(sc => sc.sub_card_status === 'completed' || sc.sub_card_status === 'merged')
+    const cancelledSubCards = subCards.filter(sc => sc.sub_card_status === 'cancelled')
+
+    const activeAdditions = activeSubCards.filter(sc => sc.sub_card_category !== 'change').length
+    const activeChanges = activeSubCards.filter(sc => sc.sub_card_category === 'change').length
 
     // Calculate aggregated value
     const aggregatedValue = subCards
@@ -71,14 +75,19 @@ export default function SubCardsList({
         <div className="space-y-3">
             {/* Header with create button */}
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <Package className="w-4 h-4 text-purple-500" />
                     <h3 className="text-sm font-semibold text-gray-900">
-                        Produto Extra da Viagem
+                        Itens da Viagem
                     </h3>
-                    {activeSubCards.length > 0 && (
+                    {activeAdditions > 0 && (
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
-                            {activeSubCards.length} ativo(s)
+                            {activeAdditions} extra(s)
+                        </span>
+                    )}
+                    {activeChanges > 0 && (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
+                            {activeChanges} mudança(s)
                         </span>
                     )}
                 </div>
@@ -229,11 +238,11 @@ export default function SubCardsList({
                 <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                     <Package className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                     <p className="text-sm text-gray-500">
-                        Nenhum produto extra
+                        Nenhum item adicional
                     </p>
                     {canCreate && (
                         <p className="text-xs text-gray-400 mt-1">
-                            Adicione quando o cliente solicitar um produto extra
+                            Adicione um produto extra ou registre uma mudança
                         </p>
                     )}
                 </div>
@@ -291,17 +300,34 @@ function SubCardItem({
 }: SubCardItemProps) {
     const isAggregated = !!subCard.sub_card_agregado_em
 
+    const isChange = subCard.sub_card_category === 'change'
+
     return (
-        <div className="p-3 rounded-lg border-l-4 border-l-purple-400 bg-white border shadow-sm">
+        <div className={cn(
+            'p-3 rounded-lg border-l-4 bg-white border shadow-sm',
+            isChange ? 'border-l-orange-400' : 'border-l-purple-400'
+        )}>
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <GitBranch className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                        {isChange
+                            ? <RefreshCw className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                            : <GitBranch className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                        }
                         <span
-                            className="text-sm font-medium text-gray-900 truncate cursor-pointer hover:text-purple-600"
+                            className={cn(
+                                'text-sm font-medium text-gray-900 truncate cursor-pointer',
+                                isChange ? 'hover:text-orange-600' : 'hover:text-purple-600'
+                            )}
                             onClick={onNavigate}
                         >
                             {subCard.titulo}
+                        </span>
+                        <span className={cn(
+                            'px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0',
+                            isChange ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
+                        )}>
+                            {isChange ? 'Mudança' : 'Extra'}
                         </span>
                     </div>
 
@@ -313,7 +339,7 @@ function SubCardItem({
                         {subCard.dono_nome && (
                             <span>{subCard.dono_nome}</span>
                         )}
-                        <span className="font-medium text-purple-600">
+                        <span className={cn('font-medium', isChange ? 'text-orange-600' : 'text-purple-600')}>
                             {formatCurrency(subCard.valor_final || subCard.valor_estimado || 0)}
                         </span>
                     </div>
@@ -325,7 +351,7 @@ function SubCardItem({
                                 <div
                                     className={cn(
                                         'h-full rounded-full transition-all',
-                                        isAggregated ? 'bg-green-500' : 'bg-purple-400'
+                                        isAggregated ? 'bg-green-500' : isChange ? 'bg-orange-400' : 'bg-purple-400'
                                     )}
                                     style={{ width: `${Math.min(subCard.progress_percent, 100)}%` }}
                                 />

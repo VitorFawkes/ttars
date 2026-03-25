@@ -1,9 +1,10 @@
-import { GitBranch, Package } from 'lucide-react'
+import { GitBranch, Package, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { SubCardStatus } from '@/hooks/useSubCards'
+import type { SubCardStatus, SubCardCategory } from '@/hooks/useSubCards'
 
 interface SubCardBadgeProps {
     status?: SubCardStatus
+    category?: SubCardCategory
     parentTitle?: string
     activeCount?: number
     variant?: 'small' | 'normal'
@@ -18,10 +19,12 @@ interface SubCardBadgeProps {
  */
 export default function SubCardBadge({
     status = 'active',
+    category,
     activeCount,
     variant = 'normal',
     onClick
 }: SubCardBadgeProps) {
+    const isChange = category === 'change'
     const isSmall = variant === 'small'
 
     // If showing count of active sub-cards (for parent cards)
@@ -82,14 +85,19 @@ export default function SubCardBadge({
             className={cn(
                 'inline-flex items-center gap-1 rounded-full font-medium cursor-default',
                 isSmall ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs',
-                'bg-purple-100 text-purple-700 border border-purple-200',
+                isChange
+                    ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                    : 'bg-purple-100 text-purple-700 border border-purple-200',
                 onClick && 'cursor-pointer hover:opacity-80'
             )}
             onClick={onClick}
-            title="Produto extra da viagem"
+            title={isChange ? 'Mudança na viagem' : 'Produto extra da viagem'}
         >
-            <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
-            <span>Produto</span>
+            {isChange
+                ? <RefreshCw className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
+                : <Package className={cn(isSmall ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
+            }
+            <span>{isChange ? 'Mudança' : 'Produto'}</span>
         </div>
     )
 }

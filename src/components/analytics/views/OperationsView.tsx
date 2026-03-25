@@ -14,7 +14,7 @@ import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
-type SortKey = 'viagens' | 'mudancas' | 'mudancas_por_viagem' | 'faturamento' | 'receita'
+type SortKey = 'viagens' | 'mudancas' | 'additions' | 'changes' | 'mudancas_por_viagem' | 'receita'
 type SortDir = 'asc' | 'desc'
 
 export default function OperationsView() {
@@ -100,9 +100,9 @@ export default function OperationsView() {
                     clickHint="Ver financeiro"
                 />
                 <KpiCard
-                    title="Mudanças / Viagem"
+                    title="Itens / Viagem"
                     value={subStats?.changes_per_trip ?? 0}
-                    subtitle={subStats ? `${subStats.total_sub_cards} total` : undefined}
+                    subtitle={subStats ? `${subStats.additions_count ?? 0} extras, ${subStats.changes_count ?? 0} mudanças` : undefined}
                     icon={GitPullRequest}
                     color="text-amber-600"
                     bgColor="bg-amber-50"
@@ -194,21 +194,21 @@ export default function OperationsView() {
                                 </th>
                                 <th
                                     className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('mudancas')}
+                                    onClick={() => handleSort('additions')}
                                 >
-                                    Mudanças {sortIcon('mudancas')}
+                                    Extras {sortIcon('additions')}
+                                </th>
+                                <th
+                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
+                                    onClick={() => handleSort('changes')}
+                                >
+                                    Mudanças {sortIcon('changes')}
                                 </th>
                                 <th
                                     className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
                                     onClick={() => handleSort('mudancas_por_viagem')}
                                 >
-                                    Mud./Viagem {sortIcon('mudancas_por_viagem')}
-                                </th>
-                                <th
-                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('faturamento')}
-                                >
-                                    Faturamento {sortIcon('faturamento')}
+                                    Itens/Viagem {sortIcon('mudancas_por_viagem')}
                                 </th>
                                 <th
                                     className="text-right px-6 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
@@ -242,7 +242,8 @@ export default function OperationsView() {
                                     >
                                         <td className="px-6 py-3 font-medium text-slate-800">{p.planner_nome}</td>
                                         <td className="text-right px-4 py-3 text-slate-600">{p.viagens}</td>
-                                        <td className="text-right px-4 py-3 text-slate-600">{p.mudancas}</td>
+                                        <td className="text-right px-4 py-3 text-purple-600">{p.additions ?? 0}</td>
+                                        <td className="text-right px-4 py-3 text-orange-600">{p.changes ?? 0}</td>
                                         <td className="text-right px-4 py-3">
                                             <span className={cn(
                                                 'font-medium',
@@ -252,7 +253,6 @@ export default function OperationsView() {
                                                 {p.mudancas_por_viagem}
                                             </span>
                                         </td>
-                                        <td className="text-right px-4 py-3 text-slate-600">{formatCurrency(p.faturamento)}</td>
                                         <td className="text-right px-6 py-3 text-slate-700 font-medium">{formatCurrency(p.receita)}</td>
                                     </tr>
                                 ))
@@ -271,7 +271,7 @@ export default function OperationsView() {
                 {planners.length > 0 ? (
                     <ResponsiveContainer width="100%" height={Math.max(200, planners.length * 40 + 40)}>
                         <BarChart
-                            data={planners.map(p => ({ name: p.planner_nome, viagens: p.viagens, mudancas: p.mudancas, planner_id: p.planner_id }))}
+                            data={planners.map(p => ({ name: p.planner_nome, viagens: p.viagens, extras: p.additions ?? 0, mudancas: p.changes ?? 0, planner_id: p.planner_id }))}
                             layout="vertical"
                             margin={{ left: 10, right: 30 }}
                         >
@@ -281,6 +281,7 @@ export default function OperationsView() {
                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                             <Bar dataKey="viagens" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Viagens" cursor="pointer" onClick={(data: any) => { const d = data?.payload || data; if (d?.planner_id) drillDown.open({ label: `${d.name} — Viagens`, drillOwnerId: d.planner_id, drillStatus: 'ganho', drillSource: 'closed_deals' }) }} />
+                            <Bar dataKey="extras" fill="#a855f7" radius={[0, 4, 4, 0]} barSize={18} name="Extras" />
                             <Bar dataKey="mudancas" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Mudanças" />
                         </BarChart>
                     </ResponsiveContainer>

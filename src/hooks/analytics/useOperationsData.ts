@@ -11,6 +11,8 @@ export interface OperationsKpis {
 
 export interface SubCardStats {
     total_sub_cards: number
+    additions_count: number
+    changes_count: number
     cards_with_changes: number
     changes_per_trip: number
 }
@@ -20,8 +22,9 @@ export interface PlannerQuality {
     planner_id: string
     viagens: number
     mudancas: number
+    additions: number
+    changes: number
     mudancas_por_viagem: number
-    faturamento: number
     receita: number
 }
 
