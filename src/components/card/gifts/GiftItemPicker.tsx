@@ -20,7 +20,6 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
     const [search, setSearch] = useState('')
     const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null)
     const [quantity, setQuantity] = useState(1)
-    const [unitPrice, setUnitPrice] = useState(0)
     const [showList, setShowList] = useState(false)
 
     // Custom item state
@@ -36,7 +35,6 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
         setSearch('')
         setSelectedProduct(null)
         setQuantity(1)
-        setUnitPrice(0)
         setShowList(false)
         setCustomName('')
         setCustomPrice(0)
@@ -45,14 +43,13 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
 
     const selectProduct = (p: InventoryProduct) => {
         setSelectedProduct(p)
-        setUnitPrice(p.unit_price)
         setShowList(false)
         setSearch('')
     }
 
     const handleAddStock = () => {
         if (!selectedProduct) return
-        onAddStock(selectedProduct, quantity, unitPrice)
+        onAddStock(selectedProduct, quantity, selectedProduct.unit_price)
         reset()
     }
 
@@ -192,20 +189,10 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
                 <div className="space-y-2">
                     <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-1.5 text-sm">
                         <span className="font-medium flex-1">{selectedProduct.name}</span>
+                        <span className="text-xs text-slate-500">{formatBRL(selectedProduct.unit_price)}</span>
                         <span className="text-slate-400 text-xs">{selectedProduct.current_stock} disp.</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={unitPrice}
-                                onChange={e => setUnitPrice(parseFloat(e.target.value) || 0)}
-                                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
-                        </div>
                         <div>
                             <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd</label>
                             <div className="flex items-center gap-1">
@@ -227,7 +214,7 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
                                 >+</button>
                             </div>
                         </div>
-                        <div className="flex items-end gap-1 self-end">
+                        <div className="flex items-end gap-1 self-end ml-auto">
                             <button
                                 onClick={handleAddStock}
                                 disabled={isAdding || quantity > selectedProduct.current_stock}

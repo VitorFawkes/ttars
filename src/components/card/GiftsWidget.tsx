@@ -236,7 +236,6 @@ function KitBuilder({
     const [search, setSearch] = useState('')
     const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null)
     const [quantity, setQuantity] = useState(1)
-    const [unitPrice, setUnitPrice] = useState(0)
     const [showList, setShowList] = useState(false)
 
     // Custom item state
@@ -256,7 +255,6 @@ function KitBuilder({
         setSearch('')
         setSelectedProduct(null)
         setQuantity(1)
-        setUnitPrice(0)
         setShowList(false)
         setCustomName('')
         setCustomPrice(0)
@@ -270,7 +268,7 @@ function KitBuilder({
             productId: selectedProduct.id,
             productName: selectedProduct.name,
             quantity,
-            unitPrice,
+            unitPrice: selectedProduct.unit_price,
             stock: selectedProduct.current_stock,
             imagePath: selectedProduct.image_path,
         }])
@@ -433,7 +431,7 @@ function KitBuilder({
                                             {available.map(p => (
                                                 <button
                                                     key={p.id}
-                                                    onClick={() => { setSelectedProduct(p); setUnitPrice(p.unit_price); setShowList(false); setSearch('') }}
+                                                    onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
                                                     disabled={p.current_stock === 0}
                                                     className={cn(
                                                         'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
@@ -457,20 +455,10 @@ function KitBuilder({
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-1.5 text-sm">
                                         <span className="font-medium flex-1">{selectedProduct.name}</span>
+                                        <span className="text-xs text-slate-500">{formatBRL(selectedProduct.unit_price)}</span>
                                         <span className="text-slate-400 text-xs">{selectedProduct.current_stock} disp.</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex-1">
-                                            <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value={unitPrice}
-                                                onChange={e => setUnitPrice(parseFloat(e.target.value) || 0)}
-                                                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                        </div>
                                         <div>
                                             <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd</label>
                                             <div className="flex items-center gap-1">
@@ -485,7 +473,7 @@ function KitBuilder({
                                                 <button onClick={() => setQuantity(q => q + 1)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">+</button>
                                             </div>
                                         </div>
-                                        <div className="flex items-end self-end">
+                                        <div className="flex items-end self-end ml-auto">
                                             <button
                                                 onClick={addStockItem}
                                                 className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors"
