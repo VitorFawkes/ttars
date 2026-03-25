@@ -3,6 +3,7 @@ import { useAllSections, useSectionMutations, type Section } from '../../../hook
 import { useProductContext } from '../../../hooks/useProductContext'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig'
+import PhaseFieldConfigPanel from './PhaseFieldConfigPanel'
 import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
@@ -50,6 +51,9 @@ const COLOR_PRESETS = [
 // Section keys with dedicated hardcoded components in CardDetail
 // These sections cannot have their position/order changed via SectionManager
 const HARDCODED_SECTION_KEYS = ['agenda_tarefas', 'historico_conversas', 'people']
+
+// Widget components that render phase tabs — use PhaseFieldConfigPanel instead of SectionFieldDefaultsPicker
+const TABBED_WIDGET_COMPONENTS = ['observacoes_criticas', 'trip_info', 'wedding_info']
 
 const ICON_OPTIONS = [
     { value: 'layers', label: 'Layers' },
@@ -399,7 +403,7 @@ interface SectionColumnProps {
     onDelete: (section: Section) => void
     onToggleActive: (section: Section) => void
     stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
-    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
+    phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
 }
 
 function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, stages, phases }: SectionColumnProps) {
@@ -476,7 +480,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
 interface StageVisibilityPickerProps {
     sectionKey: string
     stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
-    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
+    phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
 }
 
 function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPickerProps) {
@@ -594,7 +598,7 @@ interface SortableSectionCardProps {
     onDelete: () => void
     onToggleActive: () => void
     stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
-    phases: { id: string; slug: string | null; name: string; color?: string | null }[]
+    phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
 }
 
 function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, stages, phases }: SortableSectionCardProps) {
@@ -718,7 +722,9 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                         phases={phases}
                     />
                     {section.is_governable && (
-                        <SectionFieldDefaultsPicker sectionKey={section.key} />
+                        section.widget_component && TABBED_WIDGET_COMPONENTS.includes(section.widget_component)
+                            ? <PhaseFieldConfigPanel sectionKey={section.key} stages={stages} phases={phases} />
+                            : <SectionFieldDefaultsPicker sectionKey={section.key} />
                     )}
                 </div>
             )}

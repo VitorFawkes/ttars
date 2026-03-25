@@ -221,6 +221,27 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                 />
                             </div>
 
+                            {/* Status Ativo */}
+                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div>
+                                    <span className="text-sm font-medium text-gray-900">Etapa ativa</span>
+                                    <p className="text-xs text-gray-500">Etapas inativas não aparecem no pipeline para os usuários</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, ativo: !formData.ativo })}
+                                    className={cn(
+                                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                                        formData.ativo ? "bg-indigo-600" : "bg-gray-300"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                        formData.ativo ? "translate-x-6" : "translate-x-1"
+                                    )} />
+                                </button>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fase (Macro-Etapa)</label>
                                 <select

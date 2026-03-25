@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, FileText, Package, Trophy, XCircle } from 'lucide-react'
+import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
@@ -675,22 +675,15 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 {/* Task Status always at bottom of fields, above owner */}
                 {renderDynamicField('task_status')}
 
-                {/* Document Collection Status — same format as task_status */}
+                {/* Anexos count */}
                 {(() => {
-                    const docsTotal = Number(card.docs_total) || 0
-                    const docsCompleted = Number(card.docs_completed) || 0
-                    if (docsTotal === 0) return null
-                    const isComplete = docsCompleted >= docsTotal
+                    const anexosCount = Number((card as any).anexos_count) || 0
+                    if (anexosCount === 0) return null
                     return (
                         <div className="mt-1">
-                            <span className={cn(
-                                "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border w-full justify-center",
-                                isComplete
-                                    ? "bg-green-50 text-green-700 border-green-100"
-                                    : "bg-red-50 text-red-700 border-red-100"
-                            )}>
-                                <FileText className="w-3 h-3" />
-                                {docsCompleted}/{docsTotal} docs coletados
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border w-full justify-center bg-slate-50 text-slate-600 border-slate-200">
+                                <Paperclip className="w-3 h-3" />
+                                {anexosCount} {anexosCount === 1 ? 'anexo' : 'anexos'}
                             </span>
                         </div>
                     )

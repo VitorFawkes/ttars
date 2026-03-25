@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-24
+> **Last Updated:** 2026-03-25
 > **Trigger:** ALWAYS ON
-> **Stats:** 121 tabelas | 40 paginas | 86 hooks | 17 views | 402 components
+> **Stats:** 122 tabelas | 40 paginas | 85 hooks | 17 views | 401 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **86 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **85 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -215,8 +215,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
-| `useDocumentCollection()` | `useDocumentCollection.ts` |
-| `useDocumentTypes()` | `useDocumentTypes.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
 | `useKeyboardShortcuts()` | `useKeyboardShortcuts.ts` |
@@ -241,6 +239,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useArchiveCard()` | `useArchiveCard.ts` |
+| `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |

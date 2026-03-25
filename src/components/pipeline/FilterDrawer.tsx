@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, FileText, Tag, Trophy, CheckSquare } from 'lucide-react'
+import { X, Filter, Calendar, User, Users, Search, Clock, Target, Link, Paperclip, Tag, Trophy, CheckSquare } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelineFilters } from '../../hooks/usePipelineFilters'
 import { cn } from '../../lib/utils'
@@ -20,9 +20,8 @@ const STATUS_COMERCIAL_OPTIONS = [
 ]
 
 const DOC_STATUS_OPTIONS = [
-    { value: 'pendente', label: 'Pendente', color: 'bg-amber-500 text-white border-amber-500' },
-    { value: 'completo', label: 'Completo', color: 'bg-green-500 text-white border-green-500' },
-    { value: 'sem_documentos', label: 'Sem Documentos', color: 'bg-gray-500 text-white border-gray-500' },
+    { value: 'com_anexos', label: 'Com Anexos', color: 'bg-indigo-500 text-white border-indigo-500' },
+    { value: 'sem_anexos', label: 'Sem Anexos', color: 'bg-gray-500 text-white border-gray-500' },
 ]
 
 const TASK_STATUS_OPTIONS = [
@@ -269,10 +268,10 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                         </div>
                     </div>
 
-                    {/* Section: Documentos */}
+                    {/* Section: Anexos */}
                     <div className="space-y-4">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                            <FileText className="h-3 w-3" /> Documentos
+                            <Paperclip className="h-3 w-3" /> Anexos
                         </h3>
                         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                             <div className="flex flex-wrap gap-2">

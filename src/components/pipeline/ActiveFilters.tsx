@@ -16,9 +16,8 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const DOC_STATUS_LABELS: Record<string, string> = {
-    pendente: 'Pendente',
-    completo: 'Completo',
-    sem_documentos: 'Sem Documentos',
+    com_anexos: 'Com Anexos',
+    sem_anexos: 'Sem Anexos',
 }
 
 export function ActiveFilters() {
@@ -138,9 +137,9 @@ export function ActiveFilters() {
                     return <Chip key={m} label={labels[m] || m} onRemove={() => removeFilter('milestones', m)} />
                 })}
 
-                {/* Doc Status */}
+                {/* Anexos Status */}
                 {filters.docStatus?.map(status => (
-                    <Chip key={`doc-${status}`} label={`Docs: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
+                    <Chip key={`doc-${status}`} label={`Anexos: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
                 ))}
 
                 {/* Task Status */}

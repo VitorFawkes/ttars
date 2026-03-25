@@ -83,17 +83,16 @@ export function useStageRequirements(card: Card) {
         staleTime: 1000 * 60 * 2
     })
 
-    // Fetch document progress for this card (for document requirement checking)
+    // Fetch anexos (attachments) count for this card
     const { data: docProgress } = useQuery({
-        queryKey: ['card-doc-progress', card.id],
+        queryKey: ['card-anexos-progress', card.id],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('card_document_requirements')
-                .select('status')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela arquivos não está nos types gerados
+            const { count } = await (supabase.from('arquivos') as any)
+                .select('*', { count: 'exact', head: true })
                 .eq('card_id', card.id)
-            const total = data?.length || 0
-            const completed = data?.filter(d => d.status === 'recebido').length || 0
-            return { total, completed, allComplete: total > 0 && completed >= total }
+            const total = count || 0
+            return { total, completed: total, allComplete: total > 0 }
         },
         enabled: !!card.id,
         staleTime: 1000 * 60 * 2

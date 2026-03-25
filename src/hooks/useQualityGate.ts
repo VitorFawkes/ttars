@@ -225,23 +225,22 @@ export function useQualityGate() {
             }
         }
 
-        // --- Validate Document Requirements ---
+        // --- Validate Anexos (attachments) Requirements ---
         const documentRules = stageRules.filter(r => r.requirement_type === 'document')
         if (documentRules.length > 0) {
-            const { data: docReqs } = await supabase
-                .from('card_document_requirements')
-                .select('status')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela arquivos não está nos types gerados
+            const { count } = await (supabase.from('arquivos') as any)
+                .select('*', { count: 'exact', head: true })
                 .eq('card_id', card.id as string)
 
-            const total = docReqs?.length || 0
-            const completed = docReqs?.filter(d => d.status === 'recebido').length || 0
+            const total = count || 0
 
-            if (total === 0 || completed < total) {
+            if (total === 0) {
                 for (const rule of documentRules) {
                     missingDocuments.push({
                         label: rule.label,
-                        total,
-                        completed
+                        total: 0,
+                        completed: 0
                     })
                 }
             }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MessageSquare, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trophy, XCircle } from 'lucide-react'
+import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MessageSquare, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Paperclip, Trophy, XCircle } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
 import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -143,7 +143,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     }, [columns])
 
     // Quick Filters state
-    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority' | 'docs_incomplete'
+    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority' | 'sem_anexos'
     const [activeQuickFilters, setActiveQuickFilters] = useState<QuickFilterType[]>([])
 
     const toggleQuickFilter = (filter: QuickFilterType) => {
@@ -161,7 +161,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         sla: cards?.filter(c => (c.tempo_etapa_dias as number) > 7).length ?? 0,
         no_task: cards?.filter(c => !c.proxima_tarefa).length ?? 0,
         high_priority: cards?.filter(c => c.prioridade === 'alta').length ?? 0,
-        docs_incomplete: cards?.filter(c => Number(c.docs_total) > 0 && Number(c.docs_completed) < Number(c.docs_total)).length ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view mas não está nos types gerados
+        sem_anexos: cards?.filter(c => !Number((c as any).anexos_count)).length ?? 0,
     }
 
     const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -282,8 +283,9 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                     return !card.proxima_tarefa
                 case 'high_priority':
                     return card.prioridade === 'alta'
-                case 'docs_incomplete':
-                    return Number(card.docs_total) > 0 && Number(card.docs_completed) < Number(card.docs_total)
+                case 'sem_anexos':
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view
+                    return !Number((card as any).anexos_count)
                 default:
                     return true
             }
@@ -653,24 +655,18 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 </Badge>
             ) : <span>-</span>
         },
-        documentos: {
-            width: 'w-[100px]',
-            renderHeader: () => 'Documentos',
+        anexos: {
+            width: 'w-[80px]',
+            renderHeader: () => 'Anexos',
             renderCell: (card) => {
-                const total = Number(card.docs_total) || 0
-                const completed = Number(card.docs_completed) || 0
-                if (!total) return <span className="text-gray-400">-</span>
-                const pct = Math.round((completed / total) * 100)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view
+                const count = Number((card as any).anexos_count) || 0
+                if (!count) return <span className="text-gray-400">-</span>
                 return (
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                                className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-green-500" : "bg-amber-500")}
-                                style={{ width: `${pct}%` }}
-                            />
-                        </div>
-                        <span className="text-xs text-gray-600 tabular-nums">{completed}/{total}</span>
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+                        <Paperclip className="h-3 w-3" />
+                        {count}
+                    </span>
                 )
             }
         },
@@ -893,21 +889,21 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 </button>
 
                 <button
-                    onClick={() => toggleQuickFilter('docs_incomplete')}
+                    onClick={() => toggleQuickFilter('sem_anexos')}
                     className={cn(
                         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
-                        activeQuickFilters.includes('docs_incomplete')
+                        activeQuickFilters.includes('sem_anexos')
                             ? "bg-teal-100 text-teal-700 border border-teal-200"
                             : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
                     )}
                 >
                     <FileText className="h-3 w-3" />
-                    Docs Pendentes
+                    Sem Anexos
                     <span className={cn(
                         "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]",
-                        activeQuickFilters.includes('docs_incomplete') ? "bg-teal-200" : "bg-gray-200"
+                        activeQuickFilters.includes('sem_anexos') ? "bg-teal-200" : "bg-gray-200"
                     )}>
-                        {quickFilterCounts.docs_incomplete}
+                        {quickFilterCounts.sem_anexos}
                     </span>
                 </button>
 
