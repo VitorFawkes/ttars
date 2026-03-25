@@ -10,13 +10,16 @@ import { Badge } from '../ui/Badge'
 import ContactForm from '../card/ContactForm'
 import type { Person } from '../../hooks/usePeopleIntelligence'
 import type { Database } from '../../database.types'
-import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon } from 'lucide-react'
+import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package } from 'lucide-react'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
 import { toast } from 'sonner'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
 import ContactDetailsViewer from '../card/ContactDetailsViewer'
 import { useDeleteContact } from '../../hooks/useDeleteContact'
+import { useContactGifts } from '../../hooks/useContactGifts'
+import { getGiftItemName } from '../../hooks/useCardGifts'
+import { cn } from '../../lib/utils'
 import {
     AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
     AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction
@@ -175,6 +178,10 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                                 Propostas
                             </TabsTrigger>
                             <TabsTrigger value="trips" className="flex-1">Viagens</TabsTrigger>
+                            <TabsTrigger value="gifts" className="flex-1">
+                                <Gift className="h-3.5 w-3.5 mr-1" />
+                                Presentes
+                            </TabsTrigger>
                             {card && (
                                 <TabsTrigger value="integration" className="flex-1">
                                     <DatabaseIcon className="h-3.5 w-3.5 mr-1" />
@@ -267,6 +274,10 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                             )}
                         </TabsContent>
 
+                        <TabsContent value="gifts" className="mt-0">
+                            <ContactGiftsTab personId={person.id} onNavigate={(cardId) => { onClose(); navigate(`/cards/${cardId}`) }} />
+                        </TabsContent>
+
                         {card && (
                             <TabsContent value="integration" className="mt-0">
                                 <ContactDetailsViewer contact={person as unknown as Database['public']['Tables']['contatos']['Row']} card={card} />
@@ -298,5 +309,104 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                 </AlertDialogContent>
             </AlertDialog>
         </Drawer >
+    )
+}
+
+const GIFT_STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: string }> = {
+    pendente: { icon: Clock, label: 'Pendente', color: 'bg-slate-100 text-slate-600' },
+    preparando: { icon: PackageCheck, label: 'Preparando', color: 'bg-amber-100 text-amber-700' },
+    enviado: { icon: Truck, label: 'Enviado', color: 'bg-blue-100 text-blue-700' },
+    entregue: { icon: Check, label: 'Entregue', color: 'bg-emerald-100 text-emerald-700' },
+    cancelado: { icon: Clock, label: 'Cancelado', color: 'bg-red-100 text-red-700' },
+}
+
+function ContactGiftsTab({ personId, onNavigate }: { personId: string; onNavigate: (cardId: string) => void }) {
+    const { gifts, isLoading } = useContactGifts(personId)
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+        )
+    }
+
+    if (gifts.length === 0) {
+        return (
+            <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                <Gift className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhum presente registrado</p>
+            </div>
+        )
+    }
+
+    const formatBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+
+    return (
+        <div className="space-y-3">
+            {gifts.map(gift => {
+                const status = GIFT_STATUS_CONFIG[gift.status] || GIFT_STATUS_CONFIG.pendente
+                const StatusIcon = status.icon
+                const totalCost = gift.items?.reduce((s, i) => s + i.quantity * i.unit_price_snapshot, 0) ?? 0
+                const tripTitle = gift.card?.titulo || 'Viagem'
+
+                return (
+                    <div
+                        key={gift.id}
+                        onClick={() => gift.card && onNavigate(gift.card.id)}
+                        className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-pink-300 transition-all cursor-pointer"
+                    >
+                        <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 className="font-semibold text-gray-900 text-sm">{tripTitle}</h4>
+                                {gift.card?.data_viagem_inicio && (
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                        <Calendar className="h-3 w-3 inline mr-1" />
+                                        {format(new Date(gift.card.data_viagem_inicio), "dd/MM/yyyy")}
+                                    </p>
+                                )}
+                            </div>
+                            <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium', status.color)}>
+                                <StatusIcon className="h-3 w-3" />
+                                {status.label}
+                            </span>
+                        </div>
+
+                        {/* Items */}
+                        {gift.items?.length > 0 && (
+                            <div className="space-y-1 mb-3">
+                                {gift.items.map(item => (
+                                    <div key={item.id} className="flex items-center gap-2 text-xs text-gray-600">
+                                        <Package className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                        <span className="flex-1 truncate">{getGiftItemName(item)}</span>
+                                        <span className="text-gray-400">{item.quantity}x</span>
+                                        <span className="font-medium">{formatBRL(item.unit_price_snapshot * item.quantity)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                            <div className="flex items-center gap-3 text-gray-400">
+                                {gift.scheduled_ship_date && (
+                                    <span>
+                                        <Truck className="h-3 w-3 inline mr-1" />
+                                        Envio: {format(new Date(gift.scheduled_ship_date + 'T12:00:00'), "dd/MM/yyyy")}
+                                    </span>
+                                )}
+                                {gift.shipped_at && (
+                                    <span>Enviado: {format(new Date(gift.shipped_at), "dd/MM HH:mm")}</span>
+                                )}
+                                {gift.delivered_at && (
+                                    <span>Entregue: {format(new Date(gift.delivered_at), "dd/MM HH:mm")}</span>
+                                )}
+                            </div>
+                            <span className="font-semibold text-gray-700">{formatBRL(totalCost)}</span>
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
     )
 }

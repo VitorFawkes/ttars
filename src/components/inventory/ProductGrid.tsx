@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Plus, Search, Package } from 'lucide-react'
+import { Plus, Minus, Search, Package } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
+import { useAddMovement } from '@/hooks/useInventoryMovements'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import ProductFormModal from './ProductFormModal'
 import StockAdjustmentModal from './StockAdjustmentModal'
 
@@ -31,6 +33,22 @@ export default function ProductGrid() {
     const [adjustingProduct, setAdjustingProduct] = useState<InventoryProduct | null>(null)
 
     const { products, isLoading } = useInventoryProducts({ search })
+    const addMovement = useAddMovement()
+
+    const handleQuickAdjust = async (e: React.MouseEvent, product: InventoryProduct, delta: number) => {
+        e.stopPropagation()
+        if (delta < 0 && product.current_stock === 0) return
+        try {
+            await addMovement.mutateAsync({
+                product_id: product.id,
+                quantity: delta,
+                movement_type: delta > 0 ? 'entrada' : 'ajuste',
+                reason: `Ajuste rápido ${delta > 0 ? '+' : ''}${delta}`,
+            })
+        } catch {
+            toast.error('Erro ao ajustar estoque')
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -92,12 +110,27 @@ export default function ProductGrid() {
                                     <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{product.category}</span>
                                     <span className="text-sm font-medium text-slate-700">{formatBRL(product.unit_price)}</span>
                                 </div>
-                                <button
-                                    onClick={e => { e.stopPropagation(); setAdjustingProduct(product) }}
-                                    className="w-full text-xs text-indigo-600 hover:text-indigo-700 font-medium py-1 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
-                                >
-                                    Ajustar Estoque
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={e => handleQuickAdjust(e, product, -1)}
+                                        disabled={product.current_stock === 0}
+                                        className="flex items-center justify-center w-8 h-8 border border-slate-200 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <Minus className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={e => { e.stopPropagation(); setAdjustingProduct(product) }}
+                                        className="flex-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium py-1.5 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                                    >
+                                        Ajustar
+                                    </button>
+                                    <button
+                                        onClick={e => handleQuickAdjust(e, product, 1)}
+                                        className="flex items-center justify-center w-8 h-8 border border-slate-200 rounded-lg text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

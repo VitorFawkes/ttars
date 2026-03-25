@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-25
 > **Trigger:** ALWAYS ON
-> **Stats:** 122 tabelas | 41 paginas | 89 hooks | 17 views | 413 components
+> **Stats:** 126 tabelas | 41 paginas | 90 hooks | 17 views | 413 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **89 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **90 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -194,6 +194,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Contacts
 | Hook | File |
 |------|------|
+| `useContactGifts()` | `useContactGifts.ts` |
 | `useContactQuality()` | `useContactQuality.ts` |
 | `useDeleteContact()` | `useDeleteContact.ts` |
 | `useDuplicateDetection()` | `useDuplicateDetection.ts` |

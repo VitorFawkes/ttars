@@ -20,6 +20,7 @@ export default function ProductFormModal({ product, onClose }: ProductFormModalP
         category: product?.category ?? 'geral',
         unit_price: product?.unit_price ?? 0,
         low_stock_threshold: product?.low_stock_threshold ?? 5,
+        current_stock: 0,
     })
     const [imagePath, setImagePath] = useState(product?.image_path ?? '')
     const [uploading, setUploading] = useState(false)
@@ -61,8 +62,10 @@ export default function ProductFormModal({ product, onClose }: ProductFormModalP
                 })
                 toast.success('Produto atualizado')
             } else {
+                const { current_stock, ...rest } = form
                 await createProduct.mutateAsync({
-                    ...form,
+                    ...rest,
+                    current_stock: current_stock > 0 ? current_stock : undefined,
                     image_path: imagePath || undefined,
                 })
                 toast.success('Produto criado')
@@ -167,6 +170,20 @@ export default function ProductFormModal({ product, onClose }: ProductFormModalP
                             />
                         </div>
                     </div>
+
+                    {!isEditing && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Estoque Inicial</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={form.current_stock}
+                                onChange={e => setForm(f => ({ ...f, current_stock: parseInt(e.target.value) || 0 }))}
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">Quantidade disponível ao criar o produto</p>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Imagem</label>

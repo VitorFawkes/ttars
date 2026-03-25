@@ -31,6 +31,7 @@ const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; colo
     enviar_proposta: { icon: Send, label: 'Proposta', color: 'text-indigo-600', bg: 'bg-indigo-50' },
     coleta_documentos: { icon: FileText, label: 'Docs', color: 'text-amber-600', bg: 'bg-amber-50' },
     solicitacao_mudanca: { icon: FileText, label: 'Mudanca', color: 'text-rose-600', bg: 'bg-rose-50' },
+    envio_presente: { icon: CheckSquare, label: 'Presente', color: 'text-pink-600', bg: 'bg-pink-50' },
 }
 
 const DEADLINE_OPTIONS: { value: TaskDeadlineFilter; label: string; variant: string }[] = [

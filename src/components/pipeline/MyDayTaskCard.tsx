@@ -1,4 +1,4 @@
-import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Send, Clock } from 'lucide-react'
+import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Send, Clock, Gift } from 'lucide-react'
 import { format, differenceInDays, isToday, isTomorrow, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '../../lib/utils'
@@ -15,6 +15,7 @@ const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; colo
     enviar_proposta: { icon: Send, label: 'Proposta', color: 'text-indigo-500' },
     coleta_documentos: { icon: FileText, label: 'Docs', color: 'text-amber-500' },
     solicitacao_mudanca: { icon: FileText, label: 'Mudança', color: 'text-rose-500' },
+    envio_presente: { icon: Gift, label: 'Presente', color: 'text-pink-500' },
 }
 
 interface MyDayTaskCardProps {

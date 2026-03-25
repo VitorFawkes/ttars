@@ -5,7 +5,9 @@ import { useAuth } from '@/contexts/AuthContext'
 export interface GiftAssignment {
     id: string
     card_id: string
+    contato_id: string | null
     status: 'pendente' | 'preparando' | 'enviado' | 'entregue' | 'cancelado'
+    scheduled_ship_date: string | null
     delivery_address: string | null
     delivery_date: string | null
     delivery_method: string | null
@@ -15,9 +17,11 @@ export interface GiftAssignment {
     shipped_by: string | null
     shipped_at: string | null
     delivered_at: string | null
+    tarefa_id: string | null
     created_at: string
     updated_at: string
     items: GiftItem[]
+    contato?: { id: string; nome: string; sobrenome: string | null; email: string | null; telefone: string | null } | null
 }
 
 export interface GiftItem {
@@ -36,58 +40,31 @@ export function getGiftItemName(item: GiftItem): string {
     return item.custom_name || item.product?.name || 'Item removido'
 }
 
+export function getContactDisplayName(contato: { nome: string; sobrenome: string | null } | null | undefined): string {
+    if (!contato) return 'Sem contato'
+    return contato.sobrenome ? `${contato.nome} ${contato.sobrenome}` : contato.nome
+}
+
 const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'enviado', 'entregue']
 
-export function useCardGifts(cardId: string) {
+export function getNextStatus(status: GiftAssignment['status']): GiftAssignment['status'] | null {
+    const idx = STATUS_ORDER.indexOf(status)
+    return idx >= 0 && idx < STATUS_ORDER.length - 1 ? STATUS_ORDER[idx + 1] : null
+}
+
+/** Per-assignment operations (used by the widget for a specific contact's gift) */
+export function useGiftAssignment(assignmentId: string | undefined, cardId: string) {
     const queryClient = useQueryClient()
     const { profile } = useAuth()
     const queryKey = ['card-gifts', cardId]
 
-    const { data: assignment, isLoading } = useQuery({
-        queryKey,
-        queryFn: async () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error } = await (supabase as any).from('card_gift_assignments')
-                .select(`
-                    *,
-                    items:card_gift_items(
-                        *,
-                        product:inventory_products(id, name, sku, image_path, current_stock)
-                    )
-                `)
-                .eq('card_id', cardId)
-                .maybeSingle()
-            if (error) throw error
-            return data as GiftAssignment | null
-        },
-        enabled: !!cardId,
-    })
-
-    const createAssignment = useMutation({
-        mutationFn: async (input?: { budget?: number; notes?: string }) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error } = await (supabase as any).from('card_gift_assignments')
-                .insert({
-                    card_id: cardId,
-                    assigned_by: profile?.id,
-                    ...(input || {}),
-                })
-                .select()
-                .single()
-            if (error) throw error
-            return data as GiftAssignment
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey })
-        },
-    })
-
     const addItem = useMutation({
-        mutationFn: async (input: { assignmentId: string; productId: string; quantity: number; unitPrice: number }) => {
+        mutationFn: async (input: { productId: string; quantity: number; unitPrice: number }) => {
+            if (!assignmentId) throw new Error('No assignment')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: item, error: itemErr } = await (supabase as any).from('card_gift_items')
                 .insert({
-                    assignment_id: input.assignmentId,
+                    assignment_id: assignmentId,
                     product_id: input.productId,
                     quantity: input.quantity,
                     unit_price_snapshot: input.unitPrice,
@@ -118,11 +95,12 @@ export function useCardGifts(cardId: string) {
     })
 
     const addCustomItem = useMutation({
-        mutationFn: async (input: { assignmentId: string; customName: string; quantity: number; unitPrice: number }) => {
+        mutationFn: async (input: { customName: string; quantity: number; unitPrice: number }) => {
+            if (!assignmentId) throw new Error('No assignment')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase as any).from('card_gift_items')
                 .insert({
-                    assignment_id: input.assignmentId,
+                    assignment_id: assignmentId,
                     product_id: null,
                     custom_name: input.customName,
                     quantity: input.quantity,
@@ -140,7 +118,6 @@ export function useCardGifts(cardId: string) {
 
     const removeItem = useMutation({
         mutationFn: async (item: GiftItem) => {
-            // Só devolve ao estoque se for item do inventário (não customizado)
             if (item.product_id) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error: movErr } = await (supabase as any).from('inventory_movements')
@@ -168,10 +145,138 @@ export function useCardGifts(cardId: string) {
         },
     })
 
-    const updateStatus = useMutation({
-        mutationFn: async (newStatus: GiftAssignment['status']) => {
-            if (!assignment) throw new Error('No gift assignment')
+    const updateItemNotes = useMutation({
+        mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).from('card_gift_items')
+                .update({ notes: notes || null })
+                .eq('id', itemId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+        },
+    })
 
+    const updateDelivery = useMutation({
+        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string }) => {
+            if (!assignmentId) throw new Error('No assignment')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).from('card_gift_assignments')
+                .update({ ...input, updated_at: new Date().toISOString() })
+                .eq('id', assignmentId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+        },
+    })
+
+    return { addItem, addCustomItem, removeItem, updateItemNotes, updateDelivery }
+}
+
+/** Main hook: fetches all gift assignments for a card (one per contact) */
+export function useCardGifts(cardId: string) {
+    const queryClient = useQueryClient()
+    const { profile } = useAuth()
+    const queryKey = ['card-gifts', cardId]
+
+    const { data: assignments = [], isLoading } = useQuery({
+        queryKey,
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any).from('card_gift_assignments')
+                .select(`
+                    *,
+                    contato:contatos!card_gift_assignments_contato_id_fkey(id, nome, sobrenome, email, telefone),
+                    items:card_gift_items(
+                        *,
+                        product:inventory_products(id, name, sku, image_path, current_stock)
+                    )
+                `)
+                .eq('card_id', cardId)
+                .order('created_at', { ascending: true })
+            if (error) throw error
+            return (data || []) as GiftAssignment[]
+        },
+        enabled: !!cardId,
+    })
+
+    const createAssignment = useMutation({
+        mutationFn: async (input: { contatoId: string; contatoName: string; scheduledShipDate?: string; budget?: number; notes?: string }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any).from('card_gift_assignments')
+                .insert({
+                    card_id: cardId,
+                    contato_id: input.contatoId,
+                    assigned_by: profile?.id,
+                    scheduled_ship_date: input.scheduledShipDate || null,
+                    budget: input.budget || null,
+                    notes: input.notes || null,
+                })
+                .select()
+                .single()
+            if (error) throw error
+
+            // Auto-create shipping task if date provided
+            if (input.scheduledShipDate) {
+                const tarefa = await createShipTask(cardId, data.id, input.contatoName, input.scheduledShipDate, profile?.id)
+                if (tarefa?.id) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any).from('card_gift_assignments')
+                        .update({ tarefa_id: tarefa.id })
+                        .eq('id', data.id)
+                }
+            }
+
+            return data as GiftAssignment
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['card-tasks'] })
+        },
+    })
+
+    const updateShipDate = useMutation({
+        mutationFn: async ({ assignmentId, date, contatoName, currentTarefaId }: { assignmentId: string; date: string | null; contatoName: string; currentTarefaId: string | null }) => {
+            const updates: Record<string, unknown> = {
+                scheduled_ship_date: date,
+                updated_at: new Date().toISOString(),
+            }
+
+            if (date && !currentTarefaId) {
+                // Create new task
+                const tarefa = await createShipTask(cardId, assignmentId, contatoName, date, profile?.id)
+                if (tarefa?.id) updates.tarefa_id = tarefa.id
+            } else if (date && currentTarefaId) {
+                // Update existing task date
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).from('tarefas')
+                    .update({ data_vencimento: new Date(`${date}T09:00:00`).toISOString() })
+                    .eq('id', currentTarefaId)
+            } else if (!date && currentTarefaId) {
+                // Remove task if date cleared
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).from('tarefas')
+                    .delete()
+                    .eq('id', currentTarefaId)
+                updates.tarefa_id = null
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).from('card_gift_assignments')
+                .update(updates)
+                .eq('id', assignmentId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['card-tasks'] })
+        },
+    })
+
+    const updateStatus = useMutation({
+        mutationFn: async ({ assignmentId, newStatus, items }: { assignmentId: string; newStatus: GiftAssignment['status']; items?: GiftItem[] }) => {
             const updates: Record<string, unknown> = {
                 status: newStatus,
                 updated_at: new Date().toISOString(),
@@ -184,9 +289,9 @@ export function useCardGifts(cardId: string) {
                 updates.delivered_at = new Date().toISOString()
             }
 
-            // Se cancelado, devolver itens do inventário ao estoque (não customizados)
-            if (newStatus === 'cancelado' && assignment.items?.length) {
-                for (const item of assignment.items) {
+            // Return stock on cancel
+            if (newStatus === 'cancelado' && items?.length) {
+                for (const item of items) {
                     if (!item.product_id) continue
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     await (supabase as any).from('inventory_movements').insert({
@@ -203,73 +308,78 @@ export function useCardGifts(cardId: string) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any).from('card_gift_assignments')
                 .update(updates)
-                .eq('id', assignment.id)
+                .eq('id', assignmentId)
             if (error) throw error
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
-        },
-    })
-
-    const updateItemNotes = useMutation({
-        mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any).from('card_gift_items')
-                .update({ notes: notes || null })
-                .eq('id', itemId)
-            if (error) throw error
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['card-tasks'] })
         },
     })
 
     const deleteAssignment = useMutation({
-        mutationFn: async () => {
-            if (!assignment) throw new Error('No gift assignment')
+        mutationFn: async ({ assignmentId, tarefaId }: { assignmentId: string; tarefaId?: string | null }) => {
+            if (tarefaId) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).from('tarefas').delete().eq('id', tarefaId)
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any).from('card_gift_assignments')
                 .delete()
-                .eq('id', assignment.id)
+                .eq('id', assignmentId)
             if (error) throw error
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['card-tasks'] })
         },
     })
 
-    const updateDelivery = useMutation({
-        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string }) => {
-            if (!assignment) throw new Error('No gift assignment')
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any).from('card_gift_assignments')
-                .update({ ...input, updated_at: new Date().toISOString() })
-                .eq('id', assignment.id)
-            if (error) throw error
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey })
-        },
-    })
+    // Summary stats
+    const totalItems = assignments.reduce((sum, a) => sum + (a.items?.length ?? 0), 0)
+    const totalCost = assignments.reduce((sum, a) =>
+        sum + (a.items?.reduce((s, i) => s + i.quantity * i.unit_price_snapshot, 0) ?? 0), 0)
 
-    const nextStatus = assignment ? STATUS_ORDER[STATUS_ORDER.indexOf(assignment.status) + 1] : null
-
-    const totalCost = assignment?.items?.reduce((sum, i) => sum + (i.quantity * i.unit_price_snapshot), 0) ?? 0
+    const statusCounts = assignments.reduce((acc, a) => {
+        acc[a.status] = (acc[a.status] || 0) + 1
+        return acc
+    }, {} as Record<string, number>)
 
     return {
-        assignment,
+        assignments,
         isLoading,
         createAssignment,
-        addItem,
-        addCustomItem,
-        removeItem,
-        updateItemNotes,
+        updateShipDate,
         updateStatus,
-        updateDelivery,
         deleteAssignment,
-        nextStatus,
+        totalItems,
         totalCost,
+        statusCounts,
     }
+}
+
+/** Helper: create shipping task */
+async function createShipTask(cardId: string, assignmentId: string, contatoName: string, date: string, profileId?: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).from('tarefas')
+        .insert({
+            card_id: cardId,
+            titulo: `Enviar presente — ${contatoName}`,
+            tipo: 'envio_presente',
+            data_vencimento: new Date(`${date}T09:00:00`).toISOString(),
+            responsavel_id: profileId,
+            status: 'pendente',
+            concluida: false,
+            created_by: profileId,
+            metadata: { gift_assignment_id: assignmentId },
+        })
+        .select('id')
+        .single()
+    if (error) {
+        console.error('Failed to create gift shipping task:', error)
+        return null
+    }
+    return data as { id: string }
 }

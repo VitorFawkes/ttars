@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -314,6 +314,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'solicitacao_mudanca': return <RefreshCw className="w-4 h-4 text-orange-600" />
             case 'coleta_documentos': return <FileText className="w-4 h-4 text-teal-600" />
             case 'tarefa': return <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+            case 'envio_presente': return <Gift className="w-4 h-4 text-pink-600" />
             default: return <MoreHorizontal className="w-4 h-4 text-gray-500" />
         }
     }
@@ -326,6 +327,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'solicitacao_mudanca': return 'Mudança'
             case 'coleta_documentos': return 'Coleta Docs'
             case 'tarefa': return 'Tarefa'
+            case 'envio_presente': return 'Presente'
             default: return type?.replace('_', ' ')
         }
     }
@@ -337,6 +339,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             case 'contato': case 'followup': case 'ligacao': case 'whatsapp': return 'bg-blue-50 border-blue-100 text-blue-700'
             case 'solicitacao_mudanca': return 'bg-orange-50 border-orange-100 text-orange-700'
             case 'coleta_documentos': return 'bg-teal-50 border-teal-100 text-teal-700'
+            case 'envio_presente': return 'bg-pink-50 border-pink-100 text-pink-700'
             default: return 'bg-gray-50 border-gray-100 text-gray-700'
         }
     }
