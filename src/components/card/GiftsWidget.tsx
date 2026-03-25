@@ -57,7 +57,7 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
     const [expandedId, setExpandedId] = useState<string | null>(null)
 
     // Contacts that don't have a gift yet
-    const contactsWithGift = new Set(assignments.map(a => a.contato_id))
+    const contactsWithGift = new Set(assignments.map(a => a.contato_id).filter(Boolean))
     const contactsWithoutGift = (people || []).filter(p => !contactsWithGift.has(p.id))
 
     const handleCreate = async (contatoId: string, contatoName: string) => {
