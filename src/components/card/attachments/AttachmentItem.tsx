@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, createElement } from 'react'
 import { Download, Trash2, X, Check } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import {
@@ -11,7 +11,7 @@ import {
 import type { Arquivo } from '../../../hooks/useCardAttachments'
 
 function FileTypeIcon({ mimeType, className }: { mimeType: string | null; className?: string }) {
-  return getFileIcon(mimeType)({ className })
+  return createElement(getFileIcon(mimeType), { className })
 }
 
 interface AttachmentItemProps {

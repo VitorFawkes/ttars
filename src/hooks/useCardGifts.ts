@@ -237,6 +237,82 @@ export function useCardGifts(cardId: string) {
         },
     })
 
+    /** Creates assignments for multiple contacts with the same items (kit builder flow) */
+    const createBulkAssignments = useMutation({
+        mutationFn: async (input: {
+            contacts: { id: string; name: string }[]
+            items: { productId: string | null; customName?: string; quantity: number; unitPrice: number }[]
+            scheduledShipDate?: string
+        }) => {
+            const results: GiftAssignment[] = []
+            for (const contact of input.contacts) {
+                // Create assignment
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: assignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
+                    .insert({
+                        card_id: cardId,
+                        contato_id: contact.id,
+                        assigned_by: profile?.id,
+                        scheduled_ship_date: input.scheduledShipDate || null,
+                    })
+                    .select()
+                    .single()
+                if (aErr) throw aErr
+
+                // Create task if date provided
+                if (input.scheduledShipDate) {
+                    const tarefa = await createShipTask(cardId, assignment.id, contact.name, input.scheduledShipDate, profile?.id)
+                    if (tarefa?.id) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase as any).from('card_gift_assignments')
+                            .update({ tarefa_id: tarefa.id })
+                            .eq('id', assignment.id)
+                    }
+                }
+
+                // Add items
+                for (const item of input.items) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: giftItem, error: iErr } = await (supabase as any).from('card_gift_items')
+                        .insert({
+                            assignment_id: assignment.id,
+                            product_id: item.productId,
+                            custom_name: item.customName || null,
+                            quantity: item.quantity,
+                            unit_price_snapshot: item.unitPrice,
+                        })
+                        .select()
+                        .single()
+                    if (iErr) throw iErr
+
+                    // Stock deduction for inventory items
+                    if (item.productId) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const { error: movErr } = await (supabase as any).from('inventory_movements')
+                            .insert({
+                                product_id: item.productId,
+                                quantity: -item.quantity,
+                                movement_type: 'saida_gift',
+                                reason: `Presente para card ${cardId} — ${contact.name}`,
+                                reference_id: giftItem.id,
+                                performed_by: profile?.id,
+                            })
+                        if (movErr) throw movErr
+                    }
+                }
+
+                results.push(assignment as GiftAssignment)
+            }
+            return results
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['card-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
+            queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+        },
+    })
+
     const updateShipDate = useMutation({
         mutationFn: async ({ assignmentId, date, contatoName, currentTarefaId }: { assignmentId: string; date: string | null; contatoName: string; currentTarefaId: string | null }) => {
             const updates: Record<string, unknown> = {
@@ -351,6 +427,7 @@ export function useCardGifts(cardId: string) {
         assignments,
         isLoading,
         createAssignment,
+        createBulkAssignments,
         updateShipDate,
         updateStatus,
         deleteAssignment,
