@@ -23,11 +23,17 @@ export interface GiftAssignment {
 export interface GiftItem {
     id: string
     assignment_id: string
-    product_id: string
+    product_id: string | null
+    custom_name: string | null
+    notes: string | null
     quantity: number
     unit_price_snapshot: number
     created_at: string
-    product: { id: string; name: string; sku: string; image_path: string | null; current_stock: number }
+    product: { id: string; name: string; sku: string; image_path: string | null; current_stock: number } | null
+}
+
+export function getGiftItemName(item: GiftItem): string {
+    return item.custom_name || item.product?.name || 'Item removido'
 }
 
 const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'enviado', 'entregue']
@@ -111,19 +117,43 @@ export function useCardGifts(cardId: string) {
         },
     })
 
+    const addCustomItem = useMutation({
+        mutationFn: async (input: { assignmentId: string; customName: string; quantity: number; unitPrice: number }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any).from('card_gift_items')
+                .insert({
+                    assignment_id: input.assignmentId,
+                    product_id: null,
+                    custom_name: input.customName,
+                    quantity: input.quantity,
+                    unit_price_snapshot: input.unitPrice,
+                })
+                .select()
+                .single()
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+        },
+    })
+
     const removeItem = useMutation({
         mutationFn: async (item: GiftItem) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error: movErr } = await (supabase as any).from('inventory_movements')
-                .insert({
-                    product_id: item.product_id,
-                    quantity: item.quantity,
-                    movement_type: 'devolucao',
-                    reason: `Removido do presente card ${cardId}`,
-                    reference_id: item.id,
-                    performed_by: profile?.id,
-                })
-            if (movErr) throw movErr
+            // Só devolve ao estoque se for item do inventário (não customizado)
+            if (item.product_id) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: movErr } = await (supabase as any).from('inventory_movements')
+                    .insert({
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        movement_type: 'devolucao',
+                        reason: `Removido do presente card ${cardId}`,
+                        reference_id: item.id,
+                        performed_by: profile?.id,
+                    })
+                if (movErr) throw movErr
+            }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: delErr } = await (supabase as any).from('card_gift_items')
@@ -154,9 +184,10 @@ export function useCardGifts(cardId: string) {
                 updates.delivered_at = new Date().toISOString()
             }
 
-            // Se cancelado, devolver todos os itens ao estoque
+            // Se cancelado, devolver itens do inventário ao estoque (não customizados)
             if (newStatus === 'cancelado' && assignment.items?.length) {
                 for (const item of assignment.items) {
+                    if (!item.product_id) continue
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     await (supabase as any).from('inventory_movements').insert({
                         product_id: item.product_id,
@@ -179,6 +210,33 @@ export function useCardGifts(cardId: string) {
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+        },
+    })
+
+    const updateItemNotes = useMutation({
+        mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).from('card_gift_items')
+                .update({ notes: notes || null })
+                .eq('id', itemId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+        },
+    })
+
+    const deleteAssignment = useMutation({
+        mutationFn: async () => {
+            if (!assignment) throw new Error('No gift assignment')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).from('card_gift_assignments')
+                .delete()
+                .eq('id', assignment.id)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
         },
     })
 
@@ -205,9 +263,12 @@ export function useCardGifts(cardId: string) {
         isLoading,
         createAssignment,
         addItem,
+        addCustomItem,
         removeItem,
+        updateItemNotes,
         updateStatus,
         updateDelivery,
+        deleteAssignment,
         nextStatus,
         totalCost,
     }

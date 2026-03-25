@@ -1,35 +1,137 @@
 import { useState } from 'react'
-import { Search, Plus, Package, Loader2 } from 'lucide-react'
+import { Search, Plus, Package, PenLine, Loader2 } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
 import { cn } from '@/lib/utils'
 
+type Mode = 'idle' | 'stock' | 'custom'
+
 interface GiftItemPickerProps {
-    onAdd: (product: InventoryProduct, quantity: number) => void
+    onAddStock: (product: InventoryProduct, quantity: number) => void
+    onAddCustom: (name: string, unitPrice: number, quantity: number) => void
     isAdding: boolean
     existingProductIds: string[]
 }
 
-export default function GiftItemPicker({ onAdd, isAdding, existingProductIds }: GiftItemPickerProps) {
+export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, existingProductIds }: GiftItemPickerProps) {
+    const [mode, setMode] = useState<Mode>('idle')
     const [search, setSearch] = useState('')
     const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null)
     const [quantity, setQuantity] = useState(1)
     const [showList, setShowList] = useState(false)
 
+    // Custom item state
+    const [customName, setCustomName] = useState('')
+    const [customPrice, setCustomPrice] = useState(0)
+    const [customQty, setCustomQty] = useState(1)
+
     const { products } = useInventoryProducts({ search, activeOnly: true })
     const available = products.filter(p => !existingProductIds.includes(p.id))
 
-    const handleAdd = () => {
-        if (!selectedProduct) return
-        onAdd(selectedProduct, quantity)
+    const reset = () => {
+        setMode('idle')
+        setSearch('')
         setSelectedProduct(null)
         setQuantity(1)
-        setSearch('')
         setShowList(false)
+        setCustomName('')
+        setCustomPrice(0)
+        setCustomQty(1)
     }
 
+    const handleAddStock = () => {
+        if (!selectedProduct) return
+        onAddStock(selectedProduct, quantity)
+        reset()
+    }
+
+    const handleAddCustom = () => {
+        if (!customName.trim()) return
+        onAddCustom(customName.trim(), customPrice, customQty)
+        reset()
+    }
+
+    if (mode === 'idle') {
+        return (
+            <div className="flex gap-2">
+                <button
+                    onClick={() => setMode('stock')}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                >
+                    <Package className="h-3.5 w-3.5" />
+                    Do Estoque
+                </button>
+                <button
+                    onClick={() => setMode('custom')}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:border-pink-400 hover:text-pink-600 transition-colors"
+                >
+                    <PenLine className="h-3.5 w-3.5" />
+                    Item Avulso
+                </button>
+            </div>
+        )
+    }
+
+    if (mode === 'custom') {
+        return (
+            <div className="border border-pink-200 bg-pink-50/50 rounded-lg p-3 space-y-3">
+                <p className="text-xs font-medium text-pink-700">Item avulso (fora do estoque)</p>
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-3">
+                        <input
+                            type="text"
+                            placeholder="Nome do item..."
+                            value={customName}
+                            onChange={e => setCustomName(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={customPrice}
+                            onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 mb-0.5 block">Quantidade</label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={customQty}
+                            onChange={e => setCustomQty(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
+                        />
+                    </div>
+                    <div className="flex items-end gap-1">
+                        <button
+                            onClick={handleAddCustom}
+                            disabled={isAdding || !customName.trim()}
+                            className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-pink-600 text-white text-xs font-medium rounded-lg hover:bg-pink-700 disabled:opacity-50 transition-colors"
+                        >
+                            {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                            Adicionar
+                        </button>
+                        <button onClick={reset} className="px-2 py-1.5 text-xs text-slate-400 hover:text-slate-600">
+                            Voltar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // mode === 'stock'
     return (
         <div className="border border-dashed border-slate-300 rounded-lg p-3 space-y-2">
-            <p className="text-xs font-medium text-slate-500">Adicionar item</p>
+            <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-500">Adicionar do estoque</p>
+                <button onClick={reset} className="text-[10px] text-slate-400 hover:text-slate-600">Voltar</button>
+            </div>
 
             {!selectedProduct ? (
                 <div className="relative">
@@ -41,6 +143,7 @@ export default function GiftItemPicker({ onAdd, isAdding, existingProductIds }: 
                         onChange={e => { setSearch(e.target.value); setShowList(true) }}
                         onFocus={() => setShowList(true)}
                         className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        autoFocus
                     />
 
                     {showList && available.length > 0 && (
@@ -80,9 +183,7 @@ export default function GiftItemPicker({ onAdd, isAdding, existingProductIds }: 
                         <button
                             onClick={() => setQuantity(q => Math.max(1, q - 1))}
                             className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50"
-                        >
-                            -
-                        </button>
+                        >-</button>
                         <input
                             type="number"
                             min="1"
@@ -94,23 +195,15 @@ export default function GiftItemPicker({ onAdd, isAdding, existingProductIds }: 
                         <button
                             onClick={() => setQuantity(q => Math.min(selectedProduct.current_stock, q + 1))}
                             className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50"
-                        >
-                            +
-                        </button>
+                        >+</button>
                     </div>
                     <button
-                        onClick={handleAdd}
+                        onClick={handleAddStock}
                         disabled={isAdding || quantity > selectedProduct.current_stock}
                         className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                     >
                         {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                         Adicionar
-                    </button>
-                    <button
-                        onClick={() => { setSelectedProduct(null); setSearch('') }}
-                        className="text-xs text-slate-400 hover:text-slate-600"
-                    >
-                        Cancelar
                     </button>
                 </div>
             )}

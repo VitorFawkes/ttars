@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Gift, Plus, Loader2 } from 'lucide-react'
+import { Gift, Plus, Loader2, AlertTriangle, Trash2 } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useCardGifts } from '@/hooks/useCardGifts'
 import type { InventoryProduct } from '@/hooks/useInventoryProducts'
@@ -26,15 +26,20 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
         isLoading,
         createAssignment,
         addItem,
+        addCustomItem,
         removeItem,
+        updateItemNotes,
         updateStatus,
         updateDelivery,
+        deleteAssignment,
         nextStatus,
         totalCost,
     } = useCardGifts(cardId)
 
     const [showDelivery, setShowDelivery] = useState(false)
+    const [confirmCancel, setConfirmCancel] = useState(false)
 
+    const hasItems = (assignment?.items?.length ?? 0) > 0
     const isReadOnly = assignment?.status === 'enviado' || assignment?.status === 'entregue' || assignment?.status === 'cancelado'
 
     const handleCreate = async () => {
@@ -46,7 +51,7 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
         }
     }
 
-    const handleAddItem = async (product: InventoryProduct, quantity: number) => {
+    const handleAddStock = async (product: InventoryProduct, quantity: number) => {
         if (!assignment) return
         try {
             await addItem.mutateAsync({
@@ -61,6 +66,21 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
         }
     }
 
+    const handleAddCustom = async (name: string, unitPrice: number, quantity: number) => {
+        if (!assignment) return
+        try {
+            await addCustomItem.mutateAsync({
+                assignmentId: assignment.id,
+                customName: name,
+                quantity,
+                unitPrice,
+            })
+            toast.success(`${name} adicionado`)
+        } catch {
+            toast.error('Erro ao adicionar item')
+        }
+    }
+
     const handleAdvanceStatus = async () => {
         if (!nextStatus) return
         try {
@@ -72,10 +92,16 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
     }
 
     const handleCancel = async () => {
-        if (!confirm('Cancelar presente? Os itens serão devolvidos ao estoque.')) return
         try {
-            await updateStatus.mutateAsync('cancelado')
-            toast.success('Presente cancelado. Estoque devolvido.')
+            if (!hasItems) {
+                // Sem itens, apaga silenciosamente
+                await deleteAssignment.mutateAsync()
+            } else {
+                // Com itens, cancela e devolve estoque
+                await updateStatus.mutateAsync('cancelado')
+                toast.success('Presente cancelado. Estoque devolvido.')
+            }
+            setConfirmCancel(false)
         } catch {
             toast.error('Erro ao cancelar')
         }
@@ -97,7 +123,7 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
                     <Gift className="h-4 w-4 text-pink-700" />
                     <h3 className="text-sm font-semibold text-pink-700">
                         Presentes
-                        {assignment?.items?.length ? ` (${assignment.items.length})` : ''}
+                        {hasItems ? ` (${assignment!.items.length})` : ''}
                     </h3>
                 </div>
                 {onToggleCollapse && (
@@ -129,19 +155,50 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
                             status={assignment.status}
                             nextStatus={nextStatus}
                             onAdvance={handleAdvanceStatus}
-                            onCancel={handleCancel}
+                            onCancel={() => setConfirmCancel(true)}
                             isUpdating={updateStatus.isPending}
                             shippedAt={assignment.shipped_at}
                             deliveredAt={assignment.delivered_at}
                         />
 
-                        {assignment.items?.length > 0 && (
+                        {/* Confirm cancel inline */}
+                        {confirmCancel && (
+                            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                                <p className="text-sm text-red-700 flex-1">
+                                    {hasItems
+                                        ? 'Cancelar presente? Os itens do estoque serão devolvidos.'
+                                        : 'Remover kit de presentes?'}
+                                </p>
+                                <button
+                                    onClick={handleCancel}
+                                    disabled={updateStatus.isPending || deleteAssignment.isPending}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    {(updateStatus.isPending || deleteAssignment.isPending) ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="h-3 w-3" />
+                                    )}
+                                    Confirmar
+                                </button>
+                                <button
+                                    onClick={() => setConfirmCancel(false)}
+                                    className="text-xs text-slate-500 hover:text-slate-700 font-medium"
+                                >
+                                    Não
+                                </button>
+                            </div>
+                        )}
+
+                        {hasItems && (
                             <div className="space-y-2">
                                 {assignment.items.map(item => (
                                     <GiftItemRow
                                         key={item.id}
                                         item={item}
                                         onRemove={() => removeItem.mutate(item)}
+                                        onUpdateNotes={(notes) => updateItemNotes.mutate({ itemId: item.id, notes })}
                                         isRemoving={removeItem.isPending}
                                         readOnly={isReadOnly}
                                     />
@@ -151,17 +208,20 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
 
                         {!isReadOnly && (
                             <GiftItemPicker
-                                onAdd={handleAddItem}
-                                isAdding={addItem.isPending}
-                                existingProductIds={assignment.items?.map(i => i.product_id) ?? []}
+                                onAddStock={handleAddStock}
+                                onAddCustom={handleAddCustom}
+                                isAdding={addItem.isPending || addCustomItem.isPending}
+                                existingProductIds={assignment.items?.map(i => i.product_id).filter(Boolean) as string[] ?? []}
                             />
                         )}
 
-                        <GiftBudgetSummary
-                            totalCost={totalCost}
-                            budget={assignment.budget}
-                            itemCount={assignment.items?.length ?? 0}
-                        />
+                        {hasItems && (
+                            <GiftBudgetSummary
+                                totalCost={totalCost}
+                                budget={assignment.budget}
+                                itemCount={assignment.items.length}
+                            />
+                        )}
 
                         <div>
                             <button
