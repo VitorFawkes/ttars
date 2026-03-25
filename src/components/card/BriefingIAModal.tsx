@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
-import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin, PenLine, RefreshCw, Mic } from 'lucide-react'
+import { X, Sparkles, Loader2, CheckCircle, AlertCircle, RotateCcw, ChevronDown, ChevronUp, ArrowDownToLine, Replace, FileText, MapPin, PenLine, RefreshCw, Mic, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useBriefingIA, type BriefingStep, type BriefingMode } from '@/hooks/useBriefingIA'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MergeConfig = Record<string, any>
@@ -28,11 +30,14 @@ const STEP_LABELS: Record<BriefingStep, string> = {
 type InputMethod = 'audio' | 'text'
 
 export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onRequestReview }: BriefingIAModalProps) {
-  const { step, result, process, processText, reset } = useBriefingIA(cardId)
+  const { step, result, process, reset } = useBriefingIA(cardId)
+  const queryClient = useQueryClient()
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [showTranscription, setShowTranscription] = useState(false)
   const [inputMethod, setInputMethod] = useState<InputMethod>('audio')
   const [textInput, setTextInput] = useState('')
+  const [textSaving, setTextSaving] = useState(false)
+  const [textSaved, setTextSaved] = useState(false)
 
   // Briefing mode: 'atualizar' adds to existing, 'novo' starts fresh
   const [briefingMode, setBriefingMode] = useState<BriefingMode>('atualizar')
@@ -85,37 +90,70 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
     setAudioBlob(blob)
   }, [])
 
-  const hasInput = inputMethod === 'audio' ? !!audioBlob : textInput.trim().length > 0
+  const hasAudioInput = !!audioBlob
 
-  const handleProcess = useCallback(async () => {
-    if (inputMethod === 'text') {
-      if (!textInput.trim()) return
-      await processText(textInput.trim(), briefingMode)
-    } else {
-      if (!audioBlob) return
-      if (onRequestReview) {
-        onRequestReview(audioBlob, briefingMode)
-        return
-      }
-      await process(audioBlob, briefingMode)
+  // Save text directly to briefing_inicial.observacao_livre (no AI)
+  const handleSaveText = useCallback(async () => {
+    if (!textInput.trim()) return
+    setTextSaving(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: card } = await (supabase as any)
+        .from('cards')
+        .select('briefing_inicial')
+        .eq('id', cardId)
+        .single()
+
+      const current = (card?.briefing_inicial || {}) as Record<string, unknown>
+      const existingObs = (current.observacao_livre as string) || ''
+      const newObs = existingObs
+        ? `${existingObs}\n\n${textInput.trim()}`
+        : textInput.trim()
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('cards')
+        .update({ briefing_inicial: { ...current, observacao_livre: newObs } })
+        .eq('id', cardId)
+
+      setTextSaved(true)
+      toast.success('Observação salva no briefing')
+      queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] })
+    } catch (err) {
+      console.error('[BriefingIA] Erro ao salvar texto:', err)
+      toast.error('Erro ao salvar observação')
+    } finally {
+      setTextSaving(false)
     }
-  }, [inputMethod, textInput, audioBlob, process, processText, briefingMode, onRequestReview])
+  }, [textInput, cardId, queryClient])
+
+  const handleProcessAudio = useCallback(async () => {
+    if (!audioBlob) return
+    if (onRequestReview) {
+      onRequestReview(audioBlob, briefingMode)
+      return
+    }
+    await process(audioBlob, briefingMode)
+  }, [audioBlob, process, briefingMode, onRequestReview])
 
   const handleReset = useCallback(() => {
     reset()
     setAudioBlob(null)
     setTextInput('')
+    setTextSaved(false)
     setShowTranscription(false)
   }, [reset])
 
   const handleClose = useCallback(() => {
-    if (step === 'uploading' || step === 'processing') return // Don't close while processing
+    if (step === 'uploading' || step === 'processing' || textSaving) return
     reset()
     setAudioBlob(null)
     setTextInput('')
+    setTextSaved(false)
     setShowTranscription(false)
     onClose()
-  }, [step, reset, onClose])
+  }, [step, reset, onClose, textSaving])
 
   if (!isOpen) return null
 
@@ -155,8 +193,8 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
 
         {/* Content */}
         <div className="px-5 py-4">
-          {/* State: Idle — Show input tabs */}
-          {isIdle && (
+          {/* State: Idle — Show input tabs (always for text, step-based for audio) */}
+          {(isIdle || isTextMode) && (
             <>
               {/* Input method tabs */}
               <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-4">
@@ -193,27 +231,39 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
                 <AudioRecorder onAudioReady={handleAudioReady} disabled={false} />
               )}
 
-              {/* Text input */}
-              {inputMethod === 'text' && (
+              {/* Text input — saves directly, no AI */}
+              {inputMethod === 'text' && !textSaved && (
                 <div>
                   <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
-                    placeholder="Descreva o briefing: destinos, datas, preferências, orçamento, número de viajantes..."
+                    placeholder="Escreva observações sobre o lead, viagem, preferências..."
                     rows={6}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                    disabled={textSaving}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none disabled:opacity-50"
                   />
                   <p className="text-xs text-slate-400 mt-1.5">
-                    A IA vai extrair campos automaticamente do texto
+                    O texto será salvo diretamente como observação no briefing
                   </p>
                 </div>
               )}
 
+              {/* Text saved success */}
+              {inputMethod === 'text' && textSaved && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Observação salva com sucesso!</p>
+                    <p className="text-xs text-green-600">O texto foi adicionado ao briefing do card.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Briefing mode selector — show when input is ready */}
-              {hasInput && (
+              {hasAudioInput && (
                 <div className="mt-4 p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
                   <p className="text-xs font-semibold text-amber-700">
-                    Como processar {isTextMode ? 'este texto' : 'este áudio'}?
+                    Como processar este áudio?
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -261,7 +311,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
               )}
 
               {/* Sub-card: merge mode selector before processing */}
-              {isSubCard && hasInput && (
+              {isSubCard && hasAudioInput && (
                 <div className="mt-4 p-3 rounded-lg border border-orange-200 bg-orange-50 space-y-2.5">
                   <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -514,15 +564,15 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-slate-50">
           <button
             onClick={handleClose}
-            disabled={isProcessing}
+            disabled={isProcessing || textSaving}
             className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors disabled:opacity-50"
           >
-            {isDone || isError ? 'Fechar' : 'Cancelar'}
+            {isDone || isError || textSaved ? 'Fechar' : 'Cancelar'}
           </button>
 
           <div className="flex gap-2">
-            {/* Reset button (after done/error) */}
-            {(isDone || isError) && (
+            {/* Reset button (after done/error for audio, or after text saved) */}
+            {((isDone || isError) && !isTextMode) && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
@@ -532,20 +582,51 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
               </button>
             )}
 
-            {/* Process button (idle state with input ready) */}
-            {isIdle && (
+            {textSaved && (
               <button
-                onClick={handleProcess}
-                disabled={!hasInput}
+                onClick={handleReset}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Escrever mais
+              </button>
+            )}
+
+            {/* Audio: Process with AI button */}
+            {isIdle && !isTextMode && (
+              <button
+                onClick={handleProcessAudio}
+                disabled={!hasAudioInput}
                 className={cn(
                   'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all',
-                  hasInput
+                  hasAudioInput
                     ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-sm'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 )}
               >
                 <Sparkles className="h-4 w-4" />
                 Processar com IA
+              </button>
+            )}
+
+            {/* Text: Save directly button */}
+            {isIdle && isTextMode && !textSaved && (
+              <button
+                onClick={handleSaveText}
+                disabled={!textInput.trim() || textSaving}
+                className={cn(
+                  'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all',
+                  textInput.trim()
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                )}
+              >
+                {textSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {textSaving ? 'Salvando...' : 'Salvar'}
               </button>
             )}
           </div>
