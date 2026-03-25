@@ -309,10 +309,10 @@ function KitBuilder({
         }
     }
 
-    const canSubmit = kitItems.length > 0 && selectedContactIds.size > 0 && !isSubmitting
-
     // Check stock availability for N contacts
     const stockWarning = kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * selectedContactIds.size > i.stock)
+
+    const canSubmit = kitItems.length > 0 && selectedContactIds.size > 0 && !isSubmitting && !stockWarning
 
     const handleSubmit = () => {
         const selectedContacts = contacts
@@ -604,11 +604,16 @@ function KitBuilder({
 
                 {/* Stock warning */}
                 {stockWarning && selectedContactIds.size > 0 && (
-                    <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <p className="text-xs text-amber-700">
-                            Estoque insuficiente para {selectedContactIds.size} pessoa{selectedContactIds.size > 1 ? 's' : ''}. Verifique as quantidades.
-                        </p>
+                    <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg">
+                        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <div className="text-xs text-red-700 space-y-1">
+                            <p className="font-semibold">Estoque insuficiente</p>
+                            {kitItems.filter(i => i.productId && i.stock !== undefined && i.quantity * selectedContactIds.size > i.stock).map(i => (
+                                <p key={i.id}>
+                                    {i.productName}: precisa de {i.quantity * selectedContactIds.size}, disponível {i.stock}
+                                </p>
+                            ))}
+                        </div>
                     </div>
                 )}
 

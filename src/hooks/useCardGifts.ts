@@ -246,18 +246,31 @@ export function useCardGifts(cardId: string) {
         }) => {
             const results: GiftAssignment[] = []
             for (const contact of input.contacts) {
-                // Create assignment
+                // Upsert: reuse existing assignment if it exists (e.g., retry after partial failure)
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: assignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
-                    .insert({
-                        card_id: cardId,
-                        contato_id: contact.id,
-                        assigned_by: profile?.id,
-                        scheduled_ship_date: input.scheduledShipDate || null,
-                    })
-                    .select()
-                    .single()
-                if (aErr) throw aErr
+                const { data: existing } = await (supabase as any).from('card_gift_assignments')
+                    .select('id')
+                    .eq('card_id', cardId)
+                    .eq('contato_id', contact.id)
+                    .maybeSingle()
+
+                let assignment: { id: string }
+                if (existing) {
+                    assignment = existing
+                } else {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: newAssignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
+                        .insert({
+                            card_id: cardId,
+                            contato_id: contact.id,
+                            assigned_by: profile?.id,
+                            scheduled_ship_date: input.scheduledShipDate || null,
+                        })
+                        .select()
+                        .single()
+                    if (aErr) throw aErr
+                    assignment = newAssignment
+                }
 
                 // Create task if date provided
                 if (input.scheduledShipDate) {
