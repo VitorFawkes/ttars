@@ -170,6 +170,12 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
                                         }
                                     } catch { toast.error('Erro ao cancelar') }
                                 }}
+                                onDelete={async () => {
+                                    try {
+                                        await deleteAssignment.mutateAsync({ assignmentId: assignment.id, tarefaId: assignment.tarefa_id })
+                                        toast.success('Presente excluído')
+                                    } catch { toast.error('Erro ao excluir') }
+                                }}
                                 onShipDateChange={async (date) => {
                                     try {
                                         await updateShipDate.mutateAsync({
@@ -646,6 +652,7 @@ function ContactGiftCard({
     onToggle,
     onAdvance,
     onCancel,
+    onDelete,
     onShipDateChange,
     isUpdating,
 }: {
@@ -655,6 +662,7 @@ function ContactGiftCard({
     onToggle: () => void
     onAdvance: () => void
     onCancel: () => void
+    onDelete: () => void
     onShipDateChange: (date: string | null) => void
     isUpdating: boolean
 }) {
@@ -737,6 +745,7 @@ function ContactGiftCard({
                         nextStatus={nextStatus}
                         onAdvance={onAdvance}
                         onCancel={() => setConfirmCancel(true)}
+                        onDelete={assignment.status === 'cancelado' ? () => setConfirmCancel(true) : undefined}
                         isUpdating={isUpdating}
                         shippedAt={assignment.shipped_at}
                         deliveredAt={assignment.delivered_at}
@@ -755,20 +764,25 @@ function ContactGiftCard({
                         />
                     </div>
 
-                    {/* Cancel confirm */}
+                    {/* Cancel/Delete confirm */}
                     {confirmCancel && (
                         <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                             <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
                             <p className="text-sm text-red-700 flex-1">
-                                {hasItems ? 'Cancelar presente? Os itens do estoque serão devolvidos.' : 'Remover presente?'}
+                                {assignment.status === 'cancelado'
+                                    ? 'Excluir presente cancelado permanentemente?'
+                                    : hasItems ? 'Cancelar presente? Os itens do estoque serão devolvidos.' : 'Remover presente?'}
                             </p>
                             <button
-                                onClick={() => { onCancel(); setConfirmCancel(false) }}
+                                onClick={() => {
+                                    if (assignment.status === 'cancelado') { onDelete(); } else { onCancel(); }
+                                    setConfirmCancel(false)
+                                }}
                                 disabled={isUpdating}
                                 className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
                             >
                                 {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                Confirmar
+                                {assignment.status === 'cancelado' ? 'Excluir' : 'Confirmar'}
                             </button>
                             <button onClick={() => setConfirmCancel(false)} className="text-xs text-slate-500 hover:text-slate-700 font-medium">Não</button>
                         </div>

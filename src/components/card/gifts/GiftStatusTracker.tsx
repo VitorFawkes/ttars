@@ -1,4 +1,4 @@
-import { Check, Clock, Truck, PackageCheck, XCircle, ChevronRight, Loader2 } from 'lucide-react'
+import { Check, Clock, Truck, PackageCheck, XCircle, ChevronRight, Loader2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { GiftAssignment } from '@/hooks/useCardGifts'
 
@@ -14,6 +14,7 @@ interface GiftStatusTrackerProps {
     nextStatus: GiftAssignment['status'] | null
     onAdvance: () => void
     onCancel: () => void
+    onDelete?: () => void
     isUpdating: boolean
     shippedAt?: string | null
     deliveredAt?: string | null
@@ -23,12 +24,22 @@ function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-export default function GiftStatusTracker({ status, nextStatus, onAdvance, onCancel, isUpdating, shippedAt, deliveredAt }: GiftStatusTrackerProps) {
+export default function GiftStatusTracker({ status, nextStatus, onAdvance, onCancel, onDelete, isUpdating, shippedAt, deliveredAt }: GiftStatusTrackerProps) {
     if (status === 'cancelado') {
         return (
             <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                 <XCircle className="h-4 w-4 text-red-500" />
-                <span className="text-sm font-medium text-red-700">Presente cancelado</span>
+                <span className="text-sm font-medium text-red-700 flex-1">Presente cancelado</span>
+                {onDelete && (
+                    <button
+                        onClick={onDelete}
+                        disabled={isUpdating}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        Excluir
+                    </button>
+                )}
             </div>
         )
     }
