@@ -45,7 +45,7 @@ interface CancelSubCardResult {
 }
 
 /**
- * Hook for managing sub-cards (itens da viagem)
+ * Hook for managing sub-cards (novas vendas/mudanças que precisam de planejamento)
  *
  * Features:
  * - Create sub-cards from parent cards (any phase)
@@ -112,14 +112,47 @@ export function useSubCards(parentCardId?: string) {
 
             toast({
                 type: 'success',
-                title: 'Item da viagem criado',
+                title: 'Sub-card criado',
                 description: 'O valor será agregado ao card principal quando entrar em Pós-venda'
             })
         },
         onError: (error: Error) => {
             toast({
                 type: 'error',
-                title: 'Erro ao criar item da viagem',
+                title: 'Erro ao criar sub-card',
+                description: error.message
+            })
+        }
+    })
+
+    // Mutation: Complete sub-card (manual — Planner or Pós-venda decides when done)
+    const completeSubCardMutation = useMutation({
+        mutationFn: async (subCardId: string) => {
+            const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPCs pendentes de regeneracao de types
+            await (supabase as any)
+                .rpc('completar_sub_card', { p_sub_card_id: subCardId })
+
+            if (error) throw error
+
+            const result = data as { success: boolean; error?: string; sub_card_id?: string; parent_id?: string }
+            if (!result.success) throw new Error(result.error || 'Erro ao concluir sub-card')
+            return result
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['sub-cards'] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['card'] })
+
+            toast({
+                type: 'success',
+                title: 'Sub-card concluído',
+                description: 'O sub-card foi marcado como concluído'
+            })
+        },
+        onError: (error: Error) => {
+            toast({
+                type: 'error',
+                title: 'Erro ao concluir sub-card',
                 description: error.message
             })
         }
@@ -154,14 +187,14 @@ export function useSubCards(parentCardId?: string) {
 
             toast({
                 type: 'success',
-                title: 'Item cancelado',
-                description: 'O item da viagem foi cancelado'
+                title: 'Sub-card cancelado',
+                description: 'O sub-card foi cancelado'
             })
         },
         onError: (error: Error) => {
             toast({
                 type: 'error',
-                title: 'Erro ao cancelar item',
+                title: 'Erro ao cancelar sub-card',
                 description: error.message
             })
         }
@@ -196,6 +229,9 @@ export function useSubCards(parentCardId?: string) {
         // Mutations
         createSubCard: createSubCardMutation.mutate,
         isCreating: createSubCardMutation.isPending,
+
+        completeSubCard: completeSubCardMutation.mutate,
+        isCompleting: completeSubCardMutation.isPending,
 
         cancelSubCard: cancelSubCardMutation.mutate,
         isCancelling: cancelSubCardMutation.isPending,

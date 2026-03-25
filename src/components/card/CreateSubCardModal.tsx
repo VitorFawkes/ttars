@@ -83,7 +83,7 @@ export default function CreateSubCardModal({
                             ? <Package className="w-5 h-5 text-purple-500" />
                             : <RefreshCw className="w-5 h-5 text-orange-500" />
                         }
-                        {isAddition ? 'Novo Produto Extra' : 'Mudança na Viagem'}
+                        {isAddition ? 'Novo Sub-card (Venda Adicional)' : 'Novo Sub-card (Mudança)'}
                     </DialogTitle>
                     <p className="text-sm text-gray-500 mt-1">
                         Vinculado a: <span className="font-medium text-gray-700">{parentTitle}</span>
@@ -105,10 +105,10 @@ export default function CreateSubCardModal({
                         >
                             <Package className={cn('w-4 h-4 mb-1', isAddition ? 'text-purple-500' : 'text-gray-400')} />
                             <p className={cn('text-sm font-medium', isAddition ? 'text-purple-900' : 'text-gray-700')}>
-                                Produto Extra
+                                Venda Adicional
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5">
-                                Adicionar algo novo
+                                Nova venda que precisa de planejamento
                             </p>
                         </button>
 
@@ -141,8 +141,8 @@ export default function CreateSubCardModal({
                     )}>
                         <p>
                             {isAddition
-                                ? 'O produto será criado como um novo card no Planner. O valor será agregado ao card principal quando entrar em Pós-venda.'
-                                : 'A mudança será criada como um card no Planner para replanejar. O Pós-venda será notificado automaticamente.'
+                                ? 'Um novo card será criado no Planner para esta venda. O valor será agregado ao card principal quando entrar em Pós-venda.'
+                                : 'Um novo card será criado no Planner para replanejar a mudança. O Pós-venda será notificado automaticamente.'
                             }
                         </p>
                     </div>
@@ -160,8 +160,8 @@ export default function CreateSubCardModal({
                                 if (errors.titulo) setErrors(prev => ({ ...prev, titulo: undefined }))
                             }}
                             placeholder={isAddition
-                                ? 'Ex: Excursão mergulho, Transfer aeroporto'
-                                : 'Ex: Trocar hotel, Alterar voo, Mudar data'
+                                ? 'Ex: Venda adicional experiências, Novo pacote mergulho'
+                                : 'Ex: Replanning destino, Trocar pacote hotel'
                             }
                             className={cn(errors.titulo && 'border-red-500')}
                         />
@@ -217,7 +217,7 @@ export default function CreateSubCardModal({
                                 : 'bg-orange-600 hover:bg-orange-700'
                         )}
                     >
-                        {isCreating ? 'Criando...' : isAddition ? 'Criar Produto' : 'Criar Mudança'}
+                        {isCreating ? 'Criando...' : 'Criar Sub-card'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

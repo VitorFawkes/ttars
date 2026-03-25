@@ -10,7 +10,8 @@ import {
     ChevronRight,
     Loader2,
     Package,
-    RefreshCw
+    RefreshCw,
+    Bell
 } from 'lucide-react'
 import { useSubCards, type SubCard } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
@@ -26,26 +27,35 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import CreateSubCardModal from './CreateSubCardModal'
+import NotifyChangeModal from './NotifyChangeModal'
 
 interface SubCardsListProps {
     parentCardId: string
     parentTitle: string
     parentValor?: number | null
     canCreate: boolean
+    /** Fase atual do card (ex: 'Pós-venda') — mostra botão Notificar quando em Pós-venda */
+    fase?: string | null
+    /** ID do dono de Pós-venda — será o responsável da tarefa */
+    posOwnerId?: string | null
 }
 
 export default function SubCardsList({
     parentCardId,
     parentTitle,
     parentValor,
-    canCreate
+    canCreate,
+    fase,
+    posOwnerId,
 }: SubCardsListProps) {
     const navigate = useNavigate()
-    const { subCards, isLoading, cancelSubCard, isCancelling } = useSubCards(parentCardId)
+    const { subCards, isLoading, cancelSubCard, isCancelling, completeSubCard, isCompleting } = useSubCards(parentCardId)
 
     const [showCreateModal, setShowCreateModal] = useState(false)
+    const [showNotifyModal, setShowNotifyModal] = useState(false)
     const [expandedSection, setExpandedSection] = useState<'active' | 'history' | 'cancelled' | null>('active')
     const [cancelTarget, setCancelTarget] = useState<string | null>(null)
+    const [completeTarget, setCompleteTarget] = useState<string | null>(null)
 
     const activeSubCards = subCards.filter(sc => sc.sub_card_status === 'active')
     const completedSubCards = subCards.filter(sc => sc.sub_card_status === 'completed' || sc.sub_card_status === 'merged')
@@ -78,7 +88,7 @@ export default function SubCardsList({
                 <div className="flex items-center gap-2 flex-wrap">
                     <Package className="w-4 h-4 text-purple-500" />
                     <h3 className="text-sm font-semibold text-gray-900">
-                        Itens da Viagem
+                        Sub-cards
                     </h3>
                     {activeAdditions > 0 && (
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
@@ -92,17 +102,30 @@ export default function SubCardsList({
                     )}
                 </div>
 
-                {canCreate && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowCreateModal(true)}
-                        className="text-xs"
-                    >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Novo Produto
-                    </Button>
-                )}
+                <div className="flex items-center gap-1.5">
+                    {canCreate && fase === 'Pós-venda' && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowNotifyModal(true)}
+                            className="text-xs border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                        >
+                            <Bell className="w-3 h-3 mr-1" />
+                            Notificar Alteração
+                        </Button>
+                    )}
+                    {canCreate && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowCreateModal(true)}
+                            className="text-xs"
+                        >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Novo Sub-card
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Value Composition */}
@@ -167,7 +190,9 @@ export default function SubCardsList({
                                     key={subCard.id}
                                     subCard={subCard}
                                     onNavigate={() => navigate(`/cards/${subCard.id}`)}
+                                    onComplete={() => setCompleteTarget(subCard.id)}
                                     onCancel={() => setCancelTarget(subCard.id)}
+                                    isCompleting={isCompleting}
                                     isCancelling={isCancelling}
                                 />
                             ))}
@@ -238,17 +263,17 @@ export default function SubCardsList({
                 <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                     <Package className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                     <p className="text-sm text-gray-500">
-                        Nenhum item adicional
+                        Nenhum sub-card
                     </p>
                     {canCreate && (
                         <p className="text-xs text-gray-400 mt-1">
-                            Adicione um produto extra ou registre uma mudança
+                            Crie um sub-card para novas vendas ou mudanças que precisem de planejamento
                         </p>
                     )}
                 </div>
             )}
 
-            {/* Create Modal */}
+            {/* Create Sub-Card Modal */}
             <CreateSubCardModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
@@ -257,13 +282,46 @@ export default function SubCardsList({
                 onCreated={(subCardId) => navigate(`/cards/${subCardId}`)}
             />
 
+            {/* Notify Pós-Venda Modal (no sub-card, just a task) */}
+            <NotifyChangeModal
+                isOpen={showNotifyModal}
+                onClose={() => setShowNotifyModal(false)}
+                cardId={parentCardId}
+                cardTitle={parentTitle}
+                posOwnerId={posOwnerId}
+            />
+
+            {/* Complete AlertDialog */}
+            <AlertDialog open={!!completeTarget} onOpenChange={() => setCompleteTarget(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Concluir sub-card</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Marcar este sub-card como concluído? Isso indica que o trabalho de planejamento foi finalizado.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (completeTarget) completeSubCard(completeTarget)
+                                setCompleteTarget(null)
+                            }}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            Concluir
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {/* Cancel AlertDialog */}
             <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Cancelar produto extra</AlertDialogTitle>
+                        <AlertDialogTitle>Cancelar sub-card</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Tem certeza que deseja cancelar este produto? Esta ação não pode ser desfeita.
+                            Tem certeza que deseja cancelar este sub-card? Esta ação não pode ser desfeita.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -275,7 +333,7 @@ export default function SubCardsList({
                             }}
                             className="bg-red-600 hover:bg-red-700"
                         >
-                            Cancelar produto
+                            Cancelar sub-card
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -288,14 +346,18 @@ export default function SubCardsList({
 interface SubCardItemProps {
     subCard: SubCard
     onNavigate: () => void
+    onComplete: () => void
     onCancel: () => void
+    isCompleting: boolean
     isCancelling: boolean
 }
 
 function SubCardItem({
     subCard,
     onNavigate,
+    onComplete,
     onCancel,
+    isCompleting,
     isCancelling
 }: SubCardItemProps) {
     const isAggregated = !!subCard.sub_card_agregado_em
@@ -387,10 +449,19 @@ function SubCardItem({
                     </button>
 
                     <button
+                        onClick={onComplete}
+                        disabled={isCompleting}
+                        className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded disabled:opacity-50"
+                        title="Concluir sub-card"
+                    >
+                        <CheckCircle2 className="w-4 h-4" />
+                    </button>
+
+                    <button
                         onClick={onCancel}
                         disabled={isCancelling}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
-                        title="Cancelar produto"
+                        title="Cancelar sub-card"
                     >
                         <XCircle className="w-4 h-4" />
                     </button>

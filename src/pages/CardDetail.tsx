@@ -72,6 +72,21 @@ export default function CardDetail() {
         .filter((r): r is TaskRequirement => r.requirement_type === 'task')
         .map(r => ({ label: r.label, task_tipo: r.task_tipo, task_require_completed: r.task_require_completed }))
 
+    // Get stage phase for sub-card section (Notificar Alteração only in Pós-venda)
+    const { data: stageInfo } = useQuery({
+        queryKey: ['stage-fase', card?.pipeline_stage_id],
+        enabled: !!card?.pipeline_stage_id,
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('fase')
+                .eq('id', card!.pipeline_stage_id!)
+                .single()
+            return data as { fase: string } | null
+        },
+        staleTime: 1000 * 60 * 5,
+    })
+
     // Check if this card is a future opportunity
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isFutureOpportunity = (card as any)?.card_type === 'future_opportunity'
@@ -91,7 +106,7 @@ export default function CardDetail() {
         }
     })
 
-    // Determine if we can show sub-cards (itens da viagem) — any phase, not sub-cards or groups
+    // Determine if we can show sub-cards section — any phase, not sub-cards or groups
     const showSubCards =
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (card as any)?.card_type !== 'sub_card' &&
@@ -230,6 +245,8 @@ export default function CardDetail() {
                                     card_type: (card as any).card_type,
                                     is_group_parent: card.is_group_parent
                                 })}
+                                fase={stageInfo?.fase}
+                                posOwnerId={card.pos_owner_id}
                             />
                         </div>
                     )}

@@ -622,6 +622,7 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 <div className="flex items-center gap-1.5 text-[10px] text-purple-600 bg-purple-50/50 px-2 py-1 rounded border border-purple-200/50 w-fit">
                     <SubCardBadge
                         status={(card as any).sub_card_status}
+                        category={(card as any).sub_card_category}
                         variant="small"
                     />
                     {(card as any).parent_card_title && (
