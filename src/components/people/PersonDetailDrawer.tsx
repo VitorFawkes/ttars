@@ -348,13 +348,17 @@ function ContactGiftsTab({ personId, onNavigate }: { personId: string; onNavigat
                 const status = GIFT_STATUS_CONFIG[gift.status] || GIFT_STATUS_CONFIG.pendente
                 const StatusIcon = status.icon
                 const totalCost = gift.items?.reduce((s, i) => s + i.quantity * i.unit_price_snapshot, 0) ?? 0
-                const tripTitle = gift.card?.titulo || 'Viagem'
+                const hasCard = !!gift.card
+                const tripTitle = gift.card?.titulo || 'Presente histórico'
 
                 return (
                     <div
                         key={gift.id}
-                        onClick={() => gift.card && onNavigate(gift.card.id)}
-                        className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-pink-300 transition-all cursor-pointer"
+                        onClick={() => hasCard && onNavigate(gift.card!.id)}
+                        className={cn(
+                            "bg-white border border-gray-200 rounded-lg p-4 transition-all",
+                            hasCard && "hover:shadow-md hover:border-pink-300 cursor-pointer"
+                        )}
                     >
                         <div className="flex justify-between items-start mb-3">
                             <div>
