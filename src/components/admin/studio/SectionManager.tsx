@@ -494,6 +494,174 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
     )
 }
 
+// ── Trip Info Phase Visibility Picker ─────────────────────────────────────
+// For trip_info sections: shows each phase as a sub-section with visibility/collapse toggles per stage
+
+interface TripInfoPhaseVisibilityPickerProps {
+    sectionKey: string
+    stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
+    phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
+}
+
+function TripInfoPhaseVisibilityPicker({ sectionKey, stages, phases }: TripInfoPhaseVisibilityPickerProps) {
+    const { toast } = useToast()
+    const { getHiddenSections, getCollapsedSections, toggleVisibility, toggleCollapsed } = useStageSectionConfig()
+    const [open, setOpen] = useState(false)
+
+    // All phases (including ones with visible_in_card=false)
+    const allPhases = useMemo(() => {
+        return phases.filter(p => p.slug !== 'resolucao')
+    }, [phases])
+
+    // Summary counts
+    const summary = useMemo(() => {
+        let hidden = 0
+        let collapsed = 0
+        for (const phase of allPhases) {
+            const phaseKey = `${sectionKey}:${phase.slug}`
+            const phaseStages = stages.filter(s => s.phase_id === phase.id)
+            for (const stage of phaseStages) {
+                if (getHiddenSections(stage.id).includes(phaseKey)) hidden++
+                if (getCollapsedSections(stage.id).includes(phaseKey)) collapsed++
+            }
+        }
+        return { hidden, collapsed }
+    }, [allPhases, sectionKey, stages, getHiddenSections, getCollapsedSections])
+
+    const hasRules = summary.hidden > 0 || summary.collapsed > 0
+
+    const handleToggleVisibility = useCallback(async (phaseSlug: string, stageId: string) => {
+        const phaseKey = `${sectionKey}:${phaseSlug}`
+        const isCurrentlyHidden = getHiddenSections(stageId).includes(phaseKey)
+        try {
+            await toggleVisibility.mutateAsync({ stageId, sectionKey: phaseKey, visible: isCurrentlyHidden })
+        } catch {
+            toast({ title: 'Erro ao salvar', type: 'error' })
+        }
+    }, [sectionKey, getHiddenSections, toggleVisibility, toast])
+
+    const handleToggleCollapse = useCallback(async (phaseSlug: string, stageId: string) => {
+        const phaseKey = `${sectionKey}:${phaseSlug}`
+        const isCurrentlyCollapsed = getCollapsedSections(stageId).includes(phaseKey)
+        try {
+            await toggleCollapsed.mutateAsync({ stageId, sectionKey: phaseKey, collapsed: !isCurrentlyCollapsed })
+        } catch {
+            toast({ title: 'Erro ao salvar', type: 'error' })
+        }
+    }, [sectionKey, getCollapsedSections, toggleCollapsed, toast])
+
+    // Batch: hide/show a phase across ALL stages
+    const handleTogglePhaseAll = useCallback(async (phaseSlug: string) => {
+        const phaseKey = `${sectionKey}:${phaseSlug}`
+        // Toggle across ALL stages (not just the phase's stages)
+        // If ANY stage shows it, hide all. Otherwise show all.
+        const anyVisible = stages.some(s => !getHiddenSections(s.id).includes(phaseKey))
+        try {
+            await Promise.all(
+                stages.map(s =>
+                    toggleVisibility.mutateAsync({ stageId: s.id, sectionKey: phaseKey, visible: !anyVisible })
+                )
+            )
+            toast({ title: anyVisible ? `${phaseSlug.toUpperCase()} oculta em todas etapas` : `${phaseSlug.toUpperCase()} visível em todas etapas`, type: 'success' })
+        } catch {
+            toast({ title: 'Erro ao salvar', type: 'error' })
+        }
+    }, [sectionKey, stages, allPhases, getHiddenSections, toggleVisibility, toast])
+
+    return (
+        <div>
+            <button
+                onClick={() => setOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left"
+            >
+                <span className={cn("flex-shrink-0", hasRules ? "text-indigo-600" : "text-muted-foreground")}>
+                    <Layers className="w-3.5 h-3.5" />
+                </span>
+                <span className={cn("text-xs font-medium", hasRules ? "text-indigo-700" : "text-muted-foreground")}>
+                    Visibilidade por fase
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 truncate">
+                    — {hasRules
+                        ? `${summary.hidden > 0 ? `${summary.hidden} oculta(s)` : ''}${summary.hidden > 0 && summary.collapsed > 0 ? ', ' : ''}${summary.collapsed > 0 ? `${summary.collapsed} retraída(s)` : ''}`
+                        : 'todas visíveis e expandidas'}
+                </span>
+                <span className={cn("ml-auto text-[10px] font-medium", hasRules ? "text-indigo-700" : "text-muted-foreground/40")}>
+                    {open ? '▲' : '▼'}
+                </span>
+            </button>
+
+            {open && (
+                <div className="mt-2 ml-4 space-y-3">
+                    {allPhases.map(phase => {
+                        const phaseKey = `${sectionKey}:${phase.slug}`
+                        const phaseStages = stages.filter(s => s.phase_id === phase.id)
+                        const allHidden = phaseStages.length > 0 && phaseStages.every(s => getHiddenSections(s.id).includes(phaseKey))
+
+                        return (
+                            <div key={phase.id} className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleTogglePhaseAll(phase.slug!)}
+                                        className={cn(
+                                            "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors",
+                                            allHidden ? "text-red-600 line-through" : "text-foreground"
+                                        )}
+                                        title={allHidden ? "Oculta — clique para mostrar em todas etapas" : "Visível — clique para ocultar em todas etapas"}
+                                    >
+                                        {allHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                        Info Viagem — {phase.name}
+                                    </button>
+                                </div>
+
+                                {!allHidden && phaseStages.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 ml-5">
+                                        {phaseStages.map(stage => {
+                                            const isHidden = getHiddenSections(stage.id).includes(phaseKey)
+                                            const isCollapsed = getCollapsedSections(stage.id).includes(phaseKey)
+                                            return (
+                                                <div key={stage.id} className="flex items-center gap-0.5">
+                                                    <button
+                                                        onClick={() => handleToggleVisibility(phase.slug!, stage.id)}
+                                                        className={cn(
+                                                            "px-2 py-0.5 rounded-l-md text-[11px] font-medium border-y border-l transition-all",
+                                                            isHidden
+                                                                ? "bg-red-100 text-red-700 border-red-300"
+                                                                : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                                        )}
+                                                        title={isHidden ? "Oculta nesta etapa" : "Visível nesta etapa"}
+                                                    >
+                                                        {isHidden ? <EyeOff className="w-3 h-3 inline mr-0.5" /> : null}
+                                                        {stage.nome}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleCollapse(phase.slug!, stage.id)}
+                                                        disabled={isHidden}
+                                                        className={cn(
+                                                            "px-1 py-0.5 rounded-r-md text-[11px] border-y border-r transition-all",
+                                                            isHidden
+                                                                ? "bg-muted/30 text-muted-foreground/30 border-border cursor-not-allowed"
+                                                                : isCollapsed
+                                                                    ? "bg-amber-100 text-amber-700 border-amber-300"
+                                                                    : "bg-muted/50 text-muted-foreground/50 border-border hover:text-amber-600"
+                                                        )}
+                                                        title={isCollapsed ? "Inicia retraída" : "Inicia expandida"}
+                                                    >
+                                                        <ChevronsUpDown className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ── Stage Visibility Picker ──────────────────────────────────────────────
 // Controls which stages hide this section. Grouped by phase for readability.
 
@@ -804,11 +972,20 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
             {/* Stage visibility rules — only for active, non-hardcoded sections */}
             {!isHardcoded && !isInactive && (
                 <div className="w-full border-t border-border pt-3 mt-1 space-y-3">
-                    <StageVisibilityPicker
-                        sectionKey={section.key}
-                        stages={stages}
-                        phases={phases}
-                    />
+                    {/* trip_info: show per-phase visibility/collapse instead of global */}
+                    {section.widget_component === 'trip_info' ? (
+                        <TripInfoPhaseVisibilityPicker
+                            sectionKey={section.key}
+                            stages={stages}
+                            phases={phases}
+                        />
+                    ) : (
+                        <StageVisibilityPicker
+                            sectionKey={section.key}
+                            stages={stages}
+                            phases={phases}
+                        />
+                    )}
                     {section.is_governable && (
                         section.widget_component && TABBED_WIDGET_COMPONENTS.includes(section.widget_component)
                             ? <PhaseFieldConfigPanel sectionKey={section.key} stages={stages} phases={phases} />

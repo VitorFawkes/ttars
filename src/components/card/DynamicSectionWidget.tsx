@@ -504,14 +504,24 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
 
                     // trip_info → expand into one section per visible phase
                     if (section.widget_component === 'trip_info' && visiblePhases.length > 0) {
-                        return visiblePhases.map(phase => (
-                            <CollapsibleWidgetSection
-                                key={`${section.key}_${phase.slug}`}
-                                section={{ ...section, label: `Informações Viagem — ${phase.label || phase.name}` }}
-                                card={card}
-                                lockedPhaseSlug={phase.slug!}
-                            />
-                        ))
+                        return visiblePhases
+                            .filter(phase => {
+                                // Check phase-specific visibility: trip_info:sdr, trip_info:planner, etc.
+                                const phaseKey = `${section.key}:${phase.slug}`
+                                return isSectionVisible(stageId, phaseKey)
+                            })
+                            .map(phase => (
+                                <CollapsibleWidgetSection
+                                    key={`${section.key}_${phase.slug}`}
+                                    section={{
+                                        ...section,
+                                        key: `${section.key}:${phase.slug}`,
+                                        label: `Informações Viagem — ${phase.label || phase.name}`
+                                    }}
+                                    card={card}
+                                    lockedPhaseSlug={phase.slug!}
+                                />
+                            ))
                     }
 
                     return (
