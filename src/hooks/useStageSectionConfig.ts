@@ -7,6 +7,7 @@ interface StageSectionConfig {
     stage_id: string
     section_key: string
     is_visible: boolean
+    default_collapsed: boolean
 }
 
 const QUERY_KEY = ['stage-section-configs']
@@ -42,6 +43,21 @@ export function useStageSectionConfig() {
             .map(c => c.section_key)
     }, [configs])
 
+    /** Returns true if section should start collapsed at this stage (default: expanded) */
+    const isSectionCollapsed = useCallback((stageId: string | null, sectionKey: string): boolean => {
+        if (!stageId || !configs) return false
+        const config = configs.find(c => c.stage_id === stageId && c.section_key === sectionKey)
+        return config?.default_collapsed ?? false
+    }, [configs])
+
+    /** Returns all collapsed section keys for a given stage */
+    const getCollapsedSections = useCallback((stageId: string): string[] => {
+        if (!configs) return []
+        return configs
+            .filter(c => c.stage_id === stageId && c.default_collapsed)
+            .map(c => c.section_key)
+    }, [configs])
+
     /** Toggle section visibility for a stage. Inserts is_visible=false to hide, deletes row to restore default. */
     const toggleVisibility = useMutation({
         mutationFn: async ({ stageId, sectionKey, visible }: { stageId: string; sectionKey: string; visible: boolean }) => {
@@ -65,11 +81,35 @@ export function useStageSectionConfig() {
         }
     })
 
+    /** Toggle section collapse for a stage */
+    const toggleCollapsed = useMutation({
+        mutationFn: async ({ stageId, sectionKey, collapsed }: { stageId: string; sectionKey: string; collapsed: boolean }) => {
+            // Upsert: set default_collapsed, keep is_visible as-is (default true)
+            const existing = configs?.find(c => c.stage_id === stageId && c.section_key === sectionKey)
+            await ssc()
+                .upsert(
+                    {
+                        stage_id: stageId,
+                        section_key: sectionKey,
+                        is_visible: existing?.is_visible ?? true,
+                        default_collapsed: collapsed
+                    },
+                    { onConflict: 'stage_id,section_key' }
+                )
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+        }
+    })
+
     return {
         configs,
         isLoading,
         isSectionVisible,
+        isSectionCollapsed,
         getHiddenSections,
-        toggleVisibility
+        getCollapsedSections,
+        toggleVisibility,
+        toggleCollapsed
     }
 }

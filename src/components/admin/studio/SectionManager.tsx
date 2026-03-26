@@ -505,7 +505,7 @@ interface StageVisibilityPickerProps {
 
 function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPickerProps) {
     const { toast } = useToast()
-    const { getHiddenSections, toggleVisibility } = useStageSectionConfig()
+    const { getHiddenSections, getCollapsedSections, toggleVisibility, toggleCollapsed } = useStageSectionConfig()
     const [open, setOpen] = useState(false)
 
     // Group stages by phase
@@ -520,10 +520,14 @@ function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPi
         return groups
     }, [stages, phases])
 
-    // Count hidden stages for this section
+    // Count hidden and collapsed stages for this section
     const hiddenCount = useMemo(() => {
         return stages.filter(s => getHiddenSections(s.id).includes(sectionKey)).length
     }, [stages, sectionKey, getHiddenSections])
+
+    const collapsedCount = useMemo(() => {
+        return stages.filter(s => getCollapsedSections(s.id).includes(sectionKey)).length
+    }, [stages, sectionKey, getCollapsedSections])
 
     const handleToggle = useCallback(async (stageId: string) => {
         const isCurrentlyHidden = getHiddenSections(stageId).includes(sectionKey)
@@ -538,7 +542,20 @@ function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPi
         }
     }, [sectionKey, getHiddenSections, toggleVisibility, toast])
 
-    const hasRules = hiddenCount > 0
+    const handleToggleCollapse = useCallback(async (stageId: string) => {
+        const isCurrentlyCollapsed = getCollapsedSections(stageId).includes(sectionKey)
+        try {
+            await toggleCollapsed.mutateAsync({
+                stageId,
+                sectionKey,
+                collapsed: !isCurrentlyCollapsed
+            })
+        } catch {
+            toast({ title: 'Erro ao salvar estado de colapso', type: 'error' })
+        }
+    }, [sectionKey, getCollapsedSections, toggleCollapsed, toast])
+
+    const hasRules = hiddenCount > 0 || collapsedCount > 0
 
     return (
         <div>
@@ -554,7 +571,13 @@ function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPi
                     Visibilidade por etapa
                 </span>
                 <span className="text-[10px] text-muted-foreground/60 truncate">
-                    — {hasRules ? `oculta em ${hiddenCount} etapa(s)` : 'visível em todas as etapas'}
+                    — {hiddenCount > 0 && collapsedCount > 0
+                        ? `oculta em ${hiddenCount}, retraída em ${collapsedCount}`
+                        : hiddenCount > 0
+                            ? `oculta em ${hiddenCount} etapa(s)`
+                            : collapsedCount > 0
+                                ? `retraída em ${collapsedCount} etapa(s)`
+                                : 'visível em todas as etapas'}
                 </span>
                 <span className={cn("ml-auto text-[10px] font-medium", hasRules ? "text-red-700" : "text-muted-foreground/40")}>
                     {open ? '▲' : '▼'}
@@ -572,19 +595,38 @@ function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPi
                             <div className="flex flex-wrap gap-1.5 mt-1">
                                 {group.stages.map(stage => {
                                     const isHidden = getHiddenSections(stage.id).includes(sectionKey)
+                                    const isCollapsed = getCollapsedSections(stage.id).includes(sectionKey)
                                     return (
-                                        <button
-                                            key={stage.id}
-                                            onClick={() => handleToggle(stage.id)}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
-                                                isHidden
-                                                    ? "bg-red-100 text-red-700 border-red-300 shadow-sm"
-                                                    : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
-                                            )}
-                                        >
-                                            {stage.nome}
-                                        </button>
+                                        <div key={stage.id} className="flex items-center gap-0.5">
+                                            <button
+                                                onClick={() => handleToggle(stage.id)}
+                                                className={cn(
+                                                    "px-2.5 py-1 rounded-l-md text-xs font-medium border-y border-l transition-all",
+                                                    isHidden
+                                                        ? "bg-red-100 text-red-700 border-red-300 shadow-sm"
+                                                        : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                                )}
+                                                title={isHidden ? "Oculta (clique para mostrar)" : "Visível (clique para ocultar)"}
+                                            >
+                                                {isHidden ? <EyeOff className="w-3 h-3 inline mr-1" /> : null}
+                                                {stage.nome}
+                                            </button>
+                                            <button
+                                                onClick={() => handleToggleCollapse(stage.id)}
+                                                disabled={isHidden}
+                                                className={cn(
+                                                    "px-1.5 py-1 rounded-r-md text-xs border-y border-r transition-all",
+                                                    isHidden
+                                                        ? "bg-muted/30 text-muted-foreground/30 border-border cursor-not-allowed"
+                                                        : isCollapsed
+                                                            ? "bg-amber-100 text-amber-700 border-amber-300 shadow-sm"
+                                                            : "bg-muted/50 text-muted-foreground/50 border-border hover:text-amber-600 hover:border-amber-300"
+                                                )}
+                                                title={isCollapsed ? "Inicia retraída (clique para expandir)" : "Inicia expandida (clique para retrair)"}
+                                            >
+                                                <ChevronsUpDown className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     )
                                 })}
                             </div>
@@ -599,8 +641,16 @@ function StageVisibilityPicker({ sectionKey, stages, phases }: StageVisibilityPi
                     {stages
                         .filter(s => getHiddenSections(s.id).includes(sectionKey))
                         .map(stage => (
-                            <span key={stage.id} className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-red-50 text-red-600 border-red-200">
+                            <span key={`hidden-${stage.id}`} className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-red-50 text-red-600 border-red-200">
                                 {stage.nome}
+                            </span>
+                        ))
+                    }
+                    {stages
+                        .filter(s => getCollapsedSections(s.id).includes(sectionKey) && !getHiddenSections(s.id).includes(sectionKey))
+                        .map(stage => (
+                            <span key={`collapsed-${stage.id}`} className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-amber-50 text-amber-600 border-amber-200">
+                                {stage.nome} (retraída)
                             </span>
                         ))
                     }

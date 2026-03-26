@@ -184,10 +184,12 @@ export default function DynamicSectionWidget({
     const { data: sections = [], isLoading: loadingSections } = useSections()
     const section = useMemo(() => sections.find(s => s.key === sectionKey), [sections, sectionKey])
 
-    // Apply default_collapsed on first load
+    // Apply default_collapsed on first load (stage-level > global fallback)
+    const { isSectionCollapsed } = useStageSectionConfig()
     if (section && !hasInitCollapse) {
         setHasInitCollapse(true)
-        if (section.default_collapsed) setIsExpanded(false)
+        const stageCollapsed = isSectionCollapsed(card.pipeline_stage_id as string, sectionKey)
+        if (stageCollapsed || section.default_collapsed) setIsExpanded(false)
     }
 
     // Fetch field configuration
@@ -422,7 +424,9 @@ interface CollapsibleWidgetSectionProps {
 }
 
 function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: CollapsibleWidgetSectionProps) {
-    const [isExpanded, setIsExpanded] = useState(!section.default_collapsed)
+    const { isSectionCollapsed: isStageCollapsed } = useStageSectionConfig()
+    const stageCollapsed = isStageCollapsed(card.pipeline_stage_id as string, section.key)
+    const [isExpanded, setIsExpanded] = useState(!(stageCollapsed || section.default_collapsed))
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
     if (!isExpanded) {
