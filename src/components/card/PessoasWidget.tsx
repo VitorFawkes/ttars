@@ -23,15 +23,21 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
     // Collapse state from stage_section_config (composite keys: people:viajantes, people:travel_history)
-    const { isSectionCollapsed, isSectionVisible } = useStageSectionConfig()
+    const { isSectionCollapsed, isSectionVisible, isLoading: sscLoading } = useStageSectionConfig()
     const stageId = card.pipeline_stage_id as string
-    const travelersDefaultCollapsed = isSectionCollapsed(stageId, 'people:viajantes')
-    const historyDefaultCollapsed = isSectionCollapsed(stageId, 'people:travel_history')
     const travelersVisible = isSectionVisible(stageId, 'people:viajantes')
     const historyVisible = isSectionVisible(stageId, 'people:travel_history')
 
-    const [travelersExpanded, setTravelersExpanded] = useState(!travelersDefaultCollapsed)
-    const [historyExpanded, setHistoryExpanded] = useState(!historyDefaultCollapsed)
+    // Track whether we've applied the config defaults (only once after data loads)
+    const [configApplied, setConfigApplied] = useState(false)
+    const [travelersExpanded, setTravelersExpanded] = useState(true)
+    const [historyExpanded, setHistoryExpanded] = useState(false)
+
+    if (!sscLoading && !configApplied) {
+        setConfigApplied(true)
+        setTravelersExpanded(!isSectionCollapsed(stageId, 'people:viajantes'))
+        setHistoryExpanded(!isSectionCollapsed(stageId, 'people:travel_history'))
+    }
 
     const {
         people,
