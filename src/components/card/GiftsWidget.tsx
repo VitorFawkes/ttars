@@ -255,7 +255,7 @@ function KitBuilder({
     const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(
         () => new Set(contacts.map(c => c.id))
     )
-    const [shipPreset, setShipPreset] = useState<number | 'custom' | null>(dataEmbarque ? -30 : null)
+    const [shipPreset, setShipPreset] = useState<number | 'custom' | null>(-30)
     const [customShipDate, setCustomShipDate] = useState('')
     const [search, setSearch] = useState('')
     const [showCatalog, setShowCatalog] = useState(true)
@@ -608,66 +608,51 @@ function KitBuilder({
                         Prazo de envio
                     </p>
 
-                    {dataEmbarque ? (
-                        <div className="space-y-2">
-                            <div className="flex flex-wrap gap-1.5">
-                                {SHIP_PRESETS.map(preset => {
-                                    const isActive = shipPreset === preset.days
-                                    return (
-                                        <button
-                                            key={preset.days}
-                                            onClick={() => setShipPreset(isActive ? null : preset.days)}
-                                            className={cn(
-                                                'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
-                                                isActive
-                                                    ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                                            )}
-                                        >
-                                            {preset.label}
-                                        </button>
-                                    )
-                                })}
+                    <div className="flex flex-wrap gap-1.5">
+                        {SHIP_PRESETS.map(preset => {
+                            const isActive = shipPreset === preset.days
+                            return (
                                 <button
-                                    onClick={() => setShipPreset(shipPreset === 'custom' ? null : 'custom')}
+                                    key={preset.days}
+                                    onClick={() => setShipPreset(isActive ? null : preset.days)}
                                     className={cn(
                                         'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
-                                        shipPreset === 'custom'
+                                        isActive
                                             ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
                                             : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
                                     )}
                                 >
-                                    Data específica
+                                    {preset.label}
                                 </button>
-                            </div>
-
-                            {shipPreset === 'custom' && (
-                                <input
-                                    type="date"
-                                    value={customShipDate}
-                                    onChange={e => setCustomShipDate(e.target.value)}
-                                    className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    autoFocus
-                                />
+                            )
+                        })}
+                        <button
+                            onClick={() => setShipPreset(shipPreset === 'custom' ? null : 'custom')}
+                            className={cn(
+                                'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                                shipPreset === 'custom'
+                                    ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
                             )}
+                        >
+                            Data específica
+                        </button>
+                    </div>
 
-                            <p className="text-[10px] text-slate-400">
-                                Embarque: {new Date(dataEmbarque + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                {shipDate && (
-                                    <> · Envio: <span className="font-medium text-indigo-600">{new Date(shipDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span></>
-                                )}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                value={customShipDate}
-                                onChange={e => { setCustomShipDate(e.target.value); setShipPreset('custom') }}
-                                className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <span className="text-[10px] text-slate-400">Sem data de embarque no card</span>
-                        </div>
+                    {shipPreset === 'custom' && (
+                        <input
+                            type="date"
+                            value={customShipDate}
+                            onChange={e => setCustomShipDate(e.target.value)}
+                            className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            autoFocus
+                        />
+                    )}
+
+                    {!dataEmbarque && typeof shipPreset === 'number' && (
+                        <p className="text-[10px] text-amber-600">
+                            Preencha a data de embarque no card para calcular a data exata de envio
+                        </p>
                     )}
                 </div>
 
