@@ -246,7 +246,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             {open && (
                 <div className="mt-2 ml-6 space-y-2">
                     <p className="text-[10px] text-muted-foreground/60 mb-2">
-                        Configure campos e visibilidade por aba/fase. Aplica a todos os stages da fase.
+                        Configure campos e visibilidade por fase. Aplica a todos os stages da fase.
                     </p>
 
                     {/* Phase tabs */}
@@ -267,8 +267,8 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         ))}
                     </div>
 
-                    {/* Visible in card toggle */}
-                    {currentPhase && (
+                    {/* Visible in card toggle — only for sections that render per-phase tabs (trip_info) */}
+                    {currentPhase && sectionKey === 'trip_info' && (
                         <button
                             onClick={() => toggleVisibleInCardMutation.mutate({
                                 phaseId: currentPhase.id,
@@ -283,7 +283,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                                 ? <ToggleRight className="w-4 h-4" />
                                 : <ToggleLeft className="w-4 h-4" />
                             }
-                            Mostrar aba "{currentPhase.name}" no card
+                            Mostrar seção "{currentPhase.name}" no card
                         </button>
                     )}
 
