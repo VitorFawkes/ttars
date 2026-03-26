@@ -1,5 +1,6 @@
-import { Plus, Eye } from 'lucide-react'
+import { Plus, Eye, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
+import { cn } from '../../lib/utils'
 import ContactSelector from './ContactSelector'
 import CardTravelers from './CardTravelers'
 import TravelHistorySection from './TravelHistorySection'
@@ -20,6 +21,8 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const queryClient = useQueryClient()
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
+    const [travelersExpanded, setTravelersExpanded] = useState(true)
+    const [historyExpanded, setHistoryExpanded] = useState(false)
 
     // Use the Unified Hook
     const {
@@ -128,32 +131,49 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                     <>
                         <div className="pt-2 border-t">
                             <div className="flex items-center justify-between mb-1.5">
-                                <p className="text-xs font-semibold text-gray-500 uppercase">
-                                    Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
-                                </p>
                                 <button
-                                    onClick={() => setSelectorMode('add_traveler')}
-                                    className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
+                                    onClick={() => setTravelersExpanded(prev => !prev)}
+                                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
                                 >
-                                    <Plus className="h-3 w-3" />
-                                    Adicionar
+                                    <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
+                                    Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
                                 </button>
+                                {travelersExpanded && (
+                                    <button
+                                        onClick={() => setSelectorMode('add_traveler')}
+                                        className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
+                                    >
+                                        <Plus className="h-3 w-3" />
+                                        Adicionar
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="space-y-1.5 mb-2">
-                                <CardTravelers
-                                    card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
-                                    embedded={true}
-                                />
-                            </div>
+                            {travelersExpanded && (
+                                <div className="space-y-1.5 mb-2">
+                                    <CardTravelers
+                                        card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
+                                        embedded={true}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Travel History Section */}
                         <div className="pt-3 border-t">
-                            <TravelHistorySection
-                                travelers={people || []}
-                                currentCardId={card.id || undefined}
-                            />
+                            <button
+                                onClick={() => setHistoryExpanded(prev => !prev)}
+                                className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
+                            >
+                                <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
+                                Histórico de Viagem
+                            </button>
+                            {historyExpanded && (
+                                <TravelHistorySection
+                                    travelers={people || []}
+                                    currentCardId={card.id || undefined}
+                                />
+                            )}
                         </div>
                     </>
                 )}
