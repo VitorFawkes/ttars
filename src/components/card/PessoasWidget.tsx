@@ -7,6 +7,7 @@ import TravelHistorySection from './TravelHistorySection'
 import ContactIntelligenceWidget from './ContactIntelligenceWidget'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
 import { useCardPeople } from '../../hooks/useCardPeople'
+import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Database } from '../../database.types'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
@@ -21,8 +22,16 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const queryClient = useQueryClient()
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
-    const [travelersExpanded, setTravelersExpanded] = useState(true)
-    const [historyExpanded, setHistoryExpanded] = useState(false)
+    // Collapse state from stage_section_config (composite keys: people:viajantes, people:travel_history)
+    const { isSectionCollapsed, isSectionVisible } = useStageSectionConfig()
+    const stageId = card.pipeline_stage_id as string
+    const travelersDefaultCollapsed = isSectionCollapsed(stageId, 'people:viajantes')
+    const historyDefaultCollapsed = isSectionCollapsed(stageId, 'people:travel_history')
+    const travelersVisible = isSectionVisible(stageId, 'people:viajantes')
+    const historyVisible = isSectionVisible(stageId, 'people:travel_history')
+
+    const [travelersExpanded, setTravelersExpanded] = useState(!travelersDefaultCollapsed)
+    const [historyExpanded, setHistoryExpanded] = useState(!historyDefaultCollapsed)
 
     const {
         people,
@@ -126,52 +135,56 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                 {/* Travelers - Only for TRIPS */}
                 {card.produto === 'TRIPS' && (
                     <>
-                        <div className="pt-2 border-t">
-                            <div className="flex items-center justify-between mb-1.5">
-                                <button
-                                    onClick={() => setTravelersExpanded(prev => !prev)}
-                                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
-                                >
-                                    <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
-                                    Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
-                                </button>
-                                {travelersExpanded && (
+                        {travelersVisible && (
+                            <div className="pt-2 border-t">
+                                <div className="flex items-center justify-between mb-1.5">
                                     <button
-                                        onClick={() => setSelectorMode('add_traveler')}
-                                        className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
+                                        onClick={() => setTravelersExpanded(prev => !prev)}
+                                        className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
                                     >
-                                        <Plus className="h-3 w-3" />
-                                        Adicionar
+                                        <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
+                                        Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
                                     </button>
+                                    {travelersExpanded && (
+                                        <button
+                                            onClick={() => setSelectorMode('add_traveler')}
+                                            className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                            Adicionar
+                                        </button>
+                                    )}
+                                </div>
+
+                                {travelersExpanded && (
+                                    <div className="space-y-1.5 mb-2">
+                                        <CardTravelers
+                                            card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
+                                            embedded={true}
+                                        />
+                                    </div>
                                 )}
                             </div>
-
-                            {travelersExpanded && (
-                                <div className="space-y-1.5 mb-2">
-                                    <CardTravelers
-                                        card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
-                                        embedded={true}
-                                    />
-                                </div>
-                            )}
-                        </div>
+                        )}
 
                         {/* Travel History Section */}
-                        <div className="pt-3 border-t">
-                            <button
-                                onClick={() => setHistoryExpanded(prev => !prev)}
-                                className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
-                            >
-                                <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
-                                Histórico de Viagem
-                            </button>
-                            {historyExpanded && (
-                                <TravelHistorySection
-                                    travelers={people || []}
-                                    currentCardId={card.id || undefined}
-                                />
-                            )}
-                        </div>
+                        {historyVisible && (
+                            <div className="pt-3 border-t">
+                                <button
+                                    onClick={() => setHistoryExpanded(prev => !prev)}
+                                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
+                                >
+                                    <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
+                                    Histórico de Viagem
+                                </button>
+                                {historyExpanded && (
+                                    <TravelHistorySection
+                                        travelers={people || []}
+                                        currentCardId={card.id || undefined}
+                                    />
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </div>
