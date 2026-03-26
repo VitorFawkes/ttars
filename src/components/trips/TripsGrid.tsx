@@ -126,9 +126,9 @@ export default function TripsGrid({ onCardClick }: TripsGridProps) {
         toast.success(`${selectedData.length} viagens exportadas com sucesso!`)
     }
 
-    const handleBulkEdit = async (fieldId: string, value: any) => {
+    const handleBulkEdit = async (fieldId: string, value: unknown) => {
         try {
-            const updates: any = {}
+            const updates: Record<string, unknown> = {}
 
             if (fieldId === 'estado_operacional') {
                 updates.estado_operacional = value
@@ -401,16 +401,20 @@ export default function TripsGrid({ onCardClick }: TripsGridProps) {
 
                                 {visibleColumns.concierge && (
                                     <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Avatar className="h-6 w-6">
-                                                <AvatarFallback className="text-[10px] bg-purple-100 text-purple-700">
-                                                    {trip.dono_atual_nome?.substring(0, 2).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <span className="text-sm text-gray-600 truncate max-w-[100px]">
-                                                {trip.dono_atual_nome?.split(' ')[0]}
-                                            </span>
-                                        </div>
+                                        {trip.concierge_nome ? (
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-6 w-6">
+                                                    <AvatarFallback className="text-[10px] bg-purple-100 text-purple-700">
+                                                        {trip.concierge_nome.substring(0, 2).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm text-gray-600 truncate max-w-[100px]">
+                                                    {trip.concierge_nome.split(' ')[0]}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-400">-</span>
+                                        )}
                                     </TableCell>
                                 )}
                             </TableRow>
