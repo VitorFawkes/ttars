@@ -591,14 +591,15 @@ function TripInfoPhaseVisibilityPicker({ sectionKey, stages, phases }: TripInfoP
             </button>
 
             {open && (
-                <div className="mt-2 ml-4 space-y-3">
+                <div className="mt-2 ml-4 space-y-4">
                     {allPhases.map(phase => {
                         const phaseKey = `${sectionKey}:${phase.slug}`
-                        const phaseStages = stages.filter(s => s.phase_id === phase.id)
-                        const allHidden = phaseStages.length > 0 && phaseStages.every(s => getHiddenSections(s.id).includes(phaseKey))
+                        // Check if hidden across ALL stages (not just this phase's stages)
+                        const allHidden = stages.length > 0 && stages.every(s => getHiddenSections(s.id).includes(phaseKey))
 
                         return (
-                            <div key={phase.id} className="space-y-1">
+                            <div key={phase.id} className="space-y-2">
+                                {/* Phase header with global toggle */}
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => handleTogglePhaseAll(phase.slug!)}
@@ -606,48 +607,65 @@ function TripInfoPhaseVisibilityPicker({ sectionKey, stages, phases }: TripInfoP
                                             "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors",
                                             allHidden ? "text-red-600 line-through" : "text-foreground"
                                         )}
-                                        title={allHidden ? "Oculta — clique para mostrar em todas etapas" : "Visível — clique para ocultar em todas etapas"}
+                                        title={allHidden ? "Oculta em todas etapas — clique para mostrar" : "Visível — clique para ocultar em todas etapas"}
                                     >
                                         {allHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                                         Info Viagem — {phase.name}
                                     </button>
+                                    {allHidden && (
+                                        <span className="text-[10px] text-red-500 font-medium">OCULTA EM TUDO</span>
+                                    )}
                                 </div>
 
-                                {!allHidden && phaseStages.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 ml-5">
-                                        {phaseStages.map(stage => {
-                                            const isHidden = getHiddenSections(stage.id).includes(phaseKey)
-                                            const isCollapsed = getCollapsedSections(stage.id).includes(phaseKey)
+                                {/* Per-stage controls: show ALL stages grouped by their phase */}
+                                {!allHidden && (
+                                    <div className="ml-5 space-y-1.5">
+                                        {allPhases.map(groupPhase => {
+                                            const groupStages = stages.filter(s => s.phase_id === groupPhase.id)
+                                            if (groupStages.length === 0) return null
                                             return (
-                                                <div key={stage.id} className="flex items-center gap-0.5">
-                                                    <button
-                                                        onClick={() => handleToggleVisibility(phase.slug!, stage.id)}
-                                                        className={cn(
-                                                            "px-2 py-0.5 rounded-l-md text-[11px] font-medium border-y border-l transition-all",
-                                                            isHidden
-                                                                ? "bg-red-100 text-red-700 border-red-300"
-                                                                : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
-                                                        )}
-                                                        title={isHidden ? "Oculta nesta etapa" : "Visível nesta etapa"}
-                                                    >
-                                                        {isHidden ? <EyeOff className="w-3 h-3 inline mr-0.5" /> : null}
-                                                        {stage.nome}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleCollapse(phase.slug!, stage.id)}
-                                                        disabled={isHidden}
-                                                        className={cn(
-                                                            "px-1 py-0.5 rounded-r-md text-[11px] border-y border-r transition-all",
-                                                            isHidden
-                                                                ? "bg-muted/30 text-muted-foreground/30 border-border cursor-not-allowed"
-                                                                : isCollapsed
-                                                                    ? "bg-amber-100 text-amber-700 border-amber-300"
-                                                                    : "bg-muted/50 text-muted-foreground/50 border-border hover:text-amber-600"
-                                                        )}
-                                                        title={isCollapsed ? "Inicia retraída" : "Inicia expandida"}
-                                                    >
-                                                        <ChevronsUpDown className="w-3 h-3" />
-                                                    </button>
+                                                <div key={groupPhase.id}>
+                                                    <div className="text-[10px] text-muted-foreground/60 font-medium uppercase tracking-widest mb-0.5">
+                                                        Quando em {groupPhase.name}:
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {groupStages.map(stage => {
+                                                            const isHidden = getHiddenSections(stage.id).includes(phaseKey)
+                                                            const isCollapsed = getCollapsedSections(stage.id).includes(phaseKey)
+                                                            return (
+                                                                <div key={stage.id} className="flex items-center gap-0.5">
+                                                                    <button
+                                                                        onClick={() => handleToggleVisibility(phase.slug!, stage.id)}
+                                                                        className={cn(
+                                                                            "px-2 py-0.5 rounded-l-md text-[11px] font-medium border-y border-l transition-all",
+                                                                            isHidden
+                                                                                ? "bg-red-100 text-red-700 border-red-300"
+                                                                                : "bg-muted/50 text-muted-foreground border-border hover:border-slate-400"
+                                                                        )}
+                                                                        title={isHidden ? "Oculta nesta etapa" : "Visível nesta etapa — clique para ocultar"}
+                                                                    >
+                                                                        {isHidden ? <EyeOff className="w-3 h-3 inline mr-0.5" /> : null}
+                                                                        {stage.nome}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleToggleCollapse(phase.slug!, stage.id)}
+                                                                        disabled={isHidden}
+                                                                        className={cn(
+                                                                            "px-1 py-0.5 rounded-r-md text-[11px] border-y border-r transition-all",
+                                                                            isHidden
+                                                                                ? "bg-muted/30 text-muted-foreground/30 border-border cursor-not-allowed"
+                                                                                : isCollapsed
+                                                                                    ? "bg-amber-100 text-amber-700 border-amber-300"
+                                                                                    : "bg-muted/50 text-muted-foreground/50 border-border hover:text-amber-600"
+                                                                        )}
+                                                                        title={isCollapsed ? "Inicia retraída nesta etapa" : "Inicia expandida — clique para retrair"}
+                                                                    >
+                                                                        <ChevronsUpDown className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
                                                 </div>
                                             )
                                         })}
