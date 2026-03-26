@@ -58,20 +58,26 @@ export function useStageSectionConfig() {
             .map(c => c.section_key)
     }, [configs])
 
-    /** Toggle section visibility for a stage. Inserts is_visible=false to hide, deletes row to restore default. */
+    /** Toggle section visibility for a stage */
     const toggleVisibility = useMutation({
         mutationFn: async ({ stageId, sectionKey, visible }: { stageId: string; sectionKey: string; visible: boolean }) => {
-            if (visible) {
-                // Restore default: delete the row
+            const existing = configs?.find(c => c.stage_id === stageId && c.section_key === sectionKey)
+            if (visible && !existing?.default_collapsed) {
+                // No collapse config either — safe to delete the row entirely
                 await ssc()
                     .delete()
                     .eq('stage_id', stageId)
                     .eq('section_key', sectionKey)
             } else {
-                // Hide: upsert with is_visible=false
+                // Upsert preserving default_collapsed
                 await ssc()
                     .upsert(
-                        { stage_id: stageId, section_key: sectionKey, is_visible: false },
+                        {
+                            stage_id: stageId,
+                            section_key: sectionKey,
+                            is_visible: visible,
+                            default_collapsed: existing?.default_collapsed ?? false
+                        },
                         { onConflict: 'stage_id,section_key' }
                     )
             }
@@ -84,14 +90,22 @@ export function useStageSectionConfig() {
     /** Toggle section collapse for a stage */
     const toggleCollapsed = useMutation({
         mutationFn: async ({ stageId, sectionKey, collapsed }: { stageId: string; sectionKey: string; collapsed: boolean }) => {
-            // Upsert: set default_collapsed, keep is_visible as-is (default true)
             const existing = configs?.find(c => c.stage_id === stageId && c.section_key === sectionKey)
+            const isVisible = existing?.is_visible ?? true
+            if (!collapsed && isVisible) {
+                // Both defaults — delete the row
+                await ssc()
+                    .delete()
+                    .eq('stage_id', stageId)
+                    .eq('section_key', sectionKey)
+                return
+            }
             await ssc()
                 .upsert(
                     {
                         stage_id: stageId,
                         section_key: sectionKey,
-                        is_visible: existing?.is_visible ?? true,
+                        is_visible: isVisible,
                         default_collapsed: collapsed
                     },
                     { onConflict: 'stage_id,section_key' }
