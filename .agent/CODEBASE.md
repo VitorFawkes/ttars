@@ -519,6 +519,9 @@ npm run build
 - **Seleção de owners:** SDR, Planner, Pós-Venda (baseado na fase)
 - **Quality Gate:** Usa `useQualityGate().validateMoveSync()` antes de permitir mudança
 
+### PhaseSortPopover.tsx
+- **Sort por fase:** Popover para configurar ordenação dentro de cada fase do Kanban
+
 ### KanbanBoard.tsx
 - **Drag-drop:** @dnd-kit para arrastar cards entre etapas
 - **RPC de mover:** Usa `mover_card(p_card_id, p_nova_etapa_id, p_motivo_perda_id?, p_motivo_perda_comentario?)`
