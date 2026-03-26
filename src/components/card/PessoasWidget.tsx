@@ -1,9 +1,6 @@
-import { Plus, Eye, ChevronDown } from 'lucide-react'
+import { Plus, Eye } from 'lucide-react'
 import { useState } from 'react'
-import { cn } from '../../lib/utils'
 import ContactSelector from './ContactSelector'
-import CardTravelers from './CardTravelers'
-import TravelHistorySection from './TravelHistorySection'
 import ContactIntelligenceWidget from './ContactIntelligenceWidget'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
 import { useCardPeople } from '../../hooks/useCardPeople'
@@ -19,25 +16,15 @@ interface PessoasWidgetProps {
 
 export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const queryClient = useQueryClient()
-    const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
+    const [selectorMode, setSelectorMode] = useState<'none' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
-    const [travelersExpanded, setTravelersExpanded] = useState(true)
-    const [historyExpanded, setHistoryExpanded] = useState(false)
 
-    // Use the Unified Hook
     const {
-        people,
         primary,
-        travelers,
         promoteToPrimary,
         removePerson,
-        addPerson,
         isUpdating
     } = useCardPeople(card.id || undefined)
-
-    // Calculate stats
-    const adultos = travelers?.filter(t => t.tipo_pessoa === 'adulto' || !t.tipo_pessoa).length || 0
-    const criancas = travelers?.filter(t => t.tipo_pessoa === 'crianca').length || 0
 
     const handleSetPrimaryContact = (contactId: string) => {
         promoteToPrimary(contactId, {
@@ -51,13 +38,6 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                 onSuccess: () => setSelectorMode('none')
             })
         }
-    }
-
-    // Helper to invalidate queries when a traveler is added via Selector
-    const handleContactAdded = (contactId: string, contact: { nome: string }) => {
-        addPerson({ id: contactId, nome: contact.nome }, {
-            onSuccess: () => setSelectorMode('none')
-        })
     }
 
     const displayNome = primary ? formatContactName(primary) : ''
@@ -125,72 +105,16 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                         <p className="text-xs text-gray-400 group-hover:text-indigo-500/70">Quem negocia/paga pela viagem</p>
                     </button>
                 )}
-
-                {/* Travelers - Only for TRIPS */}
-                {card.produto === 'TRIPS' && (
-                    <>
-                        <div className="pt-2 border-t">
-                            <div className="flex items-center justify-between mb-1.5">
-                                <button
-                                    onClick={() => setTravelersExpanded(prev => !prev)}
-                                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
-                                >
-                                    <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
-                                    Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
-                                </button>
-                                {travelersExpanded && (
-                                    <button
-                                        onClick={() => setSelectorMode('add_traveler')}
-                                        className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
-                                    >
-                                        <Plus className="h-3 w-3" />
-                                        Adicionar
-                                    </button>
-                                )}
-                            </div>
-
-                            {travelersExpanded && (
-                                <div className="space-y-1.5 mb-2">
-                                    <CardTravelers
-                                        card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
-                                        embedded={true}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Travel History Section */}
-                        <div className="pt-3 border-t">
-                            <button
-                                onClick={() => setHistoryExpanded(prev => !prev)}
-                                className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
-                            >
-                                <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
-                                Histórico de Viagem
-                            </button>
-                            {historyExpanded && (
-                                <TravelHistorySection
-                                    travelers={people || []}
-                                    currentCardId={card.id || undefined}
-                                />
-                            )}
-                        </div>
-                    </>
-                )}
             </div>
 
             {selectorMode !== 'none' && card.id && (
                 <ContactSelector
                     cardId={card.id!}
                     onClose={() => setSelectorMode('none')}
-                    addToCard={false} // Only add to card_contatos if explicitly adding a traveler
-                    onContactAdded={(contactId, contact) => {
+                    addToCard={false}
+                    onContactAdded={(contactId) => {
                         if (selectorMode === 'set_primary' && contactId) {
                             handleSetPrimaryContact(contactId)
-                        } else {
-                            if (contactId && contact) {
-                                handleContactAdded(contactId, contact)
-                            }
                         }
                     }}
                 />
