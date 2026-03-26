@@ -316,7 +316,8 @@ export default function TripsGrid({ onCardClick }: TripsGridProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {trips.map((trip) => (
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        {trips.map((trip: any) => (
                             <TableRow
                                 key={trip.id}
                                 className="cursor-pointer hover:bg-blue-50/50 transition-colors"
