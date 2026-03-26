@@ -176,3 +176,4 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-25T21:43:11Z | supabase/migrations/20260325_fix_sub_card_terminology.sql | applied_to_prod
 2026-03-26T13:03:33Z | supabase/migrations/20260327_premium_gifts.sql | applied_to_prod
 2026-03-26T13:27:06Z | supabase/migrations/20260327_premium_gifts.sql | applied_to_prod
+2026-03-26T14:24:47Z | supabase/migrations/20260326_require_nome_sobrenome_telefone.sql | applied_to_prod

@@ -530,7 +530,8 @@ Deno.serve(async (req) => {
                                     external_id: String(acContactId),
                                     external_source: 'active_campaign',
                                     tags: ['active_campaign'],
-                                    tipo_pessoa: 'adulto'
+                                    tipo_pessoa: 'adulto',
+                                    origem: 'integracao'
                                 })
                                 .select('id')
                                 .single();
@@ -1105,7 +1106,8 @@ Deno.serve(async (req) => {
                                 external_id: acContactId ? String(acContactId) : null,
                                 external_source: acContactId ? 'active_campaign' : null,
                                 tags: ['active_campaign'],
-                                tipo_pessoa: 'adulto'
+                                tipo_pessoa: 'adulto',
+                                origem: 'integracao'
                             })
                             .select('id')
                             .single();

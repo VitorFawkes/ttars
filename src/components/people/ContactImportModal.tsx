@@ -22,12 +22,12 @@ type RowData = Record<string, unknown>
 
 const CRM_FIELDS = [
     { key: 'nome', label: 'Nome (ou Nome Completo)', required: true },
-    { key: 'sobrenome', label: 'Sobrenome', required: false },
+    { key: 'sobrenome', label: 'Sobrenome', required: true },
     { key: 'cpf', label: 'CPF', required: false },
     { key: 'data_nascimento', label: 'Data de Nascimento', required: false },
     { key: 'rg', label: 'RG', required: false },
     { key: 'email', label: 'E-mail', required: false },
-    { key: 'telefone', label: 'Celular/Telefone', required: false },
+    { key: 'telefone', label: 'Celular/Telefone', required: true },
     { key: 'cep', label: 'CEP', required: false },
     { key: 'endereco', label: 'Endereço (rua)', required: false },
     { key: 'numero', label: 'Número', required: false },

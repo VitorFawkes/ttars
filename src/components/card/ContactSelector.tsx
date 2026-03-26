@@ -240,8 +240,12 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
     })
 
     const handleCreateContact = () => {
-        if (!newContact.nome.trim()) {
-            setError('Nome é obrigatório')
+        const missing = []
+        if (!newContact.nome.trim()) missing.push('Nome')
+        if (!newContact.sobrenome.trim()) missing.push('Sobrenome')
+        if (!newContact.telefone.trim()) missing.push('Telefone')
+        if (missing.length > 0) {
+            setError(`${missing.join(', ')} ${missing.length === 1 ? 'é obrigatório' : 'são obrigatórios'}`)
             return
         }
         createContactMutation.mutate()
@@ -421,7 +425,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                            Sobrenome
+                                            Sobrenome <span className="text-red-500">*</span>
                                         </label>
                                         <Input
                                             type="text"
@@ -440,7 +444,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
                                             <Phone className="inline h-3.5 w-3.5 mr-1 text-slate-500" />
-                                            Telefone
+                                            Telefone <span className="text-red-500">*</span>
                                         </label>
                                         <Input
                                             type="tel"
@@ -558,7 +562,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                 </Button>
                                 <Button
                                     onClick={handleCreateContact}
-                                    disabled={createContactMutation.isPending || !newContact.nome.trim()}
+                                    disabled={createContactMutation.isPending || !newContact.nome.trim() || !newContact.sobrenome.trim() || !newContact.telefone.trim()}
                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
                                 >
                                     {createContactMutation.isPending ? (

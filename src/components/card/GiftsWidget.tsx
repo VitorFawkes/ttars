@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Gift, Plus, Minus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, User, Calendar, Check, Clock, Truck, PackageCheck, Users, X, Package, PenLine, Search, Info } from 'lucide-react'
+import { useState } from 'react'
+import { Gift, Plus, Minus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, Calendar, Check, Clock, Truck, PackageCheck, Users, X, Package, PenLine, Search, Info } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useCardGifts, useGiftAssignment, getNextStatus, getContactDisplayName } from '@/hooks/useCardGifts'
 import type { GiftAssignment } from '@/hooks/useCardGifts'
@@ -53,8 +53,7 @@ interface KitItem {
     imagePath?: string | null
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleCollapse }: GiftsWidgetProps) {
+export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse }: GiftsWidgetProps) {
     const {
         assignments,
         isLoading,
@@ -121,6 +120,7 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
                         {showKitBuilder && contactsWithoutGift.length > 0 && (
                             <KitBuilder
                                 contacts={contactsWithoutGift}
+                                dataEmbarque={card.data_viagem_inicio || null}
                                 onSubmit={async (selectedContacts, items, shipDate) => {
                                     try {
                                         await createBulkAssignments.mutateAsync({
@@ -221,37 +221,49 @@ export default function GiftsWidget({ cardId, card: _card, isExpanded, onToggleC
     )
 }
 
-/** ─── Kit Builder ─── Choose items first, then select contacts */
+/** ─── Kit Builder ─── All-in-one: catalog grid, contacts pre-selected, relative ship date */
+
+const SHIP_PRESETS = [
+    { label: '30 dias antes', days: -30 },
+    { label: '15 dias antes', days: -15 },
+    { label: '7 dias antes', days: -7 },
+    { label: 'No embarque', days: 0 },
+] as const
+
+function computeShipDate(dataEmbarque: string | null, daysOffset: number): string {
+    if (!dataEmbarque) return ''
+    const d = new Date(dataEmbarque + 'T12:00:00')
+    d.setDate(d.getDate() + daysOffset)
+    return d.toISOString().split('T')[0]
+}
+
 function KitBuilder({
     contacts,
+    dataEmbarque,
     onSubmit,
     onCancel,
     isSubmitting,
 }: {
     contacts: { id: string; nome: string; sobrenome: string | null }[]
+    dataEmbarque: string | null
     onSubmit: (selectedContacts: { id: string; name: string }[], items: KitItem[], shipDate: string | null) => void
     onCancel: () => void
     isSubmitting: boolean
 }) {
     const [kitItems, setKitItems] = useState<KitItem[]>([])
-    const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(() => {
-        // Auto-select if only 1 contact
-        if (contacts.length === 1) return new Set([contacts[0].id])
-        return new Set()
-    })
-    const [shipDate, setShipDate] = useState('')
-    const [pickerMode, setPickerMode] = useState<'idle' | 'stock' | 'custom'>('idle')
-
-    // Stock picker state
+    // All contacts selected by default
+    const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(
+        () => new Set(contacts.map(c => c.id))
+    )
+    const [shipPreset, setShipPreset] = useState<number | 'custom' | null>(dataEmbarque ? -30 : null)
+    const [customShipDate, setCustomShipDate] = useState('')
     const [search, setSearch] = useState('')
-    const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null)
-    const [quantity, setQuantity] = useState(1)
-    const [showList, setShowList] = useState(false)
+    const [showCatalog, setShowCatalog] = useState(true)
 
     // Custom item state
+    const [showCustomForm, setShowCustomForm] = useState(false)
     const [customName, setCustomName] = useState('')
     const [customPrice, setCustomPrice] = useState(0)
-    const [customQty, setCustomQty] = useState(1)
 
     const { products } = useInventoryProducts({ search, activeOnly: true })
     const existingProductIds = kitItems.filter(i => i.productId).map(i => i.productId!)
@@ -261,36 +273,26 @@ function KitBuilder({
     const totalCostPerPerson = kitItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
     const totalCostAll = totalCostPerPerson * numPeople
 
-    // Sync auto-select if contacts change (e.g. from 2 to 1)
-    useEffect(() => {
-        if (contacts.length === 1 && selectedContactIds.size === 0) {
-            setSelectedContactIds(new Set([contacts[0].id]))
+    const shipDate = shipPreset === 'custom'
+        ? customShipDate
+        : typeof shipPreset === 'number'
+            ? computeShipDate(dataEmbarque, shipPreset)
+            : ''
+
+    const toggleProduct = (product: InventoryProduct) => {
+        if (existingProductIds.includes(product.id)) {
+            setKitItems(prev => prev.filter(i => i.productId !== product.id))
+        } else {
+            setKitItems(prev => [...prev, {
+                id: crypto.randomUUID(),
+                productId: product.id,
+                productName: product.name,
+                quantity: 1,
+                unitPrice: product.unit_price,
+                stock: product.current_stock,
+                imagePath: product.image_path,
+            }])
         }
-    }, [contacts.length]) // eslint-disable-line react-hooks/exhaustive-deps
-
-    const resetPicker = () => {
-        setPickerMode('idle')
-        setSearch('')
-        setSelectedProduct(null)
-        setQuantity(1)
-        setShowList(false)
-        setCustomName('')
-        setCustomPrice(0)
-        setCustomQty(1)
-    }
-
-    const addStockItem = () => {
-        if (!selectedProduct) return
-        setKitItems(prev => [...prev, {
-            id: crypto.randomUUID(),
-            productId: selectedProduct.id,
-            productName: selectedProduct.name,
-            quantity,
-            unitPrice: selectedProduct.unit_price,
-            stock: selectedProduct.current_stock,
-            imagePath: selectedProduct.image_path,
-        }])
-        resetPicker()
     }
 
     const addCustomItem = () => {
@@ -300,19 +302,21 @@ function KitBuilder({
             productId: null,
             productName: customName.trim(),
             customName: customName.trim(),
-            quantity: customQty,
+            quantity: 1,
             unitPrice: customPrice,
         }])
-        resetPicker()
-    }
-
-    const removeKitItem = (id: string) => {
-        setKitItems(prev => prev.filter(i => i.id !== id))
+        setCustomName('')
+        setCustomPrice(0)
+        setShowCustomForm(false)
     }
 
     const updateItemQty = (id: string, newQty: number) => {
         if (newQty < 1) return
         setKitItems(prev => prev.map(i => i.id === id ? { ...i, quantity: newQty } : i))
+    }
+
+    const removeKitItem = (id: string) => {
+        setKitItems(prev => prev.filter(i => i.id !== id))
     }
 
     const toggleContact = (id: string) => {
@@ -324,29 +328,10 @@ function KitBuilder({
         })
     }
 
-    const selectAll = () => {
-        if (selectedContactIds.size === contacts.length) {
-            setSelectedContactIds(new Set())
-        } else {
-            setSelectedContactIds(new Set(contacts.map(c => c.id)))
-        }
-    }
-
-    // Check stock availability for N contacts
+    // Stock warnings
     const stockWarning = kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock)
 
     const canSubmit = kitItems.length > 0 && numPeople > 0 && !isSubmitting && !stockWarning
-
-    // Hint text for disabled submit
-    const submitHint = kitItems.length === 0 && numPeople === 0
-        ? 'Adicione itens e selecione pessoas'
-        : kitItems.length === 0
-            ? 'Adicione pelo menos um item'
-            : numPeople === 0
-                ? 'Selecione pelo menos uma pessoa'
-                : stockWarning
-                    ? 'Estoque insuficiente'
-                    : null
 
     const handleSubmit = () => {
         const selectedContacts = contacts
@@ -369,25 +354,157 @@ function KitBuilder({
             </div>
 
             <div className="p-3 space-y-4">
-                {/* ─── Step 1: Items ─── */}
+                {/* ─── Product Catalog (click to select) ─── */}
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                        <Package className="h-3.5 w-3.5" />
-                        1. Escolha os itens do kit
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                            <Package className="h-3.5 w-3.5" />
+                            Itens do Kit
+                            {kitItems.length > 0 && (
+                                <span className="text-pink-600 normal-case font-medium">({kitItems.length})</span>
+                            )}
+                        </p>
+                        <button
+                            onClick={() => setShowCatalog(!showCatalog)}
+                            className="text-[10px] text-indigo-600 hover:text-indigo-700 font-medium"
+                        >
+                            {showCatalog ? 'Ocultar catálogo' : 'Mostrar catálogo'}
+                        </button>
+                    </div>
 
-                    {/* Kit items list */}
+                    {showCatalog && (
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar produto..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            {/* Product grid — click to toggle */}
+                            <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
+                                {available.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => toggleProduct(p)}
+                                        disabled={p.current_stock === 0}
+                                        className={cn(
+                                            'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors',
+                                            p.current_stock === 0
+                                                ? 'opacity-40 cursor-not-allowed border-slate-200'
+                                                : 'border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50'
+                                        )}
+                                    >
+                                        <div className="h-7 w-7 rounded bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                                            {p.image_path ? (
+                                                <img
+                                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
+                                                    alt={p.name}
+                                                    className="h-full w-full rounded object-cover"
+                                                />
+                                            ) : (
+                                                <Package className="h-3.5 w-3.5 text-slate-300" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
+                                            <p className="text-[10px] text-slate-400">
+                                                {formatBRL(p.unit_price)} · {p.current_stock} disp.
+                                            </p>
+                                        </div>
+                                    </button>
+                                ))}
+                                {/* Already-selected products show as checked */}
+                                {products.filter(p => existingProductIds.includes(p.id)).map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => toggleProduct(p)}
+                                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-pink-300 bg-pink-50 text-left transition-colors"
+                                    >
+                                        <div className="h-7 w-7 rounded bg-pink-100 flex items-center justify-center shrink-0">
+                                            {p.image_path ? (
+                                                <img
+                                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
+                                                    alt={p.name}
+                                                    className="h-full w-full rounded object-cover"
+                                                />
+                                            ) : (
+                                                <Check className="h-3.5 w-3.5 text-pink-600" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-pink-700 truncate">{p.name}</p>
+                                            <p className="text-[10px] text-pink-500">
+                                                {formatBRL(p.unit_price)} · {p.current_stock} disp.
+                                            </p>
+                                        </div>
+                                        <Check className="h-3.5 w-3.5 text-pink-600 shrink-0" />
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Custom item inline */}
+                            {!showCustomForm ? (
+                                <button
+                                    onClick={() => setShowCustomForm(true)}
+                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-pink-300 rounded-lg text-[11px] font-medium text-pink-500 hover:bg-pink-50/50 transition-colors"
+                                >
+                                    <PenLine className="h-3 w-3" />
+                                    Item avulso (fora do estoque)
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2 p-2 border border-pink-200 bg-pink-50/50 rounded-lg">
+                                    <input
+                                        type="text"
+                                        placeholder="Nome..."
+                                        value={customName}
+                                        onChange={e => setCustomName(e.target.value)}
+                                        className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
+                                        autoFocus
+                                    />
+                                    <div className="w-20 shrink-0">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="R$"
+                                            value={customPrice || ''}
+                                            onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
+                                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={addCustomItem}
+                                        disabled={!customName.trim()}
+                                        className="px-2 py-1 bg-pink-600 text-white text-[11px] font-medium rounded hover:bg-pink-700 disabled:opacity-50 shrink-0"
+                                    >
+                                        <Plus className="h-3 w-3" />
+                                    </button>
+                                    <button onClick={() => { setShowCustomForm(false); setCustomName(''); setCustomPrice(0) }} className="text-slate-400 hover:text-slate-600">
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Selected items with qty adjustment */}
                     {kitItems.length > 0 && (
                         <div className="space-y-1.5">
+                            <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Qtd por pessoa</p>
                             {kitItems.map(item => {
                                 const totalNeeded = item.quantity * Math.max(numPeople, 1)
                                 const insufficientStock = !!(item.productId && item.stock !== undefined && numPeople > 0 && totalNeeded > item.stock)
                                 return (
                                     <div key={item.id} className={cn(
-                                        "flex items-center gap-2 py-2 px-3 rounded-lg",
+                                        "flex items-center gap-2 py-1.5 px-2.5 rounded-lg",
                                         insufficientStock ? 'bg-red-50 border border-red-200' : 'bg-slate-50'
                                     )}>
-                                        <div className="h-7 w-7 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                        <div className="h-6 w-6 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
                                             {item.productId ? (
                                                 item.imagePath ? (
                                                     <img
@@ -396,263 +513,71 @@ function KitBuilder({
                                                         className="h-full w-full rounded object-cover"
                                                     />
                                                 ) : (
-                                                    <Package className="h-3.5 w-3.5 text-slate-300" />
+                                                    <Package className="h-3 w-3 text-slate-300" />
                                                 )
                                             ) : (
-                                                <PenLine className="h-3.5 w-3.5 text-pink-400" />
+                                                <PenLine className="h-3 w-3 text-pink-400" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-sm font-medium text-slate-900 truncate">{item.productName}</span>
-                                                {!item.productId && (
-                                                    <span className="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded font-medium shrink-0">avulso</span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-1 text-xs text-slate-400 flex-wrap">
-                                                <span>{formatBRL(item.unitPrice)} un.</span>
-                                                {numPeople > 1 && item.productId && item.stock !== undefined && (
-                                                    <span className={cn("font-medium", insufficientStock ? 'text-red-600' : 'text-slate-500')}>
-                                                        · {totalNeeded} necessários ({item.stock} disp.)
-                                                    </span>
-                                                )}
-                                                {numPeople <= 1 && item.stock !== undefined && item.productId && (
-                                                    <span>· {item.stock} disp.</span>
-                                                )}
-                                            </div>
+                                            <span className="text-xs font-medium text-slate-800 truncate block">{item.productName}</span>
+                                            {insufficientStock && (
+                                                <span className="text-[10px] text-red-600 font-medium">
+                                                    {totalNeeded} necessários · {item.stock} disp.
+                                                </span>
+                                            )}
                                         </div>
-                                        {/* Inline qty stepper */}
                                         <div className="flex items-center gap-0.5 shrink-0">
                                             <button
                                                 onClick={() => updateItemQty(item.id, item.quantity - 1)}
                                                 disabled={item.quantity <= 1}
-                                                className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-colors"
                                             >
-                                                <Minus className="h-3 w-3" />
+                                                <Minus className="h-2.5 w-2.5" />
                                             </button>
-                                            <span className="w-6 text-center text-sm font-medium text-slate-700 tabular-nums">{item.quantity}</span>
+                                            <span className="w-5 text-center text-xs font-semibold text-slate-700 tabular-nums">{item.quantity}</span>
                                             <button
                                                 onClick={() => updateItemQty(item.id, item.quantity + 1)}
-                                                className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                                                className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-400 hover:bg-slate-100 transition-colors"
                                             >
-                                                <Plus className="h-3 w-3" />
+                                                <Plus className="h-2.5 w-2.5" />
                                             </button>
                                         </div>
-                                        <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0 w-20 text-right">
+                                        <span className="text-xs font-medium text-slate-600 tabular-nums shrink-0 w-16 text-right">
                                             {formatBRL(item.quantity * item.unitPrice)}
                                         </span>
                                         <button
                                             onClick={() => removeKitItem(item.id)}
-                                            className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors shrink-0"
+                                            className="p-0.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors shrink-0"
                                         >
-                                            <X className="h-3.5 w-3.5" />
+                                            <X className="h-3 w-3" />
                                         </button>
                                     </div>
                                 )
                             })}
-                            {/* Summary line */}
-                            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                                <span>
-                                    {kitItems.length} {kitItems.length === 1 ? 'item' : 'itens'} por pessoa
-                                </span>
-                                <span>
-                                    <span className="font-semibold text-slate-700">{formatBRL(totalCostPerPerson)}</span> /pessoa
-                                    {numPeople > 1 && (
-                                        <> · <span className="font-semibold text-slate-700">{formatBRL(totalCostAll)}</span> total ({numPeople})</>
-                                    )}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Add item picker */}
-                    {pickerMode === 'idle' && (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setPickerMode('stock')}
-                                className="flex-1 flex items-center justify-center gap-2 py-2 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-                            >
-                                <Package className="h-3.5 w-3.5" />
-                                Do Estoque
-                            </button>
-                            <button
-                                onClick={() => setPickerMode('custom')}
-                                className="flex-1 flex items-center justify-center gap-2 py-2 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:border-pink-400 hover:text-pink-600 transition-colors"
-                            >
-                                <PenLine className="h-3.5 w-3.5" />
-                                Item Avulso
-                            </button>
-                        </div>
-                    )}
-
-                    {pickerMode === 'stock' && (
-                        <div className="border border-dashed border-slate-300 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs font-medium text-slate-500">Adicionar do estoque</p>
-                                <button onClick={resetPicker} className="text-[10px] text-slate-400 hover:text-slate-600">Voltar</button>
-                            </div>
-                            {!selectedProduct ? (
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar produto..."
-                                        value={search}
-                                        onChange={e => { setSearch(e.target.value); setShowList(true) }}
-                                        onFocus={() => setShowList(true)}
-                                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        autoFocus
-                                    />
-                                    {showList && available.length > 0 && (
-                                        <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                            {available.map(p => {
-                                                const canCoverAll = numPeople === 0 || p.current_stock >= numPeople
-                                                return (
-                                                    <button
-                                                        key={p.id}
-                                                        onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
-                                                        disabled={p.current_stock === 0}
-                                                        className={cn(
-                                                            'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
-                                                            p.current_stock === 0 && 'opacity-40 cursor-not-allowed'
-                                                        )}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <Package className="h-3.5 w-3.5 text-slate-400" />
-                                                            <span>{p.name}</span>
-                                                            {p.unit_price > 0 && <span className="text-xs text-slate-400">{formatBRL(p.unit_price)}</span>}
-                                                        </div>
-                                                        <span className={cn('text-xs', p.current_stock === 0 ? 'text-red-500' : !canCoverAll ? 'text-amber-600' : 'text-slate-400')}>
-                                                            {p.current_stock === 0
-                                                                ? 'Sem estoque'
-                                                                : !canCoverAll
-                                                                    ? `${p.current_stock} disp. (pouco)`
-                                                                    : `${p.current_stock} disp.`}
-                                                        </span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-1.5 text-sm">
-                                        <span className="font-medium flex-1">{selectedProduct.name}</span>
-                                        <span className="text-xs text-slate-500">{formatBRL(selectedProduct.unit_price)}</span>
-                                        <span className="text-slate-400 text-xs">{selectedProduct.current_stock} disp.</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div>
-                                            <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
-                                            <div className="flex items-center gap-1">
-                                                <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">-</button>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={quantity}
-                                                    onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                                    className="w-12 text-center text-sm border border-slate-200 rounded py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                                />
-                                                <button onClick={() => setQuantity(q => q + 1)} className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded text-sm hover:bg-slate-50">+</button>
-                                            </div>
-                                            {numPeople > 0 && (
-                                                <span className={cn(
-                                                    "text-[10px] mt-0.5 block",
-                                                    quantity * numPeople > selectedProduct.current_stock ? 'text-red-600 font-medium' : 'text-slate-400'
-                                                )}>
-                                                    = {quantity * numPeople} unid. para {numPeople} pessoa{numPeople > 1 ? 's' : ''}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-end self-end ml-auto">
-                                            <button
-                                                onClick={addStockItem}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                                Adicionar
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {pickerMode === 'custom' && (
-                        <div className="border border-pink-200 bg-pink-50/50 rounded-lg p-3 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs font-medium text-pink-700">Item avulso (fora do estoque)</p>
-                                <button onClick={resetPicker} className="text-[10px] text-slate-400 hover:text-slate-600">Voltar</button>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                <div className="col-span-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Nome do item..."
-                                        value={customName}
-                                        onChange={e => setCustomName(e.target.value)}
-                                        className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={customPrice}
-                                        onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
-                                        className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={customQty}
-                                        onChange={e => setCustomQty(Math.max(1, parseInt(e.target.value) || 1))}
-                                        className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
-                                    />
-                                </div>
-                                <div className="flex items-end">
-                                    <button
-                                        onClick={addCustomItem}
-                                        disabled={!customName.trim()}
-                                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-pink-600 text-white text-xs font-medium rounded-lg hover:bg-pink-700 disabled:opacity-50 transition-colors"
-                                    >
-                                        <Plus className="h-3 w-3" />
-                                        Adicionar
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* ─── Step 2: Select Contacts ─── */}
+                {/* ─── Contacts (all selected by default) ─── */}
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
                             <Users className="h-3.5 w-3.5" />
-                            2. Quem vai receber?
-                            {numPeople > 0 && (
-                                <span className="text-pink-600 normal-case font-medium">({numPeople})</span>
-                            )}
+                            Destinatários
+                            <span className="text-pink-600 normal-case font-medium">
+                                ({numPeople}/{contacts.length})
+                            </span>
                         </p>
-                        {contacts.length > 1 && (
-                            <button
-                                onClick={selectAll}
-                                className="text-[10px] text-indigo-600 hover:text-indigo-700 font-medium"
-                            >
-                                {selectedContactIds.size === contacts.length ? 'Desmarcar todos' : 'Selecionar todos'}
-                            </button>
+                        {contacts.length > 1 && numPeople === contacts.length && (
+                            <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                Todos selecionados
+                            </span>
                         )}
                     </div>
-                    <div className="space-y-1">
+
+                    <div className="flex flex-wrap gap-1.5">
                         {contacts.map(person => {
                             const isSelected = selectedContactIds.has(person.id)
                             const name = `${person.nome}${person.sobrenome ? ' ' + person.sobrenome : ''}`
@@ -661,40 +586,98 @@ function KitBuilder({
                                     key={person.id}
                                     onClick={() => toggleContact(person.id)}
                                     className={cn(
-                                        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-left',
+                                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors',
                                         isSelected
-                                            ? 'bg-pink-50 border border-pink-300'
-                                            : 'border border-slate-200 hover:border-slate-300'
+                                            ? 'bg-pink-100 text-pink-700 border border-pink-300'
+                                            : 'bg-slate-100 text-slate-400 border border-slate-200 line-through'
                                     )}
                                 >
-                                    <div className={cn(
-                                        'flex h-5 w-5 items-center justify-center rounded border-2 shrink-0 transition-colors',
-                                        isSelected ? 'bg-pink-600 border-pink-600' : 'border-slate-300'
-                                    )}>
-                                        {isSelected && <Check className="h-3 w-3 text-white" />}
-                                    </div>
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
-                                        <User className="h-3.5 w-3.5" />
-                                    </div>
-                                    <span className={cn('text-sm font-medium', isSelected ? 'text-pink-700' : 'text-slate-600')}>
-                                        {name}
-                                    </span>
+                                    {isSelected ? (
+                                        <Check className="h-3 w-3" />
+                                    ) : (
+                                        <X className="h-3 w-3" />
+                                    )}
+                                    {name}
                                 </button>
                             )
                         })}
                     </div>
                 </div>
 
-                {/* ─── Ship date ─── */}
-                <div className="flex items-center gap-2">
-                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                    <label className="text-xs font-medium text-slate-500">Data prevista de envio:</label>
-                    <input
-                        type="date"
-                        value={shipDate}
-                        onChange={e => setShipDate(e.target.value)}
-                        className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
+                {/* ─── Ship date (relative to embarque) ─── */}
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Prazo de envio
+                    </p>
+
+                    {dataEmbarque ? (
+                        <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1.5">
+                                {SHIP_PRESETS.map(preset => {
+                                    const isActive = shipPreset === preset.days
+                                    const date = computeShipDate(dataEmbarque, preset.days)
+                                    return (
+                                        <button
+                                            key={preset.days}
+                                            onClick={() => setShipPreset(isActive ? null : preset.days)}
+                                            className={cn(
+                                                'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                                                isActive
+                                                    ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                            )}
+                                        >
+                                            {preset.label}
+                                            {date && (
+                                                <span className="ml-1 text-[10px] opacity-60">
+                                                    ({new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })})
+                                                </span>
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                                <button
+                                    onClick={() => setShipPreset(shipPreset === 'custom' ? null : 'custom')}
+                                    className={cn(
+                                        'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                                        shipPreset === 'custom'
+                                            ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                    )}
+                                >
+                                    Data específica
+                                </button>
+                            </div>
+
+                            {shipPreset === 'custom' && (
+                                <input
+                                    type="date"
+                                    value={customShipDate}
+                                    onChange={e => setCustomShipDate(e.target.value)}
+                                    className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    autoFocus
+                                />
+                            )}
+
+                            <p className="text-[10px] text-slate-400">
+                                Embarque: {new Date(dataEmbarque + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                {shipDate && (
+                                    <> · Envio: <span className="font-medium text-indigo-600">{new Date(shipDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span></>
+                                )}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                value={customShipDate}
+                                onChange={e => { setCustomShipDate(e.target.value); setShipPreset('custom') }}
+                                className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                            <span className="text-[10px] text-slate-400">Sem data de embarque no card</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Stock warning */}
@@ -705,33 +688,37 @@ function KitBuilder({
                             <p className="font-semibold">Estoque insuficiente para {numPeople} pessoa{numPeople > 1 ? 's' : ''}</p>
                             {kitItems.filter(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock).map(i => (
                                 <p key={i.id}>
-                                    {i.productName}: {i.quantity}x{numPeople} = {i.quantity * numPeople} necessários, {i.stock} disponíveis
+                                    {i.productName}: {i.quantity}×{numPeople} = {i.quantity * numPeople} necessários, {i.stock} disp.
                                 </p>
                             ))}
-                            <p className="text-red-500">Reduza a quantidade ou desmarque pessoas.</p>
                         </div>
                     </div>
                 )}
 
-                {/* Submit */}
+                {/* ─── Summary + Submit ─── */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <span className="text-xs text-slate-400">
-                        {submitHint && !stockWarning
-                            ? <span className="flex items-center gap-1"><Info className="h-3 w-3" />{submitHint}</span>
-                            : numPeople > 0 && kitItems.length > 0 && (
-                                numPeople > 1
-                                    ? <>{numPeople} pessoas · <span className="font-semibold text-slate-600">{formatBRL(totalCostAll)}</span> total</>
-                                    : <>1 pessoa · <span className="font-semibold text-slate-600">{formatBRL(totalCostPerPerson)}</span></>
-                            )
-                        }
-                    </span>
+                    <div className="text-xs text-slate-500">
+                        {kitItems.length === 0 ? (
+                            <span className="flex items-center gap-1 text-slate-400"><Info className="h-3 w-3" />Selecione itens do catálogo</span>
+                        ) : numPeople === 0 ? (
+                            <span className="flex items-center gap-1 text-slate-400"><Info className="h-3 w-3" />Nenhum destinatário</span>
+                        ) : (
+                            <>
+                                <span className="font-semibold text-slate-700">{formatBRL(totalCostPerPerson)}</span>/pessoa
+                                {numPeople > 1 && (
+                                    <> · <span className="font-semibold text-slate-700">{formatBRL(totalCostAll)}</span> total</>
+                                )}
+                                <span className="text-slate-400"> · {numPeople} pessoa{numPeople > 1 ? 's' : ''}</span>
+                            </>
+                        )}
+                    </div>
                     <button
                         onClick={handleSubmit}
                         disabled={!canSubmit}
                         className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
-                        Criar Presentes
+                        Criar Kit
                     </button>
                 </div>
             </div>

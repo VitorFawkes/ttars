@@ -125,9 +125,9 @@ const ContactSchema = z.object({
 
 const CreateContactSchema = z.object({
     nome: z.string().min(1).openapi({ example: "John" }),
-    sobrenome: z.string().optional().openapi({ example: "Doe" }),
+    sobrenome: z.string().min(1).openapi({ example: "Doe" }),
     email: z.string().email().optional().openapi({ example: "john@example.com" }),
-    telefone: z.string().optional().openapi({ example: "+5511999999999" }),
+    telefone: z.string().min(1).openapi({ example: "+5511999999999" }),
 });
 
 const ContactDetailSchema = z.object({
@@ -573,9 +573,15 @@ app.openapi(
         const supabase = c.get("supabase");
         const body = await c.req.json();
 
+        const parsed = CreateContactSchema.safeParse(body);
+        if (!parsed.success) {
+            const missing = parsed.error.issues.map(i => i.path.join(".")).join(", ");
+            return c.json({ error: `Campos obrigatórios: nome, sobrenome, telefone. Faltando: ${missing}` }, 422);
+        }
+
         const { data, error } = await supabase
             .from("contatos")
-            .insert(body)
+            .insert(parsed.data)
             .select()
             .single();
 

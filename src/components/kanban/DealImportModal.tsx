@@ -277,9 +277,14 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
         const email = row['email_contato'] ? String(row['email_contato']).trim() : null
         const telefone = cleanPhone(row['telefone']) || null
 
+        if (!sobrenome || !telefone) {
+            console.warn(`Contato "${name}" ignorado: falta ${!sobrenome ? 'sobrenome' : ''} ${!telefone ? 'telefone' : ''}`.trim())
+            return null
+        }
+
         const { data, error } = await supabase.from('contatos').insert({
             nome,
-            sobrenome: sobrenome || null,
+            sobrenome,
             cpf: cpfRaw && cpfRaw.length >= 11 ? cpfRaw : null,
             email,
             telefone,
@@ -306,10 +311,16 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
             .limit(1)
         if (existing && existing.length > 0) return existing[0].id
 
-        // Create with just name
+        // Passageiro sem sobrenome não pode ser criado (obrigatório)
+        if (!sobrenome) {
+            console.warn(`Passageiro "${trimmed}" ignorado: falta sobrenome`)
+            return null
+        }
+
+        // Create with just name (telefone não disponível em passageiros de importação)
         const { data, error } = await supabase.from('contatos').insert({
             nome,
-            sobrenome: sobrenome || null,
+            sobrenome,
         }).select('id').single()
 
         if (error) {
