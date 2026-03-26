@@ -267,7 +267,7 @@ function KitBuilder({
 
     const { products } = useInventoryProducts({ search, activeOnly: true })
     const existingProductIds = kitItems.filter(i => i.productId).map(i => i.productId!)
-    const available = products.filter(p => !existingProductIds.includes(p.id))
+    const available = products.filter(p => !existingProductIds.includes(p.id) && p.current_stock > 0)
 
     const numPeople = selectedContactIds.size
     const totalCostPerPerson = kitItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
@@ -391,13 +391,7 @@ function KitBuilder({
                                     <button
                                         key={p.id}
                                         onClick={() => toggleProduct(p)}
-                                        disabled={p.current_stock === 0}
-                                        className={cn(
-                                            'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors',
-                                            p.current_stock === 0
-                                                ? 'opacity-40 cursor-not-allowed border-slate-200'
-                                                : 'border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50'
-                                        )}
+                                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50"
                                     >
                                         <div className="h-7 w-7 rounded bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
                                             {p.image_path ? (
