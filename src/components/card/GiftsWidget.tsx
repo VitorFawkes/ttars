@@ -308,6 +308,7 @@ function KitBuilder({
         setCustomName('')
         setCustomPrice(0)
         setShowCustomForm(false)
+        setShowCatalog(true)
     }
 
     const updateItemQty = (id: string, newQty: number) => {
@@ -444,7 +445,7 @@ function KitBuilder({
                             {/* Custom item inline */}
                             {!showCustomForm ? (
                                 <button
-                                    onClick={() => setShowCustomForm(true)}
+                                    onClick={() => { setShowCustomForm(true); setShowCatalog(false) }}
                                     className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-pink-300 rounded-lg text-[11px] font-medium text-pink-500 hover:bg-pink-50/50 transition-colors"
                                 >
                                     <PenLine className="h-3 w-3" />
@@ -478,7 +479,7 @@ function KitBuilder({
                                     >
                                         <Plus className="h-3 w-3" />
                                     </button>
-                                    <button onClick={() => { setShowCustomForm(false); setCustomName(''); setCustomPrice(0) }} className="text-slate-400 hover:text-slate-600">
+                                    <button onClick={() => { setShowCustomForm(false); setShowCatalog(true); setCustomName(''); setCustomPrice(0) }} className="text-slate-400 hover:text-slate-600">
                                         <X className="h-3 w-3" />
                                     </button>
                                 </div>
