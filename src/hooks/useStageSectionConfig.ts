@@ -64,13 +64,14 @@ export function useStageSectionConfig() {
             const existing = configs?.find(c => c.stage_id === stageId && c.section_key === sectionKey)
             if (visible && !existing?.default_collapsed) {
                 // No collapse config either — safe to delete the row entirely
-                await ssc()
+                const { error } = await ssc()
                     .delete()
                     .eq('stage_id', stageId)
                     .eq('section_key', sectionKey)
+                if (error) throw error
             } else {
                 // Upsert preserving default_collapsed
-                await ssc()
+                const { error } = await ssc()
                     .upsert(
                         {
                             stage_id: stageId,
@@ -80,6 +81,7 @@ export function useStageSectionConfig() {
                         },
                         { onConflict: 'stage_id,section_key' }
                     )
+                if (error) throw error
             }
         },
         onSuccess: () => {
@@ -94,13 +96,14 @@ export function useStageSectionConfig() {
             const isVisible = existing?.is_visible ?? true
             if (!collapsed && isVisible) {
                 // Both defaults — delete the row
-                await ssc()
+                const { error } = await ssc()
                     .delete()
                     .eq('stage_id', stageId)
                     .eq('section_key', sectionKey)
+                if (error) throw error
                 return
             }
-            await ssc()
+            const { error } = await ssc()
                 .upsert(
                     {
                         stage_id: stageId,
@@ -110,6 +113,7 @@ export function useStageSectionConfig() {
                     },
                     { onConflict: 'stage_id,section_key' }
                 )
+            if (error) throw error
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEY })
