@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, DollarSign, MapPin, Users, UserPlus, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
+import { Calendar, DollarSign, MapPin, Users, UserPlus, User, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
@@ -354,8 +354,48 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
         }
 
         // Handle nested objects (like epoca_viagem or orcamento) if they match the key
-        // This is a compatibility layer for existing complex objects stored in JSON
-        if (fieldId === 'epoca_viagem' && value) {
+        if (fieldId === 'epoca_viagem') {
+            // Prioridade 1: data_viagem_inicio (coluna sincronizada)
+            const dvInicio = (card as any).data_viagem_inicio as string | null
+            const dvFim = (card as any).data_viagem_fim as string | null
+            if (dvInicio) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
+                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                        <span className="truncate block flex-1">
+                            {new Date(dvInicio + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            {dvFim && dvFim !== dvInicio && ` - ${new Date(dvFim + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
+                        </span>
+                    </div>
+                )
+            }
+
+            if (!value) return null
+
+            // Prioridade 2: display pré-formatado (novo formato)
+            if (typeof value === 'object' && value.display) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
+                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                        <span className="truncate block flex-1">{value.display}</span>
+                    </div>
+                )
+            }
+
+            // Prioridade 3: data_inicio do novo formato
+            if (typeof value === 'object' && value.data_inicio) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
+                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                        <span className="truncate block flex-1">
+                            {new Date(value.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            {value.data_fim && value.data_fim !== value.data_inicio && ` - ${new Date(value.data_fim + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
+                        </span>
+                    </div>
+                )
+            }
+
+            // Prioridade 4: formato legado (start/inicio/fim)
             let startStr = ''
             let endStr = ''
 
@@ -363,7 +403,6 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 startStr = value.start || value.inicio
                 endStr = value.end || value.fim
             } else if (typeof value === 'string') {
-                // Try to parse raw string if it looks like a date
                 const rangeMatch = value.match(/^(\d{4}-\d{2}-\d{2}).*?até\s+(\d{4}-\d{2}-\d{2})/)
                 const singleMatch = value.match(/^(\d{4}-\d{2}-\d{2})/)
 
@@ -387,7 +426,21 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 </div>
             )
         }
-        if (fieldId === 'orcamento' && value?.total) {
+        if (fieldId === 'orcamento') {
+            // Prioridade 1: valor_final (confirmado)
+            const confirmedValue = (card as any).valor_final || (card as any).valor_display
+            if (confirmedValue) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1">
+                        <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                        <span className="truncate block flex-1 font-medium">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(confirmedValue))}
+                        </span>
+                    </div>
+                )
+            }
+            // Prioridade 2: orcamento estimado (lógica original)
+            if (!value?.total) return null
             return (
                 <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
                     <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
@@ -746,6 +799,12 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                             </>
                         )}
                     </div>
+                    {card.concierge_nome && (
+                        <div className="flex items-center gap-0.5 text-[10px] text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded-full" title={`Concierge: ${card.concierge_nome}`}>
+                            <User className="h-3 w-3" />
+                            C
+                        </div>
+                    )}
                     {teamMemberCount > 0 && (
                         <div className="flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full" title="Equipe de apoio atribuída">
                             <UserPlus className="h-3 w-3" />

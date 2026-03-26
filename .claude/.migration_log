@@ -180,3 +180,7 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-26T14:56:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_add_is_secondary_to_stage_field_config.sql | applied_to_prod
 2026-03-26T15:27:52Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_add_default_collapsed_to_sections.sql | applied_to_prod
 2026-03-26T15:40:32Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_add_default_collapsed_to_stage_section_config.sql | applied_to_prod
+2026-03-26T17:13:29Z | supabase/migrations/20260326_drop_ssc_section_key_fk.sql | applied_to_prod
+2026-03-26T17:24:06Z | supabase/migrations/20260326_add_viajantes_travel_history_sections.sql | applied_to_prod
+2026-03-26T17:33:51Z | supabase/migrations/20260326_add_concierge_nome_to_view.sql | applied_to_prod
+2026-03-26T17:34:16Z | supabase/migrations/20260326_add_concierge_nome_to_view.sql | applied_to_prod

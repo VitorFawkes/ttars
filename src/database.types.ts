@@ -308,6 +308,7 @@ export type Database = {
           card_id: string
           created_at: string | null
           created_by: string | null
+          descricao: string | null
           id: string
           mime_type: string | null
           nome_original: string
@@ -319,6 +320,7 @@ export type Database = {
           card_id: string
           created_at?: string | null
           created_by?: string | null
+          descricao?: string | null
           id?: string
           mime_type?: string | null
           nome_original: string
@@ -330,6 +332,7 @@ export type Database = {
           card_id?: string
           created_at?: string | null
           created_by?: string | null
+          descricao?: string | null
           id?: string
           mime_type?: string | null
           nome_original?: string
@@ -1511,11 +1514,17 @@ export type Database = {
         Row: {
           card_id: string
           created_at: string | null
+          data_fim: string | null
+          data_inicio: string | null
           description: string | null
+          documento: string | null
+          fornecedor: string | null
           id: string
           is_ready: boolean | null
           notes: string | null
+          observacoes: string | null
           product_type: string
+          representante: string | null
           sale_value: number
           supplier_cost: number
           updated_at: string | null
@@ -1523,11 +1532,17 @@ export type Database = {
         Insert: {
           card_id: string
           created_at?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
           description?: string | null
+          documento?: string | null
+          fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
           notes?: string | null
+          observacoes?: string | null
           product_type?: string
+          representante?: string | null
           sale_value?: number
           supplier_cost?: number
           updated_at?: string | null
@@ -1535,11 +1550,17 @@ export type Database = {
         Update: {
           card_id?: string
           created_at?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
           description?: string | null
+          documento?: string | null
+          fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
           notes?: string | null
+          observacoes?: string | null
           product_type?: string
+          representante?: string | null
           sale_value?: number
           supplier_cost?: number
           updated_at?: string | null
@@ -1578,6 +1599,233 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_gift_assignments: {
+        Row: {
+          assigned_by: string | null
+          budget: number | null
+          card_id: string | null
+          contato_id: string | null
+          created_at: string | null
+          delivered_at: string | null
+          delivery_address: string | null
+          delivery_date: string | null
+          delivery_method: string | null
+          gift_type: string
+          id: string
+          notes: string | null
+          occasion: string | null
+          scheduled_ship_date: string | null
+          shipped_at: string | null
+          shipped_by: string | null
+          status: string
+          tarefa_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_by?: string | null
+          budget?: number | null
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_address?: string | null
+          delivery_date?: string | null
+          delivery_method?: string | null
+          gift_type?: string
+          id?: string
+          notes?: string | null
+          occasion?: string | null
+          scheduled_ship_date?: string | null
+          shipped_at?: string | null
+          shipped_by?: string | null
+          status?: string
+          tarefa_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_by?: string | null
+          budget?: number | null
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_address?: string | null
+          delivery_date?: string | null
+          delivery_method?: string | null
+          gift_type?: string
+          id?: string
+          notes?: string | null
+          occasion?: string | null
+          scheduled_ship_date?: string | null
+          shipped_at?: string | null
+          shipped_by?: string | null
+          status?: string
+          tarefa_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_gift_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_shipped_by_fkey"
+            columns: ["shipped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_shipped_by_fkey"
+            columns: ["shipped_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_shipped_by_fkey"
+            columns: ["shipped_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "view_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_gift_items: {
+        Row: {
+          assignment_id: string
+          created_at: string | null
+          custom_name: string | null
+          id: string
+          notes: string | null
+          product_id: string | null
+          quantity: number
+          unit_price_snapshot: number
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string | null
+          custom_name?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number
+          unit_price_snapshot?: number
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string | null
+          custom_name?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number
+          unit_price_snapshot?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_gift_items_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "card_gift_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_products"
             referencedColumns: ["id"]
           },
         ]
@@ -2021,6 +2269,7 @@ export type Database = {
           stage_entered_at: string | null
           status_comercial: string
           sub_card_agregado_em: string | null
+          sub_card_category: string | null
           sub_card_mode: string | null
           sub_card_status: string | null
           taxa_alterado_por: string | null
@@ -2116,6 +2365,7 @@ export type Database = {
           stage_entered_at?: string | null
           status_comercial?: string
           sub_card_agregado_em?: string | null
+          sub_card_category?: string | null
           sub_card_mode?: string | null
           sub_card_status?: string | null
           taxa_alterado_por?: string | null
@@ -2211,6 +2461,7 @@ export type Database = {
           stage_entered_at?: string | null
           status_comercial?: string
           sub_card_agregado_em?: string | null
+          sub_card_category?: string | null
           sub_card_mode?: string | null
           sub_card_status?: string | null
           taxa_alterado_por?: string | null
@@ -4264,6 +4515,7 @@ export type Database = {
           sync_on_phases: string[] | null
           transform_type: string | null
           updated_at: string | null
+          value_map: Json | null
         }
         Insert: {
           created_at?: string | null
@@ -4280,6 +4532,7 @@ export type Database = {
           sync_on_phases?: string[] | null
           transform_type?: string | null
           updated_at?: string | null
+          value_map?: Json | null
         }
         Update: {
           created_at?: string | null
@@ -4296,6 +4549,7 @@ export type Database = {
           sync_on_phases?: string[] | null
           transform_type?: string | null
           updated_at?: string | null
+          value_map?: Json | null
         }
         Relationships: [
           {
@@ -4996,6 +5250,138 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_movements: {
+        Row: {
+          created_at: string | null
+          id: string
+          movement_type: string
+          performed_by: string | null
+          product_id: string
+          quantity: number
+          reason: string | null
+          reference_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          movement_type: string
+          performed_by?: string | null
+          product_id: string
+          quantity: number
+          reason?: string | null
+          reference_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          movement_type?: string
+          performed_by?: string | null
+          product_id?: string
+          quantity?: number
+          reason?: string | null
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_products: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string | null
+          created_by: string | null
+          current_stock: number
+          description: string | null
+          id: string
+          image_path: string | null
+          low_stock_threshold: number
+          name: string
+          sku: string
+          unit_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          current_stock?: number
+          description?: string | null
+          id?: string
+          image_path?: string | null
+          low_stock_threshold?: number
+          name: string
+          sku: string
+          unit_price?: number
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          current_stock?: number
+          description?: string | null
+          id?: string
+          image_path?: string | null
+          low_stock_threshold?: number
+          name?: string
+          sku?: string
+          unit_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_products_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_products_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "inventory_products_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string
@@ -5627,6 +6013,61 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          id: string
+          read: boolean | null
+          title: string
+          type: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          title: string
+          type?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          title?: string
+          type?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
           },
         ]
@@ -6302,6 +6743,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"] | null
           role_id: string | null
           team_id: string | null
+          teams_notify_enabled: boolean | null
           updated_at: string | null
         }
         Insert: {
@@ -6319,6 +6761,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"] | null
           role_id?: string | null
           team_id?: string | null
+          teams_notify_enabled?: boolean | null
           updated_at?: string | null
         }
         Update: {
@@ -6336,6 +6779,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"] | null
           role_id?: string | null
           team_id?: string | null
+          teams_notify_enabled?: boolean | null
           updated_at?: string | null
         }
         Relationships: [
@@ -7585,13 +8029,54 @@ export type Database = {
         }
         Relationships: []
       }
+      section_field_config: {
+        Row: {
+          created_at: string | null
+          field_key: string
+          id: string
+          is_required: boolean
+          is_visible: boolean
+          section_key: string
+        }
+        Insert: {
+          created_at?: string | null
+          field_key: string
+          id?: string
+          is_required?: boolean
+          is_visible?: boolean
+          section_key: string
+        }
+        Update: {
+          created_at?: string | null
+          field_key?: string
+          id?: string
+          is_required?: boolean
+          is_visible?: boolean
+          section_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_field_config_field_key_fkey"
+            columns: ["field_key"]
+            isOneToOne: false
+            referencedRelation: "system_fields"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "section_field_config_section_key_fkey"
+            columns: ["section_key"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       sections: {
         Row: {
           active: boolean | null
-          collapse_on_phases: string[] | null
           color: string | null
           created_at: string | null
-          hidden_on_phases: string[] | null
+          default_collapsed: boolean
           icon: string | null
           id: string
           is_governable: boolean | null
@@ -7607,10 +8092,9 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
-          collapse_on_phases?: string[] | null
           color?: string | null
           created_at?: string | null
-          hidden_on_phases?: string[] | null
+          default_collapsed?: boolean
           icon?: string | null
           id?: string
           is_governable?: boolean | null
@@ -7626,10 +8110,9 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
-          collapse_on_phases?: string[] | null
           color?: string | null
           created_at?: string | null
-          hidden_on_phases?: string[] | null
+          default_collapsed?: boolean
           icon?: string | null
           id?: string
           is_governable?: boolean | null
@@ -7663,6 +8146,7 @@ export type Database = {
           id: string
           is_blocking: boolean | null
           is_required: boolean | null
+          is_secondary: boolean
           is_visible: boolean | null
           order: number | null
           proposal_min_status: string | null
@@ -7683,6 +8167,7 @@ export type Database = {
           id?: string
           is_blocking?: boolean | null
           is_required?: boolean | null
+          is_secondary?: boolean
           is_visible?: boolean | null
           order?: number | null
           proposal_min_status?: string | null
@@ -7703,6 +8188,7 @@ export type Database = {
           id?: string
           is_blocking?: boolean | null
           is_required?: boolean | null
+          is_secondary?: boolean
           is_visible?: boolean | null
           order?: number | null
           proposal_min_status?: string | null
@@ -7804,6 +8290,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_section_config: {
+        Row: {
+          created_at: string | null
+          default_collapsed: boolean
+          id: string
+          is_visible: boolean
+          section_key: string
+          stage_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          default_collapsed?: boolean
+          id?: string
+          is_visible?: boolean
+          section_key: string
+          stage_id: string
+        }
+        Update: {
+          created_at?: string | null
+          default_collapsed?: boolean
+          id?: string
+          is_visible?: boolean
+          section_key?: string
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_section_config_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_section_config_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
           },
         ]
       }
@@ -9724,10 +10252,14 @@ export type Database = {
       }
       view_cards_acoes: {
         Row: {
+          active_sub_cards_count: number | null
+          anexos_count: number | null
           archived_at: string | null
           briefing_inicial: Json | null
           campaign_id: string | null
+          card_type: string | null
           cliente_recorrente: boolean | null
+          concierge_nome: string | null
           concierge_owner_id: string | null
           condicoes_pagamento: string | null
           created_at: string | null
@@ -9735,8 +10267,6 @@ export type Database = {
           data_viagem_inicio: string | null
           destinos: Json | null
           dias_ate_viagem: number | null
-          docs_completed: number | null
-          docs_total: number | null
           dono_atual_email: string | null
           dono_atual_id: string | null
           dono_atual_nome: string | null
@@ -9759,6 +10289,7 @@ export type Database = {
           orcamento: Json | null
           origem: string | null
           parent_card_id: string | null
+          parent_card_title: string | null
           pessoa_email: string | null
           pessoa_nome: string | null
           pessoa_principal_id: string | null
@@ -9782,6 +10313,8 @@ export type Database = {
           sdr_owner_nome: string | null
           status_comercial: string | null
           status_taxa: string | null
+          sub_card_category: string | null
+          sub_card_status: string | null
           tag_ids: string[] | null
           tarefas_atrasadas: number | null
           tarefas_pendentes: number | null
@@ -10614,6 +11147,7 @@ export type Database = {
       }
       check_overdue_tasks_push: { Args: never; Returns: undefined }
       check_upcoming_meetings_push: { Args: never; Returns: undefined }
+      completar_sub_card: { Args: { p_sub_card_id: string }; Returns: Json }
       create_user_and_card: {
         Args: { p_name: string; p_phone: string; p_pipeline_stage_id?: string }
         Returns: Json
@@ -10623,7 +11157,15 @@ export type Database = {
         Returns: Json
       }
       criar_sub_card: {
-        Args: { p_descricao?: string; p_parent_id: string; p_titulo: string }
+        Args: {
+          p_category?: string
+          p_descricao: string
+          p_merge_config?: Json
+          p_mode?: string
+          p_parent_id: string
+          p_titulo: string
+          p_valor_estimado?: number
+        }
         Returns: Json
       }
       criar_sub_card_futuro: {

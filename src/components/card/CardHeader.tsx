@@ -557,7 +557,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
     // statusColors moved to StatusSelector component
 
     const updateOwnerMutation = useMutation({
-        mutationFn: async ({ field, userId }: { field: 'dono_atual_id' | 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id', userId: string | null }) => {
+        mutationFn: async ({ field, userId }: { field: 'dono_atual_id' | 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id', userId: string | null }) => {
             const updateData: Partial<CardBase> = { [field]: userId || null }
 
             const { error } = await supabase.from('cards')
@@ -918,6 +918,10 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     }
 
+    const handleConciergeSelect = (userId: string | null) => {
+        updateOwnerMutation.mutate({ field: 'concierge_owner_id', userId })
+    }
+
     const handleAssistentePlannerSelect = (userId: string | null) => {
         if (assistentePlanner) {
             // Chain: remove first, then add (avoids UNIQUE constraint race)
@@ -1203,6 +1207,20 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
                                 // Check for TRIPS (including null/undefined which defaults to TRIPS behavior)
                                 if (card.produto === 'TRIPS' || !card.produto) {
+                                    // Prioridade 1: valor_final (confirmado por proposta aceita, itens financeiros ou Monde)
+                                    if (card.valor_final) {
+                                        return (
+                                            <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                                                <DollarSign className="h-3 w-3 text-emerald-500" />
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.valor_final)}
+                                                <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium">
+                                                    Confirmado
+                                                </span>
+                                            </div>
+                                        )
+                                    }
+
+                                    // Prioridade 2: orçamento previsto (estimado)
                                     const orcamento = mergedData?.orcamento
 
                                     // Tentar múltiplas fontes de valor (nova e antiga estrutura)
@@ -1217,7 +1235,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                         // Se já é string formatada (display), usar diretamente
                                         if (typeof valorDisplay === 'string') {
                                             return (
-                                                <div className="flex items-center gap-1.5 text-gray-600 font-medium">
+                                                <div className="flex items-center gap-1.5 text-gray-600 font-medium" title="Orçamento previsto">
                                                     <DollarSign className="h-3 w-3 text-gray-400" />
                                                     {valorDisplay}
                                                 </div>
@@ -1225,7 +1243,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                         }
                                         // Se é número, formatar
                                         return (
-                                            <div className="flex items-center gap-1.5 text-gray-600 font-medium">
+                                            <div className="flex items-center gap-1.5 text-gray-600 font-medium" title="Orçamento previsto">
                                                 <DollarSign className="h-3 w-3 text-gray-400" />
                                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorDisplay)}
                                             </div>
@@ -1284,33 +1302,36 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     // Merge: produto_data.epoca_viagem takes priority, fallback to briefing_inicial
                                     const epocaViagem = productData?.epoca_viagem || briefingData?.epoca_viagem
 
-                                    // Se tem display pré-formatado (nova estrutura), usar diretamente
-                                    if (epocaViagem?.display) {
+                                    // Prioridade 1: data_viagem_inicio (coluna sincronizada — maior fidelidade)
+                                    if (card.data_viagem_inicio) {
+                                        tripDate = new Date(card.data_viagem_inicio + 'T12:00:00')
+                                    }
+                                    // Prioridade 2: epoca_viagem com tipo=data_exata
+                                    else if (epocaViagem?.tipo === 'data_exata' && epocaViagem?.data_inicio) {
+                                        tripDate = new Date(epocaViagem.data_inicio + 'T12:00:00')
+                                    }
+                                    // Prioridade 3: display pré-formatado (vago — "Junho 2025", "Mar-Mai 2025")
+                                    else if (epocaViagem?.display) {
                                         return (
                                             <>
                                                 <div className="h-3.5 w-px bg-gray-300" />
-                                                <div className="flex items-center gap-1.5 text-gray-600 font-medium">
+                                                <div className="flex items-center gap-1.5 text-gray-500 font-medium" title="Previsão de data">
                                                     <Calendar className="h-3.5 w-3.5 text-gray-400" />
                                                     {epocaViagem.display}
                                                 </div>
                                                 {epocaViagem.flexivel && (
-                                                    <span className="text-xs text-amber-600 px-1.5 py-0.5 bg-amber-50 rounded">📌 Flexível</span>
+                                                    <span className="text-xs text-amber-600 px-1.5 py-0.5 bg-amber-50 rounded">Flexível</span>
                                                 )}
                                             </>
                                         )
                                     }
-
-                                    // Tentar múltiplas fontes de data (nova e antiga estrutura)
-                                    const dataStr =
-                                        epocaViagem?.data_inicio ||      // Novo: flexible_date
-                                        epocaViagem?.inicio ||           // Antigo: date_range
-                                        null
-
-                                    if (dataStr) {
-                                        // Preferir coluna sincronizada se disponível
-                                        if (card.data_viagem_inicio) {
-                                            tripDate = new Date(card.data_viagem_inicio + 'T12:00:00')
-                                        } else {
+                                    // Prioridade 4: formato legado (data_inicio ou inicio)
+                                    else {
+                                        const dataStr =
+                                            epocaViagem?.data_inicio ||      // Novo: flexible_date
+                                            epocaViagem?.inicio ||           // Antigo: date_range
+                                            null
+                                        if (dataStr) {
                                             tripDate = new Date(dataStr + 'T12:00:00')
                                         }
                                     }
@@ -1434,6 +1455,22 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     showNoSdrOption
                                 />
                             </div>
+
+                            {/* Concierge — only TRIPS */}
+                            {card.produto === 'TRIPS' && (
+                                <>
+                                    <div className="h-4 w-px bg-gray-200" />
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider leading-none">Concierge</span>
+                                        <OwnerSelector
+                                            value={card.concierge_owner_id}
+                                            onChange={(id) => handleConciergeSelect(id)}
+                                            compact
+                                            showNoSdrOption
+                                        />
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Operational Badge + Actions */}

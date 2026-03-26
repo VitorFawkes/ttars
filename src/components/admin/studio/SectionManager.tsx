@@ -566,7 +566,7 @@ function TripInfoPhaseVisibilityPicker({ sectionKey, stages, phases }: TripInfoP
         } catch {
             toast({ title: 'Erro ao salvar', type: 'error' })
         }
-    }, [sectionKey, stages, allPhases, getHiddenSections, toggleVisibility, toast])
+    }, [sectionKey, stages, getHiddenSections, toggleVisibility, toast])
 
     return (
         <div>

@@ -60,7 +60,7 @@ if [ "$STAGING_MODE" = "false" ]; then
 
 # Pipeline (usePipelineCards.ts + usePipelineListCards.ts)
 test_query "view_cards_acoes (colunas críticas)" \
-  "view_cards_acoes?select=id,titulo,archived_at,is_group_parent,parent_card_id,anexos_count,pessoa_telefone_normalizado&limit=1"
+  "view_cards_acoes?select=id,titulo,archived_at,is_group_parent,parent_card_id,anexos_count,pessoa_telefone_normalizado,concierge_nome&limit=1"
 
 # Dashboard (StatsCards.tsx + FunnelChart.tsx)
 test_query "view_dashboard_funil" \
