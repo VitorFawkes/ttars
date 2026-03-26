@@ -20,7 +20,6 @@ import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useProductContext } from '../../hooks/useProductContext'
 import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
-import { useAuth } from '../../contexts/AuthContext'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -462,9 +461,6 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
     const productKey = produto || 'TRIPS'
     const { data: sections = [], isLoading } = useSections(productKey)
 
-    const { profile } = useAuth()
-    const isAdmin = profile?.is_admin === true
-
     // Stage-based section visibility
     const { isSectionVisible } = useStageSectionConfig()
     const stageId = card.pipeline_stage_id
@@ -484,12 +480,9 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
             .filter(s => !excludeKeys.includes(s.key))
             // Render widget-based sections OR non-system custom sections
             .filter(s => s.widget_component || !s.is_system)
-            // Hide sections based on card's pipeline stage (admins see all)
-            .filter(s => {
-                if (isAdmin) return true
-                return isSectionVisible(stageId, s.key)
-            })
-    }, [sections, position, excludeKeys, isAdmin, stageId, isSectionVisible])
+            // Hide sections based on card's pipeline stage
+            .filter(s => isSectionVisible(stageId, s.key))
+    }, [sections, position, excludeKeys, stageId, isSectionVisible])
 
     if (isLoading) {
         return (
