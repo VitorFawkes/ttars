@@ -147,6 +147,7 @@ export default function DynamicSectionWidget({
 }: DynamicSectionWidgetProps) {
     const queryClient = useQueryClient()
     const [isExpanded, setIsExpanded] = useState(true)
+    const [hasInitCollapse, setHasInitCollapse] = useState(false)
 
     // Data Sources - Unified data from both produto_data and marketing_data
     // Priority: produto_data (manual edits) > marketing_data (integration data)
@@ -182,6 +183,12 @@ export default function DynamicSectionWidget({
     // Fetch section metadata
     const { data: sections = [], isLoading: loadingSections } = useSections()
     const section = useMemo(() => sections.find(s => s.key === sectionKey), [sections, sectionKey])
+
+    // Apply default_collapsed on first load
+    if (section && !hasInitCollapse) {
+        setHasInitCollapse(true)
+        if (section.default_collapsed) setIsExpanded(false)
+    }
 
     // Fetch field configuration
     const { getVisibleFields, isLoading: loadingFields } = useFieldConfig()
@@ -415,7 +422,7 @@ interface CollapsibleWidgetSectionProps {
 }
 
 function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: CollapsibleWidgetSectionProps) {
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = useState(!section.default_collapsed)
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
     if (!isExpanded) {

@@ -4,7 +4,7 @@ import { useProductContext } from '../../../hooks/useProductContext'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig'
 import PhaseFieldConfigPanel from './PhaseFieldConfigPanel'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square, ChevronsUpDown } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -208,6 +208,21 @@ export default function SectionManager() {
         }
     }
 
+    const handleToggleCollapsed = async (section: Section) => {
+        try {
+            await updateSection.mutateAsync({
+                id: section.id,
+                default_collapsed: !section.default_collapsed
+            })
+            toast({
+                title: section.default_collapsed ? 'Seção inicia expandida' : 'Seção inicia retraída',
+                type: 'success'
+            })
+        } catch (err: unknown) {
+            toast({ title: 'Erro ao alterar estado inicial', description: err instanceof Error ? err.message : 'Erro desconhecido', type: 'error' })
+        }
+    }
+
     const startEdit = (section: Section) => {
         setEditingId(section.id)
         setFormData({
@@ -366,6 +381,7 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    onToggleCollapsed={handleToggleCollapsed}
                     stages={stages}
                     phases={phases}
                 />
@@ -382,6 +398,7 @@ export default function SectionManager() {
                     onEdit={startEdit}
                     onDelete={handleDelete}
                     onToggleActive={handleToggleActive}
+                    onToggleCollapsed={handleToggleCollapsed}
                     stages={stages}
                     phases={phases}
                 />
@@ -402,11 +419,12 @@ interface SectionColumnProps {
     onEdit: (section: Section) => void
     onDelete: (section: Section) => void
     onToggleActive: (section: Section) => void
+    onToggleCollapsed: (section: Section) => void
     stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
     phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
 }
 
-function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, stages, phases }: SectionColumnProps) {
+function SectionColumn({ label, position, activeSections, inactiveSections, sensors, editingId, onDragEnd, onEdit, onDelete, onToggleActive, onToggleCollapsed, stages, phases }: SectionColumnProps) {
     const totalCount = activeSections.length + inactiveSections.length
 
     return (
@@ -438,6 +456,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                             onEdit={() => onEdit(section)}
                                             onDelete={() => onDelete(section)}
                                             onToggleActive={() => onToggleActive(section)}
+                                            onToggleCollapsed={() => onToggleCollapsed(section)}
                                             stages={stages}
                                             phases={phases}
                                         />
@@ -462,6 +481,7 @@ function SectionColumn({ label, position, activeSections, inactiveSections, sens
                                     onEdit={() => onEdit(section)}
                                     onDelete={() => onDelete(section)}
                                     onToggleActive={() => onToggleActive(section)}
+                                    onToggleCollapsed={() => onToggleCollapsed(section)}
                                     stages={stages}
                                     phases={phases}
                                 />
@@ -597,11 +617,12 @@ interface SortableSectionCardProps {
     onEdit: () => void
     onDelete: () => void
     onToggleActive: () => void
+    onToggleCollapsed: () => void
     stages: { id: string; nome: string; phase_id: string | null; fase: string }[]
     phases: { id: string; slug: string | null; name: string; color?: string | null; visible_in_card?: boolean | null }[]
 }
 
-function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, stages, phases }: SortableSectionCardProps) {
+function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleActive, onToggleCollapsed, stages, phases }: SortableSectionCardProps) {
     const isHardcoded = HARDCODED_SECTION_KEYS.includes(section.key)
     const isInactive = !section.active
 
@@ -672,6 +693,9 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                     {section.is_system && !isHardcoded && !isInactive && (
                         <Badge variant="outline" className="text-[10px] py-0 px-1.5">SISTEMA</Badge>
                     )}
+                    {section.default_collapsed && !isInactive && (
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-600 bg-amber-50">RETRAÍDA</Badge>
+                    )}
                     {section.is_governable && !isInactive && (
                         <Badge variant="secondary" className="text-[10px] py-0 px-1.5">Governavel</Badge>
                     )}
@@ -693,6 +717,20 @@ function SortableSectionCard({ section, isEditing, onEdit, onDelete, onToggleAct
                         title={isInactive ? "Ativar seção" : "Desativar seção (oculta para todos)"}
                     >
                         {isInactive ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
+                    </button>
+                )}
+                {!isHardcoded && !isInactive && (
+                    <button
+                        onClick={onToggleCollapsed}
+                        className={cn(
+                            "p-1.5 rounded transition-colors",
+                            section.default_collapsed
+                                ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                                : "text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-50"
+                        )}
+                        title={section.default_collapsed ? "Inicia retraída (clique para expandir por padrão)" : "Inicia expandida (clique para retrair por padrão)"}
+                    >
+                        <ChevronsUpDown className="w-4 h-4" />
                     </button>
                 )}
                 <button

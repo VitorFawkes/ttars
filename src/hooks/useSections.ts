@@ -19,7 +19,15 @@ export interface Section {
     widget_component: string | null
     /** Product scope: NULL = shared across all products */
     produto: string | null
+    /** When true, section starts collapsed in card detail (column may not exist in generated types yet) */
+    default_collapsed: boolean
 }
+
+// Helper: cast DB rows to Section (handles columns not yet in generated types)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toSections = (data: any[]): Section[] => data as Section[]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toSection = (data: any): Section => data as Section
 
 export type SectionPosition = 'left_column' | 'right_column'
 
@@ -48,7 +56,7 @@ export function useSections(produto?: string) {
 
             const { data, error } = await query
             if (error) throw error
-            return data as Section[]
+            return toSections(data || [])
         },
         staleTime: 1000 * 30
     })
@@ -134,7 +142,7 @@ export function useAllSections(produto?: string) {
 
             const { data, error } = await query
             if (error) throw error
-            return data as Section[]
+            return toSections(data || [])
         },
         staleTime: 1000 * 30
     })
@@ -161,6 +169,7 @@ interface UpdateSectionInput {
     order_index?: number
     is_governable?: boolean
     active?: boolean
+    default_collapsed?: boolean
 }
 
 /**
@@ -195,7 +204,7 @@ export function useSectionMutations() {
                 .single()
 
             if (error) throw error
-            return data as Section
+            return toSection(data)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sections'] })
@@ -214,7 +223,7 @@ export function useSectionMutations() {
                 .single()
 
             if (error) throw error
-            return data as Section
+            return toSection(data)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['sections'] })

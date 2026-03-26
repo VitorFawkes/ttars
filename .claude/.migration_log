@@ -178,3 +178,4 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-26T13:27:06Z | supabase/migrations/20260327_premium_gifts.sql | applied_to_prod
 2026-03-26T14:24:47Z | supabase/migrations/20260326_require_nome_sobrenome_telefone.sql | applied_to_prod
 2026-03-26T14:56:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_add_is_secondary_to_stage_field_config.sql | applied_to_prod
+2026-03-26T15:27:52Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_add_default_collapsed_to_sections.sql | applied_to_prod
