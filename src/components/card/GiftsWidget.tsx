@@ -442,8 +442,7 @@ function KitBuilder({
                                 ))}
                             </div>
 
-                            {/* Custom item inline */}
-                            {!showCustomForm ? (
+                            {!showCustomForm && (
                                 <button
                                     onClick={() => { setShowCustomForm(true); setShowCatalog(false) }}
                                     className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-pink-300 rounded-lg text-[11px] font-medium text-pink-500 hover:bg-pink-50/50 transition-colors"
@@ -451,39 +450,42 @@ function KitBuilder({
                                     <PenLine className="h-3 w-3" />
                                     Item avulso (fora do estoque)
                                 </button>
-                            ) : (
-                                <div className="flex items-center gap-2 p-2 border border-pink-200 bg-pink-50/50 rounded-lg">
-                                    <input
-                                        type="text"
-                                        placeholder="Nome..."
-                                        value={customName}
-                                        onChange={e => setCustomName(e.target.value)}
-                                        className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
-                                        autoFocus
-                                    />
-                                    <div className="w-20 shrink-0">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            placeholder="R$"
-                                            value={customPrice || ''}
-                                            onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
-                                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={addCustomItem}
-                                        disabled={!customName.trim()}
-                                        className="px-2 py-1 bg-pink-600 text-white text-[11px] font-medium rounded hover:bg-pink-700 disabled:opacity-50 shrink-0"
-                                    >
-                                        <Plus className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={() => { setShowCustomForm(false); setShowCatalog(true); setCustomName(''); setCustomPrice(0) }} className="text-slate-400 hover:text-slate-600">
-                                        <X className="h-3 w-3" />
-                                    </button>
-                                </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Custom item form (outside catalog so it stays visible) */}
+                    {showCustomForm && (
+                        <div className="flex items-center gap-2 p-2 border border-pink-200 bg-pink-50/50 rounded-lg">
+                            <input
+                                type="text"
+                                placeholder="Nome..."
+                                value={customName}
+                                onChange={e => setCustomName(e.target.value)}
+                                className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
+                                autoFocus
+                            />
+                            <div className="w-20 shrink-0">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="R$"
+                                    value={customPrice || ''}
+                                    onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
+                                />
+                            </div>
+                            <button
+                                onClick={addCustomItem}
+                                disabled={!customName.trim()}
+                                className="px-2 py-1 bg-pink-600 text-white text-[11px] font-medium rounded hover:bg-pink-700 disabled:opacity-50 shrink-0"
+                            >
+                                <Plus className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => { setShowCustomForm(false); setShowCatalog(true); setCustomName(''); setCustomPrice(0) }} className="text-slate-400 hover:text-slate-600">
+                                <X className="h-3 w-3" />
+                            </button>
                         </div>
                     )}
 
