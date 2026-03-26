@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-25
+> **Last Updated:** 2026-03-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 127 tabelas | 41 paginas | 91 hooks | 17 views | 414 components
+> **Stats:** 127 tabelas | 42 paginas | 95 hooks | 17 views | 422 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **91 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **95 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -212,11 +212,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Other
 | Hook | File |
 |------|------|
+| `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
 | `useApiKeys()` | `useApiKeys.ts` |
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
+| `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
+| `useGiftMetrics()` | `useGiftMetrics.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
 | `useInventoryMovements()` | `useInventoryMovements.ts` |
 | `useInventoryProducts()` | `useInventoryProducts.ts` |
@@ -232,6 +235,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `useNotifications()` | `useNotifications.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
 | `useProducts()` | `useProducts.ts` |
 | `usePushNotifications()` | `usePushNotifications.ts` |
@@ -335,7 +339,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **42 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -353,6 +357,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `MondePreviewPage` | `src/pages/MondePreviewPage.tsx` |
 | `People` | `src/pages/People.tsx` |
 | `Pipeline` | `src/pages/Pipeline.tsx` |
+| `PresentesHubPage` | `src/pages/PresentesHubPage.tsx` |
 | `ProposalBuilder` | `src/pages/ProposalBuilder.tsx` |
 | `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` |
 | `ProposalBuilderV3` | `src/pages/ProposalBuilderV3.tsx` |

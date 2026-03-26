@@ -79,7 +79,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
                     product_id: input.productId,
                     quantity: -input.quantity,
                     movement_type: 'saida_gift',
-                    reason: `Presente para card ${cardId}`,
+                    reason: cardId ? `Presente para card ${cardId}` : `Presente avulso`,
                     reference_id: item.id,
                     performed_by: profile?.id,
                 })
@@ -125,7 +125,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
                         product_id: item.product_id,
                         quantity: item.quantity,
                         movement_type: 'devolucao',
-                        reason: `Removido do presente card ${cardId}`,
+                        reason: cardId ? `Removido do presente card ${cardId}` : `Removido do presente avulso`,
                         reference_id: item.id,
                         performed_by: profile?.id,
                     })
@@ -209,6 +209,7 @@ export function useCardGifts(cardId: string) {
                 .insert({
                     card_id: cardId,
                     contato_id: input.contatoId,
+                    gift_type: 'trip',
                     assigned_by: profile?.id,
                     scheduled_ship_date: input.scheduledShipDate || null,
                     budget: input.budget || null,
@@ -263,6 +264,7 @@ export function useCardGifts(cardId: string) {
                         .insert({
                             card_id: cardId,
                             contato_id: contact.id,
+                            gift_type: 'trip',
                             assigned_by: profile?.id,
                             scheduled_ship_date: input.scheduledShipDate || null,
                         })
@@ -306,7 +308,7 @@ export function useCardGifts(cardId: string) {
                                 product_id: item.productId,
                                 quantity: -item.quantity,
                                 movement_type: 'saida_gift',
-                                reason: `Presente para card ${cardId} — ${contact.name}`,
+                                reason: cardId ? `Presente para card ${cardId} — ${contact.name}` : `Presente — ${contact.name}`,
                                 reference_id: giftItem.id,
                                 performed_by: profile?.id,
                             })
@@ -387,7 +389,7 @@ export function useCardGifts(cardId: string) {
                         product_id: item.product_id,
                         quantity: item.quantity,
                         movement_type: 'devolucao',
-                        reason: `Gift cancelado - card ${cardId}`,
+                        reason: cardId ? `Gift cancelado - card ${cardId}` : `Gift cancelado`,
                         reference_id: item.id,
                         performed_by: profile?.id,
                     })
