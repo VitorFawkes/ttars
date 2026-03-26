@@ -14,6 +14,7 @@ export interface FieldConfigResult {
     isVisible: boolean
     isRequired: boolean
     isHeader: boolean
+    isSecondary: boolean
     customLabel?: string | null
     options?: Json
 }
@@ -91,6 +92,7 @@ export function useFieldConfig() {
             isVisible: stageConfig?.is_visible ?? sectionDefault?.is_visible ?? true,
             isRequired: stageConfig?.is_required ?? sectionDefault?.is_required ?? false,
             isHeader: stageConfig?.show_in_header ?? false,
+            isSecondary: (stageConfig as StageFieldConfig & { is_secondary?: boolean })?.is_secondary ?? false,
             customLabel: stageConfig?.custom_label,
             options: field.options
         }

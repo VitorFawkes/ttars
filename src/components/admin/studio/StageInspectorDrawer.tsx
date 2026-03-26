@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check, Layers } from 'lucide-react';
+import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check, Layers, ChevronsDown } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
 import { useProductContext } from '../../../hooks/useProductContext';
@@ -145,23 +145,30 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
         return configs?.find(c => c.field_key === fieldKey);
     };
 
-    const handleToggle = (fieldKey: string, type: 'visible' | 'required' | 'header') => {
+    const handleToggle = (fieldKey: string, type: 'visible' | 'required' | 'header' | 'secondary') => {
         if (!stage) return;
         const current = getConfig(fieldKey);
 
-        const nextValue = {
+        const nextValue: Record<string, unknown> = {
             stage_id: stage.id,
             field_key: fieldKey,
             is_visible: current?.is_visible ?? true,
             is_required: current?.is_required ?? false,
-            show_in_header: current?.show_in_header ?? false
+            show_in_header: current?.show_in_header ?? false,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+            is_secondary: (current as any)?.is_secondary ?? false
         };
 
-        if (type === 'visible') nextValue.is_visible = !nextValue.is_visible;
+        if (type === 'visible') {
+            nextValue.is_visible = !nextValue.is_visible;
+            // If hiding, also turn off secondary
+            if (!nextValue.is_visible) nextValue.is_secondary = false;
+        }
         if (type === 'required') nextValue.is_required = !nextValue.is_required;
         if (type === 'header') nextValue.show_in_header = !nextValue.show_in_header;
+        if (type === 'secondary') nextValue.is_secondary = !nextValue.is_secondary;
 
-        upsertConfigMutation.mutate(nextValue);
+        upsertConfigMutation.mutate(nextValue as Partial<StageFieldConfig>);
     };
 
     if (!isOpen) return null;
@@ -439,6 +446,22 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                             >
                                                 {isRequired ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                                             </button>
+                                            {isVisible && (
+                                                <button
+                                                    onClick={() => handleToggle(field.key, 'secondary')}
+                                                    className={cn(
+                                                        "p-1.5 rounded transition-colors",
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                                                        (config as any)?.is_secondary
+                                                            ? "text-amber-500 bg-amber-50"
+                                                            : "text-gray-300 hover:bg-gray-200"
+                                                    )}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                                                    title={(config as any)?.is_secondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
+                                                >
+                                                    <ChevronsDown className="w-4 h-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );

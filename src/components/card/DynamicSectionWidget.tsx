@@ -17,6 +17,9 @@ import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
+import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { useProductContext } from '../../hooks/useProductContext'
+import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
@@ -407,9 +410,11 @@ export default function DynamicSectionWidget({
 interface CollapsibleWidgetSectionProps {
     section: Section
     card: Card
+    /** When set, forwarded to widget as lockedPhaseSlug (used by TripInformation) */
+    lockedPhaseSlug?: string
 }
 
-function CollapsibleWidgetSection({ section, card }: CollapsibleWidgetSectionProps) {
+function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: CollapsibleWidgetSectionProps) {
     const [isExpanded, setIsExpanded] = useState(true)
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
@@ -424,6 +429,7 @@ function CollapsibleWidgetSection({ section, card }: CollapsibleWidgetSectionPro
             card={card}
             isExpanded={isExpanded}
             onToggleCollapse={onToggleCollapse}
+            lockedPhaseSlug={lockedPhaseSlug}
         />
     )
 }
@@ -451,6 +457,15 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
     // Stage-based section visibility
     const { isSectionVisible } = useStageSectionConfig()
     const stageId = card.pipeline_stage_id
+
+    // Pipeline phases — used to expand trip_info into per-phase sections
+    const { currentProduct } = useProductContext()
+    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
+    const { data: pipelinePhases } = usePipelinePhases(pipelineId)
+
+    const visiblePhases = useMemo(() => {
+        return (pipelinePhases || []).filter(p => p.active && p.visible_in_card !== false)
+    }, [pipelinePhases])
 
     const positionedSections = useMemo(() => {
         return sections
@@ -482,6 +497,19 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
             {positionedSections.map(section => {
                 // Widget-based sections
                 if (section.widget_component && WIDGET_REGISTRY[section.widget_component]) {
+
+                    // trip_info → expand into one section per visible phase
+                    if (section.widget_component === 'trip_info' && visiblePhases.length > 0) {
+                        return visiblePhases.map(phase => (
+                            <CollapsibleWidgetSection
+                                key={`${section.key}_${phase.slug}`}
+                                section={{ ...section, label: `Informações Viagem — ${phase.label || phase.name}` }}
+                                card={card}
+                                lockedPhaseSlug={phase.slug!}
+                            />
+                        ))
+                    }
+
                     return (
                         <CollapsibleWidgetSection
                             key={section.key}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Tag, Check, Plane, FileCheck, Loader2, X } from 'lucide-react'
+import { Tag, Check, Plane, FileCheck, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 
 import { supabase } from '../../lib/supabase'
@@ -54,6 +54,8 @@ interface TripInformationProps {
     /** Collapse support — passed by CollapsibleWidgetSection */
     isExpanded?: boolean
     onToggleCollapse?: () => void
+    /** When set, locks to this phase (no tabs, no header — parent handles title) */
+    lockedPhaseSlug?: string
 }
 
 type ViewMode = string
@@ -144,7 +146,7 @@ function EditModal({ isOpen, onClose, onSave, title, children, isSaving }: EditM
 // TripInformation — display cards + popup edit
 // ═══════════════════════════════════════════════════════════
 
-export default function TripInformation({ card, isExpanded: _isExpanded, onToggleCollapse }: TripInformationProps) {
+export default function TripInformation({ card, isExpanded: _isExpanded, onToggleCollapse, lockedPhaseSlug }: TripInformationProps) {
     const productData = useMemo(() => {
         if (typeof card.produto_data === 'string') {
             try {
@@ -180,8 +182,9 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: stages } = usePipelineStages(pipelineId)
 
-    // Derive current phase from card stage (must be before viewMode useState)
+    // Derive current phase from card stage (used when no lockedPhaseSlug)
     const derivedViewMode = useMemo(() => {
+        if (lockedPhaseSlug) return lockedPhaseSlug
         if (!phases || !stages) return SystemPhase.SDR
         const currentStage = stages.find(s => s.id === card.pipeline_stage_id)
         const phaseName = currentStage?.fase
@@ -191,7 +194,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         }
         const sdrPhase = phases.find(p => p.slug === SystemPhase.SDR)
         return (sdrPhase && sdrPhase.slug) ? sdrPhase.slug : SystemPhase.SDR
-    }, [card.pipeline_stage_id, phases, stages])
+    }, [card.pipeline_stage_id, phases, stages, lockedPhaseSlug])
 
     const [viewMode, setViewMode] = useState<ViewMode>(derivedViewMode)
 
@@ -199,7 +202,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     const [editingField, setEditingField] = useState<string | null>(null)
     const [editValue, setEditValue] = useState<unknown>(null)
 
-    // Sync viewMode when card changes stage (render-time pattern)
+    // Sync viewMode when card changes stage or lockedPhaseSlug changes
     const [prevDerivedMode, setPrevDerivedMode] = useState(derivedViewMode)
     if (prevDerivedMode !== derivedViewMode) {
         setPrevDerivedMode(derivedViewMode)
@@ -231,6 +234,11 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         if (!targetStageId) return []
         return getVisibleFields(targetStageId, 'trip_info')
     }, [viewModeStageId, card.pipeline_stage_id, getVisibleFields])
+
+    // Split fields into primary and secondary
+    const primaryFields = useMemo(() => visibleFields.filter(f => !f.isSecondary), [visibleFields])
+    const secondaryFields = useMemo(() => visibleFields.filter(f => f.isSecondary), [visibleFields])
+    const [showSecondary, setShowSecondary] = useState(false)
 
     // Determine which data to display/edit based on ViewMode
     const activeData: TripsProdutoData = viewMode === SystemPhase.SDR ? briefingData : productData
@@ -363,7 +371,151 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     // Get the field being edited
     const editingFieldConfig = editingField ? visibleFields.find(f => f.key === editingField) : null
 
+    // --- Helper: render field grid with secondary support ---
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const renderFieldsGrid = (fieldList: any[]) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {fieldList.map(field => {
+                const status = getFieldStatus(field.key)
+                return (
+                    <UniversalFieldRenderer
+                        key={field.key}
+                        field={{
+                            key: field.key,
+                            label: field.label,
+                            type: field.type,
+                            options: field.options
+                        }}
+                        value={activeData[field.key]}
+                        mode="display"
+                        status={status}
+                        onEdit={() => handleFieldEdit(field.key)}
+                        cardId={card.id}
+                        showLockButton
+                        extraData={field.key === 'numero_venda_monde' ? activeData : undefined}
+                    />
+                )
+            })}
+        </div>
+    )
+
+    const renderSecondaryToggle = () => {
+        if (secondaryFields.length === 0) return null
+        return (
+            <>
+                <button
+                    onClick={() => setShowSecondary(prev => !prev)}
+                    className="flex items-center gap-1.5 mt-2 px-1 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors w-full"
+                >
+                    {showSecondary ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                    {showSecondary
+                        ? 'Ocultar detalhes'
+                        : `Ver mais ${secondaryFields.length} campo${secondaryFields.length > 1 ? 's' : ''}`
+                    }
+                </button>
+                {showSecondary && (
+                    <div className="mt-1.5 pt-1.5 border-t border-dashed border-gray-200">
+                        {renderFieldsGrid(secondaryFields)}
+                    </div>
+                )}
+            </>
+        )
+    }
+
     // --- RENDER ---
+
+    // When locked to a phase, render with header but no tabs
+    if (lockedPhaseSlug) {
+        const lockedPhase = phases?.find(p => p.slug === lockedPhaseSlug)
+        const phaseLabel = lockedPhase?.label || lockedPhase?.name || lockedPhaseSlug
+
+        // Map phase.color (e.g. "bg-blue-500") to header color variants
+        // Using explicit classes so Tailwind doesn't purge them
+        const PHASE_COLOR_MAP: Record<string, { bg: string, border: string, text: string, dot: string }> = {
+            'bg-blue-500':   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   dot: 'bg-blue-500' },
+            'bg-purple-500': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', dot: 'bg-purple-500' },
+            'bg-green-500':  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  dot: 'bg-green-500' },
+            'bg-red-500':    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    dot: 'bg-red-500' },
+            'bg-indigo-500': { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', dot: 'bg-indigo-500' },
+            'bg-teal-500':   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   dot: 'bg-teal-500' },
+            'bg-orange-500': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', dot: 'bg-orange-500' },
+            'bg-pink-500':   { bg: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-700',   dot: 'bg-pink-500' },
+        }
+        const phaseColor = lockedPhase?.color || 'bg-gray-500'
+        const colors = PHASE_COLOR_MAP[phaseColor] || { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', dot: 'bg-gray-500' }
+        const { bg: headerBg, border: headerBorder, text: titleColor, dot: dotColor } = colors
+
+        return (
+            <div className={cn("rounded-xl border bg-white shadow-sm overflow-hidden transition-all duration-500", headerBorder)}>
+                {/* HEADER — colored by phase */}
+                <div className={cn("border-b px-3 py-2", headerBorder, headerBg)}>
+                    <div
+                        className={cn("flex items-center justify-between", onToggleCollapse && "cursor-pointer")}
+                        onClick={onToggleCollapse}
+                    >
+                        <h3 className={cn("text-xs font-semibold flex items-center gap-2", titleColor)}>
+                            <div className={cn("w-2 h-2 rounded-full", dotColor)} />
+                            Informações Viagem — {phaseLabel}
+                        </h3>
+
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                            {onToggleCollapse && (
+                                <SectionCollapseToggle isExpanded={_isExpanded ?? true} onToggle={onToggleCollapse} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* CONTENT */}
+                <div className="p-3">
+                    {visibleFields.length === 0 && (
+                        <div className="text-center py-8 text-gray-500 italic">
+                            Nenhum campo configurado para esta fase.
+                            <br />
+                            <span className="text-xs">Configure na Matriz de Governança (Seção: Informações da Viagem).</span>
+                        </div>
+                    )}
+
+                    {renderFieldsGrid(primaryFields)}
+                    {renderSecondaryToggle()}
+                </div>
+
+                <EditModal
+                    isOpen={!!editingFieldConfig}
+                    onClose={handleCloseModal}
+                    onSave={handleFieldSave}
+                    title={editingFieldConfig?.label || ''}
+                    isSaving={updateCardMutation.isPending}
+                >
+                    {editingFieldConfig && (
+                        <UniversalFieldRenderer
+                            field={{
+                                key: editingFieldConfig.key,
+                                label: editingFieldConfig.label,
+                                type: editingFieldConfig.type,
+                                options: editingFieldConfig.options
+                            }}
+                            value={editValue}
+                            mode="edit"
+                            onChange={(val) => setEditValue(val)}
+                            extraData={editingFieldConfig.key === 'numero_venda_monde'
+                                ? (typeof editValue === 'object' && editValue !== null && 'historico' in (editValue as Record<string, unknown>)
+                                    ? { ...activeData, numeros_venda_monde_historico: (editValue as { historico: unknown[] }).historico }
+                                    : activeData)
+                                : undefined
+                            }
+                        />
+                    )}
+                </EditModal>
+            </div>
+        )
+    }
+
+    // --- RENDER with tabs (legacy, when no lockedPhaseSlug) ---
     return (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden transition-all duration-500">
 
@@ -429,30 +581,8 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {visibleFields.map(field => {
-                        const status = getFieldStatus(field.key)
-
-                        return (
-                            <UniversalFieldRenderer
-                                key={field.key}
-                                field={{
-                                    key: field.key,
-                                    label: field.label,
-                                    type: field.type,
-                                    options: field.options
-                                }}
-                                value={activeData[field.key]}
-                                mode="display"
-                                status={status}
-                                onEdit={() => handleFieldEdit(field.key)}
-                                cardId={card.id}
-                                showLockButton
-                                extraData={field.key === 'numero_venda_monde' ? activeData : undefined}
-                            />
-                        )
-                    })}
-                </div>
+                {renderFieldsGrid(primaryFields)}
+                {renderSecondaryToggle()}
             </div>
 
             {/* EDIT MODAL */}

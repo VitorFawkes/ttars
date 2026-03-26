@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useToast } from '../../../contexts/ToastContext'
-import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 interface PhaseFieldConfigPanelProps {
@@ -60,13 +60,15 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                 const cfg = stageConfigs.find(c => c.stage_id === s.id && c.field_key === field.key)
                 return {
                     is_visible: cfg?.is_visible ?? null,
-                    is_required: cfg?.is_required ?? null
+                    is_required: cfg?.is_required ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                    is_secondary: (cfg as any)?.is_secondary ?? null
                 }
             })
             // Check if all configs are the same
             const first = configs[0]
             const allSame = configs.every(c =>
-                c.is_visible === first.is_visible && c.is_required === first.is_required
+                c.is_visible === first.is_visible && c.is_required === first.is_required && c.is_secondary === first.is_secondary
             )
             if (!allSame) divergent.add(field.key)
         }
@@ -77,18 +79,20 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
     const getFieldState = useCallback((fieldKey: string) => {
         if (!stageConfigs || !representativeStageId) return { isVisible: true, isRequired: false, hasOverride: false }
         const cfg = stageConfigs.find(c => c.stage_id === representativeStageId && c.field_key === fieldKey)
-        if (!cfg) return { isVisible: true, isRequired: false, hasOverride: false }
-        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, hasOverride: true }
+        if (!cfg) return { isVisible: true, isRequired: false, isSecondary: false, hasOverride: false }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, isSecondary: (cfg as any)?.is_secondary ?? false, hasOverride: true }
     }, [stageConfigs, representativeStageId])
 
     // Batch upsert mutation — applies to ALL stages of the phase
     const batchUpsertMutation = useMutation({
-        mutationFn: async ({ fieldKey, isVisible, isRequired }: { fieldKey: string; isVisible: boolean; isRequired: boolean }) => {
+        mutationFn: async ({ fieldKey, isVisible, isRequired, isSecondary }: { fieldKey: string; isVisible: boolean; isRequired: boolean; isSecondary: boolean }) => {
             const rows = phaseStages.map(s => ({
                 stage_id: s.id,
                 field_key: fieldKey,
                 is_visible: isVisible,
                 is_required: isRequired,
+                is_secondary: isSecondary,
                 show_in_header: false
             }))
 
@@ -119,7 +123,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 
             const repConfigs = stageConfigs.filter(c => c.stage_id === representativeStageId)
 
-            const rows: { stage_id: string; field_key: string; is_visible: boolean; is_required: boolean; show_in_header: boolean }[] = []
+            const rows: { stage_id: string; field_key: string; is_visible: boolean; is_required: boolean; is_secondary: boolean; show_in_header: boolean }[] = []
             for (const s of phaseStages) {
                 if (s.id === representativeStageId) continue
                 for (const field of sectionFields) {
@@ -129,6 +133,8 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         field_key: field.key,
                         is_visible: repCfg?.is_visible ?? true,
                         is_required: repCfg?.is_required ?? false,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                        is_secondary: (repCfg as any)?.is_secondary ?? false,
                         show_in_header: false
                     })
                 }
@@ -174,10 +180,13 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 
     const handleToggleVisible = useCallback((fieldKey: string) => {
         const state = getFieldState(fieldKey)
+        const newVisible = !state.isVisible
         batchUpsertMutation.mutate({
             fieldKey,
-            isVisible: !state.isVisible,
-            isRequired: state.isRequired
+            isVisible: newVisible,
+            isRequired: state.isRequired,
+            // If hiding, also turn off secondary
+            isSecondary: newVisible ? state.isSecondary : false
         })
     }, [getFieldState, batchUpsertMutation])
 
@@ -186,7 +195,18 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         batchUpsertMutation.mutate({
             fieldKey,
             isVisible: state.isVisible,
-            isRequired: !state.isRequired
+            isRequired: !state.isRequired,
+            isSecondary: state.isSecondary
+        })
+    }, [getFieldState, batchUpsertMutation])
+
+    const handleToggleSecondary = useCallback((fieldKey: string) => {
+        const state = getFieldState(fieldKey)
+        batchUpsertMutation.mutate({
+            fieldKey,
+            isVisible: state.isVisible,
+            isRequired: state.isRequired,
+            isSecondary: !state.isSecondary
         })
     }, [getFieldState, batchUpsertMutation])
 
@@ -324,6 +344,21 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                                     >
                                         {state.isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
                                     </button>
+                                    {state.isVisible && (
+                                        <button
+                                            onClick={() => handleToggleSecondary(field.key)}
+                                            disabled={batchUpsertMutation.isPending}
+                                            className={cn(
+                                                "p-1 rounded transition-colors",
+                                                state.isSecondary
+                                                    ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                                                    : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                            )}
+                                            title={state.isSecondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
+                                        >
+                                            <ChevronsDown className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                     <span className={cn(
                                         "text-xs truncate flex-1",
                                         !state.isVisible ? "text-muted-foreground line-through" : "text-foreground"
