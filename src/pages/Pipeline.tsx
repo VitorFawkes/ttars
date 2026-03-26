@@ -12,7 +12,9 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, ArrowUpDown, Calendar, Clock, CheckSquare, Search, Eye, EyeOff } from 'lucide-react'
+import { Filter, Link, User, ArrowUpDown, Search, Eye, EyeOff } from 'lucide-react'
+import { SORT_FIELD_LABELS } from '../lib/constants'
+import type { SortBy, SortDirection } from '../hooks/usePipelineFilters'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -75,19 +77,21 @@ export default function Pipeline() {
     const getSortLabel = () => {
         const { sortBy, sortDirection } = filters
         if (!sortBy) return 'Ordenar'
+        const meta = SORT_FIELD_LABELS[sortBy]
+        if (!meta) return 'Ordenar'
+        const dirLabel = sortDirection === 'asc' ? meta.asc : meta.desc
+        return `${meta.label} (${dirLabel})`
+    }
 
-        switch (sortBy) {
-            case 'created_at':
-                return sortDirection === 'asc' ? 'Criação (Antigos)' : 'Criação (Novos)'
-            case 'updated_at':
-                return sortDirection === 'asc' ? 'Atualização (Antigos)' : 'Atualização (Recentes)'
-            case 'data_viagem_inicio':
-                return sortDirection === 'asc' ? 'Viagem (Próximas)' : 'Viagem (Distantes)'
-            case 'data_proxima_tarefa':
-                return sortDirection === 'asc' ? 'Tarefa (Urgentes)' : 'Tarefa (Futuras)'
-            default:
-                return 'Ordenar'
-        }
+    const GLOBAL_SORT_FIELDS: SortBy[] = [
+        'created_at', 'updated_at', 'data_viagem_inicio', 'data_fechamento',
+        'titulo', 'valor_estimado', 'tempo_etapa_dias', 'data_proxima_tarefa',
+    ]
+
+    const getDefaultDirection = (field: SortBy): SortDirection => {
+        if (field === 'titulo' || field === 'valor_estimado' || field === 'tempo_etapa_dias') return 'asc'
+        if (field === 'created_at' || field === 'updated_at') return 'desc'
+        return 'asc'
     }
 
     return (
@@ -246,52 +250,34 @@ export default function Pipeline() {
                                         </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-72">
-                                        <DropdownMenuLabel>Ordenar por</DropdownMenuLabel>
+                                        <DropdownMenuLabel>Ordenar por (global)</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="flex items-center justify-between cursor-pointer" onClick={() => setFilters({ ...filters, sortBy: 'created_at', sortDirection: 'desc' })}>
-                                            <div className="flex items-center">
-                                                <Calendar className="mr-2 h-4 w-4 text-gray-400" />
-                                                <span>Data de Criação</span>
-                                            </div>
-                                            {filters.sortBy === 'created_at' && (
-                                                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                    {filters.sortDirection === 'asc' ? 'Antigos' : 'Novos'}
-                                                </span>
-                                            )}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="flex items-center justify-between cursor-pointer" onClick={() => setFilters({ ...filters, sortBy: 'updated_at', sortDirection: 'desc' })}>
-                                            <div className="flex items-center">
-                                                <Clock className="mr-2 h-4 w-4 text-gray-400" />
-                                                <span>Última Atualização</span>
-                                            </div>
-                                            {filters.sortBy === 'updated_at' && (
-                                                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                    {filters.sortDirection === 'asc' ? 'Antigos' : 'Recentes'}
-                                                </span>
-                                            )}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="flex items-center justify-between cursor-pointer" onClick={() => setFilters({ ...filters, sortBy: 'data_viagem_inicio', sortDirection: 'asc' })}>
-                                            <div className="flex items-center">
-                                                <Calendar className="mr-2 h-4 w-4 text-gray-400" />
-                                                <span>Data da Viagem</span>
-                                            </div>
-                                            {filters.sortBy === 'data_viagem_inicio' && (
-                                                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                    {filters.sortDirection === 'asc' ? 'Próximas' : 'Distantes'}
-                                                </span>
-                                            )}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="flex items-center justify-between cursor-pointer" onClick={() => setFilters({ ...filters, sortBy: 'data_proxima_tarefa', sortDirection: 'asc' })}>
-                                            <div className="flex items-center">
-                                                <CheckSquare className="mr-2 h-4 w-4 text-gray-400" />
-                                                <span>Próxima Tarefa</span>
-                                            </div>
-                                            {filters.sortBy === 'data_proxima_tarefa' && (
-                                                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                                                    {filters.sortDirection === 'asc' ? 'Urgentes' : 'Futuras'}
-                                                </span>
-                                            )}
-                                        </DropdownMenuItem>
+                                        {GLOBAL_SORT_FIELDS.map((field) => {
+                                            const meta = SORT_FIELD_LABELS[field]
+                                            if (!meta) return null
+                                            const isActive = filters.sortBy === field
+                                            const dirLabel = filters.sortDirection === 'asc' ? meta.asc : meta.desc
+                                            return (
+                                                <DropdownMenuItem
+                                                    key={field}
+                                                    className="flex items-center justify-between cursor-pointer"
+                                                    onClick={() => {
+                                                        if (isActive) {
+                                                            setFilters({ ...filters, sortBy: field, sortDirection: filters.sortDirection === 'asc' ? 'desc' : 'asc' })
+                                                        } else {
+                                                            setFilters({ ...filters, sortBy: field, sortDirection: getDefaultDirection(field) })
+                                                        }
+                                                    }}
+                                                >
+                                                    <span>{meta.label}</span>
+                                                    {isActive && (
+                                                        <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                                            {dirLabel}
+                                                        </span>
+                                                    )}
+                                                </DropdownMenuItem>
+                                            )
+                                        })}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 

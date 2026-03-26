@@ -1,8 +1,10 @@
 import { useDroppable } from '@dnd-kit/core'
 import { cn } from '../../lib/utils'
 import KanbanCard from './KanbanCard'
+import StageSortPopover from './PhaseSortPopover'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import type { Database } from '../../database.types'
+import type { StageSortConfig } from '../../hooks/usePhaseSort'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Stage = Database['public']['Tables']['pipeline_stages']['Row']
@@ -13,9 +15,13 @@ interface KanbanColumnProps {
     phaseColor: string
     onWin?: (cardId: string) => void
     onLoss?: (cardId: string) => void
+    currentSort: StageSortConfig
+    hasSortOverride: boolean
+    onSortChange: (config: StageSortConfig) => void
+    onClearSort: () => void
 }
 
-export default function KanbanColumn({ stage, cards, phaseColor, onWin, onLoss }: KanbanColumnProps) {
+export default function KanbanColumn({ stage, cards, phaseColor, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort }: KanbanColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: stage.id,
         data: stage
@@ -44,10 +50,18 @@ export default function KanbanColumn({ stage, cards, phaseColor, onWin, onLoss }
             {/* Header with White Strip */}
             <div className="bg-white border-b border-gray-200 p-4 rounded-t-xl shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-base font-bold text-gray-800 tracking-tight">{stage.nome}</h3>
-                    <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500">
-                        {cards.length}
-                    </span>
+                    <h3 className="text-base font-bold text-gray-800 tracking-tight truncate mr-2">{stage.nome}</h3>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <StageSortPopover
+                            currentSort={currentSort}
+                            hasOverride={hasSortOverride}
+                            onSortChange={onSortChange}
+                            onClear={onClearSort}
+                        />
+                        <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500">
+                            {cards.length}
+                        </span>
+                    </div>
                 </div>
                 <div className="flex items-center justify-between">
                     <div className="h-1 w-12 rounded-full bg-primary/20"></div>

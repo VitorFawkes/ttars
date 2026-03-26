@@ -50,7 +50,7 @@ export default function KanbanPhaseGroup({
     return (
         <div className={cn(
             "relative flex shrink-0 flex-col rounded-2xl transition-all duration-300 h-full",
-            isCollapsed ? "w-48 bg-gray-50 border border-gray-200 py-2" : "bg-gray-100 p-2" // Changed collapsed styles
+            isCollapsed ? "w-48 bg-gray-50 border border-gray-200 py-2" : "bg-gray-100 p-2"
         )}>
             {/* Header - Always Visible */}
             <div
@@ -60,7 +60,7 @@ export default function KanbanPhaseGroup({
                         ? "bg-gray-100 border-gray-200 hover:bg-gray-200"
                         : "bg-white border-gray-200 shadow-sm mb-3"
                 )}
-                onClick={onToggle} // Changed to onToggle
+                onClick={onToggle}
             >
                 <div className="flex items-center gap-3">
                     <div className={cn(
@@ -70,9 +70,9 @@ export default function KanbanPhaseGroup({
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                     </div>
                     <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        {phaseName} {/* Changed from groupName to phaseName */}
+                        {phaseName}
                         <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">
-                            {totalCount} {/* Changed from cards.length to totalCount */}
+                            {totalCount}
                         </span>
                     </h3>
                 </div>

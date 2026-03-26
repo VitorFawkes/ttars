@@ -19,7 +19,6 @@ const SORT_FIELDS: SortBy[] = [
     'data_fechamento',
     'titulo',
     'valor_estimado',
-    'dias_ate_viagem',
     'tempo_etapa_dias',
     'data_proxima_tarefa',
 ]

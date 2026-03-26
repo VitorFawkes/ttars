@@ -33,6 +33,8 @@ import { ScrollArrows } from '../ui/ScrollArrows'
 import { usePipelineCards } from '../../hooks/usePipelineCards'
 import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
 import { useAuth } from '../../contexts/AuthContext'
+import { useStageSort } from '../../hooks/usePhaseSort'
+import { sortCards } from '../../lib/sortCards'
 
 type Product = Database['public']['Enums']['app_product']
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
@@ -58,8 +60,10 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
-    const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[productFilter])
+    const pipelineId = PRODUCT_PIPELINE_MAP[productFilter]
+    const { data: phasesData } = usePipelinePhases(pipelineId)
     const receitaPerm = useReceitaPermission()
+    const { getStageSortConfig, setStageSortConfig, clearStageSortConfig, hasStageSortOverride } = useStageSort(pipelineId)
 
     // Elite horizontal scroll with Shift+Wheel, Drag-to-Pan, and arrow indicators
     // Must be called before any conditional returns to respect React hooks rules
@@ -670,15 +674,21 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                 const isPosVenda = phase.slug === 'pos_venda' || phase.slug === 'resolucao'
                                                 return phaseStages.map((stage) => {
                                                     const stageCards = allCards.filter(c => c.pipeline_stage_id === stage.id)
+                                                    const stageSortConfig = getStageSortConfig(stage.id)
+                                                    const sortedStageCards = sortCards(stageCards, stageSortConfig.sortBy, stageSortConfig.sortDirection)
 
                                                     return (
                                                         <KanbanColumn
                                                             key={stage.id}
                                                             stage={stage}
-                                                            cards={stageCards}
+                                                            cards={sortedStageCards}
                                                             phaseColor={phase.color}
                                                             onWin={isPosVenda ? undefined : handleWin}
                                                             onLoss={isPosVenda ? undefined : handleLoss}
+                                                            currentSort={stageSortConfig}
+                                                            hasSortOverride={hasStageSortOverride(stage.id)}
+                                                            onSortChange={(config) => setStageSortConfig(stage.id, config)}
+                                                            onClearSort={() => clearStageSortConfig(stage.id)}
                                                         />
                                                     )
                                                 })

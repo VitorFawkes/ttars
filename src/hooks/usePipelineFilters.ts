@@ -3,7 +3,7 @@ import { create } from 'zustand'
 export type ViewMode = 'AGENT' | 'MANAGER'
 export type SubView = 'MY_QUEUE' | 'MY_ASSISTS' | 'ATTENTION' | 'TEAM_VIEW' | 'FORECAST' | 'ALL'
 
-export type SortBy = 'created_at' | 'updated_at' | 'data_viagem_inicio' | 'data_proxima_tarefa'
+export type SortBy = 'created_at' | 'updated_at' | 'data_viagem_inicio' | 'data_proxima_tarefa' | 'data_fechamento' | 'titulo' | 'valor_estimado' | 'dias_ate_viagem' | 'tempo_etapa_dias'
 export type SortDirection = 'asc' | 'desc'
 
 export interface FilterState {
