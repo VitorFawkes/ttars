@@ -610,7 +610,6 @@ function KitBuilder({
                             <div className="flex flex-wrap gap-1.5">
                                 {SHIP_PRESETS.map(preset => {
                                     const isActive = shipPreset === preset.days
-                                    const date = computeShipDate(dataEmbarque, preset.days)
                                     return (
                                         <button
                                             key={preset.days}
@@ -623,11 +622,6 @@ function KitBuilder({
                                             )}
                                         >
                                             {preset.label}
-                                            {date && (
-                                                <span className="ml-1 text-[10px] opacity-60">
-                                                    ({new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })})
-                                                </span>
-                                            )}
                                         </button>
                                     )
                                 })}
