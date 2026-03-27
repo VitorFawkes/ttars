@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cn } from "../../lib/utils"
 import { X } from "lucide-react"
 
@@ -24,13 +25,13 @@ const DialogTrigger = React.forwardRef<
 >(({ className, onClick, asChild, children, ...props }, ref) => {
     const context = React.useContext(DialogContext)
 
-    if (asChild && React.isValidElement(children)) {
-        return React.cloneElement(children as React.ReactElement<any>, {
+    if (asChild && React.isValidElement<Record<string, unknown>>(children)) {
+        const childOnClick = children.props.onClick as ((e: React.MouseEvent) => void) | undefined
+        return React.cloneElement(children, {
             onClick: (e: React.MouseEvent) => {
-                (children as any).props.onClick?.(e)
+                childOnClick?.(e)
                 context?.onOpenChange(true)
             },
-            ref
         })
     }
 
@@ -58,7 +59,7 @@ const DialogContent = React.forwardRef<
 
     if (!context?.open) return null
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in-0">
             <div className="fixed inset-0" onClick={() => context.onOpenChange(false)} />
             <div
@@ -78,7 +79,8 @@ const DialogContent = React.forwardRef<
                 </button>
                 {children}
             </div>
-        </div>
+        </div>,
+        document.body
     )
 })
 DialogContent.displayName = "DialogContent"
