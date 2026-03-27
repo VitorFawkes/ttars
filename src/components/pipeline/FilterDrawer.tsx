@@ -96,26 +96,23 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
         }))
     }
 
-    // Filtered lists based on search
-    const filteredProfiles = profiles.filter(p =>
-        (p.full_name?.toLowerCase() || '').includes(searchOwner.toLowerCase()) ||
-        (p.email?.toLowerCase() || '').includes(searchOwner.toLowerCase())
-    )
+    // Helper: filter by search text + optional phase slug
+    const filterByPhase = (list: typeof profiles, search: string, phaseSlug?: string) => {
+        return list.filter(p => {
+            // Phase filter: only show members whose team belongs to this phase
+            if (phaseSlug && p.phase_slug !== phaseSlug) return false
+            // Text search
+            if (!search) return true
+            const q = search.toLowerCase()
+            return (p.full_name?.toLowerCase() || '').includes(q) || (p.email?.toLowerCase() || '').includes(q)
+        })
+    }
 
-    const filteredSdrs = profiles.filter(p =>
-        (p.full_name?.toLowerCase() || '').includes(searchSdr.toLowerCase()) ||
-        (p.email?.toLowerCase() || '').includes(searchSdr.toLowerCase())
-    )
-
-    const filteredPlanners = profiles.filter(p =>
-        (p.full_name?.toLowerCase() || '').includes(searchPlanner.toLowerCase()) ||
-        (p.email?.toLowerCase() || '').includes(searchPlanner.toLowerCase())
-    )
-
-    const filteredPos = profiles.filter(p =>
-        (p.full_name?.toLowerCase() || '').includes(searchPos.toLowerCase()) ||
-        (p.email?.toLowerCase() || '').includes(searchPos.toLowerCase())
-    )
+    // Filtered lists: "Responsáveis" shows all, others filter by team phase
+    const filteredProfiles = filterByPhase(profiles, searchOwner)
+    const filteredSdrs = filterByPhase(profiles, searchSdr, 'sdr')
+    const filteredPlanners = filterByPhase(profiles, searchPlanner, 'planner')
+    const filteredPos = filterByPhase(profiles, searchPos, 'pos_venda')
 
     const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchTeam.toLowerCase()))
 

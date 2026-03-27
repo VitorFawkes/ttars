@@ -37,6 +37,8 @@ interface OwnerSelectorProps {
     compact?: boolean
     /** Filter users by their role_id (UUID from roles table) */
     roleId?: string
+    /** Filter users by their team_id (UUID from teams table) */
+    teamId?: string
 }
 
 export default function OwnerSelector({
@@ -49,7 +51,8 @@ export default function OwnerSelector({
     onAutoAssign,
     phaseSlug,
     compact = false,
-    roleId
+    roleId,
+    teamId
 }: OwnerSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
@@ -112,7 +115,7 @@ export default function OwnerSelector({
         }
     })
 
-    // Filter users by product, phase, and role
+    // Filter users by product, phase, role, and team
     const users = useMemo(() => {
         // Check if any team is configured for the target phase (fail-open)
         const hasTeamsForPhase = phaseSlug
@@ -120,7 +123,7 @@ export default function OwnerSelector({
             : false
 
         return allUsers.filter(user => {
-            // Admin bypass: admins pass all filters (product, phase, role)
+            // Admin bypass: admins pass all filters (product, phase, role, team)
             if (user.is_admin === true) return true
 
             // Product filter (only when product is provided)
@@ -129,6 +132,9 @@ export default function OwnerSelector({
             // Role filter: only show users with the specified role_id
             if (roleId && user.role_id !== roleId) return false
 
+            // Team filter: only show users from the specified team
+            if (teamId && user.team_id !== teamId) return false
+
             // Phase filter
             if (phaseSlug && hasTeamsForPhase) {
                 if (user.teamPhaseSlug !== phaseSlug) return false
@@ -136,7 +142,7 @@ export default function OwnerSelector({
 
             return true
         })
-    }, [allUsers, product, phaseSlug, roleId])
+    }, [allUsers, product, phaseSlug, roleId, teamId])
 
     // Apply search filter
     const filteredUsers = useMemo(() => {

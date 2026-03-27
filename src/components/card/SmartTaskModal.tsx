@@ -207,14 +207,15 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return card?.titulo || null;
     }, [selectedCardId, searchedCards]);
 
-    // Fetch profiles for responsible selection
+    // Fetch profiles for responsible selection (members with team + admins)
     const { data: profiles } = useQuery({
-        queryKey: ['active-profiles-list'],
+        queryKey: ['active-profiles-with-team-or-admin'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email')
+                .select('id, nome, email, team_id, is_admin')
                 .eq('active', true)
+                .or('team_id.not.is.null,is_admin.eq.true')
                 .order('nome');
             if (error) throw error;
             return data;

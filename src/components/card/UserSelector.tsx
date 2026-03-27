@@ -6,7 +6,6 @@ interface Profile {
     id: string
     nome: string
     email: string
-    role: string | null
 }
 
 interface UserSelectorProps {
@@ -14,11 +13,10 @@ interface UserSelectorProps {
     onSelect: (userId: string | null) => void
     label?: string
     disabled?: boolean
-    roleFilter?: string | string[]
     teamIds?: string[] // Filtra por membros desses times
 }
 
-export default function UserSelector({ currentUserId, onSelect, label, disabled = false, roleFilter, teamIds }: UserSelectorProps) {
+export default function UserSelector({ currentUserId, onSelect, label, disabled = false, teamIds }: UserSelectorProps) {
     const [profiles, setProfiles] = useState<Profile[]>([])
     const [loading, setLoading] = useState(false)
 
@@ -35,8 +33,9 @@ export default function UserSelector({ currentUserId, onSelect, label, disabled 
             try {
                 let query = supabase
                     .from('profiles')
-                    .select('id, nome, email, role, team_id')
+                    .select('id, nome, email, team_id')
                     .eq('active', true)
+                    .not('team_id', 'is', null)
                     .order('nome')
 
                 // Filtro server-side por time quando possível
@@ -47,17 +46,7 @@ export default function UserSelector({ currentUserId, onSelect, label, disabled 
                 const { data, error } = await query
                 if (error) throw error
 
-                let filteredProfiles = data || []
-
-                // Filtra por role se especificado (legado, usando o campo 'role')
-                if (roleFilter) {
-                    const roleArray = Array.isArray(roleFilter) ? roleFilter : [roleFilter]
-                    filteredProfiles = filteredProfiles.filter(p =>
-                        p.role && roleArray.includes(p.role)
-                    )
-                }
-
-                setProfiles(filteredProfiles as Profile[])
+                setProfiles((data || []) as Profile[])
             } catch (error) {
                 console.error('Error fetching profiles:', error)
             } finally {
@@ -66,7 +55,7 @@ export default function UserSelector({ currentUserId, onSelect, label, disabled 
         }
 
         fetchProfiles()
-    }, [roleFilter, teamIds?.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [teamIds?.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div>

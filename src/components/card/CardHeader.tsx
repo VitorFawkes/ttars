@@ -1465,6 +1465,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                         <OwnerSelector
                                             value={card.concierge_owner_id}
                                             onChange={(id) => handleConciergeSelect(id)}
+                                            phaseSlug="pos_venda"
                                             compact
                                             showNoSdrOption
                                         />

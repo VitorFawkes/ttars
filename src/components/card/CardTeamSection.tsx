@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCardTeam } from '../../hooks/useCardTeam'
@@ -13,6 +13,13 @@ const ROLE_OPTIONS = [
     { value: 'assistente_pos', label: 'Assist. Pós' },
     { value: 'apoio', label: 'Apoio' },
 ]
+
+// Maps card_team_members role → pipeline_phases slug for filtering
+const ROLE_PHASE_MAP: Record<string, string | null> = {
+    assistente_planner: 'planner',
+    assistente_pos: 'pos_venda',
+    apoio: null, // Apoio can be from any team
+}
 
 const ROLE_COLORS: Record<string, string> = {
     assistente_planner: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -32,25 +39,53 @@ export default function CardTeamSection({ card }: CardTeamSectionProps) {
 
     const { members, isLoading, addMember, removeMember } = useCardTeam(card.id || undefined, card)
 
-    // Fetch active profiles for the add form
-    const { data: profiles = [] } = useQuery({
-        queryKey: ['active-profiles-list'],
+    // Fetch active profiles with team/phase info for filtering
+    const { data: profilesWithTeam = [] } = useQuery({
+        queryKey: ['active-profiles-with-phase'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data: profs, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email')
+                .select('id, nome, email, team_id, is_admin')
                 .eq('active', true)
                 .order('nome')
             if (error) throw error
-            return data || []
+
+            // Fetch team phase slugs
+            const teamIds = [...new Set(profs?.filter(p => p.team_id).map(p => p.team_id as string) ?? [])]
+            const teamsMap: Record<string, string | null> = {}
+
+            if (teamIds.length > 0) {
+                const { data: teams } = await supabase
+                    .from('teams')
+                    .select('id, phase:pipeline_phases(slug)')
+                    .in('id', teamIds)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                teams?.forEach(t => { teamsMap[t.id] = (t.phase as any)?.slug ?? null })
+            }
+
+            return (profs || []).map(p => ({
+                ...p,
+                phaseSlug: p.team_id ? teamsMap[p.team_id] ?? null : null,
+            }))
         },
         staleTime: 1000 * 60 * 5,
         enabled: showAdd,
     })
 
-    // Filter out users already in the team
-    const memberIds = new Set(members.map(m => m.profile_id))
-    const availableProfiles = profiles.filter(p => !memberIds.has(p.id))
+    // Filter profiles by selected role's phase, excluding existing members
+    const availableProfiles = useMemo(() => {
+        const memberIdSet = new Set(members.map(m => m.profile_id))
+        const targetPhase = ROLE_PHASE_MAP[selectedRole]
+        return profilesWithTeam.filter(p => {
+            if (memberIdSet.has(p.id)) return false
+            // Admins always show
+            if (p.is_admin) return true
+            // If role has no phase constraint (apoio), show all with team
+            if (!targetPhase) return !!p.team_id
+            // Filter by matching phase
+            return p.phaseSlug === targetPhase
+        })
+    }, [profilesWithTeam, selectedRole, members])
 
     const handleAdd = () => {
         if (!selectedUserId) return
@@ -130,6 +165,12 @@ export default function CardTeamSection({ card }: CardTeamSectionProps) {
                     {showAdd ? (
                         <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
                             <Select
+                                value={selectedRole}
+                                onChange={(v) => { setSelectedRole(v); setSelectedUserId('') }}
+                                options={ROLE_OPTIONS}
+                                placeholder="Função..."
+                            />
+                            <Select
                                 value={selectedUserId}
                                 onChange={setSelectedUserId}
                                 options={availableProfiles.map(p => ({
@@ -137,12 +178,6 @@ export default function CardTeamSection({ card }: CardTeamSectionProps) {
                                     label: p.nome || p.email || 'Sem nome',
                                 }))}
                                 placeholder="Selecione uma pessoa..."
-                            />
-                            <Select
-                                value={selectedRole}
-                                onChange={setSelectedRole}
-                                options={ROLE_OPTIONS}
-                                placeholder="Função..."
                             />
                             <div className="flex gap-2">
                                 <button
