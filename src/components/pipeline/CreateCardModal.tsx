@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic, PenLine } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -287,8 +287,10 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Assistente (optional team member added after card creation)
     const [assistenteId, setAssistenteId] = useState<string | null>(null)
 
-    // Observação + Briefing IA state
+    // Observação + Briefing state
     const [observacao, setObservacao] = useState('')
+    const [briefingMode, setBriefingMode] = useState<'audio' | 'text'>('audio')
+    const [briefingText, setBriefingText] = useState('')
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
     const [briefingStep, setBriefingStep] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
     const [briefingResult, setBriefingResult] = useState<BriefingIAResult | null>(null)
@@ -341,6 +343,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             setIndicacaoSearch('')
             setAssistenteId(null)
             setObservacao('')
+            setBriefingMode('audio')
+            setBriefingText('')
             setAudioBlob(null)
             setBriefingStep('idle')
             setBriefingResult(null)
@@ -390,6 +394,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         setIndicacaoSearch('')
         setAssistenteId(null)
         setObservacao('')
+        setBriefingMode('audio')
+        setBriefingText('')
         setAudioBlob(null)
         setBriefingStep('idle')
         setBriefingResult(null)
@@ -405,10 +411,11 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 ?? formData.pos_owner_id
                 ?? profile?.id
 
-            // Build briefing_inicial with observacao_livre
+            // Build briefing_inicial with observacao_livre + briefing text
+            const obsText = [observacao.trim(), briefingText.trim()].filter(Boolean).join('\n\n')
             const briefingInicial = {
                 ...dynamicFields,
-                ...(observacao.trim() ? { observacao_livre: observacao.trim() } : {})
+                ...(obsText ? { observacao_livre: obsText } : {})
             }
 
             // Create the card
@@ -479,8 +486,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 }
             }
 
-            // Step 2: If no audio, close normally
-            if (!audioBlob) {
+            // Step 2: If no audio (or text-only briefing), close normally
+            if (!audioBlob || briefingMode === 'text') {
                 toast({ title: "Card criado com sucesso!", type: "success" })
                 onClose()
                 resetForm()
@@ -505,6 +512,84 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                         title: `Briefing gerado! ${count} campo${count !== 1 ? 's' : ''} preenchido${count !== 1 ? 's' : ''}`,
                         type: "success"
                     })
+
+                    // ── Bidirectional sync: n8n saves to one JSONB based on fase,
+                    // but UI may read from the other. Sync both after n8n save. ──
+                    const selectedStage = allowedStages.find(s => s.id === effectiveStageId)
+                    if (selectedStage?.fase) {
+                        try {
+                            const { data: freshCard } = await supabase
+                                .from('cards')
+                                .select('briefing_inicial, produto_data')
+                                .eq('id', card.id)
+                                .single()
+
+                            if (freshCard) {
+                                const pd = (freshCard.produto_data as Record<string, unknown>) || {}
+                                const bi = (freshCard.briefing_inicial as Record<string, unknown>) || {}
+                                const obsKeys = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes', 'resumo_consultor', 'resumo_consultor_at']
+                                let changed = false
+
+                                if (selectedStage.fase !== 'SDR') {
+                                    // Planner/Pós-venda: n8n wrote to produto_data → copy to briefing_inicial
+                                    for (const [key, value] of Object.entries(pd)) {
+                                        if (!obsKeys.includes(key) && value !== null && value !== undefined && (bi[key] === null || bi[key] === undefined)) {
+                                            bi[key] = value
+                                            changed = true
+                                        }
+                                    }
+                                    // Sync observacoes: produto_data.observacoes_criticas → briefing_inicial.observacoes
+                                    const pdObs = (pd.observacoes_criticas as Record<string, unknown>) || {}
+                                    const biObs = (bi.observacoes as Record<string, unknown>) || {}
+                                    for (const [key, value] of Object.entries(pdObs)) {
+                                        if (value !== null && value !== undefined && (biObs[key] === null || biObs[key] === undefined)) {
+                                            biObs[key] = value
+                                            changed = true
+                                        }
+                                    }
+                                    if (Object.keys(biObs).length > 0) bi.observacoes = biObs
+                                    // Sync resumo_consultor
+                                    if (pd.resumo_consultor && !bi.resumo_consultor) {
+                                        bi.resumo_consultor = pd.resumo_consultor
+                                        bi.resumo_consultor_at = pd.resumo_consultor_at
+                                        changed = true
+                                    }
+                                } else {
+                                    // SDR: n8n wrote to briefing_inicial → copy to produto_data
+                                    for (const [key, value] of Object.entries(bi)) {
+                                        if (!obsKeys.includes(key) && value !== null && value !== undefined && (pd[key] === null || pd[key] === undefined)) {
+                                            pd[key] = value
+                                            changed = true
+                                        }
+                                    }
+                                    const biObs = (bi.observacoes as Record<string, unknown>) || {}
+                                    const pdObs = (pd.observacoes_criticas as Record<string, unknown>) || {}
+                                    for (const [key, value] of Object.entries(biObs)) {
+                                        if (value !== null && value !== undefined && (pdObs[key] === null || pdObs[key] === undefined)) {
+                                            pdObs[key] = value
+                                            changed = true
+                                        }
+                                    }
+                                    if (Object.keys(pdObs).length > 0) pd.observacoes_criticas = pdObs
+                                    if (bi.resumo_consultor && !pd.resumo_consultor) {
+                                        pd.resumo_consultor = bi.resumo_consultor
+                                        pd.resumo_consultor_at = bi.resumo_consultor_at
+                                        changed = true
+                                    }
+                                }
+
+                                if (changed) {
+                                    await supabase.rpc('update_card_from_ai_extraction', {
+                                        p_card_id: card.id,
+                                        p_produto_data: pd as unknown as Record<string, never>,
+                                        p_briefing_inicial: bi as unknown as Record<string, never>
+                                    })
+                                }
+                            }
+                        } catch (syncErr) {
+                            console.warn('[CreateCard] Bidirectional sync warning:', syncErr)
+                        }
+                    }
                 } else {
                     toast({ title: "Briefing processado, sem dados novos extraídos", type: "info" })
                 }
@@ -935,9 +1020,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 <span className="text-sm font-medium text-slate-700">Observações & Briefing</span>
                                 <span className="text-xs text-slate-400 font-normal">(opcional)</span>
                                 {/* Indicator when content exists */}
-                                {(observacao.trim() || audioBlob) && (
+                                {(observacao.trim() || audioBlob || briefingText.trim()) && (
                                     <span className="ml-auto px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                                        {[observacao.trim() && 'nota', audioBlob && 'áudio'].filter(Boolean).join(' + ')}
+                                        {[observacao.trim() && 'nota', audioBlob && 'áudio', briefingText.trim() && 'briefing'].filter(Boolean).join(' + ')}
                                     </span>
                                 )}
                             </button>
@@ -960,81 +1045,131 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                         />
                                     </div>
 
-                                    {/* Briefing IA (áudio) */}
+                                    {/* Briefing — Áudio (IA) ou Texto */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">
                                             <Sparkles className="h-3.5 w-3.5 inline mr-1 -mt-0.5 text-amber-500" />
-                                            Briefing IA
+                                            Briefing
                                             <span className="text-xs text-slate-400 font-normal ml-1.5">(opcional)</span>
                                         </label>
-                                        <p className="text-xs text-slate-500 mb-2">
-                                            Grave um áudio descrevendo o lead. Após criar o card, a IA extrairá os dados automaticamente.
-                                        </p>
 
-                                        {briefingStep === 'idle' && (
-                                            <div>
-                                                <AudioRecorder
-                                                    onAudioReady={(blob) => setAudioBlob(blob)}
-                                                    disabled={createCardMutation.isPending}
-                                                />
-                                                {audioBlob && (
-                                                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                                                        <Mic className="h-3 w-3" />
-                                                        Áudio pronto. Será processado automaticamente após criar o card.
-                                                    </p>
+                                        {/* Mode tabs */}
+                                        <div className="flex gap-1 mb-3 p-0.5 bg-slate-100 rounded-lg w-fit">
+                                            <button
+                                                type="button"
+                                                onClick={() => setBriefingMode('audio')}
+                                                className={cn(
+                                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                                                    briefingMode === 'audio'
+                                                        ? 'bg-white text-slate-900 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
                                                 )}
-                                            </div>
+                                                disabled={briefingStep === 'processing'}
+                                            >
+                                                <Mic className="h-3 w-3" />
+                                                Áudio
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setBriefingMode('text')}
+                                                className={cn(
+                                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                                                    briefingMode === 'text'
+                                                        ? 'bg-white text-slate-900 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                )}
+                                                disabled={briefingStep === 'processing'}
+                                            >
+                                                <PenLine className="h-3 w-3" />
+                                                Escrever
+                                            </button>
+                                        </div>
+
+                                        {/* Audio mode */}
+                                        {briefingMode === 'audio' && (
+                                            <>
+                                                <p className="text-xs text-slate-500 mb-2">
+                                                    Grave um áudio descrevendo o lead. A IA extrairá os dados automaticamente.
+                                                </p>
+
+                                                {briefingStep === 'idle' && (
+                                                    <div>
+                                                        <AudioRecorder
+                                                            onAudioReady={(blob) => setAudioBlob(blob)}
+                                                            disabled={createCardMutation.isPending}
+                                                        />
+                                                        {audioBlob && (
+                                                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                                                                <Mic className="h-3 w-3" />
+                                                                Áudio pronto. Será processado automaticamente após criar o card.
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'processing' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                        <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
+                                                            <p className="text-xs text-amber-600 mt-0.5">
+                                                                Transcrevendo e extraindo campos automaticamente
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'done' && briefingResult?.status === 'success' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-green-800">
+                                                                Briefing gerado com sucesso!
+                                                            </p>
+                                                            <p className="text-xs text-green-600 mt-0.5">
+                                                                {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'done' && briefingResult?.status !== 'success' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-amber-800">
+                                                                Briefing processado, sem dados novos extraídos
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'error' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-red-800">
+                                                                Erro no briefing IA
+                                                            </p>
+                                                            <p className="text-xs text-red-600 mt-0.5">
+                                                                Card foi criado. Processe o briefing depois na tela do card.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
 
-                                        {briefingStep === 'processing' && (
-                                            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                                <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
-                                                    <p className="text-xs text-amber-600 mt-0.5">
-                                                        Transcrevendo e extraindo campos automaticamente
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {briefingStep === 'done' && briefingResult?.status === 'success' && (
-                                            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                                                <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-green-800">
-                                                        Briefing gerado com sucesso!
-                                                    </p>
-                                                    <p className="text-xs text-green-600 mt-0.5">
-                                                        {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {briefingStep === 'done' && briefingResult?.status !== 'success' && (
-                                            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-amber-800">
-                                                        Briefing processado, sem dados novos extraídos
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {briefingStep === 'error' && (
-                                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                                                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-red-800">
-                                                        Erro no briefing IA
-                                                    </p>
-                                                    <p className="text-xs text-red-600 mt-0.5">
-                                                        Card foi criado. Processe o briefing depois na tela do card.
-                                                    </p>
-                                                </div>
-                                            </div>
+                                        {/* Text mode */}
+                                        {briefingMode === 'text' && (
+                                            <Textarea
+                                                value={briefingText}
+                                                onChange={(e) => setBriefingText(e.target.value)}
+                                                placeholder="Descreva o briefing do lead: destino, datas, número de viajantes, preferências..."
+                                                rows={4}
+                                                className="resize-none"
+                                                disabled={createCardMutation.isPending || briefingStep === 'processing'}
+                                            />
                                         )}
                                     </div>
                                 </div>

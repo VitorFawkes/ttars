@@ -228,6 +228,43 @@ export function useAIExtractionReview(cardId: string) {
         }
       }
 
+      // ── Bidirectional sync: keep BOTH JSONBs in sync ──
+      // UI may show trip_info:sdr (reads briefing_inicial) even for Planner/Pós-venda cards.
+      // Ensure extracted fields are always available in both data sources.
+      if (fase !== 'SDR') {
+        // Planner/Pós-venda → also sync to briefing_inicial
+        for (const decision of acceptedFields) {
+          const { key, merge_mode, value } = decision
+          const finalValue = value !== undefined ? value : preview.campos_extraidos[key]
+          const section = fieldSectionMap[key]
+          const fieldType = fieldTypeMap[key]
+
+          if (section === 'trip_info') {
+            newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
+          } else if (section === 'observacoes') {
+            const obs = (newBriefing.observacoes as Record<string, unknown>) || {}
+            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            newBriefing.observacoes = obs
+          }
+        }
+      } else {
+        // SDR → also sync to produto_data
+        for (const decision of acceptedFields) {
+          const { key, merge_mode, value } = decision
+          const finalValue = value !== undefined ? value : preview.campos_extraidos[key]
+          const section = fieldSectionMap[key]
+          const fieldType = fieldTypeMap[key]
+
+          if (section === 'trip_info') {
+            newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
+          } else if (section === 'observacoes') {
+            const obs = (newProdutoData.observacoes_criticas as Record<string, unknown>) || {}
+            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            newProdutoData.observacoes_criticas = obs
+          }
+        }
+      }
+
       // Handle briefing_text
       if (approveBriefing && preview.briefing_text) {
         const obsKey = fase === 'SDR' ? 'observacoes' : fase === 'Planner' ? 'observacoes_criticas' : 'observacoes_pos_venda'
@@ -239,9 +276,24 @@ export function useAIExtractionReview(cardId: string) {
           : preview.briefing_text
         target[obsKey] = obs
 
-        // Also update resumo_consultor
+        // Also update resumo_consultor on primary target
         target.resumo_consultor = preview.briefing_text
         target.resumo_consultor_at = new Date().toISOString()
+
+        // Bidirectional sync for briefing_text
+        if (fase !== 'SDR') {
+          // Also sync briefing text to briefing_inicial.observacoes
+          const briefObs = (newBriefing.observacoes as Record<string, unknown>) || {}
+          const currentBT = (briefObs.briefing as string) || ''
+          briefObs.briefing = currentBT
+            ? currentBT + '\n\n' + preview.briefing_text
+            : preview.briefing_text
+          newBriefing.observacoes = briefObs
+        } else {
+          // SDR: also sync resumo_consultor to produto_data
+          newProdutoData.resumo_consultor = preview.briefing_text
+          newProdutoData.resumo_consultor_at = new Date().toISOString()
+        }
       }
 
       // Call the existing RPC
