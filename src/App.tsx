@@ -57,6 +57,7 @@ import DeveloperHub from './pages/developer/DeveloperHub'
 import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
 import KanbanCardSettings from './components/admin/KanbanCardSettings'
 import ActionRequirementsTab from './components/admin/studio/ActionRequirementsTab'
+import NotificationConfigPage from './components/settings/customization/NotificationConfigPage'
 // Cadence Engine v3 (replaces Workflow Engine v2)
 import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
@@ -194,6 +195,7 @@ function App() {
                     {/* AutomationRulesPage replaced by Cadências */}
                     <Route path="customization/automations" element={<Navigate to="/settings/cadence" replace />} />
 
+                    <Route path="customization/notifications" element={<NotificationConfigPage />} />
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,7 +39,7 @@ export function useNotifications() {
         staleTime: 30_000,
     });
 
-    // Realtime subscription
+    // Realtime subscription (INSERT + UPDATE for cross-tab sync)
     useEffect(() => {
         if (!user?.id) return;
 
@@ -48,7 +48,7 @@ export function useNotifications() {
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: '*',
                     schema: 'public',
                     table: 'notifications',
                     filter: `user_id=eq.${user.id}`,
@@ -66,12 +66,35 @@ export function useNotifications() {
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
+    const groupedByType = useMemo(() => {
+        const groups: Record<string, Notification[]> = {};
+        for (const n of notifications) {
+            if (!groups[n.type]) groups[n.type] = [];
+            groups[n.type].push(n);
+        }
+        return groups;
+    }, [notifications]);
+
     const markAsRead = useMutation({
         mutationFn: async (notificationId: string) => {
             const { error } = await db
                 .from('notifications')
                 .update({ read: true })
                 .eq('id', notificationId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications', user?.id] });
+        },
+    });
+
+    const markGroupAsRead = useMutation({
+        mutationFn: async (ids: string[]) => {
+            if (!ids.length) return;
+            const { error } = await db
+                .from('notifications')
+                .update({ read: true })
+                .in('id', ids);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -98,7 +121,9 @@ export function useNotifications() {
         notifications,
         isLoading,
         unreadCount,
+        groupedByType,
         markAsRead,
+        markGroupAsRead,
         markAllAsRead,
     };
 }

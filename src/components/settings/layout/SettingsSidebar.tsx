@@ -21,6 +21,7 @@ import {
     XCircle,
     Zap,
     Eye,
+    Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -132,6 +133,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/customization/sections" icon={Layers} label="Seções" />
                             <NavItem to="/settings/customization/action-requirements" icon={FileCheck} label="Requisitos de Ação" />
                             <NavItem to="/settings/cadence" icon={Zap} label="Cadências" />
+                            <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />
                             <NavItem to="/settings/customization/loss-reasons" icon={XCircle} label="Motivos de Perda" />
                             <NavItem to="/settings/customization/tags" icon={Tags} label="Tags de Cards" />
