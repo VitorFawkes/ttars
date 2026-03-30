@@ -188,12 +188,13 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             }
 
             // Status Comercial Filter
-            // Toggle "Sem Pós" mostra APENAS ganhos diretos (ganho_planner=true, ganho_pos=null)
+            // Toggle "Sem Pós" mostra APENAS ganhos diretos (ganho no Planner, sem ir para Pós-venda)
             if (showWonDirect) {
                 query = query
                     .eq('status_comercial', 'ganho')
                     .eq('ganho_planner', true)
-                    .is('ganho_pos', null)
+                    .eq('ganho_pos', false)
+                    .neq('fase', 'Pós-venda')
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {

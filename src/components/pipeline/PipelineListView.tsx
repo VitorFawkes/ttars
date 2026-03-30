@@ -415,12 +415,12 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
                             {card.titulo}
                         </Link>
-                        {card.status_comercial === 'ganho' && card.ganho_planner === true && !card.ganho_pos && (
+                        {card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                 <Trophy className="h-2.5 w-2.5" /> Ganho Direto
                             </span>
                         )}
-                        {card.status_comercial === 'ganho' && !(card.ganho_planner === true && !card.ganho_pos) && (
+                        {card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
                                 <Trophy className="h-2.5 w-2.5" /> Ganho
                             </span>

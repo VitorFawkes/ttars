@@ -555,8 +555,8 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md",
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
-                card.status_comercial === 'ganho' && card.ganho_planner === true && !card.ganho_pos && "border-amber-300 bg-amber-50/40 opacity-80",
-                card.status_comercial === 'ganho' && !(card.ganho_planner === true && !card.ganho_pos) && "border-green-300 bg-green-50/40 opacity-80",
+                card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && "border-amber-300 bg-amber-50/40 opacity-80",
+                card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
                 !isClosedCard && (
                     (card as any).card_type === 'sub_card'
@@ -619,13 +619,13 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
             </div>
 
             {/* Status Badge (Ganho Direto / Ganho / Perdido) */}
-            {card.status_comercial === 'ganho' && card.ganho_planner === true && !card.ganho_pos && (
+            {card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && (
                 <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full w-fit border border-amber-200">
                     <Trophy className="h-3 w-3" />
                     Ganho Direto
                 </div>
             )}
-            {card.status_comercial === 'ganho' && !(card.ganho_planner === true && !card.ganho_pos) && (
+            {card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && (
                 <div className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full w-fit border border-green-200">
                     <Trophy className="h-3 w-3" />
                     Ganho
