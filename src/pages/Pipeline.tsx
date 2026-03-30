@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, ArrowUpDown, Search, Eye, EyeOff } from 'lucide-react'
+import { Filter, Link, User, ArrowUpDown, Search, Eye, EyeOff, Trophy } from 'lucide-react'
 import { SORT_FIELD_LABELS } from '../lib/constants'
 import type { SortBy, SortDirection } from '../hooks/usePipelineFilters'
 import {
@@ -40,6 +40,7 @@ export default function Pipeline() {
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
     const [showClosedCards, setShowClosedCards] = useState(false)
+    const [showWonDirect, setShowWonDirect] = useState(false)
 
     // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
@@ -221,7 +222,26 @@ export default function Pipeline() {
                                         Avulsas
                                     </button>
                                     <button
-                                        onClick={() => setShowClosedCards(!showClosedCards)}
+                                        onClick={() => {
+                                            setShowWonDirect(!showWonDirect)
+                                            if (!showWonDirect) setShowClosedCards(false)
+                                        }}
+                                        className={cn(
+                                            "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
+                                            showWonDirect
+                                                ? "bg-green-100 text-green-700 border-green-300 shadow-sm"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                        )}
+                                        title={showWonDirect ? 'Ocultar ganhos sem pós-venda' : 'Mostrar ganhos sem pós-venda'}
+                                    >
+                                        <Trophy className="h-3 w-3 mr-1.5" />
+                                        Sem Pós
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowClosedCards(!showClosedCards)
+                                            if (!showClosedCards) setShowWonDirect(false)
+                                        }}
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             showClosedCards
@@ -325,6 +345,7 @@ export default function Pipeline() {
                             subView={subView}
                             filters={filters}
                             showClosedCards={showClosedCards}
+                            showWonDirect={showWonDirect}
                             className="h-full px-8 pb-4" // Shared horizontal padding
                         />
                     ) : (
@@ -334,6 +355,7 @@ export default function Pipeline() {
                             subView={subView}
                             filters={filters}
                             showClosedCards={showClosedCards}
+                            showWonDirect={showWonDirect}
                             onCardClick={(cardId) => {
                                 navigate(`/cards/${cardId}`)
                             }}

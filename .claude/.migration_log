@@ -189,3 +189,5 @@ preexisting_untracked|supabase/migrations/20260325_anexos_system.sql|2026-03-25T
 2026-03-26T18:21:57Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260326_fix_ai_extraction_bidirectional_sync.sql | applied_to_prod
 2026-03-30T15:05:16Z | supabase/migrations/20260330_require_numero_venda_monde_pos_venda.sql | applied_to_prod
 2026-03-30T15:20:30Z | supabase/migrations/20260330_remove_extra_blocking_pos_venda.sql | applied_to_prod
+PENDING | supabase/migrations/20260330_ganho_sem_pos_venda.sql | preexisting_untracked
+2026-03-30T16:50:20Z | supabase/migrations/20260330_ganho_sem_pos_venda.sql | applied_to_prod

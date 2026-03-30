@@ -17,9 +17,10 @@ interface UsePipelineCardsProps {
     filters: FilterState
     groupFilters: GroupFilters
     showClosedCards?: boolean
+    showWonDirect?: boolean
 }
 
-export function usePipelineCards({ productFilter, viewMode, subView, filters, groupFilters, showClosedCards }: UsePipelineCardsProps) {
+export function usePipelineCards({ productFilter, viewMode, subView, filters, groupFilters, showClosedCards, showWonDirect }: UsePipelineCardsProps) {
     const { session, profile } = useAuth()
 
     // Fetch Team Members for Team View
@@ -58,7 +59,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, showWonDirect],
         placeholderData: keepPreviousData,
         enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async () => {
@@ -187,8 +188,13 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             }
 
             // Status Comercial Filter
-            // Se filtro explícito definido, usar. Senão, default: só cards ativos (ocultar ganhos/perdidos)
-            if ((filters.statusComercial?.length ?? 0) > 0) {
+            // Toggle "Sem Pós" mostra APENAS ganhos diretos (ganho_planner=true, ganho_pos=null)
+            if (showWonDirect) {
+                query = query
+                    .eq('status_comercial', 'ganho')
+                    .eq('ganho_planner', true)
+                    .is('ganho_pos', null)
+            } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {
                 query = query.in('status_comercial', ['aberto'])

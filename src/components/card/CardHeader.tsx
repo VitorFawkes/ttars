@@ -46,6 +46,7 @@ import { useQualityGate } from '../../hooks/useQualityGate'
 import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
+import WinOptionsModal from './WinOptionsModal'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
@@ -386,6 +387,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
     const [lossReasonModalOpen, setLossReasonModalOpen] = useState(false)
     const [pendingLossMove, setPendingLossMove] = useState<{ stageId: string; stageName: string } | null>(null)
+    const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
 
     const { missingBlocking } = useStageRequirements(card)
     const { getHeaderFields } = useFieldConfig()
@@ -771,11 +773,12 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
     // Marcar Ganho via RPC
     const marcarGanhoMutation = useMutation({
-        mutationFn: async (novoDonoId?: string) => {
+        mutationFn: async (params?: { novoDonoId?: string; skipPosVenda?: boolean }) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
             const { data, error } = await (supabase as any).rpc('marcar_ganho', {
                 p_card_id: card.id,
-                p_novo_dono_id: novoDonoId || null
+                p_novo_dono_id: params?.novoDonoId || null,
+                p_skip_pos_venda: params?.skipPosVenda || false
             })
             if (error) throw error
             return data
@@ -793,6 +796,36 @@ export default function CardHeader({ card }: CardHeaderProps) {
     })
 
     const handleMarkAsWon = async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentPhaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentFase
+
+        // Planner → mostrar WinOptionsModal para escolher entre pós-venda ou ganho direto
+        if (currentPhaseSlug === 'planner') {
+            const nextPhaseStages = stages?.filter(s => {
+                const phaseOrder = s.pipeline_phases?.order_index ?? 999
+                const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
+                return phaseOrder > currentPhaseOrder
+            }).sort((a, b) => {
+                const phaseOrderA = a.pipeline_phases?.order_index ?? 999
+                const phaseOrderB = b.pipeline_phases?.order_index ?? 999
+                if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
+                return a.ordem - b.ordem
+            })
+            const nextStage = nextPhaseStages?.[0]
+            const targetPhase = nextStage ? phasesData?.find(p => p.id === nextStage.phase_id) : undefined
+
+            setPendingStageChange({
+                stageId: nextStage?.id || '',
+                targetStageName: 'Ganho Planner',
+                currentOwnerId: card.dono_atual_id || undefined,
+                targetPhaseId: nextStage?.phase_id || undefined,
+                targetPhaseName: targetPhase?.name || 'Pós-Venda'
+            })
+            setWinOptionsModalOpen(true)
+            return
+        }
+
+        // SDR e outras fases → fluxo existente (quality gate + StageChangeModal)
         const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
         const nextPhaseStages = stages?.filter(s => {
             const phaseOrder = s.pipeline_phases?.order_index ?? 999
@@ -806,7 +839,6 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
         const nextStage = nextPhaseStages?.[0]
         if (nextStage) {
-            // Quality Gate: validar contra 1ª etapa da fase destino
             try {
                 const validation = await validateMove(card as unknown as Record<string, unknown>, nextStage.id)
                 if (!validation.valid) {
@@ -837,6 +869,40 @@ export default function CardHeader({ card }: CardHeaderProps) {
         } else {
             marcarGanhoMutation.mutate(undefined)
         }
+    }
+
+    // WinOptions callbacks (CardHeader)
+    const handleWinOptionPosVenda = async () => {
+        setWinOptionsModalOpen(false)
+        if (!pendingStageChange) return
+
+        // Quality gate contra etapa de Pós-Venda
+        if (pendingStageChange.stageId) {
+            try {
+                const validation = await validateMove(card as unknown as Record<string, unknown>, pendingStageChange.stageId)
+                if (!validation.valid) {
+                    setPendingStageChange({
+                        ...pendingStageChange,
+                        missingFields: validation.missingFields,
+                        missingProposals: validation.missingProposals,
+                        missingTasks: validation.missingTasks,
+                        missingDocuments: validation.missingDocuments,
+                    })
+                    setQualityGateModalOpen(true)
+                    return
+                }
+            } catch (err) {
+                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+            }
+        }
+
+        setStageChangeModalOpen(true)
+    }
+
+    const handleWinOptionDirect = () => {
+        setWinOptionsModalOpen(false)
+        marcarGanhoMutation.mutate({ skipPosVenda: true })
+        setPendingStageChange(null)
     }
 
     // Reabrir card via RPC
@@ -894,7 +960,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
             const isWinHandoff = pendingStageChange.targetStageName.startsWith('Ganho ')
             if (isWinHandoff) {
                 // Win handoff: call marcar_ganho RPC with new owner
-                marcarGanhoMutation.mutate(newOwnerId)
+                marcarGanhoMutation.mutate({ novoDonoId: newOwnerId })
             } else {
                 // Normal cross-phase move
                 updateOwnerMutation.mutate({ field: 'dono_atual_id', userId: newOwnerId })
@@ -1538,6 +1604,13 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || ''}
                 cardId={card.id!}
+            />
+
+            <WinOptionsModal
+                isOpen={winOptionsModalOpen}
+                onClose={() => { setWinOptionsModalOpen(false); setPendingStageChange(null) }}
+                onChoosePosVenda={handleWinOptionPosVenda}
+                onChooseDirectWin={handleWinOptionDirect}
             />
 
             <StageChangeModal

@@ -46,10 +46,11 @@ interface PipelineListViewProps {
     subView: SubView
     filters: FilterState
     showClosedCards?: boolean
+    showWonDirect?: boolean
     onCardClick?: (cardId: string) => void
 }
 
-export default function PipelineListView({ productFilter, viewMode, subView, filters, showClosedCards = false }: PipelineListViewProps) {
+export default function PipelineListView({ productFilter, viewMode, subView, filters, showClosedCards = false, showWonDirect = false }: PipelineListViewProps) {
     const queryClient = useQueryClient()
     const { groupFilters } = usePipelineFilters()
     const { isNew: isCardNew } = useSeenCards()
@@ -65,7 +66,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     // Resetar página ao mudar filtros ou toggle
     useEffect(() => {
         setCurrentPage(1)
-    }, [filters, showClosedCards])
+    }, [filters, showClosedCards, showWonDirect])
 
     // Computar IDs de stages das fases filtradas (para phaseFilters)
     const phaseStageIds = useMemo(() => {
@@ -80,6 +81,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         filters,
         groupFilters,
         showClosedCards,
+        showWonDirect,
         phaseStageIds,
         page: currentPage,
         pageSize: 50
@@ -413,7 +415,12 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
                             {card.titulo}
                         </Link>
-                        {card.status_comercial === 'ganho' && (
+                        {card.status_comercial === 'ganho' && card.ganho_planner === true && !card.ganho_pos && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                <Trophy className="h-2.5 w-2.5" /> Ganho Direto
+                            </span>
+                        )}
+                        {card.status_comercial === 'ganho' && !(card.ganho_planner === true && !card.ganho_pos) && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
                                 <Trophy className="h-2.5 w-2.5" /> Ganho
                             </span>

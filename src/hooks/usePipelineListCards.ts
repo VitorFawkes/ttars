@@ -17,6 +17,7 @@ interface UsePipelineListCardsProps {
     filters: FilterState
     groupFilters: GroupFilters
     showClosedCards?: boolean
+    showWonDirect?: boolean
     phaseStageIds?: string[] // Stage IDs filtrados por phaseFilters
     page?: number
     pageSize?: number
@@ -37,6 +38,7 @@ export function usePipelineListCards({
     filters,
     groupFilters,
     showClosedCards = false,
+    showWonDirect = false,
     phaseStageIds,
     page = 1,
     pageSize = 50
@@ -78,7 +80,7 @@ export function usePipelineListCards({
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
     return useQuery({
-        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, phaseStageIds, page, pageSize],
+        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, showWonDirect, phaseStageIds, page, pageSize],
         placeholderData: keepPreviousData,
         enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
         queryFn: async (): Promise<PipelineListResult> => {
@@ -197,7 +199,12 @@ export function usePipelineListCards({
             }
 
             // Status Comercial Filter — default: só cards ativos
-            if ((filters.statusComercial?.length ?? 0) > 0) {
+            if (showWonDirect) {
+                query = query
+                    .eq('status_comercial', 'ganho')
+                    .eq('ganho_planner', true)
+                    .is('ganho_pos', null)
+            } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {
                 query = query.in('status_comercial', ['aberto'])

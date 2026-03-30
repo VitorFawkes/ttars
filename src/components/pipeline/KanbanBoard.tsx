@@ -12,6 +12,7 @@ import {
     type DragStartEvent
 } from '@dnd-kit/core'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import KanbanColumn from './KanbanColumn'
 import KanbanCard from './KanbanCard'
@@ -20,6 +21,7 @@ import { Users } from 'lucide-react'
 import StageChangeModal from '../card/StageChangeModal'
 import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
+import WinOptionsModal from '../card/WinOptionsModal'
 import { useQualityGate } from '../../hooks/useQualityGate'
 import type { Database } from '../../database.types'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -46,10 +48,11 @@ interface KanbanBoardProps {
     subView: SubView
     filters: FilterState
     showClosedCards?: boolean
+    showWonDirect?: boolean
     className?: string // Allow parent to control layout/padding
 }
 
-export default function KanbanBoard({ productFilter, viewMode, subView, filters: propFilters, showClosedCards, className }: KanbanBoardProps) {
+export default function KanbanBoard({ productFilter, viewMode, subView, filters: propFilters, showClosedCards, showWonDirect, className }: KanbanBoardProps) {
     const filters = propFilters || {}
     const queryClient = useQueryClient()
     const [activeCard, setActiveCard] = useState<Card | null>(null)
@@ -151,7 +154,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         subView,
         filters,
         groupFilters,
-        showClosedCards
+        showClosedCards,
+        showWonDirect
     })
 
     const allCards = useMemo(() => cards || [], [cards])
@@ -213,6 +217,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [lossReasonModalOpen, setLossReasonModalOpen] = useState(false)
+    const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
     const [pendingMove, setPendingMove] = useState<{
         cardId: string,
         stageId: string,
@@ -526,7 +531,21 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const nextPhaseSlug = phaseSlug === 'sdr' ? 'planner' : 'pos_venda'
         const nextPhase = phasesData?.find(p => p.slug === nextPhaseSlug)
 
-        // Quality Gate: validar contra 1ª etapa da fase destino
+        // Planner → mostrar WinOptionsModal para escolher entre pós-venda ou ganho direto
+        if (phaseSlug === 'planner') {
+            setPendingMove({
+                cardId,
+                stageId: '',
+                targetStageName: 'Ganho Planner',
+                currentOwnerId: card.dono_atual_id || undefined,
+                targetPhaseId: nextPhase?.id,
+                targetPhaseName: nextPhase?.name || 'Pós-Venda'
+            })
+            setWinOptionsModalOpen(true)
+            return
+        }
+
+        // SDR → quality gate + StageChangeModal (fluxo existente)
         const nextPhaseStages = stages
             ?.filter(s => s.phase_id === nextPhase?.id)
             .sort((a, b) => a.ordem - b.ordem)
@@ -539,7 +558,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     setPendingMove({
                         cardId,
                         stageId: '',
-                        targetStageName: `Ganho ${phaseSlug === 'sdr' ? 'SDR' : 'Planner'}`,
+                        targetStageName: `Ganho SDR`,
                         missingFields: validation.missingFields,
                         missingProposals: validation.missingProposals,
                         missingTasks: validation.missingTasks,
@@ -555,13 +574,73 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
         setPendingMove({
             cardId,
-            stageId: '', // será ignorado — o RPC decide a etapa destino
-            targetStageName: `Ganho ${phaseSlug === 'sdr' ? 'SDR' : 'Planner'}`,
+            stageId: '',
+            targetStageName: `Ganho SDR`,
             currentOwnerId: card.dono_atual_id || undefined,
             targetPhaseId: nextPhase?.id,
             targetPhaseName: nextPhase?.name || nextPhaseSlug
         })
         setStageChangeModalOpen(true)
+    }
+
+    // WinOptions: usuário escolheu "Sim, enviar para Pós-Venda"
+    const handleWinOptionPosVenda = async () => {
+        setWinOptionsModalOpen(false)
+        if (!pendingMove) return
+
+        const card = allCards?.find(c => c.id === pendingMove.cardId)
+        const nextPhase = phasesData?.find(p => p.slug === 'pos_venda')
+        const targetStage = stages
+            ?.filter(s => s.phase_id === nextPhase?.id)
+            .sort((a, b) => a.ordem - b.ordem)?.[0]
+
+        // Quality gate contra 1ª etapa de Pós-Venda
+        if (targetStage && card) {
+            try {
+                const validation = await validateMove(card as unknown as Record<string, unknown>, targetStage.id)
+                if (!validation.valid) {
+                    setPendingMove({
+                        ...pendingMove,
+                        stageId: targetStage.id,
+                        missingFields: validation.missingFields,
+                        missingProposals: validation.missingProposals,
+                        missingTasks: validation.missingTasks,
+                        missingDocuments: validation.missingDocuments,
+                    })
+                    setQualityGateModalOpen(true)
+                    return
+                }
+            } catch (err) {
+                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+            }
+        }
+
+        setStageChangeModalOpen(true)
+    }
+
+    // WinOptions: usuário escolheu "Não, fechar direto"
+    const handleWinOptionDirect = async () => {
+        setWinOptionsModalOpen(false)
+        if (!pendingMove) return
+
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { error } = await (supabase as any).rpc('marcar_ganho', {
+                p_card_id: pendingMove.cardId,
+                p_skip_pos_venda: true
+            })
+            if (error) throw error
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+        } catch (err: unknown) {
+            console.error('Erro ao marcar ganho direto:', err)
+            const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+            toast.error(`Erro ao marcar ganho direto: ${msg}`)
+        }
+
+        setPendingMove(null)
+        setActiveCard(null)
     }
 
     // Loss handler — chamado pelo KanbanCard via onLoss callback
@@ -734,6 +813,17 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
                             {pendingMove && (
                                 <>
+                                    <WinOptionsModal
+                                        isOpen={winOptionsModalOpen}
+                                        onClose={() => {
+                                            setWinOptionsModalOpen(false)
+                                            setPendingMove(null)
+                                            setActiveCard(null)
+                                        }}
+                                        onChoosePosVenda={handleWinOptionPosVenda}
+                                        onChooseDirectWin={handleWinOptionDirect}
+                                    />
+
                                     <StageChangeModal
                                         isOpen={stageChangeModalOpen}
                                         onClose={() => {
