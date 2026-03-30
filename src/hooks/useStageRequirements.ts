@@ -17,7 +17,7 @@ interface BaseRequirement {
     is_blocking_config: boolean
 }
 
-interface FieldRequirement extends BaseRequirement {
+export interface FieldRequirement extends BaseRequirement {
     requirement_type: 'field'
     field_key: string
 }

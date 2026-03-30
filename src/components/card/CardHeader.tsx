@@ -48,7 +48,7 @@ import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import SendAlertModal from './SendAlertModal'
-import { useStageRequirements } from '../../hooks/useStageRequirements'
+import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
@@ -1609,13 +1609,14 @@ export default function CardHeader({ card }: CardHeaderProps) {
             <QualityGateModal
                 isOpen={qualityGateModalOpen}
                 onClose={() => setQualityGateModalOpen(false)}
-                missingFields={pendingStageChange?.missingFields || []}
-                missingProposals={pendingStageChange?.missingProposals || []}
-                missingTasks={pendingStageChange?.missingTasks || []}
-                missingDocuments={pendingStageChange?.missingDocuments || []}
+                missingFields={pendingStageChange?.missingFields || missingBlocking.filter((r): r is FieldRequirement => r.requirement_type === 'field').map(r => ({ key: r.field_key, label: r.label }))}
+                missingProposals={pendingStageChange?.missingProposals || missingBlocking.filter((r): r is ProposalRequirement => r.requirement_type === 'proposal').map(r => ({ label: r.label, min_status: r.proposal_min_status }))}
+                missingTasks={pendingStageChange?.missingTasks || missingBlocking.filter((r): r is TaskRequirement => r.requirement_type === 'task').map(r => ({ label: r.label, task_tipo: r.task_tipo, task_require_completed: r.task_require_completed }))}
+                missingDocuments={pendingStageChange?.missingDocuments || missingBlocking.filter((r): r is DocumentRequirement => r.requirement_type === 'document').map(r => ({ label: r.label, total: 1, completed: 0 }))}
                 onConfirm={handleConfirmQualityGate}
-                targetStageName={pendingStageChange?.targetStageName || ''}
+                targetStageName={pendingStageChange?.targetStageName || currentStage?.nome || ''}
                 cardId={card.id!}
+                context={pendingStageChange ? 'kanban' : 'card-detail'}
             />
 
             <WinOptionsModal

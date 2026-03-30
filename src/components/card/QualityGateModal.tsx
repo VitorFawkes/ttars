@@ -14,6 +14,7 @@ interface QualityGateModalProps {
     missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[]
     missingDocuments?: { label: string, total: number, completed: number }[]
     initialData?: Record<string, unknown>  // Keep for API compatibility
+    context?: 'kanban' | 'card-detail'
 }
 
 const PROPOSAL_STATUS_LABELS: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function QualityGateModal({
     missingProposals = [],
     missingTasks = [],
     missingDocuments = [],
+    context = 'kanban',
 }: QualityGateModalProps) {
     const navigate = useNavigate()
 
@@ -57,8 +59,10 @@ export default function QualityGateModal({
 
                 <div className="py-4 space-y-4">
                     <p className="text-sm text-gray-600">
-                        Para mover para a etapa <strong className="text-gray-900">{targetStageName}</strong>,
-                        é necessário atender os seguintes requisitos:
+                        {context === 'card-detail'
+                            ? <>A etapa <strong className="text-gray-900">{targetStageName}</strong> exige os seguintes requisitos pendentes:</>
+                            : <>Para mover para a etapa <strong className="text-gray-900">{targetStageName}</strong>, é necessário atender os seguintes requisitos:</>
+                        }
                     </p>
 
                     {/* Campos Obrigatórios */}
@@ -145,22 +149,35 @@ export default function QualityGateModal({
                         </div>
                     )}
 
-                    <p className="text-xs text-gray-500">
-                        Acesse a página do card para atender os requisitos necessários.
-                    </p>
+                    {context === 'kanban' && (
+                        <p className="text-xs text-gray-500">
+                            Acesse a página do card para atender os requisitos necessários.
+                        </p>
+                    )}
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-0">
-                    <Button variant="outline" onClick={onClose}>
-                        Cancelar
-                    </Button>
-                    <Button
-                        onClick={handleOpenCard}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                    >
-                        <ExternalLink className="w-4 h-4" />
-                        Abrir Card
-                    </Button>
+                    {context === 'card-detail' ? (
+                        <Button
+                            onClick={onClose}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            Entendi
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={onClose}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleOpenCard}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                            >
+                                <ExternalLink className="w-4 h-4" />
+                                Abrir Card
+                            </Button>
+                        </>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
