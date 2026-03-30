@@ -490,6 +490,13 @@ Deno.serve(async (req) => {
                                         fieldValue = sfOpts[fieldValue];
                                     }
                                 }
+                                // Loss reason fields (2, 56, 59) are protected — only set via 'lost' event handler
+                                const LOSS_REASON_FIELD_IDS = new Set([2, 56, 59]);
+                                if (LOSS_REASON_FIELD_IDS.has(numericId)) {
+                                    console.log(`[integration-dispatch] Skipping protected loss reason field ${numericId} in field_update`);
+                                    skippedFields.push(`${fieldId}(protected_loss_field:${numericId})`);
+                                    continue;
+                                }
                                 customFields.push({
                                     customFieldId: numericId,
                                     fieldValue

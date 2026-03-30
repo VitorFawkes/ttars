@@ -5,12 +5,12 @@ import PipelineListView from '../components/pipeline/PipelineListView'
 import { cn } from '../lib/utils'
 import CreateCardModal from '../components/pipeline/CreateCardModal'
 
-import { usePipelineFilters } from '../hooks/usePipelineFilters'
+import { usePipelineFilters, useActiveFilterCount } from '../hooks/usePipelineFilters'
 import { useProductContext } from '../hooks/useProductContext'
 import { useMyVisiblePhases } from '../hooks/useMyVisiblePhases'
 import { useAuth } from '../contexts/AuthContext'
 
-import { FilterDrawer } from '../components/pipeline/FilterDrawer'
+import { FilterDrawer } from '../components/pipeline/filters/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
 import { Filter, Link, User, ArrowUpDown, Search, Eye, EyeOff, Trophy } from 'lucide-react'
 import { SORT_FIELD_LABELS } from '../lib/constants'
@@ -30,17 +30,18 @@ import { MyDayBar } from '../components/pipeline/MyDayBar'
 export default function Pipeline() {
     const navigate = useNavigate()
     const {
-        viewMode, subView, groupFilters, filters, _phaseAutoApplied,
-        setViewMode, setSubView, setGroupFilters, setFilters, setAll
+        viewMode, subView, groupFilters, filters, showClosedCards, showWonDirect,
+        _phaseAutoApplied,
+        setGroupFilters, setAll,
+        setScopeView, setShowClosedCards, setShowWonDirect, updateFilter,
     } = usePipelineFilters()
+    const activeFilterCount = useActiveFilterCount()
     const { currentProduct } = useProductContext()
     const { profile } = useAuth()
     const { data: visiblePhases } = useMyVisiblePhases()
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
-    const [showClosedCards, setShowClosedCards] = useState(false)
-    const [showWonDirect, setShowWonDirect] = useState(false)
 
     // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
@@ -53,11 +54,11 @@ export default function Pipeline() {
     // Guard: if user lost access to current view (e.g. role changed), reset to MY_QUEUE
     useEffect(() => {
         if (subView === 'TEAM_VIEW' && !canViewTeam) {
-            setViewMode('AGENT'); setSubView('MY_QUEUE')
+            setScopeView('AGENT', 'MY_QUEUE')
         } else if (subView === 'ALL' && !canViewAll) {
-            setViewMode('AGENT'); setSubView('MY_QUEUE')
+            setScopeView('AGENT', 'MY_QUEUE')
         }
-    }, [canViewTeam, canViewAll, subView, setViewMode, setSubView])
+    }, [canViewTeam, canViewAll, subView, setScopeView])
 
     useEffect(() => {
         if (_phaseAutoApplied || isAdmin || !visiblePhases?.length) return
@@ -150,14 +151,14 @@ export default function Pipeline() {
                                         placeholder="Buscar por nome, telefone, email, título..."
                                         className="block w-full pl-10 pr-3 py-1.5 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm"
                                         value={filters.search || ''}
-                                        onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                                        onChange={(e) => updateFilter({ search: e.target.value })}
                                     />
                                 </div>
 
-                                {/* View Switcher (Persona Based) */}
+                                {/* View Switcher (Persona Based) — com cascading */}
                                 <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
                                     <button
-                                        onClick={() => { setViewMode('AGENT'); setSubView('MY_QUEUE'); }}
+                                        onClick={() => setScopeView('AGENT', 'MY_QUEUE')}
                                         className={cn(
                                             "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                             viewMode === 'AGENT' && subView === 'MY_QUEUE'
@@ -169,7 +170,7 @@ export default function Pipeline() {
                                     </button>
                                     {canViewTeam && (
                                         <button
-                                            onClick={() => { setViewMode('MANAGER'); setSubView('TEAM_VIEW'); }}
+                                            onClick={() => setScopeView('MANAGER', 'TEAM_VIEW')}
                                             className={cn(
                                                 "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                                 viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
@@ -182,7 +183,7 @@ export default function Pipeline() {
                                     )}
                                     {canViewAll && (
                                         <button
-                                            onClick={() => { setViewMode('MANAGER'); setSubView('ALL'); }}
+                                            onClick={() => setScopeView('MANAGER', 'ALL')}
                                             className={cn(
                                                 "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                                 subView === 'ALL'
@@ -195,7 +196,7 @@ export default function Pipeline() {
                                     )}
                                 </div>
 
-                                {/* Group Filters + Closed Cards Toggle */}
+                                {/* Group Filters + Closed Cards Toggle — com cascading */}
                                 <div className="flex items-center space-x-2 border-l border-gray-200 pl-4">
                                     <button
                                         onClick={() => setGroupFilters({ ...groupFilters, showLinked: !groupFilters.showLinked })}
@@ -222,10 +223,7 @@ export default function Pipeline() {
                                         Avulsas
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            setShowWonDirect(!showWonDirect)
-                                            if (!showWonDirect) setShowClosedCards(false)
-                                        }}
+                                        onClick={() => setShowWonDirect(!showWonDirect)}
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             showWonDirect
@@ -238,10 +236,7 @@ export default function Pipeline() {
                                         Sem Pós
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            setShowClosedCards(!showClosedCards)
-                                            if (!showClosedCards) setShowWonDirect(false)
-                                        }}
+                                        onClick={() => setShowClosedCards(!showClosedCards)}
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             showClosedCards
@@ -283,9 +278,9 @@ export default function Pipeline() {
                                                     className="flex items-center justify-between cursor-pointer"
                                                     onClick={() => {
                                                         if (isActive) {
-                                                            setFilters({ ...filters, sortBy: field, sortDirection: filters.sortDirection === 'asc' ? 'desc' : 'asc' })
+                                                            updateFilter({ sortBy: field, sortDirection: filters.sortDirection === 'asc' ? 'desc' : 'asc' })
                                                         } else {
-                                                            setFilters({ ...filters, sortBy: field, sortDirection: getDefaultDirection(field) })
+                                                            updateFilter({ sortBy: field, sortDirection: getDefaultDirection(field) })
                                                         }
                                                     }}
                                                 >
@@ -301,13 +296,23 @@ export default function Pipeline() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
-                                {/* Smart Filter Button */}
+                                {/* Smart Filter Button com badge */}
                                 <button
                                     onClick={() => setIsFilterDrawerOpen(true)}
-                                    className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-sm transition-all"
+                                    className={cn(
+                                        "flex items-center px-3 py-1.5 text-sm font-medium border rounded-lg shadow-sm transition-all",
+                                        activeFilterCount > 0
+                                            ? "text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
+                                            : "text-gray-700 bg-white hover:bg-gray-50 border-gray-200"
+                                    )}
                                 >
-                                    <Filter className="h-4 w-4 mr-2 text-gray-500" />
+                                    <Filter className={cn("h-4 w-4 mr-2", activeFilterCount > 0 ? "text-indigo-500" : "text-gray-500")} />
                                     Filtros
+                                    {activeFilterCount > 0 && (
+                                        <span className="ml-1.5 bg-indigo-600 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 font-bold">
+                                            {activeFilterCount}
+                                        </span>
+                                    )}
                                 </button>
 
 
