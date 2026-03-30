@@ -1,7 +1,0 @@
-Need to install the following packages:
-supabase@2.67.1
-Ok to proceed? (y) 
-npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
-Initialising login role...
-Connecting to remote database...
-failed to parse rows: timeout: context canceled
