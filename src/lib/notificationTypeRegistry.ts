@@ -1,4 +1,4 @@
-import { UserCheck, FileSpreadsheet, Bell, type LucideIcon } from 'lucide-react'
+import { UserCheck, FileSpreadsheet, Megaphone, Bell, type LucideIcon } from 'lucide-react'
 
 export function formatTimeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -29,6 +29,12 @@ export const NOTIFICATION_TYPE_REGISTRY: Record<string, NotificationTypeDisplay>
         color: 'text-purple-600 bg-purple-50',
         label: 'Produtos Monde',
         description: 'Quando produtos financeiros são importados via Monde',
+    },
+    card_alert: {
+        icon: Megaphone,
+        color: 'text-amber-600 bg-amber-50',
+        label: 'Alerta no Card',
+        description: 'Quando alguém envia um alerta para você em um card',
     },
 }
 

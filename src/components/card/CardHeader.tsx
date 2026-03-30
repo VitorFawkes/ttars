@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -47,6 +47,7 @@ import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
+import SendAlertModal from './SendAlertModal'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
@@ -371,6 +372,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
     const { validateMove } = useQualityGate()
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
+    const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
@@ -1573,6 +1575,16 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     <span className="hidden sm:inline">{missingBlocking.length}</span> Pendências
                                 </Button>
                             )}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAlertModal(true)}
+                                className="gap-1.5 text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300"
+                                title="Enviar alerta para alguém"
+                            >
+                                <Megaphone className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Alertar</span>
+                            </Button>
                             <ActionButtons card={card} />
                         </div>
                     </div>
@@ -1637,6 +1649,13 @@ export default function CardHeader({ card }: CardHeaderProps) {
                 initialComentario={card.motivo_perda_comentario}
                 isEditing={card.status_comercial === 'perdido'}
                 cardTitle={card.titulo || undefined}
+            />
+
+            <SendAlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                cardId={card.id!}
+                cardTitle={card.titulo}
             />
         </>
     )

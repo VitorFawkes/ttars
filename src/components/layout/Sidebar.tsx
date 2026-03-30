@@ -1,13 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, BellRing, CheckSquare, Gift, type LucideIcon } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProductContext } from '../../hooks/useProductContext'
 import NotificationCenter from './NotificationCenter'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
-import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -26,13 +25,10 @@ const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?:
 
 export default function Sidebar() {
     const location = useLocation()
-    const navigate = useNavigate()
     const { session, signOut, profile } = useAuth()
     const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
-    const { isSupported: pushSupported, isSubscribed: pushSubscribed } = usePushNotifications()
-    const showPushCta = pushSupported && !pushSubscribed
 
     const filteredNavigation = useMemo(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,30 +129,13 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            {/* Push notification CTA — navigates to settings, disappears when activated */}
-            {showPushCta && (
-                <div className="px-2 pb-2">
-                    <button
-                        onClick={() => navigate('/settings/profile?tab=notifications')}
-                        title={!isExpanded ? 'Ativar Notificações' : undefined}
-                        className={cn(
-                            "w-full flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                            "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200"
-                        )}
-                    >
-                        <div className="relative flex-shrink-0">
-                            <BellRing className="h-5 w-5" />
-                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
-                        </div>
-                        <span className={cn(
-                            "ml-3 whitespace-nowrap transition-opacity duration-200",
-                            isExpanded ? "opacity-100" : "opacity-0 w-0"
-                        )}>
-                            Ativar Notificações
-                        </span>
-                    </button>
-                </div>
-            )}
+            {/* Notification Center — prominent position above user section */}
+            <div className="px-2 pb-2">
+                <NotificationCenter
+                    showLabel={isExpanded}
+                    className={cn(!isExpanded && 'justify-center')}
+                />
+            </div>
 
             {/* User section */}
             <div className="border-t border-primary/20 p-2">
@@ -173,7 +152,6 @@ export default function Sidebar() {
                                 <span className="text-sm font-medium text-white truncate capitalize">{userName}</span>
                                 <span className="text-xs text-primary-light truncate">{session?.user?.email}</span>
                             </div>
-                            <NotificationCenter triggerClassName="text-primary-light hover:text-white hover:bg-primary/20" />
                             <button
                                 onClick={() => signOut()}
                                 className="flex h-8 w-8 items-center justify-center rounded-lg text-primary-light hover:bg-red-500/10 hover:text-red-500 transition-colors"

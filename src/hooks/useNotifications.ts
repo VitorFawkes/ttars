@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+
+/** Emitted when a truly new notification arrives via realtime */
+export const NOTIFICATION_NEW_EVENT = 'welcomecrm:notification-new';
 
 export interface Notification {
     id: string;
@@ -22,6 +25,10 @@ export function useNotifications() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
+    // Track the newest notification timestamp at initial load to detect truly new ones
+    const baselineRef = useRef<string | null>(null);
+    const initializedRef = useRef(false);
+
     const { data: notifications = [], isLoading } = useQuery({
         queryKey: ['notifications', user?.id],
         queryFn: async () => {
@@ -39,6 +46,20 @@ export function useNotifications() {
         staleTime: 30_000,
     });
 
+    // Set baseline from first successful fetch (so we know what's "old")
+    useEffect(() => {
+        if (!initializedRef.current && notifications.length > 0) {
+            baselineRef.current = notifications[0].created_at; // newest
+            initializedRef.current = true;
+        }
+    }, [notifications]);
+
+    const updateBaseline = useCallback(() => {
+        if (notifications.length > 0) {
+            baselineRef.current = notifications[0].created_at;
+        }
+    }, [notifications]);
+
     // Realtime subscription (INSERT + UPDATE for cross-tab sync)
     useEffect(() => {
         if (!user?.id) return;
@@ -48,7 +69,25 @@ export function useNotifications() {
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+                    if (initializedRef.current && payload.new) {
+                        const newTs = (payload.new as Notification).created_at;
+                        if (!baselineRef.current || newTs > baselineRef.current) {
+                            window.dispatchEvent(new CustomEvent(NOTIFICATION_NEW_EVENT));
+                        }
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
                     schema: 'public',
                     table: 'notifications',
                     filter: `user_id=eq.${user.id}`,
@@ -122,6 +161,7 @@ export function useNotifications() {
         isLoading,
         unreadCount,
         groupedByType,
+        updateBaseline,
         markAsRead,
         markGroupAsRead,
         markAllAsRead,
