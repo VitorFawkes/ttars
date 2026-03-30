@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText, AlertCircle } from 'lucide-react'
+import { Package, TrendingUp, RefreshCw, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -293,7 +293,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
     const [isOpen, setIsOpen] = useState(false)
     const [editingNotes, setEditingNotes] = useState(false)
     const [notesValue, setNotesValue] = useState(item.notes || '')
-    const [newPassengerName, setNewPassengerName] = useState('')
 
     const { byProduct, progressByProduct, toggleStatus, updateRequirement, deleteRequirement, uploadFile } = useProductRequirements(cardId)
     const reqs = byProduct(item.id)
@@ -302,7 +301,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
     const {
         byProduct: passengersByProduct,
         progressByProduct: paxProgressByProduct,
-        addPassenger,
         toggleStatus: togglePaxStatus,
         updateObservation,
         deletePassenger,
@@ -341,12 +339,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
             setEditingNotes(false)
         },
     })
-
-    const handleAddPassenger = () => {
-        if (!newPassengerName.trim()) return
-        addPassenger.mutate({ financialItemId: item.id, nome: newPassengerName.trim() })
-        setNewPassengerName('')
-    }
 
     return (
         <div className={cn(
@@ -493,23 +485,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                                 ))}
                             </>
                         )}
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={newPassengerName}
-                                onChange={e => setNewPassengerName(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleAddPassenger()}
-                                placeholder="Adicionar passageiro..."
-                                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                            />
-                            <button
-                                onClick={handleAddPassenger}
-                                disabled={!newPassengerName.trim()}
-                                className="text-indigo-500 hover:text-indigo-700 disabled:text-gray-300"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
                     </div>
 
                     {/* Nota operacional (pós-venda) */}
