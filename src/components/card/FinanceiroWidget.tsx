@@ -83,6 +83,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
     }, 0)
     const marginPercent = totalVenda > 0 ? (totalReceita / totalVenda) * 100 : 0
     const readyCount = items.filter(i => i.is_ready).length
+    const obsCount = items.filter(i => i.observacoes).length
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -105,6 +106,12 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                                 : "bg-amber-100 text-amber-700"
                         )}>
                             {readyCount}/{items.length}
+                        </span>
+                    )}
+                    {obsCount > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600 flex items-center gap-0.5">
+                            <ClipboardList className="h-3 w-3" />
+                            {obsCount}
                         </span>
                     )}
                 </h3>
@@ -258,12 +265,11 @@ function ExtraFieldsRow({ item, className }: { item: FinancialItem; className?: 
 function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId: string }) {
     const queryClient = useQueryClient()
     const [isOpen, setIsOpen] = useState(false)
-    const [newItemTitle, setNewItemTitle] = useState('')
     const [editingNotes, setEditingNotes] = useState(false)
     const [notesValue, setNotesValue] = useState(item.notes || '')
     const [newPassengerName, setNewPassengerName] = useState('')
 
-    const { byProduct, progressByProduct, addRequirement, toggleStatus, updateRequirement, deleteRequirement, uploadFile } = useProductRequirements(cardId)
+    const { byProduct, progressByProduct, toggleStatus, updateRequirement, deleteRequirement, uploadFile } = useProductRequirements(cardId)
     const reqs = byProduct(item.id)
     const progress = progressByProduct(item.id)
 
@@ -309,12 +315,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
             setEditingNotes(false)
         },
     })
-
-    const handleAddItem = () => {
-        if (!newItemTitle.trim()) return
-        addRequirement.mutate({ financialItemId: item.id, titulo: newItemTitle.trim() })
-        setNewItemTitle('')
-    }
 
     const handleAddPassenger = () => {
         if (!newPassengerName.trim()) return
@@ -438,25 +438,6 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                             ))}
                         </div>
                     )}
-
-                    {/* Add new item */}
-                    <div className="ml-12 flex items-center gap-2">
-                        <input
-                            type="text"
-                            value={newItemTitle}
-                            onChange={e => setNewItemTitle(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-                            placeholder="Adicionar item..."
-                            className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                        />
-                        <button
-                            onClick={handleAddItem}
-                            disabled={!newItemTitle.trim()}
-                            className="text-amber-600 hover:text-amber-800 disabled:text-gray-300"
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                        </button>
-                    </div>
 
                     {/* Passengers section */}
                     <div className="ml-12 space-y-1">

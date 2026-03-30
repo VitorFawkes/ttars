@@ -11,8 +11,8 @@
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, Layers, ChevronDown } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Check, Loader2, Layers, ChevronDown, ClipboardList } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
@@ -93,9 +93,10 @@ export function SectionCollapseToggle({ isExpanded, onToggle }: SectionCollapseT
 interface CollapsedSectionBarProps {
     section: Section
     onExpand: () => void
+    extras?: React.ReactNode
 }
 
-function CollapsedSectionBar({ section, onExpand }: CollapsedSectionBarProps) {
+function CollapsedSectionBar({ section, onExpand, extras }: CollapsedSectionBarProps) {
     const iconName = resolveIconName(section.icon)
     const colorClasses = section.color || 'bg-slate-50 text-slate-700 border-slate-100'
     const [bgClass, textClass] = colorClasses.split(' ')
@@ -118,6 +119,7 @@ function CollapsedSectionBar({ section, onExpand }: CollapsedSectionBarProps) {
                 <span className="text-xs font-semibold text-gray-900">
                     {section.label}
                 </span>
+                {extras}
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
         </button>
@@ -428,8 +430,30 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
     const [isExpanded, setIsExpanded] = useState(!(stageCollapsed || section.default_collapsed))
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
 
+    // Obs count for financeiro collapsed bar (shares React Query cache with FinanceiroWidget)
+    const isFinanceiro = section.widget_component === 'financeiro'
+    const { data: obsCount = 0 } = useQuery({
+        queryKey: ['financial-items', card.id],
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase.from('card_financial_items') as any)
+                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes')
+                .eq('card_id', card.id)
+                .order('created_at')
+            return (data || []) as { observacoes: string | null }[]
+        },
+        enabled: isFinanceiro && !isExpanded,
+        select: (items: { observacoes: string | null }[]) => items.filter(i => i.observacoes).length,
+    })
+
     if (!isExpanded) {
-        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} />
+        const extras = isFinanceiro && obsCount > 0 ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600 inline-flex items-center gap-0.5">
+                <ClipboardList className="h-3 w-3" />
+                {obsCount}
+            </span>
+        ) : undefined
+        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} extras={extras} />
     }
 
     const WidgetComponent = WIDGET_REGISTRY[section.widget_component!]
