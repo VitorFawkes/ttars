@@ -73,6 +73,12 @@ interface ImportLogItemRow {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
+function chunked<T>(arr: T[], size: number): T[][] {
+    const result: T[][] = []
+    for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
+    return result
+}
+
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
@@ -544,18 +550,25 @@ export default function VendasMondePage() {
             const matched: MatchedCard[] = []
             const matchedNums = new Set<string>()
 
-            // Buscar cada número de venda diretamente no JSONB (filtro server-side)
-            for (const num of uniqueVendaNums) {
-                // 1. Match primário: produto_data->>numero_venda_monde
-                const { data: cards } = await supabase
-                    .from('cards')
-                    .select('id, titulo')
-                    .eq('produto_data->>numero_venda_monde', num)
-                    .limit(1)
+            // 1. Match primário em batch: produto_data->>numero_venda_monde via .in()
+            const primaryChunks = chunked(uniqueVendaNums, 50)
+            const primaryResults = await Promise.all(
+                primaryChunks.map(chunk =>
+                    supabase
+                        .from('cards')
+                        .select('id, titulo, produto_data')
+                        .in('produto_data->>numero_venda_monde', chunk)
+                )
+            )
 
-                const card = cards?.[0]
-                if (card) {
-                    const products = grouped.get(num)!
+            for (const { data: cards } of primaryResults) {
+                if (!cards) continue
+                for (const card of cards) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const num = (card.produto_data as any)?.numero_venda_monde as string
+                    if (!num || matchedNums.has(num)) continue
+                    const products = grouped.get(num)
+                    if (!products) continue
                     matched.push({
                         cardId: card.id,
                         cardTitle: (card.titulo as string) || 'Card sem título',
@@ -565,23 +578,29 @@ export default function VendasMondePage() {
                         totalReceita: products.reduce((s, p) => s + p.receita, 0),
                     })
                     matchedNums.add(num)
-                    continue
                 }
+            }
 
-                // 2. Fallback: buscar no histórico (numeros_venda_monde_historico)
-                // Usa containment operator para buscar dentro do array JSONB
-                const { data: histCards } = await supabase
-                    .from('cards')
-                    .select('id, titulo')
-                    .contains('produto_data', { numeros_venda_monde_historico: [{ numero: num }] })
-                    .limit(1)
-
-                const histCard = histCards?.[0]
-                if (histCard) {
+            // 2. Fallback: buscar no histórico apenas os não-matcheados, em paralelo de 10
+            const unmatchedNums = uniqueVendaNums.filter(n => !matchedNums.has(n))
+            const fallbackChunks = chunked(unmatchedNums, 10)
+            for (const batch of fallbackChunks) {
+                const fallbackResults = await Promise.all(
+                    batch.map(num =>
+                        supabase
+                            .from('cards')
+                            .select('id, titulo')
+                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: num }] })
+                            .limit(1)
+                            .then(res => ({ num, card: res.data?.[0] }))
+                    )
+                )
+                for (const { num, card } of fallbackResults) {
+                    if (!card) continue
                     const products = grouped.get(num)!
                     matched.push({
-                        cardId: histCard.id,
-                        cardTitle: (histCard.titulo as string) || 'Card sem título',
+                        cardId: card.id,
+                        cardTitle: (card.titulo as string) || 'Card sem título',
                         vendaNum: num,
                         products,
                         totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
@@ -613,70 +632,50 @@ export default function VendasMondePage() {
         let errors = 0
         const cardResults: Array<{ card: MatchedCard; status: 'success' | 'error'; error?: string }> = []
 
-        for (let i = 0; i < matched.length; i++) {
-            const card = matched[i]
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase.from('card_financial_items') as any)
-                    .delete()
-                    .eq('card_id', card.cardId)
+        // Bulk RPC: envia tudo de uma vez, processa server-side em uma transaction
+        const bulkPayload = matched.map(card => ({
+            card_id: card.cardId,
+            products: card.products.map(p => ({
+                description: p.produto || null,
+                sale_value: p.valorTotal,
+                supplier_cost: Math.round((p.valorTotal - p.receita) * 100) / 100,
+                fornecedor: p.fornecedor || null,
+                representante: p.representante || null,
+                documento: p.documento || null,
+                data_inicio: p.dataInicio || null,
+                data_fim: p.dataFim || null,
+                passageiros: p.passageiros.length > 0 ? p.passageiros : [],
+            })),
+        }))
 
-                const inserts = card.products.map(p => ({
-                    card_id: card.cardId,
-                    product_type: 'custom',
-                    description: p.produto || null,
-                    sale_value: p.valorTotal,
-                    supplier_cost: Math.round((p.valorTotal - p.receita) * 100) / 100,
-                    fornecedor: p.fornecedor || null,
-                    representante: p.representante || null,
-                    documento: p.documento || null,
-                    data_inicio: p.dataInicio || null,
-                    data_fim: p.dataFim || null,
-                }))
+        setImportProgress({ current: 0, total: matched.length })
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: insertedItems, error: insertError } = await (supabase.from('card_financial_items') as any)
-                    .insert(inserts)
-                    .select('id')
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error: rpcError } = await (supabase as any).rpc('bulk_import_financial_items', {
+                p_cards: bulkPayload,
+            })
 
-                if (insertError) throw insertError
+            if (rpcError) throw rpcError
 
-                // Inserir passageiros por produto
-                const passengerRows: Array<{ financial_item_id: string; card_id: string; nome: string; ordem: number }> = []
-                if (insertedItems) {
-                    for (let j = 0; j < card.products.length; j++) {
-                        const product = card.products[j]
-                        const itemId = insertedItems[j]?.id
-                        if (!itemId || product.passageiros.length === 0) continue
-                        product.passageiros.forEach((nome: string, idx: number) => {
-                            passengerRows.push({
-                                financial_item_id: itemId,
-                                card_id: card.cardId,
-                                nome,
-                                ordem: idx,
-                            })
-                        })
-                    }
-                }
-                if (passengerRows.length > 0) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    await (supabase as any).from('financial_item_passengers').insert(passengerRows)
-                }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = data as any
+            cardsUpdated = result?.cards_updated ?? matched.length
+            productsImported = result?.products_imported ?? 0
 
-                await supabase.rpc('recalcular_financeiro_manual', { p_card_id: card.cardId })
-
-                cardsUpdated++
-                productsImported += inserts.length
+            for (const card of matched) {
                 cardResults.push({ card, status: 'success' })
-            } catch (err) {
-                errors++
+            }
+        } catch (err) {
+            console.error('Erro no bulk import:', err)
+            errors = matched.length
+            for (const card of matched) {
                 const msg = err instanceof Error ? err.message : 'Erro desconhecido'
                 cardResults.push({ card, status: 'error', error: msg })
-                console.error(`Erro card ${card.cardId}:`, err)
             }
-
-            setImportProgress({ current: i + 1, total: matched.length })
         }
+
+        setImportProgress({ current: matched.length, total: matched.length })
 
         // ─── Persist log ─────────────────────────────────────
         try {
