@@ -17,7 +17,6 @@ import { supabase } from '../../lib/supabase'
 import KanbanColumn from './KanbanColumn'
 import KanbanCard from './KanbanCard'
 import KanbanPhaseGroup from './KanbanPhaseGroup'
-import { Users } from 'lucide-react'
 import StageChangeModal from '../card/StageChangeModal'
 import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
@@ -32,6 +31,7 @@ import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import { ScrollArrows } from '../ui/ScrollArrows'
+import { FilterEmptyState } from './FilterEmptyState'
 import { usePipelineCards } from '../../hooks/usePipelineCards'
 import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
 import { useAuth } from '../../contexts/AuthContext'
@@ -741,14 +741,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         <div className="flex gap-4 w-max min-w-full px-4 items-stretch pt-2 h-full">
                             <div className="flex gap-6 items-stretch h-full">
                                 {displayPhases.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center w-[calc(100vw-20rem)] py-20 bg-white/5 rounded-xl border border-dashed border-gray-300">
-                                        <div className="p-4 bg-gray-100 rounded-full mb-4">
-                                            <Users className="h-8 w-8 text-gray-400" />
-                                        </div>
-                                        <h3 className="text-lg font-semibold text-gray-900">Nenhum card encontrado</h3>
-                                        <p className="text-gray-500 max-w-xs text-center mt-2">
-                                            Tente ajustar os filtros de Grupos, Vinculadas ou Avulsas para ver mais resultados.
-                                        </p>
+                                    <div className="flex items-center justify-center w-[calc(100vw-20rem)]">
+                                        <FilterEmptyState />
                                     </div>
                                 ) : displayPhases.map((phase) => {
                                     // Filter ALL stages (incluindo terminais) por phase

@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 import { FilterDrawer } from '../components/pipeline/filters/FilterDrawer'
 import { ActiveFilters } from '../components/pipeline/ActiveFilters'
-import { Filter, Link, User, ArrowUpDown, Search, Eye, EyeOff, Trophy } from 'lucide-react'
+import { Filter, Link, User, ArrowUpDown, Search, Trophy } from 'lucide-react'
 import { SORT_FIELD_LABELS } from '../lib/constants'
 import type { SortBy, SortDirection } from '../hooks/usePipelineFilters'
 import {
@@ -30,10 +30,10 @@ import { MyDayBar } from '../components/pipeline/MyDayBar'
 export default function Pipeline() {
     const navigate = useNavigate()
     const {
-        viewMode, subView, groupFilters, filters, showClosedCards, showWonDirect,
+        viewMode, subView, groupFilters, filters, showWonDirect,
         _phaseAutoApplied,
         setGroupFilters, setAll,
-        setScopeView, setShowClosedCards, setShowWonDirect, updateFilter,
+        setScopeView, setShowWonDirect, updateFilter,
     } = usePipelineFilters()
     const activeFilterCount = useActiveFilterCount()
     const { currentProduct } = useProductContext()
@@ -196,19 +196,33 @@ export default function Pipeline() {
                                     )}
                                 </div>
 
-                                {/* Group Filters + Closed Cards Toggle — com cascading */}
+                                {/* Quick Toggles — tipos de card + ganho direto */}
                                 <div className="flex items-center space-x-2 border-l border-gray-200 pl-4">
                                     <button
-                                        onClick={() => setGroupFilters({ ...groupFilters, showLinked: !groupFilters.showLinked })}
+                                        onClick={() => setGroupFilters({ ...groupFilters, showGroupMembers: !groupFilters.showGroupMembers })}
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
-                                            groupFilters.showLinked
+                                            groupFilters.showGroupMembers
                                                 ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm"
                                                 : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
                                         )}
+                                        title="Viajantes vinculados a um grupo"
                                     >
                                         <Link className="h-3 w-3 mr-1.5" />
-                                        Em Grupo
+                                        Grupo
+                                    </button>
+                                    <button
+                                        onClick={() => setGroupFilters({ ...groupFilters, showSubCards: !groupFilters.showSubCards })}
+                                        className={cn(
+                                            "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
+                                            groupFilters.showSubCards
+                                                ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                        )}
+                                        title="Sub-cards: vendas adicionais e mudanças"
+                                    >
+                                        <svg className="h-3 w-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                        Sub-cards
                                     </button>
                                     <button
                                         onClick={() => setGroupFilters({ ...groupFilters, showSolo: !groupFilters.showSolo })}
@@ -218,6 +232,7 @@ export default function Pipeline() {
                                                 ? "bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm"
                                                 : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
                                         )}
+                                        title="Cards avulsos (sem grupo)"
                                     >
                                         <User className="h-3 w-3 mr-1.5" />
                                         Avulsas
@@ -234,19 +249,6 @@ export default function Pipeline() {
                                     >
                                         <Trophy className="h-3 w-3 mr-1.5" />
                                         Sem Pós
-                                    </button>
-                                    <button
-                                        onClick={() => setShowClosedCards(!showClosedCards)}
-                                        className={cn(
-                                            "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
-                                            showClosedCards
-                                                ? "bg-amber-100 text-amber-700 border-amber-300 shadow-sm"
-                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
-                                        )}
-                                        title={showClosedCards ? 'Ocultar ganhos/perdidos' : 'Mostrar ganhos/perdidos'}
-                                    >
-                                        {showClosedCards ? <EyeOff className="h-3 w-3 mr-1.5" /> : <Eye className="h-3 w-3 mr-1.5" />}
-                                        Finalizados
                                     </button>
                                 </div>
                             </div>
@@ -349,9 +351,8 @@ export default function Pipeline() {
                             viewMode={viewMode}
                             subView={subView}
                             filters={filters}
-                            showClosedCards={showClosedCards}
                             showWonDirect={showWonDirect}
-                            className="h-full px-8 pb-4" // Shared horizontal padding
+                            className="h-full px-8 pb-4"
                         />
                     ) : (
                         <PipelineListView
@@ -359,7 +360,6 @@ export default function Pipeline() {
                             viewMode={viewMode}
                             subView={subView}
                             filters={filters}
-                            showClosedCards={showClosedCards}
                             showWonDirect={showWonDirect}
                             onCardClick={(cardId) => {
                                 navigate(`/cards/${cardId}`)

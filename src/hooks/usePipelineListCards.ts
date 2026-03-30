@@ -249,13 +249,14 @@ export function usePipelineListCards({
             // Exclude group parents
             query = query.eq('is_group_parent', false)
 
-            // Group Filters (server-side para paginação correta)
-            const { showLinked, showSolo } = groupFilters
-            if (showLinked && !showSolo) {
-                query = query.not('parent_card_id', 'is', null)
-            } else if (showSolo && !showLinked) {
+            // Group Filters — simplicado: server exclui o que pode, client refina
+            const { showGroupMembers, showSubCards, showSolo } = groupFilters
+            if (!showGroupMembers && !showSubCards && showSolo) {
                 query = query.is('parent_card_id', null)
+            } else if ((showGroupMembers || showSubCards) && !showSolo) {
+                query = query.not('parent_card_id', 'is', null)
             }
+            // Refinamento fino (group vs sub-card) feito client-side abaixo
 
             // Sorting
             if (filters.sortBy && filters.sortBy !== 'data_proxima_tarefa') {
@@ -272,11 +273,26 @@ export function usePipelineListCards({
             const { data, error, count } = await query
             if (error) throw error
 
+            // Refinamento client-side: group members vs sub-cards
+            let filtered = data as Card[]
+            if (!showGroupMembers || !showSubCards) {
+                filtered = filtered.filter(card => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const cardType = (card as any).card_type as string | null
+                    const isSubCard = cardType === 'sub_card'
+                    const isGroupMember = !!card.parent_card_id && !isSubCard
+
+                    if (isGroupMember && !showGroupMembers) return false
+                    if (isSubCard && !showSubCards) return false
+                    return true
+                })
+            }
+
             const total = count || 0
             const totalPages = Math.ceil(total / pageSize)
 
             return {
-                data: data as Card[],
+                data: filtered,
                 total,
                 page,
                 pageSize,

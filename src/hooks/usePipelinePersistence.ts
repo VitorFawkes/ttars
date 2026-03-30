@@ -19,8 +19,14 @@ export function usePipelinePersistence() {
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                // Merge with initial state to ensure structure validity
-                // but prioritize saved values
+                // Migra groupFilters do formato antigo (showLinked/showSolo) para novo
+                if (parsed.groupFilters && 'showLinked' in parsed.groupFilters) {
+                    parsed.groupFilters = {
+                        showGroupMembers: true,
+                        showSubCards: true,
+                        showSolo: true,
+                    };
+                }
                 setAll({ ...initialState, ...parsed });
             } catch (e) {
                 console.error('Failed to parse saved pipeline filters', e);
@@ -32,7 +38,7 @@ export function usePipelinePersistence() {
             // No saved state for this user, reset to defaults
             reset();
         }
-    }, [user?.id, setAll, reset]);
+    }, [user, user?.id, setAll, reset]);
 
     // Save state when it changes
     useEffect(() => {
@@ -47,16 +53,21 @@ export function usePipelinePersistence() {
             subView: currentState.subView,
             filters: currentState.filters,
             groupFilters: currentState.groupFilters,
+            showClosedCards: currentState.showClosedCards,
+            showWonDirect: currentState.showWonDirect,
             collapsedPhases: currentState.collapsedPhases
         };
 
         localStorage.setItem(key, JSON.stringify(stateToSave));
     }, [
+        user,
         user?.id,
         currentState.viewMode,
         currentState.subView,
         currentState.filters,
         currentState.groupFilters,
+        currentState.showClosedCards,
+        currentState.showWonDirect,
         currentState.collapsedPhases
     ]);
 }

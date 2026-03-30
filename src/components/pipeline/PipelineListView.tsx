@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Button } from '../ui/Button'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { useQualityGate } from '../../hooks/useQualityGate'
+import { FilterEmptyState } from './FilterEmptyState'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Product = Database['public']['Enums']['app_product']
@@ -1040,8 +1041,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         <TableBody>
                             {sortedCards.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={visibleColumnsOrdered.length + 1} className="h-24 text-center text-gray-500">
-                                        Nenhum card encontrado.
+                                    <TableCell colSpan={visibleColumnsOrdered.length + 1}>
+                                        <FilterEmptyState />
                                     </TableCell>
                                 </TableRow>
                             ) : (

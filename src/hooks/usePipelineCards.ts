@@ -235,16 +235,20 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             let filteredData = data as Card[]
 
             // Apply Group Filters (Client-side for flexibility)
-            const { showLinked, showSolo } = groupFilters
+            const { showGroupMembers, showSubCards, showSolo } = groupFilters
 
             filteredData = filteredData.filter(card => {
                 // ALWAYS exclude Group Parents from Kanban/List
                 if (card.is_group_parent) return false
 
-                const isLinked = !!card.parent_card_id
-                const isSolo = !isLinked
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const cardType = (card as any).card_type as string | null
+                const isSubCard = cardType === 'sub_card'
+                const isGroupMember = !!card.parent_card_id && !isSubCard
+                const isSolo = !card.parent_card_id
 
-                if (isLinked && showLinked) return true
+                if (isGroupMember && showGroupMembers) return true
+                if (isSubCard && showSubCards) return true
                 if (isSolo && showSolo) return true
 
                 return false

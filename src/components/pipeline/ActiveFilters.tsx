@@ -20,15 +20,32 @@ const DOC_STATUS_LABELS: Record<string, string> = {
     sem_anexos: 'Sem Anexos',
 }
 
+const ORIGEM_LABELS: Record<string, string> = {
+    mkt: 'Marketing',
+    indicacao: 'Indicação',
+    carteira_propria: 'Carteira Própria',
+    carteira_wg: 'Carteira WG',
+    carteira: 'Carteira',
+    manual: 'Manual',
+    outro: 'Outro',
+    site: 'Site',
+    active_campaign: 'Active Campaign',
+    whatsapp: 'WhatsApp',
+}
+
 export function ActiveFilters() {
-    const { filters: rawFilters, setFilters } = usePipelineFilters()
+    const {
+        filters: rawFilters, showWonDirect,
+        setFilters, removeFilter, toggleFilterValue,
+        setShowWonDirect,
+    } = usePipelineFilters()
     const filters = rawFilters || {}
     const { data: options } = useFilterOptions()
     const { currentProduct } = useProductContext()
     const { data: phasesData } = usePipelinePhases(PRODUCT_PIPELINE_MAP[currentProduct])
     const { tags } = useCardTags()
 
-    const hasFilters = Object.keys(filters).length > 0 && (
+    const hasFilters = !!(
         filters.search ||
         filters.ownerIds?.length ||
         filters.sdrIds?.length ||
@@ -46,24 +63,19 @@ export function ActiveFilters() {
         filters.creationEndDate ||
         filters.docStatus?.length ||
         filters.milestones?.length ||
-        filters.taskStatus?.length
+        filters.taskStatus?.length ||
+        filters.origem?.length ||
+        showWonDirect
     )
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic filter removal needs flexible typing
-    const removeFilter = (key: keyof typeof filters, value?: any) => {
-        const newFilters = { ...filters }
-
-        if (Array.isArray(newFilters[key])) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (newFilters as any)[key] = (newFilters[key] as string[]).filter(item => item !== value)
-        } else {
-            delete newFilters[key]
-        }
-
-        setFilters(newFilters)
+    const clearAll = () => {
+        // Preserva sortBy/sortDirection ao limpar filtros
+        setFilters({
+            sortBy: filters.sortBy,
+            sortDirection: filters.sortDirection,
+        })
+        if (showWonDirect) setShowWonDirect(false)
     }
-
-    const clearAll = () => setFilters({})
 
     return (
         <div className={cn(
@@ -73,6 +85,11 @@ export function ActiveFilters() {
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">Filtros:</span>
 
+                {/* Quick toggles como chips */}
+                {showWonDirect && (
+                    <Chip label="Sem Pós" variant="green" onRemove={() => setShowWonDirect(false)} />
+                )}
+
                 {/* Search */}
                 {filters.search && (
                     <Chip label={`Busca: "${filters.search}"`} onRemove={() => removeFilter('search')} />
@@ -81,37 +98,37 @@ export function ActiveFilters() {
                 {/* Owners */}
                 {filters.ownerIds?.map(id => {
                     const name = options?.profiles.find(p => p.id === id)?.full_name || 'Usuário'
-                    return <Chip key={id} label={`Resp: ${name}`} onRemove={() => removeFilter('ownerIds', id)} />
+                    return <Chip key={id} label={`Resp: ${name}`} onRemove={() => toggleFilterValue('ownerIds', id)} />
                 })}
 
                 {/* SDRs */}
                 {filters.sdrIds?.map(id => {
                     const name = options?.profiles.find(p => p.id === id)?.full_name || 'SDR'
-                    return <Chip key={id} label={`SDR: ${name}`} onRemove={() => removeFilter('sdrIds', id)} />
+                    return <Chip key={id} label={`SDR: ${name}`} onRemove={() => toggleFilterValue('sdrIds', id)} />
                 })}
 
                 {/* Planners */}
                 {filters.plannerIds?.map(id => {
                     const name = options?.profiles.find(p => p.id === id)?.full_name || 'Planner'
-                    return <Chip key={id} label={`Planner: ${name}`} onRemove={() => removeFilter('plannerIds', id)} />
+                    return <Chip key={id} label={`Planner: ${name}`} onRemove={() => toggleFilterValue('plannerIds', id)} />
                 })}
 
                 {/* Pós-Venda */}
                 {filters.posIds?.map(id => {
                     const name = options?.profiles.find(p => p.id === id)?.full_name || 'Pós'
-                    return <Chip key={id} label={`Pós: ${name}`} onRemove={() => removeFilter('posIds', id)} />
+                    return <Chip key={id} label={`Pós: ${name}`} onRemove={() => toggleFilterValue('posIds', id)} />
                 })}
 
                 {/* Teams */}
                 {filters.teamIds?.map(id => {
                     const name = options?.teams.find(t => t.id === id)?.name || 'Time'
-                    return <Chip key={id} label={`Time: ${name}`} onRemove={() => removeFilter('teamIds', id)} />
+                    return <Chip key={id} label={`Time: ${name}`} onRemove={() => toggleFilterValue('teamIds', id)} />
                 })}
 
                 {/* Departments */}
                 {filters.departmentIds?.map(id => {
                     const name = options?.departments.find(d => d.id === id)?.name || 'Depto'
-                    return <Chip key={id} label={`Depto: ${name}`} onRemove={() => removeFilter('departmentIds', id)} />
+                    return <Chip key={id} label={`Depto: ${name}`} onRemove={() => toggleFilterValue('departmentIds', id)} />
                 })}
 
                 {/* Phase Filters */}
@@ -121,31 +138,36 @@ export function ActiveFilters() {
                         <Chip
                             key={`phase-${phaseId}`}
                             label={`Fase: ${phase?.name || 'Fase'}`}
-                            onRemove={() => removeFilter('phaseFilters', phaseId)}
+                            onRemove={() => toggleFilterValue('phaseFilters', phaseId)}
                         />
                     )
                 })}
 
                 {/* Status Comercial */}
                 {filters.statusComercial?.map(status => (
-                    <Chip key={status} label={`Status: ${STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('statusComercial', status)} />
+                    <Chip key={status} label={`Status: ${STATUS_LABELS[status] || status}`} onRemove={() => toggleFilterValue('statusComercial', status)} />
+                ))}
+
+                {/* Origem */}
+                {filters.origem?.map(o => (
+                    <Chip key={`origem-${o}`} label={`Origem: ${ORIGEM_LABELS[o] || o}`} onRemove={() => toggleFilterValue('origem', o)} />
                 ))}
 
                 {/* Milestones */}
                 {filters.milestones?.map(m => {
                     const labels: Record<string, string> = { ganho_sdr: 'Marco: SDR', ganho_planner: 'Marco: Planner', ganho_pos: 'Marco: Pós' }
-                    return <Chip key={m} label={labels[m] || m} onRemove={() => removeFilter('milestones', m)} />
+                    return <Chip key={m} label={labels[m] || m} onRemove={() => toggleFilterValue('milestones', m)} />
                 })}
 
                 {/* Anexos Status */}
                 {filters.docStatus?.map(status => (
-                    <Chip key={`doc-${status}`} label={`Anexos: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => removeFilter('docStatus', status)} />
+                    <Chip key={`doc-${status}`} label={`Anexos: ${DOC_STATUS_LABELS[status] || status}`} onRemove={() => toggleFilterValue('docStatus', status)} />
                 ))}
 
                 {/* Task Status */}
                 {filters.taskStatus?.map(status => {
                     const labels: Record<string, string> = { atrasada: 'Atrasada', para_hoje: 'Para Hoje', em_dia: 'Em Dia', sem_tarefa: 'Sem Tarefa' }
-                    return <Chip key={`task-${status}`} label={`Tarefa: ${labels[status] || status}`} onRemove={() => removeFilter('taskStatus', status)} />
+                    return <Chip key={`task-${status}`} label={`Tarefa: ${labels[status] || status}`} onRemove={() => toggleFilterValue('taskStatus', status)} />
                 })}
 
                 {/* Tags */}
@@ -154,7 +176,7 @@ export function ActiveFilters() {
                 )}
                 {filters.tagIds?.map(tagId => {
                     const tag = tags.find(t => t.id === tagId)
-                    return <Chip key={`tag-${tagId}`} label={`Tag: ${tag?.name || 'Tag'}`} onRemove={() => removeFilter('tagIds', tagId)} />
+                    return <Chip key={`tag-${tagId}`} label={`Tag: ${tag?.name || 'Tag'}`} onRemove={() => toggleFilterValue('tagIds', tagId)} />
                 })}
 
                 {/* Dates */}
@@ -183,13 +205,19 @@ export function ActiveFilters() {
     )
 }
 
-function Chip({ label, onRemove }: { label: string, onRemove: () => void }) {
+function Chip({ label, onRemove, variant }: { label: string, onRemove: () => void, variant?: 'green' | 'amber' }) {
+    const colorClasses = variant === 'green'
+        ? "bg-green-50 text-green-700 border-green-200"
+        : variant === 'amber'
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : "bg-blue-50 text-blue-700 border-blue-100"
+
     return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+        <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border", colorClasses)}>
             {label}
             <button
                 onClick={onRemove}
-                className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 text-blue-500 hover:text-blue-800 transition-colors"
+                className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/10 transition-colors"
             >
                 <X className="w-3 h-3" />
             </button>

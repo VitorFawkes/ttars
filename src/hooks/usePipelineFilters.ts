@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { applyScopeCascade } from '../lib/filterCascadeRules'
 
 export type ViewMode = 'AGENT' | 'MANAGER'
 export type SubView = 'MY_QUEUE' | 'MY_ASSISTS' | 'ATTENTION' | 'TEAM_VIEW' | 'FORECAST' | 'ALL'
@@ -32,9 +33,14 @@ export interface FilterState {
     taskStatus?: string[] // 'atrasada' | 'para_hoje' | 'em_dia' | 'sem_tarefa'
 }
 
+export type ArrayFilterField = Exclude<{
+    [K in keyof FilterState]: FilterState[K] extends string[] | undefined ? K : never
+}[keyof FilterState], undefined>
+
 export interface GroupFilters {
-    showLinked: boolean
-    showSolo: boolean
+    showGroupMembers: boolean  // Viajantes vinculados a um grupo (parent_card_id + card_type != sub_card)
+    showSubCards: boolean      // Sub-cards: vendas adicionais / mudanças (card_type = sub_card)
+    showSolo: boolean          // Cards avulsos (sem parent_card_id)
 }
 
 interface PipelineFiltersState {
@@ -42,6 +48,8 @@ interface PipelineFiltersState {
     subView: SubView
     filters: FilterState
     groupFilters: GroupFilters
+    showClosedCards: boolean
+    showWonDirect: boolean
     collapsedPhases: string[]
     _phaseAutoApplied: boolean // Flag interna: phaseFilters já foi auto-aplicado para o usuário atual
     setViewMode: (mode: ViewMode) => void
@@ -51,11 +59,18 @@ interface PipelineFiltersState {
     setCollapsedPhases: (phases: string[]) => void
     setAll: (state: Partial<PipelineFiltersState>) => void
     reset: () => void
+    // Novas actions — Fase 1
+    updateFilter: (partial: Partial<FilterState>) => void
+    toggleFilterValue: (field: ArrayFilterField, value: string) => void
+    removeFilter: (key: keyof FilterState) => void
+    setScopeView: (viewMode: ViewMode, subView: SubView) => string[]
+    setShowClosedCards: (value: boolean) => void
+    setShowWonDirect: (value: boolean) => void
 }
 
 
 
-export const initialState: Omit<PipelineFiltersState, 'setViewMode' | 'setSubView' | 'setFilters' | 'setGroupFilters' | 'setCollapsedPhases' | 'setAll' | 'reset'> = {
+export const initialState: Omit<PipelineFiltersState, 'setViewMode' | 'setSubView' | 'setFilters' | 'setGroupFilters' | 'setCollapsedPhases' | 'setAll' | 'reset' | 'updateFilter' | 'toggleFilterValue' | 'removeFilter' | 'setScopeView' | 'setShowClosedCards' | 'setShowWonDirect'> = {
     viewMode: 'AGENT',
     subView: 'MY_QUEUE',
     filters: {
@@ -63,14 +78,17 @@ export const initialState: Omit<PipelineFiltersState, 'setViewMode' | 'setSubVie
         sortDirection: 'desc'
     },
     groupFilters: {
-        showLinked: true,
-        showSolo: true
+        showGroupMembers: true,
+        showSubCards: true,
+        showSolo: true,
     },
+    showClosedCards: false,
+    showWonDirect: false,
     collapsedPhases: [],
     _phaseAutoApplied: false
 }
 
-export const usePipelineFilters = create<PipelineFiltersState>()((set) => ({
+export const usePipelineFilters = create<PipelineFiltersState>()((set, get) => ({
     ...initialState,
     setViewMode: (mode) => set({ viewMode: mode }),
     setSubView: (view) => set({ subView: view }),
@@ -78,5 +96,86 @@ export const usePipelineFilters = create<PipelineFiltersState>()((set) => ({
     setGroupFilters: (groupFilters) => set({ groupFilters }),
     setCollapsedPhases: (phases) => set({ collapsedPhases: phases }),
     setAll: (state) => set((prev) => ({ ...prev, ...state })),
-    reset: () => set(initialState)
+    reset: () => set(initialState),
+
+    // Merge parcial — nao substitui todo o objeto filters
+    updateFilter: (partial) => set((prev) => ({
+        filters: { ...prev.filters, ...partial }
+    })),
+
+    // Toggle unico em array (add/remove)
+    toggleFilterValue: (field, value) => set((prev) => {
+        const current = (prev.filters[field] as string[] | undefined) || []
+        const updated = current.includes(value)
+            ? current.filter(v => v !== value)
+            : [...current, value]
+
+        // Mutual exclusion: tag selecionada limpa noTag
+        const extra: Partial<FilterState> = field === 'tagIds' ? { noTag: undefined } : {}
+
+        return { filters: { ...prev.filters, [field]: updated, ...extra } }
+    }),
+
+    // Remove filtro inteiro por key
+    removeFilter: (key) => set((prev) => {
+        const newFilters = { ...prev.filters }
+        delete newFilters[key]
+        return { filters: newFilters }
+    }),
+
+    // Troca de visao COM cascading inteligente
+    setScopeView: (viewMode, subView) => {
+        const { filters } = get()
+        const { filters: cascaded, cleared } = applyScopeCascade(filters, subView)
+        set({ viewMode, subView, filters: cascaded })
+        return cleared
+    },
+
+    // Quick toggles com cascading de statusComercial
+    setShowClosedCards: (value) => set((prev) => {
+        const updates: Partial<PipelineFiltersState> = {
+            showClosedCards: value,
+        }
+        if (value) {
+            updates.showWonDirect = false
+            // Limpa statusComercial — Finalizados mostra todos
+            if (prev.filters.statusComercial?.length) {
+                updates.filters = { ...prev.filters, statusComercial: undefined }
+            }
+        }
+        return updates
+    }),
+
+    setShowWonDirect: (value) => set((prev) => {
+        const updates: Partial<PipelineFiltersState> = {
+            showWonDirect: value,
+        }
+        if (value) {
+            updates.showClosedCards = false
+            // Limpa statusComercial — Sem Pos ja implica ganho
+            if (prev.filters.statusComercial?.length) {
+                updates.filters = { ...prev.filters, statusComercial: undefined }
+            }
+        }
+        return updates
+    }),
 }))
+
+/** Campos que NAO contam como "filtro ativo" para o badge */
+const NON_FILTER_KEYS = new Set<keyof FilterState>([
+    'sortBy', 'sortDirection', 'showArchived', 'phaseFilters',
+])
+
+/** Selector: conta quantos filtros estao ativos (para badge) */
+export function useActiveFilterCount(): number {
+    const filters = usePipelineFilters(s => s.filters)
+    let count = 0
+    for (const [key, val] of Object.entries(filters)) {
+        if (NON_FILTER_KEYS.has(key as keyof FilterState)) continue
+        if (val == null) continue
+        if (Array.isArray(val) && val.length === 0) continue
+        if (val === '') continue
+        count++
+    }
+    return count
+}
