@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText } from 'lucide-react'
+import { Package, TrendingUp, RefreshCw, Plus, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -109,9 +109,9 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                         </span>
                     )}
                     {obsCount > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600 flex items-center gap-0.5">
-                            <ClipboardList className="h-3 w-3" />
-                            {obsCount}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 flex items-center gap-0.5">
+                            <AlertCircle className="h-3 w-3" />
+                            {obsCount} obs. do Planner
                         </span>
                     )}
                 </h3>
@@ -119,6 +119,30 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
                 )}
             </div>
+
+            {/* Planner observations banner — visible to pós-venda */}
+            {isPostSales && obsCount > 0 && (
+                <div className="mx-3 mt-2 mb-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex items-start gap-2 mb-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-xs font-semibold text-amber-800">
+                            Observações do Travel Planner
+                        </p>
+                    </div>
+                    <div className="space-y-1.5 ml-5.5">
+                        {items.filter(i => i.observacoes).map(item => (
+                            <div key={item.id} className="flex items-start gap-2">
+                                <span className="text-[11px] font-medium text-amber-700 shrink-0 min-w-[80px] truncate">
+                                    {item.fornecedor || item.description || 'Produto'}:
+                                </span>
+                                <span className="text-[11px] text-amber-900 leading-snug">
+                                    {item.observacoes}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Content */}
             <div className="divide-y divide-gray-100">
@@ -217,10 +241,12 @@ function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem;
             {isPlannerPhase ? (
                 <ObservacoesField item={item} cardId={cardId} />
             ) : item.observacoes ? (
-                <p className="mt-1.5 text-[11px] text-gray-400 italic flex items-center gap-1">
-                    <ClipboardList className="h-3 w-3 shrink-0" />
-                    <span>{item.observacoes}</span>
-                </p>
+                <div className="mt-1.5 flex items-start gap-1.5 rounded bg-amber-50 border border-amber-100 px-2 py-1.5">
+                    <AlertCircle className="h-3 w-3 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                        <span className="font-medium">Planner:</span> {item.observacoes}
+                    </p>
+                </div>
             ) : null}
         </div>
     )
@@ -371,6 +397,15 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                                         {formatDateBR(item.data_inicio)}{item.data_fim && item.data_fim !== item.data_inicio ? ` → ${formatDateBR(item.data_fim)}` : ''}
                                     </span>
                                 )}
+                            </div>
+                        )}
+                        {/* Planner observation preview — always visible even collapsed */}
+                        {!isOpen && item.observacoes && (
+                            <div className="mt-1 flex items-start gap-1.5 rounded bg-amber-50 border border-amber-100 px-2 py-1">
+                                <AlertCircle className="h-3 w-3 text-amber-500 mt-0.5 shrink-0" />
+                                <p className="text-[11px] text-amber-800 leading-snug line-clamp-2">
+                                    <span className="font-medium">Planner:</span> {item.observacoes}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -553,8 +588,8 @@ function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: strin
                             if (e.key === 'Escape') cancel()
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.mutate(value) }
                         }}
-                        placeholder="Observações sobre este produto..."
-                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 placeholder-gray-300 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        placeholder="Observação do Planner sobre este produto..."
+                        className="flex-1 text-xs border border-amber-200 rounded px-2 py-1 text-gray-700 placeholder-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-amber-300 bg-amber-50/50"
                         rows={2}
                         autoFocus
                     />
@@ -569,13 +604,18 @@ function ObservacoesField({ item, cardId }: { item: FinancialItem; cardId: strin
             ) : (
                 <button
                     onClick={() => { setValue(item.observacoes || ''); setEditing(true) }}
-                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+                    className={cn(
+                        "flex items-start gap-1.5 text-xs rounded px-2 py-1 transition-colors",
+                        item.observacoes
+                            ? "bg-amber-50 border border-amber-100 text-amber-800 hover:bg-amber-100"
+                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                    )}
                 >
-                    <ClipboardList className="h-3 w-3" />
+                    <ClipboardList className={cn("h-3 w-3 mt-0.5 shrink-0", item.observacoes ? "text-amber-500" : "")} />
                     {item.observacoes ? (
-                        <span className="text-gray-500 italic truncate max-w-[250px]">{item.observacoes}</span>
+                        <span className="text-left leading-snug"><span className="font-medium">Planner:</span> {item.observacoes}</span>
                     ) : (
-                        'Observações'
+                        <span>Adicionar observação do Planner</span>
                     )}
                 </button>
             )}

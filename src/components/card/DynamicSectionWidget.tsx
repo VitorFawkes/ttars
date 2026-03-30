@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, Layers, ChevronDown, ClipboardList } from 'lucide-react'
+import { Check, Loader2, Layers, ChevronDown, AlertCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -448,9 +448,9 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
 
     if (!isExpanded) {
         const extras = isFinanceiro && obsCount > 0 ? (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600 inline-flex items-center gap-0.5">
-                <ClipboardList className="h-3 w-3" />
-                {obsCount}
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center gap-1 animate-pulse">
+                <AlertCircle className="h-3 w-3" />
+                {obsCount} obs. do Planner
             </span>
         ) : undefined
         return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} extras={extras} />
