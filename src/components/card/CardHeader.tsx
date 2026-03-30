@@ -792,7 +792,7 @@ export default function CardHeader({ card }: CardHeaderProps) {
         }
     })
 
-    const handleMarkAsWon = () => {
+    const handleMarkAsWon = async () => {
         const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
         const nextPhaseStages = stages?.filter(s => {
             const phaseOrder = s.pipeline_phases?.order_index ?? 999
@@ -806,6 +806,25 @@ export default function CardHeader({ card }: CardHeaderProps) {
 
         const nextStage = nextPhaseStages?.[0]
         if (nextStage) {
+            // Quality Gate: validar contra 1ª etapa da fase destino
+            try {
+                const validation = await validateMove(card as unknown as Record<string, unknown>, nextStage.id)
+                if (!validation.valid) {
+                    setPendingStageChange({
+                        stageId: nextStage.id,
+                        targetStageName: `Ganho ${currentStage?.pipeline_phases?.name || currentFase}`,
+                        missingFields: validation.missingFields,
+                        missingProposals: validation.missingProposals,
+                        missingTasks: validation.missingTasks,
+                        missingDocuments: validation.missingDocuments,
+                    })
+                    setQualityGateModalOpen(true)
+                    return
+                }
+            } catch (err) {
+                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+            }
+
             const targetPhase = phasesData?.find(p => p.id === nextStage.phase_id)
             setPendingStageChange({
                 stageId: nextStage.id,

@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Button } from '../ui/Button'
 import { useSeenCards } from '../../hooks/useSeenCards'
+import { useQualityGate } from '../../hooks/useQualityGate'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Product = Database['public']['Enums']['app_product']
@@ -87,6 +88,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const cards = queryResult?.data
     const totalCards = queryResult?.total ?? 0
     const totalPages = queryResult?.totalPages ?? 1
+    const { validateMoveSync } = useQualityGate()
 
     // --- State ---
     const [sortField, setSortField] = useState<keyof Card | 'proxima_tarefa'>('created_at')
@@ -247,6 +249,27 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 updates.dono_atual_id = value
             } else if (fieldId === 'etapa_id') {
                 updates.etapa_id = value
+
+                // Quality Gate: validar cada card contra a etapa destino
+                if (value && cards) {
+                    const targetStageId = value as string
+                    const selectedCardData = cards.filter(c => c.id && selectedCards.includes(c.id))
+                    const blocked: string[] = []
+
+                    for (const card of selectedCardData) {
+                        const syncResult = validateMoveSync(card as unknown as Record<string, unknown>, targetStageId)
+                        if (!syncResult.valid) {
+                            blocked.push(card.titulo || card.id || 'Card sem título')
+                        }
+                    }
+
+                    if (blocked.length > 0) {
+                        toast.error(
+                            `${blocked.length} card(s) não atendem aos requisitos da etapa: ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` e mais ${blocked.length - 3}` : ''}`
+                        )
+                        return
+                    }
+                }
             }
 
             // Perform update
@@ -433,11 +456,16 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                     <ArrowUpDown className="h-3 w-3 text-gray-400" />
                 </div>
             ),
-            renderCell: (card) => (
-                <span className="text-right font-mono text-gray-700 block">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.valor_estimado || 0)}
-                </span>
-            )
+            renderCell: (card) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const valor = (card as any).valor_display || card.valor_final || card.valor_estimado || 0
+                const isConfirmed = !!card.valor_final
+                return (
+                    <span className={cn("text-right font-mono block", isConfirmed ? "text-emerald-700 font-medium" : "text-gray-700")}>
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)}
+                    </span>
+                )
+            }
         },
         prioridade: {
             width: 'w-[100px]',
@@ -946,7 +974,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                     <div className="text-xs text-gray-500 font-medium">Total Valor</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(
-                            sortedCards.reduce((sum, c) => sum + (c.valor_estimado || 0), 0)
+                            sortedCards.reduce((sum, c) => sum + ((c as Record<string, unknown>).valor_display as number || c.valor_final || c.valor_estimado || 0), 0)
                         )}
                     </div>
                 </div>

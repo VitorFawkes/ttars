@@ -514,7 +514,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     // Win handler — chamado pelo KanbanCard via onWin callback
     // Nota: onWin NÃO é passado para colunas Pós-Venda (sem ganho/perdido nessa fase)
-    const handleWin = (cardId: string) => {
+    const handleWin = async (cardId: string) => {
         const card = allCards?.find(c => c.id === cardId)
         if (!card) return
 
@@ -525,6 +525,33 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         // Para SDR ou Planner → precisa de handoff (escolher novo dono)
         const nextPhaseSlug = phaseSlug === 'sdr' ? 'planner' : 'pos_venda'
         const nextPhase = phasesData?.find(p => p.slug === nextPhaseSlug)
+
+        // Quality Gate: validar contra 1ª etapa da fase destino
+        const nextPhaseStages = stages
+            ?.filter(s => s.phase_id === nextPhase?.id)
+            .sort((a, b) => a.ordem - b.ordem)
+        const targetStage = nextPhaseStages?.[0]
+
+        if (targetStage) {
+            try {
+                const validation = await validateMove(card as unknown as Record<string, unknown>, targetStage.id)
+                if (!validation.valid) {
+                    setPendingMove({
+                        cardId,
+                        stageId: '',
+                        targetStageName: `Ganho ${phaseSlug === 'sdr' ? 'SDR' : 'Planner'}`,
+                        missingFields: validation.missingFields,
+                        missingProposals: validation.missingProposals,
+                        missingTasks: validation.missingTasks,
+                        missingDocuments: validation.missingDocuments,
+                    })
+                    setQualityGateModalOpen(true)
+                    return
+                }
+            } catch (err) {
+                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+            }
+        }
 
         setPendingMove({
             cardId,
