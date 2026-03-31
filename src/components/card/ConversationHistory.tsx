@@ -11,13 +11,14 @@ import { WhatsAppHistory } from './WhatsAppHistory'
 interface ConversationHistoryProps {
     cardId: string
     contactId?: string | null
+    initialTab?: 'email' | 'meetings' | 'ai' | 'whatsapp'
 }
 
 type Tab = 'email' | 'meetings' | 'ai' | 'whatsapp'
 
-export default function ConversationHistory({ cardId, contactId }: ConversationHistoryProps) {
+export default function ConversationHistory({ cardId, contactId, initialTab }: ConversationHistoryProps) {
     const [isExpanded, setIsExpanded] = useState(true)
-    const [activeTab, setActiveTab] = useState<Tab>('whatsapp')
+    const [activeTab, setActiveTab] = useState<Tab>(initialTab || 'whatsapp')
     const [toggling, setToggling] = useState(false)
     const queryClient = useQueryClient()
 
@@ -54,6 +55,22 @@ export default function ConversationHistory({ cardId, contactId }: ConversationH
             setToggling(false)
         }
     }
+
+    // Fetch meeting count for badge
+    const { data: meetingCount } = useQuery({
+        queryKey: ['reunioes-count', cardId],
+        queryFn: async () => {
+            const { count, error } = await supabase
+                .from('tarefas')
+                .select('id', { count: 'exact', head: true })
+                .eq('card_id', cardId)
+                .eq('tipo', 'reuniao')
+                .is('deleted_at', null)
+            if (error) return 0
+            return count || 0
+        },
+        enabled: !!cardId
+    })
 
     // Fetch Email conversations (Legacy)
     const { data: emailData } = useQuery({
@@ -152,6 +169,11 @@ export default function ConversationHistory({ cardId, contactId }: ConversationH
                         >
                             <Video className="h-4 w-4" />
                             Reuniões
+                            {(meetingCount ?? 0) > 0 && (
+                                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[10px] font-medium">
+                                    {meetingCount}
+                                </span>
+                            )}
                         </button>
 
                         {/* Julia IA Toggle + Chat com IA tab — right-aligned */}

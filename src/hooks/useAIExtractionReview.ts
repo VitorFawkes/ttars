@@ -168,10 +168,10 @@ export function useAIExtractionReview(cardId: string) {
         return
       }
 
-      // Fetch current card data for merge
+      // Fetch current card data for merge (query separada para evitar falha no JOIN)
       const { data: cardData, error: fetchError } = await supabase
         .from('cards')
-        .select('produto_data, briefing_inicial, pipeline_stages(fase)')
+        .select('produto_data, briefing_inicial, pipeline_stage_id')
         .eq('id', cardId)
         .single()
 
@@ -179,8 +179,17 @@ export function useAIExtractionReview(cardId: string) {
 
       const currentProdutoData = (cardData.produto_data as Record<string, unknown>) || {}
       const currentBriefing = (cardData.briefing_inicial as Record<string, unknown>) || {}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fase = (cardData.pipeline_stages as any)?.fase || 'SDR'
+
+      // Buscar fase via query direta (padrão CardDetail.tsx)
+      let fase = 'SDR'
+      if (cardData.pipeline_stage_id) {
+        const { data: stageData } = await supabase
+          .from('pipeline_stages')
+          .select('fase')
+          .eq('id', cardData.pipeline_stage_id)
+          .single()
+        fase = stageData?.fase || 'SDR'
+      }
       const fields = preview.field_config.fields || []
 
       // Build section map
@@ -191,6 +200,10 @@ export function useAIExtractionReview(cardId: string) {
         fieldTypeMap[f.key] = f.type
       }
 
+      console.log('[AIExtractionReview] fase:', fase, '| fieldSectionMap:', fieldSectionMap)
+      console.log('[AIExtractionReview] campos_extraidos keys:', Object.keys(preview.campos_extraidos))
+      console.log('[AIExtractionReview] acceptedFields:', acceptedFields.map(d => d.key))
+
       // Apply decisions with merge logic
       const newProdutoData = { ...currentProdutoData }
       const newBriefing = { ...currentBriefing }
@@ -199,28 +212,29 @@ export function useAIExtractionReview(cardId: string) {
         const { key, merge_mode, value } = decision
         const finalValue = value !== undefined ? value : preview.campos_extraidos[key]
         const section = fieldSectionMap[key]
+        const effectiveSection = section || 'trip_info'
         const fieldType = fieldTypeMap[key]
 
         if (fase === 'SDR') {
-          if (section === 'trip_info') {
+          if (effectiveSection === 'trip_info') {
             newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
-          } else if (section === 'observacoes') {
+          } else if (effectiveSection === 'observacoes') {
             const obs = (newBriefing.observacoes as Record<string, unknown>) || {}
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newBriefing.observacoes = obs
           }
         } else if (fase === 'Planner') {
-          if (section === 'trip_info') {
+          if (effectiveSection === 'trip_info') {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
-          } else if (section === 'observacoes') {
+          } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_criticas as Record<string, unknown>) || {}
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newProdutoData.observacoes_criticas = obs
           }
         } else {
-          if (section === 'trip_info') {
+          if (effectiveSection === 'trip_info') {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
-          } else if (section === 'observacoes') {
+          } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_pos_venda as Record<string, unknown>) || {}
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newProdutoData.observacoes_pos_venda = obs
@@ -237,11 +251,12 @@ export function useAIExtractionReview(cardId: string) {
           const { key, merge_mode, value } = decision
           const finalValue = value !== undefined ? value : preview.campos_extraidos[key]
           const section = fieldSectionMap[key]
+          const effectiveSection = section || 'trip_info'
           const fieldType = fieldTypeMap[key]
 
-          if (section === 'trip_info') {
+          if (effectiveSection === 'trip_info') {
             newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
-          } else if (section === 'observacoes') {
+          } else if (effectiveSection === 'observacoes') {
             const obs = (newBriefing.observacoes as Record<string, unknown>) || {}
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newBriefing.observacoes = obs
@@ -253,11 +268,12 @@ export function useAIExtractionReview(cardId: string) {
           const { key, merge_mode, value } = decision
           const finalValue = value !== undefined ? value : preview.campos_extraidos[key]
           const section = fieldSectionMap[key]
+          const effectiveSection = section || 'trip_info'
           const fieldType = fieldTypeMap[key]
 
-          if (section === 'trip_info') {
+          if (effectiveSection === 'trip_info') {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
-          } else if (section === 'observacoes') {
+          } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_criticas as Record<string, unknown>) || {}
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newProdutoData.observacoes_criticas = obs
@@ -295,6 +311,8 @@ export function useAIExtractionReview(cardId: string) {
           newProdutoData.resumo_consultor_at = new Date().toISOString()
         }
       }
+
+      console.log('[AIExtractionReview] Payload para RPC:', { newProdutoData, newBriefing })
 
       // Call the existing RPC
       const { error: rpcError } = await supabase.rpc('update_card_from_ai_extraction', {
