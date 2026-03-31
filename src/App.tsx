@@ -63,7 +63,8 @@ import NotificationConfigPage from './components/settings/customization/Notifica
 import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
-import MobileCardCreate from './pages/mobile/MobileCardCreate'
+import { lazy, Suspense } from 'react'
+const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
@@ -118,6 +119,12 @@ const queryClient = new QueryClient({
     },
 })
 
+function DefaultRedirect() {
+    const lastRoute = localStorage.getItem('welcomecrm-last-route')
+    const target = lastRoute && lastRoute !== '/' ? lastRoute : '/dashboard'
+    return <Navigate to={target} replace />
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -135,11 +142,11 @@ function App() {
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 
                 {/* Mobile Routes (authenticated, no sidebar) */}
-                <Route path="/m/novo-card" element={<MobileCardCreate />} />
+                <Route path="/m/novo-card" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>}><MobileCardCreate /></Suspense>} />
 
                 {/* Protected Routes */}
                 <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" />} />
+                  <Route path="/" element={<DefaultRedirect />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/pipeline" element={<Pipeline />} />
                   <Route path="/leads" element={<Leads />} />

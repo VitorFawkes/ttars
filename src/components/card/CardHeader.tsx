@@ -1581,10 +1581,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                             {alertUnread > 0 && onScrollToAlerts && (
                                 <button
                                     onClick={onScrollToAlerts}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 transition-colors animate-pulse"
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
                                     title="Ver alertas não lidos"
                                 >
-                                    <Megaphone className="h-3 w-3" />
+                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                                     {alertUnread} {alertUnread === 1 ? 'alerta' : 'alertas'}
                                 </button>
                             )}

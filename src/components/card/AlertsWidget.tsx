@@ -1,4 +1,4 @@
-import { Megaphone, Loader2, Check, CheckCheck } from 'lucide-react'
+import { Megaphone, Loader2, Eye, EyeOff } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useCardAlerts } from '@/hooks/useCardAlerts'
 import { cn } from '@/lib/utils'
@@ -31,7 +31,11 @@ export default function AlertsWidget({ cardId, isExpanded, onToggleCollapse }: A
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-amber-50">
-                <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                >
                     <Megaphone className="h-4 w-4 text-amber-700" />
                     <h3 className="text-sm font-semibold text-amber-700">
                         Alertas
@@ -41,89 +45,84 @@ export default function AlertsWidget({ cardId, isExpanded, onToggleCollapse }: A
                             </span>
                         )}
                     </h3>
+                </button>
+                <div className="flex items-center gap-1.5">
+                    {unreadCount > 0 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); markAllAsRead.mutate() }}
+                            disabled={markAllAsRead.isPending}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] text-amber-600 hover:text-amber-800 hover:bg-amber-100 font-medium transition-colors"
+                        >
+                            <Eye className="h-3 w-3" />
+                            Visto
+                        </button>
+                    )}
+                    {onToggleCollapse && (
+                        <SectionCollapseToggle isExpanded={!!isExpanded} onToggle={onToggleCollapse} />
+                    )}
                 </div>
-                {onToggleCollapse && (
-                    <SectionCollapseToggle isExpanded={!!isExpanded} onToggle={onToggleCollapse} />
-                )}
             </div>
 
             {isExpanded && (
-                <div className="p-3 space-y-2">
+                <div className="p-3 space-y-1.5">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-6">
                             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                         </div>
                     ) : alerts.length === 0 ? (
                         <p className="text-sm text-slate-400 text-center py-4">
-                            Nenhum alerta para este card
+                            Nenhum alerta neste card
                         </p>
                     ) : (
-                        <>
-                            {/* Marcar tudo como lido */}
-                            {unreadCount > 0 && (
-                                <button
-                                    onClick={() => markAllAsRead.mutate()}
-                                    disabled={markAllAsRead.isPending}
-                                    className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-800 font-medium mb-1"
+                        <div className="max-h-[300px] overflow-y-auto space-y-1">
+                            {alerts.map(alert => (
+                                <div
+                                    key={alert.id}
+                                    className={cn(
+                                        'group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all',
+                                        alert.read
+                                            ? 'bg-white opacity-60'
+                                            : 'bg-amber-50/50 border border-amber-100'
+                                    )}
                                 >
-                                    <CheckCheck className="h-3 w-3" />
-                                    Marcar tudo como lido
-                                </button>
-                            )}
-
-                            {/* Lista de alertas */}
-                            <div className="max-h-[300px] overflow-y-auto space-y-1.5">
-                                {alerts.map(alert => (
-                                    <div
-                                        key={alert.id}
-                                        className={cn(
-                                            'flex items-start gap-2.5 px-3 py-2 rounded-lg transition-colors',
-                                            alert.read
-                                                ? 'bg-white'
-                                                : 'bg-amber-50/60'
-                                        )}
-                                    >
-                                        {/* Dot indicador */}
-                                        <div className="mt-1.5 flex-shrink-0">
-                                            <div className={cn(
-                                                'h-2 w-2 rounded-full',
-                                                alert.read ? 'bg-slate-300' : 'bg-amber-500'
-                                            )} />
-                                        </div>
-
-                                        {/* Conteúdo */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className={cn(
-                                                'text-sm leading-tight',
-                                                alert.read ? 'text-slate-600' : 'text-slate-900 font-medium'
-                                            )}>
-                                                {alert.title}
+                                    {/* Conteúdo */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className={cn(
+                                            'text-sm leading-tight',
+                                            alert.read ? 'text-slate-500' : 'text-slate-900 font-medium'
+                                        )}>
+                                            {alert.title}
+                                        </p>
+                                        {alert.body && (
+                                            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                                                {alert.body}
                                             </p>
-                                            {alert.body && (
-                                                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                                                    {alert.body}
-                                                </p>
-                                            )}
-                                            <span className="text-[11px] text-slate-400 mt-0.5 block">
-                                                {timeAgo(alert.created_at)}
-                                            </span>
-                                        </div>
+                                        )}
+                                        <span className="text-[11px] text-slate-400 mt-1 block">
+                                            {timeAgo(alert.created_at)}
+                                        </span>
+                                    </div>
 
-                                        {/* Botão marcar como lido */}
-                                        {!alert.read && (
+                                    {/* Ação: Marcar como visto / Já visto */}
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        {!alert.read ? (
                                             <button
                                                 onClick={() => markAsRead.mutate(alert.id)}
                                                 disabled={markAsRead.isPending}
-                                                className="flex-shrink-0 mt-0.5 p-1 rounded hover:bg-amber-100 text-amber-600 hover:text-amber-800 transition-colors"
-                                                title="Marcar como lido"
+                                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-200 transition-colors"
                                             >
-                                                <Check className="h-3.5 w-3.5" />
+                                                <Eye className="h-3 w-3" />
+                                                Visto
                                             </button>
+                                        ) : (
+                                            <span className="flex items-center gap-1 px-2 py-1 text-[11px] text-slate-400">
+                                                <EyeOff className="h-3 w-3" />
+                                            </span>
                                         )}
                                     </div>
-                                ))}
-                            </div>
-                        </>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             )}

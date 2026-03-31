@@ -17,7 +17,7 @@ export interface CardAlert {
     created_at: string
 }
 
-export function useCardAlerts(cardId: string) {
+export function useCardAlerts(cardId: string | undefined) {
     const { user } = useAuth()
     const queryClient = useQueryClient()
     const queryKey = ['card-alerts', cardId]

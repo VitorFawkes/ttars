@@ -451,7 +451,7 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
 
     // Unread alerts count for alertas collapsed bar
     const isAlertas = section.widget_component === 'alertas'
-    const { unreadCount: alertUnread = 0 } = useCardAlerts(isAlertas ? card.id! : '')
+    const { unreadCount: alertUnread = 0 } = useCardAlerts(isAlertas ? card.id! : undefined)
 
     if (!isExpanded) {
         let extras: React.ReactNode | undefined
@@ -464,9 +464,9 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
             )
         } else if (isAlertas && alertUnread > 0) {
             extras = (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center gap-1 animate-pulse">
-                    <AlertCircle className="h-3 w-3" />
-                    {alertUnread} não {alertUnread === 1 ? 'lido' : 'lidos'}
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-600 border border-amber-200 inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    {alertUnread} {alertUnread === 1 ? 'novo' : 'novos'}
                 </span>
             )
         }
