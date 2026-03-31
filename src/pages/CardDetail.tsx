@@ -48,13 +48,26 @@ export default function CardDetail() {
     const { data: card, isLoading } = useQuery({
         queryKey: ['card-detail', id],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('cards')
-                .select('*')
-                .eq('id', id!)
-                .single()
-            if (error) throw error
-            return data as Card
+            const [cardRes, tarefaRes] = await Promise.all([
+                supabase
+                    .from('cards')
+                    .select('*')
+                    .eq('id', id!)
+                    .single(),
+                supabase
+                    .from('tarefas')
+                    .select('id, titulo, data_vencimento, prioridade, tipo')
+                    .eq('card_id', id!)
+                    .or('concluida.is.null,concluida.eq.false')
+                    .not('status', 'eq', 'reagendada')
+                    .order('data_vencimento', { ascending: true, nullsFirst: false })
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+            ])
+            if (cardRes.error) throw cardRes.error
+            const card = cardRes.data as Card & { proxima_tarefa?: Record<string, unknown> | null }
+            card.proxima_tarefa = tarefaRes.data?.[0] ?? null
+            return card
         },
         enabled: !!id,
         staleTime: 1000 * 30, // 30 seconds to avoid immediate refetch flickers
