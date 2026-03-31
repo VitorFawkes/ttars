@@ -268,7 +268,7 @@ export default function MobileCardCreate() {
   // Loading or not authenticated — show spinner (useEffect handles redirect)
   if (authLoading || !profile) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+      <div className="h-[100dvh] flex items-center justify-center bg-slate-50">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     )
@@ -295,7 +295,7 @@ export default function MobileCardCreate() {
   // Success screen
   if (createdCardId && !isSubmitting) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-slate-50 px-6">
+      <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-50 px-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 w-full max-w-sm text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
             <CheckCircle className="w-8 h-8 text-emerald-600" />
@@ -335,9 +335,9 @@ export default function MobileCardCreate() {
   }, {} as Record<string, typeof allowedStages>)
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-slate-50">
+    <div className="h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-200">
+      <div className="flex-shrink-0 bg-white border-b border-slate-200 z-10">
         <div className="flex items-center gap-3 px-4 py-3">
           <button
             onClick={() => navigate(-1)}
@@ -350,8 +350,11 @@ export default function MobileCardCreate() {
         </div>
       </div>
 
-      {/* Form */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-28">
+      {/* Form — único scroll container */}
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4 pb-4"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
 
         {/* ── Section 1: Título ── */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -572,8 +575,8 @@ export default function MobileCardCreate() {
         </div>
       </div>
 
-      {/* ── Sticky Bottom CTA ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200">
+      {/* ── Bottom CTA ── */}
+      <div className="flex-shrink-0 bg-white border-t border-slate-200">
         <div className="px-4 py-3">
           <button
             onClick={handleSubmit}

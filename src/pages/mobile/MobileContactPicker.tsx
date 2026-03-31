@@ -135,9 +135,9 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col">
+    <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
+      <div className="flex-shrink-0 bg-white border-b border-slate-200">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <button
@@ -161,7 +161,7 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
 
       {showCreate ? (
         /* ── Create Contact Form ── */
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div>
             <label className="text-sm font-medium text-slate-700">Nome *</label>
             <input
@@ -235,7 +235,7 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
           </div>
 
           {/* Results */}
-          <div className="flex-1 overflow-y-auto pb-24">
+          <div className="flex-1 overflow-y-auto overscroll-contain pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
             {isLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -324,8 +324,8 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
             </div>
           </div>
 
-          {/* Sticky bottom confirm */}
-          <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200">
+          {/* Bottom confirm */}
+          <div className="flex-shrink-0 bg-white border-t border-slate-200">
             <div className="px-4 py-3">
               <button
                 onClick={handleConfirm}
