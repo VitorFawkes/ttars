@@ -51,6 +51,7 @@ import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
 import Arquivados from './pages/admin/Arquivados'
 import VendasMondePage from './pages/admin/VendasMondePage'
+import ImportacaoPosVendaPage from './pages/admin/ImportacaoPosVendaPage'
 import PresentesHubPage from './pages/PresentesHubPage'
 import { IntegrationsPage } from './components/admin/integrations/IntegrationsPage'
 import DeveloperHub from './pages/developer/DeveloperHub'
@@ -62,6 +63,7 @@ import NotificationConfigPage from './components/settings/customization/Notifica
 import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
+import MobileCardCreate from './pages/mobile/MobileCardCreate'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
@@ -132,6 +134,9 @@ function App() {
                 <Route path="/p/:token/review" element={<ProposalReview />} />
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 
+                {/* Mobile Routes (authenticated, no sidebar) */}
+                <Route path="/m/novo-card" element={<MobileCardCreate />} />
+
                 {/* Protected Routes */}
                 <Route element={<Layout />}>
                   <Route path="/" element={<Navigate to="/dashboard" />} />
@@ -145,6 +150,7 @@ function App() {
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
+                  <Route path="/importacao-pos-venda" element={<ImportacaoPosVendaPage />} />
                   <Route path="/presentes" element={<PresentesHubPage />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/tasks" element={<Tasks />} />

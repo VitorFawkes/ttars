@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-31
 > **Trigger:** ALWAYS ON
-> **Stats:** 128 tabelas | 38 paginas | 94 hooks | 17 views | 435 components
+> **Stats:** 130 tabelas | 41 paginas | 94 hooks | 17 views | 435 components
 
 ---
 
@@ -338,7 +338,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **38 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -364,6 +364,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
+| `ImportacaoPosVendaPage` | `src/pages/admin/ImportacaoPosVendaPage.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
@@ -377,6 +378,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
+| `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
+| `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |
