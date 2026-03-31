@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -35,6 +35,19 @@ export default function CardDetail() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [showLinkToGroup, setShowLinkToGroup] = useState(false)
+    const sidebarRef = useRef<HTMLDivElement>(null)
+
+    const scrollToAlerts = useCallback(() => {
+        const el = sidebarRef.current?.querySelector('[data-section="alertas"]')
+        if (!el) return
+        // If collapsed (single button child = CollapsedSectionBar), expand first
+        const isCollapsed = el.children.length === 1 && el.children[0].tagName === 'BUTTON'
+        if (isCollapsed) {
+            ;(el.children[0] as HTMLElement).click()
+        }
+        // Scroll after a brief delay to allow expansion
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), isCollapsed ? 100 : 0)
+    }, [])
 
     // Mark card as seen for "new card" highlight (only owner can dismiss)
     const { markSeen } = useSeenCards()
@@ -157,7 +170,7 @@ export default function CardDetail() {
         <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-sm">
-                <CardHeader card={card} />
+                <CardHeader card={card} onScrollToAlerts={scrollToAlerts} />
             </div>
 
             {/* Tags Row */}
@@ -245,7 +258,7 @@ export default function CardDetail() {
                 </div>
 
                 {/* SIDEBAR - Context & Accountability */}
-                <div className="min-h-0 overflow-y-auto space-y-1.5 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
+                <div ref={sidebarRef} className="min-h-0 overflow-y-auto space-y-1.5 scroll-smooth" style={{ scrollbarGutter: 'stable', overscrollBehaviorY: 'contain' }}>
                     {/* Sub-Cards List (for cards in Pós-venda) */}
                     {showSubCards && (
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-2.5">

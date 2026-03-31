@@ -297,20 +297,36 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
                 throw new Error('Alertas no card estão desativados pelo admin')
             }
 
+            const senderName = enrichedProfiles?.find(p => p.id === user?.id)?.nome || 'Alguém'
+            const recipientName = enrichedProfiles?.find(p => p.id === selectedUserId)?.nome || 'alguém'
+
+            // Notificação para o destinatário
             const { error: notifError } = await db
                 .from('notifications')
                 .insert({
                     user_id: selectedUserId,
                     type: 'card_alert',
-                    title: `Alerta em "${cardTitle || 'Card'}"`,
+                    title: `${senderName} em "${cardTitle || 'Card'}": "${message || '(sem mensagem)'}"`,
                     body: message || null,
                     url: `/cards/${cardId}`,
                     card_id: cardId,
                 })
             if (notifError) throw notifError
 
-            const senderName = enrichedProfiles?.find(p => p.id === user?.id)?.nome || 'Alguém'
-            const recipientName = enrichedProfiles?.find(p => p.id === selectedUserId)?.nome || 'alguém'
+            // Notificação espelho para o remetente (auto-lida, aparece no widget do card)
+            if (user?.id && user.id !== selectedUserId) {
+                await db
+                    .from('notifications')
+                    .insert({
+                        user_id: user.id,
+                        type: 'card_alert',
+                        title: `Você alertou ${recipientName}`,
+                        body: message || null,
+                        url: `/cards/${cardId}`,
+                        card_id: cardId,
+                        read: true,
+                    })
+            }
             const { error: actError } = await supabase
                 .from('activities')
                 .insert({

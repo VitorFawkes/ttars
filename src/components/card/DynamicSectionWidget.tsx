@@ -35,6 +35,7 @@ import AttachmentsWidget from './attachments/AttachmentsWidget'
 import FutureOpportunitySection from './FutureOpportunitySection'
 import GiftsWidget from './GiftsWidget'
 import AlertsWidget from './AlertsWidget'
+import { useCardAlerts } from '../../hooks/useCardAlerts'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -448,25 +449,45 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
         select: (items: { observacoes: string | null }[]) => items.filter(i => i.observacoes).length,
     })
 
+    // Unread alerts count for alertas collapsed bar
+    const isAlertas = section.widget_component === 'alertas'
+    const { unreadCount: alertUnread = 0 } = useCardAlerts(isAlertas ? card.id! : '')
+
     if (!isExpanded) {
-        const extras = isFinanceiro && obsCount > 0 ? (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center gap-1 animate-pulse">
-                <AlertCircle className="h-3 w-3" />
-                {obsCount} obs. do Planner
-            </span>
-        ) : undefined
-        return <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} extras={extras} />
+        let extras: React.ReactNode | undefined
+        if (isFinanceiro && obsCount > 0) {
+            extras = (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-3 w-3" />
+                    {obsCount} obs. do Planner
+                </span>
+            )
+        } else if (isAlertas && alertUnread > 0) {
+            extras = (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200 inline-flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-3 w-3" />
+                    {alertUnread} não {alertUnread === 1 ? 'lido' : 'lidos'}
+                </span>
+            )
+        }
+        return (
+            <div data-section={section.key}>
+                <CollapsedSectionBar section={section} onExpand={() => setIsExpanded(true)} extras={extras} />
+            </div>
+        )
     }
 
     const WidgetComponent = WIDGET_REGISTRY[section.widget_component!]
     return (
-        <WidgetComponent
-            cardId={card.id}
-            card={card}
-            isExpanded={isExpanded}
-            onToggleCollapse={onToggleCollapse}
-            lockedPhaseSlug={lockedPhaseSlug}
-        />
+        <div data-section={section.key}>
+            <WidgetComponent
+                cardId={card.id}
+                card={card}
+                isExpanded={isExpanded}
+                onToggleCollapse={onToggleCollapse}
+                lockedPhaseSlug={lockedPhaseSlug}
+            />
+        </div>
     )
 }
 

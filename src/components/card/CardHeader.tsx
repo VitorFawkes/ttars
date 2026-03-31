@@ -51,6 +51,7 @@ import SendAlertModal from './SendAlertModal'
 import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { useCardAlerts } from '../../hooks/useCardAlerts'
 import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
 import { SystemPhase } from '@/types/pipeline'
 
@@ -68,6 +69,7 @@ type Card = CardBase & {
 
 interface CardHeaderProps {
     card: Card
+    onScrollToAlerts?: () => void
 }
 
 /** Inline-editable origin badge with popover */
@@ -358,10 +360,11 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
     )
 }
 
-export default function CardHeader({ card }: CardHeaderProps) {
+export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [showOwnerHistory, setShowOwnerHistory] = useState(false)
+    const { unreadCount: alertUnread } = useCardAlerts(card.id!)
 
     // Title editing
     const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -1574,6 +1577,16 @@ export default function CardHeader({ card }: CardHeaderProps) {
                                     <AlertCircle className="h-3.5 w-3.5" />
                                     <span className="hidden sm:inline">{missingBlocking.length}</span> Pendências
                                 </Button>
+                            )}
+                            {alertUnread > 0 && onScrollToAlerts && (
+                                <button
+                                    onClick={onScrollToAlerts}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 transition-colors animate-pulse"
+                                    title="Ver alertas não lidos"
+                                >
+                                    <Megaphone className="h-3 w-3" />
+                                    {alertUnread} {alertUnread === 1 ? 'alerta' : 'alertas'}
+                                </button>
                             )}
                             <Button
                                 variant="outline"
