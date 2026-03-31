@@ -41,8 +41,7 @@ export default function MobileCardCreate() {
 
   // Form state
   const [titulo, setTitulo] = useState('')
-  const [contactId, setContactId] = useState<string | null>(null)
-  const [contactName, setContactName] = useState<string | null>(null)
+  const [contacts, setContacts] = useState<{ id: string; name: string }[]>([])
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
   const [origem, setOrigem] = useState<string | null>(null)
   const [observacao, setObservacao] = useState('')
@@ -133,7 +132,7 @@ export default function MobileCardCreate() {
         .insert({
           titulo: titulo.trim(),
           produto: currentProduct as Product,
-          pessoa_principal_id: contactId,
+          pessoa_principal_id: contacts[0]?.id || null,
           pipeline_id: pipeline.id,
           pipeline_stage_id: effectiveStageId,
           sdr_owner_id: owners.sdr_owner_id,
@@ -151,10 +150,21 @@ export default function MobileCardCreate() {
 
       if (error) throw error
 
+      // 2. Link additional contacts (index > 0) to card via cards_contatos
+      if (contacts.length > 1) {
+        const rows = contacts.slice(1).map((c, i) => ({
+          card_id: card.id,
+          contato_id: c.id,
+          tipo_viajante: 'acompanhante' as const,
+          ordem: i + 1
+        }))
+        await supabase.from('cards_contatos').insert(rows)
+      }
+
       queryClient.invalidateQueries({ queryKey: ['cards'] })
       queryClient.invalidateQueries({ queryKey: ['pipeline'] })
 
-      // 2. Process audio briefing if exists
+      // 3. Process audio briefing if exists
       if (audioBlob && briefingMode === 'audio') {
         toast.success('Card criado! Processando briefing com IA...')
         setCreatedCardId(card.id)
@@ -242,8 +252,7 @@ export default function MobileCardCreate() {
 
   const resetForm = () => {
     setTitulo('')
-    setContactId(null)
-    setContactName(null)
+    setContacts([])
     setSelectedStageId(null)
     setOrigem(null)
     setObservacao('')
@@ -270,8 +279,9 @@ export default function MobileCardCreate() {
     return (
       <MobileContactPicker
         onSelect={(id, name) => {
-          setContactId(id)
-          setContactName(name)
+          if (!contacts.some(c => c.id === id)) {
+            setContacts(prev => [...prev, { id, name }])
+          }
           setShowContactPicker(false)
         }}
         onClose={() => setShowContactPicker(false)}
@@ -354,35 +364,46 @@ export default function MobileCardCreate() {
           />
         </div>
 
-        {/* ── Section 2: Contato ── */}
+        {/* ── Section 2: Contatos ── */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <label className="text-sm font-medium text-slate-700">Contato Principal</label>
-          {contactId ? (
-            <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-indigo-600" />
+          <label className="text-sm font-medium text-slate-700">Contatos</label>
+
+          {contacts.length > 0 && (
+            <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
+              {contacts.map((contact, idx) => (
+                <div key={contact.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={cn(
+                      'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                      idx === 0 ? 'bg-indigo-100' : 'bg-slate-100'
+                    )}>
+                      <User className={cn('w-4 h-4', idx === 0 ? 'text-indigo-600' : 'text-slate-500')} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-slate-900 truncate block">{contact.name}</span>
+                      {idx === 0 && <span className="text-[10px] text-indigo-600 font-medium">Principal</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setContacts(prev => prev.filter(c => c.id !== contact.id))}
+                    className="p-1.5 rounded-lg active:bg-slate-100 flex-shrink-0"
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    <X className="w-4 h-4 text-slate-400" />
+                  </button>
                 </div>
-                <span className="text-sm font-medium text-slate-900 truncate">{contactName}</span>
-              </div>
-              <button
-                onClick={() => { setContactId(null); setContactName(null) }}
-                className="p-1.5 rounded-lg active:bg-slate-100 flex-shrink-0"
-                style={{ touchAction: 'manipulation' }}
-              >
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
+              ))}
             </div>
-          ) : (
-            <button
-              onClick={() => setShowContactPicker(true)}
-              className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-medium text-slate-600 active:bg-slate-50 min-h-[48px]"
-              style={{ touchAction: 'manipulation' }}
-            >
-              <Plus className="w-4 h-4" />
-              Selecionar Contato
-            </button>
           )}
+
+          <button
+            onClick={() => setShowContactPicker(true)}
+            className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-medium text-slate-600 active:bg-slate-50 min-h-[48px]"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Plus className="w-4 h-4" />
+            {contacts.length === 0 ? 'Selecionar Contato' : 'Adicionar Pessoa'}
+          </button>
         </div>
 
         {/* ── Section 3: Estágio ── */}
@@ -407,7 +428,7 @@ export default function MobileCardCreate() {
           </button>
 
           {showStages && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 max-h-[250px] overflow-y-auto">
               {Object.entries(stagesByPhase).map(([phase, stages]) => (
                 <div key={phase}>
                   <p className="text-xs font-medium text-slate-500 mb-1.5">{phase}</p>
@@ -456,7 +477,7 @@ export default function MobileCardCreate() {
           </button>
 
           {showOrigem && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2 max-h-[200px] overflow-y-auto">
               {ORIGEM_OPTIONS.map(opt => {
                 const isSelected = origem === opt.value
                 return (
