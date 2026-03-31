@@ -283,6 +283,28 @@ export default function GovernanceConsole() {
         })
     }, [stages, phases])
 
+    // Group stages by phase for sidebar rendering
+    const stagesByPhase = useMemo(() => {
+        if (!sortedStages.length || !phases.length) return []
+        const groups: { phase: typeof phases[0]; stages: typeof sortedStages }[] = []
+        let currentPhaseId: string | null = null
+        for (const stage of sortedStages) {
+            const phaseId = stage.phase_id || ''
+            if (phaseId !== currentPhaseId) {
+                currentPhaseId = phaseId
+                const phase = phases.find(p => p.id === phaseId) || phases.find(p => p.name === stage.fase)
+                if (phase) {
+                    groups.push({ phase, stages: [stage] })
+                } else {
+                    groups.push({ phase: { id: '', name: 'Outros', label: 'Outros', color: '#999', order_index: 999, active: true, slug: '' } as typeof phases[0], stages: [stage] })
+                }
+            } else {
+                groups[groups.length - 1].stages.push(stage)
+            }
+        }
+        return groups
+    }, [sortedStages, phases])
+
     const selectedStage = selectedStageId === 'all'
         ? { id: 'all', nome: 'Todas as Etapas', fase: 'Visão Global' }
         : stages?.find(s => s.id === selectedStageId)
@@ -415,42 +437,45 @@ export default function GovernanceConsole() {
                     </button>
                     <div className="h-px bg-gray-200 my-2 mx-2" />
 
-                    {sortedStages.map(stage => {
-                        const ruleCount = requirements?.filter(r => r.stage_id === stage.id).length || 0
-                        const isActive = selectedStageId === stage.id
-                        const phase = phases.find(p => p.id === stage.phase_id) || phases.find(p => p.name === stage.fase)
+                    {stagesByPhase.map(({ phase, stages: phaseStages }) => (
+                        <div key={phase.id || phase.name} className="mb-3">
+                            <div className="flex items-center gap-2 px-3 py-2">
+                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: phase.color || '#ccc' }} />
+                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                                    {phase.label || phase.name}
+                                </span>
+                            </div>
+                            {phaseStages.map(stage => {
+                                const ruleCount = requirements?.filter(r => r.stage_id === stage.id).length || 0
+                                const isActive = selectedStageId === stage.id
 
-                        return (
-                            <button
-                                key={stage.id}
-                                onClick={() => {
-                                    setSelectedStageId(stage.id)
-                                    setSelectedRuleIds(new Set())
-                                }}
-                                className={cn(
-                                    "w-full text-left px-4 py-3 rounded-lg text-sm transition-all flex items-center justify-between group",
-                                    isActive
-                                        ? "bg-white shadow-sm ring-1 ring-gray-200"
-                                        : "hover:bg-gray-100/80 text-gray-600"
-                                )}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div
-                                        className={cn("w-2 h-2 rounded-full", isActive ? "ring-2 ring-offset-1 ring-gray-300" : "")}
-                                        style={{ backgroundColor: phase?.color || '#ccc' }}
-                                    />
-                                    <span className={cn("font-medium", isActive ? "text-gray-900" : "text-gray-600")}>
-                                        {stage.nome}
-                                    </span>
-                                </div>
-                                {ruleCount > 0 && (
-                                    <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                        {ruleCount}
-                                    </span>
-                                )}
-                            </button>
-                        )
-                    })}
+                                return (
+                                    <button
+                                        key={stage.id}
+                                        onClick={() => {
+                                            setSelectedStageId(stage.id)
+                                            setSelectedRuleIds(new Set())
+                                        }}
+                                        className={cn(
+                                            "w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between group",
+                                            isActive
+                                                ? "bg-white shadow-sm ring-1 ring-gray-200"
+                                                : "hover:bg-gray-100/80 text-gray-600"
+                                        )}
+                                    >
+                                        <span className={cn("font-medium truncate", isActive ? "text-gray-900" : "text-gray-600")}>
+                                            {stage.nome}
+                                        </span>
+                                        {ruleCount > 0 && (
+                                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
+                                                {ruleCount}
+                                            </span>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    ))}
                 </div>
             </div>
 

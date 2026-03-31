@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-03-31
 > **Trigger:** ALWAYS ON
-> **Stats:** 130 tabelas | 41 paginas | 94 hooks | 17 views | 435 components
+> **Stats:** 130 tabelas | 41 paginas | 93 hooks | 17 views | 435 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **94 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **93 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -265,7 +265,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineFilters()` | `usePipelineFilters.ts` |
 | `usePipelineListCards()` | `usePipelineListCards.ts` |
-| `usePipelinePersistence()` | `usePipelinePersistence.ts` |
 | `usePipelinePhases()` | `usePipelinePhases.ts` |
 | `usePipelineStages()` | `usePipelineStages.ts` |
 | `usePipelines()` | `usePipelines.ts` |

@@ -2,14 +2,17 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { PipelineStage } from '@/types/pipeline'
 
-export function usePipelineStages(pipelineId?: string) {
+export function usePipelineStages(pipelineId?: string, includeInactive = false) {
     return useQuery({
-        queryKey: ['pipeline-stages', pipelineId ?? 'all'],
+        queryKey: ['pipeline-stages', pipelineId ?? 'all', includeInactive],
         queryFn: async () => {
             let query = supabase
                 .from('pipeline_stages')
                 .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .order('ordem')
+            if (!includeInactive) {
+                query = query.eq('ativo', true)
+            }
             if (pipelineId) {
                 query = query.eq('pipeline_id', pipelineId)
             }
