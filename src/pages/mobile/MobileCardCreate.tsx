@@ -278,10 +278,13 @@ export default function MobileCardCreate() {
   if (showContactPicker) {
     return (
       <MobileContactPicker
-        onSelect={(id, name) => {
-          if (!contacts.some(c => c.id === id)) {
-            setContacts(prev => [...prev, { id, name }])
-          }
+        alreadySelected={contacts.map(c => c.id)}
+        onConfirm={(newContacts) => {
+          setContacts(prev => {
+            const existingIds = new Set(prev.map(c => c.id))
+            const unique = newContacts.filter(c => !existingIds.has(c.id))
+            return [...prev, ...unique]
+          })
           setShowContactPicker(false)
         }}
         onClose={() => setShowContactPicker(false)}

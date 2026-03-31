@@ -1,20 +1,27 @@
 import { useState, useEffect } from 'react'
-import { Search, ArrowLeft, Plus, Loader2, Phone, User } from 'lucide-react'
+import { Search, ArrowLeft, Plus, Loader2, Phone, User, Check } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter, normalizePhone } from '../../lib/utils'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { toast } from 'sonner'
 
-interface MobileContactPickerProps {
-  onSelect: (contactId: string, contactName: string) => void
-  onClose: () => void
+interface SelectedContact {
+  id: string
+  name: string
 }
 
-export default function MobileContactPicker({ onSelect, onClose }: MobileContactPickerProps) {
+interface MobileContactPickerProps {
+  onConfirm: (contacts: SelectedContact[]) => void
+  onClose: () => void
+  alreadySelected?: string[]
+}
+
+export default function MobileContactPicker({ onConfirm, onClose, alreadySelected = [] }: MobileContactPickerProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [selected, setSelected] = useState<SelectedContact[]>([])
   const [newContact, setNewContact] = useState({ nome: '', sobrenome: '', telefone: '' })
 
   useEffect(() => {
@@ -68,6 +75,16 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
     enabled: debouncedSearch.length >= 2
   })
 
+  const toggleContact = (id: string, name: string) => {
+    setSelected(prev => {
+      if (prev.some(c => c.id === id)) return prev.filter(c => c.id !== id)
+      return [...prev, { id, name }]
+    })
+  }
+
+  const isChecked = (id: string) => selected.some(c => c.id === id) || alreadySelected.includes(id)
+  const isDisabled = (id: string) => alreadySelected.includes(id)
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const { nome, sobrenome } = sanitizeContactNames(newContact.nome, newContact.sobrenome || null)
@@ -96,7 +113,9 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
     onSuccess: (data) => {
       const name = formatContactName(data) || data.nome || 'Sem Nome'
       toast.success(`Contato "${name}" criado`)
-      onSelect(data.id, name)
+      setSelected(prev => [...prev, { id: data.id, name }])
+      setShowCreate(false)
+      setNewContact({ nome: '', sobrenome: '', telefone: '' })
     },
     onError: (err: Error) => {
       toast.error('Erro ao criar contato: ' + err.message)
@@ -111,21 +130,32 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
     createMutation.mutate()
   }
 
+  const handleConfirm = () => {
+    onConfirm(selected)
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <button
-            onClick={showCreate ? () => setShowCreate(false) : onClose}
-            className="p-2 -ml-2 rounded-lg active:bg-slate-100"
-            style={{ touchAction: 'manipulation' }}
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
-          </button>
-          <h2 className="text-base font-semibold text-slate-900">
-            {showCreate ? 'Novo Contato' : 'Selecionar Contato'}
-          </h2>
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={showCreate ? () => setShowCreate(false) : onClose}
+              className="p-2 -ml-2 rounded-lg active:bg-slate-100"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-700" />
+            </button>
+            <h2 className="text-base font-semibold text-slate-900">
+              {showCreate ? 'Novo Contato' : 'Selecionar Pessoas'}
+            </h2>
+          </div>
+          {selected.length > 0 && !showCreate && (
+            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+              {selected.length} selecionado{selected.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -166,7 +196,6 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
             />
           </div>
 
-          {/* Create button */}
           <div className="pt-2">
             <button
               onClick={handleCreate}
@@ -181,7 +210,7 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
               {createMutation.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
               ) : (
-                'Criar Contato'
+                'Criar e Selecionar'
               )}
             </button>
           </div>
@@ -206,7 +235,7 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
           </div>
 
           {/* Results */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pb-24">
             {isLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -218,13 +247,29 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
                 {contacts.map(contact => {
                   const name = formatContactName(contact) || contact.nome || 'Sem Nome'
                   const initials = getContactInitials(contact)
+                  const checked = isChecked(contact.id)
+                  const disabled = isDisabled(contact.id)
                   return (
                     <button
                       key={contact.id}
-                      onClick={() => onSelect(contact.id, name)}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-slate-50 text-left min-h-[56px]"
+                      onClick={() => !disabled && toggleContact(contact.id, name)}
+                      disabled={disabled}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3.5 text-left min-h-[56px]",
+                        disabled ? "opacity-50" : "active:bg-slate-50"
+                      )}
                       style={{ touchAction: 'manipulation' }}
                     >
+                      {/* Checkbox */}
+                      <div className={cn(
+                        'w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+                        checked
+                          ? 'bg-indigo-600 border-indigo-600'
+                          : 'border-slate-300 bg-white'
+                      )}>
+                        {checked && <Check className="w-4 h-4 text-white" />}
+                      </div>
+
                       <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-medium text-indigo-700">{initials}</span>
                       </div>
@@ -261,7 +306,6 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
               <button
                 onClick={() => {
                   setShowCreate(true)
-                  // Pre-fill name from search
                   if (searchTerm.trim()) {
                     const parts = searchTerm.trim().split(/\s+/)
                     setNewContact({
@@ -278,6 +322,29 @@ export default function MobileContactPicker({ onSelect, onClose }: MobileContact
                 Criar novo contato
               </button>
             </div>
+          </div>
+
+          {/* Sticky bottom confirm */}
+          <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-slate-200">
+            <div className="px-4 py-3">
+              <button
+                onClick={handleConfirm}
+                disabled={selected.length === 0}
+                className={cn(
+                  "w-full py-3.5 rounded-xl font-semibold text-sm transition-all min-h-[52px]",
+                  "bg-indigo-600 text-white active:bg-indigo-700",
+                  "disabled:bg-slate-300 disabled:cursor-not-allowed",
+                  "shadow-lg shadow-indigo-600/20"
+                )}
+                style={{ touchAction: 'manipulation' }}
+              >
+                {selected.length === 0
+                  ? 'Selecione pessoas'
+                  : `Confirmar ${selected.length} pessoa${selected.length !== 1 ? 's' : ''}`
+                }
+              </button>
+            </div>
+            <div className="safe-area-inset-bottom bg-white" />
           </div>
         </>
       )}
