@@ -286,14 +286,37 @@ export default function PessoasField({
                 <ContactSelector
                     cardId={cardId}
                     onClose={() => setShowSelector(false)}
+                    multiSelect={true}
+                    addToCard={false}
+                    onContactsAdded={async (selectedContacts) => {
+                        if (!cardId || selectedContacts.length === 0) return
+                        try {
+                            const { data: existing } = await supabase
+                                .from('cards_contatos')
+                                .select('ordem, contato_id')
+                                .eq('card_id', cardId)
+                                .order('ordem', { ascending: false })
+                                .limit(1)
+                            let nextOrder = (existing?.[0]?.ordem || 0) + 1
+                            const existingIds = new Set(contacts.map(c => c.id))
+
+                            for (const contact of selectedContacts) {
+                                if (existingIds.has(contact.id)) continue
+                                await supabase.from('cards_contatos').insert({
+                                    card_id: cardId,
+                                    contato_id: contact.id,
+                                    tipo_viajante: 'acompanhante',
+                                    ordem: nextOrder++
+                                })
+                            }
+                            await fetchContacts()
+                        } catch (err) {
+                            console.error('Error batch adding contacts:', err)
+                        }
+                        setShowSelector(false)
+                    }}
                     onContactAdded={() => {
                         fetchContacts()
-                        // Keep selector open? Or close?
-                        // If we want to add multiple, keep open.
-                        // But ContactSelector has its own close button.
-                        // Let's keep it open for now, or let user close it.
-                        // Actually ContactSelector logic might close it?
-                        // My implementation of ContactSelector keeps it open after adding.
                     }}
                 />
             )}

@@ -70,6 +70,20 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
         addPerson({ id: contactId, nome: contact.nome })
     }
 
+    const handleBatchContactsAdded = (contacts: { id: string; nome: string }[]) => {
+        if (contacts.length === 0) return
+        // If no primary exists, first selected becomes primary
+        const startIdx = !primary ? 1 : 0
+        if (!primary && contacts.length > 0) {
+            handleSetPrimaryContact(contacts[0].id)
+        }
+        // Rest become travelers
+        for (let i = startIdx; i < contacts.length; i++) {
+            addPerson({ id: contacts[i].id, nome: contacts[i].nome })
+        }
+        setSelectorMode('none')
+    }
+
     const displayNome = primary ? formatContactName(primary) : ''
 
     return (
@@ -198,6 +212,9 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                     cardId={card.id!}
                     onClose={() => setSelectorMode('none')}
                     addToCard={false}
+                    multiSelect={selectorMode === 'add_traveler'}
+                    hasPrimary={!!primary}
+                    onContactsAdded={handleBatchContactsAdded}
                     onContactAdded={(contactId, contact) => {
                         if (selectorMode === 'set_primary' && contactId) {
                             handleSetPrimaryContact(contactId)

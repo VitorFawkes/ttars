@@ -14,18 +14,30 @@ import { formatContactName, getContactInitials, sanitizeContactNames } from '../
 import { mergeContactData } from '../../lib/contactMerge'
 import { toast } from 'sonner'
 
+interface SelectedContact {
+    id: string
+    nome: string
+    sobrenome: string | null
+    email: string | null
+    telefone: string | null
+}
+
 interface ContactSelectorProps {
     cardId: string
     onClose: () => void
     onContactAdded: (contactId?: string, contact?: { nome: string }) => void
+    onContactsAdded?: (contacts: SelectedContact[]) => void
     addToCard?: boolean
+    multiSelect?: boolean
+    hasPrimary?: boolean
 }
 
-export default function ContactSelector({ cardId, onClose, onContactAdded, addToCard = true }: ContactSelectorProps) {
+export default function ContactSelector({ cardId, onClose, onContactAdded, onContactsAdded, addToCard = true, multiSelect = false, hasPrimary = false }: ContactSelectorProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [showCreateForm, setShowCreateForm] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [selectedContacts, setSelectedContacts] = useState<SelectedContact[]>([])
 
     const [newContact, setNewContact] = useState({
         nome: '',
@@ -153,6 +165,23 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
         },
         onSuccess: async (createdContact) => {
             try {
+                if (multiSelect) {
+                    // In multi-select mode, add to selection instead of immediately linking
+                    const contactForSelection: SelectedContact = {
+                        id: createdContact.id,
+                        nome: createdContact.nome || '',
+                        sobrenome: createdContact.sobrenome || null,
+                        email: createdContact.email || null,
+                        telefone: createdContact.telefone || null,
+                    }
+                    setSelectedContacts(prev => [...prev, contactForSelection])
+                    toast.success(`${formatContactName(createdContact) || createdContact.nome} criado e selecionado`)
+                    setSearchTerm('')
+                    setDebouncedSearch('')
+                    resetForm()
+                    return
+                }
+
                 if (cardId && addToCard) {
                     // Check if already linked
                     const { data: existingLink } = await supabase
@@ -256,6 +285,24 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
         createContactMutation.mutate()
     }
 
+    const toggleContactSelection = (contact: SelectedContact) => {
+        setSelectedContacts(prev => {
+            const exists = prev.some(c => c.id === contact.id)
+            if (exists) return prev.filter(c => c.id !== contact.id)
+            return [...prev, contact]
+        })
+    }
+
+    const isSelected = (contactId: string) => selectedContacts.some(c => c.id === contactId)
+
+    const handleBatchAdd = () => {
+        if (selectedContacts.length === 0) return
+        if (onContactsAdded) {
+            onContactsAdded(selectedContacts)
+        }
+        onClose()
+    }
+
     const resetForm = () => {
         setShowCreateForm(false)
         setNewContact({ nome: '', sobrenome: '', email: '', telefone: '', data_nascimento: '', tipo_pessoa: 'adulto' })
@@ -268,8 +315,16 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                 <div className="p-6 pb-4 border-b border-slate-100">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-semibold text-slate-900">
-                            {showCreateForm ? 'Novo Contato' : 'Selecionar Contato'}
+                            {showCreateForm ? 'Novo Contato' : multiSelect ? 'Selecionar Pessoas' : 'Selecionar Contato'}
                         </DialogTitle>
+                        {multiSelect && !showCreateForm && (
+                            <p className="text-sm text-slate-500 mt-1">
+                                {hasPrimary
+                                    ? 'Selecione as pessoas e clique em adicionar.'
+                                    : 'Selecione as pessoas e clique em adicionar. A primeira será o contato principal.'
+                                }
+                            </p>
+                        )}
                     </DialogHeader>
                 </div>
 
@@ -304,42 +359,84 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                         <span className="text-sm">Buscando contatos...</span>
                                     </div>
                                 ) : contacts?.length ? (
-                                    contacts.map((contact) => (
-                                        <button
-                                            key={contact.id}
-                                            onClick={() => addContactMutation.mutate(contact.id)}
-                                            disabled={addContactMutation.isPending}
-                                            className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg group transition-colors text-left"
-                                        >
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-medium group-hover:bg-indigo-100 transition-colors flex-shrink-0">
-                                                    {getContactInitials(contact)}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="font-medium text-slate-900 truncate">{formatContactName(contact) || 'Sem Nome'}</p>
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                        {contact.telefone && (
-                                                            <span className="flex items-center gap-1">
-                                                                <Phone className="h-3 w-3" />
-                                                                {contact.telefone}
-                                                            </span>
-                                                        )}
-                                                        {contact.email && (
-                                                            <span className="flex items-center gap-1 truncate">
-                                                                <Mail className="h-3 w-3" />
-                                                                {contact.email}
-                                                            </span>
-                                                        )}
+                                    contacts.map((contact) => {
+                                        const selected = multiSelect && isSelected(contact.id)
+                                        return (
+                                            <button
+                                                key={contact.id}
+                                                onClick={() => {
+                                                    if (multiSelect) {
+                                                        toggleContactSelection({
+                                                            id: contact.id,
+                                                            nome: contact.nome || '',
+                                                            sobrenome: contact.sobrenome || null,
+                                                            email: contact.email || null,
+                                                            telefone: contact.telefone || null,
+                                                        })
+                                                    } else {
+                                                        addContactMutation.mutate(contact.id)
+                                                    }
+                                                }}
+                                                disabled={!multiSelect && addContactMutation.isPending}
+                                                className={cn(
+                                                    "w-full flex items-center justify-between p-3 rounded-lg group transition-colors text-left",
+                                                    selected ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    {multiSelect && (
+                                                        <div className={cn(
+                                                            "h-5 w-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                                                            selected ? "bg-indigo-600 border-indigo-600" : "border-slate-300 group-hover:border-indigo-400"
+                                                        )}>
+                                                            {selected && (
+                                                                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    <div className={cn(
+                                                        "h-10 w-10 rounded-full flex items-center justify-center font-medium transition-colors flex-shrink-0",
+                                                        selected ? "bg-indigo-100 text-indigo-700" : "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100"
+                                                    )}>
+                                                        {getContactInitials(contact)}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-slate-900 truncate">
+                                                            {formatContactName(contact) || 'Sem Nome'}
+                                                            {selected && !hasPrimary && selectedContacts.findIndex(c => c.id === contact.id) === 0 && (
+                                                                <span className="ml-2 text-[10px] font-semibold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">
+                                                                    Principal
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                            {contact.telefone && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <Phone className="h-3 w-3" />
+                                                                    {contact.telefone}
+                                                                </span>
+                                                            )}
+                                                            {contact.email && (
+                                                                <span className="flex items-center gap-1 truncate">
+                                                                    <Mail className="h-3 w-3" />
+                                                                    {contact.email}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            {addContactMutation.isPending ? (
-                                                <Loader2 className="h-4 w-4 animate-spin text-indigo-600 flex-shrink-0" />
-                                            ) : (
-                                                <Plus className="h-4 w-4 text-slate-400 group-hover:text-indigo-600 flex-shrink-0" />
-                                            )}
-                                        </button>
-                                    ))
+                                                {!multiSelect && (
+                                                    addContactMutation.isPending ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-600 flex-shrink-0" />
+                                                    ) : (
+                                                        <Plus className="h-4 w-4 text-slate-400 group-hover:text-indigo-600 flex-shrink-0" />
+                                                    )
+                                                )}
+                                            </button>
+                                        )
+                                    })
                                 ) : debouncedSearch.length > 2 ? (
                                     <div className="text-center py-8">
                                         <p className="text-sm text-slate-500 mb-3">Nenhum contato encontrado</p>
@@ -368,11 +465,71 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                 )}
                             </div>
 
-                            {/* Create button */}
-                            <div className="pt-4 border-t border-slate-100">
+                            {/* Selected contacts bar (multi-select) */}
+                            {multiSelect && selectedContacts.length > 0 && (
+                                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-indigo-700">
+                                            {selectedContacts.length} {selectedContacts.length === 1 ? 'pessoa selecionada' : 'pessoas selecionadas'}
+                                        </span>
+                                        <button
+                                            onClick={() => setSelectedContacts([])}
+                                            className="text-xs text-indigo-500 hover:text-indigo-700"
+                                        >
+                                            Limpar
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {selectedContacts.map((c, idx) => (
+                                            <span
+                                                key={c.id}
+                                                className={cn(
+                                                    "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                                                    idx === 0 && !hasPrimary ? "bg-indigo-600 text-white" : "bg-white text-slate-700 border border-slate-200"
+                                                )}
+                                            >
+                                                {idx === 0 && !hasPrimary && <span className="text-[9px] opacity-80">Principal</span>}
+                                                {formatContactName(c) || c.nome}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setSelectedContacts(prev => prev.filter(x => x.id !== c.id))
+                                                    }}
+                                                    className={cn(
+                                                        "ml-0.5 rounded-full p-0.5 hover:bg-black/10",
+                                                        idx === 0 && !hasPrimary ? "text-white/70 hover:text-white" : "text-slate-400 hover:text-slate-600"
+                                                    )}
+                                                >
+                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="pt-4 border-t border-slate-100 space-y-2">
+                                {multiSelect && selectedContacts.length > 0 && (
+                                    <Button
+                                        onClick={handleBatchAdd}
+                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Adicionar {selectedContacts.length} {selectedContacts.length === 1 ? 'pessoa' : 'pessoas'}
+                                    </Button>
+                                )}
                                 <Button
                                     onClick={() => setShowCreateForm(true)}
-                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    variant={multiSelect && selectedContacts.length > 0 ? "outline" : undefined}
+                                    className={cn(
+                                        "w-full",
+                                        multiSelect && selectedContacts.length > 0
+                                            ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    )}
                                 >
                                     <UserPlus className="h-4 w-4 mr-2" />
                                     Criar Novo Contato
@@ -539,7 +696,19 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                                 toast.error('Erro ao mesclar dados')
                                             }
                                         }
-                                        addContactMutation.mutate(contactId)
+                                        if (multiSelect) {
+                                            const dup = duplicates.find(d => d.contact_id === contactId)
+                                            toggleContactSelection({
+                                                id: contactId,
+                                                nome: dup?.contact_nome || '',
+                                                sobrenome: dup?.contact_sobrenome || null,
+                                                email: dup?.contact_email || null,
+                                                telefone: dup?.contact_telefone || null,
+                                            })
+                                            resetForm()
+                                        } else {
+                                            addContactMutation.mutate(contactId)
+                                        }
                                     }}
                                     mode="compact"
                                 />
@@ -578,7 +747,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                                     ) : (
                                         <>
                                             <Plus className="h-4 w-4 mr-2" />
-                                            Criar e Adicionar
+                                            {multiSelect ? 'Criar e Selecionar' : 'Criar e Adicionar'}
                                         </>
                                     )}
                                 </Button>
