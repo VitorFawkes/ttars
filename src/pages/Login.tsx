@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,10 +11,12 @@ export default function Login() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const { session } = useAuth()
+    const redirectTo = searchParams.get('redirect') || '/dashboard'
 
     if (session) {
-        navigate('/dashboard')
+        navigate(redirectTo)
         return null
     }
 
@@ -29,7 +31,7 @@ export default function Login() {
                 password,
             })
             if (error) throw error
-            navigate('/dashboard')
+            navigate(redirectTo)
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Erro na autenticação';
             setError(message)

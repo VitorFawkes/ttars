@@ -32,10 +32,10 @@ export default function MobileCardCreate() {
   const { profile, loading: authLoading } = useAuth()
   const { currentProduct } = useProductContext()
 
-  // Auth guard
+  // Auth guard — redirect to login with return URL
   useEffect(() => {
     if (!authLoading && !profile) {
-      navigate('/login', { replace: true })
+      navigate('/login?redirect=/m/novo-card', { replace: true })
     }
   }, [authLoading, profile, navigate])
 
