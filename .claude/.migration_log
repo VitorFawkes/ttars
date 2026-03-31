@@ -196,3 +196,8 @@ PENDING | supabase/migrations/20260330_ganho_sem_pos_venda.sql | preexisting_unt
 2026-03-30T17:25:53Z | supabase/migrations/20260330_fix_outbound_epoca_viagem_mapping.sql | applied_to_prod
 2026-03-30T17:30:09Z | /tmp/replica_identity.sql | applied_to_prod
 2026-03-30T22:30:40Z | supabase/migrations/20260330_card_alert_notification_type.sql | applied_to_prod
+2026-03-31T12:49:29Z | supabase/migrations/20260331_fix_marcar_ganho_overload.sql | applied_to_prod
+2026-03-31T12:52:32Z | supabase/migrations/20260331_alerts_widget.sql | applied_to_prod
+PENDING | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | preexisting_untracked
+2026-03-31T16:47:15Z | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | applied_to_prod
+2026-03-31T16:52:37Z | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | applied_to_prod
