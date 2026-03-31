@@ -201,3 +201,8 @@ PENDING | supabase/migrations/20260330_ganho_sem_pos_venda.sql | preexisting_unt
 PENDING | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | preexisting_untracked
 2026-03-31T16:47:15Z | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | applied_to_prod
 2026-03-31T16:52:37Z | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | applied_to_prod
+2026-03-31T17:41:21Z | supabase/migrations/20260331_pos_venda_import_logs.sql | applied_to_prod
+2026-03-31T17:41:29Z | supabase/migrations/20260331_bulk_create_pos_venda_cards.sql | applied_to_prod
+2026-03-31T18:00:40Z | supabase/migrations/20260331_pos_venda_revert_system.sql | applied_to_prod
+2026-03-31T19:15:54Z | supabase/migrations/20260331_restore_stage_field_config.sql | applied_to_prod
+2026-03-31T19:19:17Z | supabase/migrations/20260331_restore_trips_field_visibility.sql | applied_to_prod

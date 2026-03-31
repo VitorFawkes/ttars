@@ -1,0 +1,1249 @@
+import { useState, useCallback, useRef } from 'react'
+import { Navigate, Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
+import {
+    Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
+    ArrowLeft, Clock, ChevronDown, ChevronRight, XCircle,
+    Package, Users, Plus, RefreshCw, Undo2,
+} from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
+import { parseBRNumber } from '@/lib/parseBRNumber'
+import { readFileText } from '@/lib/readFileText'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+import {
+    norm, parseDateBR, parseCSVNative, findColumn, chunked, formatBRL,
+    formatDateBR,
+    VENDA_COLUMN_ALIASES, PRODUTO_ALIASES, VALOR_TOTAL_ALIASES, RECEITA_ALIASES,
+    PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, DATA_INICIO_ALIASES, DATA_FIM_ALIASES,
+} from '@/lib/csvUtils'
+
+// ─── Constants ──────────────────────────────────────────────
+
+const STAGE_APP_CONTEUDO = 'b2b0679c-ea06-4b46-9dd4-ee02abff1a36'
+const STAGE_PRE_EMBARQUE_GT30 = '1f684773-f8f3-434a-a44d-4994750c41aa'
+const STAGE_PRE_EMBARQUE_LT30 = '3ce80249-b579-4a9c-9b82-f8569735cea9'
+const SAMANTHA_ID = 'b2e26ddf-ebe8-4649-b367-40d2cf3a6bc5'
+const TEAM_PLANNER_ID = '6c11a8fe-f132-404d-a636-5c04d50dca67'
+
+const POS_VENDA_STAGES = [STAGE_APP_CONTEUDO, STAGE_PRE_EMBARQUE_GT30, STAGE_PRE_EMBARQUE_LT30,
+    '0ebab355-6d0e-4b19-af13-b4b31268275f', '2c07134a-cb83-4075-bc86-4750beec9393']
+
+// Column aliases specific to this CSV
+const CPF_ALIASES = ['cpf']
+const PAGANTE_ALIASES = ['pagante', 'payer']
+const VENDEDOR_ALIASES = ['vendedor', 'seller', 'consultor']
+const APP_GERADO_ALIASES = ['app gerado']
+const VOUCHERS_APP_ALIASES = ['vouchers no app']
+const CONTRATO_VOUCHER_ALIASES = ['contr/ voucher', 'contr./voucher', 'contr./ voucher', 'contrato voucher', 'contrato/voucher']
+const DATA_VENDA_ALIASES = ['data venda']
+
+// ─── Types ──────────────────────────────────────────────────
+
+interface PosVendaCsvRow {
+    vendaNum: string
+    vendedor: string
+    cpf: string
+    cpfNorm: string
+    pagante: string
+    fornecedor: string
+    produto: string
+    dataVenda: string | null
+    dataInicio: string | null
+    dataFim: string | null
+    passageiros: string[]
+    appGerado: string
+    vouchersNoApp: string
+    contratoVoucher: string
+    receita: number
+    valorTotal: number
+}
+
+interface TripGroup {
+    id: string
+    cpfPrincipal: string
+    cpfNorm: string
+    pagantePrincipal: string
+    vendedor: string
+    vendedorProfileId: string | null
+    dataInicio: string | null
+    dataFim: string | null
+    products: PosVendaCsvRow[]
+    allPassengers: string[]
+    acompanhantes: string[]
+    stage: { id: string; name: string }
+    appEnviadoConcluida: boolean
+    existingCardId: string | null
+    existingCardTitle: string | null
+    action: 'create' | 'update' | 'skip'
+    valorTotal: number
+    receita: number
+    vendaNums: string[]
+}
+
+type Step = 'idle' | 'preview' | 'importing' | 'done'
+
+// ─── Helpers ────────────────────────────────────────────────
+
+const isSim = (val: string) => val.trim().toLowerCase().startsWith('sim')
+
+const normalizeCpf = (cpf: string) => cpf.replace(/\D/g, '')
+
+const formatDateTime = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+        ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+/** Calculates day difference between two ISO dates */
+const daysBetween = (a: string, b: string) => {
+    const da = new Date(a + 'T00:00:00').getTime()
+    const db = new Date(b + 'T00:00:00').getTime()
+    return Math.round((db - da) / (1000 * 60 * 60 * 24))
+}
+
+/** Days from today to a date */
+const daysFromNow = (date: string) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const target = new Date(date + 'T00:00:00').getTime()
+    return Math.round((target - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+// ─── Union-Find ─────────────────────────────────────────────
+
+class UnionFind {
+    parent: Map<string, string>
+    rank: Map<string, number>
+
+    constructor() {
+        this.parent = new Map()
+        this.rank = new Map()
+    }
+
+    make(x: string) {
+        if (!this.parent.has(x)) {
+            this.parent.set(x, x)
+            this.rank.set(x, 0)
+        }
+    }
+
+    find(x: string): string {
+        const p = this.parent.get(x)
+        if (p !== x) {
+            const root = this.find(p!)
+            this.parent.set(x, root)
+            return root
+        }
+        return x
+    }
+
+    union(a: string, b: string) {
+        const ra = this.find(a)
+        const rb = this.find(b)
+        if (ra === rb) return
+        const rankA = this.rank.get(ra) || 0
+        const rankB = this.rank.get(rb) || 0
+        if (rankA < rankB) this.parent.set(ra, rb)
+        else if (rankA > rankB) this.parent.set(rb, ra)
+        else { this.parent.set(rb, ra); this.rank.set(ra, rankA + 1) }
+    }
+}
+
+// ─── Trip Grouping Algorithm ────────────────────────────────
+
+function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'action'>[] {
+    // Step 1: Group by vendaNum
+    const byVenda = new Map<string, PosVendaCsvRow[]>()
+    for (const row of rows) {
+        const key = row.vendaNum
+        if (!byVenda.has(key)) byVenda.set(key, [])
+        byVenda.get(key)!.push(row)
+    }
+
+    const vendaKeys = Array.from(byVenda.keys())
+    const uf = new UnionFind()
+    for (const k of vendaKeys) uf.make(k)
+
+    // Step 2: Merge by CPF + overlapping dates
+    const byCpf = new Map<string, string[]>()
+    for (const vk of vendaKeys) {
+        const cpfs = new Set(byVenda.get(vk)!.map(r => r.cpfNorm).filter(Boolean))
+        for (const cpf of cpfs) {
+            if (!byCpf.has(cpf)) byCpf.set(cpf, [])
+            byCpf.get(cpf)!.push(vk)
+        }
+    }
+
+    for (const [, vendas] of byCpf) {
+        if (vendas.length < 2) continue
+        // Sort groups by earliest dataInicio
+        const withDates = vendas.map(vk => {
+            const rows_ = byVenda.get(vk)!
+            const dates = rows_.map(r => r.dataInicio).filter(Boolean) as string[]
+            const earliest = dates.length > 0 ? dates.sort()[0] : null
+            const latest = rows_.map(r => r.dataFim).filter(Boolean).sort().reverse()[0] || null
+            return { vk, earliest, latest }
+        }).filter(d => d.earliest).sort((a, b) => a.earliest!.localeCompare(b.earliest!))
+
+        // Merge overlapping intervals (2 day tolerance)
+        for (let i = 1; i < withDates.length; i++) {
+            const prev = withDates[i - 1]
+            const curr = withDates[i]
+            if (prev.latest && curr.earliest && daysBetween(prev.latest, curr.earliest) <= 2) {
+                uf.union(prev.vk, curr.vk)
+                // Extend prev interval for chain merging
+                if (curr.latest && (!prev.latest || curr.latest > prev.latest)) {
+                    prev.latest = curr.latest
+                }
+            }
+        }
+    }
+
+    // Step 3: Merge by shared passengers
+    const vendaByPagante = new Map<string, string[]>()
+    const vendaByPassenger = new Map<string, string[]>()
+
+    for (const vk of vendaKeys) {
+        const rows_ = byVenda.get(vk)!
+        for (const r of rows_) {
+            const pNorm = norm(r.pagante)
+            if (!vendaByPagante.has(pNorm)) vendaByPagante.set(pNorm, [])
+            vendaByPagante.get(pNorm)!.push(vk)
+
+            for (const pax of r.passageiros) {
+                const paxNorm = norm(pax)
+                if (!vendaByPassenger.has(paxNorm)) vendaByPassenger.set(paxNorm, [])
+                vendaByPassenger.get(paxNorm)!.push(vk)
+            }
+        }
+    }
+
+    // If a pagante of group A appears as passenger of group B (or vice versa) AND dates overlap
+    for (const [personName, paganteVendas] of vendaByPagante) {
+        const passengerVendas = vendaByPassenger.get(personName) || []
+        // Merge pagante vendas with passenger vendas where dates overlap
+        for (const pv of paganteVendas) {
+            for (const sv of passengerVendas) {
+                if (uf.find(pv) === uf.find(sv)) continue
+                // Check date overlap
+                const pvRows = byVenda.get(pv)!
+                const svRows = byVenda.get(sv)!
+                const pvDates = pvRows.map(r => r.dataInicio).filter(Boolean) as string[]
+                const svDates = svRows.map(r => r.dataInicio).filter(Boolean) as string[]
+                const pvEnds = pvRows.map(r => r.dataFim).filter(Boolean) as string[]
+                const svEnds = svRows.map(r => r.dataFim).filter(Boolean) as string[]
+
+                const pvStart = pvDates.sort()[0]
+                const pvEnd = pvEnds.sort().reverse()[0]
+                const svStart = svDates.sort()[0]
+                const svEnd = svEnds.sort().reverse()[0]
+
+                if (pvStart && pvEnd && svStart && svEnd) {
+                    // Check overlap with 2 day tolerance
+                    if (daysBetween(pvEnd, svStart) <= 2 && daysBetween(svEnd, pvStart) <= 2) {
+                        uf.union(pv, sv)
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 4: Collect groups
+    const groups = new Map<string, PosVendaCsvRow[]>()
+    for (const vk of vendaKeys) {
+        const root = uf.find(vk)
+        if (!groups.has(root)) groups.set(root, [])
+        groups.get(root)!.push(...byVenda.get(vk)!)
+    }
+
+    // Step 5: Build trip aggregates
+    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'action'>[] = []
+
+    for (const [, products] of groups) {
+        // Separate annual products (Seguro Viagem with > 180 day span)
+        const isAnnual = (r: PosVendaCsvRow) => {
+            if (!r.dataInicio || !r.dataFim) return false
+            const span = daysBetween(r.dataInicio, r.dataFim)
+            return span > 180 && /seguro/i.test(r.produto)
+        }
+
+        const regularProducts = products.filter(p => !isAnnual(p))
+        const annualProducts = products.filter(p => isAnnual(p))
+
+        // Dates from regular products only
+        const starts = regularProducts.map(r => r.dataInicio).filter(Boolean) as string[]
+        const ends = regularProducts.map(r => r.dataFim).filter(Boolean) as string[]
+        const dataInicio = starts.length > 0 ? starts.sort()[0] : (products[0]?.dataInicio || null)
+        const dataFim = ends.length > 0 ? ends.sort().reverse()[0] : (products[0]?.dataFim || null)
+
+        // For annuals, keep them in products but don't use their dates for trip range
+        const allProducts = [...regularProducts, ...annualProducts]
+
+        // Unique venda nums
+        const vendaNums = [...new Set(allProducts.map(r => r.vendaNum))]
+
+        // All unique passengers (pagantes + passageiros)
+        const personSet = new Map<string, string>()
+        for (const r of allProducts) {
+            personSet.set(norm(r.pagante), r.pagante)
+            for (const pax of r.passageiros) {
+                if (pax.trim()) personSet.set(norm(pax), pax)
+            }
+        }
+        const allPassengers = Array.from(personSet.values())
+
+        // Determine pagante principal (highest total value by CPF)
+        const cpfValues = new Map<string, { cpf: string; pagante: string; total: number }>()
+        for (const r of allProducts) {
+            const key = r.cpfNorm || norm(r.pagante)
+            const existing = cpfValues.get(key)
+            if (existing) {
+                existing.total += r.valorTotal
+            } else {
+                cpfValues.set(key, { cpf: r.cpf, pagante: r.pagante, total: r.valorTotal })
+            }
+        }
+        const sorted = Array.from(cpfValues.values()).sort((a, b) => b.total - a.total)
+        const pagantePrincipal = sorted[0]?.pagante || products[0].pagante
+        const cpfPrincipal = sorted[0]?.cpf || products[0].cpf
+        const cpfNorm = normalizeCpf(cpfPrincipal)
+
+        // Acompanhantes = all passengers - pagante principal
+        const pagNorm = norm(pagantePrincipal)
+        const acompanhantes = allPassengers.filter(p => norm(p) !== pagNorm)
+
+        // Determine vendedor (most frequent)
+        const vendedorCount = new Map<string, number>()
+        for (const r of allProducts) {
+            if (r.vendedor) {
+                vendedorCount.set(r.vendedor, (vendedorCount.get(r.vendedor) || 0) + 1)
+            }
+        }
+        const vendedor = Array.from(vendedorCount.entries())
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+
+        // App gerado: true if ANY product has sim
+        const hasAppGerado = allProducts.some(r => isSim(r.appGerado))
+
+        // Stage logic: ALL products must have app + voucher for pre-embarque
+        const allReady = allProducts.every(r =>
+            isSim(r.appGerado) && (isSim(r.vouchersNoApp) || isSim(r.contratoVoucher))
+        )
+
+        let stage: { id: string; name: string }
+        if (allReady && dataInicio) {
+            const days = daysFromNow(dataInicio)
+            stage = days > 30
+                ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
+                : { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
+        } else {
+            stage = { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
+        }
+
+        trips.push({
+            id: vendaNums.join('-'),
+            cpfPrincipal: cpfPrincipal,
+            cpfNorm,
+            pagantePrincipal,
+            vendedor,
+            dataInicio,
+            dataFim,
+            products: allProducts,
+            allPassengers,
+            acompanhantes,
+            stage,
+            appEnviadoConcluida: hasAppGerado,
+            valorTotal: allProducts.reduce((s, p) => s + p.valorTotal, 0),
+            receita: allProducts.reduce((s, p) => s + p.receita, 0),
+            vendaNums,
+        })
+    }
+
+    return trips
+}
+
+// ─── Import log row types ───────────────────────────────────
+
+interface ImportLogRow {
+    id: string
+    file_name: string
+    total_rows: number
+    trips_found: number
+    cards_created: number
+    cards_updated: number
+    duplicates_skipped: number
+    products_imported: number
+    reverted_count: number
+    status: string
+    created_by: string
+    created_at: string
+    profile_name?: string
+}
+
+interface ImportLogItemRow {
+    id: string
+    card_id: string | null
+    action: string
+    card_title: string | null
+    pagante: string
+    products_count: number
+    total_venda: number
+    stage_name: string | null
+    error_message: string | null
+    reverted_at: string | null
+    previous_state: unknown | null
+}
+
+// ─── Expandable Trip Card ───────────────────────────────────
+
+function TripCard({ trip }: { trip: TripGroup }) {
+    const [expanded, setExpanded] = useState(false)
+    const Chevron = expanded ? ChevronDown : ChevronRight
+
+    const actionBadge = {
+        create: { label: 'Criar', cls: 'bg-emerald-50 text-emerald-700' },
+        update: { label: 'Atualizar', cls: 'bg-blue-50 text-blue-700' },
+        skip: { label: 'Pular', cls: 'bg-slate-100 text-slate-500' },
+    }[trip.action]
+
+    return (
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <button
+                onClick={() => setExpanded(!expanded)}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors text-left"
+            >
+                <Chevron className="h-4 w-4 text-slate-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium text-slate-900 truncate">
+                            {trip.pagantePrincipal}
+                        </span>
+                        <span className={cn('inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full', actionBadge.cls)}>
+                            {actionBadge.label}
+                        </span>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                            {trip.stage.name}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span>{formatDateBR(trip.dataInicio)} → {formatDateBR(trip.dataFim)}</span>
+                        <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" /> {trip.products.length} produtos
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" /> {trip.allPassengers.length} pessoas
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-right">
+                    <div>
+                        <p className="text-sm font-semibold text-slate-900">{formatBRL(trip.valorTotal)}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Total</p>
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-emerald-600">{formatBRL(trip.receita)}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Receita</p>
+                    </div>
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 space-y-3">
+                    {/* Meta info */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div><span className="text-slate-400">CPF:</span> <span className="text-slate-700 font-medium">{trip.cpfPrincipal}</span></div>
+                        <div><span className="text-slate-400">Vendedor:</span> <span className="text-slate-700 font-medium">{trip.vendedor || '—'}</span></div>
+                        <div><span className="text-slate-400">Vendas:</span> <span className="text-slate-700 font-medium">{trip.vendaNums.join(', ')}</span></div>
+                        <div><span className="text-slate-400">App Enviado:</span> <span className={cn('font-medium', trip.appEnviadoConcluida ? 'text-emerald-600' : 'text-amber-600')}>{trip.appEnviadoConcluida ? 'Concluída' : 'Pendente'}</span></div>
+                    </div>
+
+                    {trip.existingCardId && (
+                        <div className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                            Card existente: <Link to={`/card/${trip.existingCardId}`} className="text-blue-600 underline">{trip.existingCardTitle || trip.existingCardId}</Link>
+                        </div>
+                    )}
+
+                    {/* Acompanhantes */}
+                    {trip.acompanhantes.length > 0 && (
+                        <div className="text-xs">
+                            <span className="text-slate-400">Acompanhantes:</span>{' '}
+                            <span className="text-slate-700">{trip.acompanhantes.join(', ')}</span>
+                        </div>
+                    )}
+
+                    {/* Products table */}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr className="border-b border-slate-200 text-slate-500">
+                                    <th className="text-left py-1 pr-2">Produto</th>
+                                    <th className="text-left py-1 pr-2">Fornecedor</th>
+                                    <th className="text-left py-1 pr-2">Período</th>
+                                    <th className="text-right py-1 pr-2">Valor</th>
+                                    <th className="text-center py-1 pr-2">App</th>
+                                    <th className="text-center py-1">Voucher</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {trip.products.map((p, idx) => (
+                                    <tr key={idx} className="border-b border-slate-100 last:border-b-0">
+                                        <td className="py-1.5 pr-2 font-medium text-slate-700">{p.produto}</td>
+                                        <td className="py-1.5 pr-2 text-slate-600">{p.fornecedor}</td>
+                                        <td className="py-1.5 pr-2 text-slate-500">{formatDateBR(p.dataInicio)} - {formatDateBR(p.dataFim)}</td>
+                                        <td className="py-1.5 pr-2 text-right text-slate-700">{formatBRL(p.valorTotal)}</td>
+                                        <td className="py-1.5 pr-2 text-center">
+                                            {isSim(p.appGerado) ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mx-auto" /> : <XCircle className="h-3.5 w-3.5 text-slate-300 mx-auto" />}
+                                        </td>
+                                        <td className="py-1.5 text-center">
+                                            {(isSim(p.vouchersNoApp) || isSim(p.contratoVoucher)) ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mx-auto" /> : <XCircle className="h-3.5 w-3.5 text-slate-300 mx-auto" />}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── History Row ────────────────────────────────────────────
+
+function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profileId?: string; onReverted: () => void }) {
+    const [expanded, setExpanded] = useState(false)
+    const [items, setItems] = useState<ImportLogItemRow[] | null>(null)
+    const [loadingItems, setLoadingItems] = useState(false)
+    const [selected, setSelected] = useState<Set<string>>(new Set())
+    const [reverting, setReverting] = useState(false)
+
+    const handleExpand = async () => {
+        if (expanded) { setExpanded(false); return }
+        setExpanded(true)
+        if (items) return
+        setLoadingItems(true)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await ((supabase as any).from('pos_venda_import_log_items') as any)
+            .select('*')
+            .eq('import_log_id', log.id)
+            .order('created_at')
+        setItems((data || []) as ImportLogItemRow[])
+        setLoadingItems(false)
+    }
+
+    const revertableItems = (items || []).filter(i => !i.reverted_at && i.card_id)
+    const allSelected = revertableItems.length > 0 && revertableItems.every(i => selected.has(i.id))
+
+    const toggleAll = () => {
+        if (allSelected) setSelected(new Set())
+        else setSelected(new Set(revertableItems.map(i => i.id)))
+    }
+
+    const toggleItem = (id: string) => {
+        const next = new Set(selected)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        setSelected(next)
+    }
+
+    const handleRevert = async () => {
+        if (selected.size === 0) return
+        setReverting(true)
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any).rpc('revert_pos_venda_import_items', {
+                p_item_ids: Array.from(selected),
+                p_reverted_by: profileId,
+            })
+            if (error) throw error
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = data as any
+            toast.success(`${result?.reverted || 0} viagens revertidas`)
+            setSelected(new Set())
+            setItems(null) // Force reload
+            setExpanded(false)
+            onReverted()
+        } catch (err) {
+            console.error('Erro ao reverter:', err)
+            toast.error('Erro ao reverter importação')
+        } finally {
+            setReverting(false)
+        }
+    }
+
+    const Chevron = expanded ? ChevronDown : ChevronRight
+    const totalReverted = log.reverted_count || 0
+    const totalItems = (log.cards_created || 0) + (log.cards_updated || 0)
+
+    return (
+        <div className="border-b border-slate-100 last:border-b-0">
+            <button onClick={handleExpand} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors text-left">
+                <Chevron className="h-4 w-4 text-slate-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium text-slate-900 truncate">{log.file_name}</span>
+                        {totalReverted > 0 && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                                {totalReverted}/{totalItems} revertidos
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDateTime(log.created_at)}</span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-right">
+                    {log.cards_created > 0 && <div><p className="text-sm font-semibold text-emerald-600">{log.cards_created}</p><p className="text-[10px] text-slate-400 uppercase">Criados</p></div>}
+                    {log.cards_updated > 0 && <div><p className="text-sm font-semibold text-blue-600">{log.cards_updated}</p><p className="text-[10px] text-slate-400 uppercase">Atualizados</p></div>}
+                    <div><p className="text-sm font-semibold text-slate-900">{log.products_imported}</p><p className="text-[10px] text-slate-400 uppercase">Produtos</p></div>
+                </div>
+            </button>
+            {expanded && (
+                <div className="bg-slate-50/50 border-t border-slate-100 px-4 py-2">
+                    {loadingItems ? <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-slate-400" /></div> :
+                        items && items.length > 0 ? (
+                            <div className="space-y-1">
+                                {/* Toolbar */}
+                                {revertableItems.length > 0 && (
+                                    <div className="flex items-center justify-between py-1.5 border-b border-slate-200 mb-1">
+                                        <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={allSelected}
+                                                onChange={toggleAll}
+                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            Selecionar todos ({revertableItems.length})
+                                        </label>
+                                        {selected.size > 0 && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleRevert}
+                                                disabled={reverting}
+                                                className="text-xs h-7 px-2.5 text-red-600 border-red-200 hover:bg-red-50"
+                                            >
+                                                {reverting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Undo2 className="h-3 w-3 mr-1" />}
+                                                Reverter {selected.size} selecionado{selected.size > 1 ? 's' : ''}
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Items */}
+                                <div className="divide-y divide-slate-100">
+                                    {items.map(item => {
+                                        const isReverted = !!item.reverted_at
+                                        const canRevert = !isReverted && !!item.card_id
+                                        return (
+                                            <div key={item.id} className={cn("flex items-center gap-2 py-2 text-xs", isReverted && "opacity-50")}>
+                                                {canRevert && (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selected.has(item.id)}
+                                                        onChange={() => toggleItem(item.id)}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                )}
+                                                {!canRevert && <div className="w-4" />}
+                                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                    {item.action === 'created' && !isReverted && <Plus className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                                                    {item.action === 'updated' && !isReverted && <RefreshCw className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                                    {isReverted && <Undo2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                                                    <span className="text-slate-700 truncate">{item.pagante}</span>
+                                                    {item.card_id && (
+                                                        <Link to={`/card/${item.card_id}`} className="text-indigo-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
+                                                            ver card
+                                                        </Link>
+                                                    )}
+                                                    {item.stage_name && <span className="text-slate-400 shrink-0">({item.stage_name})</span>}
+                                                    {isReverted && <span className="text-amber-600 shrink-0">revertido</span>}
+                                                </div>
+                                                <span className="text-slate-500 shrink-0">{formatBRL(item.total_venda)}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ) : <p className="text-xs text-slate-400 py-2">Sem detalhes</p>
+                    }
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN PAGE COMPONENT
+// ═══════════════════════════════════════════════════════════════
+
+export default function ImportacaoPosVendaPage() {
+    const { profile } = useAuth()
+    const queryClient = useQueryClient()
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const [step, setStep] = useState<Step>('idle')
+    const [fileName, setFileName] = useState('')
+    const [trips, setTrips] = useState<TripGroup[]>([])
+    const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
+    const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; errors: number } | null>(null)
+    const [isProcessing, setIsProcessing] = useState(false)
+
+    // Auth check: admin or pos_venda phase
+    const isAdmin = profile?.is_admin === true
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPhase = (profile as any)?.team?.phase?.slug as string | undefined
+    const canAccess = isAdmin || userPhase === 'pos_venda'
+
+    // History
+    const { data: history = [] } = useQuery({
+        queryKey: ['pv-import-logs'],
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await ((supabase as any).from('pos_venda_import_logs') as any)
+                .select('*, profile:profiles!pos_venda_import_logs_created_by_fkey(nome)')
+                .order('created_at', { ascending: false })
+                .limit(20)
+            if (error) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (data || []).map((r: any) => ({ ...r, profile_name: r.profile?.nome })) as ImportLogRow[]
+        },
+    })
+
+    // Planner profiles for vendedor matching
+    const { data: plannerProfiles = [] } = useQuery({
+        queryKey: ['planner-profiles'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, nome')
+                .eq('active', true)
+                .eq('team_id', TEAM_PLANNER_ID)
+            return (data || []) as { id: string; nome: string }[]
+        },
+        staleTime: 1000 * 60 * 10,
+    })
+
+    // ─── Process CSV rows ────────────────────────────────────
+    const processRows = useCallback(async (rawRows: Record<string, unknown>[], file: string) => {
+        setIsProcessing(true)
+        try {
+        setFileName(file)
+        const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : []
+
+        const colVenda = findColumn(headers, VENDA_COLUMN_ALIASES)
+        const colProduto = findColumn(headers, PRODUTO_ALIASES)
+        const colValorTotal = findColumn(headers, VALOR_TOTAL_ALIASES)
+        const colReceita = findColumn(headers, RECEITA_ALIASES)
+        const colPassageiros = findColumn(headers, PASSAGEIRO_ALIASES)
+        const colFornecedor = findColumn(headers, FORNECEDOR_ALIASES)
+        const colDataInicio = findColumn(headers, DATA_INICIO_ALIASES)
+        const colDataFim = findColumn(headers, DATA_FIM_ALIASES)
+        const colCpf = findColumn(headers, CPF_ALIASES)
+        const colPagante = findColumn(headers, PAGANTE_ALIASES)
+        const colVendedor = findColumn(headers, VENDEDOR_ALIASES)
+        const colAppGerado = findColumn(headers, APP_GERADO_ALIASES)
+        const colVouchersApp = findColumn(headers, VOUCHERS_APP_ALIASES)
+        const colContratoVoucher = findColumn(headers, CONTRATO_VOUCHER_ALIASES)
+        const colDataVenda = findColumn(headers, DATA_VENDA_ALIASES)
+
+        if (!colVenda || !colCpf || !colPagante) {
+            toast.error('CSV deve ter colunas: Venda Nº, CPF e Pagante')
+            return
+        }
+
+        // Parse rows
+        const parsed: PosVendaCsvRow[] = rawRows
+            .filter(r => {
+                const vn = String(r[colVenda!] ?? '').trim()
+                return vn && vn !== '0'
+            })
+            .map(r => {
+                const cpfRaw = String(r[colCpf!] ?? '').trim()
+                const paxRaw = colPassageiros ? String(r[colPassageiros] ?? '').trim() : ''
+                const passageiros = paxRaw
+                    ? paxRaw.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+                    : []
+
+                return {
+                    vendaNum: String(r[colVenda!] ?? '').trim(),
+                    vendedor: colVendedor ? String(r[colVendedor] ?? '').trim() : '',
+                    cpf: cpfRaw,
+                    cpfNorm: normalizeCpf(cpfRaw),
+                    pagante: colPagante ? String(r[colPagante] ?? '').trim() : '',
+                    fornecedor: colFornecedor ? String(r[colFornecedor] ?? '').trim() : '',
+                    produto: colProduto ? String(r[colProduto] ?? '').trim() : '',
+                    dataVenda: colDataVenda ? parseDateBR(r[colDataVenda]) : null,
+                    dataInicio: colDataInicio ? parseDateBR(r[colDataInicio]) : null,
+                    dataFim: colDataFim ? parseDateBR(r[colDataFim]) : null,
+                    passageiros,
+                    appGerado: colAppGerado ? String(r[colAppGerado] ?? '').trim() : '',
+                    vouchersNoApp: colVouchersApp ? String(r[colVouchersApp] ?? '').trim() : '',
+                    contratoVoucher: colContratoVoucher ? String(r[colContratoVoucher] ?? '').trim() : '',
+                    receita: colReceita ? parseBRNumber(r[colReceita]) : 0,
+                    valorTotal: colValorTotal ? parseBRNumber(r[colValorTotal]) : 0,
+                }
+            })
+
+        if (parsed.length === 0) {
+            toast.error('Nenhuma linha válida encontrada no CSV')
+            return
+        }
+
+        // Group into trips
+        const rawTrips = groupRowsIntoTrips(parsed)
+
+        // Match vendedores to profiles
+        const profileMap = new Map(plannerProfiles.map(p => [norm(p.nome || ''), p.id]))
+
+        // Detect existing cards
+        const fullTrips: TripGroup[] = []
+
+        for (const trip of rawTrips) {
+            // Match vendedor
+            const vendedorNorm = norm(trip.vendedor)
+            const vendedorProfileId = profileMap.get(vendedorNorm) || null
+
+            // Build title
+            const titulo = `${trip.pagantePrincipal} - ${formatDateBR(trip.dataFim) || 'Sem data'}`
+
+            // Check existing cards by venda nums
+            let existingCardId: string | null = null
+            let existingCardTitle: string | null = null
+
+            // Check by numero_venda_monde
+            for (const vchunk of chunked(trip.vendaNums, 10)) {
+                const { data: cards } = await supabase
+                    .from('cards')
+                    .select('id, titulo, produto_data')
+                    .in('produto_data->>numero_venda_monde', vchunk)
+
+                if (cards && cards.length > 0) {
+                    existingCardId = cards[0].id
+                    existingCardTitle = cards[0].titulo as string
+                    break
+                }
+            }
+
+            // Fallback: check historical numbers
+            if (!existingCardId) {
+                for (const vn of trip.vendaNums.slice(0, 5)) {
+                    const { data: cards } = await supabase
+                        .from('cards')
+                        .select('id, titulo')
+                        .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
+                        .limit(1)
+
+                    if (cards && cards.length > 0) {
+                        existingCardId = cards[0].id
+                        existingCardTitle = cards[0].titulo as string
+                        break
+                    }
+                }
+            }
+
+            // Fallback: check by CPF + dates in pos-venda
+            if (!existingCardId && trip.cpfNorm && trip.dataInicio) {
+                const { data: contatos } = await supabase
+                    .from('contatos')
+                    .select('id')
+                    .eq('cpf_normalizado', trip.cpfNorm)
+                    .is('deleted_at', null)
+                    .limit(1)
+
+                if (contatos && contatos.length > 0) {
+                    const contatoId = contatos[0].id
+                    const { data: cards } = await supabase
+                        .from('cards')
+                        .select('id, titulo')
+                        .eq('pessoa_principal_id', contatoId)
+                        .in('pipeline_stage_id', POS_VENDA_STAGES)
+                        .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
+                        .gte('data_viagem_fim', trip.dataInicio)
+                        .limit(1)
+
+                    if (cards && cards.length > 0) {
+                        existingCardId = cards[0].id
+                        existingCardTitle = cards[0].titulo as string
+                    }
+                }
+            }
+
+            const action = existingCardId ? 'update' : 'create'
+
+            fullTrips.push({
+                ...trip,
+                id: titulo,
+                vendedorProfileId,
+                existingCardId,
+                existingCardTitle,
+                action,
+            })
+        }
+
+        setTrips(fullTrips)
+        setStep('preview')
+        toast.success(`${fullTrips.length} viagens identificadas (${parsed.length} linhas)`)
+        } catch (err) {
+            console.error('Erro ao processar CSV:', err)
+            toast.error(`Erro ao processar arquivo: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+        } finally {
+            setIsProcessing(false)
+        }
+    }, [plannerProfiles])
+
+    // ─── File upload handler ─────────────────────────────────
+    const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setFileName(file.name)
+        setIsProcessing(true)
+        const isCSV = /\.(csv|tsv|txt)$/i.test(file.name)
+        try {
+            if (isCSV) {
+                const text = await readFileText(file)
+                const rows = parseCSVNative(text)
+                if (rows.length === 0) {
+                    toast.error('Arquivo vazio ou sem dados válidos')
+                    setIsProcessing(false)
+                    return
+                }
+                await processRows(rows, file.name)
+            } else {
+                const ab = await file.arrayBuffer()
+                const workbook = XLSX.read(ab, { type: 'array', codepage: 65001 })
+                const sheet = workbook.Sheets[workbook.SheetNames[0]]
+                const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+                if (jsonData.length === 0) {
+                    toast.error('Arquivo vazio ou sem dados válidos')
+                    setIsProcessing(false)
+                    return
+                }
+                await processRows(jsonData, file.name)
+            }
+        } catch (err) {
+            console.error('Erro ao ler arquivo:', err)
+            toast.error(`Erro ao ler arquivo: ${err instanceof Error ? err.message : 'formato inválido'}`)
+            setIsProcessing(false)
+        }
+    }, [processRows])
+
+    // ─── Import handler ──────────────────────────────────────
+    const handleImport = async () => {
+        const toProcess = trips.filter(t => t.action !== 'skip')
+        if (toProcess.length === 0) return
+
+        setStep('importing')
+        setImportProgress({ current: 0, total: toProcess.length })
+
+        try {
+            const payload = toProcess.map(trip => ({
+                existing_card_id: trip.existingCardId,
+                titulo: `${trip.pagantePrincipal} - ${formatDateBR(trip.dataFim) || 'Sem data'}`,
+                cpf_norm: trip.cpfNorm,
+                cpf_raw: trip.cpfPrincipal,
+                pagante_nome: trip.pagantePrincipal,
+                vendas_owner_id: trip.vendedorProfileId,
+                pos_owner_id: SAMANTHA_ID,
+                pipeline_stage_id: trip.stage.id,
+                data_viagem_inicio: trip.dataInicio,
+                data_viagem_fim: trip.dataFim,
+                valor_total: trip.valorTotal,
+                receita_total: trip.receita,
+                venda_nums: trip.vendaNums,
+                app_enviado_concluida: trip.appEnviadoConcluida,
+                products: trip.products.map(p => ({
+                    description: p.produto || null,
+                    sale_value: p.valorTotal,
+                    supplier_cost: Math.round((p.valorTotal - p.receita) * 100) / 100,
+                    fornecedor: p.fornecedor || null,
+                    is_ready: isSim(p.vouchersNoApp) || isSim(p.contratoVoucher),
+                    data_inicio: p.dataInicio,
+                    data_fim: p.dataFim,
+                    passageiros: p.passageiros,
+                })),
+                products_to_mark_ready: trip.existingCardId ? trip.products
+                    .filter(p => isSim(p.vouchersNoApp) || isSim(p.contratoVoucher))
+                    .map(p => ({ description: p.produto, fornecedor: p.fornecedor })) : null,
+                acompanhantes: trip.acompanhantes,
+            }))
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error: rpcError } = await (supabase as any).rpc('bulk_create_pos_venda_cards', {
+                p_trips: payload,
+                p_created_by: profile?.id,
+            })
+
+            if (rpcError) throw rpcError
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = data as any
+            const cardsCreated = result?.cards_created ?? 0
+            const cardsUpdated = result?.cards_updated ?? 0
+            const productsImported = result?.products_imported ?? 0
+
+            setImportProgress({ current: toProcess.length, total: toProcess.length })
+            setImportResult({ cardsCreated, cardsUpdated, productsImported, errors: 0 })
+
+            // Save import log
+            try {
+                const skipped = trips.filter(t => t.action === 'skip').length
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: logRow } = await ((supabase as any).from('pos_venda_import_logs') as any)
+                    .insert({
+                        file_name: fileName,
+                        total_rows: trips.reduce((s, t) => s + t.products.length, 0),
+                        trips_found: trips.length,
+                        cards_created: cardsCreated,
+                        cards_updated: cardsUpdated,
+                        contacts_created: result?.contacts_created ?? 0,
+                        duplicates_skipped: skipped,
+                        products_imported: productsImported,
+                        status: 'completed',
+                        created_by: profile?.id,
+                    })
+                    .select()
+                    .single()
+
+                if (logRow) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const rpcResults = (result?.results || []) as any[]
+                    const logItems = toProcess.map((t, idx) => {
+                        const rpcItem = rpcResults.find((r: { idx: number }) => r.idx === idx)
+                        return {
+                            import_log_id: logRow.id,
+                            card_id: rpcItem?.card_id || null,
+                            action: t.action === 'create' ? 'created' : 'updated',
+                            card_title: `${t.pagantePrincipal} - ${formatDateBR(t.dataFim) || ''}`,
+                            pagante: t.pagantePrincipal,
+                            cpf: t.cpfPrincipal,
+                            venda_nums: t.vendaNums,
+                            data_inicio: t.dataInicio,
+                            data_fim: t.dataFim,
+                            products_count: t.products.length,
+                            total_venda: t.valorTotal,
+                            total_receita: t.receita,
+                            stage_name: t.stage.name,
+                            previous_state: rpcItem?.previous_state || null,
+                        }
+                    })
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await ((supabase as any).from('pos_venda_import_log_items') as any).insert(logItems)
+                }
+            } catch (logErr) {
+                console.error('Erro ao salvar log:', logErr)
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['pv-import-logs'] })
+            setStep('done')
+            toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados`)
+        } catch (err) {
+            console.error('Erro na importação:', err)
+            setImportResult({ cardsCreated: 0, cardsUpdated: 0, productsImported: 0, errors: toProcess.length })
+            setStep('done')
+            toast.error('Erro ao importar viagens')
+        }
+    }
+
+    const handleReset = () => {
+        setStep('idle')
+        setFileName('')
+        setTrips([])
+        setImportResult(null)
+        setImportProgress({ current: 0, total: 0 })
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    if (!canAccess) return <Navigate to="/dashboard" replace />
+
+    // ─── Stats ───────────────────────────────────────────────
+    const toCreate = trips.filter(t => t.action === 'create').length
+    const toUpdate = trips.filter(t => t.action === 'update').length
+    const toSkip = trips.filter(t => t.action === 'skip').length
+
+    return (
+        <div className="h-full overflow-y-auto">
+            <div className="max-w-5xl mx-auto p-6 pb-12">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <Link to="/dashboard" className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                            <ArrowLeft className="h-5 w-5 text-slate-500" />
+                        </Link>
+                        <div>
+                            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Importação Pós-Venda</h1>
+                            <p className="text-sm text-slate-500">Criar cards de viagens a partir do relatório Monde</p>
+                        </div>
+                    </div>
+                    {step !== 'idle' && (
+                        <Button variant="outline" onClick={handleReset}>Nova importação</Button>
+                    )}
+                </div>
+
+                {/* ─── IDLE: Upload ─────────────────────────────── */}
+                {step === 'idle' && (
+                    <div className="space-y-6">
+                        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                            <div className="text-center">
+                                {isProcessing ? (
+                                    <>
+                                        <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
+                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Processando {fileName}...</h2>
+                                        <p className="text-sm text-slate-500">Agrupando viagens e detectando cards existentes</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="mx-auto w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                                            <Upload className="h-8 w-8 text-indigo-600" />
+                                        </div>
+                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Upload do Relatório Monde</h2>
+                                        <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+                                            Faça upload do CSV com os produtos vendidos. O sistema agrupará por viagem,
+                                            detectará cards existentes e criará os novos no pós-venda.
+                                        </p>
+                                        <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer font-medium text-sm">
+                                            <FileSpreadsheet className="h-4 w-4" />
+                                            Selecionar arquivo
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept=".csv,.xlsx,.xls,.tsv,.txt"
+                                                className="hidden"
+                                                onChange={handleFileUpload}
+                                            />
+                                        </label>
+                                        <p className="text-xs text-slate-400 mt-3">CSV, XLSX ou XLS — colunas obrigatórias: Venda Nº, CPF, Pagante</p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* History */}
+                        {history.length > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
+                                    <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                                        <Clock className="h-4 w-4 text-slate-400" /> Histórico de Importações
+                                    </h3>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                    {history.map(log => (
+                                        <HistoryRow
+                                            key={log.id}
+                                            log={log}
+                                            profileId={profile?.id}
+                                            onReverted={() => queryClient.invalidateQueries({ queryKey: ['pv-import-logs'] })}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ─── PREVIEW ─────────────────────────────────── */}
+                {step === 'preview' && (
+                    <div className="space-y-4">
+                        {/* Summary stats */}
+                        <div className="grid grid-cols-4 gap-3">
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
+                                <p className="text-2xl font-bold text-slate-900">{trips.length}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">Viagens</p>
+                            </div>
+                            <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm text-center">
+                                <p className="text-2xl font-bold text-emerald-600">{toCreate}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">Criar</p>
+                            </div>
+                            <div className="bg-white border border-blue-200 rounded-xl p-4 shadow-sm text-center">
+                                <p className="text-2xl font-bold text-blue-600">{toUpdate}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">Atualizar</p>
+                            </div>
+                            {toSkip > 0 && (
+                                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
+                                    <p className="text-2xl font-bold text-slate-400">{toSkip}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Pular</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* File info */}
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                                <FileSpreadsheet className="h-4 w-4 text-slate-400" />
+                                <span className="font-medium">{fileName}</span>
+                                <span className="text-slate-400">—</span>
+                                <span>{trips.reduce((s, t) => s + t.products.length, 0)} produtos em {trips.length} viagens</span>
+                            </div>
+                            <Button onClick={handleImport} disabled={toCreate + toUpdate === 0}>
+                                <Upload className="h-4 w-4 mr-1.5" />
+                                Importar {toCreate + toUpdate} viagens
+                            </Button>
+                        </div>
+
+                        {/* Trip cards */}
+                        <div className="space-y-2">
+                            {trips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── IMPORTING ───────────────────────────────── */}
+                {step === 'importing' && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm text-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
+                        <h2 className="text-lg font-semibold text-slate-900 mb-2">Importando viagens...</h2>
+                        <p className="text-sm text-slate-500">
+                            Criando cards, contatos e tarefas no pós-venda
+                        </p>
+                        <div className="mt-4 w-full max-w-xs mx-auto bg-slate-100 rounded-full h-2">
+                            <div
+                                className="bg-indigo-600 h-2 rounded-full transition-all"
+                                style={{ width: importProgress.total > 0 ? `${(importProgress.current / importProgress.total) * 100}%` : '0%' }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── DONE ────────────────────────────────────── */}
+                {step === 'done' && importResult && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm text-center">
+                        {importResult.errors === 0 ? (
+                            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+                        ) : (
+                            <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                        )}
+                        <h2 className="text-lg font-semibold text-slate-900 mb-4">Importação concluída</h2>
+                        <div className="flex items-center justify-center gap-6 mb-6">
+                            {importResult.cardsCreated > 0 && (
+                                <div>
+                                    <p className="text-3xl font-bold text-emerald-600">{importResult.cardsCreated}</p>
+                                    <p className="text-xs text-slate-500">Cards criados</p>
+                                </div>
+                            )}
+                            {importResult.cardsUpdated > 0 && (
+                                <div>
+                                    <p className="text-3xl font-bold text-blue-600">{importResult.cardsUpdated}</p>
+                                    <p className="text-xs text-slate-500">Cards atualizados</p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-3xl font-bold text-slate-900">{importResult.productsImported}</p>
+                                <p className="text-xs text-slate-500">Produtos importados</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-center gap-3">
+                            <Button variant="outline" onClick={handleReset}>Nova importação</Button>
+                            <Link to="/pipeline">
+                                <Button>Ver no Funil</Button>
+                            </Link>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}

@@ -14,6 +14,12 @@ import { parseBRNumber } from '@/lib/parseBRNumber'
 import { readFileText } from '@/lib/readFileText'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import {
+    parseDateBR, parseCSVNative, findColumn, chunked, formatBRL,
+    VENDA_COLUMN_ALIASES, PRODUTO_ALIASES, VALOR_TOTAL_ALIASES, RECEITA_ALIASES,
+    PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, REPRESENTANTE_ALIASES, DOCUMENTO_ALIASES,
+    DATA_INICIO_ALIASES, DATA_FIM_ALIASES,
+} from '@/lib/csvUtils'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -73,126 +79,10 @@ interface ImportLogItemRow {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function chunked<T>(arr: T[], size: number): T[][] {
-    const result: T[][] = []
-    for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
-    return result
-}
-
-const formatBRL = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-
 const formatDate = (iso: string) => {
     const d = new Date(iso)
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
         ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
-
-// Normaliza removendo acentos, º, pontuação e espaços extras
-const norm = (s: string) => s.toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[º°.]/g, '')
-    .replace(/\s+/g, ' ')
-
-/** Converte data BR (dd/mm/yyyy), ISO, ou serial Excel para YYYY-MM-DD. Retorna null se inválido. */
-function parseDateBR(value: unknown): string | null {
-    if (value == null) return null
-    // Excel serial date (number)
-    if (typeof value === 'number') {
-        const epoch = new Date(Date.UTC(1899, 11, 30))
-        const d = new Date(epoch.getTime() + value * 86400000)
-        if (isNaN(d.getTime())) return null
-        return d.toISOString().slice(0, 10)
-    }
-    const s = String(value).trim()
-    if (!s) return null
-    // dd/mm/yyyy or dd-mm-yyyy
-    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
-    if (brMatch) {
-        const [, dd, mm, yyyy] = brMatch
-        const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00`)
-        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
-    }
-    // yyyy-mm-dd (ISO)
-    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (isoMatch) {
-        const d = new Date(isoMatch[0] + 'T00:00:00')
-        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
-    }
-    return null
-}
-
-const VENDA_COLUMN_ALIASES = ['venda n', 'venda no', 'n venda', 'venda_num', 'venda numero', 'num venda', 'no venda']
-const PRODUTO_ALIASES = ['produto', 'product', 'nome produto']
-const VALOR_TOTAL_ALIASES = ['valor total', 'total', 'valortotal', 'vl total']
-const RECEITA_ALIASES = ['receitas', 'receita', 'revenue']
-const PASSAGEIRO_ALIASES = ['passageiros', 'passageiro', 'passengers', 'pax', 'nomes passageiros']
-const FORNECEDOR_ALIASES = ['fornecedor', 'supplier', 'hotel', 'cia aerea', 'companhia']
-const REPRESENTANTE_ALIASES = ['representante', 'representative', 'agencia', 'operadora']
-const DOCUMENTO_ALIASES = ['documento', 'doc', 'confirmacao', 'localizador', 'numero confirmacao', 'n confirmacao']
-const DATA_INICIO_ALIASES = ['data inicio', 'data de inicio', 'check in', 'checkin', 'inicio', 'dt inicio']
-const DATA_FIM_ALIASES = ['data fim', 'data de fim', 'check out', 'checkout', 'fim', 'dt fim']
-
-function findColumn(headers: string[], aliases: string[]): string | null {
-    const normalized = headers.map(h => norm(h))
-    // Exact match
-    for (const alias of aliases) {
-        const idx = normalized.findIndex(h => h === alias)
-        if (idx >= 0) return headers[idx]
-    }
-    // Partial match
-    for (const alias of aliases) {
-        const idx = normalized.findIndex(h => h.includes(alias))
-        if (idx >= 0) return headers[idx]
-    }
-    return null
-}
-
-/** Parse CSV text natively — preserva UTF-8 sem corrupção do XLSX.js */
-function parseCSVNative(text: string): Record<string, string>[] {
-    const lines = text.split(/\r?\n/).filter(l => l.trim())
-    if (lines.length < 2) return []
-
-    // Detectar separador pela primeira linha (header) — fora de quotes
-    const detectSep = (line: string): string => {
-        let inQ = false, semis = 0, commas = 0
-        for (const ch of line) {
-            if (ch === '"') { inQ = !inQ; continue }
-            if (inQ) continue
-            if (ch === ';') semis++
-            if (ch === ',') commas++
-        }
-        return semis > commas ? ';' : ','
-    }
-    const sep = detectSep(lines[0])
-
-    const parseLine = (line: string): string[] => {
-        const result: string[] = []
-        let current = ''
-        let inQuotes = false
-        for (let i = 0; i < line.length; i++) {
-            const ch = line[i]
-            if (inQuotes) {
-                if (ch === '"' && line[i + 1] === '"') { current += '"'; i++ }
-                else if (ch === '"') { inQuotes = false }
-                else { current += ch }
-            } else {
-                if (ch === '"') { inQuotes = true }
-                else if (ch === sep) { result.push(current.trim()); current = '' }
-                else { current += ch }
-            }
-        }
-        result.push(current.trim())
-        return result
-    }
-
-    const headers = parseLine(lines[0])
-    return lines.slice(1).map(line => {
-        const values = parseLine(line)
-        const row: Record<string, string> = {}
-        headers.forEach((h, i) => { row[h] = values[i] || '' })
-        return row
-    })
 }
 
 

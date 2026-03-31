@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
@@ -18,6 +18,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?:
     { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true },
+    { name: 'Import. Pós-Venda', href: '/importacao-pos-venda', icon: Upload, phases: ['pos_venda'] },
     { name: 'Presentes', href: '/presentes', icon: Gift, phases: ['pos_venda'] },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Configurações', href: '/settings', icon: Settings },
@@ -29,6 +30,13 @@ export default function Sidebar() {
     const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
+
+    // Persist last visited route for restoring on return
+    useEffect(() => {
+        if (location.pathname !== '/login') {
+            localStorage.setItem('welcomecrm-last-route', location.pathname)
+        }
+    }, [location.pathname])
 
     const filteredNavigation = useMemo(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
