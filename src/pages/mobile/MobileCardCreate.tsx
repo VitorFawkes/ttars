@@ -292,32 +292,86 @@ export default function MobileCardCreate() {
     )
   }
 
-  // Success screen
+  // Success screen — resumo do que foi criado
   if (createdCardId && !isSubmitting) {
+    const selectedStage = allowedStages.find(s => s.id === effectiveStageId)
+    const origemLabel = origem ? ORIGEM_OPTIONS.find(o => o.value === origem)?.label : null
+
     return (
-      <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-50 px-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 w-full max-w-sm text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-            <CheckCircle className="w-8 h-8 text-emerald-600" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Card criado!</h2>
-            <p className="text-sm text-slate-500 mt-1 truncate">{titulo}</p>
-          </div>
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={() => navigate(`/cards/${createdCardId}`)}
-              className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm active:bg-indigo-700 min-h-[48px]"
-              style={{ touchAction: 'manipulation' }}
-            >
-              Abrir Card
-            </button>
+      <div className="h-[100dvh] flex flex-col bg-slate-50">
+        <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col items-center justify-center">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 w-full max-w-sm space-y-5">
+            {/* Header */}
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-7 h-7 text-emerald-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Card criado!</h2>
+            </div>
+
+            {/* Resumo */}
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-slate-500 flex-shrink-0">Título</span>
+                <span className="text-slate-900 font-medium text-right truncate">{titulo}</span>
+              </div>
+
+              {contacts.length > 0 && (
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-slate-500 flex-shrink-0">
+                    {contacts.length === 1 ? 'Contato' : 'Contatos'}
+                  </span>
+                  <div className="text-right">
+                    {contacts.map((c, i) => (
+                      <p key={c.id} className={cn('text-slate-900', i === 0 && 'font-medium')}>
+                        {c.name}{i === 0 && contacts.length > 1 && <span className="text-indigo-600 text-xs ml-1">(principal)</span>}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedStage && (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500">Estágio</span>
+                  <span className={cn(
+                    'px-2 py-0.5 rounded-full text-xs font-medium border',
+                    PHASE_COLORS[selectedStage.fase || ''] || 'bg-slate-100 text-slate-700 border-slate-200'
+                  )}>
+                    {selectedStage.nome}
+                  </span>
+                </div>
+              )}
+
+              {origemLabel && (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500">Origem</span>
+                  <span className="text-slate-900">{origemLabel}</span>
+                </div>
+              )}
+
+              {observacao.trim() && (
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-slate-500 flex-shrink-0">Nota</span>
+                  <p className="text-slate-700 text-right line-clamp-2">{observacao.trim()}</p>
+                </div>
+              )}
+
+              {audioBlob && briefingMode === 'audio' && (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500">Briefing IA</span>
+                  <span className="text-emerald-600 font-medium">Processado</span>
+                </div>
+              )}
+            </div>
+
+            {/* CTA */}
             <button
               onClick={resetForm}
-              className="w-full py-3 rounded-xl border border-slate-200 text-slate-700 font-medium text-sm active:bg-slate-50 min-h-[48px]"
+              className="w-full py-3.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm active:bg-indigo-700 min-h-[52px]"
               style={{ touchAction: 'manipulation' }}
             >
-              Criar Outro
+              Criar Outro Card
             </button>
           </div>
         </div>
