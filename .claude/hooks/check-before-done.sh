@@ -51,9 +51,11 @@ if [ -n "$NEW_FILES" ]; then
 fi
 
 # ── Migration guard: bloqueia se .sql novo/modificado sem registro no log ──
-SQL_NEW=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$')
-SQL_MOD=$(git diff --name-only 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$')
-ALL_SQL=$(printf "%s\n%s" "$SQL_NEW" "$SQL_MOD" | sort -u | grep -v '^$')
+# Ignora _archived/ e _baseline/ (migrations consolidadas) e arquivos deletados
+SQL_NEW=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$' | grep -vE '_(archived|baseline)/')
+SQL_MOD=$(git diff --name-only 2>/dev/null | grep -E '^supabase/migrations/.*\.sql$' | grep -vE '_(archived|baseline)/')
+# Filtrar arquivos deletados (só verificar os que existem no disco)
+ALL_SQL=$(printf "%s\n%s" "$SQL_NEW" "$SQL_MOD" | sort -u | grep -v '^$' | while read -r f; do [ -f "$f" ] && echo "$f"; done)
 
 if [ -n "$ALL_SQL" ]; then
   LOG_FILE="$CWD/.claude/.migration_log"

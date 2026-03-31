@@ -206,3 +206,4 @@ PENDING | supabase/migrations/20260331_sub_card_copy_acompanhantes.sql | preexis
 2026-03-31T18:00:40Z | supabase/migrations/20260331_pos_venda_revert_system.sql | applied_to_prod
 2026-03-31T19:15:54Z | supabase/migrations/20260331_restore_stage_field_config.sql | applied_to_prod
 2026-03-31T19:19:17Z | supabase/migrations/20260331_restore_trips_field_visibility.sql | applied_to_prod
+2026-03-31T20:15:00Z | ARCHIVE_EVENT | 319 files archived to _archived/, baseline at _baseline/schema-baseline-20260331.sql

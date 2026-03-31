@@ -58,6 +58,9 @@ update_card_contact.ts
 # Supabase temp files
 supabase/.temp/
 
+# DB audit data (gerado por audit-db-schema.sh, não versionado)
+.claude/db-audit/
+
 # Referência local (não é código)
 Exemplo Colunas Mondee/
 
