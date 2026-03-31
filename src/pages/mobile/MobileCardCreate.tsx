@@ -372,7 +372,7 @@ export default function MobileCardCreate() {
           <label className="text-sm font-medium text-slate-700">Contatos</label>
 
           {contacts.length > 0 && (
-            <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
+            <div className="mt-2 space-y-2">
               {contacts.map((contact, idx) => (
                 <div key={contact.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-2.5">
                   <div className="flex items-center gap-2 min-w-0">
@@ -431,7 +431,7 @@ export default function MobileCardCreate() {
           </button>
 
           {showStages && (
-            <div className="mt-3 space-y-3 max-h-[250px] overflow-y-auto">
+            <div className="mt-3 space-y-3">
               {Object.entries(stagesByPhase).map(([phase, stages]) => (
                 <div key={phase}>
                   <p className="text-xs font-medium text-slate-500 mb-1.5">{phase}</p>
@@ -480,7 +480,7 @@ export default function MobileCardCreate() {
           </button>
 
           {showOrigem && (
-            <div className="mt-3 flex flex-wrap gap-2 max-h-[200px] overflow-y-auto">
+            <div className="mt-3 flex flex-wrap gap-2">
               {ORIGEM_OPTIONS.map(opt => {
                 const isSelected = origem === opt.value
                 return (
