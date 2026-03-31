@@ -578,8 +578,8 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                         {card.produto}
                     </span>
 
-                    {/* Group Affiliation Badge */}
-                    {card.parent_card_id && (
+                    {/* Group Affiliation Badge — only for group children */}
+                    {card.parent_card_id && (card as any).card_type === 'group_child' && (
                         <GroupBadge card={card} />
                     )}
                 </div>
