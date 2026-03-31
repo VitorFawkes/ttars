@@ -111,7 +111,7 @@ export default function SubCardsList({
                             className="text-xs border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
                         >
                             <Bell className="w-3 h-3 mr-1" />
-                            Notificar Alteração
+                            Notificar Alteração de Produto
                         </Button>
                     )}
                     {canCreate && (

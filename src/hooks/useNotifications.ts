@@ -14,6 +14,7 @@ export interface Notification {
     body: string | null;
     url: string | null;
     read: boolean;
+    card_id: string | null;
     created_at: string;
 }
 
@@ -76,6 +77,7 @@ export function useNotifications() {
                 },
                 (payload) => {
                     queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+                    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'card-alerts' });
                     if (initializedRef.current && payload.new) {
                         const newTs = (payload.new as Notification).created_at;
                         if (!baselineRef.current || newTs > baselineRef.current) {
@@ -94,6 +96,7 @@ export function useNotifications() {
                 },
                 () => {
                     queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+                    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'card-alerts' });
                 }
             )
             .subscribe();

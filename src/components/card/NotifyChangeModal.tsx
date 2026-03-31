@@ -108,7 +108,7 @@ export default function NotifyChangeModal({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-orange-500" />
-                        Notificar Alteração
+                        Notificar Alteração de Produto
                     </DialogTitle>
                     <DialogDescription>
                         Informe o Pós-Venda sobre uma mudança na viagem que não requer planejamento novo.

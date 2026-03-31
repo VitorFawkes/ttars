@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-30
+> **Last Updated:** 2026-03-31
 > **Trigger:** ALWAYS ON
-> **Stats:** 128 tabelas | 42 paginas | 97 hooks | 17 views | 437 components
+> **Stats:** 128 tabelas | 38 paginas | 94 hooks | 17 views | 435 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **97 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **94 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -204,7 +204,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Integrations
 | Hook | File |
 |------|------|
-| `useIntegrationCatalog()` | `useIntegrationCatalog.ts` |
 | `useIntegrationHealth()` | `useIntegrationHealth.ts` |
 | `useIntegrationProviders()` | `useIntegrationProviders.ts` |
 | `useIntegrationStats()` | `useIntegrationStats.ts` |
@@ -250,6 +249,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useArchiveCard()` | `useArchiveCard.ts` |
+| `useCardAlerts()` | `useCardAlerts.ts` |
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
@@ -270,7 +270,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePipelineStages()` | `usePipelineStages.ts` |
 | `usePipelines()` | `usePipelines.ts` |
 | `useSeenCards()` | `useSeenCards.ts` |
-| `useStageRequiredFields()` | `useStageRequiredFields.ts` |
 | `useStageRequirements()` | `useStageRequirements.ts` |
 | `useStageSectionConfig()` | `useStageSectionConfig.ts` |
 | `useSubCards()` | `useSubCards.ts` |
@@ -281,7 +280,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Proposals
 | Hook | File |
 |------|------|
-| `useBuilderKeyboardShortcuts()` | `useBuilderKeyboardShortcuts.ts` |
 | `useContactProposals()` | `useContactProposals.ts` |
 | `useGeneratePDF()` | `useGeneratePDF.ts` |
 | `useLibrary()` | `useLibrary.ts` |
@@ -303,7 +301,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Users & Teams
 | Hook | File |
 |------|------|
-| `useDepartments()` | `useDepartments.ts` |
 | `useRoles()` | `useRoles.ts` |
 | `useTeams()` | `useTeams.ts` |
 | `useUsers()` | `useUsers.ts` |
@@ -341,18 +338,16 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **42 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **38 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
-| `ActivitiesPage` | `src/pages/ActivitiesPage.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
-| `InventoryPage` | `src/pages/InventoryPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |
 | `Leads` | `src/pages/Leads.tsx` |
 | `Login` | `src/pages/Login.tsx` |
@@ -360,9 +355,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `People` | `src/pages/People.tsx` |
 | `Pipeline` | `src/pages/Pipeline.tsx` |
 | `PresentesHubPage` | `src/pages/PresentesHubPage.tsx` |
-| `ProposalBuilder` | `src/pages/ProposalBuilder.tsx` |
 | `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` |
-| `ProposalBuilderV3` | `src/pages/ProposalBuilderV3.tsx` |
 | `ProposalBuilderV4` | `src/pages/ProposalBuilderV4.tsx` |
 | `ProposalsPage` | `src/pages/ProposalsPage.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |

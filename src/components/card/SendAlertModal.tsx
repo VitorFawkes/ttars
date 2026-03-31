@@ -305,6 +305,7 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
                     title: `Alerta em "${cardTitle || 'Card'}"`,
                     body: message || null,
                     url: `/cards/${cardId}`,
+                    card_id: cardId,
                 })
             if (notifError) throw notifError
 
@@ -328,6 +329,7 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
         onSuccess: () => {
             toast.success('Alerta enviado')
             queryClient.invalidateQueries({ queryKey: ['activities', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card-alerts', cardId] })
             onClose()
         },
         onError: (err) => {
