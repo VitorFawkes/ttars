@@ -182,7 +182,10 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
                 }
 
                 onContactAdded(createdContact.id, { nome: formatContactName(createdContact) || createdContact.nome || 'Sem Nome' })
-                onClose()
+                toast.success(`${formatContactName(createdContact) || createdContact.nome} adicionado`)
+                setSearchTerm('')
+                setDebouncedSearch('')
+                resetForm()
             } catch (err: unknown) {
                 console.error('Error linking contact:', err)
                 setError('Contato criado, mas houve erro ao vincular: ' + (err instanceof Error ? err.message : String(err)))
@@ -232,7 +235,9 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, addTo
         onSuccess: (contactId) => {
             const contact = contacts?.find(c => c.id === contactId)
             onContactAdded(contactId, contact ? { nome: formatContactName(contact) || 'Sem Nome' } : undefined)
-            onClose()
+            toast.success(`${contact ? formatContactName(contact) || 'Contato' : 'Contato'} adicionado`)
+            setSearchTerm('')
+            setDebouncedSearch('')
         },
         onError: (err: Error) => {
             setError('Erro ao adicionar contato: ' + err.message)

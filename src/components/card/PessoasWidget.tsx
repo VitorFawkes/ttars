@@ -67,9 +67,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     }
 
     const handleContactAdded = (contactId: string, contact: { nome: string }) => {
-        addPerson({ id: contactId, nome: contact.nome }, {
-            onSuccess: () => setSelectorMode('none')
-        })
+        addPerson({ id: contactId, nome: contact.nome })
     }
 
     const displayNome = primary ? formatContactName(primary) : ''
