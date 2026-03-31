@@ -19,11 +19,12 @@ import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
 import { TagSelector } from '../components/card/TagSelector'
-import { ArrowLeft, Users, CalendarClock } from 'lucide-react'
+import { ArrowLeft, Users, CalendarClock, Megaphone, X, Eye } from 'lucide-react'
 
 import type { Database } from '../database.types'
 import { getProductLabels } from '../lib/productLabels'
 import { useSeenCards } from '../hooks/useSeenCards'
+import { useCardAlerts } from '../hooks/useCardAlerts'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -36,6 +37,7 @@ export default function CardDetail() {
     const queryClient = useQueryClient()
     const [showLinkToGroup, setShowLinkToGroup] = useState(false)
     const sidebarRef = useRef<HTMLDivElement>(null)
+    const [alertOverlayDismissed, setAlertOverlayDismissed] = useState(false)
 
     const scrollToAlerts = useCallback(() => {
         const el = sidebarRef.current?.querySelector('[data-section="alertas"]')
@@ -113,6 +115,15 @@ export default function CardDetail() {
         staleTime: 1000 * 60 * 5,
     })
 
+    // Alert overlay — fetch alerts for current user on this card
+    const { alerts: cardAlerts, unreadCount: alertUnread, markAllAsRead: markAllAlertsRead } = useCardAlerts(card?.id)
+    const showAlertOverlay = alertUnread > 0 && !alertOverlayDismissed
+
+    // Reset dismissed state when navigating to a different card
+    useEffect(() => {
+        setAlertOverlayDismissed(false)
+    }, [id])
+
     // Check if this card is a future opportunity
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isFutureOpportunity = (card as any)?.card_type === 'future_opportunity'
@@ -167,7 +178,72 @@ export default function CardDetail() {
     }
 
     return (
-        <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
+        <div className="h-full bg-gray-50 flex flex-col overflow-hidden relative">
+            {/* ═══ Alert Takeover Overlay ═══ */}
+            {showAlertOverlay && (
+                <div className="absolute inset-0 z-50 bg-amber-900/70 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border-2 border-amber-300">
+                        {/* Overlay Header */}
+                        <div className="bg-amber-500 px-6 py-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                                    <Megaphone className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white tracking-tight">
+                                        {alertUnread} {alertUnread === 1 ? 'alerta' : 'alertas'} para você
+                                    </h2>
+                                    <p className="text-amber-100 text-xs">Neste card</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setAlertOverlayDismissed(true)}
+                                aria-label="Fechar alertas"
+                                className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Alert List */}
+                        <div className="px-6 py-4 space-y-3 max-h-[50vh] overflow-y-auto">
+                            {cardAlerts.filter(a => !a.read).map(alert => (
+                                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                    <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-900">{alert.title}</p>
+                                        {alert.body && (
+                                            <p className="text-xs text-slate-600 mt-1">{alert.body}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Overlay Actions */}
+                        <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-3">
+                            <button
+                                onClick={() => {
+                                    markAllAlertsRead.mutate(undefined, {
+                                        onSettled: () => setAlertOverlayDismissed(true),
+                                    })
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors"
+                            >
+                                <Eye className="h-4 w-4" />
+                                Visto, entendi
+                            </button>
+                            <button
+                                onClick={() => setAlertOverlayDismissed(true)}
+                                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors"
+                            >
+                                Ver depois
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-sm">
                 <CardHeader card={card} onScrollToAlerts={scrollToAlerts} />
