@@ -76,6 +76,14 @@ export default function GovernanceConsole() {
     const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set())
     const [isReplicating, setIsReplicating] = useState(false)
     const [targetStageIds, setTargetStageIds] = useState<Set<string>>(new Set())
+    const [prevPipelineId, setPrevPipelineId] = useState(pipelineId)
+
+    // Reset selection when product/pipeline changes (without useEffect)
+    if (pipelineId !== prevPipelineId) {
+        setPrevPipelineId(pipelineId)
+        setSelectedStageId(null)
+        setSelectedRuleIds(new Set())
+    }
 
     // 1. Fetch Phases & Stages
     const { data: phasesData } = usePipelinePhases(pipelineId)
@@ -88,6 +96,7 @@ export default function GovernanceConsole() {
                 .from('pipeline_stages')
                 .select('id, nome, fase, ordem, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
                 .eq('pipeline_id', pipelineId)
+                .eq('ativo', true)
                 .order('ordem')
             // Sort by phase order_index then stage ordem
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,16 +109,21 @@ export default function GovernanceConsole() {
         }
     })
 
-    // 2. Fetch All Requirements
+    // 2. Fetch All Requirements (filtered by current pipeline's stages)
+    const stageIds = useMemo(() => stages?.map(s => s.id) || [], [stages])
+
     const { data: requirements, isLoading: loadingReqs } = useQuery({
-        queryKey: ['action-requirements-all'],
+        queryKey: ['action-requirements', pipelineId],
         queryFn: async () => {
+            if (stageIds.length === 0) return []
             const { data } = await supabase
                 .from('stage_field_config')
                 .select('*')
                 .in('requirement_type', ['proposal', 'task', 'field', 'rule'])
+                .in('stage_id', stageIds)
             return (data || []) as ActionRequirement[]
-        }
+        },
+        enabled: stageIds.length > 0
     })
 
     // 2.5 Fetch System Fields (with section for grouping)
@@ -171,7 +185,7 @@ export default function GovernanceConsole() {
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['action-requirements-all'] })
+            queryClient.invalidateQueries({ queryKey: ['action-requirements'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-config-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
             toast.success('Regra adicionada com sucesso')
@@ -185,7 +199,7 @@ export default function GovernanceConsole() {
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['action-requirements-all'] })
+            queryClient.invalidateQueries({ queryKey: ['action-requirements'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-config-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
             toast.success('Regras removidas com sucesso')
@@ -203,7 +217,7 @@ export default function GovernanceConsole() {
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['action-requirements-all'] })
+            queryClient.invalidateQueries({ queryKey: ['action-requirements'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-config-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
         },
@@ -242,7 +256,7 @@ export default function GovernanceConsole() {
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['action-requirements-all'] })
+            queryClient.invalidateQueries({ queryKey: ['action-requirements'] })
             queryClient.invalidateQueries({ queryKey: ['stage-field-config-all'] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
             toast.success('Regras replicadas com sucesso')
