@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { applyScopeCascade } from '../lib/filterCascadeRules'
 
 export type ViewMode = 'AGENT' | 'MANAGER'
@@ -88,7 +89,9 @@ export const initialState: Omit<PipelineFiltersState, 'setViewMode' | 'setSubVie
     _phaseAutoApplied: false
 }
 
-export const usePipelineFilters = create<PipelineFiltersState>()((set, get) => ({
+export const usePipelineFilters = create<PipelineFiltersState>()(
+    persist(
+    (set, get) => ({
     ...initialState,
     setViewMode: (mode) => set({ viewMode: mode }),
     setSubView: (view) => set({ subView: view }),
@@ -159,7 +162,33 @@ export const usePipelineFilters = create<PipelineFiltersState>()((set, get) => (
         }
         return updates
     }),
-}))
+    }),
+    {
+        name: 'pipeline-filters-storage',
+        partialize: (state) => ({
+            viewMode: state.viewMode,
+            subView: state.subView,
+            filters: { ...state.filters, search: undefined },
+            groupFilters: state.groupFilters,
+            showClosedCards: state.showClosedCards,
+            showWonDirect: state.showWonDirect,
+            collapsedPhases: state.collapsedPhases,
+        }),
+        merge: (persisted, current) => {
+            const saved = persisted as Partial<PipelineFiltersState>
+            // Migra groupFilters do formato antigo (showLinked/showSolo)
+            if (saved.groupFilters && 'showLinked' in saved.groupFilters) {
+                saved.groupFilters = {
+                    showGroupMembers: true,
+                    showSubCards: true,
+                    showSolo: true,
+                }
+            }
+            return { ...(current as PipelineFiltersState), ...saved }
+        },
+    }
+    )
+)
 
 /** Campos que NAO contam como "filtro ativo" para o badge */
 const NON_FILTER_KEYS = new Set<keyof FilterState>([

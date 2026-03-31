@@ -3,12 +3,11 @@
 ## Protocolo de Escrita
 
 **Regras para adicionar novos padroes:**
-- Cada item: max 5 linhas (Padrao + Impacto + Arquivo + Regra)
+- Cada item: max 4 linhas (Padrao + Impacto + Arquivo + Regra)
 - Numerar sequencialmente. NUNCA duplicar numeros.
 - Se confirmado OK (nao e bug): mover para §Padroes Confirmados ou DELETAR
 - Se corrigido pelo codigo: DELETAR (nao manter historico de bugs fixados)
 - ANTES de adicionar: `wc -l` deste arquivo. Se > 180 linhas → comprimir antes
-- `patterns-extended.md` foi DEPRECADO. Tudo fica neste arquivo (max 200 linhas)
 
 ---
 
@@ -23,115 +22,82 @@ Escala correta: h-3(12px), h-4(16px), h-5(20px). Class invalida e silenciosament
 ### 3. group-hover sem classe group no ancestral
 Elemento com `group-hover:*` sem o pai ter `className="group"` → permanece invisivel.
 
-### 4. campo_contato no seed vs CAMPO_CONTATO_MAP desalinhados
-Se `campo_contato` esta preenchido no seed, DEVE ter mapeamento no Map ou ser NULL.
-
-### 5. useCardPeople pode retornar duplicatas
-Pessoa principal + viajantes sem deduplicar por ID. `people.length` pode estar errado.
-
-### 6. SmartTaskModal: duracao nao restaurada + icone errado
-Edit mode: duracao default 30min, correto: `initialData.metadata.duration_minutes`. Icone `Star` deveria ser `Search`.
-
-### 8. computePositions: totalCols calculado dentro do map (WeekView/DayView)
-Items processados antes nao sabem totalCols final do grupo overlap. Bug pre-existente. Fix: 2 passes.
-
 ### 9. RPC reescrita perde logica de versoes anteriores
-**REGRA:** Antes de reescrever RPC critica, diff linha a linha com versao anterior. Regressoes classicas: perda de validacao telefone, perda de `find_contact_by_whatsapp()`, uso de colunas legadas (`etapa_funil_id`).
-
-### 11. btoa com spread operator falha para arquivos >1MB (Edge Function)
-`btoa(String.fromCharCode(...new Uint8Array(buffer)))` → RangeError. Usar `encode` do std/encoding/base64.ts.
-
-### 12. setVisibility nao marca isDirty em Zustand stores
-`useReportBuilderStore.setVisibility` falta `isDirty: true`. Mudanca nao dispara beforeunload warning.
+**REGRA:** Antes de reescrever RPC critica, diff linha a linha com versao anterior. Regressoes classicas: perda de validacao telefone, perda de `find_contact_by_whatsapp()`, uso de colunas legadas.
 
 ### 13. queryKey com objeto nao serializado causa refetch
 Objetos na queryKey devem ser `JSON.stringify`. React Query compara por referencia para objetos.
 
 ### 14. catch vazio silencia erros sem toast
-handleDelete em ReportViewer/DashboardViewer tem catch silencioso. REGRA: `.mutateAsync` em UI deve ter try/catch com toast.error.
-
-### 15. ScrollArea ref aponta para Root, nao Viewport
-`ScrollArea` forward ref para Root (overflow:hidden). Auto-scroll via scrollTop e NOOP. Fix: div ref dentro do ScrollArea ou scrollIntoView em sentinela.
-Arquivos: AIChat.tsx, WhatsAppHistory.tsx.
-
-### 16. useChatIA: chat_history usa closure stale
-`messages` na closure do useCallback nao inclui ultima msg. Fix: usar `useRef` para espelhar messages.
-
-### 17. useChatIA sem cleanup no unmount
-Falta `useEffect(() => () => abortRef.current?.abort(), [])`. Request continua apos desmonte.
-
-### 18. toggleAI sem feedback de erro
-ConversationHistory: try/finally sem catch com toast. UPDATE Supabase falha silenciosamente.
+REGRA: `.mutateAsync` em UI deve ter try/catch com toast.error. Visto em: ReportViewer, DashboardViewer.
 
 ### 19. Botoes icone-only sem aria-label
-REGRA: `<button>` com apenas `<Icon />` precisa de aria-label. DashboardViewer, ReportViewer.
-
-### 21. DashboardFilters: dateRange default em custom usa YYYY-MM-DD
-`handleDatePresetChange` usa `.toISOString().split('T')[0]`. Pode quebrar comparacao de data em RPCs.
-
-### 22. documentos source sem filtro de data no engine
-`report_query_engine` nao aplica p_date_start/p_date_end para source 'documentos'. Data silenciosamente ignorada.
-
-### 23. Presets stale quando persistidos no DashboardViewer
-`dateRange` resolvido e persistido, nao o `datePreset`. 'today' nunca e "hoje" apos o dia de criacao.
-Correto: re-resolver preset ao carregar, ou persistir apenas datePreset.
-
-### 24. ORDER BY %I falha para campos com ponto
-`format('ORDER BY %I', 'ps.nome')` → `"ps.nome"` (nome unico, nao tabela.coluna). Bug pre-existente.
-Correto: usar alias da dimensao (dim_0, dim_1).
+REGRA: `<button>` com apenas `<Icon />` precisa de aria-label. GovernanceConsole (X fechar, Trash2 delete), DashboardViewer, ReportViewer.
 
 ### 26. database.types.ts desatualizado apos migration com RPCs novas
 **REGRA:** Apos migration que adiciona/remove campos em RPCs: `npx supabase gen types typescript --project-id szyrzxvlptqqheizyrxu > src/database.types.ts`
 
 ### 27. useMutation onSuccess async: isPending permanece true
-Post-processamento longo (ex: briefing IA) dentro de onSuccess mantem isPending=true e botoes desabilitados.
-Correto: mover pos-processamento para FORA do onSuccess (apos mutateAsync).
+Post-processamento longo dentro de onSuccess mantem isPending=true e botoes desabilitados. Mover pos-processamento para FORA do onSuccess.
 
-### 28. Record<string, unknown> quebra acesso por indice em JSX
-`top_destinations: Record<string, unknown>` → `top_destinations?.[0]` e `unknown`, nao e ReactNode. TS2322.
-Regra: para arrays JSON do banco, preferir `unknown[]` ou `any[]`.
-
-### 29. AC valor: centavos vs reais — ver memory/integration-gotchas.md
-Fonte autoritativa: `memory/integration-gotchas.md` seção REGRA CRÍTICA.
-
-### 30. migration de correcao nao atualiza valor_final
-Migration fix de valor_estimado nao toca valor_final. Cards com proposta aceita podem ter valor_final errado.
-
-### 31. setDatePreset polui store global ao sair da view
-Views de snapshot chamam setDatePreset('all_time') sem restaurar no cleanup.
-Correto: capturar prev, restaurar no cleanup.
-Arquivo: PipelineCurrentView.tsx.
-
-### 32. derivedViewMode deve ser declarado ANTES do useState
-`useMemo(derivedViewMode)` ANTES de `useState(derivedViewMode)`. Se useState usa valor hardcoded, estado inicial fica travado.
-Arquivos: TripInformation.tsx, ObservacoesEstruturadas.tsx.
-
-### 33. Drill-down current_stage usa dateRange do store global (fragil)
-DrillDownContext deveria ter p_date_start/p_date_end opcionais para override explicito em vez de herdar do store.
-
-### 34. Realtime filter por coluna nao-PK requer REPLICA IDENTITY FULL
-`whatsapp_messages` sem REPLICA IDENTITY FULL → filtro `card_id=eq.X` falha para UPDATE.
-Correto: `ALTER TABLE whatsapp_messages REPLICA IDENTITY FULL;`
-
-### 35. useChatIA ignora cardId quando contactId e null — ALTO
-Guard `if (!contactId) return` bloqueia envio quando so cardId existe. Chat silenciosamente nao funciona.
-Correto: `if (!question.trim() || (!contactId && !cardId)) return`.
-Arquivo: useChatIA.ts linha 28.
-
-### 37. Auto-correcoes em contatos omitem updated_at — MEDIO
-Blocos que corrigem dados de contatos existentes (ex: nome 'Sem Nome') nao incluem `updated_at` explicito.
-Contact handler (L509) inclui; deal auto-fix (L1088) nao inclui. Verificar se trigger `set_updated_at` existe antes de considerar bug.
-Regra: sempre incluir `updated_at: new Date().toISOString()` em updates de correcao para simetria com o contact handler.
+### 36. queryKey compartilhado com filtro diferente polui cache
+queryKeys corretos: `['active-profiles-list']` (ativos), `['profiles-list']` (display), `['users']` (EXCLUSIVO useUsers.ts admin).
 
 ### 38. activities INSERT usa coluna 'dados' em vez de 'metadata' — CRITICO
-Tabela `activities` tem coluna `metadata jsonb` (ver `20260201700000_create_activities_table.sql`).
-Usar `dados` na lista de colunas do INSERT causa erro de runtime no Postgres. Padrao correto: `(card_id, tipo, descricao, metadata, created_by, created_at)`.
-Visto em: `20260313_sub_card_fixes.sql` linha 142 (`merge_sub_card`).
+Padrao correto: `(card_id, tipo, descricao, metadata, created_by, created_at)`.
 
-### 36. queryKey ['users'] compartilhado com filtro diferente — ALTO
-IntegrationMapping.tsx e MetricsWidget.tsx usam `['users']` com `.eq('active', true)`. Cache poluido de useUsers.ts (sem filtro).
-**CORRETO:** Usar `['active-profiles-list']` nesses dois arquivos.
-**queryKeys corretos:** `['active-profiles-list']` (ativos), `['profiles-list']` (display incluindo inativos), `['users']` (EXCLUSIVO useUsers.ts admin).
+### 40. Migration sem BEGIN/COMMIT quando contem DROP + CREATE — ALTO
+Se CREATE falhar apos DROP sem transacao, funcao some permanentemente. Envolver em BEGIN; ... COMMIT;
+
+### 41. database.types.ts desatualizado apos mudanca de assinatura de RPC — CRITICO
+Frontend usa `(supabase as any).rpc(...)` para contornar, mas TypeScript nao valida os args. Regenerar types apos mudanca de assinatura.
+
+### 42. Interface TypeScript local nao sincronizada com novo campo de tabela — MEDIO
+Ao adicionar coluna em tabela com interface TypeScript local (ex: `notifications`), atualizar AMBAS as interfaces.
+
+### 48. Hook condicional via string vazia polui cache React Query — ALTO
+Passar `''` como ID cria entrada `['cache-key', '']` no cache para cada instancia. Usar `enabled` como parametro opcional.
+Reincidencia: `DynamicSectionWidget.tsx` L454 — `useCardAlerts(isAlertas ? card.id! : '')` — mesmo padrao.
+
+### 50. Helpers duplicados entre hooks — MEDIO
+Extrair helpers compartilhados (ex: `blobToBase64`, `N8N_WEBHOOK_URL`) para arquivo fonte unico.
+
+### 53. invalidateQueries com queryKey errada (singular vs plural) nao propaga — MEDIO
+`GovernanceConsole` invalida `['stage-field-config-all']` mas `useFieldConfig` registra `['stage-field-configs-all']` (plural).
+Mutacoes no console nao atualizam a matriz do Studio nem o quality gate. Verificar ortografia exata de todas as queryKeys ao invalidar.
+
+### 54. Query local de pipeline_stages duplica usePipelineStages — ALTO
+`GovernanceConsole` (L92-110) faz query propria de `pipeline_stages` com sort identico ao centralizado em `usePipelineStages`.
+queryKey privada `['pipeline-stages-governance']` nao e invalidada pelo Studio. Correto: usar `usePipelineStages(pipelineId)`.
+
+### 55. UUIDs hardcoded em pagina de importacao — ALTO
+`ImportacaoPosVendaPage.tsx` L26-33 hardcoda stage_ids, SAMANTHA_ID, TEAM_PLANNER_ID, pipeline_id no codigo.
+UUIDs mudam entre ambientes (staging vs prod). Extrair para constants.ts ou buscar do banco por slug/nome.
+
+### 56. Dupla contagem de valor em cpfValues quando key ja existe — ALTO
+`ImportacaoPosVendaPage.tsx` L303-306: `existing.total += r.valorTotal` E depois `cpfValues.get(key)!.total += r.valorTotal`.
+Quando o CPF ja esta no Map, o valor e somado duas vezes. Remover um dos dois incrementos.
+
+### 57. database.types.ts nao regenerado apos adicao de RPCs novas — CRITICO
+`bulk_create_pos_venda_cards` e `revert_pos_venda_import_items` nao aparecem em database.types.ts.
+Frontend usa `(supabase as any).rpc(...)` sem validacao TypeScript dos parametros. Padrao recorrente (ver #41).
+
+### 58. setState no corpo do componente (fora de useEffect) — ALTO
+`PessoasWidget.tsx` L36-40: bloco `if (!sscLoading && !configApplied) { setState... }` fora de qualquer hook.
+Causa re-render imediato no mesmo ciclo; em StrictMode executa dobrado. Padrao correto: `useEffect` com `[sscLoading]`.
+
+### 59. alert() nativo em vez de toast.error — MEDIO
+`PessoasField.tsx` L94: `alert('Erro ao remover contato')`. Padrao do projeto e `toast.error()` do Sonner.
+Verificar arquivos com `.catch` que nao importam `toast`.
+
+### 60. onContactsAdded callback com tipo mais restrito que o contrato — MEDIO
+`PessoasWidget.handleBatchContactsAdded` tipado como `{ id, nome }[]` mas recebe `SelectedContact[]` em runtime.
+REGRA: Callbacks que recebem dados de `ContactSelector` devem tipar `SelectedContact[]` ou importar o tipo.
+
+### 61. mutate() + setDismissed() no mesmo click fecha UI mesmo se mutacao falhar — ALTO
+`CardDetail.tsx` L226-228: `markAllAlertsRead.mutate()` seguido de `setAlertOverlayDismissed(true)` no mesmo handler.
+Se a mutacao falhar, overlay fecha mas alertas permanecem nao lidos — na proxima abertura o overlay reaparece confundindo o usuario.
+REGRA: Quando fechar UI depende do sucesso da mutacao, usar `.mutateAsync` com try/catch ou mover o dismiss para `onSuccess`.
 
 ---
 
@@ -145,17 +111,11 @@ IntegrationMapping.tsx e MetricsWidget.tsx usam `['users']` com `.eq('active', t
 ### Navegacao interna
 NUNCA `<a href>` ou `window.location.href` para rotas internas. Usar `<Link to>` ou `navigate()`.
 
-### Visibilidade de Widget por Fase
-`DocumentCollectionWidget` usa `phaseSlug === 'planner' || phaseSlug === 'pos_venda'`.
+### createElement para LucideIcon dinamico — OK
+`createElement(product.icon, { className: "..." })` e o padrao correto para renderizar LucideIcon em variavel. Nao e bug.
 
-### Design System
-Cada widget pode ter cor propria (teal para Documentos). Usar tokens Tailwind.
-
-### Arquivos/Storage
-`supabase.storage.from('card-documents')`. Tabela `arquivos` tem `pessoa_id` (FK contatos).
+### confirm() nativo — OK no projeto
+`window.confirm(...)` e padrao aceito para confirmacoes destrutivas em toda a base de codigo.
 
 ### ownerIds/tagIds em queryKey — OK
 React Query v5 compara arrays de primitivos por valor profundo. string[] na queryKey nao causa problema.
-
-### useProposals filtro de produto (ineficiente mas funcional)
-Step 2 filtra server-side com `.eq('produto', currentProduct)`. Funciona, mas poderia ser otimizado.

@@ -54,6 +54,11 @@ interface MondeSalePayload {
         cpf_cnpj?: string;
         email?: string;
         mobile_number?: string;
+        birthdate?: string;
+        gender?: string;
+        passport_number?: string;
+        passport_expiration_date?: string;
+        rg_ie?: string;
     };
     hotels?: Array<Record<string, unknown>>;
     ground_transportations?: Array<Record<string, unknown>>;
@@ -96,7 +101,7 @@ Deno.serve(async (req) => {
                 id, titulo, produto,
                 owner:profiles!cards_vendas_owner_id_profiles_fkey(id, nome, email),
                 dono:profiles!cards_dono_atual_id_profiles_fkey(id, nome, email),
-                contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, email, telefone, cpf)
+                contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, email, telefone, cpf, data_nascimento, passaporte, passaporte_validade, sexo, rg, tipo_cliente)
             `)
             .eq('id', cardId)
             .single();
@@ -107,6 +112,13 @@ Deno.serve(async (req) => {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
         }
+
+        // 1b. Fetch travelers (companions) from cards_contatos
+        const { data: viajantesData } = await supabase
+            .from('cards_contatos')
+            .select('contato:contatos(id, nome, sobrenome, cpf, data_nascimento, passaporte)')
+            .eq('card_id', cardId)
+            .order('ordem');
 
         // 2. Fetch proposal with version
         const { data: proposal, error: proposalError } = await supabase
@@ -214,16 +226,27 @@ Deno.serve(async (req) => {
         const saleDate = new Date().toISOString().split('T')[0];
         const contato = (card as any).contato;
 
-        // Build passenger from contato (payer = main traveler)
+        // Build passengers from all travelers on the card (payer + companions)
         const payerName = contato
             ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ')
             : 'Pagante nao informado';
-        const defaultPassenger = {
-            person: {
-                external_id: contato?.id || crypto.randomUUID(),
-                name: payerName,
-            },
-        };
+
+        const passengers: Array<{ person: { external_id: string; name: string } }> = [];
+        const payerExternalId = contato?.id || crypto.randomUUID();
+        passengers.push({ person: { external_id: payerExternalId, name: payerName } });
+
+        // Add companions from cards_contatos (excluding payer to avoid duplicates)
+        for (const v of (viajantesData || []) as any[]) {
+            const vc = v.contato;
+            if (vc && vc.id !== contato?.id) {
+                passengers.push({
+                    person: {
+                        external_id: vc.id,
+                        name: [vc.nome, vc.sobrenome].filter(Boolean).join(' '),
+                    },
+                });
+            }
+        }
 
         // Helper: build product base fields (shared by all product types)
         const makeBase = (item: CrmItemData) => ({
@@ -234,7 +257,7 @@ Deno.serve(async (req) => {
                 external_id: crypto.randomUUID(),
                 name: item.supplier || 'Nao informado',
             },
-            passengers: [defaultPassenger],
+            passengers,
         });
 
         for (const item of allItems) {
@@ -494,13 +517,26 @@ Deno.serve(async (req) => {
             name: agent?.nome || 'Agente nao informado',
         };
 
+        // Map tipo_cliente to Monde person_kind
+        const personKind: 'individual' | 'company' = contato?.tipo_cliente === 'PJ' ? 'company' : 'individual';
+
+        // Map sexo to Monde gender
+        const gender = contato?.sexo === 'masculino' ? 'male'
+            : contato?.sexo === 'feminino' ? 'female'
+            : undefined;
+
         const payer = {
-            person_kind: 'individual' as const,
+            person_kind: personKind,
             external_id: contato?.id || crypto.randomUUID(),
             name: payerName,
             cpf_cnpj: contato?.cpf?.replace(/\D/g, '') || undefined,
             email: contato?.email || undefined,
             mobile_number: contato?.telefone?.replace(/\D/g, '') || undefined,
+            birthdate: contato?.data_nascimento || undefined,
+            gender,
+            passport_number: contato?.passaporte || undefined,
+            passport_expiration_date: contato?.passaporte_validade || undefined,
+            rg_ie: contato?.rg || undefined,
         };
 
         // 9. Build complete payload

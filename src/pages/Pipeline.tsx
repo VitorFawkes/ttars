@@ -52,13 +52,15 @@ export default function Pipeline() {
     const canViewAll = isAdmin || isGestor
 
     // Guard: if user lost access to current view (e.g. role changed), reset to MY_QUEUE
+    // Skip while profile is loading to avoid resetting persisted state prematurely
     useEffect(() => {
+        if (!profile) return
         if (subView === 'TEAM_VIEW' && !canViewTeam) {
             setScopeView('AGENT', 'MY_QUEUE')
         } else if (subView === 'ALL' && !canViewAll) {
             setScopeView('AGENT', 'MY_QUEUE')
         }
-    }, [canViewTeam, canViewAll, subView, setScopeView])
+    }, [profile, canViewTeam, canViewAll, subView, setScopeView])
 
     useEffect(() => {
         if (_phaseAutoApplied || isAdmin || !visiblePhases?.length) return

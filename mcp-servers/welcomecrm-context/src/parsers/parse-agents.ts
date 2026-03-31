@@ -57,7 +57,6 @@ function extractTriggers(frontmatter: Record<string, unknown>, name: string): st
     'security-auditor': ['segurança', 'security', 'vulnerabilidade', 'rls', 'policy'],
     'performance-optimizer': ['performance', 'lento', 'slow', 'otimizar', 'optimize'],
     'test-engineer': ['teste', 'test', 'spec', 'coverage', 'vitest', 'playwright'],
-    'mobile-developer': ['mobile', 'react native', 'flutter', 'app', 'ios', 'android']
   }
 
   return triggerMap[name] || []

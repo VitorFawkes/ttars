@@ -11,7 +11,7 @@
 - IMPORTANT: Ao criar hook/página/componente novo, rodar `npm run sync:fix` para atualizar inventário
 - IMPORTANT: NUNCA aplicar migrations diretamente em PRODUÇÃO. Sempre STAGING primeiro. Ver "Protocolo de Migrations" abaixo.
 - IMPORTANT: Ao criar view/coluna nova usada pelo frontend, adicionar a query ao smoke test em `.claude/hooks/schema-smoke-test.sh`
-- IMPORTANT: **Isolamento de Produto é obrigatório.** NUNCA misturar dados entre TRIPS, WEDDING e CORP. Ver seção "Isolamento de Produto" abaixo.
+- IMPORTANT: **Isolamento de Produto é obrigatório.** NUNCA misturar dados entre TRIPS e WEDDING. Ver seção "Isolamento de Produto" abaixo.
 - IMPORTANT: NUNCA pedir credenciais ao usuário. `.env` tem tudo (Supabase, n8n, Vercel). ActiveCampaign em `integration_settings` no banco.
 - Commits em português. Co-author: `Co-Authored-By: Claude <noreply@anthropic.com>`
 
@@ -19,11 +19,12 @@
 
 | Ambiente | Banco | Quando |
 |----------|-------|--------|
-| `npm run dev` (local) | **PRODUÇÃO** (szyrzxvlptqqheizyrxu) | Desenvolvimento (staging sem dados de teste ainda) |
+| `npm run dev` (local) | **PRODUÇÃO** (szyrzxvlptqqheizyrxu) | Padrão — `.env` aponta para produção |
+| `npm run dev` (local, staging) | **STAGING** (ivmebyvjarcvrkrbemam) | Após trocar `.env` por `.env.development.staging` |
 | Vercel Preview (branches) | **STAGING** (ivmebyvjarcvrkrbemam) | PRs e testes |
 | Vercel Production (main) | **PRODUÇÃO** (szyrzxvlptqqheizyrxu) | Usuários finais |
 
-**Regra:** Migrations SEMPRE vão para staging primeiro via script (`apply-to-staging.sh`). O dev local lê dados de produção mas NUNCA aplica SQL diretamente nele — use os scripts. Quando staging tiver dados de teste, restaurar `.env.development` a partir de `.env.development.staging`.
+**Regra:** Migrations SEMPRE vão para staging primeiro via script (`apply-to-staging.sh`). O dev local por padrão lê produção. Para testar migrations no staging localmente, troque o `.env` pelo `.env.development.staging`. NUNCA aplique SQL diretamente no banco — use os scripts.
 
 ## Protocolo de Migrations (OBRIGATÓRIO)
 
@@ -34,7 +35,7 @@
 bash .claude/hooks/apply-to-staging.sh supabase/migrations/SEU_ARQUIVO.sql
 ```
 
-**Passo 2 — Testar:** O frontend local (`npm run dev`) já aponta para staging. Verificar que funciona.
+**Passo 2 — Testar:** A migration foi aplicada no staging. Se o dev local aponta para staging (`.env.development.staging`), verificar que funciona. Se aponta para produção, testar via Vercel Preview ou trocar o `.env`.
 
 **Passo 3 — Promover para PRODUÇÃO** (quando o usuário pedir):
 ```bash
@@ -72,7 +73,7 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 
 ## Isolamento de Produto (OBRIGATÓRIO)
 
-Cada produto (TRIPS, WEDDING, CORP) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin.
+Cada produto (TRIPS, WEDDING) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin. Produtos definidos em `PRODUCT_PIPELINE_MAP` em `src/lib/constants.ts`.
 
 ### Constantes
 - **`PRODUCT_PIPELINE_MAP`** centralizado em `src/lib/constants.ts` — NUNCA duplicar
@@ -188,6 +189,32 @@ npx supabase gen types typescript --project-id szyrzxvlptqqheizyrxu > src/databa
 npm run build          # build completo (inclui typecheck)
 npm run sync:fix       # atualizar CODEBASE.md automaticamente
 ```
+
+## Automação e Ferramentas (SABER QUE EXISTEM)
+
+### Hooks automáticos (Claude Code)
+Estes hooks rodam automaticamente — não precisam ser chamados:
+
+| Hook | Quando roda | O que faz |
+|---|---|---|
+| `protect-files.sh` | Ao editar qualquer arquivo | BLOQUEIA edição de `.env`, `database.types.ts`, `package-lock.json` |
+| `check-edge-deploy.sh` | Ao rodar deploy de Edge Function | BLOQUEIA deploy sem `--no-verify-jwt` para functions públicas |
+| `check-before-done.sh` | Ao encerrar sessão | Roda ESLint + TypeScript + verifica migrations + verifica CODEBASE.md |
+
+### MCP Server welcomecrm-context
+Chamar `get_context` ANTES de iniciar qualquer task. É mais inteligente que ler CODEBASE.md direto:
+- Retorna: agente sugerido, seções relevantes do CODEBASE.md, arquivos para ler, hooks e tabelas relacionados
+- Parâmetros: `task` (descrição), `taskType` (investigation/implementation/debug/design), `keywords` (array)
+- Chamar `check_impact` ANTES de modificar arquivos críticos (KanbanBoard, CardHeader, CardDetail, Pipeline)
+
+### Skills disponíveis (comandos /)
+| Comando | O que faz |
+|---|---|
+| `/subir` | Fluxo completo: migrations → qualidade → code review → commit → push |
+| `/review` | Lança agente revisor de código (pode ser disparado automaticamente) |
+| `/test` | Teste exaustivo: build + análise de código + verificação cruzada |
+| `/deploy [fn]` | Deploy de Edge Function |
+| `/verify` | Checklist completo de qualidade (segurança, lint, schema, testes) |
 
 ## Referências Detalhadas
 - `.agent/CODEBASE.md` → Inventário completo (hooks, pages, components, tabelas, views, relacionamentos)

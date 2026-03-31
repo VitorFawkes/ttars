@@ -27,9 +27,16 @@ interface MondeSale {
         produto_data: Record<string, unknown> | null;
         pessoa_principal_id?: string;
         receita?: number | null;
-        contato?: { id: string; nome: string; sobrenome: string; email: string; telefone: string; cpf: string } | null;
+        contato?: {
+            id: string; nome: string; sobrenome: string; email: string; telefone: string; cpf: string;
+            data_nascimento?: string | null; passaporte?: string | null; passaporte_validade?: string | null;
+            sexo?: string | null; rg?: string | null; tipo_cliente?: string | null;
+        } | null;
         owner?: { id: string; nome: string; email: string } | null;
         dono?: { id: string; nome: string; email: string } | null;
+        viajantes?: Array<{
+            contato: { id: string; nome: string; sobrenome: string; cpf?: string | null; data_nascimento?: string | null; passaporte?: string | null } | null;
+        }>;
     };
 }
 
@@ -141,6 +148,11 @@ interface MondeSalePayload {
         cpf_cnpj?: string;
         email?: string;
         mobile_number?: string;
+        birthdate?: string;
+        gender?: string;
+        passport_number?: string;
+        passport_expiration_date?: string;
+        rg_ie?: string;
     };
     hotels?: MondeHotel[];
     insurances?: MondeInsurance[];
@@ -214,9 +226,10 @@ Deno.serve(async (req) => {
             total_value, idempotency_key, status, attempts, max_attempts,
             cards:cards(
                 id, titulo, produto_data, pessoa_principal_id, receita,
-                contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, email, telefone, cpf),
+                contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, email, telefone, cpf, data_nascimento, passaporte, passaporte_validade, sexo, rg, tipo_cliente),
                 owner:profiles!cards_vendas_owner_id_profiles_fkey(id, nome, email),
-                dono:profiles!cards_dono_atual_id_profiles_fkey(id, nome, email)
+                dono:profiles!cards_dono_atual_id_profiles_fkey(id, nome, email),
+                viajantes:cards_contatos(contato:contatos(id, nome, sobrenome, cpf, data_nascimento, passaporte))
             )
         `)
         .eq('status', 'pending')
@@ -346,6 +359,34 @@ Deno.serve(async (req) => {
                     })
                     .eq('id', sale.id);
 
+                // Sync numero_venda_monde to card.produto_data for compatibility
+                // with global search, CSV import, sub-card merge, and TripInformation display
+                const saleNumber = responseBody.sale_number?.toString();
+                if (saleNumber && sale.card_id) {
+                    try {
+                        const { data: currentCard } = await supabase
+                            .from('cards')
+                            .select('produto_data')
+                            .eq('id', sale.card_id)
+                            .single();
+
+                        const produtoData = (currentCard?.produto_data || {}) as Record<string, unknown>;
+                        await supabase
+                            .from('cards')
+                            .update({
+                                produto_data: {
+                                    ...produtoData,
+                                    numero_venda_monde: saleNumber,
+                                }
+                            })
+                            .eq('id', sale.card_id);
+                        console.log(`[monde-sales-dispatch] Synced numero_venda_monde=${saleNumber} to card ${sale.card_id}`);
+                    } catch (syncErr) {
+                        console.error(`[monde-sales-dispatch] Failed to sync numero_venda_monde:`, syncErr);
+                        // Non-blocking — sale was sent successfully
+                    }
+                }
+
                 results.push({ id: sale.id, status: 'sent', monde_sale_id: mondeSaleId });
                 console.log(`[monde-sales-dispatch] ✓ Sale ${sale.id} sent successfully, Monde ID: ${mondeSaleId}`);
 
@@ -456,26 +497,52 @@ function buildMondePayload(
         name: agent?.nome || 'Agente não informado',
     };
 
-    // payer (REQUIRED)
+    // payer (REQUIRED) — enriched with all available contact data
     const payerName = contato
         ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ')
         : 'Pagante não informado';
+
+    // Map tipo_cliente to Monde person_kind
+    const personKind: 'individual' | 'company' = contato?.tipo_cliente === 'PJ' ? 'company' : 'individual';
+
+    // Map sexo to Monde gender
+    const gender = contato?.sexo === 'masculino' ? 'male'
+        : contato?.sexo === 'feminino' ? 'female'
+        : undefined;
+
     const payer = {
-        person_kind: 'individual' as const,
+        person_kind: personKind,
         external_id: contato?.id || crypto.randomUUID(),
         name: payerName,
         cpf_cnpj: contato?.cpf?.replace(/\D/g, '') || undefined,
         email: contato?.email || undefined,
         mobile_number: contato?.telefone?.replace(/\D/g, '') || undefined,
+        birthdate: contato?.data_nascimento || undefined,
+        gender,
+        passport_number: contato?.passaporte || undefined,
+        passport_expiration_date: contato?.passaporte_validade || undefined,
+        rg_ie: contato?.rg || undefined,
     };
 
-    // Default passenger (payer = main traveler)
-    const defaultPassenger: MondePassenger = {
-        person: {
-            external_id: contato?.id || crypto.randomUUID(),
-            name: payerName,
-        },
-    };
+    // Build passengers from all travelers on the card (payer + companions)
+    const passengers: MondePassenger[] = [];
+    const payerExternalId = contato?.id || crypto.randomUUID();
+    passengers.push({
+        person: { external_id: payerExternalId, name: payerName },
+    });
+
+    // Add companions from cards_contatos (excluding payer to avoid duplicates)
+    for (const v of card?.viajantes || []) {
+        const vc = v.contato;
+        if (vc && vc.id !== contato?.id) {
+            passengers.push({
+                person: {
+                    external_id: vc.id,
+                    name: [vc.nome, vc.sobrenome].filter(Boolean).join(' '),
+                },
+            });
+        }
+    }
 
     // Receita: distribute commission_amount proportionally across items
     const cardReceita = card?.receita as number | null | undefined;
@@ -496,7 +563,7 @@ function buildMondePayload(
                 external_id: crypto.randomUUID(),
                 name: supplierName,
             },
-            passengers: [defaultPassenger],
+            passengers,
             ...(commission ? { commission_amount: commission } : {}),
         };
     };

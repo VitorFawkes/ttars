@@ -78,3 +78,10 @@ mockup-cards-mobile.html
 scripts/*.sql
 scripts/*.mjs
 
+# Arquivos avulsos de teste/dev local
+Estoque/
+teste_vendas_monde.csv
+skills-lock.json
+.agents/
+supabase/functions/monde-api-test/
+scripts/capture-gif.sh

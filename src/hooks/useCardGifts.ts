@@ -343,7 +343,7 @@ export function useCardGifts(cardId: string) {
                 // Update existing task date
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (supabase as any).from('tarefas')
-                    .update({ data_vencimento: new Date(`${date}T09:00:00`).toISOString() })
+                    .update({ data_vencimento: (() => { const p = new Date(`${date.slice(0, 10)}T09:00:00`); return isNaN(p.getTime()) ? null : p.toISOString() })() })
                     .eq('id', currentTarefaId)
             } else if (!date && currentTarefaId) {
                 // Remove task if date cleared
@@ -460,7 +460,7 @@ async function createShipTask(cardId: string, assignmentId: string, contatoName:
             card_id: cardId,
             titulo: `Enviar presente — ${contatoName}`,
             tipo: 'envio_presente',
-            data_vencimento: new Date(`${date}T09:00:00`).toISOString(),
+            data_vencimento: (() => { const p = new Date(`${date.slice(0, 10)}T09:00:00`); return isNaN(p.getTime()) ? null : p.toISOString() })(),
             responsavel_id: profileId,
             status: 'pendente',
             concluida: false,

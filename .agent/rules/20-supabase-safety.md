@@ -33,3 +33,24 @@ globs: supabase/**
 **Premise:** Every table is a potential leak.
 **Rule:** `ENABLE ROW LEVEL SECURITY` is mandatory for ALL tables.
 **Policy:** Default to `auth.uid() = tenant_id` (or equivalent) unless explicitly public.
+
+## 5. Isolamento de Produto (TRIPS / WEDDING)
+**Premise:** Cada produto tem seu pipeline. Dados NÃO podem vazar entre produtos.
+**Constantes:** `PRODUCT_PIPELINE_MAP` em `src/lib/constants.ts` (TRIPS e WEDDING).
+**Frontend:**
+- Toda query que toca `cards` DEVE filtrar por `produto` via `useProductContext().currentProduct`
+- Toda query que toca `pipeline_stages` DEVE filtrar por `pipeline_id` via `PRODUCT_PIPELINE_MAP[currentProduct]`
+**Backend (SQL/RPCs):**
+- `AND (p_product IS NULL OR c.produto::TEXT = p_product)` em toda RPC que toca `cards`
+- `JOIN pipelines pip ON pip.id = s.pipeline_id WHERE (p_product IS NULL OR pip.produto = p_product)` para stages
+
+## 6. Protocolo de Migrations
+**Fluxo obrigatório:** Staging → Teste → Produção (NUNCA direto em produção).
+- Aplicar: `bash .claude/hooks/apply-to-staging.sh <arquivo.sql>`
+- Promover: `bash .claude/hooks/promote-to-prod.sh <arquivo.sql>`
+- O hook `check-before-done.sh` BLOQUEIA se detectar .sql sem registro no `.migration_log`
+
+## 7. Edge Functions Públicas
+**Functions que recebem webhooks externos** DEVEM ser deployadas com `--no-verify-jwt`.
+**Verificar:** Se `config.toml` tem `verify_jwt = false`, SEMPRE usar `--no-verify-jwt` no deploy.
+**Hook automático:** `check-edge-deploy.sh` bloqueia deploys incorretos.

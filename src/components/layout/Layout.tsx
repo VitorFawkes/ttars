@@ -4,7 +4,7 @@ import Sidebar from './Sidebar'
 import { ThemeBoundary } from "../ui/ThemeBoundary";
 import { useProposalNotifications } from '@/hooks/useProposalNotifications';
 import { useAssistNotifications } from '@/hooks/useAssistNotifications';
-import { usePipelinePersistence } from '@/hooks/usePipelinePersistence';
+
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { GlobalSearchProvider } from '@/components/search/GlobalSearchProvider';
 import { GlobalSearchModal } from '@/components/search/GlobalSearchModal';
@@ -19,8 +19,7 @@ export default function Layout() {
     useProposalNotifications()
     // Enable real-time notifications for assisted cards
     useAssistNotifications()
-    // Enable per-user pipeline filter persistence
-    usePipelinePersistence()
+
     // Enable push notifications (registers SW, checks subscription)
     usePushNotifications()
 

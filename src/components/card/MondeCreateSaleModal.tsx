@@ -10,7 +10,8 @@ import {
     Package,
     CheckCircle2,
     Code,
-    Eye
+    Eye,
+    AlertTriangle
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -443,7 +444,7 @@ export default function MondeCreateSaleModal({
         // NOTE: airline_tickets intentionally excluded — silently ignored by Monde API
 
         return payload
-    }, [selectableItems, selectedItems, saleDate, cardId, cardData, mondeCnpj])
+    }, [selectableItems, selectedItems, saleDate, cardData, mondeCnpj])
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -502,6 +503,18 @@ export default function MondeCreateSaleModal({
                         </div>
                     ) : step === 'select' ? (
                         <div className="space-y-4">
+                            {/* CPF warning */}
+                            {cardData && !(cardData.contato as { cpf?: string } | null)?.cpf && (
+                                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="text-sm font-medium text-amber-800">Contato sem CPF</p>
+                                        <p className="text-xs text-amber-600 mt-0.5">
+                                            Recomendamos preencher o CPF do contato antes de enviar ao Monde para evitar duplicação de cadastro.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             {/* Select all button */}
                             {pendingItems.length > 0 && (
                                 <div className="flex items-center justify-between">

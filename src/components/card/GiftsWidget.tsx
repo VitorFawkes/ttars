@@ -232,7 +232,9 @@ const SHIP_PRESETS = [
 
 function computeShipDate(dataEmbarque: string | null, daysOffset: number): string {
     if (!dataEmbarque) return ''
-    const d = new Date(dataEmbarque + 'T12:00:00')
+    const dateOnly = dataEmbarque.slice(0, 10)
+    const d = new Date(dateOnly + 'T12:00:00')
+    if (isNaN(d.getTime())) return ''
     d.setDate(d.getDate() + daysOffset)
     return d.toISOString().split('T')[0]
 }
