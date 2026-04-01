@@ -128,6 +128,23 @@ Checkbox aparece marcado para viagens que serao puladas de qualquer forma — co
 `previous_state` inserida em `pos_venda_import_log_items` (L1049, L1068) mas coluna esta apenas como `-- previous_state jsonb NULL` no baseline, nunca criada via migration ativa.
 INSERT com `as any` silencia o erro — dado perdido invisivelmente. REGRA: Verificar schema real (nao comentarios) antes de inserir campos.
 
+### 70. .not('col', 'is', null) em coluna NOT NULL e no-op silencioso — ALTO
+`useStageRequirements.ts` L134: `.not('requirement_type', 'is', null)` nao exclui nada porque coluna tem `NOT NULL DEFAULT 'field'`.
+Intento era separar visibility configs (type='field') de action requirements (type='proposal'/'task'). Filtro correto seria `.neq('requirement_type', 'field')` ou `.in('requirement_type', ['proposal','task','rule','document'])`.
+
+### 71. <a href> para rota interna viola regra de navegacao — MEDIO
+`StudioUnified.tsx` L409 e L561: `<a href="/settings/customization/sections">` causa full page reload.
+REGRA: Rotas internas DEVEM usar `<Link to>` (react-router-dom) ou `navigate()`. Ver Padroes Confirmados.
+
+### 72. allSame em useFieldConfig nao compara is_secondary — BAIXO
+`useFieldConfig.ts` L129-133: `allSame` compara `is_visible`, `is_required`, `show_in_header` mas omite `is_secondary`.
+Dois siblings com is_secondary diferente ainda ativam o fallback — o valor de is_secondary do primeiro sibling e herdado arbitrariamente.
+
+### 69. queryKey com array nao ordenado nao compartilha cache entre componentes — ALTO
+`PessoasWidget` e `TravelHistorySection` usam `['travel-history', contactIds]` com arrays construidos independentemente.
+Se a ordem dos IDs diferir entre renders, React Query trata como chaves diferentes — cache nao e reaproveitado e fetch duplo ocorre.
+REGRA: Arrays usados em queryKey que devem ser compartilhados entre componentes precisam ser ordenados (`[...ids].sort()`) antes de entrar na chave.
+
 ---
 
 ## Padroes do Projeto Confirmados

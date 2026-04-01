@@ -112,17 +112,28 @@ export function useFieldConfig() {
         // 1. Exact stage config
         let stageConfig = stageConfigs?.find(c => c.stage_id === stageId && c.field_key === fieldKey)
 
-        // 2. Phase-aware fallback: if no config for this stage, check sibling stages in the same phase
+        // 2. Phase-aware fallback: if no config for this stage, check sibling stages in the same phase.
+        // Only inherit if ALL siblings agree (i.e., it's a uniform phase-level config).
+        // If siblings diverge, skip fallback to avoid arbitrary results.
         if (!stageConfig && stageConfigs) {
             const phaseId = stageToPhase.get(stageId)
             if (phaseId) {
                 const siblingIds = phaseToStages.get(phaseId) || []
-                for (const sibId of siblingIds) {
-                    if (sibId === stageId) continue
-                    const sibConfig = stageConfigs.find(c => c.stage_id === sibId && c.field_key === fieldKey)
-                    if (sibConfig) {
-                        stageConfig = sibConfig
-                        break
+                const sibConfigs = siblingIds
+                    .filter(id => id !== stageId)
+                    .map(id => stageConfigs.find(c => c.stage_id === id && c.field_key === fieldKey))
+                    .filter((c): c is StageFieldConfig => !!c)
+
+                if (sibConfigs.length > 0) {
+                    const first = sibConfigs[0]
+                    const allSame = sibConfigs.every(c =>
+                        c.is_visible === first.is_visible &&
+                        c.is_required === first.is_required &&
+                        c.show_in_header === first.show_in_header &&
+                        (c as StageFieldConfig & { is_secondary?: boolean }).is_secondary === (first as StageFieldConfig & { is_secondary?: boolean }).is_secondary
+                    )
+                    if (allSame) {
+                        stageConfig = first
                     }
                 }
             }

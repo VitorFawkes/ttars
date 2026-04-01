@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useToast } from '../../../contexts/ToastContext'
-import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown, LayoutTemplate } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 interface PhaseFieldConfigPanelProps {
@@ -62,13 +62,14 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                     is_visible: cfg?.is_visible ?? null,
                     is_required: cfg?.is_required ?? null,
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                    is_secondary: (cfg as any)?.is_secondary ?? null
+                    is_secondary: (cfg as any)?.is_secondary ?? null,
+                    show_in_header: cfg?.show_in_header ?? null
                 }
             })
             // Check if all configs are the same
             const first = configs[0]
             const allSame = configs.every(c =>
-                c.is_visible === first.is_visible && c.is_required === first.is_required && c.is_secondary === first.is_secondary
+                c.is_visible === first.is_visible && c.is_required === first.is_required && c.is_secondary === first.is_secondary && c.show_in_header === first.show_in_header
             )
             if (!allSame) divergent.add(field.key)
         }
@@ -77,23 +78,23 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 
     // Get field config from the representative stage
     const getFieldState = useCallback((fieldKey: string) => {
-        if (!stageConfigs || !representativeStageId) return { isVisible: true, isRequired: false, hasOverride: false }
+        if (!stageConfigs || !representativeStageId) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false, hasOverride: false }
         const cfg = stageConfigs.find(c => c.stage_id === representativeStageId && c.field_key === fieldKey)
-        if (!cfg) return { isVisible: true, isRequired: false, isSecondary: false, hasOverride: false }
+        if (!cfg) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false, hasOverride: false }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, isSecondary: (cfg as any)?.is_secondary ?? false, hasOverride: true }
+        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, isSecondary: (cfg as any)?.is_secondary ?? false, showInHeader: cfg.show_in_header ?? false, hasOverride: true }
     }, [stageConfigs, representativeStageId])
 
     // Batch upsert mutation — applies to ALL stages of the phase
     const batchUpsertMutation = useMutation({
-        mutationFn: async ({ fieldKey, isVisible, isRequired, isSecondary }: { fieldKey: string; isVisible: boolean; isRequired: boolean; isSecondary: boolean }) => {
+        mutationFn: async ({ fieldKey, isVisible, isRequired, isSecondary, showInHeader }: { fieldKey: string; isVisible: boolean; isRequired: boolean; isSecondary: boolean; showInHeader: boolean }) => {
             const rows = phaseStages.map(s => ({
                 stage_id: s.id,
                 field_key: fieldKey,
                 is_visible: isVisible,
                 is_required: isRequired,
                 is_secondary: isSecondary,
-                show_in_header: false
+                show_in_header: showInHeader
             }))
 
             // Upsert all stage configs in parallel
@@ -135,7 +136,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         is_required: repCfg?.is_required ?? false,
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
                         is_secondary: (repCfg as any)?.is_secondary ?? false,
-                        show_in_header: false
+                        show_in_header: repCfg?.show_in_header ?? false
                     })
                 }
             }
@@ -185,8 +186,8 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             fieldKey,
             isVisible: newVisible,
             isRequired: state.isRequired,
-            // If hiding, also turn off secondary
-            isSecondary: newVisible ? state.isSecondary : false
+            isSecondary: newVisible ? state.isSecondary : false,
+            showInHeader: newVisible ? state.showInHeader : false
         })
     }, [getFieldState, batchUpsertMutation])
 
@@ -196,7 +197,8 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             fieldKey,
             isVisible: state.isVisible,
             isRequired: !state.isRequired,
-            isSecondary: state.isSecondary
+            isSecondary: state.isSecondary,
+            showInHeader: state.showInHeader
         })
     }, [getFieldState, batchUpsertMutation])
 
@@ -206,22 +208,23 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             fieldKey,
             isVisible: state.isVisible,
             isRequired: state.isRequired,
-            isSecondary: !state.isSecondary
+            isSecondary: !state.isSecondary,
+            showInHeader: state.showInHeader
+        })
+    }, [getFieldState, batchUpsertMutation])
+
+    const handleToggleHeader = useCallback((fieldKey: string) => {
+        const state = getFieldState(fieldKey)
+        batchUpsertMutation.mutate({
+            fieldKey,
+            isVisible: state.isVisible,
+            isRequired: state.isRequired,
+            isSecondary: state.isSecondary,
+            showInHeader: !state.showInHeader
         })
     }, [getFieldState, batchUpsertMutation])
 
     const hasDivergence = divergentFields.size > 0
-
-    // Auto-normalize: when divergence is detected, fix it automatically
-    // so that the phase config set in Seções is always the source of truth
-    const hasAutoNormalized = useRef(new Set<string>())
-    useEffect(() => {
-        if (!currentPhase || !hasDivergence || normalizeMutation.isPending) return
-        // Only auto-normalize once per phase per session
-        if (hasAutoNormalized.current.has(currentPhase.id)) return
-        hasAutoNormalized.current.add(currentPhase.id)
-        normalizeMutation.mutate()
-    }, [currentPhase, hasDivergence, normalizeMutation])
 
     if (visiblePhases.length === 0 || sectionFields.length === 0) return null
 
@@ -298,7 +301,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         </button>
                     )}
 
-                    {/* Divergence warning — auto-normalizes, shown briefly during fix */}
+                    {/* Divergence warning — manual normalize only */}
                     {hasDivergence && (
                         <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
@@ -308,14 +311,13 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                                     : `${divergentFields.size} campo(s) com config diferente entre etapas`
                                 }
                             </span>
-                            {!normalizeMutation.isPending && (
-                                <button
-                                    onClick={() => normalizeMutation.mutate()}
-                                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
-                                >
-                                    Normalizar
-                                </button>
-                            )}
+                            <button
+                                onClick={() => normalizeMutation.mutate()}
+                                disabled={normalizeMutation.isPending}
+                                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
+                            >
+                                Normalizar
+                            </button>
                         </div>
                     )}
 
@@ -360,19 +362,34 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                                         {state.isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
                                     </button>
                                     {state.isVisible && (
-                                        <button
-                                            onClick={() => handleToggleSecondary(field.key)}
-                                            disabled={batchUpsertMutation.isPending}
-                                            className={cn(
-                                                "p-1 rounded transition-colors",
-                                                state.isSecondary
-                                                    ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-                                                    : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
-                                            )}
-                                            title={state.isSecondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
-                                        >
-                                            <ChevronsDown className="w-3.5 h-3.5" />
-                                        </button>
+                                        <>
+                                            <button
+                                                onClick={() => handleToggleSecondary(field.key)}
+                                                disabled={batchUpsertMutation.isPending}
+                                                className={cn(
+                                                    "p-1 rounded transition-colors",
+                                                    state.isSecondary
+                                                        ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                                )}
+                                                title={state.isSecondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
+                                            >
+                                                <ChevronsDown className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleToggleHeader(field.key)}
+                                                disabled={batchUpsertMutation.isPending}
+                                                className={cn(
+                                                    "p-1 rounded transition-colors",
+                                                    state.showInHeader
+                                                        ? "text-purple-500 hover:text-purple-600 hover:bg-purple-50"
+                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                                                )}
+                                                title={state.showInHeader ? 'No cabeçalho (clique para remover)' : 'Fora do cabeçalho (clique para adicionar)'}
+                                            >
+                                                <LayoutTemplate className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
                                     )}
                                     <span className={cn(
                                         "text-xs truncate flex-1",

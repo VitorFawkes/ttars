@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { Loader2, Plus, Trash2, Eye, EyeOff, CheckSquare, Square, LayoutTemplate, Shield, Edit2, Layers, Grid, ChevronUp, ChevronDown } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import { useProductContext } from '../../../hooks/useProductContext'
 import FieldInspectorDrawer from './FieldInspectorDrawer'
@@ -107,17 +108,15 @@ export default function StudioUnified() {
         }
     })
 
-    // --- Optimistic State ---
-    const [localConfigs, setLocalConfigs] = useState<Record<string, StageFieldConfig>>({})
-
-    useEffect(() => {
+    // --- Config map for read-only display ---
+    const localConfigs = useMemo(() => {
+        const map: Record<string, StageFieldConfig> = {}
         if (configs) {
-            const map: Record<string, StageFieldConfig> = {}
             configs.forEach(c => {
                 map[`${c.stage_id}-${c.field_key}`] = c
             })
-            setLocalConfigs(map)
         }
+        return map
     }, [configs])
 
     // --- Mutations ---
@@ -189,19 +188,8 @@ export default function StudioUnified() {
         }
     })
 
-    const upsertConfigMutation = useMutation({
-        mutationFn: async (newConfigs: Partial<StageFieldConfig>[]) => {
-            const { error } = await supabase
-                .from('stage_field_config')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .upsert(newConfigs as any, { onConflict: 'stage_id, field_key' })
-            if (error) throw error
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['stage-field-configs-unified'] })
-            queryClient.invalidateQueries({ queryKey: ['stage-field-configs-all'] }) // Sync with useFieldConfig
-        }
-    })
+    // stage_field_config is now read-only in this page.
+    // Visibility/required/header configs are managed in Seções → Campos por fase.
 
     const updatePhaseMutation = useMutation({
         mutationFn: async (phase: { id: string, color: string }) => {
@@ -299,69 +287,7 @@ export default function StudioUnified() {
         }
     }
 
-    const handleConfigToggle = (stageId: string, fieldKey: string, type: 'visible' | 'required' | 'header') => {
-        const current = getConfig(stageId, fieldKey)
-        const nextValue = {
-            stage_id: stageId,
-            field_key: fieldKey,
-            is_visible: current?.is_visible ?? true,
-            is_required: current?.is_required ?? false,
-            show_in_header: current?.show_in_header ?? false
-        }
-
-        if (type === 'visible') nextValue.is_visible = !nextValue.is_visible
-        if (type === 'required') nextValue.is_required = !nextValue.is_required
-        if (type === 'header') nextValue.show_in_header = !nextValue.show_in_header
-
-        setLocalConfigs(prev => ({ ...prev, [`${stageId}-${fieldKey}`]: nextValue as StageFieldConfig }))
-        upsertConfigMutation.mutate([nextValue])
-    }
-
-    const handleMacroToggle = (macroStageId: string, fieldKey: string, type: 'visible' | 'required' | 'header') => {
-        // Filter stages by phase_id (new) or fase name (legacy)
-        const phase = phases.find(p => p.id === macroStageId)
-        const targetStages = stages?.filter(s =>
-            s.phase_id === macroStageId ||
-            (!s.phase_id && phase && s.fase === phase.name)
-        ) || []
-
-        if (targetStages.length === 0) return
-
-        // Calculate current state (if ALL are true, toggle to false. Otherwise toggle to true)
-        const allTrue = targetStages.every(s => {
-            const c = getConfig(s.id, fieldKey)
-            if (type === 'visible') return c?.is_visible !== false // default true
-            if (type === 'required') return c?.is_required === true
-            if (type === 'header') return c?.show_in_header === true
-            return false
-        })
-
-        const newValue = !allTrue
-        const updates: Partial<StageFieldConfig>[] = []
-
-        targetStages.forEach(s => {
-            const current = getConfig(s.id, fieldKey)
-            const next = {
-                stage_id: s.id,
-                field_key: fieldKey,
-                is_visible: current?.is_visible ?? true,
-                is_required: current?.is_required ?? false,
-                show_in_header: current?.show_in_header ?? false
-            }
-
-            if (type === 'visible') next.is_visible = newValue
-            if (type === 'required') next.is_required = newValue
-            if (type === 'header') next.show_in_header = newValue
-
-            updates.push(next)
-
-            // Optimistic update
-            setLocalConfigs(prev => ({ ...prev, [`${s.id}-${fieldKey}`]: next as StageFieldConfig }))
-        })
-
-        upsertConfigMutation.mutate(updates)
-    }
-
+    // Read-only helpers for displaying current config state (no writes)
     const getMacroState = (macroStageId: string, fieldKey: string, type: 'visible' | 'required' | 'header') => {
         const phase = phases.find(p => p.id === macroStageId)
         const targetStages = stages?.filter(s =>
@@ -438,8 +364,8 @@ export default function StudioUnified() {
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-foreground">Matriz de Governança</h2>
-                    <p className="text-muted-foreground mt-1">Configure a visibilidade e regras de campos por etapa.</p>
+                    <h2 className="text-2xl font-bold text-foreground">Regras de Dados</h2>
+                    <p className="text-muted-foreground mt-1">Gerencie campos do sistema e visualize suas regras de visibilidade.</p>
                 </div>
                 <div className="flex items-center gap-4">
                     {/* View Toggle */}
@@ -474,6 +400,18 @@ export default function StudioUnified() {
                         Novo Campo
                     </button>
                 </div>
+            </div>
+
+            {/* Read-only notice */}
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-50 border border-indigo-200 mb-4">
+                <Shield className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                <span className="text-xs text-indigo-700">
+                    A visibilidade e obrigatoriedade de campos é configurada em{' '}
+                    <Link to="/settings/customization/sections" className="font-semibold underline hover:text-indigo-900">
+                        Seções → Campos por fase
+                    </Link>
+                    . Aqui você visualiza o estado atual e gerencia os campos do sistema.
+                </span>
             </div>
 
             {/* INSPECTOR DRAWER */}
@@ -621,9 +559,9 @@ export default function StudioUnified() {
                                             <td colSpan={(viewMode === 'macro' ? phases.length : (stages?.length || 0)) + 1} className="px-4 py-3 text-center">
                                                 <span className="text-sm text-muted-foreground italic">
                                                     Nenhum campo nesta seção. Adicione campos em{' '}
-                                                    <a href="/settings/customization/fields" className="text-primary hover:underline">
+                                                    <Link to="/settings/customization/data-rules" className="text-primary hover:underline">
                                                         Cadastro de Campos
-                                                    </a>
+                                                    </Link>
                                                 </span>
                                             </td>
                                         </tr>
@@ -699,7 +637,7 @@ export default function StudioUnified() {
                                                 </div>
                                             </td>
 
-                                            {/* Config Cells */}
+                                            {/* Config Cells — read-only indicators (edit in Seções → Campos por fase) */}
                                             {viewMode === 'macro' ? (
                                                 phases.map(macro => {
                                                     const visibleState = getMacroState(macro.id, field.key, 'visible')
@@ -709,47 +647,44 @@ export default function StudioUnified() {
                                                     return (
                                                         <td key={macro.id} className="px-2 py-3 text-center border-r border-border last:border-r-0">
                                                             <div className="flex items-center justify-center gap-1">
-                                                                <button
-                                                                    onClick={() => handleMacroToggle(macro.id, field.key, 'visible')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         visibleState === 'all' ? "bg-blue-500/20 text-blue-600 ring-1 ring-blue-500/30" :
                                                                             visibleState === 'some' ? "bg-blue-500/10 text-blue-600/70 ring-1 ring-blue-500/20" :
-                                                                                "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                                "text-muted-foreground/40"
                                                                     )}
                                                                     title="Visível"
                                                                 >
                                                                     {visibleState === 'some' ? <div className="w-3.5 h-3.5 flex items-center justify-center font-bold text-xs">-</div> :
                                                                         visibleState === 'all' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                                                                </button>
+                                                                </span>
 
-                                                                <button
-                                                                    onClick={() => handleMacroToggle(macro.id, field.key, 'required')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         requiredState === 'all' ? "bg-red-500/20 text-red-600 ring-1 ring-red-500/30" :
                                                                             requiredState === 'some' ? "bg-red-500/10 text-red-600/70 ring-1 ring-red-500/20" :
-                                                                                "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                                "text-muted-foreground/40"
                                                                     )}
                                                                     title="Obrigatório"
                                                                 >
                                                                     {requiredState === 'some' ? <div className="w-3.5 h-3.5 flex items-center justify-center font-bold text-xs">-</div> :
                                                                         requiredState === 'all' ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                                                                </button>
+                                                                </span>
 
-                                                                <button
-                                                                    onClick={() => handleMacroToggle(macro.id, field.key, 'header')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         headerState === 'all' ? "bg-purple-500/20 text-purple-600 ring-1 ring-purple-500/30" :
                                                                             headerState === 'some' ? "bg-purple-500/10 text-purple-600/70 ring-1 ring-purple-500/20" :
-                                                                                "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                                "text-muted-foreground/40"
                                                                     )}
                                                                     title="No Cabeçalho"
                                                                 >
                                                                     {headerState === 'some' ? <div className="w-3.5 h-3.5 flex items-center justify-center font-bold text-xs">-</div> :
                                                                         <LayoutTemplate className="w-3.5 h-3.5" />}
-                                                                </button>
+                                                                </span>
                                                             </div>
                                                         </td>
                                                     )
@@ -764,44 +699,41 @@ export default function StudioUnified() {
                                                     return (
                                                         <td key={stage.id} className="px-2 py-3 text-center border-r border-border last:border-r-0">
                                                             <div className="flex items-center justify-center gap-1">
-                                                                <button
-                                                                    onClick={() => handleConfigToggle(stage.id, field.key, 'visible')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         isVisible
-                                                                            ? "bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 ring-1 ring-blue-500/30"
-                                                                            : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                            ? "bg-blue-500/20 text-blue-600 ring-1 ring-blue-500/30"
+                                                                            : "text-muted-foreground/40"
                                                                     )}
                                                                     title={isVisible ? "Visível" : "Oculto"}
                                                                 >
                                                                     {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                                                                </button>
+                                                                </span>
 
-                                                                <button
-                                                                    onClick={() => handleConfigToggle(stage.id, field.key, 'required')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         isRequired
-                                                                            ? "bg-red-500/20 text-red-600 hover:bg-red-500/30 ring-1 ring-red-500/30"
-                                                                            : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                            ? "bg-red-500/20 text-red-600 ring-1 ring-red-500/30"
+                                                                            : "text-muted-foreground/40"
                                                                     )}
                                                                     title={isRequired ? "Obrigatório" : "Opcional"}
                                                                 >
                                                                     {isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                                                                </button>
+                                                                </span>
 
-                                                                <button
-                                                                    onClick={() => handleConfigToggle(stage.id, field.key, 'header')}
+                                                                <span
                                                                     className={cn(
-                                                                        "p-1.5 rounded-md transition-all",
+                                                                        "p-1.5 rounded-md",
                                                                         isHeader
-                                                                            ? "bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 ring-1 ring-purple-500/30"
-                                                                            : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                            ? "bg-purple-500/20 text-purple-600 ring-1 ring-purple-500/30"
+                                                                            : "text-muted-foreground/40"
                                                                     )}
                                                                     title={isHeader ? "No Cabeçalho" : "Fora do Cabeçalho"}
                                                                 >
                                                                     <LayoutTemplate className="w-3.5 h-3.5" />
-                                                                </button>
+                                                                </span>
                                                             </div>
                                                         </td>
                                                     )
