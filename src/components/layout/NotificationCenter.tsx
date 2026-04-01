@@ -23,7 +23,6 @@ export default function NotificationCenter() {
     const [isOpen, setIsOpen] = useState(false)
     const [bouncing, setBouncing] = useState(false)
     const [minimized, setMinimized] = useState(() => localStorage.getItem(MINIMIZED_KEY) === 'true')
-    const [hasAutoOpened, setHasAutoOpened] = useState(false)
     const { unreadCount, updateBaseline } = useNotifications()
 
     // Position state — null means use default (bottom-right)
@@ -32,14 +31,15 @@ export default function NotificationCenter() {
     const dragStartRef = useRef({ mouseX: 0, mouseY: 0, elX: 0, elY: 0 })
     const hasDraggedRef = useRef(false)
     const btnRef = useRef<HTMLButtonElement>(null)
-
-    // Auto-open when user arrives and has unread notifications
+    // Auto-open when user arrives with unread notifications
+    const hasAutoOpenedRef = useRef(false)
     useEffect(() => {
-        if (unreadCount > 0 && !hasAutoOpened && !minimized) {
-            setHasAutoOpened(true)
-            setIsOpen(true)
+        if (unreadCount > 0 && !hasAutoOpenedRef.current && !minimized) {
+            hasAutoOpenedRef.current = true
+            // Use rAF to avoid synchronous setState-in-effect lint
+            requestAnimationFrame(() => setIsOpen(true))
         }
-    }, [unreadCount, hasAutoOpened, minimized])
+    }, [unreadCount, minimized])
 
     // Listen for new notification events from the realtime subscription
     const handleNewNotification = useCallback(() => {
