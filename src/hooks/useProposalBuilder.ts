@@ -199,6 +199,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             section_type: type,
             title: title || config.defaultTitle,
             ordem: sections.length,
+            org_id: '',
             config: {},
             visible: true,
             created_at: new Date().toISOString(),
@@ -224,6 +225,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             section_type: type,
             title: title || config.defaultTitle,
             ordem: index,
+            org_id: '',
             config: {},
             visible: true,
             created_at: new Date().toISOString(),
@@ -299,6 +301,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             base_price: 0,
             supplier_cost: 0,
             ordem: 0,
+            org_id: '',
             is_optional: false,
             is_default_selected: true,
             created_at: new Date().toISOString(),
@@ -382,10 +385,12 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             title: libraryItem.name,
             description: null,
             image_url: imageUrl,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             rich_content: content as any,
             base_price: libraryItem.base_price || 0,
             supplier_cost: 0,
             ordem: 0,
+            org_id: '',
             is_optional: false,
             is_default_selected: true,
             created_at: new Date().toISOString(),
@@ -676,6 +681,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
                 .eq('id', proposal.id)
 
             set({
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 version: newVersion as any,
                 isDirty: false,
                 isSaving: false,
@@ -709,6 +715,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
 
         set({ proposal: { ...proposal, status: 'sent' } })
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (data as any).public_token!
     },
 }))
