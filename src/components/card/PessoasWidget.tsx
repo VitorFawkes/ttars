@@ -56,7 +56,6 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     // Travel history count (shared cache with TravelHistorySection)
     const contactIds = (people || []).map(p => p.id).filter(Boolean).sort()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC overload not in generated types
     const { data: rawHistory } = useQuery({
         queryKey: ['travel-history', contactIds],
         queryFn: async () => {
