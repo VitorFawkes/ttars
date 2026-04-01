@@ -131,7 +131,7 @@ export function useStageRequirements(card: Card) {
                     )
                 `)
                 .eq('is_required', true)
-                .in('requirement_type', ['proposal', 'task', 'rule', 'document'])
+                .not('requirement_type', 'is', null)
                 .eq('pipeline_stages.pipeline_id', pipelineId)
 
             if (error) throw error
