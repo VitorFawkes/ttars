@@ -102,7 +102,15 @@ export function useAIExtractionReview(cardId: string) {
         throw new Error(`Erro ${response.status}: ${errText}`)
       }
 
-      const data = await response.json()
+      // Handle empty response (n8n returns 200 with no body for some edge cases)
+      const responseText = await response.text()
+      if (!responseText || responseText.trim().length === 0) {
+        setStep('done')
+        toast.info('Nenhuma informação encontrada para processar')
+        return
+      }
+
+      const data = JSON.parse(responseText)
 
       // Handle non-preview responses (wrong_trip, no_update, error)
       if (data.status === 'wrong_trip') {

@@ -50,9 +50,33 @@ function formatDisplayValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
+    // data_exata_da_viagem: { data_inicio: "2026-08-15", data_fim: "2026-08-30" }
+    // Must check before mes_inicio/mes_fim since data_exata objects may also contain those fields
+    if (obj.data_inicio && obj.data_fim) {
+      const fmtDate = (d: unknown) => {
+        if (typeof d !== 'string') return String(d)
+        const [y, m, day] = d.split('-')
+        return `${day}/${m}/${y}`
+      }
+      return `${fmtDate(obj.data_inicio)} a ${fmtDate(obj.data_fim)}`
+    }
     // epoca_viagem: { mes: 7, ano: 2026 }
     if (obj.mes && obj.ano) {
       return `${MONTH_NAMES[Number(obj.mes)] || obj.mes}/${obj.ano}`
+    }
+    // epoca_viagem range: { mes_inicio: 6, mes_fim: 8, ano: 2026 }
+    if (obj.mes_inicio && obj.mes_fim && obj.ano) {
+      return `${MONTH_NAMES[Number(obj.mes_inicio)] || obj.mes_inicio} a ${MONTH_NAMES[Number(obj.mes_fim)] || obj.mes_fim}/${obj.ano}`
+    }
+    // smart_budget: { min: 80000, max: 100000 } or { min: 50000 }
+    if (typeof obj.min === 'number') {
+      if (typeof obj.max === 'number') {
+        return `R$ ${Number(obj.min).toLocaleString('pt-BR')} a R$ ${Number(obj.max).toLocaleString('pt-BR')}`
+      }
+      return `a partir de R$ ${Number(obj.min).toLocaleString('pt-BR')}`
+    }
+    if (typeof obj.max === 'number') {
+      return `até R$ ${Number(obj.max).toLocaleString('pt-BR')}`
     }
     if (obj.display) return String(obj.display)
     if (obj.tipo) return String(obj.display || obj.valor || obj.tipo)
