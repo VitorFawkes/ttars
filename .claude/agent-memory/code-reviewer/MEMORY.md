@@ -99,6 +99,18 @@ REGRA: Callbacks que recebem dados de `ContactSelector` devem tipar `SelectedCon
 Se a mutacao falhar, overlay fecha mas alertas permanecem nao lidos — na proxima abertura o overlay reaparece confundindo o usuario.
 REGRA: Quando fechar UI depende do sucesso da mutacao, usar `.mutateAsync` com try/catch ou mover o dismiss para `onSuccess`.
 
+### 62. Constante literal declarada dentro do componente — BAIXO
+`SCROLL_KEY = 'kanban-scroll-left'` em `KanbanBoard.tsx` L82 recriada a cada render.
+REGRA: Strings/numeros constantes sem dependencia do componente devem ser declaradas no escopo do modulo.
+
+### 63. Comentarios de rascunho de depuracao deixados no arquivo — MEDIO
+`KanbanBoard.tsx` L125-137: bloco de 13 linhas de raciocinio de escrita ("This is TRICKY", "Wait. If we return early...").
+REGRA: Comentarios que descrevem o processo de pensar o codigo (nao o codigo em si) devem ser removidos antes do merge.
+
+### 64. sessionStorage key nao inclui productFilter — BAIXO
+`KanbanBoard.tsx`: `'kanban-scroll-left'` e compartilhado entre TRIPS e WEDDING.
+Ao trocar produto, o scroll restaurado e o do outro produto. Correto: `kanban-scroll-left-${productFilter}`.
+
 ---
 
 ## Padroes do Projeto Confirmados

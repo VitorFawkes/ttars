@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
@@ -214,6 +214,17 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 
     const hasDivergence = divergentFields.size > 0
 
+    // Auto-normalize: when divergence is detected, fix it automatically
+    // so that the phase config set in Seções is always the source of truth
+    const hasAutoNormalized = useRef(new Set<string>())
+    useEffect(() => {
+        if (!currentPhase || !hasDivergence || normalizeMutation.isPending) return
+        // Only auto-normalize once per phase per session
+        if (hasAutoNormalized.current.has(currentPhase.id)) return
+        hasAutoNormalized.current.add(currentPhase.id)
+        normalizeMutation.mutate()
+    }, [currentPhase, hasDivergence, normalizeMutation])
+
     // Summary for collapsed header — count hidden fields across all phases using representative stages
     const summaryParts: string[] = []
     const hiddenAbas = visiblePhases.filter(p => (p.visible_in_card ?? true) === false).length
@@ -287,20 +298,24 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         </button>
                     )}
 
-                    {/* Divergence warning */}
+                    {/* Divergence warning — auto-normalizes, shown briefly during fix */}
                     {hasDivergence && (
                         <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                             <span className="text-[11px] text-amber-700 flex-1">
-                                {divergentFields.size} campo(s) com config diferente entre etapas
+                                {normalizeMutation.isPending
+                                    ? 'Normalizando etapas...'
+                                    : `${divergentFields.size} campo(s) com config diferente entre etapas`
+                                }
                             </span>
-                            <button
-                                onClick={() => normalizeMutation.mutate()}
-                                disabled={normalizeMutation.isPending}
-                                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
-                            >
-                                Normalizar
-                            </button>
+                            {!normalizeMutation.isPending && (
+                                <button
+                                    onClick={() => normalizeMutation.mutate()}
+                                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
+                                >
+                                    Normalizar
+                                </button>
+                            )}
                         </div>
                     )}
 

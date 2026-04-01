@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Database, Json } from '../database.types'
@@ -69,17 +69,66 @@ export function useFieldConfig() {
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    const isLoading = loadingFields || loadingConfigs || loadingSectionDefaults
+    // Fetch pipeline stages for phase-aware fallback
+    // When a stage has no field config, we fall back to sibling stages in the same phase
+    const { data: pipelineStages, isLoading: loadingStages } = useQuery({
+        queryKey: ['pipeline-stages-phase-map'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('id, phase_id')
+            return data as { id: string; phase_id: string | null }[] | null
+        },
+        staleTime: 1000 * 60 * 5
+    })
+
+    // Build phase → stages mapping for fallback lookups
+    const { stageToPhase, phaseToStages } = useMemo(() => {
+        const s2p = new Map<string, string>()
+        const p2s = new Map<string, string[]>()
+        if (!pipelineStages) return { stageToPhase: s2p, phaseToStages: p2s }
+        for (const stage of pipelineStages) {
+            if (!stage.phase_id) continue
+            s2p.set(stage.id, stage.phase_id)
+            const arr = p2s.get(stage.phase_id) || []
+            arr.push(stage.id)
+            p2s.set(stage.phase_id, arr)
+        }
+        return { stageToPhase: s2p, phaseToStages: p2s }
+    }, [pipelineStages])
+
+    const isLoading = loadingFields || loadingConfigs || loadingSectionDefaults || loadingStages
 
     // Helper: Get config for a specific field in a stage
-    // Priority: stage_field_config > section_field_config > system defaults (visible, not required)
+    // Priority: stage_field_config (exact) > stage_field_config (sibling in same phase) > section_field_config > system defaults
+    // The phase-aware fallback ensures that configs set via "Campos por fase" in Seções
+    // are respected even when individual stages don't have explicit configs.
     const getFieldConfig = useCallback((stageId: string, fieldKey: string): FieldConfigResult | null => {
         if (!systemFields) return null
 
         const field = systemFields.find(f => f.key === fieldKey)
         if (!field) return null
 
-        const stageConfig = stageConfigs?.find(c => c.stage_id === stageId && c.field_key === fieldKey)
+        // 1. Exact stage config
+        let stageConfig = stageConfigs?.find(c => c.stage_id === stageId && c.field_key === fieldKey)
+
+        // 2. Phase-aware fallback: if no config for this stage, check sibling stages in the same phase
+        if (!stageConfig && stageConfigs) {
+            const phaseId = stageToPhase.get(stageId)
+            if (phaseId) {
+                const siblingIds = phaseToStages.get(phaseId) || []
+                for (const sibId of siblingIds) {
+                    if (sibId === stageId) continue
+                    const sibConfig = stageConfigs.find(c => c.stage_id === sibId && c.field_key === fieldKey)
+                    if (sibConfig) {
+                        stageConfig = sibConfig
+                        break
+                    }
+                }
+            }
+        }
+
+        // 3. Section-level defaults
         const sectionDefault = sectionFieldConfigs?.find(
             c => c.section_key === (field.section || 'details') && c.field_key === fieldKey
         )
@@ -96,7 +145,7 @@ export function useFieldConfig() {
             customLabel: stageConfig?.custom_label,
             options: field.options
         }
-    }, [systemFields, stageConfigs, sectionFieldConfigs])
+    }, [systemFields, stageConfigs, sectionFieldConfigs, stageToPhase, phaseToStages])
 
     // Helper: Get all visible fields for a stage, optionally filtered by section
     const getVisibleFields = useCallback((stageId: string, section?: string): FieldConfigResult[] => {
