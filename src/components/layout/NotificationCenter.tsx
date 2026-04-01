@@ -159,7 +159,7 @@ export default function NotificationCenter() {
                         unreadCount > 0
                             ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-xl hover:scale-105'
                             : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:shadow-xl hover:scale-105',
-                        'cursor-grab active:cursor-grabbing'
+                        'cursor-pointer'
                     )}
                     onClick={handleClick}
                     onPointerDown={handlePointerDown}

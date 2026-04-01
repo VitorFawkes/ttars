@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-03-31
+> **Last Updated:** 2026-04-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 130 tabelas | 41 paginas | 93 hooks | 17 views | 435 components
+> **Stats:** 130 tabelas | 41 paginas | 96 hooks | 17 views | 437 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **93 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **96 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -214,9 +214,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
 | `useApiKeys()` | `useApiKeys.ts` |
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
+| `useAutoCalcTripDate()` | `useAutoCalcTripDate.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
@@ -236,6 +238,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useNotifications()` | `useNotifications.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
 | `useProducts()` | `useProducts.ts` |
