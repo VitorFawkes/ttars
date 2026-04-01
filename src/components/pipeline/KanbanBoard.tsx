@@ -38,6 +38,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useStageSort } from '../../hooks/usePhaseSort'
 import { sortCards } from '../../lib/sortCards'
 
+const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
+
 type Product = Database['public']['Enums']['app_product']
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Stage = Database['public']['Tables']['pipeline_stages']['Row']
@@ -78,6 +80,29 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         scrollRight: scrollRightFn,
     } = useHorizontalScroll(scrollContainerRef)
 
+    // Persist horizontal scroll position across navigations (card detail → back)
+    const scrollKey = `${SCROLL_KEY_PREFIX}-${productFilter}`
+    const scrollRestoredRef = useRef(false)
+
+    useEffect(() => {
+        const container = scrollContainerRef.current
+        if (!container) return
+
+        let timeout: ReturnType<typeof setTimeout>
+        const handleScroll = () => {
+            clearTimeout(timeout)
+            timeout = setTimeout(() => {
+                sessionStorage.setItem(scrollKey, String(container.scrollLeft))
+            }, 100)
+        }
+
+        container.addEventListener('scroll', handleScroll)
+        return () => {
+            clearTimeout(timeout)
+            container.removeEventListener('scroll', handleScroll)
+        }
+    }, [scrollKey])
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -97,21 +122,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         })
     )
 
-
-
-    // Actually, just [] is fine as ref persists, but we need to make sure container exists.
-    // The previous logic had a check `if (!container) return`. If container mounts LATER (after loading), this effect won't run again with [].
-    // We should probably rely on a callback ref or just ensure it runs when loading finishes.
-    // However, for now, let's just move it up. The early return `if (!stages)` prevents the component from rendering the DIV with the ref. 
-    // Wait. If we return early, the DIV with `ref={scrollContainerRef}` is NOT rendered.
-    // So `scrollContainerRef.current` will be null.
-    // If we run this effect at the top, `scrollContainerRef.current` will be null on first run if loading.
-    // And since it has [] deps, it WON'T run again when loading finishes and the div renders.
-    // This is TRICKY. 
-    // We need to trigger this effect when the ref becomes available OR when loading finishes.
-    // Let's add `cards` or `stages` to dependency array so it retries attaching listeners when data loads.
-
-    // Revised replacement content with dependencies:
 
     const { data: stages } = useQuery({
         queryKey: ['stages', productFilter],
@@ -159,6 +169,21 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     })
 
     const allCards = useMemo(() => cards || [], [cards])
+
+    // Restore scroll position once after stages + cards are loaded
+    useEffect(() => {
+        if (scrollRestoredRef.current || !stages?.length || !cards) return
+        const container = scrollContainerRef.current
+        if (!container) return
+
+        const saved = sessionStorage.getItem(scrollKey)
+        if (saved) {
+            requestAnimationFrame(() => {
+                container.scrollLeft = Number(saved)
+            })
+        }
+        scrollRestoredRef.current = true
+    }, [stages, cards, scrollKey])
 
     // Helper: apply optimistic cache update and return rollback function
     const applyOptimisticMove = (cardId: string, stageId: string): (() => void) => {
