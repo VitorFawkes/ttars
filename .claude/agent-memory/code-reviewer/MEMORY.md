@@ -111,6 +111,23 @@ REGRA: Comentarios que descrevem o processo de pensar o codigo (nao o codigo em 
 `KanbanBoard.tsx`: `'kanban-scroll-left'` e compartilhado entre TRIPS e WEDDING.
 Ao trocar produto, o scroll restaurado e o do outro produto. Correto: `kanban-scroll-left-${productFilter}`.
 
+### 65. formatDisplayValue: ordem de branches captura data_exata como range_meses — ALTO
+`AIExtractionReviewModal.tsx` L54-72: `EpocaViagem` do tipo `data_exata` tem `mes_inicio + mes_fim + data_inicio`.
+Branch `mes_inicio/mes_fim` (L57) dispara antes da branch `data_inicio/data_fim` (L65) — exibe "Agosto a Agosto/2026" em vez de "15/08/2026 a 30/08/2026".
+REGRA: Em `formatDisplayValue` com shape `EpocaViagem`, checar `data_inicio` antes de `mes_inicio`.
+
+### 66. Set.size comparado com subset filtrado causa toggle invertido — ALTO
+`toggleAllTrips` (ImportacaoPosVendaPage.tsx L1108): `prev.size >= actionableTrips.length` falha quando Set inclui IDs de trips com action=skip (inicializados junto). Desmarcar-tudo dispara na primeira interacao.
+REGRA: Ao comparar tamanho de Set com um subconjunto, filtrar o Set antes de comparar: `[...prev].filter(id => actionableIds.has(id)).length`.
+
+### 67. selectedTrips inicializado com trips nao-acionaveis — MEDIO
+`ImportacaoPosVendaPage.tsx` L904: `new Set(fullTrips.map(t => t.id))` inclui trips com action=skip.
+Checkbox aparece marcado para viagens que serao puladas de qualquer forma — confusao visual. Inicializar apenas com `fullTrips.filter(t => t.action !== 'skip')`.
+
+### 68. Coluna inserida que existe apenas como comentario no schema — ALTO
+`previous_state` inserida em `pos_venda_import_log_items` (L1049, L1068) mas coluna esta apenas como `-- previous_state jsonb NULL` no baseline, nunca criada via migration ativa.
+INSERT com `as any` silencia o erro — dado perdido invisivelmente. REGRA: Verificar schema real (nao comentarios) antes de inserir campos.
+
 ---
 
 ## Padroes do Projeto Confirmados

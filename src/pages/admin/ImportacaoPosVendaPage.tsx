@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, Clock, ChevronDown, ChevronRight, XCircle,
-    Package, Users, Plus, RefreshCw, Undo2,
+    Package, Users, Plus, RefreshCw, Undo2, SquareCheck, Square, MinusSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -400,7 +400,7 @@ interface ImportLogItemRow {
 
 // ─── Expandable Trip Card ───────────────────────────────────
 
-function TripCard({ trip }: { trip: TripGroup }) {
+function TripCard({ trip, selected, onToggle }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void }) {
     const [expanded, setExpanded] = useState(false)
     const Chevron = expanded ? ChevronDown : ChevronRight
 
@@ -411,10 +411,24 @@ function TripCard({ trip }: { trip: TripGroup }) {
     }[trip.action]
 
     return (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className={cn("border rounded-lg overflow-hidden transition-colors", selected ? "border-slate-200" : "border-slate-100 opacity-50")}>
+            <div className="flex items-center">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onToggle(trip.id) }}
+                    className="pl-4 pr-1 py-3 shrink-0 hover:bg-slate-50/50 transition-colors"
+                    title={selected ? 'Desmarcar viagem' : 'Marcar viagem'}
+                >
+                    <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => onToggle(trip.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                </button>
             <button
                 onClick={() => setExpanded(!expanded)}
-                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors text-left"
+                className="flex-1 px-2 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors text-left"
             >
                 <Chevron className="h-4 w-4 text-slate-400 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -450,6 +464,7 @@ function TripCard({ trip }: { trip: TripGroup }) {
                     </div>
                 </div>
             </button>
+            </div>
 
             {expanded && (
                 <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 space-y-3">
@@ -688,8 +703,9 @@ export default function ImportacaoPosVendaPage() {
     const [step, setStep] = useState<Step>('idle')
     const [fileName, setFileName] = useState('')
     const [trips, setTrips] = useState<TripGroup[]>([])
+    const [selectedTrips, setSelectedTrips] = useState<Set<string>>(new Set())
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
-    const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; errors: number } | null>(null)
+    const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number } | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
     // Auth check: admin or pos_venda phase
@@ -885,6 +901,7 @@ export default function ImportacaoPosVendaPage() {
         }
 
         setTrips(fullTrips)
+        setSelectedTrips(new Set(fullTrips.map(t => t.id)))
         setStep('preview')
         toast.success(`${fullTrips.length} viagens identificadas (${parsed.length} linhas)`)
         } catch (err) {
@@ -934,7 +951,8 @@ export default function ImportacaoPosVendaPage() {
 
     // ─── Import handler ──────────────────────────────────────
     const handleImport = async () => {
-        const toProcess = trips.filter(t => t.action !== 'skip')
+        const toProcess = trips.filter(t => t.action !== 'skip' && selectedTrips.has(t.id))
+        const skippedByUser = trips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
         if (toProcess.length === 0) return
 
         setStep('importing')
@@ -987,11 +1005,11 @@ export default function ImportacaoPosVendaPage() {
             const productsImported = result?.products_imported ?? 0
 
             setImportProgress({ current: toProcess.length, total: toProcess.length })
-            setImportResult({ cardsCreated, cardsUpdated, productsImported, errors: 0 })
+            setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: 0 })
 
             // Save import log
             try {
-                const skipped = trips.filter(t => t.action === 'skip').length
+                const skipped = trips.filter(t => t.action === 'skip').length + skippedByUser
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: logRow } = await ((supabase as any).from('pos_venda_import_logs') as any)
                     .insert({
@@ -1012,7 +1030,7 @@ export default function ImportacaoPosVendaPage() {
                 if (logRow) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const rpcResults = (result?.results || []) as any[]
-                    const logItems = toProcess.map((t, idx) => {
+                    const importedItems = toProcess.map((t, idx) => {
                         const rpcItem = rpcResults.find((r: { idx: number }) => r.idx === idx)
                         return {
                             import_log_id: logRow.id,
@@ -1031,6 +1049,25 @@ export default function ImportacaoPosVendaPage() {
                             previous_state: rpcItem?.previous_state || null,
                         }
                     })
+                    const skippedItems = trips
+                        .filter(t => t.action !== 'skip' && !selectedTrips.has(t.id))
+                        .map(t => ({
+                            import_log_id: logRow.id,
+                            card_id: null,
+                            action: 'skipped',
+                            card_title: `${t.pagantePrincipal} - ${formatDateBR(t.dataFim) || ''}`,
+                            pagante: t.pagantePrincipal,
+                            cpf: t.cpfPrincipal,
+                            venda_nums: t.vendaNums,
+                            data_inicio: t.dataInicio,
+                            data_fim: t.dataFim,
+                            products_count: t.products.length,
+                            total_venda: t.valorTotal,
+                            total_receita: t.receita,
+                            stage_name: t.stage.name,
+                            previous_state: null,
+                        }))
+                    const logItems = [...importedItems, ...skippedItems]
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     await ((supabase as any).from('pos_venda_import_log_items') as any).insert(logItems)
                 }
@@ -1043,7 +1080,7 @@ export default function ImportacaoPosVendaPage() {
             toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados`)
         } catch (err) {
             console.error('Erro na importação:', err)
-            setImportResult({ cardsCreated: 0, cardsUpdated: 0, productsImported: 0, errors: toProcess.length })
+            setImportResult({ cardsCreated: 0, cardsUpdated: 0, productsImported: 0, skipped: skippedByUser, errors: toProcess.length })
             setStep('done')
             toast.error('Erro ao importar viagens')
         }
@@ -1053,17 +1090,36 @@ export default function ImportacaoPosVendaPage() {
         setStep('idle')
         setFileName('')
         setTrips([])
+        setSelectedTrips(new Set())
         setImportResult(null)
         setImportProgress({ current: 0, total: 0 })
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
+    const toggleTrip = useCallback((id: string) => {
+        setSelectedTrips(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }, [])
+
+    const toggleAllTrips = useCallback(() => {
+        setSelectedTrips(prev => {
+            const actionableTrips = trips.filter(t => t.action !== 'skip')
+            if (prev.size >= actionableTrips.length) return new Set()
+            return new Set(actionableTrips.map(t => t.id))
+        })
+    }, [trips])
+
     if (!canAccess) return <Navigate to="/dashboard" replace />
 
     // ─── Stats ───────────────────────────────────────────────
-    const toCreate = trips.filter(t => t.action === 'create').length
-    const toUpdate = trips.filter(t => t.action === 'update').length
+    const toCreate = trips.filter(t => t.action === 'create' && selectedTrips.has(t.id)).length
+    const toUpdate = trips.filter(t => t.action === 'update' && selectedTrips.has(t.id)).length
     const toSkip = trips.filter(t => t.action === 'skip').length
+    const deselected = trips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
 
     return (
         <div className="h-full overflow-y-auto">
@@ -1162,31 +1218,54 @@ export default function ImportacaoPosVendaPage() {
                                 <p className="text-2xl font-bold text-blue-600">{toUpdate}</p>
                                 <p className="text-xs text-slate-500 mt-0.5">Atualizar</p>
                             </div>
-                            {toSkip > 0 && (
+                            {(toSkip + deselected) > 0 && (
                                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
-                                    <p className="text-2xl font-bold text-slate-400">{toSkip}</p>
+                                    <p className="text-2xl font-bold text-slate-400">{toSkip + deselected}</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Pular</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* File info */}
+                        {/* File info + select all */}
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <FileSpreadsheet className="h-4 w-4 text-slate-400" />
-                                <span className="font-medium">{fileName}</span>
-                                <span className="text-slate-400">—</span>
-                                <span>{trips.reduce((s, t) => s + t.products.length, 0)} produtos em {trips.length} viagens</span>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={toggleAllTrips}
+                                    className="flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition-colors"
+                                    title={selectedTrips.size >= trips.filter(t => t.action !== 'skip').length ? 'Desmarcar todas' : 'Selecionar todas'}
+                                >
+                                    {(() => {
+                                        const actionable = trips.filter(t => t.action !== 'skip').length
+                                        if (selectedTrips.size === 0) return <Square className="h-4 w-4" />
+                                        if (selectedTrips.size >= actionable) return <SquareCheck className="h-4 w-4 text-indigo-600" />
+                                        return <MinusSquare className="h-4 w-4 text-indigo-600" />
+                                    })()}
+                                    <span className="font-medium">
+                                        {selectedTrips.size}/{trips.filter(t => t.action !== 'skip').length} selecionadas
+                                    </span>
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                    <FileSpreadsheet className="h-4 w-4 text-slate-400" />
+                                    <span className="font-medium">{fileName}</span>
+                                </div>
                             </div>
                             <Button onClick={handleImport} disabled={toCreate + toUpdate === 0}>
                                 <Upload className="h-4 w-4 mr-1.5" />
-                                Importar {toCreate + toUpdate} viagens
+                                Importar {toCreate + toUpdate} viagen{toCreate + toUpdate !== 1 ? 's' : ''}
                             </Button>
                         </div>
 
                         {/* Trip cards */}
                         <div className="space-y-2">
-                            {trips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+                            {trips.map(trip => (
+                                <TripCard
+                                    key={trip.id}
+                                    trip={trip}
+                                    selected={selectedTrips.has(trip.id)}
+                                    onToggle={toggleTrip}
+                                />
+                            ))}
                         </div>
                     </div>
                 )}
@@ -1234,6 +1313,12 @@ export default function ImportacaoPosVendaPage() {
                                 <p className="text-3xl font-bold text-slate-900">{importResult.productsImported}</p>
                                 <p className="text-xs text-slate-500">Produtos importados</p>
                             </div>
+                            {importResult.skipped > 0 && (
+                                <div>
+                                    <p className="text-3xl font-bold text-slate-400">{importResult.skipped}</p>
+                                    <p className="text-xs text-slate-500">Viagens puladas</p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center justify-center gap-3">
                             <Button variant="outline" onClick={handleReset}>Nova importação</Button>
