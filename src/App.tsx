@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
+import { OrgProvider } from './contexts/OrgContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -130,6 +131,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <AuthProvider>
+          <OrgProvider>
           <ToastProvider>
             <Toaster richColors position="top-right" />
             <BrowserRouter>
@@ -266,6 +268,7 @@ function App() {
               </Routes>
             </BrowserRouter>
           </ToastProvider>
+          </OrgProvider>
         </AuthProvider>
       </ErrorBoundary>
     </QueryClientProvider >

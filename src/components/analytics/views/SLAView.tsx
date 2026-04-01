@@ -11,7 +11,7 @@ import ChartCard from '../ChartCard'
 import { useSLAViolations, useSLASummary } from '@/hooks/analytics/useSLAData'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants'
+import { useProducts } from '@/hooks/useProducts'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,8 @@ export default function SLAView() {
     const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useSLASummary()
 
     const { product } = useAnalyticsFilters()
-    const pipelineId = PRODUCT_PIPELINE_MAP[product]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === product)?.pipeline_id ?? undefined
     const { data: pipelineStagesData } = usePipelineStages(pipelineId)
     const drillDown = useDrillDownStore()
 

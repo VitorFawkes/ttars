@@ -5,7 +5,7 @@ import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check, Layers, Chev
 import { cn } from '../../../lib/utils';
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
 import { useProductContext } from '../../../hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants';
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta';
 import { useSections } from '../../../hooks/useSections';
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig';
 import type { Database } from '../../../database.types';
@@ -23,7 +23,7 @@ interface StageInspectorDrawerProps {
 export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageInspectorDrawerProps) {
     const queryClient = useQueryClient();
     const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS;
+    const { pipelineId } = useCurrentProductMeta();
     const [activeTab, setActiveTab] = useState<'general' | 'data'>('general');
 
     // Local state for stage details

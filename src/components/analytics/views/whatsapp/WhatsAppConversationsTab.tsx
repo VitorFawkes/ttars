@@ -12,7 +12,7 @@ import {
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants'
+import { useProducts } from '@/hooks/useProducts'
 import { cn } from '@/lib/utils'
 import { fmt, formatMinutes, formatPhone, formatDate, formatTimeSince } from '@/utils/whatsappFormatters'
 import { Link } from 'react-router-dom'
@@ -81,7 +81,8 @@ export default function WhatsAppConversationsTab({ initialStatus }: Conversation
     } = useWhatsAppConversations()
 
     const { product } = useAnalyticsFilters()
-    const pipelineId = PRODUCT_PIPELINE_MAP[product]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === product)?.pipeline_id ?? undefined
     const { data: stages } = usePipelineStages(pipelineId)
     const { data: phases } = usePipelinePhases(pipelineId)
 

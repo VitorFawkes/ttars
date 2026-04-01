@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useCardCreationRules } from '../../hooks/useCardCreationRules'
 import { useTeams } from '../../hooks/useTeams'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/ui/Button'
@@ -19,8 +18,7 @@ interface Stage {
 export default function CardCreationRulesPage() {
     const { rules, isLoading: loadingRules, toggleRule } = useCardCreationRules()
     const { teams, isLoading: loadingTeams } = useTeams()
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
+    const { pipelineId } = useCurrentProductMeta()
     const { toast } = useToast()
     const [pendingToggles, setPendingToggles] = useState<Set<string>>(new Set())
 
@@ -31,7 +29,7 @@ export default function CardCreationRulesPage() {
             const { data, error } = await supabase
                 .from('pipeline_stages')
                 .select('id, nome, ordem, fase, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
-                .eq('pipeline_id', pipelineId)
+                .eq('pipeline_id', pipelineId ?? '')
                 .eq('ativo', true)
                 .order('ordem')
 

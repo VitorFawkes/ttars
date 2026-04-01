@@ -3,14 +3,12 @@ import AdminPageHeader from '../../components/admin/ui/AdminPageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { usePipelinePhases } from '@/hooks/usePipelinePhases';
 import { usePhaseVisibilityRules } from '@/hooks/usePhaseVisibilityRules';
-import { useProductContext } from '@/hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function PhaseVisibilitySettings() {
-    const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct];
+    const { pipelineId } = useCurrentProductMeta();
     const { data: phases, isLoading: phasesLoading } = usePipelinePhases(pipelineId);
     const { rules, isLoading: rulesLoading, addRule, removeRule } = usePhaseVisibilityRules();
 

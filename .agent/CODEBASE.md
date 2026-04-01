@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 130 tabelas | 41 paginas | 96 hooks | 17 views | 437 components
+> **Stats:** 130 tabelas | 41 paginas | 98 hooks | 17 views | 437 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **96 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **98 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -218,6 +218,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
@@ -241,6 +242,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
+| `useProductScopedSettings()` | `useProductScopedSettings.ts` |
 | `useProducts()` | `useProducts.ts` |
 | `usePushNotifications()` | `usePushNotifications.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |

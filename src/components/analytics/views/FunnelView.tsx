@@ -11,7 +11,7 @@ import ChartCard from '../ChartCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants'
+import { useProducts } from '@/hooks/useProducts'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { cn } from '@/lib/utils'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
@@ -48,7 +48,8 @@ export default function FunnelView() {
 
     const hasError = !!(funnelError || lossError)
     const { product } = useAnalyticsFilters()
-    const pipelineId = PRODUCT_PIPELINE_MAP[product]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === product)?.pipeline_id ?? undefined
     const { data: pipelineStages } = usePipelineStages(pipelineId)
 
     const navigate = useNavigate()

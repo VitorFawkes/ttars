@@ -8,7 +8,7 @@ import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useProducts } from '../../hooks/useProducts'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table'
 import { Badge } from '../ui/Badge'
 import { Avatar, AvatarFallback } from '../ui/avatar'
@@ -58,7 +58,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
 
     // Dados para bulk actions
     const { data: filterOptions } = useFilterOptions()
-    const pipelineId = PRODUCT_PIPELINE_MAP[productFilter]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: stages } = usePipelineStages(pipelineId)
 
     // Paginação

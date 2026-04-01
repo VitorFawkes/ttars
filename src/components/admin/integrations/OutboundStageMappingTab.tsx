@@ -8,8 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { toast } from 'sonner';
 import { ArrowUpRight, Check, RefreshCw, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useProductContext } from '@/hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 
 interface WelcomeStage {
     id: string;
@@ -52,8 +51,7 @@ interface OutboundStageMappingTabProps {
 
 export function OutboundStageMappingTab({ integrationId }: OutboundStageMappingTabProps) {
     const queryClient = useQueryClient();
-    const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || '';
+    const { pipelineId } = useCurrentProductMeta();
     const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
     const [selectedPipelineFilter, setSelectedPipelineFilter] = useState<string>('');
 

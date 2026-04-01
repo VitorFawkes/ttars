@@ -4,8 +4,7 @@ import { Button } from '../ui/Button'
 import { useLeadsFilters } from '../../hooks/useLeadsFilters'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { cn } from '../../lib/utils'
 import {
     Popover,
@@ -31,8 +30,7 @@ const PRIORIDADE_OPTIONS = [
 
 export default function LeadsFilters() {
     const { filters, setFilters, setSearch, toggleOwner, toggleStage, toggleStatus, togglePrioridade, toggleArchived, clearFilters, hasActiveFilters } = useLeadsFilters()
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
+    const { pipelineId } = useCurrentProductMeta()
     const { data: options } = useFilterOptions()
     const { data: stages } = usePipelineStages(pipelineId)
 

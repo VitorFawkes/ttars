@@ -170,6 +170,32 @@ test_rpc_exists "marcar_perdido RPC exists" "marcar_perdido" \
 test_rpc_exists "reabrir_card RPC exists" "reabrir_card" \
   '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
 
+# ── H3: Multi-tenant org_id columns ──
+
+test_query "cards.org_id column" \
+  "cards?select=id,org_id&limit=1"
+
+test_query "contatos.org_id column" \
+  "contatos?select=id,org_id&limit=1"
+
+test_query "pipelines.org_id column" \
+  "pipelines?select=id,org_id,produto&limit=1"
+
+test_query "pipeline_stages.org_id column" \
+  "pipeline_stages?select=id,org_id&limit=1"
+
+test_query "teams.org_id column" \
+  "teams?select=id,org_id&limit=1"
+
+test_query "profiles.org_id column" \
+  "profiles?select=id,org_id&limit=1"
+
+test_query "view_cards_acoes.org_id column" \
+  "view_cards_acoes?select=id,org_id&limit=1"
+
+test_query "requesting_org_id function exists" \
+  "rpc/requesting_org_id"
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2

@@ -136,6 +136,17 @@ Intento era separar visibility configs (type='field') de action requirements (ty
 `StudioUnified.tsx` L409 e L561: `<a href="/settings/customization/sections">` causa full page reload.
 REGRA: Rotas internas DEVEM usar `<Link to>` (react-router-dom) ou `navigate()`. Ver Padroes Confirmados.
 
+### 73. DROP POLICY IF EXISTS com nomes errados nao falha, mas deixa polices antigas — CRITICO
+Migrations de RLS devem verificar nomes EXATOS no baseline. DROP POLICY IF EXISTS silencia o erro se o nome nao bate.
+Resultado: policies antigas (cross-org permissivas) permanecem ativas ao lado das novas org-scoped.
+REGRA: Antes de DROP POLICY, comparar com `schema-baseline-*.sql` secao RLS Policies da tabela alvo.
+
+### 74. pg_get_functiondef EXECUTE patching nao e idempotente — ALTO
+Migrations H3-010/013: replace() em funcdef pode causar dupla injecao se migration rodar mais de uma vez.
+Ex: `pip.produto = p_product` substituido por `pip.org_id = ... AND pip.produto = p_product`,
+na segunda execucao encontra a substring `pip.produto = p_product` dentro do patch e injeta de novo.
+REGRA: Adicionar verificacao `IF position('requesting_org_id()' IN func_def) > 0 THEN CONTINUE` antes do replace.
+
 ### 72. allSame em useFieldConfig nao compara is_secondary — BAIXO
 `useFieldConfig.ts` L129-133: `allSame` compara `is_visible`, `is_required`, `show_in_header` mas omite `is_secondary`.
 Dois siblings com is_secondary diferente ainda ativam o fallback — o valor de is_secondary do primeiro sibling e herdado arbitrariamente.
@@ -144,6 +155,20 @@ Dois siblings com is_secondary diferente ainda ativam o fallback — o valor de 
 `PessoasWidget` e `TravelHistorySection` usam `['travel-history', contactIds]` com arrays construidos independentemente.
 Se a ordem dos IDs diferir entre renders, React Query trata como chaves diferentes — cache nao e reaproveitado e fetch duplo ocorre.
 REGRA: Arrays usados em queryKey que devem ser compartilhados entre componentes precisam ser ordenados (`[...ids].sort()`) antes de entrar na chave.
+
+### 73. React.ReactNode como tipo sem importar React — CRITICO
+Arquivos com `"jsx": "react-jsx"` nao precisam de React para JSX, mas o namespace `React.ReactNode` ainda exige import.
+Com `verbatimModuleSyntax: true`, usar `import { type ReactNode } from 'react'` e `children: ReactNode` na assinatura.
+Visto em: `OrgContext.tsx` L1/L19.
+
+### 74. isLoading falso-negativo em Context que depende de AuthContext — ALTO
+Provider com `enabled: !!profile?.org_id` retorna `isLoading: false` quando `profile` ainda e `null` (AuthContext carregando).
+Consumidores veem `{ data: null, isLoading: false }` e concluem "sem dado" em vez de "carregando".
+FIX: `isLoading: queryIsLoading || authLoading` no value do Provider.
+
+### 75. Fallback products[0] em vez de null quando produto nao encontrado — ALTO
+`useCurrentProductMeta.ts` L14: `?? products[0]` devolve pipeline_id de TRIPS para usuarios WEDDING durante loading.
+Queries com `pipelineId` filtram estagios errados. FIX: fallback deve ser `null`, nao `products[0]`.
 
 ---
 

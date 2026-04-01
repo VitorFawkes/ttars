@@ -1,9 +1,3 @@
-/** Mapeamento produto → UUID do pipeline correspondente */
-export const PRODUCT_PIPELINE_MAP: Record<string, string> = {
-    TRIPS:   'c8022522-4a1d-411c-9387-efe03ca725ee',
-    WEDDING: 'f4611f84-ce9c-48ad-814b-dcd6081f15db',
-}
-
 /** Labels e rótulos direcionais para cada campo de ordenação */
 export const SORT_FIELD_LABELS: Record<string, { label: string; asc: string; desc: string; icon?: string }> = {
     created_at:           { label: 'Data de Criação',     asc: 'Antigos',   desc: 'Recentes'  },

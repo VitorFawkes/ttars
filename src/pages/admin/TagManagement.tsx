@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Tag, Plus, Pencil, Trash2, Loader2, Check } from 'lucide-react'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
 import { useCardTags, useCardTagUsageCounts, type CardTag } from '../../hooks/useCardTags'
+import { useProducts } from '../../hooks/useProducts'
 
 // Paleta de 12 cores fixas
 const COLOR_PALETTE = [
@@ -22,12 +23,13 @@ const COLOR_PALETTE = [
     '#71717a', // Zinc
 ]
 
-const PRODUTO_OPTIONS = [
-    { value: '', label: 'Todos os produtos' },
-    { value: 'TRIPS', label: 'Trips' },
-    { value: 'WEDDING', label: 'Wedding' },
-    { value: 'CORP', label: 'Corp' },
-]
+function useProdutoOptions() {
+    const { products } = useProducts(true)
+    return useMemo(() => [
+        { value: '', label: 'Todos os produtos' },
+        ...products.map(p => ({ value: p.slug, label: p.name_short })),
+    ], [products])
+}
 
 interface TagFormState {
     name: string
@@ -41,6 +43,7 @@ const emptyForm: TagFormState = { name: '', color: '#6366f1', description: '', p
 export default function TagManagement() {
     const queryClient = useQueryClient()
     const { tags, isLoading } = useCardTags()
+    const PRODUTO_OPTIONS = useProdutoOptions()
     const { data: usageCounts = {} } = useCardTagUsageCounts()
 
     const [showModal, setShowModal] = useState(false)
@@ -68,10 +71,12 @@ export default function TagManagement() {
                 produto: data.produto || null,
             }
             if (editingTag) {
-                const { error } = await (supabase as any).from('card_tags').update(payload).eq('id', editingTag.id)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as unknown as any).from('card_tags').update(payload).eq('id', editingTag.id)
                 if (error) throw error
             } else {
-                const { error } = await (supabase as any).from('card_tags').insert(payload)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as unknown as any).from('card_tags').insert(payload)
                 if (error) throw error
             }
         },
@@ -87,7 +92,8 @@ export default function TagManagement() {
 
     const toggleActiveMutation = useMutation({
         mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-            const { error } = await (supabase as any).from('card_tags').update({ is_active }).eq('id', id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as unknown as any).from('card_tags').update({ is_active }).eq('id', id)
             if (error) throw error
         },
         onSuccess: () => {
@@ -97,7 +103,8 @@ export default function TagManagement() {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await (supabase as any).from('card_tags').delete().eq('id', id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as unknown as any).from('card_tags').delete().eq('id', id)
             if (error) throw error
         },
         onSuccess: () => {

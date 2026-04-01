@@ -7,8 +7,7 @@ import type { Database } from '../../database.types'
 import { cn } from '../../lib/utils'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
@@ -31,8 +30,7 @@ const EMPTY_OBJECT = {}
 
 export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded, onToggleCollapse }: ObservacoesEstruturadasProps) {
     const queryClient = useQueryClient()
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
+    const { pipelineId } = useCurrentProductMeta()
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: stages } = usePipelineStages(pipelineId)
 

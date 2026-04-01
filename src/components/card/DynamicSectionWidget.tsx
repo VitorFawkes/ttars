@@ -18,8 +18,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -513,8 +512,7 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
     const stageId = card.pipeline_stage_id
 
     // Pipeline phases — used to expand trip_info into per-phase sections
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
+    const { pipelineId } = useCurrentProductMeta()
     const { data: pipelinePhases } = usePipelinePhases(pipelineId)
 
     const visiblePhases = useMemo(() => {

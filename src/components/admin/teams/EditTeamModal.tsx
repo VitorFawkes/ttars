@@ -2,8 +2,7 @@ import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useTeams, type UpdateTeamData, type Team } from '../../../hooks/useTeams';
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
-import { useProductContext } from '../../../hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants';
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
 import { Textarea } from '../../ui/textarea';
@@ -31,8 +30,7 @@ const TEAM_COLOR_OPTIONS = [
 
 export function EditTeamModal({ isOpen, onClose, team }: EditTeamModalProps) {
     const { updateTeam } = useTeams();
-    const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS;
+    const { pipelineId } = useCurrentProductMeta();
     const { data: phases } = usePipelinePhases(pipelineId);
     const { toast } = useToast();
     const { register, handleSubmit, reset, control, formState: { errors } } = useForm<UpdateTeamData>();

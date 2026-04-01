@@ -9,8 +9,7 @@ import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { useFieldLock } from '../../hooks/useFieldLock'
@@ -179,8 +178,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     const { missingBlocking } = useStageRequirements(card as any)
     const { getVisibleFields } = useFieldConfig()
     const { setLocked } = useFieldLock(card.id)
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
+    const { pipelineId } = useCurrentProductMeta()
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: stages } = usePipelineStages(pipelineId)
 

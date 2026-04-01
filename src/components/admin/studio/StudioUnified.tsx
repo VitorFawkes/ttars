@@ -41,12 +41,12 @@ const COLORS = [
     { label: 'Cinza', value: 'bg-gray-500' },
 ]
 
-import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 
 export default function StudioUnified() {
     const queryClient = useQueryClient()
     const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
+    const { pipelineId } = useCurrentProductMeta()
 
     const [isAdding, setIsAdding] = useState(false)
     const [editingField, setEditingField] = useState<SystemField | null>(null)
@@ -75,7 +75,7 @@ export default function StudioUnified() {
             const { data } = await supabase
                 .from('pipeline_stages')
                 .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
-                .eq('pipeline_id', pipelineId)
+                .eq('pipeline_id', pipelineId ?? '')
                 .order('ordem')
             // Sort by phase order_index then stage ordem
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

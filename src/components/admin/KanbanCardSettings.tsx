@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
-import { useProductContext } from '../../hooks/useProductContext'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { LayoutList, Grid3X3, ArrowUpDown, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { Database } from '../../database.types'
@@ -13,8 +12,7 @@ import { KanbanSequencer } from './kanban/KanbanSequencer'
 type SystemField = Database['public']['Tables']['system_fields']['Row']
 
 export default function KanbanCardSettings() {
-    const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
+    const { pipelineId } = useCurrentProductMeta()
     const [viewMode, setViewMode] = useState<'grid' | 'sequencer'>('grid')
 
     // --- Data Fetching (Centralized) ---

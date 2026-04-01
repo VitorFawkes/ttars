@@ -29,7 +29,7 @@ import { usePipelineFilters, type ViewMode, type SubView, type FilterState } fro
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useProducts } from '../../hooks/useProducts'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import { ScrollArrows } from '../ui/ScrollArrows'
@@ -67,10 +67,11 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
-    const pipelineId = PRODUCT_PIPELINE_MAP[productFilter]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: phasesData } = usePipelinePhases(pipelineId)
     const receitaPerm = useReceitaPermission()
-    const { getStageSortConfig, setStageSortConfig, clearStageSortConfig, hasStageSortOverride } = useStageSort(pipelineId)
+    const { getStageSortConfig, setStageSortConfig, clearStageSortConfig, hasStageSortOverride } = useStageSort(pipelineId ?? '')
 
     // Elite horizontal scroll with Shift+Wheel, Drag-to-Pan, and arrow indicators
     // Must be called before any conditional returns to respect React hooks rules

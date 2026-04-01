@@ -385,7 +385,11 @@ function formatCurrency(num) {
 function convertOrcamento(value, contextData) {
   if (typeof value === 'object' && value !== null && value.tipo) return value;
   if (typeof value === 'object' && value !== null) {
-    if (value.total) return { tipo: 'total', valor: value.total, display: formatCurrency(value.total) };
+    if (value.min && value.max) {
+      const avg = Math.round((value.min + value.max) / 2);
+      return { tipo: 'range', valor_min: value.min, valor_max: value.max, total_calculado: avg, display: formatCurrency(value.min) + ' — ' + formatCurrency(value.max) };
+    }
+    if (value.total) return { tipo: 'total', valor: value.total, total_calculado: value.total, display: formatCurrency(value.total) };
     if (value.por_pessoa) return { tipo: 'por_pessoa', valor: value.por_pessoa, display: formatCurrency(value.por_pessoa) + '/pessoa' };
     return value;
   }

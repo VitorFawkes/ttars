@@ -4,7 +4,7 @@ import { Calendar, ChevronDown, Check, User, Tag } from 'lucide-react'
 import { useAnalyticsFilters, type AnalysisMode, type DatePreset, type Granularity } from '@/hooks/analytics/useAnalyticsFilters'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants'
+import { useProducts } from '@/hooks/useProducts'
 import { useCardTags } from '@/hooks/useCardTags'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -72,7 +72,8 @@ export default function GlobalControls() {
 
     const isSnapshotView = activeView === 'pipeline'
 
-    const pipelineId = PRODUCT_PIPELINE_MAP[product]
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === product)?.pipeline_id ?? undefined
     const { data: stages } = usePipelineStages(pipelineId)
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: consultants } = useConsultants()

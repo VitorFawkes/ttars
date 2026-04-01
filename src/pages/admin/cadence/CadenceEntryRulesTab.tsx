@@ -14,8 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
-import { useProductContext } from '@/hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 
 interface EntryRule {
     id: string;
@@ -146,8 +145,8 @@ const formatWeekdays = (days: number[]) => {
 
 export function CadenceEntryRulesTab() {
     const queryClient = useQueryClient();
-    const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS;
+    const { pipelineId: pipelineIdFromMeta } = useCurrentProductMeta();
+    const pipelineId = pipelineIdFromMeta ?? '';
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [formData, setFormData] = useState<FormData>(emptyFormData);

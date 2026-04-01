@@ -21,8 +21,7 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Badge } from '@/components/ui/Badge';
-import { useProductContext } from '@/hooks/useProductContext';
-import { PRODUCT_PIPELINE_MAP } from '@/lib/constants';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { DayPatternEditor } from './components/DayPatternEditor';
 import { CadenceTimeline } from './components/CadenceTimeline';
 
@@ -129,8 +128,8 @@ const CadenceBuilderPage: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const isNew = id === 'new';
-    const { currentProduct } = useProductContext();
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS;
+    const { pipelineId: pipelineIdFromMeta } = useCurrentProductMeta();
+    const pipelineId = pipelineIdFromMeta ?? '';
 
     const [template, setTemplate] = useState<CadenceTemplate>(defaultTemplate);
     const [steps, setSteps] = useState<CadenceStep[]>([]);

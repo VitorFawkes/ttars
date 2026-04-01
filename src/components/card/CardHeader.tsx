@@ -57,7 +57,7 @@ import { useStageRequirements, type FieldRequirement, type ProposalRequirement, 
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useCardAlerts } from '../../hooks/useCardAlerts'
-import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
+import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
 import { SystemPhase } from '@/types/pipeline'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
@@ -404,7 +404,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const { missingBlocking } = useStageRequirements(card)
     const { getHeaderFields } = useFieldConfig()
     const headerFields = card.pipeline_stage_id ? getHeaderFields(card.pipeline_stage_id) : []
-    const pipelineId = card.produto ? PRODUCT_PIPELINE_MAP[card.produto] : undefined
+    const pipelineId = useProductPipelineId(card.produto)
     const { data: phasesData } = usePipelinePhases(pipelineId)
 
     // Card team (assistants)

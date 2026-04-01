@@ -16,7 +16,7 @@ import { useToast } from '../../../contexts/ToastContext'
 import { usePipelineStages } from '../../../hooks/usePipelineStages'
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
 import { useStageSectionConfig } from '../../../hooks/useStageSectionConfig'
-import { PRODUCT_PIPELINE_MAP } from '../../../lib/constants'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 import {
     DndContext,
     closestCenter,
@@ -170,7 +170,7 @@ function DateFeatureToggles() {
 export default function SectionManager() {
     const { toast } = useToast()
     const { currentProduct } = useProductContext()
-    const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct] || PRODUCT_PIPELINE_MAP.TRIPS
+    const { pipelineId } = useCurrentProductMeta()
     // Fetch ALL sections (active + inactive) so admin can toggle visibility
     const { data: sections = [], isLoading } = useAllSections(currentProduct)
     const { createSection, updateSection, deleteSection, reorderSections } = useSectionMutations()

@@ -545,9 +545,61 @@ function convertOrcamento(value, contextData) {
   return value;
 }
 
+function convertDataExata(value) {
+  if (typeof value === 'object' && value !== null && value.display) return value;
+  if (typeof value === 'object' && value !== null && (value.data_inicio || value.data_fim || value.start || value.end)) {
+    const inicio = value.data_inicio || value.start || value.inicio || value.data_fim || '';
+    const fim = value.data_fim || value.end || value.fim || inicio;
+    const formatDate = (d) => {
+      const parts = d.split('-');
+      return parts.length === 3 ? parts[2] + '/' + parts[1] + '/' + parts[0] : d;
+    };
+    return {
+      data_inicio: inicio,
+      data_fim: fim,
+      display: inicio === fim ? formatDate(inicio) : formatDate(inicio) + ' a ' + formatDate(fim)
+    };
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const isoMatch = value.match(/(\\d{4})-(\\d{2})-(\\d{2})/);
+    if (isoMatch) {
+      return { data_inicio: value, data_fim: value, display: isoMatch[3] + '/' + isoMatch[2] + '/' + isoMatch[1] };
+    }
+    return { display: value };
+  }
+  return value;
+}
+
 function convertEpoca(value) {
   if (typeof value === 'object' && value !== null && value.tipo) return value;
   const thisYear = new Date().getFullYear();
+  // AI returns {data_inicio, data_fim} format
+  if (typeof value === 'object' && value !== null && value.data_inicio) {
+    const d = new Date(value.data_inicio);
+    return {
+      tipo: 'data_exata',
+      data_inicio: value.data_inicio,
+      data_fim: value.data_fim || value.data_inicio,
+      mes_inicio: d.getMonth() + 1,
+      mes_fim: value.data_fim ? new Date(value.data_fim).getMonth() + 1 : d.getMonth() + 1,
+      ano: d.getFullYear(),
+      display: value.data_inicio + (value.data_fim && value.data_fim !== value.data_inicio ? ' a ' + value.data_fim : ''),
+      flexivel: value.flexivel || false
+    };
+  }
+  // AI returns {ano, mes_inicio, mes_fim} range format
+  if (typeof value === 'object' && value !== null && value.ano && value.mes_inicio) {
+    return {
+      tipo: value.mes_inicio === value.mes_fim ? 'mes' : 'range_meses',
+      mes_inicio: value.mes_inicio,
+      mes_fim: value.mes_fim || value.mes_inicio,
+      ano: value.ano,
+      display: value.mes_inicio === value.mes_fim
+        ? MESES_NOMES[value.mes_inicio] + ' ' + value.ano
+        : MESES_NOMES[value.mes_inicio] + ' a ' + MESES_NOMES[value.mes_fim] + ' ' + value.ano,
+      flexivel: value.flexivel || false
+    };
+  }
   // Objeto estruturado do GPT: {mes: 12, ano: 2026} ou {mes_inicio: 6, mes_fim: 8, ano: 2026}
   if (typeof value === 'object' && value !== null) {
     if (value.mes_inicio && value.mes_fim) {
@@ -635,6 +687,9 @@ if (tripInfoUpdate.epoca_viagem) {
 }
 if (tripInfoUpdate.duracao_viagem) {
   tripInfoUpdate.duracao_viagem = convertDuracao(tripInfoUpdate.duracao_viagem);
+}
+if (tripInfoUpdate.data_exata_da_viagem) {
+  tripInfoUpdate.data_exata_da_viagem = convertDataExata(tripInfoUpdate.data_exata_da_viagem);
 }
 
 // ============================================================
