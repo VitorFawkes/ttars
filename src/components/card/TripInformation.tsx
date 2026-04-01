@@ -13,6 +13,7 @@ import { useProductContext } from '../../hooks/useProductContext'
 import { PRODUCT_PIPELINE_MAP } from '../../lib/constants'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
+import { useFieldLock } from '../../hooks/useFieldLock'
 
 import type { EpocaViagem } from '../pipeline/fields/FlexibleDateField'
 import type { DuracaoViagem } from '../pipeline/fields/FlexibleDurationField'
@@ -177,6 +178,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { missingBlocking } = useStageRequirements(card as any)
     const { getVisibleFields } = useFieldConfig()
+    const { setLocked } = useFieldLock(card.id)
     const { currentProduct } = useProductContext()
     const pipelineId = PRODUCT_PIPELINE_MAP[currentProduct]
     const { data: phases } = usePipelinePhases(pipelineId)
@@ -350,10 +352,14 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         if (!editingField) return
         try {
             await updateCardMutation.mutateAsync({ fieldKey: editingField, fieldValue: editValue })
+            // Auto-lock data_exata_da_viagem quando editado manualmente
+            if (editingField === 'data_exata_da_viagem') {
+                setLocked('data_exata_da_viagem', true)
+            }
         } catch (error) {
             console.error('Failed to save field:', error)
         }
-    }, [editingField, editValue, updateCardMutation])
+    }, [editingField, editValue, updateCardMutation, setLocked])
 
     const switchViewMode = (slug: string) => {
         setViewMode(slug)
@@ -392,7 +398,12 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                         onEdit={() => handleFieldEdit(field.key)}
                         cardId={card.id}
                         showLockButton
-                        extraData={field.key === 'numero_venda_monde' ? activeData : undefined}
+                        extraData={
+                            field.key === 'numero_venda_monde' ? activeData :
+                            (field.key === 'data_exata_da_viagem' || field.key === 'epoca_viagem')
+                                ? { produto_data: activeData, onFieldSave: (key: string, val: unknown) => updateCardMutation.mutate({ fieldKey: key, fieldValue: val }) }
+                                : undefined
+                        }
                     />
                 )
             })}

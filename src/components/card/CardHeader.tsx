@@ -47,6 +47,7 @@ import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
+import TripDateConfirmModal from './TripDateConfirmModal'
 import SendAlertModal from './SendAlertModal'
 import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -377,6 +378,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
+    const [tripDateModalOpen, setTripDateModalOpen] = useState(false)
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
         targetStageName: string,
@@ -682,6 +684,35 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     }
 
     // Status é controlado exclusivamente pelos RPCs: marcar_ganho, marcar_perdido, reabrir_card
+
+    const handleConfirmTripDate = async (updatedDate?: { start: string; end: string }) => {
+        if (!pendingStageChange) return
+
+        if (updatedDate) {
+            try {
+                const prodData = (card.produto_data as Record<string, unknown>) || {}
+                await supabase
+                    .from('cards')
+                    .update({
+                        produto_data: { ...prodData, data_exata_da_viagem: updatedDate }
+                    })
+                    .eq('id', card.id)
+                // Lock para não auto-calcular sobre a edição manual
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const locked = (card as any).locked_fields || {}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase.from('cards') as any)
+                    .update({ locked_fields: { ...locked, data_exata_da_viagem: true } })
+                    .eq('id', card.id)
+            } catch (err) {
+                console.error('Erro ao salvar data de viagem:', err)
+            }
+        }
+
+        updateStageMutation.mutate(pendingStageChange.stageId)
+        setTripDateModalOpen(false)
+        setPendingStageChange(null)
+    }
 
     const handleLossConfirm = async (motivoId: string, comentario: string, futureOpportunity?: FutureOpportunityData) => {
         // Check if we're just editing the loss reason (card already in perdido)
@@ -1663,6 +1694,21 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 initialComentario={card.motivo_perda_comentario}
                 isEditing={card.status_comercial === 'perdido'}
                 cardTitle={card.titulo || undefined}
+            />
+
+            <TripDateConfirmModal
+                isOpen={tripDateModalOpen}
+                onClose={() => {
+                    setTripDateModalOpen(false)
+                    setPendingStageChange(null)
+                }}
+                onConfirm={handleConfirmTripDate}
+                currentDate={(() => {
+                    try {
+                        return pendingStageChange?.targetPhaseId ? JSON.parse(pendingStageChange.targetPhaseId) : null
+                    } catch { return null }
+                })()}
+                cardName={card.titulo || undefined}
             />
 
             <SendAlertModal
