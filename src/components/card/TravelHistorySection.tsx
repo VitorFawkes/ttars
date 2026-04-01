@@ -29,7 +29,7 @@ interface TravelHistorySectionProps {
 }
 
 export default function TravelHistorySection({ travelers, currentCardId }: TravelHistorySectionProps) {
-    const contactIds = travelers.map(t => t.id).filter(Boolean)
+    const contactIds = travelers.map(t => t.id).filter(Boolean).sort()
 
     const { data: rawHistory, isLoading } = useQuery({
         queryKey: ['travel-history', contactIds],

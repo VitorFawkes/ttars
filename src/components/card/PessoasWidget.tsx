@@ -1,5 +1,5 @@
 import { Plus, Eye, ChevronDown } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import ContactSelector from './ContactSelector'
 import CardTravelers from './CardTravelers'
@@ -8,7 +8,8 @@ import ContactIntelligenceWidget from './ContactIntelligenceWidget'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
 import { useCardPeople } from '../../hooks/useCardPeople'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { supabase } from '../../lib/supabase'
 import type { Database } from '../../database.types'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 
@@ -51,6 +52,34 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
 
     const adultos = travelers?.filter(t => t.tipo_pessoa === 'adulto' || !t.tipo_pessoa).length || 0
     const criancas = travelers?.filter(t => t.tipo_pessoa === 'crianca').length || 0
+
+    // Travel history count (shared cache with TravelHistorySection)
+    const contactIds = (people || []).map(p => p.id).filter(Boolean).sort()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC overload not in generated types
+    const { data: rawHistory } = useQuery({
+        queryKey: ['travel-history', contactIds],
+        queryFn: async () => {
+            if (contactIds.length === 0) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.rpc as any)('get_travel_history', {
+                contact_ids: contactIds
+            })
+            if (error) throw error
+            return data
+        },
+        enabled: contactIds.length > 0 && historyVisible
+    })
+
+    const tripCount = useMemo(() => {
+        if (!rawHistory) return 0
+        const seen = new Set<string>()
+        for (const trip of rawHistory as { card_id: string }[]) {
+            if (trip.card_id === card.id) continue
+            seen.add(trip.card_id)
+        }
+        return seen.size
+    }, [rawHistory, card.id])
 
     const handleSetPrimaryContact = (contactId: string) => {
         promoteToPrimary(contactId, {
@@ -193,7 +222,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                                     className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
                                 >
                                     <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
-                                    Histórico de Viagem
+                                    Histórico de Viagem{tripCount > 0 && ` (${tripCount} ${tripCount === 1 ? 'viagem' : 'viagens'})`}
                                 </button>
                                 {historyExpanded && (
                                     <TravelHistorySection
