@@ -146,10 +146,12 @@ export default function NotificationCenter() {
     return (
         <>
             {/* Floating bell button — draggable */}
-            <div className="group" style={{ ...btnStyle, zIndex: 40 }}>
+            <div className="group z-40" style={btnStyle}>
                 <button
                     ref={btnRef}
+                    data-notification-trigger
                     type="button"
+                    aria-label={`Notificações${unreadCount > 0 ? ` (${unreadCount} não lidas)` : ''}`}
                     className={cn(
                         'relative flex items-center justify-center rounded-full shadow-lg transition-all duration-200 touch-none select-none',
                         minimized ? 'w-8 h-8' : 'w-12 h-12',

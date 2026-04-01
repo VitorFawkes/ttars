@@ -52,7 +52,11 @@ export default function NotificationDrawer({ isOpen, onClose, positionStyle }: N
     useEffect(() => {
         if (!isOpen) return
         const handleClickOutside = (e: MouseEvent) => {
-            if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+            if (
+                panelRef.current &&
+                !panelRef.current.contains(e.target as Node) &&
+                !(e.target as Element).closest?.('[data-notification-trigger]')
+            ) {
                 onClose()
             }
         }
