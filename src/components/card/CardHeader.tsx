@@ -17,11 +17,14 @@ interface TripsProdutoData {
         display?: string
     }
     epoca_viagem?: {
-        // Estrutura antiga (date_range)
+        // Formato atual (date_range)
+        start?: string
+        end?: string
+        // Legado (date_range antigo)
         inicio?: string
         fim?: string
         flexivel?: boolean
-        // Estrutura nova (flexible_date)
+        // Legado (flexible_date)
         tipo?: 'data_exata' | 'mes' | 'range_meses' | 'indefinido'
         data_inicio?: string
         data_fim?: string
@@ -48,6 +51,7 @@ import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import TripDateConfirmModal from './TripDateConfirmModal'
+import { usePosVendaAlert } from '../../hooks/usePosVendaAlert'
 import SendAlertModal from './SendAlertModal'
 import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -379,6 +383,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [tripDateModalOpen, setTripDateModalOpen] = useState(false)
+    const [pendingTripDate, setPendingTripDate] = useState<{ start?: string; end?: string } | null>(null)
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
         targetStageName: string,
@@ -451,6 +456,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; pipeline_phases?: { id: string; name: string; order_index: number; slug: string } | null }[]
         }
     })
+
+    const { shouldShowAlert: shouldShowTripDateAlert } = usePosVendaAlert(stages, phasesData)
 
     // Derived fields
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
@@ -676,7 +683,21 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             return
         }
 
-        // 3. Proceed if valid
+        // 3. Trip date confirmation for pos-venda entry
+        if (shouldShowTripDateAlert(stageId)) {
+            const produtoData = card.produto_data as Record<string, unknown> | null
+            const dateValue = produtoData?.data_exata_da_viagem || null
+            setPendingTripDate(dateValue && typeof dateValue === 'object' ? dateValue as { start?: string; end?: string } : null)
+            setPendingStageChange({
+                stageId,
+                targetStageName: stageName,
+            })
+            setTripDateModalOpen(true)
+            setShowStageDropdown(false)
+            return
+        }
+
+        // 4. Proceed if valid
         updateStageMutation.mutate(stageId)
         } finally {
             setIsValidatingStage(false)
@@ -711,6 +732,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
         updateStageMutation.mutate(pendingStageChange.stageId)
         setTripDateModalOpen(false)
+        setPendingTripDate(null)
         setPendingStageChange(null)
     }
 
@@ -1427,9 +1449,13 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                     if (card.data_viagem_inicio) {
                                         tripDate = new Date(card.data_viagem_inicio + 'T12:00:00')
                                     }
-                                    // Prioridade 2: epoca_viagem com tipo=data_exata
+                                    // Prioridade 2: epoca_viagem com tipo=data_exata (legado flexible_date)
                                     else if (epocaViagem?.tipo === 'data_exata' && epocaViagem?.data_inicio) {
                                         tripDate = new Date(epocaViagem.data_inicio + 'T12:00:00')
+                                    }
+                                    // Prioridade 2.5: epoca_viagem como date_range {start, end}
+                                    else if (epocaViagem?.start) {
+                                        tripDate = new Date(epocaViagem.start + 'T12:00:00')
                                     }
                                     // Prioridade 3: display pré-formatado (vago — "Junho 2025", "Mar-Mai 2025")
                                     else if (epocaViagem?.display) {
@@ -1449,8 +1475,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                     // Prioridade 4: formato legado (data_inicio ou inicio)
                                     else {
                                         const dataStr =
-                                            epocaViagem?.data_inicio ||      // Novo: flexible_date
-                                            epocaViagem?.inicio ||           // Antigo: date_range
+                                            epocaViagem?.start ||            // Novo: date_range
+                                            epocaViagem?.data_inicio ||      // Legado: flexible_date
+                                            epocaViagem?.inicio ||           // Legado: {inicio, fim}
                                             null
                                         if (dataStr) {
                                             tripDate = new Date(dataStr + 'T12:00:00')
@@ -1700,14 +1727,11 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 isOpen={tripDateModalOpen}
                 onClose={() => {
                     setTripDateModalOpen(false)
+                    setPendingTripDate(null)
                     setPendingStageChange(null)
                 }}
                 onConfirm={handleConfirmTripDate}
-                currentDate={(() => {
-                    try {
-                        return pendingStageChange?.targetPhaseId ? JSON.parse(pendingStageChange.targetPhaseId) : null
-                    } catch { return null }
-                })()}
+                currentDate={pendingTripDate}
                 cardName={card.titulo || undefined}
             />
 

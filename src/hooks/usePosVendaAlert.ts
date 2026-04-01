@@ -11,7 +11,7 @@ interface StageWithPhase {
 
 interface Phase {
   id: string
-  slug: string
+  slug: string | null
 }
 
 /**

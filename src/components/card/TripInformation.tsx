@@ -278,9 +278,11 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                     }
                 }
 
-                const epoca = data.epoca_viagem as EpocaViagem | undefined
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const epoca = data.epoca_viagem as any
                 if (epoca) {
                     if ('tipo' in epoca) {
+                        // Legado flexible_date
                         updates.epoca_tipo = epoca.tipo
                         updates.epoca_mes_inicio = epoca.mes_inicio || null
                         updates.epoca_mes_fim = epoca.mes_fim || null
@@ -292,13 +294,18 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                             updates.data_viagem_inicio = null
                             updates.data_viagem_fim = null
                         }
-                    } else {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const legacy = epoca as any
-                        if (legacy.inicio || legacy.fim) {
-                            updates.data_viagem_inicio = legacy.inicio || null
-                            updates.data_viagem_fim = legacy.fim || null
-                        }
+                    } else if (epoca.start || epoca.end) {
+                        // Novo formato date_range {start, end}
+                        updates.epoca_tipo = 'data_exata'
+                        updates.data_viagem_inicio = epoca.start || null
+                        updates.data_viagem_fim = epoca.end || null
+                        updates.epoca_mes_inicio = null
+                        updates.epoca_mes_fim = null
+                        updates.epoca_ano = null
+                    } else if (epoca.inicio || epoca.fim) {
+                        // Legado {inicio, fim}
+                        updates.data_viagem_inicio = epoca.inicio || null
+                        updates.data_viagem_fim = epoca.fim || null
                     }
                 }
 

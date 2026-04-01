@@ -17,6 +17,7 @@ import FlexibleDurationField, { type DuracaoViagem } from '../pipeline/fields/Fl
 import SmartBudgetField, { type OrcamentoViagem } from '../pipeline/fields/SmartBudgetField'
 import MondeNumbersBadge from './MondeNumbersBadge'
 import { FieldLockButton } from '../card/FieldLockButton'
+import { FieldCopyButton } from '../card/FieldCopyButton'
 import { useFieldLock } from '../../hooks/useFieldLock'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
@@ -262,7 +263,8 @@ const FieldCard = ({
     cardId,
     showLockButton,
     fieldKey,
-    isLocked
+    isLocked,
+    copyButton
 }: any) => {
     return (
         <div
@@ -307,6 +309,7 @@ const FieldCard = ({
                                 size="sm"
                             />
                         )}
+                        {copyButton}
                     </p>
 
                     {/* Main Value */}
@@ -790,6 +793,40 @@ export default function UniversalFieldRenderer({
 
     // --- DISPLAY MODE (Card) ---
 
+    // Copy button for date fields (data_exata_da_viagem <-> epoca_viagem)
+    // Ambos são date_range com formato {start, end} — cópia direta
+    const dateCopyButton = (() => {
+        if (!extraData?.produto_data || !extraData?.onFieldSave) return null
+        const prodData = extraData.produto_data
+
+        const DATE_COPY_MAP: Record<string, { sourceKey: string; sourceLabel: string }> = {
+            data_exata_da_viagem: { sourceKey: 'epoca_viagem', sourceLabel: 'Data Viagem Completa' },
+            epoca_viagem: { sourceKey: 'data_exata_da_viagem', sourceLabel: 'Data Viagem c/ Welcome' },
+        }
+
+        const mapping = DATE_COPY_MAP[field.key || '']
+        if (!mapping) return null
+
+        const source = prodData[mapping.sourceKey]
+        const hasSource = source && typeof source === 'object' && (source.start || source.inicio || source.data_inicio)
+
+        return (
+            <FieldCopyButton
+                sourceLabel={mapping.sourceLabel}
+                onCopy={() => {
+                    if (!source || typeof source !== 'object') return
+                    // Normalizar qualquer formato legado para {start, end}
+                    const start = source.start || source.inicio || source.data_inicio || ''
+                    const end = source.end || source.fim || source.data_fim || ''
+                    if (!start) return
+                    extraData.onFieldSave(field.key, { start, end })
+                }}
+                disabled={!hasSource}
+                size="sm"
+            />
+        )
+    })()
+
     // 1. Specialized Fields
     if (field.key === 'motivo') {
         return <FieldCard icon={Tag} iconColor="bg-purple-100 text-purple-600" label={field.label} value={value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
@@ -797,8 +834,7 @@ export default function UniversalFieldRenderer({
     if (field.key === 'destinos') {
         return <FieldCard icon={MapPin} iconColor="bg-blue-100 text-blue-600" label={field.label} value={Array.isArray(value) ? value.join(' • ') : value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
-    // Skip if using new flexible_date type (handled below)
-    if ((field.type === 'date_range' || field.key === 'epoca_viagem') && field.type !== 'flexible_date') {
+    if (field.type === 'date_range' || (field.key === 'epoca_viagem' && field.type !== 'flexible_date')) {
         // Handle all date range formats: {start, end}, {inicio, fim}, or raw string
         let startStr = ''
         let endStr = ''
@@ -806,8 +842,8 @@ export default function UniversalFieldRenderer({
 
         if (value) {
             if (typeof value === 'object') {
-                startStr = value.start || value.inicio
-                endStr = value.end || value.fim
+                startStr = value.start || value.inicio || value.data_inicio
+                endStr = value.end || value.fim || value.data_fim
                 isFlexible = value.flexivel
             } else if (typeof value === 'string') {
                 // Try to parse raw string if it looks like a date
@@ -833,7 +869,7 @@ export default function UniversalFieldRenderer({
 
         const subVal = isFlexible ? '📌 Datas flexíveis' : undefined
 
-        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} copyButton={dateCopyButton} />
     }
     // Skip if using new smart_budget type (handled below)
     if (field.key === 'orcamento' && field.type !== 'smart_budget') {
@@ -875,9 +911,20 @@ export default function UniversalFieldRenderer({
     // New Flexible Field Types
     if (field.type === 'flexible_date') {
         const epocaValue = value as EpocaViagem | null
-        const displayVal = epocaValue?.display || null
+        const MESES_NOMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+        let displayVal = epocaValue?.display || null
+        if (!displayVal && epocaValue) {
+            if (epocaValue.mes_inicio && epocaValue.ano) {
+                displayVal = epocaValue.mes_inicio === epocaValue.mes_fim
+                    ? `${MESES_NOMES[epocaValue.mes_inicio]} ${epocaValue.ano}`
+                    : `${MESES_NOMES[epocaValue.mes_inicio]} a ${MESES_NOMES[epocaValue.mes_fim || epocaValue.mes_inicio]} ${epocaValue.ano}`
+            } else if ((epocaValue as unknown as Record<string, unknown>).data_inicio) {
+                const legacy = epocaValue as unknown as Record<string, string>
+                displayVal = legacy.data_inicio + (legacy.data_fim ? ` a ${legacy.data_fim}` : '')
+            }
+        }
         const subVal = epocaValue?.flexivel ? '📌 Datas flexíveis' : undefined
-        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={Calendar} iconColor="bg-orange-100 text-orange-600" label={field.label} value={displayVal} subValue={subVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} copyButton={dateCopyButton} />
     }
 
     if (field.type === 'flexible_duration') {

@@ -5,6 +5,7 @@ import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useProductRequirements } from '@/hooks/useProductRequirements'
+import { useAutoCalcTripDate } from '@/hooks/useAutoCalcTripDate'
 import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import type { Database } from '@/database.types'
@@ -60,6 +61,9 @@ interface FinancialItem {
 export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
     const phaseSlug = useCardPhaseSlug(card.pipeline_stage_id)
     const isPostSales = phaseSlug === 'pos_venda'
+
+    // Auto-calcula Data Viagem c/ Welcome a partir das datas dos produtos
+    useAutoCalcTripDate(cardId)
 
     const { data: items = [], isLoading } = useQuery({
         queryKey: ['financial-items', cardId],

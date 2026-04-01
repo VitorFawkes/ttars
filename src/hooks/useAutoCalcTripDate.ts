@@ -22,10 +22,11 @@ function isInsurance(item: FinancialItemDate): boolean {
  * financial items do card. Exclui seguro viagem. Respeita o lock do campo.
  */
 export function useAutoCalcTripDate(cardId: string) {
-  const { isLocked } = useFieldLock(cardId)
+  const { lockedFields } = useFieldLock(cardId)
   const { autoCalcEnabled } = useDateFeatureSettings()
   const queryClient = useQueryClient()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const fieldIsLocked = lockedFields?.data_exata_da_viagem === true
 
   const { data: items } = useQuery({
     queryKey: ['financial-items-dates', cardId],
@@ -44,7 +45,7 @@ export function useAutoCalcTripDate(cardId: string) {
 
   useEffect(() => {
     if (!items || !autoCalcEnabled) return
-    if (isLocked('data_exata_da_viagem')) return
+    if (fieldIsLocked) return
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
@@ -109,5 +110,5 @@ export function useAutoCalcTripDate(cardId: string) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [items, autoCalcEnabled, isLocked, cardId, queryClient])
+  }, [items, autoCalcEnabled, fieldIsLocked, cardId, queryClient])
 }

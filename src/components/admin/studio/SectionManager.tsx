@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../../../lib/supabase'
 import { useAllSections, useSectionMutations, type Section } from '../../../hooks/useSections'
 import { useProductContext } from '../../../hooks/useProductContext'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig'
 import PhaseFieldConfigPanel from './PhaseFieldConfigPanel'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square, ChevronsUpDown } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square, ChevronsUpDown, Calendar } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -84,6 +86,85 @@ const defaultFormData: SectionFormData = {
     icon: 'layers',
     position: 'left_column',
     is_governable: true
+}
+
+function DateFeatureToggles() {
+    const queryClient = useQueryClient()
+    const { data: settings, isLoading } = useQuery({
+        queryKey: ['date-feature-settings-admin'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('integration_settings')
+                .select('key, value, description')
+                .like('key', 'date_features.%')
+            if (error) throw error
+            return data as { key: string; value: string; description: string | null }[]
+        },
+    })
+
+    const updateMutation = useMutation({
+        mutationFn: async ({ key, value }: { key: string; value: string }) => {
+            const { error } = await supabase
+                .from('integration_settings')
+                .update({ value, updated_at: new Date().toISOString() })
+                .eq('key', key)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['date-feature-settings-admin'] })
+            queryClient.invalidateQueries({ queryKey: ['date-feature-settings'] })
+        },
+    })
+
+    if (isLoading || !settings || settings.length === 0) return null
+
+    const toggles = [
+        {
+            key: 'date_features.pos_venda_alert_enabled',
+            label: 'Alerta ao mover para Pós-Venda',
+            description: 'Exibe confirmação de data de viagem ao mover card para a primeira etapa de pós-venda',
+        },
+        {
+            key: 'date_features.auto_calc_from_products_enabled',
+            label: 'Auto-calcular Data Viagem c/ Welcome',
+            description: 'Calcula automaticamente a data a partir dos produtos financeiros (exceto seguro viagem)',
+        },
+    ]
+
+    return (
+        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-orange-500" />
+                Regras de Data de Viagem
+            </h3>
+            <div className="space-y-3">
+                {toggles.map(toggle => {
+                    const setting = settings.find(s => s.key === toggle.key)
+                    const isEnabled = setting?.value === 'true'
+                    return (
+                        <div key={toggle.key} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div>
+                                <p className="text-sm font-medium text-foreground">{toggle.label}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{toggle.description}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => updateMutation.mutate({ key: toggle.key, value: isEnabled ? 'false' : 'true' })}
+                                disabled={updateMutation.isPending}
+                                className="flex-shrink-0 ml-4"
+                            >
+                                {isEnabled ? (
+                                    <ToggleRight className="w-8 h-8 text-green-600" />
+                                ) : (
+                                    <ToggleLeft className="w-8 h-8 text-gray-400" />
+                                )}
+                            </button>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
 }
 
 export default function SectionManager() {
@@ -272,6 +353,9 @@ export default function SectionManager() {
                     Nova Seção
                 </Button>
             </div>
+
+            {/* Regras de Data */}
+            <DateFeatureToggles />
 
             {/* Form (Add/Edit) */}
             {(isAdding || editingId) && (

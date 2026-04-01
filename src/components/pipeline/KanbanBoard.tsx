@@ -21,7 +21,9 @@ import StageChangeModal from '../card/StageChangeModal'
 import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
 import WinOptionsModal from '../card/WinOptionsModal'
+import TripDateConfirmModal from '../card/TripDateConfirmModal'
 import { useQualityGate } from '../../hooks/useQualityGate'
+import { usePosVendaAlert } from '../../hooks/usePosVendaAlert'
 import type { Database } from '../../database.types'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
 import { AlertTriangle } from 'lucide-react'
@@ -157,6 +159,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     })
 
+    const { shouldShowAlert: shouldShowTripDateAlert } = usePosVendaAlert(stages, phasesData)
+
     // Fetch Cards — filtra por status (oculta ganhos/perdidos por padrão)
     const { data: cards, isError, refetch } = usePipelineCards({
         productFilter,
@@ -240,6 +244,9 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     })
 
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
+    const [tripDateModalOpen, setTripDateModalOpen] = useState(false)
+    const [tripDateRollback, setTripDateRollback] = useState<(() => void) | null>(null)
+    const [pendingTripDate, setPendingTripDate] = useState<{ start?: string; end?: string } | null>(null)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [lossReasonModalOpen, setLossReasonModalOpen] = useState(false)
     const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
@@ -382,6 +389,22 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             return
         }
 
+        // --- SYNC GATE 4: Trip date confirmation (pos-venda entry) ---
+        if (shouldShowTripDateAlert(stageId)) {
+            const rollbackFn = applyOptimisticMove(cardId, stageId)
+            setTripDateRollback(() => rollbackFn)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const produtoData = (card as any)?.produto_data
+            const dateValue = typeof produtoData === 'object' ? produtoData?.data_exata_da_viagem : null
+            setPendingTripDate(dateValue && typeof dateValue === 'object' ? dateValue : null)
+            setPendingMove({
+                cardId, stageId,
+                targetStageName: targetStage?.nome || 'Pós-Venda',
+            })
+            setTripDateModalOpen(true)
+            return
+        }
+
         // ===== ALL SYNC GATES PASSED — optimistic update NOW =====
         const rollback = applyOptimisticMove(cardId, stageId)
 
@@ -421,6 +444,52 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             console.error('Error moving card:', err)
             rollback()
         }
+    }
+
+    const handleConfirmTripDate = async (updatedDate?: { start: string; end: string }) => {
+        if (!pendingMove) return
+        if (updatedDate) {
+            try {
+                const { data: cardData } = await supabase
+                    .from('cards')
+                    .select('produto_data')
+                    .eq('id', pendingMove.cardId)
+                    .single()
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const prodData = (cardData?.produto_data as any) || {}
+                await supabase
+                    .from('cards')
+                    .update({ produto_data: { ...prodData, data_exata_da_viagem: updatedDate } })
+                    .eq('id', pendingMove.cardId)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const locked = (cardData as any)?.locked_fields || {}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase.from('cards') as any)
+                    .update({ locked_fields: { ...locked, data_exata_da_viagem: true } })
+                    .eq('id', pendingMove.cardId)
+            } catch (err) {
+                console.error('Erro ao salvar data de viagem:', err)
+            }
+        }
+        try {
+            const { error } = await supabase.rpc('mover_card', {
+                p_card_id: pendingMove.cardId,
+                p_nova_etapa_id: pendingMove.stageId,
+            })
+            if (error) throw error
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['card-detail', pendingMove.cardId] })
+        } catch (err) {
+            console.error('Error moving card:', err)
+            tripDateRollback?.()
+        }
+        setTripDateModalOpen(false)
+        setTripDateRollback(null)
+        setPendingTripDate(null)
+        setPendingMove(null)
+        setActiveCard(null)
     }
 
     const handleDragCancel = () => {
@@ -886,6 +955,21 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         targetStageId={pendingMove.stageId}
                                         targetStageName={pendingMove.targetStageName}
                                         cardTitle={allCards?.find(c => c.id === pendingMove.cardId)?.titulo || undefined}
+                                    />
+
+                                    <TripDateConfirmModal
+                                        isOpen={tripDateModalOpen}
+                                        onClose={() => {
+                                            setTripDateModalOpen(false)
+                                            tripDateRollback?.()
+                                            setTripDateRollback(null)
+                                            setPendingTripDate(null)
+                                            setPendingMove(null)
+                                            setActiveCard(null)
+                                        }}
+                                        onConfirm={handleConfirmTripDate}
+                                        currentDate={pendingTripDate}
+                                        cardName={allCards?.find(c => c.id === pendingMove.cardId)?.titulo || undefined}
                                     />
                                 </>
                             )}
