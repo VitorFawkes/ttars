@@ -210,8 +210,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         })
     }, [getFieldState, batchUpsertMutation])
 
-    if (visiblePhases.length === 0 || sectionFields.length === 0) return null
-
     const hasDivergence = divergentFields.size > 0
 
     // Auto-normalize: when divergence is detected, fix it automatically
@@ -224,6 +222,8 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         hasAutoNormalized.current.add(currentPhase.id)
         normalizeMutation.mutate()
     }, [currentPhase, hasDivergence, normalizeMutation])
+
+    if (visiblePhases.length === 0 || sectionFields.length === 0) return null
 
     // Summary for collapsed header — count hidden fields across all phases using representative stages
     const summaryParts: string[] = []
