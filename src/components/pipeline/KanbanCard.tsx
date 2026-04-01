@@ -806,8 +806,8 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                             </>
                         )}
                     </div>
-                    {card.concierge_nome && (
-                        <div className="flex items-center gap-0.5 text-[10px] text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded-full" title={`Concierge: ${card.concierge_nome}`}>
+                    {card.concierge_owner_id && (
+                        <div className="flex items-center gap-0.5 text-[10px] text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded-full" title="Concierge atribuído">
                             <User className="h-3 w-3" />
                             C
                         </div>

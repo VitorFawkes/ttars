@@ -13,10 +13,11 @@ export interface PipelinePhase {
     label: string
     color: string
     order_index: number
+    org_id: string
     active: boolean
     slug: string | null
     visible_in_card: boolean | null
-    created_at: string
+    created_at: string | null
     updated_at: string | null
 }
 
