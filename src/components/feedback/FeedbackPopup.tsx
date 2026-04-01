@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Minus } from "lucide-react";
+import { MessageCircle, Minus, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import FeedbackForm from "./FeedbackForm";
 
@@ -33,7 +33,7 @@ export function FeedbackPopup() {
     const [minimized, setMinimized] = useState(() => localStorage.getItem(MIN_KEY) === "true");
     const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
-    // Position: null = default CSS position, otherwise absolute coordinates
+    // Position: null = default (left:16, top:50%), otherwise absolute coordinates
     const [position, setPosition] = useState<{ x: number; y: number } | null>(loadPosition);
     const buttonRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +89,7 @@ export function FeedbackPopup() {
         return pos;
     }, []);
 
-    // --- Pointer-based drag (replaces framer-motion drag) ---
+    // --- Pointer-based drag ---
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         draggingRef.current = true;
         hasDraggedRef.current = false;
@@ -155,7 +155,7 @@ export function FeedbackPopup() {
         return () => window.removeEventListener("resize", handleResize);
     }, [isExpanded, calculatePanelPosition]);
 
-    // Compute inline style for position
+    // Compute inline style for wrapper position
     const wrapperStyle: React.CSSProperties = position
         ? { position: "fixed", left: position.x, top: position.y, bottom: "auto", right: "auto" }
         : { position: "fixed", left: 16, top: "50%" };
@@ -168,7 +168,8 @@ export function FeedbackPopup() {
             className="group z-50"
             style={{ ...wrapperStyle, touchAction: "none" }}
         >
-            <motion.div
+            {/* Button — plain div, NO framer-motion (it intercepts pointer events) */}
+            <div
                 ref={buttonRef}
                 onClick={handleButtonClick}
                 onPointerDown={handlePointerDown}
@@ -179,18 +180,17 @@ export function FeedbackPopup() {
                     "rounded-full",
                     "bg-indigo-600 shadow-lg shadow-indigo-500/30",
                     "flex items-center justify-center",
-                    "hover:bg-indigo-700 transition-colors",
+                    "hover:bg-indigo-700 hover:scale-105 active:scale-95",
+                    "transition-all duration-150",
                     "cursor-grab active:cursor-grabbing",
                     "touch-none select-none"
                 )}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
                 role="button"
                 aria-label={isExpanded ? "Fechar feedback" : "Enviar feedback"}
                 aria-expanded={isExpanded}
             >
                 <MessageCircle className={cn(iconSize, "text-white")} />
-            </motion.div>
+            </div>
 
             {/* Minimize button — appears on hover */}
             {!minimized && !isExpanded && (
@@ -202,6 +202,19 @@ export function FeedbackPopup() {
                     aria-label="Minimizar feedback"
                 >
                     <Minus className="w-3 h-3" />
+                </button>
+            )}
+
+            {/* Expand button — appears on hover when minimized */}
+            {minimized && (
+                <button
+                    type="button"
+                    onClick={() => { setMinimized(false); localStorage.setItem(MIN_KEY, "false"); }}
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-indigo-900 shadow-sm"
+                    title="Expandir"
+                    aria-label="Expandir feedback"
+                >
+                    <Maximize2 className="w-2.5 h-2.5" />
                 </button>
             )}
 
