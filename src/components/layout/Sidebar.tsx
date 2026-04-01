@@ -5,7 +5,6 @@ import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProductContext } from '../../hooks/useProductContext'
-import NotificationCenter from './NotificationCenter'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
 const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
@@ -60,7 +59,7 @@ export default function Sidebar() {
     return (
         <aside
             className={cn(
-                "flex h-screen flex-col bg-primary-dark text-white shadow-lg transition-all duration-300 ease-in-out",
+                "group flex h-screen flex-col bg-primary-dark text-white shadow-lg transition-all duration-300 ease-in-out",
                 isExpanded ? "w-64" : "w-16"
             )}
             onMouseEnter={() => setIsExpanded(true)}
@@ -136,14 +135,6 @@ export default function Sidebar() {
                     )
                 })}
             </nav>
-
-            {/* Notification Center — prominent position above user section */}
-            <div className="px-2 pb-2">
-                <NotificationCenter
-                    showLabel={isExpanded}
-                    className={cn(!isExpanded && 'justify-center')}
-                />
-            </div>
 
             {/* User section */}
             <div className="border-t border-primary/20 p-2">

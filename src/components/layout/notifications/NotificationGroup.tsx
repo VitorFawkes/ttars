@@ -10,6 +10,7 @@ interface NotificationGroupProps {
     notifications: Notification[]
     onMarkGroupAsRead: (ids: string[]) => void
     onNotificationClick: (notification: Notification) => void
+    onMarkAsRead: (id: string) => void
 }
 
 export default function NotificationGroup({
@@ -17,6 +18,7 @@ export default function NotificationGroup({
     notifications,
     onMarkGroupAsRead,
     onNotificationClick,
+    onMarkAsRead,
 }: NotificationGroupProps) {
     const [isOpen, setIsOpen] = useState(true)
     const typeDisplay = getTypeDisplay(typeKey)
@@ -79,6 +81,7 @@ export default function NotificationGroup({
                                 key={n.id}
                                 notification={n}
                                 onClick={() => onNotificationClick(n)}
+                                onMarkAsRead={onMarkAsRead}
                             />
                         ))}
                     </div>
