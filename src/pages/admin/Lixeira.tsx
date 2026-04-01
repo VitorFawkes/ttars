@@ -18,7 +18,6 @@ interface DeletedCard {
     deleted_by_nome: string | null
     pessoa_nome: string | null
     etapa_nome: string | null
-    created_at: string
 }
 
 interface DeletedContact {
@@ -32,7 +31,6 @@ interface DeletedContact {
     deleted_at: string
     deleted_by: string | null
     deleted_by_nome: string | null
-    created_at: string
 }
 
 export default function Lixeira() {
@@ -50,7 +48,7 @@ export default function Lixeira() {
                 .order('deleted_at', { ascending: false })
 
             if (error) throw error
-            return data as DeletedCard[]
+            return data as unknown as DeletedCard[]
         }
     })
 
@@ -63,7 +61,7 @@ export default function Lixeira() {
                 .order('deleted_at', { ascending: false })
 
             if (error) throw error
-            return data as DeletedContact[]
+            return data as unknown as DeletedContact[]
         }
     })
 
