@@ -1291,7 +1291,8 @@ function buildWorkflow() {
             { id: 'transcription', name: 'transcription', value: '={{ $json.body.transcription || "" }}', type: 'string' },
             { id: 'user_id', name: 'user_id', value: '={{ $json.body.user_id || "" }}', type: 'string' },
             { id: 'meeting_id', name: 'meeting_id', value: '={{ $json.body.meeting_id || "" }}', type: 'string' },
-            { id: 'dry_run', name: 'dry_run', value: '={{ $json.body.dry_run === true || $json.body.dry_run === "true" ? "true" : "false" }}', type: 'string' }
+            { id: 'dry_run', name: 'dry_run', value: '={{ $json.body.dry_run === true || $json.body.dry_run === "true" ? "true" : "false" }}', type: 'string' },
+            { id: 'audio_storage_path', name: 'audio_storage_path', value: '={{ $json.body.audio_storage_path || "" }}', type: 'string' }
           ]
         },
         options: {}
@@ -1724,7 +1725,8 @@ return [{ json: mergeData }];`,
             briefing_length: ($('11. Merge Dados').item.json.briefing_text || '').length,
             source: $('11. Merge Dados').item.json.source,
             meeting_id: $('11. Merge Dados').item.json.meeting_id || null,
-            _meta: $('11. Merge Dados').item.json._meta || null
+            _meta: $('11. Merge Dados').item.json._meta || null,
+            audio_storage_path: $('1. Extrai Params').item.json.audio_storage_path || null
           },
           created_by: $('8. Valida Output').item.json.user_id || null
         }) }}`,

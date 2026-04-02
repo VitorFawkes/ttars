@@ -1,4 +1,4 @@
-import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown } from 'lucide-react'
+import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown, Mic } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -84,6 +84,7 @@ const activityIcons = {
     'budget_changed': DollarSign,
     'period_changed': Calendar,
     // AI
+    'ai_extraction': Mic,
     'ai_summary_updated': Sparkles,
     'ai_context_updated': Sparkles,
     'ai_handoff': ArrowRightLeft,
@@ -149,6 +150,7 @@ const activityColors = {
     'budget_changed': 'text-emerald-600 bg-emerald-50',
     'period_changed': 'text-orange-600 bg-orange-50',
     // AI
+    'ai_extraction': 'text-violet-600 bg-violet-50',
     'ai_summary_updated': 'text-violet-600 bg-violet-50',
     'ai_context_updated': 'text-violet-600 bg-violet-50',
     'ai_handoff': 'text-amber-600 bg-amber-50',
@@ -214,6 +216,61 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
         default:
             return null
     }
+}
+
+/** Inline audio player for briefing recordings */
+function AudioPlayerInline({ storagePath }: { storagePath: string }) {
+    const [audioUrl, setAudioUrl] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [playing, setPlaying] = useState(false)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
+
+    const handlePlay = async () => {
+        if (audioUrl) {
+            if (playing) {
+                audioRef.current?.pause()
+                setPlaying(false)
+            } else {
+                audioRef.current?.play()
+                setPlaying(true)
+            }
+            return
+        }
+        setLoading(true)
+        const { data } = await supabase.storage
+            .from('briefing-audio')
+            .createSignedUrl(storagePath, 300) // 5 min signed URL
+        setLoading(false)
+        if (data?.signedUrl) {
+            setAudioUrl(data.signedUrl)
+            const audio = new Audio(data.signedUrl)
+            audioRef.current = audio
+            audio.onended = () => setPlaying(false)
+            audio.play()
+            setPlaying(true)
+        }
+    }
+
+    return (
+        <button
+            onClick={handlePlay}
+            disabled={loading}
+            className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-md transition-colors"
+        >
+            {loading ? (
+                <span className="h-3 w-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+            ) : playing ? (
+                <span className="flex items-center gap-0.5">
+                    <span className="w-0.5 h-2.5 bg-violet-600 rounded-full animate-pulse" />
+                    <span className="w-0.5 h-3.5 bg-violet-600 rounded-full animate-pulse [animation-delay:0.15s]" />
+                    <span className="w-0.5 h-2 bg-violet-600 rounded-full animate-pulse [animation-delay:0.3s]" />
+                </span>
+            ) : (
+                <Play className="h-3 w-3" />
+            )}
+            {loading ? 'Carregando...' : playing ? 'Reproduzindo' : 'Ouvir áudio'}
+        </button>
+    )
 }
 
 export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
@@ -427,6 +484,12 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                                     Reagendada para: <span className="font-medium">{format(new Date((activity.metadata as any).new_date), "dd/MM 'às' HH:mm")}</span>
                                                 </span>
                                             </div>
+                                        )}
+                                        {/* Audio player for ai_extraction with stored audio */}
+                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB */}
+                                        {activity.tipo === 'ai_extraction' && (activity.metadata as any)?.audio_storage_path && (
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+                                            <AudioPlayerInline storagePath={(activity.metadata as any).audio_storage_path} />
                                         )}
                                         <div className="flex flex-col mt-0.5">
                                             <span className="text-gray-500">

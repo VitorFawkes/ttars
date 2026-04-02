@@ -72,7 +72,22 @@ export async function processAIExtraction(
       throw new Error('Áudio muito curto ou vazio')
     }
     body.audio_base64 = base64
-    body.audio_mime_type = options.audioBlob.type || 'audio/webm'
+    const mimeType = options.audioBlob.type || 'audio/webm'
+    body.audio_mime_type = mimeType
+
+    // Persist audio to Supabase Storage (fire-and-forget, don't block extraction)
+    const ext = mimeType.includes('webm') ? 'webm'
+      : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
+      : mimeType.includes('ogg') ? 'ogg'
+      : mimeType.includes('wav') ? 'wav' : 'webm'
+    const storagePath = `${cardId}/${Date.now()}.${ext}`
+    supabase.storage
+      .from('briefing-audio')
+      .upload(storagePath, options.audioBlob, { contentType: mimeType, upsert: false })
+      .then(({ error }) => {
+        if (error) console.warn('[AIExtraction] Falha ao salvar áudio no storage:', error.message)
+      })
+    body.audio_storage_path = storagePath
   }
 
   if (source === 'meeting_transcript' && options.transcription) {
