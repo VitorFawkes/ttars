@@ -10,13 +10,9 @@ import NotificationGroup from './NotificationGroup'
 // Tipos por aba
 // ═══════════════════════════════════════════════════════════
 
-// Alertas = card_alert + financial_items_updated
-const ALERT_TYPES = new Set(['card_alert', 'financial_items_updated'])
-
-// Notificações = tudo que NÃO é alerta (lead_assigned, etc.)
-function isAlertType(type: string) {
-    return ALERT_TYPES.has(type)
-}
+// Tipos visíveis por aba
+const NOTIF_TYPES = new Set(['lead_assigned'])
+const ALERT_TYPES = new Set(['card_alert'])
 
 // ═══════════════════════════════════════════════════════════
 // Notification Panel (expanding box from bottom-right)
@@ -38,9 +34,9 @@ export default function NotificationDrawer({ isOpen, onClose, positionStyle }: N
     const { notifications, markAsRead, markGroupAsRead } = useNotifications()
     const panelRef = useRef<HTMLDivElement>(null)
 
-    // Split notifications by tab
-    const notifItems = notifications.filter(n => !isAlertType(n.type))
-    const alertItems = notifications.filter(n => isAlertType(n.type))
+    // Split notifications by tab — only show known types
+    const notifItems = notifications.filter(n => NOTIF_TYPES.has(n.type))
+    const alertItems = notifications.filter(n => ALERT_TYPES.has(n.type))
 
     const notifUnreadCount = notifItems.filter(n => !n.read).length
     const alertUnreadCount = alertItems.filter(n => !n.read).length
@@ -119,7 +115,7 @@ export default function NotificationDrawer({ isOpen, onClose, positionStyle }: N
 
     const emptyLabel = activeTab === 'notifications'
         ? { title: 'Nenhuma notificação', subtitle: 'Quando houver atualizações, elas aparecerão aqui' }
-        : { title: 'Nenhum alerta', subtitle: 'Alertas de cards e produtos aparecerão aqui' }
+        : { title: 'Nenhum alerta', subtitle: 'Alertas enviados por colegas aparecerão aqui' }
 
     return (
         <div
