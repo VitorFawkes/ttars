@@ -1,131 +1,133 @@
 /**
  * check_impact - Analisa o blast radius de uma modificação
  *
- * Retorna:
- * - Dependências diretas que serão afetadas
- * - Hooks que usam os arquivos
- * - Tabelas envolvidas
- * - Nível de risco
- * - Testes a executar
+ * Usa o grafo de imports real (.agent/dependency-graph.json) para encontrar
+ * dependências REAIS, não heurísticas por substring.
+ *
+ * IMPORTANTE: NÃO reverter para heurísticas de substring ("Provavelmente usa").
+ * O grafo real tem 2.669 relações reais. Validado em 2026-04-01.
  */
 
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import type { ImpactResult, ParsedProjectData } from '../types.js'
+
+interface DepGraph {
+  imported_by: Record<string, string[]>
+  imports: Record<string, string[]>
+}
 
 // Arquivos críticos que aumentam o risco
 const CRITICAL_FILES = [
-  'KanbanBoard.tsx',
-  'CardHeader.tsx',
-  'CardDetail.tsx',
-  'Pipeline.tsx',
-  'Layout.tsx',
-  'database.types.ts',
-  'supabaseClient.ts'
+  'KanbanBoard', 'CardHeader', 'CardDetail', 'Pipeline',
+  'Layout', 'database.types', 'supabaseClient', 'AuthContext',
+  'CreateCardModal', 'SmartTaskModal'
 ]
 
-// Mapeamento de arquivos para testes
-const FILE_TO_TESTS: Record<string, string[]> = {
-  'KanbanBoard': ['npm test -- KanbanBoard', 'npm run test:e2e -- pipeline'],
-  'CardHeader': ['npm test -- CardHeader', 'npm test -- CardDetail'],
-  'CardDetail': ['npm test -- CardDetail'],
-  'Pipeline': ['npm test -- Pipeline', 'npm run test:e2e -- pipeline'],
-  'Proposal': ['npm test -- Proposal'],
-  'useFieldConfig': ['npm test -- useFieldConfig'],
-  'usePipelineStages': ['npm test -- usePipelineStages', 'npm test -- Pipeline'],
+/**
+ * Carrega o grafo de dependências real
+ */
+function loadDepGraph(projectRoot: string): DepGraph | null {
+  const graphPath = join(projectRoot, '.agent', 'dependency-graph.json')
+  if (!existsSync(graphPath)) return null
+  try {
+    return JSON.parse(readFileSync(graphPath, 'utf-8'))
+  } catch {
+    return null
+  }
 }
 
 /**
- * Extrai o nome base de um arquivo
+ * Encontra o projeto root
+ */
+function findProjectRoot(): string {
+  let current = process.cwd()
+  if (existsSync(join(current, 'CLAUDE.md'))) return current
+  for (let i = 0; i < 5; i++) {
+    current = join(current, '..')
+    if (existsSync(join(current, 'CLAUDE.md'))) return current
+  }
+  return process.cwd()
+}
+
+/**
+ * Extrai nome base de um path
  */
 function getBaseName(filePath: string): string {
-  const parts = filePath.split('/')
-  const fileName = parts[parts.length - 1]
-  return fileName.replace(/\.(tsx?|js)$/, '')
+  return filePath.split('/').pop()?.replace(/\.(tsx?|js)$/, '') || filePath
 }
 
 /**
- * Encontra dependências diretas de um arquivo
+ * Categoriza um arquivo pelo diretório
  */
-function findDirectDependencies(
+function categorize(filePath: string): 'component' | 'hook' | 'page' | 'util' {
+  if (filePath.includes('/hooks/')) return 'hook'
+  if (filePath.includes('/pages/')) return 'page'
+  if (filePath.includes('/lib/') || filePath.includes('/utils/')) return 'util'
+  return 'component'
+}
+
+/**
+ * Encontra um arquivo no grafo pelo nome
+ */
+function findInGraph(graph: DepGraph, fileName: string): string | null {
+  const nameLower = fileName.toLowerCase().replace(/\.(tsx?|js)$/, '')
+  for (const fp of Object.keys(graph.imported_by)) {
+    const fn = fp.split('/').pop()?.replace(/\.(tsx?|js)$/, '') || ''
+    if (fn.toLowerCase() === nameLower) return fp
+  }
+  // Também procurar nos imports (arquivos que importam mas não são importados)
+  for (const fp of Object.keys(graph.imports)) {
+    const fn = fp.split('/').pop()?.replace(/\.(tsx?|js)$/, '') || ''
+    if (fn.toLowerCase() === nameLower) return fp
+  }
+  return null
+}
+
+/**
+ * Encontra TODOS os consumidores de um arquivo usando o grafo real
+ */
+function findRealDependencies(
   filePath: string,
-  projectData: ParsedProjectData
+  graph: DepGraph
 ): Array<{ file: string; type: 'component' | 'hook' | 'page' | 'util'; reason: string }> {
   const baseName = getBaseName(filePath)
-  const dependencies: Array<{ file: string; type: 'component' | 'hook' | 'page' | 'util'; reason: string }> = []
+  const graphPath = findInGraph(graph, baseName)
 
-  // Verifica componentes que usam este arquivo
-  for (const component of projectData.codebase.components) {
-    if (component.usedIn.some(u => u.includes(baseName))) {
-      dependencies.push({
-        file: component.path,
-        type: 'component',
-        reason: `Importa ${baseName}`
-      })
-    }
-  }
+  if (!graphPath) return []
 
-  // Verifica páginas que podem usar este arquivo
-  for (const page of projectData.codebase.pages) {
-    const pageName = getBaseName(page.path)
-    // Se o arquivo é um componente usado em páginas comuns
-    if (baseName.includes('Card') && pageName.includes('Card')) {
-      dependencies.push({
-        file: page.path,
-        type: 'page',
-        reason: `Provavelmente usa ${baseName}`
-      })
-    }
-    if (baseName.includes('Pipeline') && pageName.includes('Pipeline')) {
-      dependencies.push({
-        file: page.path,
-        type: 'page',
-        reason: `Provavelmente usa ${baseName}`
-      })
-    }
-  }
-
-  // Verifica hooks que podem ser afetados
-  for (const hook of projectData.codebase.hooks) {
-    if (hook.purpose.toLowerCase().includes(baseName.toLowerCase())) {
-      dependencies.push({
-        file: `src/hooks/${hook.file}`,
-        type: 'hook',
-        reason: `Relacionado a ${baseName}`
-      })
-    }
-  }
-
-  return dependencies
+  const importers = graph.imported_by[graphPath] || []
+  return importers.map(imp => ({
+    file: imp,
+    type: categorize(imp),
+    reason: `Importa ${baseName}`
+  }))
 }
 
 /**
- * Encontra hooks afetados pela modificação
+ * Encontra hooks afetados pela modificação (via grafo real)
  */
-function findAffectedHooks(
-  files: string[],
-  projectData: ParsedProjectData
-): string[] {
-  const affected: string[] = []
+function findAffectedHooks(files: string[], graph: DepGraph): string[] {
+  const hooks: string[] = []
 
   for (const file of files) {
     const baseName = getBaseName(file)
+    const graphPath = findInGraph(graph, baseName)
+    if (!graphPath) continue
 
-    for (const hook of projectData.codebase.hooks) {
-      // Hook que tem nome similar ao arquivo
-      if (hook.name.toLowerCase().includes(baseName.toLowerCase().replace('use', ''))) {
-        affected.push(hook.name)
-      }
-      // Hook cujo propósito menciona o arquivo
-      if (hook.purpose.toLowerCase().includes(baseName.toLowerCase())) {
-        affected.push(hook.name)
+    const importers = graph.imported_by[graphPath] || []
+    for (const imp of importers) {
+      if (imp.includes('/hooks/')) {
+        hooks.push(getBaseName(imp))
       }
     }
   }
 
-  return [...new Set(affected)]
+  return [...new Set(hooks)]
 }
 
 /**
- * Encontra tabelas envolvidas
+ * Encontra tabelas envolvidas (via nome — tabelas não estão no import graph)
  */
 function findInvolvedTables(
   files: string[],
@@ -136,25 +138,35 @@ function findInvolvedTables(
   for (const file of files) {
     const baseName = getBaseName(file).toLowerCase()
 
+    // Hooks e componentes com nomes óbvios
     for (const table of projectData.codebase.tables) {
-      const tableName = table.name.toLowerCase()
+      const tName = table.name.toLowerCase()
+      // Match direto: useCards → cards, usePipelineStages → pipeline_stages
+      const cleanBase = baseName.replace('use', '').toLowerCase()
+      const cleanTable = tName.replace(/_/g, '')
+      if (cleanBase === cleanTable || cleanBase === tName) {
+        tables.push(table.name)
+      }
+    }
 
-      // Match por nome similar
-      if (baseName.includes(tableName.replace('_', '')) ||
-          tableName.includes(baseName.replace('use', ''))) {
-        tables.push(table.name)
-      }
-
-      // Regras específicas
-      if (baseName.includes('card') && ['cards', 'card_creation_rules'].includes(tableName)) {
-        tables.push(table.name)
-      }
-      if (baseName.includes('pipeline') && tableName.includes('pipeline')) {
-        tables.push(table.name)
-      }
-      if (baseName.includes('proposal') && tableName.includes('proposal')) {
-        tables.push(table.name)
-      }
+    // Core tables por keyword
+    if (baseName.includes('card') && !baseName.includes('kanbancard')) {
+      tables.push('cards')
+    }
+    if (baseName.includes('pipeline') || baseName.includes('kanban')) {
+      tables.push('pipeline_stages')
+    }
+    if (baseName.includes('contact') || baseName.includes('contato') || baseName.includes('people')) {
+      tables.push('contatos')
+    }
+    if (baseName.includes('proposal')) {
+      tables.push('proposals')
+    }
+    if (baseName.includes('gift') || baseName.includes('presente')) {
+      tables.push('card_gift_assignments')
+    }
+    if (baseName.includes('integration')) {
+      tables.push('integrations')
     }
   }
 
@@ -162,7 +174,7 @@ function findInvolvedTables(
 }
 
 /**
- * Calcula o nível de risco
+ * Calcula nível de risco baseado em dados REAIS
  */
 function calculateRiskLevel(
   files: string[],
@@ -171,23 +183,21 @@ function calculateRiskLevel(
 ): 'low' | 'medium' | 'high' | 'critical' {
   let riskScore = 0
 
-  // Arquivos críticos aumentam muito o risco
+  // Arquivos críticos
   for (const file of files) {
     const baseName = getBaseName(file)
-    if (CRITICAL_FILES.some(cf => baseName.includes(cf.replace('.tsx', '')))) {
+    if (CRITICAL_FILES.some(cf => baseName.includes(cf))) {
       riskScore += 3
     }
   }
 
-  // Número de dependências afeta o risco
+  // Número REAL de dependências (não heurísticas)
   riskScore += Math.min(dependencies.length, 5)
 
-  // Tabelas core aumentam o risco
+  // Tabelas core
   const coreTables = ['cards', 'contatos', 'profiles', 'pipeline_stages']
   for (const table of tables) {
-    if (coreTables.includes(table)) {
-      riskScore += 2
-    }
+    if (coreTables.includes(table)) riskScore += 2
   }
 
   if (riskScore >= 8) return 'critical'
@@ -197,67 +207,36 @@ function calculateRiskLevel(
 }
 
 /**
- * Determina quais testes devem ser executados
- */
-function determineTests(files: string[]): string[] {
-  const tests: string[] = []
-
-  for (const file of files) {
-    const baseName = getBaseName(file)
-
-    // Verifica mapeamento direto
-    for (const [pattern, testCommands] of Object.entries(FILE_TO_TESTS)) {
-      if (baseName.includes(pattern)) {
-        tests.push(...testCommands)
-      }
-    }
-  }
-
-  // Sempre adiciona lint
-  tests.push('npm run lint')
-
-  // Se modificou TypeScript, adiciona type check
-  if (files.some(f => f.endsWith('.ts') || f.endsWith('.tsx'))) {
-    tests.push('npx tsc --noEmit')
-  }
-
-  return [...new Set(tests)]
-}
-
-/**
  * Gera warnings específicos
  */
-function generateWarnings(
-  files: string[],
-  action: string,
-  riskLevel: string
-): string[] {
+function generateWarnings(files: string[], action: string, riskLevel: string): string[] {
   const warnings: string[] = []
 
-  // Warning por risco alto
   if (riskLevel === 'critical' || riskLevel === 'high') {
-    warnings.push('⚠️ RISCO ALTO: Considere fazer backup ou criar branch antes de modificar')
+    warnings.push('⚠️ RISCO ALTO: Crie uma feature branch antes de modificar')
   }
 
-  // Warning por arquivos específicos
   for (const file of files) {
-    if (file.includes('database.types.ts')) {
-      warnings.push('⚠️ database.types.ts é gerado automaticamente. Use `npx supabase gen types` em vez de editar manualmente')
+    const base = getBaseName(file)
+    if (base.includes('database.types')) {
+      warnings.push('⚠️ database.types.ts é gerado. Use npx supabase gen types')
     }
-    if (file.includes('KanbanBoard')) {
-      warnings.push('⚠️ KanbanBoard é crítico para o fluxo de cards. Teste drag-and-drop após modificar')
+    if (base.includes('KanbanBoard')) {
+      warnings.push('⚠️ KanbanBoard: teste drag-and-drop após modificar')
     }
-    if (file.includes('CardHeader')) {
-      warnings.push('⚠️ CardHeader controla mudança de etapa e owner. Verifique quality gate')
+    if (base.includes('CardHeader')) {
+      warnings.push('⚠️ CardHeader: verifique quality gate e mudança de etapa')
+    }
+    if (base.includes('AuthContext')) {
+      warnings.push('⚠️ AuthContext: 60+ arquivos dependem. Qualquer mudança tem blast radius crítico')
     }
   }
 
-  // Warning por tipo de ação
   if (action === 'delete') {
-    warnings.push('⚠️ DELETE: Verifique se não há imports deste arquivo em outros lugares')
+    warnings.push('⚠️ DELETE: Verifique imports com get_dependencies antes')
   }
   if (action === 'rename') {
-    warnings.push('⚠️ RENAME: Atualize todos os imports que referenciam este arquivo')
+    warnings.push('⚠️ RENAME: Atualize todos os imports')
   }
 
   return warnings
@@ -271,28 +250,34 @@ export async function checkImpact(
   projectData: ParsedProjectData
 ): Promise<ImpactResult> {
   const { files, action } = input
+  const projectRoot = findProjectRoot()
+  const graph = loadDepGraph(projectRoot)
 
-  // 1. Encontra dependências diretas
-  const allDependencies: Array<{ file: string; type: 'component' | 'hook' | 'page' | 'util'; reason: string }> = []
+  // 1. Encontra dependências REAIS via grafo de imports
+  const allDeps: Array<{ file: string; type: 'component' | 'hook' | 'page' | 'util'; reason: string }> = []
   for (const file of files) {
-    const deps = findDirectDependencies(file, projectData)
-    allDependencies.push(...deps)
+    if (graph) {
+      allDeps.push(...findRealDependencies(file, graph))
+    }
   }
-  const directDependencies = [...new Map(allDependencies.map(d => [d.file, d])).values()]
+  const directDependencies = [...new Map(allDeps.map(d => [d.file, d])).values()]
 
-  // 2. Encontra hooks afetados
-  const hooksAffected = findAffectedHooks(files, projectData)
+  // 2. Encontra hooks afetados (via grafo real)
+  const hooksAffected = graph ? findAffectedHooks(files, graph) : []
 
-  // 3. Encontra tabelas envolvidas
+  // 3. Encontra tabelas envolvidas (por nome — tabelas não estão no import graph)
   const tablesInvolved = findInvolvedTables(files, projectData)
 
-  // 4. Calcula nível de risco
+  // 4. Calcula risco com dados reais
   const riskLevel = calculateRiskLevel(files, directDependencies, tablesInvolved)
 
-  // 5. Determina testes a executar
-  const testsToRun = determineTests(files)
+  // 5. Testes a rodar
+  const testsToRun = ['npm run lint', 'npm run build']
+  if (files.some(f => f.endsWith('.ts') || f.endsWith('.tsx'))) {
+    testsToRun.push('npx tsc --noEmit')
+  }
 
-  // 6. Gera warnings
+  // 6. Warnings
   const warnings = generateWarnings(files, action, riskLevel)
 
   return {

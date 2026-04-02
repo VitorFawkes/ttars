@@ -1,280 +1,137 @@
 /**
  * get_dependencies - Retorna mapa de dependências de uma entidade
  *
- * Mostra quem usa uma tabela, hook, componente ou página
+ * Usa o grafo de imports real gerado por generate_dep_graph.py
+ * Fallback: busca por nome no CODEBASE.md parseado
+ *
+ * IMPORTANTE: NÃO reverter para KNOWN_DEPENDENCIES hardcoded.
+ * O grafo real (.agent/dependency-graph.json) tem 2.669 relações vs 22 hardcoded.
+ * Validado em 2026-04-01 com testes ao vivo.
  */
 
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import type { DependencyResult, ParsedProjectData } from '../types.js'
 
-// Mapeamento manual de dependências conhecidas (seção 11 do CODEBASE.md)
-const KNOWN_DEPENDENCIES: Record<string, {
-  hooks: string[]
-  pages: string[]
-  components: string[]
-}> = {
-  // Tabelas Core
-  'cards': {
-    hooks: ['usePipelineCards', 'useCardContacts', 'useTrips', 'useSubCards', 'useDeleteCard', 'useArchiveCard'],
-    pages: ['Pipeline', 'CardDetail', 'Dashboard', 'Cards'],
-    components: ['KanbanBoard', 'KanbanCard', 'CardHeader']
-  },
-  'contatos': {
-    hooks: ['useContacts', 'useCardPeople', 'useCardContacts'],
-    pages: ['People', 'CardDetail'],
-    components: ['ContactSelector', 'PeopleSection']
-  },
-  'profiles': {
-    hooks: ['useUsers', 'useTeams', 'useRoles'],
-    pages: ['UserManagement', 'CardDetail'],
-    components: ['UserSelector', 'OwnerSelector']
-  },
-  'pipeline_stages': {
-    hooks: ['usePipelineStages', 'useQualityGate', 'useAllowedStages', 'useStageRequirements'],
-    pages: ['Pipeline', 'PipelineStudio', 'CardDetail'],
-    components: ['KanbanBoard', 'CardHeader', 'CreateCardModal', 'StageSelector']
-  },
-  'pipeline_phases': {
-    hooks: ['usePipelinePhases'],
-    pages: ['Pipeline', 'PipelineStudio'],
-    components: ['CardHeader', 'TripInformation']
-  },
-  'proposals': {
-    hooks: ['useProposals', 'useProposal', 'useProposalBuilder'],
-    pages: ['ProposalBuilderV4', 'CardDetail', 'ProposalsPage'],
-    components: ['ProposalSection', 'ProposalCard']
-  },
-  'tarefas': {
-    hooks: ['useTasks', 'useCardTasks'],
-    pages: ['Tasks', 'CardDetail'],
-    components: ['TaskList', 'TaskItem']
-  },
-  'system_fields': {
-    hooks: ['useFieldConfig', 'useStageRequiredFields'],
-    pages: ['CardDetail', 'PipelineStudio'],
-    components: ['DynamicSection', 'DynamicField']
-  },
-  'stage_field_config': {
-    hooks: ['useFieldConfig', 'useStageRequirements'],
-    pages: ['CardDetail', 'PipelineStudio'],
-    components: ['StageRequirements', 'DynamicSection']
-  },
-
-  // Views críticas
-  'view_cards_acoes': {
-    hooks: ['usePipelineCards'],
-    pages: ['Pipeline'],
-    components: ['KanbanBoard']
-  },
-  'view_contacts_full': {
-    hooks: ['useContacts'],
-    pages: ['People'],
-    components: ['PeopleTable']
-  },
-  'view_card_360': {
-    hooks: ['useCard360'],
-    pages: ['CardDetail'],
-    components: []
-  },
-
-  // Hooks importantes
-  'useFieldConfig': {
-    hooks: [],
-    pages: ['CardDetail'],
-    components: ['DynamicSection', 'TripInformation', 'ObservacoesEstruturadas']
-  },
-  'usePipelineStages': {
-    hooks: ['useQualityGate'],
-    pages: ['Pipeline', 'CardDetail'],
-    components: ['KanbanBoard', 'CardHeader', 'StageSelector']
-  },
-  'usePipelinePhases': {
-    hooks: [],
-    pages: ['Pipeline', 'CardDetail'],
-    components: ['CardHeader', 'TripInformation']
-  },
-  'useQualityGate': {
-    hooks: [],
-    pages: ['CardDetail'],
-    components: ['CardHeader', 'KanbanBoard']
-  },
-
-  // Componentes críticos
-  'KanbanBoard': {
-    hooks: ['usePipelineCards', 'usePipelineStages'],
-    pages: ['Pipeline'],
-    components: ['KanbanColumn', 'KanbanCard']
-  },
-  'CardHeader': {
-    hooks: ['usePipelineStages', 'usePipelinePhases', 'useQualityGate'],
-    pages: ['CardDetail'],
-    components: ['StageSelector', 'OwnerSelector']
-  },
-  'TripInformation': {
-    hooks: ['useFieldConfig', 'usePipelinePhases'],
-    pages: ['CardDetail'],
-    components: ['ObservacoesEstruturadas', 'DynamicField']
-  },
-  'CreateCardModal': {
-    hooks: ['useAllowedStages', 'useCardCreationRules'],
-    pages: ['Pipeline', 'Dashboard'],
-    components: []
-  }
-}
-
-// Níveis de risco por entidade
-const RISK_LEVELS: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
-  // Tabelas core = crítico
-  'cards': 'critical',
-  'contatos': 'critical',
-  'profiles': 'critical',
-  'pipeline_stages': 'critical',
-
-  // Views = alto
-  'view_cards_acoes': 'high',
-  'view_contacts_full': 'high',
-  'view_card_360': 'high',
-
-  // Componentes core = alto
-  'KanbanBoard': 'high',
-  'CardHeader': 'high',
-  'CardDetail': 'high',
-
-  // Hooks core = médio-alto
-  'usePipelineCards': 'high',
-  'useFieldConfig': 'medium',
-  'usePipelineStages': 'medium',
+interface DepGraph {
+  imported_by: Record<string, string[]>
+  imports: Record<string, string[]>
+  categories: Record<string, string>
 }
 
 /**
- * Busca dependências de uma entidade no mapa conhecido
+ * Carrega o grafo de dependências gerado pelo Python script
  */
-function findKnownDependencies(entity: string): {
-  hooks: string[]
-  pages: string[]
-  components: string[]
-} | null {
-  // Busca exata
-  if (KNOWN_DEPENDENCIES[entity]) {
-    return KNOWN_DEPENDENCIES[entity]
+function loadDepGraph(projectRoot: string): DepGraph | null {
+  const graphPath = join(projectRoot, '.agent', 'dependency-graph.json')
+  if (!existsSync(graphPath)) {
+    console.error('dependency-graph.json não encontrado. Rode: python3 .agent/scripts/generate_dep_graph.py')
+    return null
   }
 
-  // Busca case-insensitive
+  try {
+    return JSON.parse(readFileSync(graphPath, 'utf-8'))
+  } catch (e) {
+    console.error('Erro ao ler dependency-graph.json:', e)
+    return null
+  }
+}
+
+/**
+ * Encontra o arquivo no grafo que corresponde à entidade buscada
+ */
+function findEntityInGraph(entity: string, entityType: string, graph: DepGraph): string | null {
   const entityLower = entity.toLowerCase()
-  for (const [key, value] of Object.entries(KNOWN_DEPENDENCIES)) {
-    if (key.toLowerCase() === entityLower) {
-      return value
+
+  // Mapeamento de tipo para diretório
+  const typeToDir: Record<string, string> = {
+    hook: 'hooks/',
+    component: 'components/',
+    page: 'pages/',
+    util: 'lib/',
+  }
+
+  const dirHint = typeToDir[entityType] || ''
+
+  // Busca exata pelo nome do arquivo (sem extensão)
+  for (const filePath of Object.keys(graph.imported_by)) {
+    const fileName = filePath.split('/').pop()?.replace(/\.(ts|tsx)$/, '') || ''
+    if (fileName.toLowerCase() === entityLower) {
+      // Se tem hint de diretório, priorizar match nesse diretório
+      if (dirHint && filePath.includes(dirHint)) {
+        return filePath
+      }
+      // Se não tem hint ou não achou no dir, usar qualquer match
+      if (!dirHint) return filePath
     }
+  }
+
+  // Busca parcial (fallback)
+  for (const filePath of Object.keys(graph.imported_by)) {
+    const fileName = filePath.split('/').pop()?.replace(/\.(ts|tsx)$/, '') || ''
+    if (fileName.toLowerCase() === entityLower) {
+      return filePath
+    }
+  }
+
+  // Busca em imports (pode ser o path exato)
+  const possiblePaths = [
+    `src/hooks/${entity}.ts`,
+    `src/hooks/${entity}.tsx`,
+    `src/components/${entity}.tsx`,
+    `src/pages/${entity}.tsx`,
+    `src/lib/${entity}.ts`,
+  ]
+  for (const p of possiblePaths) {
+    if (graph.imported_by[p]) return p
   }
 
   return null
 }
 
 /**
- * Infere dependências baseado no tipo e nome
+ * Categoriza importers por tipo (hook, page, component)
  */
-function inferDependencies(
-  entity: string,
-  entityType: string,
-  projectData: ParsedProjectData
-): {
+function categorizeImporters(importers: string[]): {
   hooks: string[]
   pages: string[]
   components: string[]
 } {
-  const result = {
-    hooks: [] as string[],
-    pages: [] as string[],
-    components: [] as string[]
-  }
+  const hooks: string[] = []
+  const pages: string[] = []
+  const components: string[] = []
 
-  const entityLower = entity.toLowerCase()
-
-  // Busca em hooks
-  for (const hook of projectData.codebase.hooks) {
-    if (hook.purpose.toLowerCase().includes(entityLower) ||
-        hook.name.toLowerCase().includes(entityLower.replace('_', ''))) {
-      result.hooks.push(hook.name)
+  for (const imp of importers) {
+    const name = imp.split('/').pop()?.replace(/\.(ts|tsx)$/, '') || imp
+    if (imp.includes('/hooks/')) {
+      hooks.push(name)
+    } else if (imp.includes('/pages/')) {
+      pages.push(name)
+    } else if (imp.includes('/components/')) {
+      components.push(name)
     }
   }
 
-  // Busca em páginas
-  for (const page of projectData.codebase.pages) {
-    if (page.description.toLowerCase().includes(entityLower) ||
-        page.name.toLowerCase().includes(entityLower)) {
-      result.pages.push(page.name)
-    }
-  }
-
-  // Busca em componentes
-  for (const component of projectData.codebase.components) {
-    if (component.name.toLowerCase().includes(entityLower) ||
-        component.usedIn.some(u => u.toLowerCase().includes(entityLower))) {
-      result.components.push(component.name)
-    }
-  }
-
-  return result
+  return { hooks, pages, components }
 }
 
 /**
- * Determina o nível de risco
+ * Determina o nível de risco baseado na quantidade de consumidores
  */
 function determineRiskLevel(
   entity: string,
-  usedByHooks: string[],
-  usedByPages: string[],
-  usedByComponents: string[]
+  totalUsage: number
 ): 'low' | 'medium' | 'high' | 'critical' {
-  // Verifica se tem risco conhecido
-  if (RISK_LEVELS[entity]) {
-    return RISK_LEVELS[entity]
+  // Entidades core sempre críticas
+  const coreEntities = ['cards', 'contatos', 'profiles', 'pipeline_stages', 'supabase', 'utils']
+  if (coreEntities.some(c => entity.toLowerCase().includes(c))) {
+    return 'critical'
   }
-
-  // Calcula baseado em uso
-  const totalUsage = usedByHooks.length + usedByPages.length + usedByComponents.length
 
   if (totalUsage >= 10) return 'critical'
   if (totalUsage >= 6) return 'high'
   if (totalUsage >= 3) return 'medium'
   return 'low'
-}
-
-/**
- * Gera explicação do risco
- */
-function generateRiskExplanation(
-  entity: string,
-  entityType: string,
-  riskLevel: string,
-  usedByHooks: string[],
-  usedByPages: string[],
-  usedByComponents: string[]
-): string {
-  const parts: string[] = []
-
-  if (riskLevel === 'critical') {
-    parts.push(`${entity} é uma entidade CRÍTICA do sistema.`)
-  } else if (riskLevel === 'high') {
-    parts.push(`${entity} tem alto impacto no sistema.`)
-  }
-
-  if (usedByHooks.length > 0) {
-    parts.push(`Usado por ${usedByHooks.length} hooks: ${usedByHooks.slice(0, 3).join(', ')}${usedByHooks.length > 3 ? '...' : ''}.`)
-  }
-
-  if (usedByPages.length > 0) {
-    parts.push(`Afeta ${usedByPages.length} páginas: ${usedByPages.join(', ')}.`)
-  }
-
-  if (usedByComponents.length > 0) {
-    parts.push(`Usado em ${usedByComponents.length} componentes.`)
-  }
-
-  if (entityType === 'table' && ['cards', 'contatos', 'profiles'].includes(entity)) {
-    parts.push('Esta é uma das 3 entidades core ("Suns") - mudanças afetam TODO o sistema.')
-  }
-
-  return parts.join(' ')
 }
 
 /**
@@ -286,28 +143,65 @@ export async function getDependencies(
 ): Promise<DependencyResult> {
   const { entity, entityType } = input
 
-  // 1. Busca dependências conhecidas
-  let deps = findKnownDependencies(entity)
-
-  // 2. Se não encontrou, infere
-  if (!deps) {
-    deps = inferDependencies(entity, entityType, projectData)
+  // Encontrar raiz do projeto
+  let projectRoot = process.cwd()
+  if (!existsSync(join(projectRoot, 'CLAUDE.md'))) {
+    // Navegar para cima até encontrar
+    let current = projectRoot
+    for (let i = 0; i < 5; i++) {
+      current = join(current, '..')
+      if (existsSync(join(current, 'CLAUDE.md'))) {
+        projectRoot = current
+        break
+      }
+    }
   }
 
-  const { hooks: usedByHooks, pages: usedByPages, components: usedByComponents } = deps
+  // Tentar usar o grafo de imports real
+  const graph = loadDepGraph(projectRoot)
 
-  // 3. Determina nível de risco
-  const cascadeRisk = determineRiskLevel(entity, usedByHooks, usedByPages, usedByComponents)
+  let usedByHooks: string[] = []
+  let usedByPages: string[] = []
+  let usedByComponents: string[] = []
 
-  // 4. Gera explicação
-  const riskExplanation = generateRiskExplanation(
-    entity,
-    entityType,
-    cascadeRisk,
-    usedByHooks,
-    usedByPages,
-    usedByComponents
-  )
+  if (graph) {
+    const filePath = findEntityInGraph(entity, entityType, graph)
+
+    if (filePath) {
+      const importers = graph.imported_by[filePath] || []
+      const categorized = categorizeImporters(importers)
+      usedByHooks = categorized.hooks
+      usedByPages = categorized.pages
+      usedByComponents = categorized.components
+    }
+  }
+
+  // Fallback: busca por nome no CODEBASE.md parseado (se grafo não achou nada)
+  if (usedByHooks.length === 0 && usedByPages.length === 0 && usedByComponents.length === 0) {
+    const entityLower = entity.toLowerCase()
+
+    for (const hook of projectData.codebase.hooks) {
+      if (hook.name.toLowerCase().includes(entityLower)) {
+        usedByHooks.push(hook.name)
+      }
+    }
+    for (const page of projectData.codebase.pages) {
+      if (page.name.toLowerCase().includes(entityLower)) {
+        usedByPages.push(page.name)
+      }
+    }
+  }
+
+  const totalUsage = usedByHooks.length + usedByPages.length + usedByComponents.length
+  const cascadeRisk = determineRiskLevel(entity, totalUsage)
+
+  const parts: string[] = []
+  if (cascadeRisk === 'critical') parts.push(`${entity} é uma entidade CRÍTICA.`)
+  if (totalUsage > 0) parts.push(`${totalUsage} arquivos dependem desta entidade.`)
+  if (usedByHooks.length > 0) parts.push(`Hooks: ${usedByHooks.join(', ')}.`)
+  if (usedByPages.length > 0) parts.push(`Páginas: ${usedByPages.join(', ')}.`)
+  if (usedByComponents.length > 0) parts.push(`Componentes: ${usedByComponents.slice(0, 10).join(', ')}${usedByComponents.length > 10 ? ` (+${usedByComponents.length - 10} mais)` : ''}.`)
+  if (totalUsage === 0) parts.push(`Nenhuma dependência encontrada. Verifique se o nome está correto ou rode: python3 .agent/scripts/generate_dep_graph.py`)
 
   return {
     entity,
@@ -316,6 +210,6 @@ export async function getDependencies(
     usedByPages,
     usedByComponents,
     cascadeRisk,
-    riskExplanation
+    riskExplanation: parts.join(' ')
   }
 }
