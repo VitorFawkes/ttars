@@ -29,17 +29,28 @@ globs: supabase/**
 **Rule:** Immediately after ANY migration application, you MUST regenerate `database.types.ts`.
 **Check:** If `git diff` shows a migration but NO change in `types.ts`, the build is **BROKEN**.
 
-## 4. RLS & Tenant Isolation
-**Premise:** Every table is a potential leak.
-**Rule:** `ENABLE ROW LEVEL SECURITY` is mandatory for ALL tables.
-**Policy:** Default to `auth.uid() = tenant_id` (or equivalent) unless explicitly public.
+## 4. RLS & Multi-Tenant Isolation (org_id)
+**Premise:** O sistema é multi-tenant. Toda tabela com dados de cliente DEVE ter `org_id`.
+**Regra para novas tabelas:**
+```sql
+org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)
+```
+**RLS policy obrigatória:**
+```sql
+CREATE POLICY "tabela_org_select" ON tabela FOR SELECT TO authenticated
+  USING (org_id = requesting_org_id());
+CREATE POLICY "tabela_org_all" ON tabela FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+```
+**`requesting_org_id()`** extrai org_id do JWT `app_metadata.org_id` (fallback: Welcome Group UUID).
+**Estado atual:** 70 tabelas com org_id, 134 RLS policies usando `requesting_org_id()`.
 
 ## 5. Isolamento de Produto (TRIPS / WEDDING)
 **Premise:** Cada produto tem seu pipeline. Dados NÃO podem vazar entre produtos.
-**Constantes:** `PRODUCT_PIPELINE_MAP` em `src/lib/constants.ts` (TRIPS e WEDDING).
 **Frontend:**
-- Toda query que toca `cards` DEVE filtrar por `produto` via `useProductContext().currentProduct`
-- Toda query que toca `pipeline_stages` DEVE filtrar por `pipeline_id` via `PRODUCT_PIPELINE_MAP[currentProduct]`
+- Toda query que toca `cards` DEVE filtrar por `produto` via `useCurrentProductMeta().pipelineId`
+- Toda query que toca `pipeline_stages` DEVE filtrar por `pipeline_id` via `useCurrentProductMeta()`
+- Fases comparadas por `slug` (SystemPhase) ou `phase_id` FK, NUNCA por `name` ou `fase` string
 **Backend (SQL/RPCs):**
 - `AND (p_product IS NULL OR c.produto::TEXT = p_product)` em toda RPC que toca `cards`
 - `JOIN pipelines pip ON pip.id = s.pipeline_id WHERE (p_product IS NULL OR pip.produto = p_product)` para stages

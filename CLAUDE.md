@@ -67,13 +67,21 @@ touch .claude/.migration_applied
 - **NUNCA deixe migrations intermediárias/rascunho no disco** — se uma migration foi supersedida por outra, DELETE o arquivo antigo
 - Após aplicar em produção, **commitar o arquivo .sql** no git para evitar acúmulo de untracked files
 
-## Arquitetura (3 Suns)
+## Arquitetura (3 Suns + Multi-Tenant)
 Toda entidade orbita 3 entidades centrais: `cards`, `contatos`, `profiles`.
 Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 
+**Multi-Tenant (SaaS):** O sistema é multi-tenant com isolamento por `org_id`.
+- Novas tabelas DEVEM ter `org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)`
+- Novas RLS policies DEVEM usar `USING (org_id = requesting_org_id())`
+- `requesting_org_id()` extrai org_id do JWT `app_metadata` (fallback: Welcome Group)
+- 70 tabelas já têm org_id. 134 RLS policies já usam `requesting_org_id()`
+- Frontend: `useOrg()` do OrgContext para acessar org atual
+- Edge Functions: `getOrgId(req)` de `_shared/org-context.ts`
+
 ## Isolamento de Produto (OBRIGATÓRIO)
 
-Cada produto (TRIPS, WEDDING) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin. Produtos definidos em `PRODUCT_PIPELINE_MAP` em `src/lib/constants.ts`.
+Cada produto (TRIPS, WEDDING) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin. Produtos definidos na tabela `products` (não mais em constantes hardcoded). Usar `useCurrentProductMeta()` para obter `pipelineId`.
 
 ### Constantes
 - **`PRODUCT_PIPELINE_MAP`** centralizado em `src/lib/constants.ts` — NUNCA duplicar

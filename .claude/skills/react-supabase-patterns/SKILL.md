@@ -5,6 +5,36 @@ description: Use when creating or modifying React components, hooks, or Supabase
 
 # React + Supabase Patterns — WelcomeCRM
 
+## Multi-Tenant (org_id)
+
+O sistema é multi-tenant. Dados são isolados por `org_id` no banco via RLS.
+
+```typescript
+// ✅ Frontend — acessar org atual
+import { useOrg } from '@/contexts/OrgContext'
+const { org } = useOrg()  // org.id, org.name, org.slug
+
+// ✅ Frontend — org_id NÃO precisa ser passado manualmente nas queries
+// O RLS no banco já filtra automaticamente via JWT
+// Basta usar supabase.from('tabela').select('*') — RLS faz o resto
+
+// ✅ Backend (Edge Functions) — extrair org_id do request
+import { getOrgId } from '../_shared/org-context.ts'
+const orgId = getOrgId(req)
+
+// ✅ SQL — nova tabela DEVE ter org_id
+// org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)
+
+// ✅ SQL — RLS obrigatória
+// CREATE POLICY "tabela_org_select" ON tabela FOR SELECT TO authenticated
+//   USING (org_id = requesting_org_id());
+```
+
+**NUNCA:**
+- Hardcodar UUID de organização no frontend
+- Criar tabela com dados de cliente sem `org_id`
+- Criar RLS policy sem `requesting_org_id()`
+
 ## State Management
 
 Este projeto usa **3 ferramentas** para estado. Escolha a correta:
