@@ -35,13 +35,23 @@ globs: supabase/**
 ```sql
 org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)
 ```
-**RLS policy obrigatória:**
+**RLS policies obrigatórias (TODAS devem ser criadas):**
 ```sql
-CREATE POLICY "tabela_org_select" ON tabela FOR SELECT TO authenticated
-  USING (org_id = requesting_org_id());
-CREATE POLICY "tabela_org_all" ON tabela FOR ALL TO service_role
-  USING (true) WITH CHECK (true);
+-- 1. Authenticated users: scoped por org_id
+CREATE POLICY "tabela_org_select" ON tabela
+  FOR SELECT TO authenticated USING (org_id = requesting_org_id());
+CREATE POLICY "tabela_org_insert" ON tabela
+  FOR INSERT TO authenticated WITH CHECK (org_id = requesting_org_id());
+CREATE POLICY "tabela_org_update" ON tabela
+  FOR UPDATE TO authenticated USING (org_id = requesting_org_id());
+CREATE POLICY "tabela_org_delete" ON tabela
+  FOR DELETE TO authenticated USING (org_id = requesting_org_id());
+
+-- 2. Service role: bypass OBRIGATÓRIO (Edge Functions usam service_role)
+CREATE POLICY "tabela_service_all" ON tabela
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 ```
+**NUNCA esquecer a policy de service_role** — sem ela, Edge Functions quebram silenciosamente.
 **`requesting_org_id()`** extrai org_id do JWT `app_metadata.org_id` (fallback: Welcome Group UUID).
 **Estado atual:** 70 tabelas com org_id, 134 RLS policies usando `requesting_org_id()`.
 
