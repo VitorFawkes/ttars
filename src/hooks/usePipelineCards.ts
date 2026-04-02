@@ -7,11 +7,10 @@ import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
 import { useMyAssistCardIds } from './useMyAssistCardIds'
 
-type Product = Database['public']['Enums']['app_product']
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
 interface UsePipelineCardsProps {
-    productFilter: Product
+    productFilter: string
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
@@ -194,7 +193,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     .eq('status_comercial', 'ganho')
                     .eq('ganho_planner', true)
                     .eq('ganho_pos', false)
-                    .neq('fase', 'Pós-venda')
+                    .neq('phase_slug', 'pos_venda')
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {

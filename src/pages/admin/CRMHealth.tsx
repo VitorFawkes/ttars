@@ -23,8 +23,9 @@ export default function CRMHealth() {
             const { data, error } = await supabase
                 .from('view_cards_acoes')
                 .select('*')
-                .eq('produto', currentProduct)
-                .neq('fase', 'Pós-venda')
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', currentProduct as any)
+                .neq('phase_slug', 'pos_venda')
                 .neq('status_comercial', 'perdido')
                 .neq('status_comercial', 'ganho')
 

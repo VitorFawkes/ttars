@@ -13,14 +13,11 @@ import { MyDayOpportunityCard } from './MyDayOpportunityCard'
 import { TaskOutcomeModal } from '../shared/TaskOutcomeModal'
 import { useTaskTypesWithOutcomes } from '../../hooks/useTaskOutcomes'
 
-import type { Database } from '../../database.types'
 import type { MyDayTask } from '../../hooks/useMyDayTasks'
 import type { MyDayOpportunity } from '../../hooks/useMyDayOpportunities'
 
-type Product = Database['public']['Enums']['app_product']
-
 interface MyDayBarProps {
-    productFilter: Product
+    productFilter: string
 }
 
 type SectionKey = string | null

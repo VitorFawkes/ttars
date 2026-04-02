@@ -25,7 +25,8 @@ export default function GroupsPage() {
                 .from('cards')
                 .select('*')
                 .eq('is_group_parent', true)
-                .eq('produto', currentProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', currentProduct as any)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

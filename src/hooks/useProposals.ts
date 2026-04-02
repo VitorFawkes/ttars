@@ -93,7 +93,8 @@ export function useProposals(filters?: ProposalFilters) {
                     ? supabase.from('proposal_versions').select('id, title, version_number').in('id', versionIds)
                     : { data: [], error: null },
                 cardIds.length > 0
-                    ? supabase.from('cards').select('id, titulo, pessoa_principal_id, produto').in('id', cardIds).eq('produto', currentProduct)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ? supabase.from('cards').select('id, titulo, pessoa_principal_id, produto').in('id', cardIds).eq('produto', currentProduct as any)
                     : { data: [], error: null },
                 creatorIds.length > 0
                     ? supabase.from('profiles').select('id, email, nome').in('id', creatorIds)
@@ -154,7 +155,8 @@ export function useProposalStats() {
             const { data, error } = await supabase
                 .from('proposals')
                 .select('status, card:cards!inner!proposals_card_id_fkey(produto)')
-                .eq('cards.produto', currentProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('cards.produto', currentProduct as any)
 
             if (error) throw error
 

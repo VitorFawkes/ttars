@@ -6,12 +6,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { format, startOfDay, endOfDay } from 'date-fns'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 
-import type { Database } from '@/database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface TodayMeetingsWidgetProps {
-    productFilter?: Product
+    productFilter?: string
 }
 
 export function TodayMeetingsWidget({ productFilter }: TodayMeetingsWidgetProps) {

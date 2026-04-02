@@ -8,14 +8,11 @@ import { parseBRNumber } from '../../lib/parseBRNumber'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Database } from '../../database.types'
-type AppProduct = Database['public']['Enums']['app_product']
-
 interface DealImportModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
-    currentProduct: AppProduct
+    currentProduct: string
 }
 
 interface Mapping {

@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { supabase } from '../../lib/supabase'
-import type { Database } from '../../database.types'
 import { QueryErrorState } from '../ui/QueryErrorState'
 
-type Product = Database['public']['Enums']['app_product']
-
 interface FunnelChartProps {
-    productFilter: Product
+    productFilter: string
 }
 
 export default function FunnelChart({ productFilter }: FunnelChartProps) {
@@ -19,7 +16,8 @@ export default function FunnelChart({ productFilter }: FunnelChartProps) {
                 .select('*')
                 .order('etapa_ordem')
 
-            query = query.eq('produto', productFilter)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            query = query.eq('produto', productFilter as any)
 
             const { data, error } = await query
             if (error) throw error

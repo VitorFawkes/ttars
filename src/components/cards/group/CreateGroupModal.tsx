@@ -5,10 +5,6 @@ import { Input } from '@/components/ui/Input'
 import { Users, Loader2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface CreateGroupModalProps {
     isOpen: boolean
     onClose: () => void
@@ -19,7 +15,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
     const queryClient = useQueryClient()
     const [formData, setFormData] = useState({
         titulo: '',
-        produto: 'TRIPS' as Product,
+        produto: 'TRIPS' as string,
         group_capacity: '',
         data_viagem_inicio: '',
         data_viagem_fim: '',
@@ -154,7 +150,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
                         </label>
                         <select
                             value={formData.produto}
-                            onChange={(e) => setFormData({ ...formData, produto: e.target.value as Product })}
+                            onChange={(e) => setFormData({ ...formData, produto: e.target.value as string })}
                             className="w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         >
                             <option value="TRIPS">Viagens</option>

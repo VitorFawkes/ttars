@@ -12,109 +12,89 @@ export interface FieldConfig {
     label: string
 }
 
-// Registry mapping field names to their components
+// ============================================
+// FIELD TYPE → COMPONENT MAP (finite, code-level)
+// Maps system_fields.type → React component
+// New field TYPES need a code change, but new FIELDS using existing types don't.
+// ============================================
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const FIELD_TYPE_COMPONENTS: Record<string, React.ComponentType<any>> = {
+    text: TextFieldInput,
+    textarea: TextFieldInput,
+    number: TextFieldInput,
+    date: TextFieldInput,
+    date_range: DateRangeField,
+    flexible_date: DateRangeField,
+    flexible_duration: TextFieldInput,
+    destinations: DestinosField,
+    people_count: PessoasField,
+    currency: OrcamentoField,
+    currency_range: OrcamentoField,
+    smart_budget: OrcamentoField,
+    percentage: TaxaPlanejamentoField,
+    select: TextFieldInput,
+    multiselect: TextFieldInput,
+    checklist: TextFieldInput,
+    boolean: TextFieldInput,
+}
+
+// ============================================
+// LEGACY REGISTRIES (backward compat)
+// Kept for existing code that imports them directly.
+// New code should use getFieldRegistry() which reads from system_fields.
+// ============================================
 export const TRIPS_FIELD_REGISTRY: Record<string, FieldConfig> = {
-    destinos: {
-        name: 'destinos',
-        component: DestinosField,
-        label: 'Destinos'
-    },
-    epoca_viagem: {
-        name: 'epoca_viagem',
-        component: DateRangeField,
-        label: 'Época da Viagem'
-    },
-    pessoas: {
-        name: 'pessoas',
-        component: PessoasField,
-        label: 'Viajantes'
-    },
-    motivo: {
-        name: 'motivo',
-        component: TextFieldInput,
-        label: 'Motivo da Viagem'
-    },
-    orcamento: {
-        name: 'orcamento',
-        component: OrcamentoField,
-        label: 'Orçamento'
-    },
-    taxa_planejamento: {
-        name: 'taxa_planejamento',
-        component: TaxaPlanejamentoField,
-        label: 'Taxa de Planejamento'
-    }
+    destinos: { name: 'destinos', component: DestinosField, label: 'Destinos' },
+    epoca_viagem: { name: 'epoca_viagem', component: DateRangeField, label: 'Época da Viagem' },
+    pessoas: { name: 'pessoas', component: PessoasField, label: 'Viajantes' },
+    motivo: { name: 'motivo', component: TextFieldInput, label: 'Motivo da Viagem' },
+    orcamento: { name: 'orcamento', component: OrcamentoField, label: 'Orçamento' },
+    taxa_planejamento: { name: 'taxa_planejamento', component: TaxaPlanejamentoField, label: 'Taxa de Planejamento' },
 }
 
-// For WEDDING product — key fields for proposal auto-fill and card defaults
 export const WEDDING_FIELD_REGISTRY: Record<string, FieldConfig> = {
-    ww_data_casamento: {
-        name: 'ww_data_casamento',
-        component: TextFieldInput,
-        label: 'Data do Casamento'
-    },
-    ww_destino: {
-        name: 'ww_destino',
-        component: TextFieldInput,
-        label: 'Destino'
-    },
-    ww_tipo_casamento: {
-        name: 'ww_tipo_casamento',
-        component: TextFieldInput,
-        label: 'Tipo de Casamento'
-    },
-    ww_orcamento_faixa: {
-        name: 'ww_orcamento_faixa',
-        component: TextFieldInput,
-        label: 'Orçamento'
-    },
-    ww_num_convidados: {
-        name: 'ww_num_convidados',
-        component: TextFieldInput,
-        label: 'Número de Convidados'
-    },
-    ww_nome_parceiro: {
-        name: 'ww_nome_parceiro',
-        component: TextFieldInput,
-        label: 'Nome do(a) Noivo(a) 2'
-    },
-    ww_closer_valor_contrato: {
-        name: 'ww_closer_valor_contrato',
-        component: TextFieldInput,
-        label: 'Valor do Contrato'
-    }
+    ww_data_casamento: { name: 'ww_data_casamento', component: TextFieldInput, label: 'Data do Casamento' },
+    ww_destino: { name: 'ww_destino', component: TextFieldInput, label: 'Destino' },
+    ww_tipo_casamento: { name: 'ww_tipo_casamento', component: TextFieldInput, label: 'Tipo de Casamento' },
+    ww_orcamento_faixa: { name: 'ww_orcamento_faixa', component: TextFieldInput, label: 'Orçamento' },
+    ww_num_convidados: { name: 'ww_num_convidados', component: TextFieldInput, label: 'Número de Convidados' },
+    ww_nome_parceiro: { name: 'ww_nome_parceiro', component: TextFieldInput, label: 'Nome do(a) Noivo(a) 2' },
+    ww_closer_valor_contrato: { name: 'ww_closer_valor_contrato', component: TextFieldInput, label: 'Valor do Contrato' },
 }
 
-// For CORP product (future expansion)
 export const CORP_FIELD_REGISTRY: Record<string, FieldConfig> = {
-    tipo_evento: {
-        name: 'tipo_evento',
-        component: TextFieldInput,
-        label: 'Tipo de Evento'
-    },
-    empresa: {
-        name: 'empresa',
-        component: TextFieldInput,
-        label: 'Empresa'
-    },
-    num_participantes: {
-        name: 'num_participantes',
-        component: TextFieldInput,
-        label: 'Número de Participantes'
-    }
+    tipo_evento: { name: 'tipo_evento', component: TextFieldInput, label: 'Tipo de Evento' },
+    empresa: { name: 'empresa', component: TextFieldInput, label: 'Empresa' },
+    num_participantes: { name: 'num_participantes', component: TextFieldInput, label: 'Número de Participantes' },
 }
 
-export function getFieldRegistry(produto: 'TRIPS' | 'WEDDING' | 'CORP'): Record<string, FieldConfig> {
-    switch (produto) {
-        case 'TRIPS':
-            return TRIPS_FIELD_REGISTRY
-        case 'WEDDING':
-            return WEDDING_FIELD_REGISTRY
-        case 'CORP':
-            return CORP_FIELD_REGISTRY
-        default:
-            return TRIPS_FIELD_REGISTRY
-    }
+// Legacy lookup tables for backward compat
+const LEGACY_REGISTRIES: Record<string, Record<string, FieldConfig>> = {
+    TRIPS: TRIPS_FIELD_REGISTRY,
+    WEDDING: WEDDING_FIELD_REGISTRY,
+    CORP: CORP_FIELD_REGISTRY,
+}
+
+/**
+ * Returns field registry for a product.
+ *
+ * For known products (TRIPS/WEDDING/CORP), returns legacy hardcoded registry.
+ * For unknown products (new tenants), returns empty — fields come from system_fields
+ * table via useFieldConfig hook (stage_field_config → section_field_config → system_fields).
+ *
+ * The component for each field is resolved by system_fields.type → FIELD_TYPE_COMPONENTS.
+ */
+export function getFieldRegistry(produto: string): Record<string, FieldConfig> {
+    return LEGACY_REGISTRIES[produto] ?? {}
+}
+
+/**
+ * Resolves a React component for a field type.
+ * Used by UniversalFieldRenderer and dynamic field rendering.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getFieldComponent(fieldType: string): React.ComponentType<any> {
+    return FIELD_TYPE_COMPONENTS[fieldType] ?? TextFieldInput
 }
 
 // ============================================
@@ -139,24 +119,18 @@ interface EpocaViagemData {
 }
 
 export interface CardProposalDefaults {
-    // For proposal cover/header
     destination: string | null
     destinationCountry: string | null
     travelDates: { start: string | null; end: string | null; flexible: boolean } | null
     pax: { adults: number; children: number; infants: number } | null
     tripMotivo: string | null
-
-    // Computed
     totalPax: number
     formattedDates: string | null
 }
 
 /**
  * Extracts proposal defaults from a card's produto_data.
- * Uses the modular fieldRegistry pattern - reads from JSONB, never hardcoded columns.
- * 
- * @param card - The card object with produto and produto_data
- * @returns CardProposalDefaults object with extracted values
+ * Reads from JSONB using known field keys.
  */
 export function getCardDefaults(card: {
     produto?: string | null
@@ -169,17 +143,15 @@ export function getCardDefaults(card: {
         pax: null,
         tripMotivo: null,
         totalPax: 0,
-        formattedDates: null
+        formattedDates: null,
     }
 
     if (!card.produto_data) return defaults
 
     const data = card.produto_data as Record<string, unknown>
-    const produto = (card.produto || 'TRIPS') as 'TRIPS' | 'WEDDING' | 'CORP'
-    const registry = getFieldRegistry(produto)
 
-    // Extract DESTINOS if field exists in registry
-    if (registry.destinos && data.destinos) {
+    // Extract destinations (generic — any product can have this)
+    if (data.destinos) {
         const destinos = data.destinos as DestinationData[]
         if (Array.isArray(destinos) && destinos.length > 0) {
             const first = destinos[0]
@@ -188,44 +160,37 @@ export function getCardDefaults(card: {
         }
     }
 
-    // Extract EPOCA_VIAGEM if field exists in registry
-    if (registry.epoca_viagem && data.epoca_viagem) {
+    // Extract travel dates
+    if (data.epoca_viagem) {
         const epoca = data.epoca_viagem as EpocaViagemData
         defaults.travelDates = {
             start: epoca.inicio || null,
             end: epoca.fim || null,
-            flexible: epoca.flexivel || false
+            flexible: epoca.flexivel || false,
         }
-
-        // Format dates for display
         if (epoca.inicio && epoca.fim) {
             try {
                 const start = new Date(epoca.inicio)
                 const end = new Date(epoca.fim)
-                const formatter = new Intl.DateTimeFormat('pt-BR', {
-                    day: '2-digit',
-                    month: 'short'
-                })
+                const formatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' })
                 defaults.formattedDates = `${formatter.format(start)} - ${formatter.format(end)}`
-            } catch {
-                // If date parsing fails, leave as null
-            }
+            } catch { /* ignore parse errors */ }
         }
     }
 
-    // Extract PESSOAS if field exists in registry
-    if (registry.pessoas && data.pessoas) {
+    // Extract people count
+    if (data.pessoas) {
         const pessoas = data.pessoas as PessoasData
         defaults.pax = {
             adults: pessoas.adultos || 0,
             children: pessoas.criancas || 0,
-            infants: pessoas.bebes || 0
+            infants: pessoas.bebes || 0,
         }
         defaults.totalPax = (pessoas.adultos || 0) + (pessoas.criancas || 0)
     }
 
-    // Extract MOTIVO if field exists in registry
-    if (registry.motivo && data.motivo) {
+    // Extract trip reason
+    if (data.motivo) {
         defaults.tripMotivo = data.motivo as string
     }
 

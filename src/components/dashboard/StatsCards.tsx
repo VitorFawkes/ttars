@@ -1,14 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
-import type { Database } from '../../database.types'
 import { DollarSign, Layers, TrendingUp } from 'lucide-react'
 import { QueryErrorState } from '../ui/QueryErrorState'
 
-type Product = Database['public']['Enums']['app_product']
-
 interface StatsCardsProps {
-    productFilter: Product
+    productFilter: string
 }
 
 export default function StatsCards({ productFilter }: StatsCardsProps) {
@@ -19,7 +16,8 @@ export default function StatsCards({ productFilter }: StatsCardsProps) {
                 .from('view_dashboard_funil')
                 .select('*')
 
-            query = query.eq('produto', productFilter)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            query = query.eq('produto', productFilter as any)
 
             const { data, error } = await query
             if (error) throw error

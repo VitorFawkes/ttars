@@ -44,7 +44,8 @@ export default function Lixeira() {
             const { data, error } = await supabase
                 .from('view_deleted_cards')
                 .select('*')
-                .eq('produto', currentProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', currentProduct as any)
                 .order('deleted_at', { ascending: false })
 
             if (error) throw error

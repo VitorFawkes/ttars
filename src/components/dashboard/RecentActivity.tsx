@@ -3,9 +3,6 @@ import { supabase } from '../../lib/supabase'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { QueryErrorState } from '../ui/QueryErrorState'
-import type { Database } from '../../database.types'
-
-type Product = Database['public']['Enums']['app_product']
 
 interface Activity {
     id: string
@@ -23,7 +20,7 @@ interface Activity {
 }
 
 interface RecentActivityProps {
-    productFilter?: Product
+    productFilter?: string
 }
 
 export default function RecentActivity({ productFilter }: RecentActivityProps) {
@@ -51,7 +48,8 @@ export default function RecentActivity({ productFilter }: RecentActivityProps) {
                 .limit(10)
 
             if (productFilter) {
-                query.eq('cards.produto', productFilter)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                query.eq('cards.produto', productFilter as any)
             }
 
             const { data, error } = await query

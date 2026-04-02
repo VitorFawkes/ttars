@@ -3,10 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { differenceInDays } from 'date-fns'
 
-import type { Database } from '../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 export interface MyDayOpportunity {
     id: string
     titulo: string
@@ -22,7 +18,7 @@ export interface MyDayOpportunity {
 }
 
 interface UseMyDayOpportunitiesOptions {
-    productFilter: Product
+    productFilter: string
     /** IDs to filter by. undefined = no filter (all). [] = no results. */
     responsavelIds?: string[]
 }

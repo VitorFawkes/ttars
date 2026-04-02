@@ -15,11 +15,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useAllowedStages } from '../../hooks/useCardCreationRules'
 import { useToast } from '../../contexts/ToastContext'
 import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
-import type { Database } from '../../database.types'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
-
-type Product = Database['public']['Enums']['app_product']
 
 interface CreateCardModalProps {
     isOpen: boolean
@@ -238,7 +235,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Core form data
     const [formData, setFormData] = useState({
         titulo: '',
-        produto: currentProduct as Product,
+        produto: currentProduct,
         pessoa_principal_id: null as string | null,
         pessoa_principal_nome: null as string | null,
         sdr_owner_id: null as string | null,
@@ -365,7 +362,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             const { data } = await supabase
                 .from('pipelines')
                 .select('id')
-                .eq('produto', formData.produto)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', formData.produto as any)
                 .eq('ativo', true)
                 .single()
             return data

@@ -5,10 +5,6 @@ import { startOfDay, endOfDay, addDays, subDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 
-import type { Database } from '../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 export interface MyDayTask {
     id: string
     titulo: string
@@ -31,7 +27,7 @@ export type DayBucket = {
 }
 
 interface UseMyDayTasksOptions {
-    productFilter: Product
+    productFilter: string
     /** IDs to filter by. undefined = no filter (all). [] = no results. */
     responsavelIds?: string[]
 }

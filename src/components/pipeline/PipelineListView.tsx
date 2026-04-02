@@ -30,12 +30,12 @@ import { useSeenCards } from '../../hooks/useSeenCards'
 import { useQualityGate } from '../../hooks/useQualityGate'
 import { FilterEmptyState } from './FilterEmptyState'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { usePhaseCapabilities } from '../../hooks/usePhaseCapabilities'
 import { getPhaseLabel, isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { SystemPhase } from '../../types/pipeline'
 import OwnerSelector from './OwnerSelector'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
-type Product = Database['public']['Enums']['app_product']
 
 interface ProximaTarefa {
     id: string
@@ -46,7 +46,7 @@ interface ProximaTarefa {
 const asProximaTarefa = (t: Card['proxima_tarefa']): ProximaTarefa => t as unknown as ProximaTarefa
 
 interface PipelineListViewProps {
-    productFilter: Product
+    productFilter: string
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
@@ -66,6 +66,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: stages } = usePipelineStages(pipelineId)
     const { data: phases } = usePipelinePhases(pipelineId)
+    const { getOwnerPhases } = usePhaseCapabilities(pipelineId)
 
     // Paginação
     const [currentPage, setCurrentPage] = useState(1)
@@ -134,7 +135,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         { id: 'vendas_nome', label: plannerLabel, isVisible: false },
         { id: 'pos_owner_nome', label: posLabel, isVisible: false },
         { id: 'tempo_etapa_dias', label: 'Dias na Etapa', isVisible: false },
-        { id: 'documentos', label: 'Documentos', isVisible: false },
+        { id: 'anexos', label: 'Anexos', isVisible: false },
         { id: 'pessoa_email', label: 'Email', isVisible: false },
         { id: 'pessoa_telefone', label: 'Telefone', isVisible: false },
         { id: 'valor_final', label: 'Valor Final', isVisible: false },
@@ -145,7 +146,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
 
     // Load saved column preferences from localStorage (supports new format with order)
     const [columns, setColumns] = useState<ColumnConfig[]>(() => {
-        const saved = localStorage.getItem('pipeline_list_columns_v3')
+        const saved = localStorage.getItem('pipeline_list_columns_v4')
         if (saved) {
             try {
                 const parsed = JSON.parse(saved) as ColumnConfig[]
@@ -168,7 +169,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
 
     // Persist column preferences
     useEffect(() => {
-        localStorage.setItem('pipeline_list_columns_v3', JSON.stringify(columns))
+        localStorage.setItem('pipeline_list_columns_v4', JSON.stringify(columns))
     }, [columns])
 
     // Quick Filters state
@@ -344,8 +345,40 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         }
     }
 
+    // --- Client-side filters (taskStatus, docStatus) ---
+    const clientFilteredCards = (cards || []).filter(card => {
+        // docStatus filter
+        if ((filters.docStatus?.length ?? 0) > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const count = Number((card as any).anexos_count) || 0
+            if (count === 0 && !filters.docStatus!.includes('sem_anexos')) return false
+            if (count > 0 && !filters.docStatus!.includes('com_anexos')) return false
+        }
+
+        // taskStatus filter
+        if ((filters.taskStatus?.length ?? 0) > 0) {
+            const tarefa = asProximaTarefa(card.proxima_tarefa)
+            if (!tarefa) {
+                if (!filters.taskStatus!.includes('sem_tarefa')) return false
+            } else {
+                const dueDate = new Date(tarefa.data_vencimento + 'T23:59:59')
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const tomorrow = new Date(today)
+                tomorrow.setDate(tomorrow.getDate() + 1)
+                const isOverdue = dueDate < today
+                const isToday = dueDate >= today && dueDate < tomorrow
+                if (isOverdue && !filters.taskStatus!.includes('atrasada')) return false
+                if (isToday && !filters.taskStatus!.includes('para_hoje')) return false
+                if (!isOverdue && !isToday && !filters.taskStatus!.includes('em_dia')) return false
+            }
+        }
+
+        return true
+    })
+
     // --- Quick Filters + Sorting Logic ---
-    const filteredCards = (cards || []).filter(card => {
+    const filteredCards = clientFilteredCards.filter(card => {
         if (activeQuickFilters.length === 0) return true
 
         // Card must match ALL active filters (AND logic)
@@ -944,9 +977,10 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
             produto: c => c.produto || '',
             sdr_nome: c => c.sdr_owner_nome?.split(' ')[0] || '',
             vendas_nome: c => c.vendas_nome?.split(' ')[0] || '',
-            pos_owner_nome: () => '',
+            pos_owner_nome: c => c.pos_owner_nome?.split(' ')[0] || '',
             tempo_etapa_dias: c => String(c.tempo_etapa_dias ?? ''),
-            documentos: () => '',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            anexos: (c: Card) => String(Number((c as any).anexos_count) || 0),
             pessoa_email: c => c.pessoa_email || '',
             pessoa_telefone: c => c.pessoa_telefone || '',
             valor_final: c => String(c.valor_final ?? ''),
@@ -1016,33 +1050,49 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 value: o.value
             }))
         },
-        {
-            id: 'sdr_owner_id',
-            label: sdrLabel,
-            type: 'select',
-            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.SDR).map(p => ({
-                label: p.full_name || p.email || 'Sem nome',
-                value: p.id
-            }))
-        },
-        {
-            id: 'vendas_owner_id',
-            label: plannerLabel,
-            type: 'select',
-            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.PLANNER).map(p => ({
-                label: p.full_name || p.email || 'Sem nome',
-                value: p.id
-            }))
-        },
-        {
-            id: 'pos_owner_id',
-            label: posLabel,
-            type: 'select',
-            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.POS_VENDA).map(p => ({
-                label: p.full_name || p.email || 'Sem nome',
-                value: p.id
-            }))
-        }
+        // Owner filter fields — generated dynamically from phases that have an ownerField defined.
+        // Falls back to SystemPhase slugs for backwards compat when DB capabilities not yet populated.
+        ...(() => {
+            // Try dynamic: phases with ownerField from DB capabilities
+            const ownerPhases = getOwnerPhases()
+            if (ownerPhases.length > 0) {
+                return ownerPhases.map(phase => ({
+                    id: phase.ownerField!,
+                    label: phase.label || phase.name,
+                    type: 'select' as const,
+                    options: (filterOptions?.profiles || [])
+                        .filter(p => p.phase_slug === phase.slug)
+                        .map(p => ({ label: p.full_name || p.email || 'Sem nome', value: p.id }))
+                }))
+            }
+            // Fallback: use known columns with SystemPhase slugs
+            return [
+                {
+                    id: 'sdr_owner_id',
+                    label: sdrLabel,
+                    type: 'select' as const,
+                    options: (filterOptions?.profiles || [])
+                        .filter(p => p.phase_slug === SystemPhase.SDR)
+                        .map(p => ({ label: p.full_name || p.email || 'Sem nome', value: p.id }))
+                },
+                {
+                    id: 'vendas_owner_id',
+                    label: plannerLabel,
+                    type: 'select' as const,
+                    options: (filterOptions?.profiles || [])
+                        .filter(p => p.phase_slug === SystemPhase.PLANNER)
+                        .map(p => ({ label: p.full_name || p.email || 'Sem nome', value: p.id }))
+                },
+                {
+                    id: 'pos_owner_id',
+                    label: posLabel,
+                    type: 'select' as const,
+                    options: (filterOptions?.profiles || [])
+                        .filter(p => p.phase_slug === SystemPhase.POS_VENDA)
+                        .map(p => ({ label: p.full_name || p.email || 'Sem nome', value: p.id }))
+                }
+            ]
+        })()
     ]
 
     return (

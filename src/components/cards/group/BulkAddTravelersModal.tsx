@@ -5,16 +5,13 @@ import { Users, UserPlus, X, AlertCircle } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import ContactSelector from '@/components/card/ContactSelector'
-import type { Database } from '@/database.types'
 import { cn } from '@/lib/utils'
-
-type Product = Database['public']['Enums']['app_product']
 
 interface BulkAddTravelersModalProps {
     isOpen: boolean
     onClose: () => void
     parentCardId: string
-    parentProduct: Product
+    parentProduct: string
     parentTitle: string
     parentDates?: {
         start: string | null

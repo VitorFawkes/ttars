@@ -2,12 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { Users, UserPlus, Briefcase } from 'lucide-react'
-import type { Database } from '../../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface AssistantStatsWidgetProps {
-    productFilter: Product
+    productFilter: string
 }
 
 interface AssistStats {

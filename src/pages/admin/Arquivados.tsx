@@ -36,7 +36,8 @@ export default function Arquivados() {
             const { data, error } = await supabase
                 .from('cards')
                 .select('id, titulo, produto, status_comercial, valor_estimado, valor_final, archived_at, archived_by, created_at')
-                .eq('produto', currentProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', currentProduct as any)
                 .not('archived_at', 'is', null)
                 .is('deleted_at', null)
                 .order('archived_at', { ascending: false })

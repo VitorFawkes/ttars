@@ -1,9 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Plane, Heart, Building2, type LucideIcon, HelpCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Database } from '../database.types'
-
-type Product = Database['public']['Enums']['app_product']
+type Product = string
 
 const ICON_MAP: Record<string, LucideIcon> = {
     Plane,

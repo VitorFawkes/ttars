@@ -15,10 +15,6 @@ import {
   Loader2, Mic, PenLine, CheckCircle, Plus, X
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Database } from '../../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 // Phase colors
 const PHASE_COLORS: Record<string, string> = {
   'SDR': 'bg-blue-100 text-blue-700 border-blue-200',
@@ -89,7 +85,8 @@ export default function MobileCardCreate() {
       const { data } = await supabase
         .from('pipelines')
         .select('id')
-        .eq('produto', currentProduct)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .eq('produto', currentProduct as any)
         .eq('ativo', true)
         .single()
       return data
@@ -128,7 +125,7 @@ export default function MobileCardCreate() {
         .from('cards')
         .insert({
           titulo: titulo.trim(),
-          produto: currentProduct as Product,
+          produto: currentProduct,
           pessoa_principal_id: contacts[0]?.id || null,
           pipeline_id: pipeline.id,
           pipeline_stage_id: effectiveStageId,

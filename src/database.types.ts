@@ -1962,6 +1962,97 @@ export type Database = {
           },
         ]
       }
+      card_milestones: {
+        Row: {
+          achieved_at: string
+          achieved_by: string | null
+          card_id: string
+          id: string
+          milestone_key: string
+          org_id: string
+        }
+        Insert: {
+          achieved_at?: string
+          achieved_by?: string | null
+          card_id: string
+          id?: string
+          milestone_key: string
+          org_id?: string
+        }
+        Update: {
+          achieved_at?: string
+          achieved_by?: string | null
+          card_id?: string
+          id?: string
+          milestone_key?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_milestones_achieved_by_fkey"
+            columns: ["achieved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_achieved_by_fkey"
+            columns: ["achieved_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "card_milestones_achieved_by_fkey"
+            columns: ["achieved_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "card_milestones_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_milestones_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       card_owner_history: {
         Row: {
           card_id: string
@@ -2082,6 +2173,101 @@ export type Database = {
             columns: ["transferred_by"]
             isOneToOne: false
             referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_phase_owners: {
+        Row: {
+          assigned_at: string
+          card_id: string
+          org_id: string
+          owner_id: string
+          phase_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          card_id: string
+          org_id?: string
+          owner_id: string
+          phase_id: string
+        }
+        Update: {
+          assigned_at?: string
+          card_id?: string
+          org_id?: string
+          owner_id?: string
+          phase_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_phase_owners_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_phase_owners_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -6613,25 +6799,34 @@ export type Database = {
       organizations: {
         Row: {
           active: boolean
+          branding: Json | null
           created_at: string
           id: string
+          logo_url: string | null
           name: string
+          settings: Json | null
           slug: string
           updated_at: string
         }
         Insert: {
           active?: boolean
+          branding?: Json | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name: string
+          settings?: Json | null
           slug: string
           updated_at?: string
         }
         Update: {
           active?: boolean
+          branding?: Json | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name?: string
+          settings?: Json | null
           slug?: string
           updated_at?: string
         }
@@ -6901,43 +7096,64 @@ export type Database = {
       }
       pipeline_phases: {
         Row: {
+          accent_color: string | null
           active: boolean
           color: string
           created_at: string | null
           id: string
+          is_entry_phase: boolean
+          is_terminal_phase: boolean
           label: string
           name: string
           order_index: number
           org_id: string
+          owner_field: string | null
+          owner_label: string | null
           slug: string | null
+          supports_win: boolean
           updated_at: string | null
           visible_in_card: boolean | null
+          win_action: string | null
         }
         Insert: {
+          accent_color?: string | null
           active?: boolean
           color: string
           created_at?: string | null
           id?: string
+          is_entry_phase?: boolean
+          is_terminal_phase?: boolean
           label: string
           name: string
           order_index?: number
           org_id?: string
+          owner_field?: string | null
+          owner_label?: string | null
           slug?: string | null
+          supports_win?: boolean
           updated_at?: string | null
           visible_in_card?: boolean | null
+          win_action?: string | null
         }
         Update: {
+          accent_color?: string | null
           active?: boolean
           color?: string
           created_at?: string | null
           id?: string
+          is_entry_phase?: boolean
+          is_terminal_phase?: boolean
           label?: string
           name?: string
           order_index?: number
           org_id?: string
+          owner_field?: string | null
+          owner_label?: string | null
           slug?: string | null
+          supports_win?: boolean
           updated_at?: string | null
           visible_in_card?: boolean | null
+          win_action?: string | null
         }
         Relationships: [
           {
@@ -12483,6 +12699,7 @@ export type Database = {
         Returns: undefined
       }
       normalize_cpf: { Args: { cpf_input: string }; Returns: string }
+      normalize_name: { Args: { name: string }; Returns: string }
       normalize_phone: { Args: { phone_number: string }; Returns: string }
       normalize_phone_brazil: {
         Args: { phone_number: string }
@@ -12496,6 +12713,17 @@ export type Database = {
       process_whatsapp_raw_event_v2: {
         Args: { event_id: string }
         Returns: Json
+      }
+      provision_organization: {
+        Args: {
+          p_admin_email: string
+          p_name: string
+          p_product_name?: string
+          p_product_slug?: string
+          p_slug: string
+          p_template?: string
+        }
+        Returns: string
       }
       reabrir_card: { Args: { p_card_id: string }; Returns: undefined }
       recalcular_financeiro_manual: {

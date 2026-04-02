@@ -39,12 +39,8 @@ interface PendingProposal {
     days_pending: number
 }
 
-import type { Database } from '@/database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface ProposalAnalyticsWidgetProps {
-    productFilter?: Product
+    productFilter?: string
 }
 
 export function ProposalAnalyticsWidget({ productFilter }: ProposalAnalyticsWidgetProps) {
@@ -63,7 +59,8 @@ export function ProposalAnalyticsWidget({ productFilter }: ProposalAnalyticsWidg
                 .order('created_at', { ascending: false })
 
             if (productFilter) {
-                query.eq('cards.produto', productFilter)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                query.eq('cards.produto', productFilter as any)
             }
 
             const { data: proposals, error } = await query
@@ -132,7 +129,8 @@ export function ProposalAnalyticsWidget({ productFilter }: ProposalAnalyticsWidg
                 .limit(5)
 
             if (productFilter) {
-                query.eq('cards.produto', productFilter)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                query.eq('cards.produto', productFilter as any)
             }
 
             const { data, error } = await query

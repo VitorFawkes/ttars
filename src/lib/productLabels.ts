@@ -1,7 +1,3 @@
-import type { Database } from '../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface ProductLabels {
     deal: string
     dealPlural: string
@@ -9,7 +5,7 @@ interface ProductLabels {
     notFound: string
 }
 
-const LABELS: Record<Product, ProductLabels> = {
+const LABELS: Record<string, ProductLabels> = {
     TRIPS: {
         deal: 'Viagem',
         dealPlural: 'Viagens',
@@ -30,6 +26,6 @@ const LABELS: Record<Product, ProductLabels> = {
     },
 }
 
-export function getProductLabels(produto?: Product | string | null): ProductLabels {
-    return LABELS[(produto as Product) || 'TRIPS'] || LABELS.TRIPS
+export function getProductLabels(produto?: string | null): ProductLabels {
+    return LABELS[produto || 'TRIPS'] || LABELS.TRIPS
 }

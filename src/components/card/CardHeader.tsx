@@ -854,8 +854,13 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const currentPhaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentFase
 
-        // Planner → mostrar WinOptionsModal para escolher entre pós-venda ou ganho direto
-        if (currentPhaseSlug === 'planner') {
+        // Use win_action from DB if available; fallback to slug for backwards compat
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentPhaseWinAction = (currentPhaseObj as any)?.win_action as string | null | undefined
+        const isChooseWinPhase = currentPhaseWinAction === 'choose' || (!currentPhaseWinAction && currentPhaseSlug === 'planner')
+
+        // Phases with win_action='choose' → WinOptionsModal (choose between next phase or close directly)
+        if (isChooseWinPhase) {
             const nextPhaseStages = stages?.filter(s => {
                 const phaseOrder = s.pipeline_phases?.order_index ?? 999
                 const currentPhaseOrder = currentStage?.pipeline_phases?.order_index ?? 0
@@ -1031,8 +1036,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const handleSdrSelect = (userId: string | null) => {
         updateOwnerMutation.mutate({ field: 'sdr_owner_id', userId })
 
-        // If current stage is SDR, update current owner too
-        if (currentPhaseObj?.slug === SystemPhase.SDR) {
+        // If current stage is the entry phase (SDR by slug, or is_entry_phase from DB), update current owner too
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isEntryPhase = (currentPhaseObj as any)?.is_entry_phase === true || currentPhaseObj?.slug === SystemPhase.SDR
+        if (isEntryPhase) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
     }
@@ -1040,7 +1047,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const handlePlannerSelect = (userId: string | null) => {
         updateOwnerMutation.mutate({ field: 'vendas_owner_id', userId })
 
-        // If current stage is Planner (Vendas), update current owner too
+        // If current stage is the sales phase (planner by slug), update current owner too
         if (currentPhaseObj?.slug === SystemPhase.PLANNER) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
@@ -1049,8 +1056,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const handlePosVendaSelect = (userId: string | null) => {
         updateOwnerMutation.mutate({ field: 'pos_owner_id', userId })
 
-        // If current stage is Pós-Venda, update current owner too
-        if (currentPhaseObj?.slug === SystemPhase.POS_VENDA) {
+        // If current stage is a terminal phase (pos_venda/resolucao by slug, or is_terminal_phase from DB), update current owner too
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isTerminalPhase = (currentPhaseObj as any)?.is_terminal_phase === true || currentPhaseObj?.slug === SystemPhase.POS_VENDA || currentPhaseObj?.slug === SystemPhase.RESOLUCAO
+        if (isTerminalPhase) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
     }
@@ -1226,10 +1235,15 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                             <div className="flex items-center gap-2 shrink-0">
                                 {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (() => {
                                     const phaseSlug = currentStage?.pipeline_phases?.slug
-                                    // Pós-Venda é execução/entrega — sem ganho/perdido
-                                    if (phaseSlug === 'pos_venda' || phaseSlug === 'resolucao') return null
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    const phaseIsTerminal = (currentPhaseObj as any)?.is_terminal_phase === true || phaseSlug === 'pos_venda' || phaseSlug === 'resolucao'
+                                    // Terminal phases are execution/delivery — no win/loss buttons
+                                    if (phaseIsTerminal) return null
 
-                                    const winLabel = phaseSlug === 'sdr' ? 'Qualificado' : 'Venda Fechada'
+                                    // Use win label from DB if available; entry phases show 'Qualificado', others 'Venda Fechada'
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    const phaseIsEntry = (currentPhaseObj as any)?.is_entry_phase === true || phaseSlug === 'sdr'
+                                    const winLabel = phaseIsEntry ? 'Qualificado' : 'Venda Fechada'
 
                                     return (
                                         <>

@@ -29,6 +29,7 @@ import { usePipelineFilters, type ViewMode, type SubView, type FilterState } fro
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { usePhaseCapabilities } from '../../hooks/usePhaseCapabilities'
 import { useProducts } from '../../hooks/useProducts'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
@@ -42,12 +43,11 @@ import { sortCards } from '../../lib/sortCards'
 
 const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
 
-type Product = Database['public']['Enums']['app_product']
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Stage = Database['public']['Tables']['pipeline_stages']['Row']
 
 interface KanbanBoardProps {
-    productFilter: Product
+    productFilter: string
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
@@ -71,6 +71,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { products } = useProducts()
     const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: phasesData } = usePipelinePhases(pipelineId)
+    const { getNextPhase } = usePhaseCapabilities(pipelineId)
     const receitaPerm = useReceitaPermission()
     const { getStageSortConfig, setStageSortConfig, clearStageSortConfig, hasStageSortOverride } = useStageSort(pipelineId ?? '')
 
@@ -138,7 +139,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             // Filtrar stages pelo pipeline do produto
             const { data: pipeline } = await supabase.from('pipelines')
                 .select('id')
-                .eq('produto', productFilter)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', productFilter as any)
                 .single()
 
             if (pipeline) {
@@ -628,29 +630,37 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const phaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentStage?.fase
 
-        // Para SDR ou Planner → precisa de handoff (escolher novo dono)
-        const nextPhaseSlug = phaseSlug === 'sdr' ? 'planner' : 'pos_venda'
-        const nextPhase = phasesData?.find(p => p.slug === nextPhaseSlug)
+        // Use dynamic phase graph: find next phase by order_index instead of hardcoded slug mapping
+        const nextPhaseCap = phaseSlug ? getNextPhase(phaseSlug) : undefined
+        const nextPhase = nextPhaseCap ? phasesData?.find(p => p.slug === nextPhaseCap.slug) : undefined
 
-        // Planner → mostrar WinOptionsModal para escolher entre pós-venda ou ganho direto
-        if (phaseSlug === 'planner') {
+        // Use win_action from DB if available; fallback to slug-based detection for backwards compat
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentPhaseWinAction = (phasesData?.find(p => p.slug === phaseSlug) as any)?.win_action as string | null | undefined
+        const isChooseWinPhase = currentPhaseWinAction === 'choose' || (!currentPhaseWinAction && nextPhaseCap?.isTerminalPhase === false && !!nextPhaseCap && phaseSlug === 'planner')
+        if (isChooseWinPhase) {
+            const currentPhaseName = phasesData?.find(p => p.slug === phaseSlug)?.name || phaseSlug || 'Fase'
             setPendingMove({
                 cardId,
                 stageId: '',
-                targetStageName: 'Ganho Planner',
+                targetStageName: `Ganho ${currentPhaseName}`,
                 currentOwnerId: card.dono_atual_id || undefined,
                 targetPhaseId: nextPhase?.id,
-                targetPhaseName: nextPhase?.name || 'Pós-Venda'
+                targetPhaseName: nextPhase?.name || nextPhaseCap?.slug || 'Próxima Fase'
             })
             setWinOptionsModalOpen(true)
             return
         }
 
-        // SDR → quality gate + StageChangeModal (fluxo existente)
+        // Other phases → quality gate + StageChangeModal
         const nextPhaseStages = stages
             ?.filter(s => s.phase_id === nextPhase?.id)
             .sort((a, b) => a.ordem - b.ordem)
         const targetStage = nextPhaseStages?.[0]
+
+        // Label uses current phase name dynamically
+        const currentPhaseName = phasesData?.find(p => p.slug === phaseSlug)?.name || phaseSlug || 'Fase'
+        const wonLabel = `Ganho ${currentPhaseName}`
 
         if (targetStage) {
             try {
@@ -659,7 +669,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     setPendingMove({
                         cardId,
                         stageId: '',
-                        targetStageName: `Ganho SDR`,
+                        targetStageName: wonLabel,
                         missingFields: validation.missingFields,
                         missingProposals: validation.missingProposals,
                         missingTasks: validation.missingTasks,
@@ -676,10 +686,10 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         setPendingMove({
             cardId,
             stageId: '',
-            targetStageName: `Ganho SDR`,
+            targetStageName: wonLabel,
             currentOwnerId: card.dono_atual_id || undefined,
             targetPhaseId: nextPhase?.id,
-            targetPhaseName: nextPhase?.name || nextPhaseSlug
+            targetPhaseName: nextPhase?.name || nextPhaseCap?.slug || 'Próxima Fase'
         })
         setStageChangeModalOpen(true)
     }
@@ -690,7 +700,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         if (!pendingMove) return
 
         const card = allCards?.find(c => c.id === pendingMove.cardId)
-        const nextPhase = phasesData?.find(p => p.slug === 'pos_venda')
+        // Find the next phase from the WinOptions pending move (already resolved when modal was opened)
+        const nextPhase = pendingMove.targetPhaseId ? phasesData?.find(p => p.id === pendingMove.targetPhaseId) : undefined
         const targetStage = stages
             ?.filter(s => s.phase_id === nextPhase?.id)
             .sort((a, b) => a.ordem - b.ordem)?.[0]
@@ -871,8 +882,9 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                             cards={phaseCards}
                                         >
                                             {(() => {
-                                                // Pós-Venda é execução — sem ganho/perdido
-                                                const isPosVenda = phase.slug === 'pos_venda' || phase.slug === 'resolucao'
+                                                // Terminal phases are execution/delivery — no win/loss buttons
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                const isTerminalPhase = (phase as any).is_terminal_phase === true || phase.slug === 'pos_venda' || phase.slug === 'resolucao'
                                                 return phaseStages.map((stage) => {
                                                     const stageCards = allCards.filter(c => c.pipeline_stage_id === stage.id)
                                                     const stageSortConfig = getStageSortConfig(stage.id)
@@ -885,8 +897,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                             cards={sortedStageCards}
                                                             phaseColor={phase.color}
                                                             phaseSlug={phase.slug}
-                                                            onWin={isPosVenda ? undefined : handleWin}
-                                                            onLoss={isPosVenda ? undefined : handleLoss}
+                                                            onWin={isTerminalPhase ? undefined : handleWin}
+                                                            onLoss={isTerminalPhase ? undefined : handleLoss}
                                                             currentSort={stageSortConfig}
                                                             hasSortOverride={hasStageSortOverride(stage.id)}
                                                             onSortChange={(config) => setStageSortConfig(stage.id, config)}

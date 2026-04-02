@@ -6,16 +6,13 @@ import { Plus, User, X, Users } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import ContactSelector from '@/components/card/ContactSelector'
-import type { Database } from '@/database.types'
 import { formatContactName } from '@/lib/contactUtils'
-
-type Product = Database['public']['Enums']['app_product']
 
 interface CreateChildCardModalProps {
     isOpen: boolean
     onClose: () => void
     parentCardId: string
-    parentProduct: Product
+    parentProduct: string
     parentTitle: string
 }
 

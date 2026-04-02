@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-02
 > **Trigger:** ALWAYS ON
-> **Stats:** 131 tabelas | 41 paginas | 99 hooks | 17 views | 438 components
+> **Stats:** 133 tabelas | 41 paginas | 99 hooks | 17 views | 438 components
 
 ---
 
@@ -735,6 +735,7 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `CardHeader` | CardDetail | Titulo, fase, owner |
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
+
 
 
 

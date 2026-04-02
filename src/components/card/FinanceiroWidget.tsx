@@ -19,25 +19,37 @@ interface FinanceiroWidgetProps {
     onToggleCollapse?: () => void
 }
 
-/** Derives the pipeline phase slug from the card's current stage */
-function useCardPhaseSlug(stageId: string | null) {
+interface CardPhaseInfo {
+    slug: string | null
+    isTerminalPhase: boolean
+    isEntryPhase: boolean
+}
+
+/** Derives phase slug and capabilities from the card's current stage */
+function useCardPhaseInfo(stageId: string | null): CardPhaseInfo {
     const { data } = useQuery({
-        queryKey: ['stage-phase-slug', stageId],
+        queryKey: ['stage-phase-info', stageId],
         queryFn: async () => {
             if (!stageId) return null
             const { data, error } = await supabase
                 .from('pipeline_stages')
-                .select('pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .select('pipeline_phases!pipeline_stages_phase_id_fkey(slug, is_terminal_phase, is_entry_phase)' as any)
                 .eq('id', stageId)
                 .single()
             if (error) return null
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return (data?.pipeline_phases as any)?.slug as string | null
+            const phase = (data as any)?.pipeline_phases as Record<string, unknown> | null
+            return {
+                slug: (phase?.slug as string | null) ?? null,
+                isTerminalPhase: (phase?.is_terminal_phase as boolean | null) ?? false,
+                isEntryPhase: (phase?.is_entry_phase as boolean | null) ?? false,
+            }
         },
         enabled: !!stageId,
         staleTime: 1000 * 60 * 5,
     })
-    return data ?? undefined
+    return data ?? { slug: null, isTerminalPhase: false, isEntryPhase: false }
 }
 
 const formatBRL = (value: number) =>
@@ -59,8 +71,10 @@ interface FinancialItem {
 }
 
 export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
-    const phaseSlug = useCardPhaseSlug(card.pipeline_stage_id)
-    const isPostSales = phaseSlug === 'pos_venda'
+    const { slug: phaseSlug, isTerminalPhase } = useCardPhaseInfo(card.pipeline_stage_id)
+    // Terminal phases (e.g. Pós-Venda, Resolução) are in execution mode — use isTerminalPhase from DB,
+    // falling back to slug comparison for backwards compat while DB columns are being populated.
+    const isPostSales = isTerminalPhase || phaseSlug === 'pos_venda'
 
     // Auto-calcula Data Viagem c/ Welcome a partir das datas dos produtos
     useAutoCalcTripDate(cardId)
@@ -165,7 +179,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                             isPostSales ? (
                                 <ProductItemOperational key={item.id} item={item} cardId={cardId} />
                             ) : (
-                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug} />
+                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} />
                             )
                         ))}
 
@@ -212,7 +226,8 @@ function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem;
     const itemReceita = sv - sc
     const itemPct = sv > 0 ? (itemReceita / sv) * 100 : 0
     const hasExtras = item.fornecedor || item.representante || item.documento || item.data_inicio || item.data_fim
-    // Planners can edit obs; other ReadOnly phases see obs as read-only text
+    // Planners can edit obs; other ReadOnly phases see obs as read-only text.
+    // phaseSlug comes from DB; comparing against 'planner' is a fallback until win_action='choose' is populated in DB.
     const isPlannerPhase = phaseSlug === 'planner'
 
     return (

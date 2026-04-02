@@ -35,14 +35,16 @@ export function useGlobalSearch() {
                 supabase
                     .from('cards')
                     .select('id, titulo, produto, status_comercial')
-                    .eq('produto', currentProduct)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .eq('produto', currentProduct as any)
                     .is('deleted_at', null)
                     .ilike('titulo', searchTerm)
                     .limit(5),
                 supabase
                     .from('cards')
                     .select('id, titulo, produto, status_comercial')
-                    .eq('produto', currentProduct)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .eq('produto', currentProduct as any)
                     .is('deleted_at', null)
                     .ilike('produto_data->>numero_venda_monde', searchTerm)
                     .limit(5),
@@ -125,7 +127,8 @@ export function useGlobalSearch() {
                     active_version:proposal_versions!active_version_id(title),
                     card:cards!proposals_card_id_fkey(produto)
                 `)
-                .eq('cards.produto', currentProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('cards.produto', currentProduct as any)
                 .limit(5)
 
             if (proposals) {

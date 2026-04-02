@@ -4,10 +4,6 @@ import { supabase } from '../../lib/supabase'
 import { ChevronDown, User, Zap, Users, Search, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useRoles } from '../../hooks/useRoles'
-import type { Database } from '../../database.types'
-
-type Product = Database['public']['Enums']['app_product']
-
 interface Profile {
     id: string
     nome: string | null
@@ -24,7 +20,7 @@ interface Profile {
 interface OwnerSelectorProps {
     value: string | null
     onChange: (ownerId: string | null, ownerName: string | null) => void
-    product?: Product
+    product?: string
     placeholder?: string
     className?: string
     /** If true, shows "Sem responsável" as default and "Auto-atribuir" as an option */

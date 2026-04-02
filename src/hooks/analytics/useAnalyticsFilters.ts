@@ -9,7 +9,7 @@ export interface AnalyticsFiltersState {
     datePreset: DatePreset
     dateRange: { start: string; end: string }
     granularity: Granularity
-    product: 'TRIPS' | 'WEDDING' | 'CORP'
+    product: string
     mode: AnalysisMode
     stageId: string | null
     ownerId: string | null       // Compat: derived from ownerIds[0] or null
@@ -21,7 +21,7 @@ export interface AnalyticsFiltersState {
     setDatePreset: (preset: DatePreset) => void
     setDateRange: (range: { start: string; end: string }) => void
     setGranularity: (g: Granularity) => void
-    setProduct: (p: 'TRIPS' | 'WEDDING' | 'CORP') => void
+    setProduct: (p: string) => void
     setMode: (mode: AnalysisMode) => void
     setModeWithStage: (mode: AnalysisMode, stageId: string | null) => void
     setOwnerId: (id: string | null) => void

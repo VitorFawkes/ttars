@@ -45,15 +45,8 @@ const STATUS_FILTERS: { value: ConversationStatus | null; label: string }[] = [
     { value: 'inactive', label: 'Inativas' },
 ]
 
-const PHASE_OPTIONS = [
-    { value: null, label: 'Todas as fases' },
-    { value: 'sdr', label: 'SDR (Pré-Venda)' },
-    { value: 'planner', label: 'Planner (Venda)' },
-    { value: 'pos_venda', label: 'Pós-Venda' },
-    { value: 'resolucao', label: 'Resolução' },
-] as const
-
-const PHASE_BADGE: Record<string, string> = {
+// PHASE_BADGE: fallback colors for phase slugs not yet configured in DB (accent_color)
+const PHASE_BADGE_FALLBACK: Record<string, string> = {
     sdr: 'bg-blue-50 text-blue-700 border-blue-200',
     planner: 'bg-violet-50 text-violet-700 border-violet-200',
     pos_venda: 'bg-green-50 text-green-700 border-green-200',
@@ -195,11 +188,18 @@ export default function WhatsAppConversationsTab({ initialStatus }: Conversation
                                             <div
                                                 className={cn(
                                                     'h-full rounded-full transition-all duration-500',
-                                                    phase.phase_slug === 'sdr' ? 'bg-blue-400' :
-                                                    phase.phase_slug === 'planner' ? 'bg-violet-400' :
-                                                    phase.phase_slug === 'pos_venda' ? 'bg-green-400' :
-                                                    phase.phase_slug === 'resolucao' ? 'bg-slate-400' :
-                                                    'bg-amber-300'
+                                                    // Use accent_color from DB phase if available; otherwise fallback by slug
+                                                    (() => {
+                                                        const dbPhase = (phases ?? []).find(p => p.slug === phase.phase_slug)
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                        const accentBg = (dbPhase as any)?.accent_color as string | null
+                                                        if (accentBg) return accentBg
+                                                        if (phase.phase_slug === 'sdr') return 'bg-blue-400'
+                                                        if (phase.phase_slug === 'planner') return 'bg-violet-400'
+                                                        if (phase.phase_slug === 'pos_venda') return 'bg-green-400'
+                                                        if (phase.phase_slug === 'resolucao') return 'bg-slate-400'
+                                                        return 'bg-amber-300'
+                                                    })()
                                                 )}
                                                 style={{ width: `${Math.max((phase.count / maxCount) * 100, 3)}%` }}
                                             />
@@ -311,15 +311,16 @@ export default function WhatsAppConversationsTab({ initialStatus }: Conversation
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-                            {/* Phase filter */}
+                            {/* Phase filter — built dynamically from DB phases */}
                             <select
                                 value={phaseSlug ?? ''}
                                 onChange={(e) => setPhaseSlug(e.target.value || null)}
                                 className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             >
-                                {PHASE_OPTIONS.map(opt => (
-                                    <option key={opt.value ?? ''} value={opt.value ?? ''}>
-                                        {opt.label}
+                                <option value="">Todas as fases</option>
+                                {(phases ?? []).filter(p => p.slug).map(p => (
+                                    <option key={p.slug!} value={p.slug!}>
+                                        {p.label || p.name}
                                     </option>
                                 ))}
                             </select>
@@ -466,7 +467,13 @@ export default function WhatsAppConversationsTab({ initialStatus }: Conversation
                                                 {row.stage_name ? (
                                                     <span className={cn(
                                                         'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border truncate max-w-[140px]',
-                                                        PHASE_BADGE[row.phase_slug || ''] || 'bg-slate-50 text-slate-500 border-slate-200'
+                                                        (() => {
+                                                            const slug = row.phase_slug || ''
+                                                            const dbPhase = (phases ?? []).find(p => p.slug === slug)
+                                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                            const accentBadge = (dbPhase as any)?.accent_color as string | null
+                                                            return accentBadge || PHASE_BADGE_FALLBACK[slug] || 'bg-slate-50 text-slate-500 border-slate-200'
+                                                        })()
                                                     )}>
                                                         {row.stage_name}
                                                     </span>

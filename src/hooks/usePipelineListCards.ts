@@ -7,11 +7,10 @@ import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
 import { useMyAssistCardIds } from './useMyAssistCardIds'
 
-type Product = Database['public']['Enums']['app_product']
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
 interface UsePipelineListCardsProps {
-    productFilter: Product
+    productFilter: string
     viewMode: ViewMode
     subView: SubView
     filters: FilterState
@@ -204,7 +203,7 @@ export function usePipelineListCards({
                     .eq('status_comercial', 'ganho')
                     .eq('ganho_planner', true)
                     .eq('ganho_pos', false)
-                    .neq('fase', 'Pós-venda')
+                    .neq('phase_slug', 'pos_venda')
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {
@@ -246,12 +245,12 @@ export function usePipelineListCards({
                 }
             }
 
-            // Faixa de valor
+            // Faixa de valor (usa valor_display = COALESCE(valor_final, valor_estimado, 0))
             if (filters.valorMin != null) {
-                query = query.gte('valor_estimado', filters.valorMin)
+                query = query.gte('valor_display', filters.valorMin)
             }
             if (filters.valorMax != null) {
-                query = query.lte('valor_estimado', filters.valorMax)
+                query = query.lte('valor_display', filters.valorMax)
             }
 
             // Dias sem contato

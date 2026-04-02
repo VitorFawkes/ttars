@@ -19,6 +19,14 @@ export interface PipelinePhase {
     visible_in_card: boolean | null
     created_at: string | null
     updated_at: string | null
+    // Phase capabilities (H3-015)
+    supports_win: boolean
+    win_action: string | null
+    owner_field: string | null
+    owner_label: string | null
+    accent_color: string | null
+    is_entry_phase: boolean
+    is_terminal_phase: boolean
 }
 
 export interface PipelineStage {
