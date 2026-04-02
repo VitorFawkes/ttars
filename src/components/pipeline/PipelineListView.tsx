@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MessageSquare, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Paperclip, Trophy, XCircle } from 'lucide-react'
-import { getOrigemLabel, getOrigemColor } from '../../lib/constants/origem'
+import { ArrowUpDown, Calendar, Clock, AlertCircle, User as UserIcon, Trash2, Edit, Phone, Mail, MessageSquare, MoreHorizontal, CheckCircle2, Plane, AlertTriangle, ChevronLeft, ChevronRight, FileText, Paperclip, Trophy, XCircle, Download } from 'lucide-react'
+import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS } from '../../lib/constants/origem'
 import { usePipelineListCards } from '../../hooks/usePipelineListCards'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
@@ -29,6 +29,10 @@ import { Button } from '../ui/Button'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { useQualityGate } from '../../hooks/useQualityGate'
 import { FilterEmptyState } from './FilterEmptyState'
+import { usePipelinePhases } from '../../hooks/usePipelinePhases'
+import { getPhaseLabel, isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../types/pipeline'
+import OwnerSelector from './OwnerSelector'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Product = Database['public']['Enums']['app_product']
@@ -61,6 +65,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const { products } = useProducts()
     const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: stages } = usePipelineStages(pipelineId)
+    const { data: phases } = usePipelinePhases(pipelineId)
 
     // Paginação
     const [currentPage, setCurrentPage] = useState(1)
@@ -99,8 +104,20 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
     const [selectedCards, setSelectedCards] = useState<string[]>([])
 
+    // Labels dinâmicos das fases (atualizam se o nome mudar no banco)
+    const sdrLabel = getPhaseLabel(phases, SystemPhase.SDR)
+    const plannerLabel = getPhaseLabel(phases, SystemPhase.PLANNER)
+    const posLabel = getPhaseLabel(phases, SystemPhase.POS_VENDA)
+
+    // Mapa stage_id → phase slug para resolver o owner correto na coluna Responsável
+    const stagePhaseSlugMap = useMemo(() => {
+        if (!stages || !phases) return new Map<string, string>()
+        const phaseMap = new Map(phases.map(p => [p.id, p.slug ?? '']))
+        return new Map(stages.map(s => [s.id, phaseMap.get(s.phase_id ?? '') ?? '']))
+    }, [stages, phases])
+
     // Default column configuration with order
-    const defaultColumns: ColumnConfig[] = [
+    const defaultColumns: ColumnConfig[] = useMemo(() => [
         { id: 'atencao', label: 'Atenção', isVisible: true },
         { id: 'titulo', label: 'Negócio', isVisible: true },
         { id: 'etapa_nome', label: 'Etapa', isVisible: true },
@@ -113,16 +130,22 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         { id: 'updated_at', label: 'Última Atualização', isVisible: false },
         { id: 'origem', label: 'Origem', isVisible: false },
         { id: 'produto', label: 'Produto', isVisible: false },
-        { id: 'sdr_nome', label: 'SDR', isVisible: false },
-        { id: 'vendas_nome', label: 'Closer', isVisible: false },
+        { id: 'sdr_nome', label: sdrLabel, isVisible: false },
+        { id: 'vendas_nome', label: plannerLabel, isVisible: false },
+        { id: 'pos_owner_nome', label: posLabel, isVisible: false },
         { id: 'tempo_etapa_dias', label: 'Dias na Etapa', isVisible: false },
         { id: 'documentos', label: 'Documentos', isVisible: false },
+        { id: 'pessoa_email', label: 'Email', isVisible: false },
+        { id: 'pessoa_telefone', label: 'Telefone', isVisible: false },
+        { id: 'valor_final', label: 'Valor Final', isVisible: false },
+        { id: 'data_fechamento', label: 'Data Fechamento', isVisible: false },
+        { id: 'tempo_sem_contato', label: 'Dias Sem Contato', isVisible: false },
         { id: 'acoes', label: 'Ações', isVisible: true },
-    ]
+    ], [sdrLabel, plannerLabel, posLabel])
 
     // Load saved column preferences from localStorage (supports new format with order)
     const [columns, setColumns] = useState<ColumnConfig[]>(() => {
-        const saved = localStorage.getItem('pipeline_list_columns_v2')
+        const saved = localStorage.getItem('pipeline_list_columns_v3')
         if (saved) {
             try {
                 const parsed = JSON.parse(saved) as ColumnConfig[]
@@ -145,11 +168,11 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
 
     // Persist column preferences
     useEffect(() => {
-        localStorage.setItem('pipeline_list_columns_v2', JSON.stringify(columns))
+        localStorage.setItem('pipeline_list_columns_v3', JSON.stringify(columns))
     }, [columns])
 
     // Quick Filters state
-    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority' | 'sem_anexos'
+    type QuickFilterType = 'overdue' | 'trip_soon' | 'sla' | 'no_task' | 'high_priority' | 'sem_anexos' | 'sem_contato' | 'valor_alto'
     const [activeQuickFilters, setActiveQuickFilters] = useState<QuickFilterType[]>([])
 
     const toggleQuickFilter = (filter: QuickFilterType) => {
@@ -169,6 +192,8 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         high_priority: cards?.filter(c => c.prioridade === 'alta').length ?? 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view mas não está nos types gerados
         sem_anexos: cards?.filter(c => !Number((c as any).anexos_count)).length ?? 0,
+        sem_contato: cards?.filter(c => (c.tempo_sem_contato as number) > 7).length ?? 0,
+        valor_alto: cards?.filter(c => (c.valor_estimado as number) >= 50000).length ?? 0,
     }
 
     const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -194,6 +219,24 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         },
         onError: () => {
             toast.error('Erro ao concluir tarefa')
+        }
+    })
+
+    // Mutation para atualizar owner por fase (inline editing)
+    const updatePhaseOwnerMutation = useMutation({
+        mutationFn: async ({ cardId, field, userId }: { cardId: string; field: 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id'; userId: string | null }) => {
+            const { error } = await supabase
+                .from('cards')
+                .update({ [field]: userId })
+                .eq('id', cardId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            toast.success('Responsável atualizado!')
+        },
+        onError: () => {
+            toast.error('Erro ao atualizar responsável')
         }
     })
 
@@ -251,6 +294,14 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 updates.prioridade = value
             } else if (fieldId === 'dono_atual_id') {
                 updates.dono_atual_id = value
+            } else if (fieldId === 'origem') {
+                updates.origem = value
+            } else if (fieldId === 'sdr_owner_id') {
+                updates.sdr_owner_id = value
+            } else if (fieldId === 'vendas_owner_id') {
+                updates.vendas_owner_id = value
+            } else if (fieldId === 'pos_owner_id') {
+                updates.pos_owner_id = value
             } else if (fieldId === 'etapa_id') {
                 updates.etapa_id = value
 
@@ -313,6 +364,10 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                 case 'sem_anexos':
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- anexos_count vem da view
                     return !Number((card as any).anexos_count)
+                case 'sem_contato':
+                    return (card.tempo_sem_contato as number) > 7
+                case 'valor_alto':
+                    return (card.valor_estimado as number) >= 50000
                 default:
                     return true
             }
@@ -417,12 +472,12 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         <Link to={`/cards/${card.id}`} className="text-gray-900 hover:text-primary hover:underline decoration-primary/30 underline-offset-2 transition-all font-semibold">
                             {card.titulo}
                         </Link>
-                        {card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && (
+                        {card.status_comercial === 'ganho' && isGanhoDireto(card) && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                 <Trophy className="h-2.5 w-2.5" /> Ganho Direto
                             </span>
                         )}
-                        {card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && (
+                        {card.status_comercial === 'ganho' && !isGanhoDireto(card) && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
                                 <Trophy className="h-2.5 w-2.5" /> Ganho
                             </span>
@@ -561,18 +616,22 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                     <ArrowUpDown className="h-3 w-3 text-gray-400" />
                 </div>
             ),
-            renderCell: (card) => (
-                <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                        <AvatarFallback className="text-[10px] bg-blue-50 text-blue-700">
-                            {card.dono_atual_nome?.substring(0, 2).toUpperCase() || 'U'}
-                        </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm text-gray-600 truncate max-w-[100px]">
-                        {card.dono_atual_nome?.split(' ')[0]}
-                    </span>
-                </div>
-            )
+            renderCell: (card) => {
+                const phaseSlug = stagePhaseSlugMap.get(card.pipeline_stage_id ?? '') ?? null
+                const ownerName = getPhaseOwnerName(card, phaseSlug)
+                return (
+                    <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-[10px] bg-blue-50 text-blue-700">
+                                {ownerName?.substring(0, 2).toUpperCase() || 'U'}
+                            </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm text-gray-600 truncate max-w-[100px]">
+                            {ownerName?.split(' ')[0] || '—'}
+                        </span>
+                    </div>
+                )
+            }
         },
         data_viagem_inicio: {
             width: 'w-[120px]',
@@ -649,29 +708,67 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
             )
         },
         sdr_nome: {
-            width: 'w-[120px]',
+            width: 'w-[160px]',
             sortKey: 'sdr_owner_nome',
             renderHeader: () => (
                 <div className="flex items-center gap-1">
-                    SDR
+                    {sdrLabel}
                     <ArrowUpDown className="h-3 w-3 text-gray-400" />
                 </div>
             ),
             renderCell: (card) => (
-                <span className="text-gray-600 text-sm">{card.sdr_owner_nome?.split(' ')[0] || '-'}</span>
+                <OwnerSelector
+                    value={card.sdr_owner_id ?? null}
+                    onChange={(userId: string | null) => {
+                        updatePhaseOwnerMutation.mutate({ cardId: card.id!, field: 'sdr_owner_id', userId })
+                    }}
+                    phaseSlug={SystemPhase.SDR}
+                    product={productFilter}
+                    compact
+                    placeholder="—"
+                />
             )
         },
         vendas_nome: {
-            width: 'w-[120px]',
+            width: 'w-[160px]',
             sortKey: 'vendas_nome',
             renderHeader: () => (
                 <div className="flex items-center gap-1">
-                    Closer
+                    {plannerLabel}
                     <ArrowUpDown className="h-3 w-3 text-gray-400" />
                 </div>
             ),
             renderCell: (card) => (
-                <span className="text-gray-600 text-sm">{card.vendas_nome?.split(' ')[0] || '-'}</span>
+                <OwnerSelector
+                    value={card.vendas_owner_id ?? null}
+                    onChange={(userId) => {
+                        updatePhaseOwnerMutation.mutate({ cardId: card.id!, field: 'vendas_owner_id', userId })
+                    }}
+                    phaseSlug={SystemPhase.PLANNER}
+                    product={productFilter}
+                    compact
+                    placeholder="—"
+                />
+            )
+        },
+        pos_owner_nome: {
+            width: 'w-[160px]',
+            renderHeader: () => (
+                <div className="flex items-center gap-1">
+                    {posLabel}
+                </div>
+            ),
+            renderCell: (card) => (
+                <OwnerSelector
+                    value={card.pos_owner_id ?? null}
+                    onChange={(userId) => {
+                        updatePhaseOwnerMutation.mutate({ cardId: card.id!, field: 'pos_owner_id', userId })
+                    }}
+                    phaseSlug={SystemPhase.POS_VENDA}
+                    product={productFilter}
+                    compact
+                    placeholder="—"
+                />
             )
         },
         tempo_etapa_dias: {
@@ -704,6 +801,78 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         <Paperclip className="h-3 w-3" />
                         {count}
                     </span>
+                )
+            }
+        },
+        pessoa_email: {
+            width: 'w-[180px]',
+            renderHeader: () => 'Email',
+            renderCell: (card) => card.pessoa_email ? (
+                <a href={`mailto:${card.pessoa_email}`} className="text-sm text-primary hover:underline truncate block max-w-[160px]">
+                    {card.pessoa_email}
+                </a>
+            ) : <span className="text-gray-400">-</span>
+        },
+        pessoa_telefone: {
+            width: 'w-[140px]',
+            renderHeader: () => 'Telefone',
+            renderCell: (card) => card.pessoa_telefone ? (
+                <a href={`https://wa.me/${card.pessoa_telefone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-sm text-green-600 hover:underline">
+                    {card.pessoa_telefone}
+                </a>
+            ) : <span className="text-gray-400">-</span>
+        },
+        valor_final: {
+            width: 'w-[120px]',
+            sortKey: 'valor_final',
+            renderHeader: () => (
+                <div className="flex items-center gap-1">
+                    Valor Final
+                    <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                </div>
+            ),
+            renderCell: (card) => card.valor_final ? (
+                <span className="text-sm font-medium text-gray-900">
+                    {Number(card.valor_final).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+            ) : <span className="text-gray-400">-</span>
+        },
+        data_fechamento: {
+            width: 'w-[120px]',
+            sortKey: 'data_fechamento',
+            renderHeader: () => (
+                <div className="flex items-center gap-1">
+                    Fechamento
+                    <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                </div>
+            ),
+            renderCell: (card) => card.data_fechamento ? (
+                <span className="text-sm text-gray-600">
+                    {format(new Date(card.data_fechamento + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
+                </span>
+            ) : <span className="text-gray-400">-</span>
+        },
+        tempo_sem_contato: {
+            width: 'w-[100px]',
+            sortKey: 'tempo_sem_contato',
+            renderHeader: () => (
+                <div className="flex items-center gap-1">
+                    Sem Contato
+                    <ArrowUpDown className="h-3 w-3 text-gray-400" />
+                </div>
+            ),
+            renderCell: (card) => {
+                const dias = card.tempo_sem_contato as number | null
+                if (dias == null) return <span className="text-gray-400">-</span>
+                return (
+                    <Badge variant="outline" className={cn(
+                        "font-mono",
+                        dias > 14 ? "text-red-600 border-red-200 bg-red-50" :
+                        dias > 7 ? "text-amber-600 border-amber-200 bg-amber-50" :
+                        "text-gray-600"
+                    )}>
+                        {dias}d
+                    </Badge>
                 )
             }
         },
@@ -749,6 +918,62 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
         }
     }
 
+    // Export CSV
+    const handleExportCSV = () => {
+        const cardsToExport = selectedCards.length > 0
+            ? sortedCards.filter(c => c.id && selectedCards.includes(c.id))
+            : sortedCards
+
+        if (cardsToExport.length === 0) {
+            toast.error('Nenhum card para exportar')
+            return
+        }
+
+        const visibleCols = columns.filter(c => c.isVisible && c.id !== 'atencao' && c.id !== 'acoes')
+        const fieldMap: Record<string, (card: Card) => string> = {
+            titulo: c => c.titulo || '',
+            etapa_nome: c => c.etapa_nome || '',
+            valor_estimado: c => String(c.valor_estimado ?? ''),
+            prioridade: c => c.prioridade || '',
+            proxima_tarefa: c => { const t = asProximaTarefa(c.proxima_tarefa); return t?.titulo || '' },
+            dono_atual_nome: c => c.dono_atual_nome || '',
+            data_viagem_inicio: c => c.data_viagem_inicio ? format(new Date(c.data_viagem_inicio + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '',
+            created_at: c => c.created_at ? format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '',
+            updated_at: c => c.updated_at ? format(new Date(c.updated_at), 'dd/MM/yyyy', { locale: ptBR }) : '',
+            origem: c => getOrigemLabel(c.origem),
+            produto: c => c.produto || '',
+            sdr_nome: c => c.sdr_owner_nome?.split(' ')[0] || '',
+            vendas_nome: c => c.vendas_nome?.split(' ')[0] || '',
+            pos_owner_nome: () => '',
+            tempo_etapa_dias: c => String(c.tempo_etapa_dias ?? ''),
+            documentos: () => '',
+            pessoa_email: c => c.pessoa_email || '',
+            pessoa_telefone: c => c.pessoa_telefone || '',
+            valor_final: c => String(c.valor_final ?? ''),
+            data_fechamento: c => c.data_fechamento ? format(new Date(c.data_fechamento + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '',
+            tempo_sem_contato: c => String(c.tempo_sem_contato ?? ''),
+        }
+
+        const headers = visibleCols.map(c => c.label)
+        const rows = cardsToExport.map(card =>
+            visibleCols.map(col => {
+                const fn = fieldMap[col.id]
+                const val = fn ? fn(card) : ''
+                return `"${val.replace(/"/g, '""')}"`
+            }).join(',')
+        )
+
+        const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `pipeline-${format(new Date(), 'yyyy-MM-dd')}.csv`
+        link.click()
+        URL.revokeObjectURL(url)
+        toast.success(`${cardsToExport.length} cards exportados`)
+    }
+
     // Colunas visíveis na ordem correta
     const visibleColumnsOrdered = columns.filter(col => col.isVisible && columnRenderers[col.id])
 
@@ -780,6 +1005,42 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
             options: (stages || []).map(s => ({
                 label: s.nome,
                 value: s.id
+            }))
+        },
+        {
+            id: 'origem',
+            label: 'Origem',
+            type: 'select',
+            options: ORIGEM_OPTIONS.map(o => ({
+                label: o.label,
+                value: o.value
+            }))
+        },
+        {
+            id: 'sdr_owner_id',
+            label: sdrLabel,
+            type: 'select',
+            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.SDR).map(p => ({
+                label: p.full_name || p.email || 'Sem nome',
+                value: p.id
+            }))
+        },
+        {
+            id: 'vendas_owner_id',
+            label: plannerLabel,
+            type: 'select',
+            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.PLANNER).map(p => ({
+                label: p.full_name || p.email || 'Sem nome',
+                value: p.id
+            }))
+        },
+        {
+            id: 'pos_owner_id',
+            label: posLabel,
+            type: 'select',
+            options: (filterOptions?.profiles || []).filter(p => p.phase_slug === SystemPhase.POS_VENDA).map(p => ({
+                label: p.full_name || p.email || 'Sem nome',
+                value: p.id
             }))
         }
     ]
@@ -818,10 +1079,21 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         ]}
                     />
                 </div>
-                <ColumnManager
-                    columns={columns}
-                    onChange={handleColumnsChange}
-                />
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportCSV}
+                        className="text-xs gap-1.5"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        Exportar CSV
+                    </Button>
+                    <ColumnManager
+                        columns={columns}
+                        onChange={handleColumnsChange}
+                    />
+                </div>
             </div>
 
             {/* Quick Filters */}
@@ -941,6 +1213,44 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                         activeQuickFilters.includes('sem_anexos') ? "bg-teal-200" : "bg-gray-200"
                     )}>
                         {quickFilterCounts.sem_anexos}
+                    </span>
+                </button>
+
+                <button
+                    onClick={() => toggleQuickFilter('sem_contato')}
+                    className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                        activeQuickFilters.includes('sem_contato')
+                            ? "bg-amber-100 text-amber-700 border border-amber-200"
+                            : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                    )}
+                >
+                    <Clock className="h-3 w-3" />
+                    Sem Contato &gt;7d
+                    <span className={cn(
+                        "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]",
+                        activeQuickFilters.includes('sem_contato') ? "bg-amber-200" : "bg-gray-200"
+                    )}>
+                        {quickFilterCounts.sem_contato}
+                    </span>
+                </button>
+
+                <button
+                    onClick={() => toggleQuickFilter('valor_alto')}
+                    className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                        activeQuickFilters.includes('valor_alto')
+                            ? "bg-purple-100 text-purple-700 border border-purple-200"
+                            : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                    )}
+                >
+                    <Trophy className="h-3 w-3" />
+                    Valor Alto
+                    <span className={cn(
+                        "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]",
+                        activeQuickFilters.includes('valor_alto') ? "bg-purple-200" : "bg-gray-200"
+                    )}>
+                        {quickFilterCounts.valor_alto}
                     </span>
                 </button>
 

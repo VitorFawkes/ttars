@@ -13,12 +13,14 @@ import DeleteCardModal from '../card/DeleteCardModal'
 import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
+import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
 interface KanbanCardProps {
     card: Card
+    phaseSlug?: string | null
     onWin?: (cardId: string) => void
     onLoss?: (cardId: string) => void
 }
@@ -28,7 +30,7 @@ interface KanbanCardProps {
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
 
-export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
+export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
@@ -555,8 +557,8 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                 "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md",
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
-                card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && "border-amber-300 bg-amber-50/40 opacity-80",
-                card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && "border-green-300 bg-green-50/40 opacity-80",
+                card.status_comercial === 'ganho' && isGanhoDireto(card) && "border-amber-300 bg-amber-50/40 opacity-80",
+                card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
                 !isClosedCard && (
                     (card as any).card_type === 'sub_card'
@@ -619,13 +621,13 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
             </div>
 
             {/* Status Badge (Ganho Direto / Ganho / Perdido) */}
-            {card.status_comercial === 'ganho' && card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda' && (
+            {card.status_comercial === 'ganho' && isGanhoDireto(card) && (
                 <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full w-fit border border-amber-200">
                     <Trophy className="h-3 w-3" />
                     Ganho Direto
                 </div>
             )}
-            {card.status_comercial === 'ganho' && !(card.ganho_planner === true && card.ganho_pos === false && card.fase !== 'Pós-venda') && (
+            {card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && (
                 <div className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full w-fit border border-green-200">
                     <Trophy className="h-3 w-3" />
                     Ganho
@@ -783,28 +785,31 @@ export default function KanbanCard({ card, onWin, onLoss }: KanbanCardProps) {
                     </div>
                 )}
 
-                {/* Owner info always at bottom */}
+                {/* Owner info always at bottom — mostra o responsável da fase atual */}
                 <div className="mt-2 flex items-center justify-between border-t pt-2">
                     <div className="flex items-center gap-1.5">
-                        {card.dono_atual_nome ? (
-                            <>
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-600">
-                                    {card.dono_atual_nome.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="text-xs text-gray-500 truncate max-w-[80px]">
-                                    {card.dono_atual_nome.split(' ')[0]}
-                                </span>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-50 text-[10px] font-medium text-gray-400">
-                                    <Users className="h-3 w-3" />
-                                </div>
-                                <span className="text-xs text-gray-400 italic truncate max-w-[100px]">
-                                    Sem responsável
-                                </span>
-                            </>
-                        )}
+                        {(() => {
+                            const ownerName = getPhaseOwnerName(card, phaseSlug)
+                            return ownerName ? (
+                                <>
+                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-600">
+                                        {ownerName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-xs text-gray-500 truncate max-w-[80px]">
+                                        {ownerName.split(' ')[0]}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-50 text-[10px] font-medium text-gray-400">
+                                        <Users className="h-3 w-3" />
+                                    </div>
+                                    <span className="text-xs text-gray-400 italic truncate max-w-[100px]">
+                                        Sem responsável
+                                    </span>
+                                </>
+                            )
+                        })()}
                     </div>
                     {card.concierge_owner_id && (
                         <div className="flex items-center gap-0.5 text-[10px] text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded-full" title="Concierge atribuído">

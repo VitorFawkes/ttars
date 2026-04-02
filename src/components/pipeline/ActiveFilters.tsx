@@ -7,6 +7,8 @@ import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useCardTags } from '../../hooks/useCardTags'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getPhaseLabel, getMilestoneLabel } from '../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../types/pipeline'
 
 const STATUS_LABELS: Record<string, string> = {
     aberto: 'Em Aberto',
@@ -64,6 +66,10 @@ export function ActiveFilters() {
         filters.milestones?.length ||
         filters.taskStatus?.length ||
         filters.origem?.length ||
+        filters.valorMin != null ||
+        filters.valorMax != null ||
+        filters.diasSemContato != null ||
+        filters.diasAteViagem != null ||
         showWonDirect
     )
 
@@ -86,7 +92,7 @@ export function ActiveFilters() {
 
                 {/* Quick toggles como chips */}
                 {showWonDirect && (
-                    <Chip label="Sem Pós" variant="green" onRemove={() => setShowWonDirect(false)} />
+                    <Chip label={`Sem ${getPhaseLabel(phasesData, SystemPhase.POS_VENDA)}`} variant="green" onRemove={() => setShowWonDirect(false)} />
                 )}
 
                 {/* Search */}
@@ -102,20 +108,20 @@ export function ActiveFilters() {
 
                 {/* SDRs */}
                 {filters.sdrIds?.map(id => {
-                    const name = options?.profiles.find(p => p.id === id)?.full_name || 'SDR'
-                    return <Chip key={id} label={`SDR: ${name}`} onRemove={() => toggleFilterValue('sdrIds', id)} />
+                    const name = options?.profiles.find(p => p.id === id)?.full_name || getPhaseLabel(phasesData, SystemPhase.SDR)
+                    return <Chip key={id} label={`${getPhaseLabel(phasesData, SystemPhase.SDR)}: ${name}`} onRemove={() => toggleFilterValue('sdrIds', id)} />
                 })}
 
                 {/* Planners */}
                 {filters.plannerIds?.map(id => {
-                    const name = options?.profiles.find(p => p.id === id)?.full_name || 'Planner'
-                    return <Chip key={id} label={`Planner: ${name}`} onRemove={() => toggleFilterValue('plannerIds', id)} />
+                    const name = options?.profiles.find(p => p.id === id)?.full_name || getPhaseLabel(phasesData, SystemPhase.PLANNER)
+                    return <Chip key={id} label={`${getPhaseLabel(phasesData, SystemPhase.PLANNER)}: ${name}`} onRemove={() => toggleFilterValue('plannerIds', id)} />
                 })}
 
                 {/* Pós-Venda */}
                 {filters.posIds?.map(id => {
-                    const name = options?.profiles.find(p => p.id === id)?.full_name || 'Pós'
-                    return <Chip key={id} label={`Pós: ${name}`} onRemove={() => toggleFilterValue('posIds', id)} />
+                    const name = options?.profiles.find(p => p.id === id)?.full_name || getPhaseLabel(phasesData, SystemPhase.POS_VENDA)
+                    return <Chip key={id} label={`${getPhaseLabel(phasesData, SystemPhase.POS_VENDA)}: ${name}`} onRemove={() => toggleFilterValue('posIds', id)} />
                 })}
 
                 {/* Teams */}
@@ -153,10 +159,9 @@ export function ActiveFilters() {
                 ))}
 
                 {/* Milestones */}
-                {filters.milestones?.map(m => {
-                    const labels: Record<string, string> = { ganho_sdr: 'Marco: SDR', ganho_planner: 'Marco: Planner', ganho_pos: 'Marco: Pós' }
-                    return <Chip key={m} label={labels[m] || m} onRemove={() => toggleFilterValue('milestones', m)} />
-                })}
+                {filters.milestones?.map(m => (
+                    <Chip key={m} label={getMilestoneLabel(phasesData, m)} onRemove={() => toggleFilterValue('milestones', m)} />
+                ))}
 
                 {/* Anexos Status */}
                 {filters.docStatus?.map(status => (
@@ -191,6 +196,24 @@ export function ActiveFilters() {
                         label={`Criado: ${filters.creationStartDate ? format(new Date(filters.creationStartDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'} - ${filters.creationEndDate ? format(new Date(filters.creationEndDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'}`}
                         onRemove={() => { removeFilter('creationStartDate'); removeFilter('creationEndDate'); }}
                     />
+                )}
+
+                {/* Faixa de Valor */}
+                {(filters.valorMin != null || filters.valorMax != null) && (
+                    <Chip
+                        label={`Valor: ${filters.valorMin != null ? `R$${filters.valorMin.toLocaleString('pt-BR')}` : '...'} - ${filters.valorMax != null ? `R$${filters.valorMax.toLocaleString('pt-BR')}` : '...'}`}
+                        onRemove={() => { removeFilter('valorMin'); removeFilter('valorMax'); }}
+                    />
+                )}
+
+                {/* Dias Sem Contato */}
+                {filters.diasSemContato != null && (
+                    <Chip label={`Sem contato > ${filters.diasSemContato}d`} onRemove={() => removeFilter('diasSemContato')} />
+                )}
+
+                {/* Urgência Viagem */}
+                {filters.diasAteViagem != null && (
+                    <Chip label={`Viagem < ${filters.diasAteViagem}d`} onRemove={() => removeFilter('diasAteViagem')} />
                 )}
 
                 <button

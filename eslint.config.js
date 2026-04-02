@@ -32,10 +32,6 @@ export default defineConfig([
         {
           selector: "VariableDeclarator[id.name='FIELD_TYPES']",
           message: "Do not define FIELD_TYPES locally. Import from src/constants/admin.ts"
-        },
-        {
-          selector: "VariableDeclarator[id.name='MACRO_STAGES']",
-          message: "Do not define MACRO_STAGES locally. Import from src/constants/admin.ts"
         }
       ]
     }

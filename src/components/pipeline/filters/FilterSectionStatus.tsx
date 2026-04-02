@@ -1,6 +1,11 @@
+import { useMemo } from 'react'
 import { Target, CheckSquare, Trophy } from 'lucide-react'
 import { FilterChipGroup } from './FilterChipGroup'
 import type { FilterState, ArrayFilterField } from '../../../hooks/usePipelineFilters'
+import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
+import { getPhaseLabel } from '../../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../../types/pipeline'
 
 const STATUS_COMERCIAL_OPTIONS = [
     { value: 'aberto', label: 'Em Aberto', color: 'bg-primary text-white border-primary' },
@@ -15,18 +20,20 @@ const TASK_STATUS_OPTIONS = [
     { value: 'sem_tarefa', label: 'Sem Tarefa', description: 'Nenhuma tarefa pendente', color: 'bg-gray-500 text-white border-gray-500' },
 ]
 
-const MILESTONE_OPTIONS = [
-    { value: 'ganho_sdr', label: 'Ganho SDR', description: 'Qualificado pelo SDR', color: 'bg-blue-500 text-white border-blue-500' },
-    { value: 'ganho_planner', label: 'Ganho Planner', description: 'Venda fechada', color: 'bg-purple-500 text-white border-purple-500' },
-    { value: 'ganho_pos', label: 'Ganho Pós', description: 'Viagem concluída', color: 'bg-emerald-500 text-white border-emerald-500' },
-]
-
 interface FilterSectionStatusProps {
     filters: FilterState
     onToggle: (field: ArrayFilterField, value: string) => void
 }
 
 export function FilterSectionStatus({ filters, onToggle }: FilterSectionStatusProps) {
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: phases } = usePipelinePhases(pipelineId ?? undefined)
+
+    const milestoneOptions = useMemo(() => [
+        { value: 'ganho_sdr', label: `Ganho ${getPhaseLabel(phases, SystemPhase.SDR)}`, description: `Qualificado pelo ${getPhaseLabel(phases, SystemPhase.SDR)}`, color: 'bg-blue-500 text-white border-blue-500' },
+        { value: 'ganho_planner', label: `Ganho ${getPhaseLabel(phases, SystemPhase.PLANNER)}`, description: 'Venda fechada', color: 'bg-purple-500 text-white border-purple-500' },
+        { value: 'ganho_pos', label: `Ganho ${getPhaseLabel(phases, SystemPhase.POS_VENDA)}`, description: 'Entrega concluída', color: 'bg-emerald-500 text-white border-emerald-500' },
+    ], [phases])
     return (
         <>
             {/* Status Comercial */}
@@ -66,7 +73,7 @@ export function FilterSectionStatus({ filters, onToggle }: FilterSectionStatusPr
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                     <p className="text-xs text-gray-400 mb-3">Filtra cards que alcançaram estes marcos, independente do status atual</p>
                     <FilterChipGroup
-                        options={MILESTONE_OPTIONS}
+                        options={milestoneOptions}
                         selected={filters.milestones || []}
                         onToggle={(v) => onToggle('milestones', v)}
                     />

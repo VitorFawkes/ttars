@@ -246,6 +246,24 @@ export function usePipelineListCards({
                 }
             }
 
+            // Faixa de valor
+            if (filters.valorMin != null) {
+                query = query.gte('valor_estimado', filters.valorMin)
+            }
+            if (filters.valorMax != null) {
+                query = query.lte('valor_estimado', filters.valorMax)
+            }
+
+            // Dias sem contato
+            if (filters.diasSemContato != null) {
+                query = query.gte('tempo_sem_contato', filters.diasSemContato)
+            }
+
+            // Urgência viagem (dias até viagem <= N)
+            if (filters.diasAteViagem != null) {
+                query = query.lte('dias_ate_viagem', filters.diasAteViagem).gte('dias_ate_viagem', 0)
+            }
+
             // Exclude group parents
             query = query.eq('is_group_parent', false)
 

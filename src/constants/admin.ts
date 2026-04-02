@@ -45,14 +45,6 @@ export const FIELD_TYPES = [
     { value: 'loss_reason_selector', label: 'Motivo de Perda (Sistema)' }
 ] as const
 
-/**
- * @deprecated Use `usePipelinePhases` hook instead. This constant is kept for legacy compatibility during migration.
- */
-export const MACRO_STAGES = [
-    { id: 'SDR', label: 'SDR (Pré-Venda)', color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50' },
-    { id: 'Planner', label: 'Planner (Venda)', color: 'bg-purple-500', textColor: 'text-purple-700', bgColor: 'bg-purple-50' },
-    { id: 'Pós-venda', label: 'Pós-Venda', color: 'bg-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' }
-] as const
 
 export const COLORS = [
     { value: 'gray', bg: 'bg-gray-100', text: 'text-gray-800' },

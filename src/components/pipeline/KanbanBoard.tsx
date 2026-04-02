@@ -60,6 +60,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const filters = propFilters || {}
     const queryClient = useQueryClient()
     const [activeCard, setActiveCard] = useState<Card | null>(null)
+    const [activeCardPhaseSlug, setActiveCardPhaseSlug] = useState<string | null>(null)
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
     const { session } = useAuth()
@@ -316,7 +317,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     const handleDragStart = (event: DragStartEvent) => {
         if (event.active.data.current) {
-            setActiveCard(event.active.data.current as Card)
+            const draggedCard = event.active.data.current as Card
+            setActiveCard(draggedCard)
+            // Resolver phase slug do card para o DragOverlay
+            const cardStage = stages?.find(s => s.id === draggedCard.pipeline_stage_id)
+            const cardPhase = displayPhases.find(p => p.id === cardStage?.phase_id)
+            setActiveCardPhaseSlug(cardPhase?.slug ?? null)
         }
     }
 
@@ -878,6 +884,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                             stage={stage}
                                                             cards={sortedStageCards}
                                                             phaseColor={phase.color}
+                                                            phaseSlug={phase.slug}
                                                             onWin={isPosVenda ? undefined : handleWin}
                                                             onLoss={isPosVenda ? undefined : handleLoss}
                                                             currentSort={stageSortConfig}
@@ -895,7 +902,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                             <DragOverlay dropAnimation={null}>
                                 {activeCard ? (
                                     <div className="rotate-3 scale-105 cursor-grabbing opacity-80">
-                                        <KanbanCard card={activeCard} />
+                                        <KanbanCard card={activeCard} phaseSlug={activeCardPhaseSlug} />
                                     </div>
                                 ) : null}
                             </DragOverlay>

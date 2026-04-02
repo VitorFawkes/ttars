@@ -241,3 +241,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-02T12:39:03Z | supabase/migrations/20260402_fix_receita_source_constraint.sql | applied_to_prod
 2026-04-02T13:10:12Z | supabase/migrations/20260401_skip_self_assign_notification.sql | applied_to_prod
 2026-04-02T13:22:34Z | supabase/migrations/20260402_allow_importacao_origem_contatos.sql | applied_to_prod
+2026-04-02T14:11:28Z | supabase/migrations/20260402_add_pos_owner_nome_to_view.sql | applied_to_prod
+2026-04-02T14:11:57Z | supabase/migrations/20260402_add_pos_owner_nome_to_view.sql | applied_to_prod

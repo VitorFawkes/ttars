@@ -11243,6 +11243,7 @@ export type Database = {
           pipeline_nome: string | null
           pipeline_stage_id: string | null
           pos_owner_id: string | null
+          pos_owner_nome: string | null
           prioridade: string | null
           prods_ready: number | null
           prods_total: number | null

@@ -32,6 +32,10 @@ export interface FilterState {
     noTag?: boolean
     milestones?: string[] // Marcos do funil: 'ganho_sdr' | 'ganho_planner' | 'ganho_pos'
     taskStatus?: string[] // 'atrasada' | 'para_hoje' | 'em_dia' | 'sem_tarefa'
+    valorMin?: number
+    valorMax?: number
+    diasSemContato?: number // Filtro: mostrar cards com tempo_sem_contato >= N
+    diasAteViagem?: number // Filtro: mostrar cards com dias_ate_viagem <= N
 }
 
 export type ArrayFilterField = Exclude<{

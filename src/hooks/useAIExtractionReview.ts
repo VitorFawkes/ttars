@@ -188,15 +188,16 @@ export function useAIExtractionReview(cardId: string) {
       const currentProdutoData = (cardData.produto_data as Record<string, unknown>) || {}
       const currentBriefing = (cardData.briefing_inicial as Record<string, unknown>) || {}
 
-      // Buscar fase via query direta (padrão CardDetail.tsx)
-      let fase = 'SDR'
+      // Buscar fase via phase_id FK (robusto contra renomeações)
+      let fase = 'sdr'
       if (cardData.pipeline_stage_id) {
         const { data: stageData } = await supabase
           .from('pipeline_stages')
-          .select('fase')
+          .select('phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
           .eq('id', cardData.pipeline_stage_id)
           .single()
-        fase = stageData?.fase || 'SDR'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fase = (stageData?.pipeline_phases as any)?.slug || 'sdr'
       }
       const fields = preview.field_config.fields || []
 
@@ -223,7 +224,7 @@ export function useAIExtractionReview(cardId: string) {
         const effectiveSection = section || 'trip_info'
         const fieldType = fieldTypeMap[key]
 
-        if (fase === 'SDR') {
+        if (fase === 'sdr') {
           if (effectiveSection === 'trip_info') {
             newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
@@ -231,7 +232,7 @@ export function useAIExtractionReview(cardId: string) {
             obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
             newBriefing.observacoes = obs
           }
-        } else if (fase === 'Planner') {
+        } else if (fase === 'planner') {
           if (effectiveSection === 'trip_info') {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
@@ -291,8 +292,8 @@ export function useAIExtractionReview(cardId: string) {
 
       // Handle briefing_text
       if (approveBriefing && preview.briefing_text) {
-        const obsKey = fase === 'SDR' ? 'observacoes' : fase === 'Planner' ? 'observacoes_criticas' : 'observacoes_pos_venda'
-        const target = fase === 'SDR' ? newBriefing : newProdutoData
+        const obsKey = fase === 'sdr' ? 'observacoes' : fase === 'planner' ? 'observacoes_criticas' : 'observacoes_pos_venda'
+        const target = fase === 'sdr' ? newBriefing : newProdutoData
         const obs = (target[obsKey] as Record<string, unknown>) || {}
         const currentBriefingText = (obs.briefing as string) || ''
         obs.briefing = currentBriefingText

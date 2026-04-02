@@ -44,7 +44,7 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
     const currentPhase = useMemo(() => {
         if (!phases || !stages) return SystemPhase.SDR
         const currentStage = stages.find(s => s.id === card.pipeline_stage_id)
-        const phase = phases.find(p => p.name === currentStage?.fase)
+        const phase = phases.find(p => p.id === currentStage?.phase_id)
         return phase?.slug || SystemPhase.SDR
     }, [card.pipeline_stage_id, phases, stages])
 

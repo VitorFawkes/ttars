@@ -507,6 +507,7 @@ if (source === 'briefing_audio') {
     + 'Título: ' + cardData.titulo + '\\n'
     + 'Fase do Pipeline: ' + fase + ' (Etapa: ' + stageName + ')\\n'
     + 'Seção de dados: ' + sectionInfo.obsLabel + '\\n\\n'
+    + '⚠️ TÍTULO COMO FONTE DE DADOS: O título do card segue o padrão "Nome / Destino / Período". Informações no título (destinos, datas/meses, ano) são dados CONFIRMADOS — extraia-os para os campos correspondentes (destinos, epoca_viagem, etc.) mesmo que a transcrição não os repita explicitamente.\\n\\n'
     + '⚠️ REGRA DE FASE: Este card está na fase **' + fase + '**. Extraia TODOS os campos mencionados.\\n\\n'
     + (mode === 'novo'
       ? '⚠️ MODO: NOVO BRIEFING — Extraia TUDO que foi confirmado/decidido.\\n\\n'
@@ -1707,9 +1708,19 @@ return [{ json: mergeData }];`,
         jsonBody: `={{ JSON.stringify({
           card_id: $('11. Merge Dados').item.json.card_id,
           tipo: 'ai_extraction',
-          descricao: 'IA extraiu campos (' + $('11. Merge Dados').item.json.source + ': ' + Object.keys($('11. Merge Dados').item.json.campos_atualizados || {}).length + ' campos)',
+          descricao: (function() {
+            var campos = Object.keys($('11. Merge Dados').item.json.campos_atualizados || {});
+            var temBriefing = ($('11. Merge Dados').item.json.briefing_text || '').length > 20;
+            if (temBriefing) campos.push('briefing');
+            var src = $('11. Merge Dados').item.json.source;
+            return 'IA extraiu campos (' + src + ': ' + campos.length + ' campos)';
+          })(),
           metadata: {
-            campos_extraidos: Object.keys($('11. Merge Dados').item.json.campos_atualizados || {}),
+            campos_extraidos: (function() {
+              var c = Object.keys($('11. Merge Dados').item.json.campos_atualizados || {});
+              if (($('11. Merge Dados').item.json.briefing_text || '').length > 20) c.push('briefing');
+              return c;
+            })(),
             briefing_length: ($('11. Merge Dados').item.json.briefing_text || '').length,
             source: $('11. Merge Dados').item.json.source,
             meeting_id: $('11. Merge Dados').item.json.meeting_id || null,

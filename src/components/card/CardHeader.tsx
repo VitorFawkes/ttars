@@ -462,6 +462,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     // Derived fields
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
     const currentFase = currentStage?.fase
+    const currentPhaseObj = phasesData?.find(p => p.id === currentStage?.phase_id)
     const daysInStage = card.stage_entered_at
         ? Math.floor((new Date().getTime() - new Date(card.stage_entered_at).getTime()) / (1000 * 60 * 60 * 24))
         : null
@@ -554,19 +555,15 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     // Fetch pipeline stages
 
 
-    const getPhaseColor = (phaseName: string | null | undefined) => {
-        if (!phaseName) return 'bg-gray-600 text-white'
-        const phase = phasesData?.find(p => p.name === phaseName)
-        // If we have a phase color (e.g. bg-blue-600), we use it. 
-        // If not found, fallback to gray.
+    const getPhaseColorByPhaseId = (phaseId: string | null | undefined) => {
+        if (!phaseId) return 'bg-gray-600 text-white'
+        const phase = phasesData?.find(p => p.id === phaseId)
         return phase?.color ? `${phase.color} text-white` : 'bg-gray-600 text-white'
     }
 
-    const getPhaseBgColor = (phaseName: string | null | undefined) => {
-        if (!phaseName) return 'bg-gray-500'
-        const phase = phasesData?.find(p => p.name === phaseName)
-        // Extract the color name (e.g. blue-500) from bg-blue-500 if possible, or just return the class
-        // The DB stores 'bg-blue-600'.
+    const getPhaseBgColorByPhaseId = (phaseId: string | null | undefined) => {
+        if (!phaseId) return 'bg-gray-500'
+        const phase = phasesData?.find(p => p.id === phaseId)
         return phase?.color || 'bg-gray-500'
     }
 
@@ -1035,8 +1032,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         updateOwnerMutation.mutate({ field: 'sdr_owner_id', userId })
 
         // If current stage is SDR, update current owner too
-        const currentPhase = phasesData?.find(p => p.name === currentFase)
-        if (currentPhase?.slug === SystemPhase.SDR) {
+        if (currentPhaseObj?.slug === SystemPhase.SDR) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
     }
@@ -1045,8 +1041,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         updateOwnerMutation.mutate({ field: 'vendas_owner_id', userId })
 
         // If current stage is Planner (Vendas), update current owner too
-        const currentPhase = phasesData?.find(p => p.name === currentFase)
-        if (currentPhase?.slug === SystemPhase.PLANNER) {
+        if (currentPhaseObj?.slug === SystemPhase.PLANNER) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
     }
@@ -1055,8 +1050,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         updateOwnerMutation.mutate({ field: 'pos_owner_id', userId })
 
         // If current stage is Pós-Venda, update current owner too
-        const currentPhase = phasesData?.find(p => p.name === currentFase)
-        if (currentPhase?.slug === SystemPhase.POS_VENDA) {
+        if (currentPhaseObj?.slug === SystemPhase.POS_VENDA) {
             updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
         }
     }
@@ -1145,7 +1139,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                             >
                                 <span className={cn(
                                     "w-2 h-2 rounded-full",
-                                    getPhaseBgColor(currentFase)
+                                    getPhaseBgColorByPhaseId(currentStage?.phase_id)
                                 )} />
                                 {currentStage?.nome || 'Sem Etapa'}
                                 <ChevronDown className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
@@ -1165,7 +1159,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                             >
                                                 <span className={cn(
                                                     "w-2.5 h-2.5 rounded-full shrink-0",
-                                                    getPhaseBgColor(stage.fase)
+                                                    getPhaseBgColorByPhaseId(stage.phase_id)
                                                 )} />
                                                 <span className="truncate">{stage.nome}</span>
                                                 {card.pipeline_stage_id === stage.id && (
@@ -1317,7 +1311,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                         <div className="flex flex-wrap items-center gap-1.5 text-sm">
                             <span className={cn(
                                 "px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wide",
-                                getPhaseColor(currentFase)
+                                getPhaseColorByPhaseId(currentStage?.phase_id)
                             )}>
                                 {currentFase}
                             </span>

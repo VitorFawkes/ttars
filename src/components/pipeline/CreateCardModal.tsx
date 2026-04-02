@@ -301,6 +301,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Determine user's phase for smart defaults
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPhaseId = (profile as any)?.team?.phase?.id as string | undefined
     const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR' : userPhaseSlug === 'planner' ? 'Planner' : userPhaseSlug === 'pos_venda' ? 'Pós-venda' : null
 
     // Derived: effective stage ID — picks the main working stage for the user's phase
@@ -309,18 +311,18 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const effectiveStageId = useMemo(() => {
         if (formData.selectedStageId) return formData.selectedStageId
         if (allowedStages.length === 0) return null
-        if (userPhaseName) {
+        if (userPhaseId) {
             const phaseStages = allowedStages
-                .filter(s => s.fase === userPhaseName)
+                .filter(s => s.phase_id === userPhaseId)
                 .sort((a, b) => a.ordem - b.ordem)
             if (phaseStages.length > 0) {
                 // Planner: skip entry stage (Oportunidade), pick the working stage
-                const idx = userPhaseName === 'Planner' && phaseStages.length > 1 ? 1 : 0
+                const idx = userPhaseSlug === 'planner' && phaseStages.length > 1 ? 1 : 0
                 return phaseStages[idx].id
             }
         }
         return allowedStages[0].id
-    }, [formData.selectedStageId, allowedStages, userPhaseName])
+    }, [formData.selectedStageId, allowedStages, userPhaseId, userPhaseSlug])
 
     // Track last isOpen state to detect modal opening
     const wasOpenRef = useRef(false)
@@ -467,10 +469,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
             // Step 1b: Insert assistant if selected
             if (assistenteId) {
-                const selectedStage = allowedStages.find(s => s.id === effectiveStageId)
-                const stageFase = selectedStage?.fase
-                const assistRole = stageFase === 'Planner' ? 'assistente_planner'
-                    : stageFase === 'Pós-venda' ? 'assistente_pos'
+                const assistRole = userPhaseSlug === 'planner' ? 'assistente_planner'
+                    : userPhaseSlug === 'pos_venda' ? 'assistente_pos'
                     : 'apoio'
                 try {
                     const { data: { user } } = await supabase.auth.getUser()
@@ -530,7 +530,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 const obsKeys = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes', 'resumo_consultor', 'resumo_consultor_at']
                                 let changed = false
 
-                                if (selectedStage.fase !== 'SDR') {
+                                if (userPhaseSlug !== 'sdr') {
                                     // Planner/Pós-venda: n8n wrote to produto_data → copy to briefing_inicial
                                     for (const [key, value] of Object.entries(pd)) {
                                         if (!obsKeys.includes(key) && value !== null && value !== undefined && (bi[key] === null || bi[key] === undefined)) {

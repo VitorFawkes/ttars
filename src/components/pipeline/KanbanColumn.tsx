@@ -13,6 +13,7 @@ interface KanbanColumnProps {
     stage: Stage
     cards: Card[]
     phaseColor: string
+    phaseSlug?: string | null
     onWin?: (cardId: string) => void
     onLoss?: (cardId: string) => void
     currentSort: StageSortConfig
@@ -21,7 +22,7 @@ interface KanbanColumnProps {
     onClearSort: () => void
 }
 
-export default function KanbanColumn({ stage, cards, phaseColor, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort }: KanbanColumnProps) {
+export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort }: KanbanColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: stage.id,
         data: stage
@@ -90,7 +91,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, onWin, onLoss, 
                     </div>
                 ) : (
                     cards.map((card) => (
-                        <KanbanCard key={card.id} card={card} onWin={onWin} onLoss={onLoss} />
+                        <KanbanCard key={card.id} card={card} phaseSlug={phaseSlug} onWin={onWin} onLoss={onLoss} />
                     ))
                 )}
             </div>

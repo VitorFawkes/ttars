@@ -26,6 +26,10 @@ import {
 
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { MyDayBar } from '../components/pipeline/MyDayBar'
+import { usePipelinePhases } from '../hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '../hooks/useCurrentProductMeta'
+import { getPhaseLabel } from '../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../types/pipeline'
 
 export default function Pipeline() {
     const navigate = useNavigate()
@@ -42,6 +46,11 @@ export default function Pipeline() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+
+    // Labels dinâmicos de fases
+    const { pipelineId: currentPipelineId } = useCurrentProductMeta()
+    const { data: pipelinePhases } = usePipelinePhases(currentPipelineId ?? undefined)
+    const posVendaLabel = getPhaseLabel(pipelinePhases, SystemPhase.POS_VENDA)
 
     // Auto-filter: agentes (não-admin) veem inicialmente as fases configuradas (própria + cross-phase)
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
@@ -247,10 +256,10 @@ export default function Pipeline() {
                                                 ? "bg-green-100 text-green-700 border-green-300 shadow-sm"
                                                 : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
                                         )}
-                                        title={showWonDirect ? 'Ocultar ganhos sem pós-venda' : 'Mostrar ganhos sem pós-venda'}
+                                        title={showWonDirect ? `Ocultar ganhos sem ${posVendaLabel}` : `Mostrar ganhos sem ${posVendaLabel}`}
                                     >
                                         <Trophy className="h-3 w-3 mr-1.5" />
-                                        Sem Pós
+                                        Sem {posVendaLabel}
                                     </button>
                                 </div>
                             </div>

@@ -8,6 +8,7 @@ import { FilterSectionOrigin } from './FilterSectionOrigin'
 import { FilterSectionDates } from './FilterSectionDates'
 import { FilterSectionPeople } from './FilterSectionPeople'
 import { FilterSectionOrganization } from './FilterSectionOrganization'
+import { FilterSectionAdvanced } from './FilterSectionAdvanced'
 
 interface FilterDrawerProps {
     isOpen: boolean
@@ -82,6 +83,7 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                     <FilterSectionOrigin filters={filters} onToggle={handleToggle} />
                     <FilterSectionDates filters={filters} onUpdate={handleUpdate} />
                     <FilterSectionPeople filters={filters} profiles={profiles} onToggle={handleToggle} />
+                    <FilterSectionAdvanced filters={filters} onUpdate={handleUpdate} />
                     <FilterSectionOrganization
                         filters={filters}
                         teams={teams}

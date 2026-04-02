@@ -62,6 +62,8 @@ export default function MobileCardCreate() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userPhaseId = (profile as any)?.team?.phase?.id as string | undefined
   const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR'
     : userPhaseSlug === 'planner' ? 'Planner'
     : userPhaseSlug === 'pos_venda' ? 'Pós-venda'
@@ -71,17 +73,17 @@ export default function MobileCardCreate() {
   const effectiveStageId = useMemo(() => {
     if (selectedStageId) return selectedStageId
     if (allowedStages.length === 0) return null
-    if (userPhaseName) {
+    if (userPhaseId) {
       const phaseStages = allowedStages
-        .filter(s => s.fase === userPhaseName)
+        .filter(s => s.phase_id === userPhaseId)
         .sort((a, b) => a.ordem - b.ordem)
       if (phaseStages.length > 0) {
-        const idx = userPhaseName === 'Planner' && phaseStages.length > 1 ? 1 : 0
+        const idx = userPhaseSlug === 'planner' && phaseStages.length > 1 ? 1 : 0
         return phaseStages[idx].id
       }
     }
     return allowedStages[0].id
-  }, [selectedStageId, allowedStages, userPhaseName])
+  }, [selectedStageId, allowedStages, userPhaseId, userPhaseSlug])
 
   const selectedStageName = allowedStages.find(s => s.id === effectiveStageId)?.nome
 
@@ -195,7 +197,7 @@ export default function MobileCardCreate() {
                   const obsKeys = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes', 'resumo_consultor', 'resumo_consultor_at']
                   let changed = false
 
-                  if (selectedStage.fase !== 'SDR') {
+                  if (userPhaseSlug !== 'sdr') {
                     for (const [key, value] of Object.entries(pd)) {
                       if (!obsKeys.includes(key) && value !== null && value !== undefined && (bi[key] === null || bi[key] === undefined)) {
                         bi[key] = value

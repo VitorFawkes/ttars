@@ -1,6 +1,10 @@
 import { User } from 'lucide-react'
 import { PersonFilterList } from './PersonFilterList'
 import type { FilterState, ArrayFilterField } from '../../../hooks/usePipelineFilters'
+import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
+import { getPhaseLabel } from '../../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../../types/pipeline'
 
 interface FilterProfile {
     id: string
@@ -43,10 +47,17 @@ const POS_ACCENT = {
 }
 
 export function FilterSectionPeople({ filters, profiles, onToggle }: FilterSectionPeopleProps) {
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: phases } = usePipelinePhases(pipelineId ?? undefined)
+
     const allProfiles = profiles
     const sdrProfiles = profiles.filter(p => p.phase_slug === 'sdr')
     const plannerProfiles = profiles.filter(p => p.phase_slug === 'planner')
     const posProfiles = profiles.filter(p => p.phase_slug === 'pos_venda')
+
+    const sdrLabel = getPhaseLabel(phases, SystemPhase.SDR)
+    const plannerLabel = getPhaseLabel(phases, SystemPhase.PLANNER)
+    const posLabel = getPhaseLabel(phases, SystemPhase.POS_VENDA)
 
     return (
         <div className="space-y-4">
@@ -63,8 +74,8 @@ export function FilterSectionPeople({ filters, profiles, onToggle }: FilterSecti
             />
 
             <PersonFilterList
-                label="SDRs (Pré-venda)"
-                placeholder="Buscar SDR..."
+                label={sdrLabel}
+                placeholder={`Buscar ${sdrLabel}...`}
                 profiles={sdrProfiles}
                 selected={filters.sdrIds || []}
                 onToggle={(id) => onToggle('sdrIds', id)}
@@ -72,8 +83,8 @@ export function FilterSectionPeople({ filters, profiles, onToggle }: FilterSecti
             />
 
             <PersonFilterList
-                label="Planners (Vendas)"
-                placeholder="Buscar Planner..."
+                label={plannerLabel}
+                placeholder={`Buscar ${plannerLabel}...`}
                 profiles={plannerProfiles}
                 selected={filters.plannerIds || []}
                 onToggle={(id) => onToggle('plannerIds', id)}
@@ -81,8 +92,8 @@ export function FilterSectionPeople({ filters, profiles, onToggle }: FilterSecti
             />
 
             <PersonFilterList
-                label="Pós-Venda"
-                placeholder="Buscar Pós-Venda..."
+                label={posLabel}
+                placeholder={`Buscar ${posLabel}...`}
                 profiles={posProfiles}
                 selected={filters.posIds || []}
                 onToggle={(id) => onToggle('posIds', id)}

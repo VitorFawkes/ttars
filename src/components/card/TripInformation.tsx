@@ -187,8 +187,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         if (lockedPhaseSlug) return lockedPhaseSlug
         if (!phases || !stages) return SystemPhase.SDR
         const currentStage = stages.find(s => s.id === card.pipeline_stage_id)
-        const phaseName = currentStage?.fase
-        const currentPhase = phases.find(p => p.name === phaseName)
+        const currentPhase = phases.find(p => p.id === currentStage?.phase_id)
         if (currentPhase && currentPhase.slug && currentPhase.visible_in_card !== false) {
             return currentPhase.slug
         }
@@ -319,7 +318,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
             } else if (target === 'briefing_inicial') {
                 const sdrPhase = phases?.find(p => p.slug === SystemPhase.SDR)
                 const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
-                const isSdr = sdrPhase && currentStage?.fase === sdrPhase.name
+                const isSdr = sdrPhase && currentStage?.phase_id === sdrPhase.id
 
                 if (isSdr) {
                     updates.produto_data = newData
