@@ -1,4 +1,4 @@
-import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown, Mic } from 'lucide-react'
+import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown, Mic, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -225,30 +225,44 @@ function AudioPlayerInline({ storagePath }: { storagePath: string }) {
     const [playing, setPlaying] = useState(false)
     const audioRef = useRef<HTMLAudioElement | null>(null)
 
+    const [error, setError] = useState(false)
+
     const handlePlay = async () => {
+        if (error) return
         if (audioUrl) {
             if (playing) {
                 audioRef.current?.pause()
                 setPlaying(false)
             } else {
-                audioRef.current?.play()
+                audioRef.current?.play().catch(() => setError(true))
                 setPlaying(true)
             }
             return
         }
         setLoading(true)
-        const { data } = await supabase.storage
+        const { data, error: storageError } = await supabase.storage
             .from('briefing-audio')
             .createSignedUrl(storagePath, 300) // 5 min signed URL
         setLoading(false)
-        if (data?.signedUrl) {
-            setAudioUrl(data.signedUrl)
-            const audio = new Audio(data.signedUrl)
-            audioRef.current = audio
-            audio.onended = () => setPlaying(false)
-            audio.play()
-            setPlaying(true)
+        if (storageError || !data?.signedUrl) {
+            setError(true)
+            return
         }
+        setAudioUrl(data.signedUrl)
+        const audio = new Audio(data.signedUrl)
+        audioRef.current = audio
+        audio.onended = () => setPlaying(false)
+        audio.onerror = () => { setPlaying(false); setError(true) }
+        audio.play().catch(() => setError(true))
+        setPlaying(true)
+    }
+
+    if (error) {
+        return (
+            <span className="mt-1 inline-flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400">
+                <Mic className="h-3 w-3" /> Áudio indisponível
+            </span>
+        )
     }
 
     return (

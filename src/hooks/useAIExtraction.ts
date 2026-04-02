@@ -80,10 +80,12 @@ export async function processAIExtraction(
       : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
       : mimeType.includes('ogg') ? 'ogg'
       : mimeType.includes('wav') ? 'wav' : 'webm'
+    // Strip codec suffix (e.g. "audio/webm;codecs=opus" → "audio/webm") for storage bucket validation
+    const storageMime = mimeType.split(';')[0].trim()
     const storagePath = `${cardId}/${Date.now()}.${ext}`
     supabase.storage
       .from('briefing-audio')
-      .upload(storagePath, options.audioBlob, { contentType: mimeType, upsert: false })
+      .upload(storagePath, options.audioBlob, { contentType: storageMime, upsert: false })
       .then(({ error }) => {
         if (error) console.warn('[AIExtraction] Falha ao salvar áudio no storage:', error.message)
       })
