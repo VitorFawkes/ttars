@@ -25,8 +25,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 10; // Reduzido para respeitar rate limit Monde (60 req/3s)
 const MAX_ATTEMPTS = 3;
+const THROTTLE_MS = 500; // Delay entre requests para evitar 429
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -270,6 +271,9 @@ Deno.serve(async (req) => {
         console.log(
           `[monde-people-dispatch] ${isUpdate ? "Updated" : "Created"} ${contato.id} → ${mondePersonId}`
         );
+
+        // Throttle para respeitar rate limit do Monde
+        await new Promise((r) => setTimeout(r, THROTTLE_MS));
       } catch (err) {
         console.error(
           `[monde-people-dispatch] Error for ${contato.id}:`,

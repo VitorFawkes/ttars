@@ -71,13 +71,14 @@ export interface MondePersonResponse {
 
 // --- Outbound: CRM → Monde ---
 
+// Monde V2 People API aceita gender como 1 char: "M" ou "F"
 const GENDER_MAP: Record<string, string> = {
-  masculino: "male",
-  feminino: "female",
-  male: "male",
-  female: "female",
-  m: "male",
-  f: "female",
+  masculino: "M",
+  feminino: "F",
+  male: "M",
+  female: "F",
+  m: "M",
+  f: "F",
 };
 
 const KIND_MAP: Record<string, string> = {
