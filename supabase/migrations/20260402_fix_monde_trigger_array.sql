@@ -1,9 +1,10 @@
--- Fix: anti-loop robusto (funciona com connection pooling) + array_append
+-- Fix: cast explícito TEXT[] para evitar "malformed array literal"
+-- O PostgreSQL interpreta 'nome'::text || ARRAY[]::text[] de forma ambígua
 
 CREATE OR REPLACE FUNCTION public.log_monde_people_event()
 RETURNS trigger AS $$
 DECLARE
-  v_changed TEXT[] := ARRAY[]::TEXT[];
+  v_changed TEXT[];
 BEGIN
   -- Skip se sync não está habilitado
   IF NOT EXISTS (
@@ -31,8 +32,7 @@ BEGIN
 
   ELSIF TG_OP = 'UPDATE' THEN
     -- Anti-loop: se APENAS monde_person_id e/ou monde_last_sync mudaram,
-    -- é o import linkando o contato → NÃO enfileirar de volta
-    -- Isso funciona com connection pooling (não depende de SET LOCAL)
+    -- é o import linkando o contato → NÃO enfileirar
     IF (OLD.nome IS NOT DISTINCT FROM NEW.nome
         AND OLD.sobrenome IS NOT DISTINCT FROM NEW.sobrenome
         AND OLD.email IS NOT DISTINCT FROM NEW.email
@@ -47,23 +47,27 @@ BEGIN
         AND OLD.endereco IS NOT DISTINCT FROM NEW.endereco
         AND OLD.tipo_cliente IS NOT DISTINCT FROM NEW.tipo_cliente)
     THEN
-      -- Nenhum campo de negócio mudou → skip (provavelmente import setando monde_person_id)
       RETURN NEW;
     END IF;
 
-    IF OLD.nome IS DISTINCT FROM NEW.nome THEN v_changed := array_append(v_changed, 'nome'); END IF;
-    IF OLD.sobrenome IS DISTINCT FROM NEW.sobrenome THEN v_changed := array_append(v_changed, 'sobrenome'); END IF;
-    IF OLD.email IS DISTINCT FROM NEW.email THEN v_changed := array_append(v_changed, 'email'); END IF;
-    IF OLD.telefone IS DISTINCT FROM NEW.telefone THEN v_changed := array_append(v_changed, 'telefone'); END IF;
-    IF OLD.cpf IS DISTINCT FROM NEW.cpf THEN v_changed := array_append(v_changed, 'cpf'); END IF;
-    IF OLD.data_nascimento IS DISTINCT FROM NEW.data_nascimento THEN v_changed := array_append(v_changed, 'data_nascimento'); END IF;
-    IF OLD.sexo IS DISTINCT FROM NEW.sexo THEN v_changed := array_append(v_changed, 'sexo'); END IF;
-    IF OLD.passaporte IS DISTINCT FROM NEW.passaporte THEN v_changed := array_append(v_changed, 'passaporte'); END IF;
-    IF OLD.passaporte_validade IS DISTINCT FROM NEW.passaporte_validade THEN v_changed := array_append(v_changed, 'passaporte_validade'); END IF;
-    IF OLD.rg IS DISTINCT FROM NEW.rg THEN v_changed := array_append(v_changed, 'rg'); END IF;
-    IF OLD.observacoes IS DISTINCT FROM NEW.observacoes THEN v_changed := array_append(v_changed, 'observacoes'); END IF;
-    IF OLD.endereco IS DISTINCT FROM NEW.endereco THEN v_changed := array_append(v_changed, 'endereco'); END IF;
-    IF OLD.tipo_cliente IS DISTINCT FROM NEW.tipo_cliente THEN v_changed := array_append(v_changed, 'tipo_cliente'); END IF;
+    -- Construir array de campos mudados via SELECT INTO (evita ambiguidade do ||)
+    SELECT ARRAY(
+      SELECT unnest FROM unnest(ARRAY[
+        CASE WHEN OLD.nome IS DISTINCT FROM NEW.nome THEN 'nome'::text END,
+        CASE WHEN OLD.sobrenome IS DISTINCT FROM NEW.sobrenome THEN 'sobrenome'::text END,
+        CASE WHEN OLD.email IS DISTINCT FROM NEW.email THEN 'email'::text END,
+        CASE WHEN OLD.telefone IS DISTINCT FROM NEW.telefone THEN 'telefone'::text END,
+        CASE WHEN OLD.cpf IS DISTINCT FROM NEW.cpf THEN 'cpf'::text END,
+        CASE WHEN OLD.data_nascimento IS DISTINCT FROM NEW.data_nascimento THEN 'data_nascimento'::text END,
+        CASE WHEN OLD.sexo IS DISTINCT FROM NEW.sexo THEN 'sexo'::text END,
+        CASE WHEN OLD.passaporte IS DISTINCT FROM NEW.passaporte THEN 'passaporte'::text END,
+        CASE WHEN OLD.passaporte_validade IS DISTINCT FROM NEW.passaporte_validade THEN 'passaporte_validade'::text END,
+        CASE WHEN OLD.rg IS DISTINCT FROM NEW.rg THEN 'rg'::text END,
+        CASE WHEN OLD.observacoes IS DISTINCT FROM NEW.observacoes THEN 'observacoes'::text END,
+        CASE WHEN OLD.endereco IS DISTINCT FROM NEW.endereco THEN 'endereco'::text END,
+        CASE WHEN OLD.tipo_cliente IS DISTINCT FROM NEW.tipo_cliente THEN 'tipo_cliente'::text END
+      ]) WHERE unnest IS NOT NULL
+    ) INTO v_changed;
 
     IF array_length(v_changed, 1) > 0 THEN
       INSERT INTO public.monde_people_queue (contato_id, event_type, changed_fields)
@@ -74,7 +78,3 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Remover cron jobs com bearer vazio (foram criados com current_setting inválido)
-SELECT cron.unschedule('monde-people-dispatch');
-SELECT cron.unschedule('monde-people-import');

@@ -254,3 +254,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-02T19:11:43Z | supabase/migrations/20260402_monde_dedup_improvements.sql | applied_to_prod
 2026-04-02T19:15:18Z | supabase/migrations/20260402_fix_monde_trigger_array.sql | applied_to_prod
 2026-04-02T19:29:15Z | supabase/migrations/20260402_fix_monde_trigger_array.sql | applied_to_prod
+2026-04-02T19:34:40Z | supabase/migrations/20260402_fix_monde_trigger_array.sql | applied_to_prod
