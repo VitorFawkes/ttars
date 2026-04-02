@@ -23,14 +23,36 @@ export default function DynamicFieldRenderer({ card }: DynamicFieldRendererProps
 
     const fase = (card.fase || 'Outro') as Fase
 
-    // Fetch field settings for this phase
+    // Fetch field settings for this phase (via phase_id FK, fallback to fase string)
     const { data: fieldSettings } = useQuery({
-        queryKey: ['pipeline_card_settings', fase],
+        queryKey: ['pipeline_card_settings', card.pipeline_stage_id, fase],
         queryFn: async () => {
+            // Primary: resolve phase_id from stage, then query by phase_id
+            if (card.pipeline_stage_id) {
+                const { data: stage } = await supabase
+                    .from('pipeline_stages')
+                    .select('phase_id')
+                    .eq('id', card.pipeline_stage_id)
+                    .single()
+
+                if (stage?.phase_id) {
+                    const { data: settingsByPhaseId } = await supabase
+                        .from('pipeline_card_settings')
+                        .select('campos_visiveis, ordem_campos')
+                        .eq('phase_id', stage.phase_id)
+                        .is('usuario_id', null)
+                        .single()
+
+                    if (settingsByPhaseId) return settingsByPhaseId as unknown as FieldSettings
+                }
+            }
+
+            // Fallback: query by fase string
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from('pipeline_card_settings') as any)
                 .select('campos_visiveis, ordem_campos')
                 .eq('fase', fase)
-                .is('usuario_id', null) // Get default settings
+                .is('usuario_id', null)
                 .single()
 
             if (error) throw error
@@ -41,7 +63,9 @@ export default function DynamicFieldRenderer({ card }: DynamicFieldRendererProps
 
     // Mutation to save updated produto_data
     const updateCardMutation = useMutation({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mutationFn: async (newProdutoData: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase.from('cards') as any)
                 .update({ produto_data: newProdutoData })
                 .eq('id', card.id!)
@@ -54,7 +78,9 @@ export default function DynamicFieldRenderer({ card }: DynamicFieldRendererProps
         }
     })
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleFieldChange = (fieldName: string, value: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setEditedData((prev: any) => ({
             ...prev,
             [fieldName]: value
@@ -105,7 +131,9 @@ export default function DynamicFieldRenderer({ card }: DynamicFieldRendererProps
                     const FieldComponent = fieldConfig.component
                     const isCurrentlyEditing = editingField === fieldName
                     const currentValue = isCurrentlyEditing
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         ? (editedData as any)?.[fieldName]
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         : (card.produto_data as any)?.[fieldName]
 
                     return (
@@ -117,6 +145,7 @@ export default function DynamicFieldRenderer({ card }: DynamicFieldRendererProps
                             <FieldComponent
                                 label={fieldConfig.label}
                                 value={currentValue}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={isCurrentlyEditing ? (val: any) => handleFieldChange(fieldName, val) : undefined}
                                 onSave={() => handleFieldSave()}
                                 readOnly={!isCurrentlyEditing}

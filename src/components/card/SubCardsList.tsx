@@ -103,7 +103,7 @@ export default function SubCardsList({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                    {canCreate && fase === 'Pós-venda' && (
+                    {canCreate && fase === 'pos_venda' && (
                         <Button
                             size="sm"
                             variant="outline"

@@ -100,17 +100,19 @@ export default function CardDetail() {
         .filter((r): r is TaskRequirement => r.requirement_type === 'task')
         .map(r => ({ label: r.label, task_tipo: r.task_tipo, task_require_completed: r.task_require_completed }))
 
-    // Get stage phase for sub-card section (Notificar Alteração only in Pós-venda)
+    // Get stage phase slug for sub-card section (Notificar Alteração only in Pós-venda)
     const { data: stageInfo } = useQuery({
-        queryKey: ['stage-fase', card?.pipeline_stage_id],
+        queryKey: ['stage-phase-slug', card?.pipeline_stage_id],
         enabled: !!card?.pipeline_stage_id,
         queryFn: async () => {
             const { data } = await supabase
                 .from('pipeline_stages')
-                .select('fase')
+                .select('fase, phase_id, pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .eq('id', card!.pipeline_stage_id!)
                 .single()
-            return data as { fase: string } | null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const slug = (data?.pipeline_phases as any)?.slug || null
+            return { fase: data?.fase || '', phaseSlug: slug } as { fase: string; phaseSlug: string | null }
         },
         staleTime: 1000 * 60 * 5,
     })
@@ -347,7 +349,7 @@ export default function CardDetail() {
                                     card_type: (card as any).card_type,
                                     is_group_parent: card.is_group_parent
                                 })}
-                                fase={stageInfo?.fase}
+                                fase={stageInfo?.phaseSlug}
                                 posOwnerId={card.pos_owner_id}
                             />
                         </div>
