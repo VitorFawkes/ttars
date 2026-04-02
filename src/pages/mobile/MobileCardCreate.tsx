@@ -64,11 +64,6 @@ export default function MobileCardCreate() {
   const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userPhaseId = (profile as any)?.team?.phase?.id as string | undefined
-  const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR'
-    : userPhaseSlug === 'planner' ? 'Planner'
-    : userPhaseSlug === 'pos_venda' ? 'Pós-venda'
-    : null
-
   // Auto-select stage
   const effectiveStageId = useMemo(() => {
     if (selectedStageId) return selectedStageId
