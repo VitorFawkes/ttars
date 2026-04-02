@@ -166,9 +166,41 @@ Provider com `enabled: !!profile?.org_id` retorna `isLoading: false` quando `pro
 Consumidores veem `{ data: null, isLoading: false }` e concluem "sem dado" em vez de "carregando".
 FIX: `isLoading: queryIsLoading || authLoading` no value do Provider.
 
+### 76. Coluna em defaultColumns sem renderer correspondente em columnRenderers — ALTO
+`PipelineListView.tsx`: `{ id: 'documentos' }` em defaultColumns mas o renderer usa key `anexos`.
+`visibleColumnsOrdered` filtra por `columnRenderers[col.id]` entao a coluna nunca renderiza — silencioso.
+REGRA: IDs em defaultColumns DEVEM ter key identica em columnRenderers.
+
+### 77. localStorage key nao incrementada apos adicao de colunas — MEDIO
+`PipelineListView.tsx` L148: `pipeline_list_columns_v3` nao foi bumped para `_v4` apos adicao de 6 colunas novas.
+Usuarios com state salvo nao verao as novas colunas no ColumnManager ate limpar localStorage.
+REGRA: Ao adicionar colunas a defaultColumns, sempre incrementar o numero de versao da chave de localStorage.
+
+### 78. valorMin/Max filtra apenas valor_estimado, ignora cards com valor_final — MEDIO
+`usePipelineListCards.ts` L251-255: filtros de faixa de valor usam `.gte('valor_estimado')` e `.lte('valor_estimado')`.
+Cards ganhos com `valor_final` preenchido e `valor_estimado=null` desaparecem do filtro mesmo dentro da faixa.
+Correto seria filtrar em `valor_display` (que ja resolve COALESCE(valor_final, valor_estimado)).
+
+### 79. taskStatus e docStatus definidos no FilterState mas nao aplicados em usePipelineListCards — ALTO
+`usePipelineListCards.ts` nao tem nenhuma clausula para `filters.taskStatus` nem `filters.docStatus`.
+Esses filtros existem em `usePipelineCards.ts` (Kanban) mas nao foram portados para a view de lista.
+Usuario aplica o filtro, nao ve efeito — sem erro, sem aviso.
+
 ### 75. Fallback products[0] em vez de null quando produto nao encontrado — ALTO
 `useCurrentProductMeta.ts` L14: `?? products[0]` devolve pipeline_id de TRIPS para usuarios WEDDING durante loading.
 Queries com `pipelineId` filtram estagios errados. FIX: fallback deve ser `null`, nao `products[0]`.
+
+### 80. set_config anti-loop nao funciona com pgBouncer transaction pooling — CRITICO
+Edge Functions usam pgBouncer (transaction mode): `set_config('app.x', 'val', is_local=true)` e UPDATE seguinte ficam em conexoes diferentes.
+Trigger ve variavel vazia e re-enfileira → loop. FIX: DB direct URL (:5432) ou coluna `is_being_synced_from_monde`.
+
+### 81. RLS USING (true) sem filtro de role expoe tabela a todos autenticados — CRITICO
+Policy nomeada "service role" mas sem `auth.role() = 'service_role'` → qualquer usuario logado le/escreve a fila.
+FIX: `USING (auth.role() = 'service_role')`. Visto em: `monde_people_queue`.
+
+### 82. Dedup por nome (low confidence) nao bloqueia merge — MEDIO
+Import Monde: match_type='nome' gera confidence='low' mas ainda executa merge — dois clientes homônimos se fundem.
+FIX: confidence='low' deve criar contato novo ou pular para revisao manual.
 
 ---
 

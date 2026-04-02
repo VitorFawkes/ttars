@@ -1,82 +1,146 @@
 ---
 name: subir
-description: Publica código em produção — branch, migrations, review, commit, merge na main, push. Fluxo completo.
+description: Publica código em produção. 3 modos — `/subir` (auto-detecta), `/subir rapido` (commit+push), `/subir completo` (fluxo robusto com review)
 disable-model-invocation: true
+user-invocable: true
+argument-hint: "[rapido|completo] (opcional — sem argumento auto-detecta)"
 ---
 
-Faça o que for preciso para colocar o código **da task atual em produção** (visível para todos no site). Siga TODAS as etapas aplicáveis:
+# /subir — Publicar em produção
 
-**REGRA IMPORTANTE:** Suba APENAS o que é relacionado à task/feature que acabamos de trabalhar nesta conversa. NÃO suba mudanças avulsas, migrations de outras features, ou arquivos que não fazem parte do escopo atual — a menos que o usuário peça explicitamente ("suba tudo").
+## Escolha do modo
 
-## Etapa 1 — Branch
+| Argumento | Quando usar | O que faz |
+|-----------|------------|----------|
+| `/subir rapido` | Ajustes simples, skills, configs, hotfixes | Commit + push direto na main |
+| `/subir completo` | Features novas, mudanças estruturais, migrations | Fluxo completo: migrations → qualidade → review → commit → push |
+| `/subir` (sem arg) | Auto-detecta | Se tem .sql pendente → completo. Senão → rápido |
 
-Se estiver na branch main, crie uma feature branch:
+**REGRA:** Suba APENAS o que é da task atual. NUNCA incluir mudanças de outras features — a menos que o usuário diga "suba tudo".
+
+---
+
+## Pré-requisitos (TODOS os modos)
+
+Antes de qualquer coisa:
+
 ```bash
-BRANCH_NAME="feat/$(echo '<descricao-curta>' | tr ' ' '-' | tr '[:upper:]' '[:lower:]')"
-git checkout -b "$BRANCH_NAME"
+# 1. Verificar email do git (Vercel bloqueia outros)
+git config user.email  # DEVE ser vitorgambetti@gmail.com
+
+# 2. Puxar mudanças remotas
+git pull --rebase origin main
+
+# 3. Verificar o que mudou
+git status --short
+git diff --name-only
 ```
 
-Se já estiver numa feature branch, continue nela.
+Se o email estiver errado: `git config user.email "vitorgambetti@gmail.com"`
 
-## Etapa 2 — Migrations da task atual
+---
 
-Verifique se há migrations SQL relacionadas à task atual:
+## Modo RÁPIDO (`/subir rapido`)
+
+### 1. Commit
+```bash
+# Adicionar APENAS arquivos da task (NUNCA .env, secrets)
+git add <arquivos-da-task>
+
+# Commit em português
+git commit -m "$(cat <<'EOF'
+<tipo>: <descrição concisa>
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+```
+Tipos: feat, fix, perf, refactor, chore, docs
+
+### 2. Push
+```bash
+git push origin main
+```
+
+### 3. Confirmar
+Reportar: o que foi commitado, hash do commit, "Vercel deployando".
+
+---
+
+## Modo COMPLETO (`/subir completo`)
+
+### Etapa 1 — Migrations (se houver)
+
+Verificar se há migrations SQL da task:
 ```bash
 git diff --name-only | grep '\.sql$'
 git ls-files --others --exclude-standard | grep '\.sql$'
 ```
 
-Filtre apenas as migrations que pertencem à feature/task desta conversa. Ignore migrations de outras features.
-
-Se houver migrations da task:
-1. Aplicar CADA uma no staging: `bash .claude/hooks/apply-to-staging.sh <arquivo>`
-2. Aguardar confirmação do usuário que testou no staging
-3. Promover para produção: `bash .claude/hooks/promote-to-prod.sh <arquivo>`
-4. Marcar como aplicada: `touch .claude/.migration_applied`
+**Se houver migrations NÃO aplicadas no staging:**
+1. Aplicar no staging: `bash .claude/hooks/apply-to-staging.sh <arquivo>`
+2. PERGUNTAR ao usuário: "Migration aplicada no staging. Quer testar antes de promover para produção?"
+3. Se OK → promover: `bash .claude/hooks/promote-to-prod.sh <arquivo>`
+4. Marcar: `touch .claude/.migration_applied`
 5. Deletar migrations intermediárias/rascunho se houver
 
-Se NÃO houver migrations da task, pule para Etapa 3.
+**Se migrations já foram aplicadas em produção** (já passou pelo promote):
+- Pular para Etapa 2
 
-## Etapa 3 — Qualidade
+**Se NÃO há migrations:**
+- Pular para Etapa 2
 
-1. `npm run lint` — corrigir erros se houver
-2. `npm run build` — garantir que compila (inclui TypeScript)
+### Etapa 2 — Qualidade
 
-Se qualquer etapa falhar, CORRIJA e rode novamente.
-
-## Etapa 4 — Code Review (obrigatório)
-
-Lance o agente code-reviewer (subagent_type: "code-reviewer") com prompt:
-```
-Revise as seguintes mudanças no WelcomeCRM. Foque em:
-- Duplicações de código ou lógica
-- Imports não utilizados ou quebrados
-- Secrets hardcoded ou expostos
-- Tipos TypeScript incorretos ou faltantes
-- Consistência com padrões existentes
-- Problemas de design (glassmorphism em light mode, cores hex, etc.)
-
-Arquivos modificados: [lista dos arquivos via git diff --name-only]
-
-Para cada arquivo, leia o conteúdo e analise contra os padrões documentados em sua memória.
-Reporte apenas problemas REAIS — não sugira melhorias estéticas.
-```
-
-Se o review encontrar problemas de severidade ALTA ou CRÍTICA:
-1. CORRIJA os problemas antes de prosseguir
-2. Rode Etapa 3 (Qualidade) novamente
-3. Rode o review novamente até ficar limpo
-
-Se encontrar apenas MÉDIO/BAIXO, registre e prossiga.
-
-## Etapa 5 — Commit
-
-1. `git status` — ver o que mudou
-2. `git diff` — entender as mudanças
-3. `git log --oneline -5` — ver estilo dos commits recentes
-4. Adicionar APENAS os arquivos da task atual (NUNCA .env, secrets, ou arquivos de outras features)
-5. Criar commit em PORTUGUÊS com mensagem descritiva:
 ```bash
+npm run build  # inclui TypeScript check
+```
+
+Se falhar: CORRIGIR e rodar novamente. Não prosseguir com build quebrado.
+
+Se a task criou hooks/pages/componentes novos:
+```bash
+npm run sync:fix  # atualizar CODEBASE.md
+```
+
+### Etapa 3 — Code Review
+
+Lançar agente code-reviewer:
+
+```
+Revise as mudanças do WelcomeCRM para esta task.
+
+Arquivos modificados:
+$(git diff --name-only HEAD)
+$(git ls-files --others --exclude-standard | grep -v node_modules)
+
+Para CADA arquivo acima:
+1. Leia o conteúdo completo do arquivo
+2. Verifique:
+   - Imports não utilizados ou quebrados
+   - Secrets hardcoded ou expostos
+   - Tipos TypeScript incorretos (uso de `any` sem justificativa)
+   - Consistência com padrões do CLAUDE.md
+   - Isolamento de produto (currentProduct/pipelineId nos filtros)
+   - Design: sem glassmorphism em light mode, sem cores hex
+
+Reporte apenas problemas REAIS com severidade (CRÍTICA/ALTA/MÉDIA/BAIXA).
+```
+
+- CRÍTICA ou ALTA → corrigir, rodar build novamente, re-review
+- MÉDIA ou BAIXA → registrar e prosseguir
+
+### Etapa 4 — Commit
+
+```bash
+# Ver o que vai entrar
+git status --short
+git diff --stat
+
+# Adicionar APENAS arquivos da task
+git add <arquivos-da-task>
+
+# Commit em português
 git commit -m "$(cat <<'EOF'
 <tipo>: <descrição concisa>
 
@@ -85,31 +149,44 @@ EOF
 )"
 ```
 
-Tipos: feat, fix, perf, refactor, chore, docs
-
-## Etapa 6 — Merge na main e Push para produção
-
-O objetivo do /subir é colocar em PRODUÇÃO. Sempre fazer merge na main:
+### Etapa 5 — Push para produção
 
 ```bash
-# Push da feature branch primeiro
-git push -u origin $(git branch --show-current)
+# Se está numa feature branch, mergear na main
+CURRENT_BRANCH=$(git branch --show-current)
 
-# Merge na main e push para produção
-git stash --include-untracked 2>/dev/null || true
-git checkout main
-git merge $(git branch --show-current)
-git push
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  git push -u origin "$CURRENT_BRANCH"
+  git checkout main
+  git pull --rebase origin main
+  git merge "$CURRENT_BRANCH"
+fi
+
+# Push para produção
+git push origin main
 ```
 
-Se houver conflitos no merge, resolver antes de pushar.
+### Etapa 6 — Confirmação
 
-O push na main dispara o deploy Vercel de produção automaticamente.
-
-## Etapa 7 — Confirmação
-
-Reporte ao usuário:
+Reportar ao usuário:
 - Migrations aplicadas (se houver)
-- O que foi commitado
+- Arquivos commitados
 - Hash do commit na main
-- Confirmação de que está em produção (Vercel deployando)
+- "Push feito. Vercel deployando para produção."
+
+---
+
+## Auto-detecção (sem argumento)
+
+Quando o usuário digita apenas `/subir`:
+
+```
+SE tem arquivo .sql novo ou modificado (não commitado):
+  → Modo COMPLETO
+SE tem mais de 5 arquivos modificados:
+  → Modo COMPLETO
+SENÃO:
+  → Modo RÁPIDO
+```
+
+Informar qual modo foi escolhido: "Detectei que é uma mudança simples, usando modo rápido." ou "Há migrations pendentes, usando modo completo."
