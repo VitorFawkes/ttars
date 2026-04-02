@@ -9,14 +9,13 @@ import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Database } from '../../database.types'
-
-type Product = Database['public']['Enums']['app_product']
+type AppProduct = Database['public']['Enums']['app_product']
 
 interface DealImportModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
-    currentProduct: Product
+    currentProduct: AppProduct
 }
 
 interface Mapping {
@@ -71,7 +70,7 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
     const abortRef = useRef(false)
 
     // Resolve effective product (default to TRIPS if ALL)
-    const effectiveProduct: Product = currentProduct
+    const effectiveProduct = currentProduct
     const currentUserId = session?.user?.id
 
     // Fetch Pipeline ID
@@ -81,7 +80,8 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
             const { data } = await supabase
                 .from('pipelines')
                 .select('id')
-                .eq('produto', effectiveProduct)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .eq('produto', effectiveProduct as any)
                 .eq('ativo', true)
                 .single()
             return data

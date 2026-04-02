@@ -8,7 +8,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
-import { useProductContext } from '../../hooks/useProductContext'
+import { useProductContext, type AppProduct } from '../../hooks/useProductContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProducts } from '../../hooks/useProducts'
 
@@ -27,13 +27,14 @@ export function ProductSwitcher({ isCollapsed = false }: ProductSwitcherProps) {
     const allowedProducts = useMemo(() => {
         if (profile?.is_admin) return products
         if (!profile?.produtos?.length) return products
-        return products.filter(p => profile.produtos!.includes(p.slug))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return products.filter(p => (profile.produtos! as any[]).includes(p.slug))
     }, [profile, products])
 
     // Auto-select: if user has only 1 product, force it
     useEffect(() => {
         if (allowedProducts.length === 1 && currentProduct !== allowedProducts[0].slug) {
-            setProduct(allowedProducts[0].slug)
+            setProduct(allowedProducts[0].slug as AppProduct)
         }
     }, [allowedProducts, currentProduct, setProduct])
 
@@ -71,7 +72,7 @@ export function ProductSwitcher({ isCollapsed = false }: ProductSwitcherProps) {
                     <DropdownMenuItem
                         key={product.slug}
                         onSelect={() => {
-                            setProduct(product.slug)
+                            setProduct(product.slug as AppProduct)
                             setOpen(false)
                             queryClient.clear()
                         }}

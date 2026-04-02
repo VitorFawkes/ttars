@@ -1,15 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Database } from '../database.types'
 
-type Product = Database['public']['Enums']['app_product']
+export type AppProduct = string
 
 interface ProductState {
-    currentProduct: Product
-    setProduct: (product: Product) => void
+    currentProduct: string
+    setProduct: (product: string) => void
 }
-
-const VALID_PRODUCTS = ['TRIPS', 'WEDDING', 'CORP'] as const
 
 export const useProductContext = create<ProductState>()(
     persist(
@@ -19,9 +16,9 @@ export const useProductContext = create<ProductState>()(
         }),
         {
             name: 'product-storage',
+            // Rehydration: if stored product is empty, fallback to TRIPS
             onRehydrateStorage: () => (state) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if (state && !VALID_PRODUCTS.includes(state.currentProduct as any)) {
+                if (state && !state.currentProduct) {
                     state.currentProduct = 'TRIPS'
                 }
             },
