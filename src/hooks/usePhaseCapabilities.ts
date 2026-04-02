@@ -32,13 +32,13 @@ export function usePhaseCapabilities(pipelineId?: string) {
         label: p.label,
         color: p.color,
         orderIndex: p.order_index,
-        supportsWin: (p as unknown as Record<string, unknown>).supports_win as boolean ?? false,
-        winAction: (p as unknown as Record<string, unknown>).win_action as PhaseCapabilities['winAction'] ?? null,
-        ownerField: (p as unknown as Record<string, unknown>).owner_field as string ?? null,
-        ownerLabel: (p as unknown as Record<string, unknown>).owner_label as string ?? null,
-        accentColor: (p as unknown as Record<string, unknown>).accent_color as string ?? null,
-        isEntryPhase: (p as unknown as Record<string, unknown>).is_entry_phase as boolean ?? false,
-        isTerminalPhase: (p as unknown as Record<string, unknown>).is_terminal_phase as boolean ?? false,
+        supportsWin: p.supports_win ?? false,
+        winAction: (p.win_action as PhaseCapabilities['winAction']) ?? null,
+        ownerField: p.owner_field ?? null,
+        ownerLabel: p.owner_label ?? null,
+        accentColor: p.accent_color ?? null,
+        isEntryPhase: p.is_entry_phase ?? false,
+        isTerminalPhase: p.is_terminal_phase ?? false,
     }))
 
     function getPhase(slug: string): PhaseCapabilities | undefined {

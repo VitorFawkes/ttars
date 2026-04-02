@@ -132,7 +132,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         queryKey: ['stages', productFilter],
         queryFn: async () => {
             let query = supabase.from('pipeline_stages')
-                .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)')
+                .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index, slug)')
                 .eq('ativo', true)
                 .order('ordem')
 

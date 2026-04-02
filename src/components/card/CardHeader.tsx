@@ -876,7 +876,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
             setPendingStageChange({
                 stageId: nextStage?.id || '',
-                targetStageName: 'Ganho Planner',
+                targetStageName: `Ganho ${currentPhaseObj?.name || currentFase || 'Seção'}`,
                 currentOwnerId: card.dono_atual_id || undefined,
                 targetPhaseId: nextStage?.phase_id || undefined,
                 targetPhaseName: targetPhase?.name || 'Pós-Venda'

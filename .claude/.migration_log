@@ -259,3 +259,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-02T20:42:28Z | supabase/migrations/20260402_h3_015_phase_capabilities.sql | applied_to_prod
 2026-04-02T20:42:28Z | supabase/migrations/20260402_h3_016_milestones_owners_branding.sql | applied_to_prod
 2026-04-02T20:42:28Z | supabase/migrations/20260402_h3_017_provision_organization.sql | applied_to_prod
+2026-04-02T21:41:55Z | supabase/migrations/20260402_h3_018_fix_provisioning.sql | applied_to_prod
