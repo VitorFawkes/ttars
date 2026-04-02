@@ -3153,6 +3153,8 @@ export type Database = {
           id: string
           last_whatsapp_conversation_id: string | null
           last_whatsapp_sync: string | null
+          monde_last_sync: string | null
+          monde_person_id: string | null
           nome: string
           observacoes: string | null
           org_id: string
@@ -3191,6 +3193,8 @@ export type Database = {
           id?: string
           last_whatsapp_conversation_id?: string | null
           last_whatsapp_sync?: string | null
+          monde_last_sync?: string | null
+          monde_person_id?: string | null
           nome: string
           observacoes?: string | null
           org_id?: string
@@ -3229,6 +3233,8 @@ export type Database = {
           id?: string
           last_whatsapp_conversation_id?: string | null
           last_whatsapp_sync?: string | null
+          monde_last_sync?: string | null
+          monde_person_id?: string | null
           nome?: string
           observacoes?: string | null
           org_id?: string
@@ -6015,6 +6021,64 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monde_people_queue: {
+        Row: {
+          attempts: number | null
+          changed_fields: string[] | null
+          contato_id: string
+          created_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          processed_at: string | null
+          status: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          changed_fields?: string[] | null
+          contato_id: string
+          created_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          processed_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          changed_fields?: string[] | null
+          contato_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          processed_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monde_people_queue_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monde_people_queue_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "monde_people_queue_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -11239,6 +11303,7 @@ export type Database = {
           pessoa_principal_id: string | null
           pessoa_telefone: string | null
           pessoa_telefone_normalizado: string | null
+          phase_slug: string | null
           pipeline_id: string | null
           pipeline_nome: string | null
           pipeline_stage_id: string | null
@@ -12544,6 +12609,7 @@ export type Database = {
         Args: { p_card_id: string; p_contact_id: string }
         Returns: undefined
       }
+      set_monde_import_flag: { Args: never; Returns: undefined }
       should_sync_field: {
         Args: {
           p_current_phase_id: string

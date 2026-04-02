@@ -351,3 +351,113 @@ Query param `kind`: `insurance`, `cruise`, `hotel`, `airline_ticket`, `train_tic
 | `proposal_items.item_type` | Tipo do produto | Proposal |
 | `card_financial_items.product_type` | Tipo do produto | Financial item |
 | `flight` (item_type) | `travel_packages` | airline_tickets ignorado |
+
+---
+
+## API V2 — People (Pessoas)
+
+> **Referência:** https://github.com/monde-sistemas/monde-api
+> **Adicionado em:** 2026-04-02
+
+### Informações Gerais
+
+| Campo | Valor |
+|-------|-------|
+| **URL Base** | `https://web.monde.com.br/api/v2` |
+| **Autenticação** | JWT Token (1h validade) |
+| **Formato** | JSON:API (`application/vnd.api+json`) |
+| **Paginação** | `page[number]`, `page[size]` (padrão 50) |
+
+### Autenticação V2
+
+```
+POST /api/v2/tokens
+Content-Type: application/vnd.api+json
+Accept: application/vnd.api+json
+
+{
+  "data": {
+    "type": "tokens",
+    "attributes": {
+      "login": "admin@agencia.monde.com.br",
+      "password": "senha"
+    }
+  }
+}
+
+→ Response: { "data": { "attributes": { "token": "JWT_TOKEN" } } }
+```
+
+Usar em todas as requests: `Authorization: Bearer JWT_TOKEN`
+
+### Endpoints
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/api/v2/people` | Listar pessoas (paginado) |
+| GET | `/api/v2/people/:id` | Detalhar pessoa |
+| POST | `/api/v2/people` | Criar pessoa |
+| PATCH | `/api/v2/people/:id` | Atualizar pessoa |
+| DELETE | `/api/v2/people/:id` | Deletar pessoa |
+
+### Atributos de People
+
+| Campo API | Tipo | Descrição |
+|-----------|------|-----------|
+| `name` | string | Nome completo (obrigatório) |
+| `cpf` | string | CPF (11 dígitos) |
+| `cnpj` | string | CNPJ (14 dígitos) |
+| `rg` | string | RG |
+| `email` | string | Email |
+| `phone` | string | Telefone fixo |
+| `mobile-phone` | string | Celular |
+| `business-phone` | string | Telefone comercial |
+| `birth-date` | date | Data nascimento (YYYY-MM-DD) |
+| `gender` | string | `"male"` ou `"female"` |
+| `passport-number` | string | Passaporte |
+| `passport-expiration` | date | Validade passaporte |
+| `kind` | string | `"individual"` ou `"company"` |
+| `company-name` | string | Razão social |
+| `observations` | string | Observações |
+| `address` | string | Logradouro |
+| `number` | string | Número |
+| `complement` | string | Complemento |
+| `district` | string | Bairro |
+| `zip` | string | CEP |
+| `website` | string | Website |
+| `code` | number | Código numérico interno Monde |
+
+### Mapeamento WelcomeCRM ↔ Monde V2
+
+| contatos (CRM) | people (Monde) | Notas |
+|-----------------|----------------|-------|
+| `nome + sobrenome` | `name` | Concatenar (outbound) / Split (inbound) |
+| `cpf_normalizado` | `cpf` | Só dígitos |
+| `rg` | `rg` | Direto |
+| `email` | `email` | Direto |
+| `telefone` | `phone` / `mobile-phone` | Classificar por formato |
+| `data_nascimento` | `birth-date` | ISO YYYY-MM-DD |
+| `sexo` | `gender` | masculino↔male, feminino↔female |
+| `passaporte` | `passport-number` | Direto |
+| `passaporte_validade` | `passport-expiration` | ISO YYYY-MM-DD |
+| `tipo_cliente` | `kind` | PF↔individual, PJ↔company |
+| `observacoes` | `observations` | Direto |
+| `endereco` (JSONB) | `address`, `number`, `complement`, `district`, `zip` | Flatten/nest |
+| `monde_person_id` | `id` | UUID retornado pela API |
+
+### Edge Functions
+
+| Function | Direção | Descrição |
+|----------|---------|-----------|
+| `monde-people-sync` | CRM → Monde | POST com `contato_id` ou `contato_ids`. Cria/atualiza pessoa no Monde. |
+| `monde-people-import` | Monde → CRM | Busca pessoas paginado, upsert em contatos com dedup (monde_id → CPF → email). |
+
+### Credenciais V2
+
+| Tipo | Chave | Onde |
+|------|-------|------|
+| Secret | `MONDE_V2_LOGIN` | Supabase env (fallback: `MONDE_USERNAME`) |
+| Secret | `MONDE_V2_PASSWORD` | Supabase env (fallback: `MONDE_PASSWORD`) |
+| Setting | `MONDE_V2_API_URL` | `integration_settings` |
+| Setting | `MONDE_V2_SYNC_ENABLED` | `integration_settings` (`true`/`false`) |
+| Setting | `MONDE_V2_SYNC_DIRECTION` | `integration_settings` (`bidirectional`/`outbound_only`/`inbound_only`) |

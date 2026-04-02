@@ -243,3 +243,13 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-02T13:22:34Z | supabase/migrations/20260402_allow_importacao_origem_contatos.sql | applied_to_prod
 2026-04-02T14:11:28Z | supabase/migrations/20260402_add_pos_owner_nome_to_view.sql | applied_to_prod
 2026-04-02T14:11:57Z | supabase/migrations/20260402_add_pos_owner_nome_to_view.sql | applied_to_prod
+2026-04-02T15:42:18Z | supabase/migrations/20260402_create_briefing_audio_bucket.sql | applied_to_prod
+2026-04-02T16:57:25Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260402_add_phase_slug_to_view.sql | applied_to_prod
+2026-04-02T16:57:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260402_add_phase_slug_to_view.sql | applied_to_prod
+2026-04-02T17:42:10Z | supabase/migrations/20260402_add_monde_person_id_contatos.sql | staging_attempted_no_contatos_table
+2026-04-02T17:43:23Z | supabase/migrations/20260402_add_monde_person_id_contatos.sql | applied_to_prod
+2026-04-02T18:49:05Z | /tmp/check_ext.sql | applied_to_prod
+2026-04-02T18:51:50Z | supabase/migrations/20260402_monde_people_sync_trigger.sql | applied_to_prod
+2026-04-02T18:53:25Z | /tmp/check_crons.sql | applied_to_prod
+2026-04-02T19:11:43Z | supabase/migrations/20260402_monde_dedup_improvements.sql | applied_to_prod
+2026-04-02T19:15:18Z | supabase/migrations/20260402_fix_monde_trigger_array.sql | applied_to_prod
