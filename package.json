@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "sync": "python3 .agent/scripts/sync_codebase.py --audit",
-    "sync:fix": "python3 .agent/scripts/sync_codebase.py --fix",
+    "sync:fix": "python3 .agent/scripts/sync_codebase.py --fix && python3 .agent/scripts/generate_dep_graph.py",
+    "deps": "python3 .agent/scripts/generate_dep_graph.py",
     "sync:strict": "python3 .agent/scripts/sync_codebase.py --strict",
     "prepare": "husky || true"
   },

@@ -25,11 +25,11 @@ if [ $? -ne 0 ]; then
   exit 2
 fi
 
-# Typecheck do projeto (necessário checar tudo por causa de dependências de tipos)
-TSC_OUTPUT=$(npx tsc --noEmit 2>&1)
+# Build completo (tsc + vite build — pega erros de tipo, imports quebrados, case sensitivity, bundling)
+BUILD_OUTPUT=$(npm run build 2>&1)
 if [ $? -ne 0 ]; then
-  echo "TypeScript tem erros de tipo. Corrija antes de finalizar:" >&2
-  echo "$TSC_OUTPUT" | tail -15 >&2
+  echo "Build falhou. Corrija antes de finalizar:" >&2
+  echo "$BUILD_OUTPUT" | tail -20 >&2
   exit 2
 fi
 

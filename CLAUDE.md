@@ -1,6 +1,6 @@
 # WelcomeCRM - Instruções
 
-**Supabase Produção:** `szyrzxvlptqqheizyrxu`
+**Supabase Produção:** `szyrzxvlptqqheizyrxu` | **Org:** `zyxcqlnmbfkkwurykfuf` | **Region:** `us-east-2`
 **Supabase Staging:** `ivmebyvjarcvrkrbemam`
 **Stack:** React + Vite + TailwindCSS + Supabase (PostgreSQL + Edge Functions) + TypeScript Strict
 
@@ -127,7 +127,10 @@ Deploy: `export $(grep -v '^#' .env | xargs) && node scripts/create-n8n-{nome}.j
 ## Antes de Modificar Código
 1. Leia os arquivos que vai mudar
 2. Busque usages do que vai modificar (grep imports e referências)
-3. Se criar hook/page/componente novo → `npm run sync:fix`
+3. Consultar dependências: chamar `get_dependencies` via MCP para ver quem usa o que vai modificar
+4. Se criar hook/page/componente novo → `npm run sync:fix`
+5. Se estiver na main, crie uma feature branch antes de commitar (`git checkout -b feat/nome`)
+6. Se descobrir regra de negócio não documentada → SALVE na memória persistente antes de terminar
 
 ## Padrões de Código
 - Hooks React: prefixo `use`, em `src/hooks/`
