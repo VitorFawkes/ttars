@@ -18,6 +18,7 @@ export interface CreateRoleData {
     display_name: string;
     description?: string;
     color?: string;
+    permissions?: Record<string, boolean>;
 }
 
 export interface UpdateRoleData extends Partial<CreateRoleData> {
@@ -80,6 +81,9 @@ export function useRoles() {
             }
             if (data.color !== undefined) {
                 updates.color = data.color;
+            }
+            if (data.permissions !== undefined) {
+                updates.permissions = data.permissions;
             }
 
             const { data: result, error } = await supabase

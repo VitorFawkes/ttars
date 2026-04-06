@@ -1,7 +1,8 @@
 import { usePushNotifications, type NotificationType } from '@/hooks/usePushNotifications'
+import { useEmailNotificationPreferences } from '@/hooks/useEmailNotificationPreferences'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { UserPlus, Clock, AlertTriangle, FileText, Calendar, ShieldAlert } from 'lucide-react'
+import { UserPlus, Clock, AlertTriangle, FileText, Calendar, ShieldAlert, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NOTIFICATION_TYPES: {
@@ -190,6 +191,101 @@ export default function NotificationSettings() {
         <p className="text-xs text-slate-400 text-center pt-2">
           As notificações aparecem no desktop do navegador, mesmo com a aba do CRM fechada.
         </p>
+      )}
+
+      {/* Divider */}
+      <div className="border-t border-slate-200 pt-6">
+        <EmailNotificationSection />
+      </div>
+    </div>
+  )
+}
+
+// Mapeamento type notification → descrição para a UI de email
+const EMAIL_TYPES: { key: string; label: string; description: string; icon: React.ElementType }[] = [
+  { key: 'lead_assigned', label: 'Novo lead atribuído', description: 'Quando um card é atribuído a você', icon: UserPlus },
+  { key: 'task_due', label: 'Tarefa próxima do prazo', description: 'Quando uma tarefa vence em breve', icon: Clock },
+  { key: 'task_overdue', label: 'Tarefa atrasada', description: 'Quando uma tarefa passou do prazo', icon: AlertTriangle },
+  { key: 'meeting_upcoming', label: 'Lembrete de reunião', description: 'Antes de uma reunião agendada', icon: Calendar },
+  { key: 'proposal_status', label: 'Proposta atualizada', description: 'Quando uma proposta muda de status', icon: FileText },
+]
+
+function EmailNotificationSection() {
+  const { preferences, isLoading, setGlobalEnabled, setTypeEnabled, isSaving } = useEmailNotificationPreferences()
+
+  const handleToggleGlobal = async (next: boolean) => {
+    try {
+      await setGlobalEnabled(next)
+      toast.success(next ? 'Notificações por email ativadas' : 'Notificações por email desativadas')
+    } catch (err) {
+      toast.error('Erro ao salvar preferência')
+      console.error(err)
+    }
+  }
+
+  const handleToggleType = async (type: string, next: boolean) => {
+    try {
+      await setTypeEnabled(type, next)
+    } catch (err) {
+      toast.error('Erro ao salvar preferência')
+      console.error(err)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Section title */}
+      <div className="flex items-center gap-2">
+        <Mail className="w-4 h-4 text-slate-500" />
+        <h3 className="text-sm font-semibold text-slate-900">Notificações por email</h3>
+      </div>
+
+      {/* Master toggle */}
+      <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200 bg-slate-50">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">Receber emails</h4>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Complementa as notificações in-app e push com envios por email
+          </p>
+        </div>
+        <Switch
+          checked={preferences.email_notifications_enabled}
+          onCheckedChange={handleToggleGlobal}
+          disabled={isLoading || isSaving}
+        />
+      </div>
+
+      {/* Per-type toggles */}
+      {preferences.email_notifications_enabled && (
+        <div>
+          <h4 className="text-sm font-medium text-slate-700 mb-3">Tipos de notificação</h4>
+          <div className="space-y-1">
+            {EMAIL_TYPES.map(({ key, label, description, icon: Icon }) => {
+              const enabled = preferences.notification_types[key] ?? false
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50">
+                      <Icon className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{label}</p>
+                      <p className="text-xs text-slate-500">{description}</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(next) => handleToggleType(key, next)}
+                    disabled={isSaving}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )

@@ -12,7 +12,10 @@ import {
     DialogTitle,
     DialogFooter,
 } from '../../ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { COLORS } from '../../../constants/admin';
+import PermissionMatrix from './PermissionMatrix';
+import type { PermissionsMap } from '../../../lib/permissions';
 
 interface EditRoleModalProps {
     role: Role | null;
@@ -30,6 +33,7 @@ export function EditRoleModal({ role, isOpen, onClose }: EditRoleModalProps) {
         description: '',
         color: 'gray'
     });
+    const [permissions, setPermissions] = useState<PermissionsMap>({});
 
     // Load role data when modal opens
     useEffect(() => {
@@ -43,6 +47,14 @@ export function EditRoleModal({ role, isOpen, onClose }: EditRoleModalProps) {
                 description: role.description || '',
                 color: colorMatch?.value || 'gray'
             });
+
+            // Converter permissions do banco (pode ser Record<string, unknown>) para PermissionsMap
+            const rawPerms = (role.permissions ?? {}) as Record<string, unknown>;
+            const cleanPerms: PermissionsMap = {};
+            for (const [key, val] of Object.entries(rawPerms)) {
+                cleanPerms[key] = val === true;
+            }
+            setPermissions(cleanPerms);
         }
     }, [role]);
 
@@ -72,6 +84,7 @@ export function EditRoleModal({ role, isOpen, onClose }: EditRoleModalProps) {
                 display_name: formData.display_name,
                 description: formData.description || undefined,
                 color: colorClass,
+                permissions,
             });
 
             toast({
@@ -81,10 +94,10 @@ export function EditRoleModal({ role, isOpen, onClose }: EditRoleModalProps) {
             });
 
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 title: 'Erro ao atualizar role',
-                description: error.message || 'Não foi possível atualizar o role.',
+                description: (error instanceof Error ? error.message : null) || 'Não foi possível atualizar o role.',
                 type: 'error'
             });
         } finally {
@@ -94,77 +107,85 @@ export function EditRoleModal({ role, isOpen, onClose }: EditRoleModalProps) {
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader>
-                    <DialogTitle>Editar Role</DialogTitle>
+                    <DialogTitle>Editar Role: {role?.display_name}</DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-6 py-4">
-                    <div className="space-y-4">
-                        {/* Identifier (read-only for system roles) */}
-                        {role?.is_system && (
-                            <div className="space-y-2">
-                                <Label>Identificador (Sistema)</Label>
-                                <Input
-                                    value={role.name}
-                                    disabled
-                                    className="bg-muted text-muted-foreground cursor-not-allowed font-mono"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Roles do sistema não podem ter seu identificador alterado.
-                                </p>
-                            </div>
-                        )}
+                <form onSubmit={handleSubmit}>
+                    <Tabs defaultValue="details" className="py-2">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="details">Dados</TabsTrigger>
+                            <TabsTrigger value="permissions">Permissões</TabsTrigger>
+                        </TabsList>
 
-                        {/* Name */}
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-role-name">Nome do Role *</Label>
-                            <Input
-                                id="edit-role-name"
-                                value={formData.display_name}
-                                onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-                                placeholder="Ex: Supervisor, Analista, etc."
-                                required
-                            />
-                        </div>
-
-                        {/* Description */}
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-role-description">Descrição</Label>
-                            <Textarea
-                                id="edit-role-description"
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="Descreva as responsabilidades e permissões deste role..."
-                                rows={3}
-                            />
-                        </div>
-
-                        {/* Color */}
-                        <div className="space-y-2">
-                            <Label>Cor do Badge</Label>
-                            <div className="flex flex-wrap gap-2">
-                                {COLORS.map((color) => (
-                                    <button
-                                        key={color.value}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, color: color.value })}
-                                        className={`
-                                            w-8 h-8 rounded-full border-2 transition-all duration-200
-                                            ${color.bg}
-                                            ${formData.color === color.value
-                                                ? 'border-primary ring-2 ring-primary/20 scale-110'
-                                                : 'border-transparent hover:scale-105'
-                                            }
-                                        `}
-                                        title={color.value}
+                        <TabsContent value="details" className="space-y-4 pt-4">
+                            {/* Identifier (read-only for system roles) */}
+                            {role?.is_system && (
+                                <div className="space-y-2">
+                                    <Label>Identificador (Sistema)</Label>
+                                    <Input
+                                        value={role.name}
+                                        disabled
+                                        className="bg-muted text-muted-foreground cursor-not-allowed font-mono"
                                     />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Roles do sistema não podem ter seu identificador alterado.
+                                    </p>
+                                </div>
+                            )}
 
-                    <DialogFooter>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-role-name">Nome do Role *</Label>
+                                <Input
+                                    id="edit-role-name"
+                                    value={formData.display_name}
+                                    onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                                    placeholder="Ex: Supervisor, Analista, etc."
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-role-description">Descrição</Label>
+                                <Textarea
+                                    id="edit-role-description"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    placeholder="Descreva as responsabilidades e permissões deste role..."
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Cor do Badge</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {COLORS.map((color) => (
+                                        <button
+                                            key={color.value}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, color: color.value })}
+                                            className={`
+                                                w-8 h-8 rounded-full border-2 transition-all duration-200
+                                                ${color.bg}
+                                                ${formData.color === color.value
+                                                    ? 'border-primary ring-2 ring-primary/20 scale-110'
+                                                    : 'border-transparent hover:scale-105'
+                                                }
+                                            `}
+                                            title={color.value}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="permissions" className="pt-4">
+                            <PermissionMatrix value={permissions} onChange={setPermissions} />
+                        </TabsContent>
+                    </Tabs>
+
+                    <DialogFooter className="mt-4">
                         <Button type="button" variant="outline" onClick={onClose}>
                             Cancelar
                         </Button>

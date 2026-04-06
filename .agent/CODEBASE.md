@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 136 tabelas | 50 paginas | 101 hooks | 17 views | 439 components
+> **Stats:** 138 tabelas | 53 paginas | 103 hooks | 17 views | 440 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **101 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **103 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -179,6 +179,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
 | `useChatIA()` | `useChatIA.ts` |
+| `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
 
 #### Analytics
@@ -308,6 +309,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Users & Teams
 | Hook | File |
 |------|------|
+| `useDepartments()` | `useDepartments.ts` |
 | `useRoles()` | `useRoles.ts` |
 | `useTeams()` | `useTeams.ts` |
 | `useUsers()` | `useUsers.ts` |
@@ -345,7 +347,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **50 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **53 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -374,6 +376,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
+| `DepartmentsManagement` | `src/pages/admin/DepartmentsManagement.tsx` |
 | `ImportacaoPosVendaPage` | `src/pages/admin/ImportacaoPosVendaPage.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
@@ -391,6 +394,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
+| `HelpCenter` | `src/pages/help/HelpCenter.tsx` |
+| `helpArticles` | `src/pages/help/helpArticles.tsx` |
 | `DPA` | `src/pages/legal/DPA.tsx` |
 | `Privacy` | `src/pages/legal/Privacy.tsx` |
 | `Terms` | `src/pages/legal/Terms.tsx` |

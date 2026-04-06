@@ -51,6 +51,8 @@ import PipelineStudio from './pages/admin/PipelineStudio'
 import OrganizationsPage from './pages/admin/OrganizationsPage'
 import ProductsManagement from './pages/admin/ProductsManagement'
 import WorkspaceGeneral from './pages/admin/WorkspaceGeneral'
+import DepartmentsManagement from './pages/admin/DepartmentsManagement'
+import HelpCenter from './pages/help/HelpCenter'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
@@ -195,6 +197,9 @@ function App() {
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
 
+                  {/* Help Center */}
+                  <Route path="/help" element={<HelpCenter />} />
+
                   {/* Super-Admin: Organizações */}
                   <Route path="/admin/organizations" element={<OrganizationsPage />} />
 
@@ -256,6 +261,7 @@ function App() {
                         TEAM: Users, Roles, Teams
                     ═══════════════════════════════════════════════════════════ */}
                     <Route path="team/members" element={<UserManagement />} />
+                    <Route path="team/departments" element={<DepartmentsManagement />} />
                     <Route path="team/phase-visibility" element={<PhaseVisibilitySettings />} />
                     <Route path="team/card-rules" element={<CardCreationRulesPage />} />
 
