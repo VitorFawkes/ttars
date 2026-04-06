@@ -57,31 +57,48 @@ const PROPOSAL_STATUS_ORDER = ['draft', 'sent', 'viewed', 'in_progress', 'accept
 
 export function useQualityGate() {
     // Fetch all required configurations
+    // NOTE: não usar embed `system_fields(label)` — não existe FK entre
+    // stage_field_config.field_key e system_fields.key, então o PostgREST
+    // retorna PGRST200 e silencia toda a validação. Carregar rótulos via
+    // fetch separado e mesclar em memória.
     const { data: rules } = useQuery({
         queryKey: ['stage-field-config-all'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('stage_field_config')
-                .select(`
-                    *,
-                    system_fields (
-                        label
-                    )
-                `)
+                .select('*')
                 .eq('is_required', true)
 
             if (error) throw error
+            if (!data) return []
 
-            return data?.map((item): RequirementRule => ({
+            const fieldKeys = Array.from(new Set(
+                data.map(d => d.field_key).filter((k): k is string => !!k)
+            ))
+
+            let labelByKey = new Map<string, string>()
+            if (fieldKeys.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
+                const { data: fields } = await (supabase.from('system_fields') as any)
+                    .select('key, label')
+                    .in('key', fieldKeys)
+                if (fields) {
+                    labelByKey = new Map(
+                        (fields as { key: string; label: string }[]).map(f => [f.key, f.label])
+                    )
+                }
+            }
+
+            return data.map((item): RequirementRule => ({
                 stage_id: item.stage_id as string,
                 requirement_type: (item.requirement_type || 'field') as RequirementType,
                 field_key: item.field_key,
-                label: item.system_fields?.label || item.requirement_label || item.field_key || 'Requisito',
+                label: (item.field_key ? labelByKey.get(item.field_key) : undefined) || item.requirement_label || item.field_key || 'Requisito',
                 is_blocking: item.is_blocking ?? true,
                 proposal_min_status: item.proposal_min_status,
                 task_tipo: item.task_tipo,
                 task_require_completed: item.task_require_completed ?? false
-            })) || []
+            }))
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     })

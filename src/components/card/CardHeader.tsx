@@ -914,7 +914,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     return
                 }
             } catch (err) {
-                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+                console.error('[QualityGate] Win validation failed — move bloqueado (fail-closed):', err)
+                alert('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
+                return
             }
 
             const targetPhase = phasesData?.find(p => p.id === nextStage.phase_id)
@@ -952,7 +954,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     return
                 }
             } catch (err) {
-                console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
+                console.error('[QualityGate] Win validation failed — move bloqueado (fail-closed):', err)
+                alert('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
+                return
             }
         }
 

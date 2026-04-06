@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
-import { Settings, Loader2, Save, Building2, Palette, Clock } from 'lucide-react'
+import { Settings, Loader2, Save, Building2, Palette, Clock, Download, ShieldCheck } from 'lucide-react'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -97,6 +97,32 @@ export default function WorkspaceGeneral() {
     })
 
     const isAdmin = profile?.is_admin === true
+
+    const [exporting, setExporting] = useState(false)
+    const handleExport = async () => {
+        setExporting(true)
+        try {
+            const { data, error } = await supabase.functions.invoke('export-org-data', {
+                method: 'POST',
+            })
+            if (error) throw error
+
+            // data é JSON — fazer download
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `welcomecrm-export-${org?.slug ?? 'org'}-${new Date().toISOString().split('T')[0]}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+            toast.success('Dados exportados com sucesso!')
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Erro ao exportar'
+            toast.error(`Erro: ${message}`)
+        } finally {
+            setExporting(false)
+        }
+    }
 
     if (isLoading) {
         return (
@@ -288,6 +314,60 @@ export default function WorkspaceGeneral() {
                         </div>
                     </div>
                 </section>
+
+                {/* LGPD & Privacidade */}
+                {isAdmin && (
+                    <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <ShieldCheck className="w-4 h-4 text-slate-500" />
+                            <h2 className="text-sm font-semibold text-slate-900">Privacidade e LGPD</h2>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <p className="text-sm text-slate-700 mb-1 font-medium">Exportar dados da organização</p>
+                                <p className="text-xs text-slate-500 mb-3">
+                                    Gera um arquivo JSON com todos os dados tratados pelo WelcomeCRM para sua organização,
+                                    conforme Art. 18 da LGPD. Tokens de integração são redactados por segurança.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExport}
+                                    disabled={exporting}
+                                >
+                                    {exporting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Exportando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Exportar dados (LGPD)
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1">
+                                <p>
+                                    <a href="/legal/terms" target="_blank" className="text-indigo-600 hover:text-indigo-700 underline">
+                                        Termos de Uso
+                                    </a>
+                                    {' · '}
+                                    <a href="/legal/privacy" target="_blank" className="text-indigo-600 hover:text-indigo-700 underline">
+                                        Política de Privacidade
+                                    </a>
+                                    {' · '}
+                                    <a href="/legal/dpa" target="_blank" className="text-indigo-600 hover:text-indigo-700 underline">
+                                        DPA
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+                )}
 
                 {/* Save button */}
                 {isAdmin && (

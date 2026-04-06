@@ -26,10 +26,29 @@ export default function Login() {
         setError(null)
 
         try {
+            // 1. Rate limit check ANTES de tentar login
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: rateLimit } = await (supabase.rpc as any)('check_auth_rate_limit', { p_email: email })
+            if (rateLimit?.blocked) {
+                setError(rateLimit.message ?? 'Muitas tentativas. Aguarde.')
+                setLoading(false)
+                return
+            }
+
+            // 2. Tentar login
             const { error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             })
+
+            // 3. Registrar tentativa (sucesso ou falha)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase.rpc as any)('record_auth_attempt', {
+                p_email: email,
+                p_success: !error,
+                p_user_agent: navigator.userAgent,
+            }).then(() => {}, () => {})
+
             if (error) throw error
             navigate(redirectTo)
         } catch (err: unknown) {

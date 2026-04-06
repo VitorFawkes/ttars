@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { setSentryUser } from '../lib/sentry'
 import type { Database } from '../database.types'
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row']
@@ -109,7 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (error) {
                 console.error('Erro ao buscar profile:', error)
             } else {
-                setProfile(data as Profile)
+                const p = data as Profile
+                setProfile(p)
+                // Sentry: associa user + org ao escopo de erros
+                setSentryUser({ id: p.id, email: p.email ?? undefined, org_id: p.org_id ?? undefined })
             }
         } catch (error) {
             console.error('Erro inesperado ao buscar profile:', error)
@@ -123,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
         setSession(null)
         setProfile(null)
+        setSentryUser(null)
     }
 
     return (

@@ -275,3 +275,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-06T21:36:28Z | supabase/migrations/20260406_h3_025_email_infrastructure.sql | applied_to_prod
 2026-04-06T21:40:55Z | supabase/migrations/20260406_h3_026_terms_acceptance.sql | applied_to_prod
 2026-04-06T21:42:31Z | supabase/migrations/20260406_h3_027_onboarding_step.sql | applied_to_prod
+2026-04-06T21:50:31Z | supabase/migrations/20260406_h3_028_encrypt_integration_settings.sql | applied_to_prod
+2026-04-06T21:52:17Z | supabase/migrations/20260406_h3_029_auth_rate_limit.sql | applied_to_prod

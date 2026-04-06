@@ -131,6 +131,10 @@ export function useStageRequirements(card: Card) {
             const currentOrder = (currentStageData as { ordem: number }).ordem
 
             // Fetch all required configs for this pipeline
+            // NÃO usar embed `system_fields(label, type)` — não existe FK entre
+            // stage_field_config.field_key e system_fields.key, então o PostgREST
+            // retorna PGRST200 e silencia toda a query. Carregar labels via fetch
+            // separado e mesclar em memória (mesmo padrão do useQualityGate).
             const { data, error } = await supabase
                 .from('stage_field_config')
                 .select(`
@@ -140,10 +144,6 @@ export function useStageRequirements(card: Card) {
                         ordem,
                         fase,
                         pipeline_id
-                    ),
-                    system_fields (
-                        label,
-                        type
                     )
                 `)
                 .eq('is_required', true)
@@ -151,6 +151,23 @@ export function useStageRequirements(card: Card) {
                 .eq('pipeline_stages.pipeline_id', pipelineId)
 
             if (error) throw error
+
+            const fieldKeys = Array.from(new Set(
+                (data || []).map(d => d.field_key).filter((k): k is string => !!k)
+            ))
+
+            let labelByKey = new Map<string, string>()
+            if (fieldKeys.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
+                const { data: fields } = await (supabase.from('system_fields') as any)
+                    .select('key, label')
+                    .in('key', fieldKeys)
+                if (fields) {
+                    labelByKey = new Map(
+                        (fields as { key: string; label: string }[]).map(f => [f.key, f.label])
+                    )
+                }
+            }
 
             const sortedData = (data || []).sort((a, b) => {
                 const aOrdem = (a.pipeline_stages as { ordem?: number } | null)?.ordem || 0
@@ -210,7 +227,7 @@ export function useStageRequirements(card: Card) {
                     ...baseReq,
                     requirement_type: 'field',
                     field_key: config.field_key,
-                    label: config.system_fields?.label || config.requirement_label || config.field_key
+                    label: (config.field_key ? labelByKey.get(config.field_key) : undefined) || config.requirement_label || config.field_key
                 } as FieldRequirement
             }).filter((req: Requirement) => req.isBlocking || req.isFuture)
         },
