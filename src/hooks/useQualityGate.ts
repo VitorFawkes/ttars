@@ -224,12 +224,15 @@ export function useQualityGate() {
         const specialRules = stageRules.filter(r => r.requirement_type === 'rule')
 
         // Fetch contato principal once if needed for completeness check
-        const needsContatoFetch = specialRules.some(r => r.field_key === 'contato_principal_completo')
+        const needsContatoFetch = specialRules.some(r =>
+            r.field_key === 'contato_principal_completo'
+            || r.field_key === 'contato_principal_basico'
+        )
         let contatoPrincipal: Record<string, unknown> | null = null
         if (needsContatoFetch && card.pessoa_principal_id) {
             const { data } = await supabase
                 .from('contatos')
-                .select('nome, sobrenome, telefone, email, cpf')
+                .select('nome, sobrenome, email, cpf')
                 .eq('id', card.pessoa_principal_id as string)
                 .single()
             contatoPrincipal = data
@@ -256,9 +259,19 @@ export function useQualityGate() {
                     isValid = !!(
                         contatoPrincipal.nome &&
                         contatoPrincipal.sobrenome &&
-                        contatoPrincipal.telefone &&
                         contatoPrincipal.email &&
                         contatoPrincipal.cpf
+                    )
+                }
+            } else if (rule.field_key === 'contato_principal_basico') {
+                if (!card.pessoa_principal_id) {
+                    isValid = false
+                } else if (!contatoPrincipal) {
+                    isValid = false
+                } else {
+                    isValid = !!(
+                        contatoPrincipal.nome &&
+                        contatoPrincipal.sobrenome
                     )
                 }
             }
@@ -373,7 +386,8 @@ export function useQualityGate() {
                 } else if (rule.field_key === 'contato_principal_required') {
                     isValid = !!card.pessoa_principal_id
                 }
-                // contato_principal_completo NÃO é verificado aqui (requer fetch async)
+                // contato_principal_completo e contato_principal_basico NÃO são
+                // verificados aqui (requerem fetch async — usar validateMove)
 
                 if (!isValid) {
                     missingRules.push({ key: rule.field_key, label: rule.label })
@@ -397,7 +411,7 @@ export function useQualityGate() {
                 r.requirement_type === 'proposal' ||
                 r.requirement_type === 'task' ||
                 r.requirement_type === 'document' ||
-                (r.requirement_type === 'rule' && r.field_key === 'contato_principal_completo')
+                (r.requirement_type === 'rule' && (r.field_key === 'contato_principal_completo' || r.field_key === 'contato_principal_basico'))
             )
         )
     }

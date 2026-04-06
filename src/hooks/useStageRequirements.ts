@@ -105,7 +105,7 @@ export function useStageRequirements(card: Card) {
             if (!card.pessoa_principal_id) return null
             const { data } = await supabase
                 .from('contatos')
-                .select('nome, sobrenome, telefone, email, cpf')
+                .select('nome, sobrenome, email, cpf')
                 .eq('id', card.pessoa_principal_id)
                 .single()
             return data
@@ -324,9 +324,16 @@ export function useStageRequirements(card: Card) {
                     return !!(
                         contatoPrincipal.nome &&
                         contatoPrincipal.sobrenome &&
-                        contatoPrincipal.telefone &&
                         contatoPrincipal.email &&
                         contatoPrincipal.cpf
+                    )
+                }
+                if (req.field_key === 'contato_principal_basico') {
+                    if (!card.pessoa_principal_id) return false
+                    if (!contatoPrincipal) return false
+                    return !!(
+                        contatoPrincipal.nome &&
+                        contatoPrincipal.sobrenome
                     )
                 }
                 return true
