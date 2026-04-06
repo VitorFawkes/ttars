@@ -81,14 +81,6 @@ const GENDER_MAP: Record<string, string> = {
   f: "F",
 };
 
-const KIND_MAP: Record<string, string> = {
-  PF: "individual",
-  PJ: "company",
-  pf: "individual",
-  pj: "company",
-  individual: "individual",
-  company: "company",
-};
 
 function normalizeCpf(cpf: string | null): string | undefined {
   if (!cpf) return undefined;
@@ -148,10 +140,7 @@ export function mapContatoToMondePerson(
     attributes["passport-expiration"] = contato.passaporte_validade;
   }
 
-  if (contato.tipo_cliente) {
-    const mapped = KIND_MAP[contato.tipo_cliente];
-    if (mapped) attributes.kind = mapped;
-  }
+  attributes.kind = "individual";
 
   if (contato.observacoes) attributes.observations = contato.observacoes;
 
