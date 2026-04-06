@@ -44,6 +44,8 @@ import SectionManager from './components/admin/studio/SectionManager'
 // FieldManager removed - replaced by StudioUnified
 import PipelineStudio from './pages/admin/PipelineStudio'
 import OrganizationsPage from './pages/admin/OrganizationsPage'
+import ProductsManagement from './pages/admin/ProductsManagement'
+import WorkspaceGeneral from './pages/admin/WorkspaceGeneral'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
@@ -200,7 +202,8 @@ function App() {
                     <Route path="profile" element={<ProfileSettings />} />
 
                     {/* Workspace Settings */}
-                    <Route path="workspace/general" element={<div className="p-4">Configurações Gerais do Espaço de Trabalho (Em Breve)</div>} />
+                    <Route path="workspace/general" element={<WorkspaceGeneral />} />
+                    <Route path="workspace/products" element={<ProductsManagement />} />
                     <Route path="workspace/whatsapp" element={<WhatsAppPage />} />
 
                     {/* ═══════════════════════════════════════════════════════════
