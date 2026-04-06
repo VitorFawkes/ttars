@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-02
+> **Last Updated:** 2026-04-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 133 tabelas | 41 paginas | 99 hooks | 17 views | 438 components
+> **Stats:** 133 tabelas | 42 paginas | 100 hooks | 17 views | 438 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **99 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **100 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -237,6 +237,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `useNotificationConfig()` | `useNotificationConfig.ts` |
 | `useNotifications()` | `useNotifications.ts` |
+| `useOrganizations()` | `useOrganizations.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
@@ -343,7 +344,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **41 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **42 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -372,6 +373,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ImportacaoPosVendaPage` | `src/pages/admin/ImportacaoPosVendaPage.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
+| `OrganizationsPage` | `src/pages/admin/OrganizationsPage.tsx` |
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `TagManagement` | `src/pages/admin/TagManagement.tsx` |

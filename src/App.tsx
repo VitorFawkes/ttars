@@ -42,6 +42,7 @@ import StudioUnified from './components/admin/studio/StudioUnified'
 import SectionManager from './components/admin/studio/SectionManager'
 // FieldManager removed - replaced by StudioUnified
 import PipelineStudio from './pages/admin/PipelineStudio'
+import OrganizationsPage from './pages/admin/OrganizationsPage'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
@@ -179,6 +180,9 @@ function App() {
                   </Route>
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
+
+                  {/* Super-Admin: Organizações */}
+                  <Route path="/admin/organizations" element={<OrganizationsPage />} />
 
                   {/* Cadências de Vendas */}
                   <Route path="/admin/cadence" element={<CadenceListPage />} />
