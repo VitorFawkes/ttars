@@ -12,14 +12,13 @@ export default function CardByConversation() {
     const navigate = useNavigate()
     const [error, setError] = useState<string | null>(null)
 
+    const validationError = !conversationId ? 'ID da conversa não informado' : null
+
     useEffect(() => {
-        if (!conversationId) {
-            setError('ID da conversa não informado')
-            return
-        }
+        if (validationError) return
 
         async function findCard() {
-            // Find card via whatsapp_messages.conversation_id
+            // 1. Find card via whatsapp_messages.conversation_id
             const { data: message, error: msgError } = await supabase
                 .from('whatsapp_messages')
                 .select('card_id')
@@ -34,22 +33,49 @@ export default function CardByConversation() {
                 return
             }
 
-            if (!message?.card_id) {
-                setError('Nenhum card encontrado para essa conversa')
+            if (message?.card_id) {
+                navigate(`/cards/${message.card_id}`, { replace: true })
                 return
             }
 
-            // Redirect to card detail
-            navigate(`/cards/${message.card_id}`, { replace: true })
+            // 2. Fallback: contatos.last_whatsapp_conversation_id → card aberto
+            // (cards criados pelo botão "Criar card" não geram whatsapp_messages)
+            const { data: contato } = await supabase
+                .from('contatos')
+                .select('id')
+                .eq('last_whatsapp_conversation_id', conversationId!)
+                .limit(1)
+                .maybeSingle()
+
+            if (contato?.id) {
+                const { data: card } = await supabase
+                    .from('cards')
+                    .select('id')
+                    .eq('pessoa_principal_id', contato.id)
+                    .not('status_comercial', 'in', '("ganho","perdido")')
+                    .is('deleted_at', null)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+
+                if (card?.id) {
+                    navigate(`/cards/${card.id}`, { replace: true })
+                    return
+                }
+            }
+
+            setError('Nenhum card encontrado para essa conversa')
         }
 
         findCard()
-    }, [conversationId, navigate])
+    }, [validationError, conversationId, navigate])
 
-    if (error) {
+    const displayError = validationError || error
+
+    if (displayError) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-                <p className="text-slate-600">{error}</p>
+                <p className="text-slate-600">{displayError}</p>
                 <button
                     onClick={() => navigate('/trips')}
                     className="text-indigo-600 hover:underline"

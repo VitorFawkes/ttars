@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 133 tabelas | 42 paginas | 100 hooks | 17 views | 438 components
+> **Stats:** 133 tabelas | 43 paginas | 100 hooks | 17 views | 438 components
 
 ---
 
@@ -344,7 +344,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **42 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **43 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -352,6 +352,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
+| `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |

@@ -9,6 +9,7 @@ import InvitePage from './pages/InvitePage'
 import Pipeline from './pages/Pipeline'
 import CardDetail from './pages/CardDetail'
 import CardByConversation from './pages/CardByConversation'
+import CreateCardFromEcho from './pages/CreateCardFromEcho'
 import Cards from './pages/Cards'
 import Leads from './pages/Leads'
 import People from './pages/People'
@@ -157,6 +158,7 @@ function App() {
                   <Route path="/trips" element={<Cards />} />
                   <Route path="/cards" element={<Navigate to="/trips" replace />} />
                   <Route path="/cards/convo/:conversationId" element={<CardByConversation />} />
+                  <Route path="/cards/echo/criar/:conversationId" element={<CreateCardFromEcho />} />
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
