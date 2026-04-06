@@ -195,10 +195,11 @@ Deno.serve(async (req) => {
       `[monde-people-import] Fetched ${allPeople.length} people from Monde`
     );
 
-    // --- 4. Set anti-loop flag (prevents outbound trigger from firing) ---
-    await supabase.rpc("set_monde_import_flag");
-
-    // --- 5. Upsert each person into contatos ---
+    // --- 4. Upsert each person into contatos ---
+    // Nota: set_monde_import_flag() não funciona aqui pois set_config é transaction-local
+    // e cada .update() do Supabase JS é uma transação separada (pgbouncer).
+    // O anti-loop é garantido pelo trigger: INSERTs com monde_person_id já preenchido
+    // são ignorados, e UPDATEs só enfileiram campos de negócio (não monde_person_id/monde_last_sync).
     const results: ImportResult[] = [];
 
     for (const mondePerson of allPeople) {
@@ -262,6 +263,23 @@ Deno.serve(async (req) => {
 
         // === AÇÃO: UPDATE ou CREATE ===
         if (existingContato) {
+          // Bug 2 guard: não sobrescrever monde_person_id de contato já vinculado a outro Monde person
+          const existingMondeId = existingContato.monde_person_id as string | null;
+          if (existingMondeId && existingMondeId !== mondePersonId) {
+            console.warn(
+              `[monde-people-import] Conflito: contato ${existingContato.id} já vinculado a ${existingMondeId}, pulando monde_person_id=${mondePersonId}`
+            );
+            results.push({
+              monde_person_id: mondePersonId,
+              contato_id: existingContato.id as string,
+              status: "skipped",
+              match_type: matchType,
+              match_confidence: matchConfidence,
+              error: `Contato já vinculado a monde_person_id diferente: ${existingMondeId}`,
+            });
+            continue;
+          }
+
           const updates = mergeContatoFields(
             existingContato as Partial<typeof mapped>,
             mapped

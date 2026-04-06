@@ -240,10 +240,9 @@ Deno.serve(async (req) => {
         const mondePersonId = responseData?.data?.id;
 
         // Update contato with monde_person_id + monde_last_sync
+        // Nota: monde_person_id e monde_last_sync não são rastreados pelo trigger outbound,
+        // então este update não causa loop na fila — set_monde_import_flag não é necessário.
         if (mondePersonId) {
-          // Set anti-loop flag before updating
-          await supabase.rpc("set_monde_import_flag");
-
           await supabase
             .from("contatos")
             .update({
