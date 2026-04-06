@@ -31,7 +31,8 @@ export default function CreateCardFromEcho() {
         if (validationError) return
 
         async function createCard() {
-            const { data, error: rpcError } = await supabase.rpc('criar_card_de_conversa_echo', {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC ainda não regenerada nos types
+            const { data, error: rpcError } = await (supabase as any).rpc('criar_card_de_conversa_echo', {
                 p_conversation_id: conversationId!,
                 p_name: nome,
                 p_phone: phone,

@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import { ThemeBoundary } from "../ui/ThemeBoundary";
 import { useProposalNotifications } from '@/hooks/useProposalNotifications';
 import { useAssistNotifications } from '@/hooks/useAssistNotifications';
+import { useOrgBranding } from '@/hooks/useOrgBranding';
 
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { GlobalSearchProvider } from '@/components/search/GlobalSearchProvider';
@@ -23,6 +24,9 @@ export default function Layout() {
 
     // Enable push notifications (registers SW, checks subscription)
     usePushNotifications()
+
+    // Aplica branding da org (título, favicon, CSS vars)
+    useOrgBranding()
 
     if (loading) {
         return (

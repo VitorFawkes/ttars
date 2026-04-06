@@ -164,9 +164,50 @@ serve(async (req: Request) => {
         .limit(1)
         .single();
 
-      const inviteUrl = invite?.token
-        ? `${Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") ?? ""}/invite?token=${invite.token}`
-        : null;
+      const appUrl = Deno.env.get("APP_URL") ?? "https://crm.welcomegroup.com.br";
+      const inviteUrl = invite?.token ? `${appUrl}/invite/${invite.token}` : null;
+
+      // Enviar email de convite + boas-vindas automaticamente (best-effort)
+      let emailStatus: "sent" | "failed" | "dry_run" | "skipped" = "skipped";
+      let emailError: string | null = null;
+
+      if (invite?.token) {
+        try {
+          const emailRes = await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                to: adminEmail,
+                org_id: orgId,
+                template_key: "invite",
+                variables: {
+                  org_name: name,
+                  role_name: "Administrador",
+                  token: invite.token,
+                  inviter_name: "Equipe WelcomeCRM",
+                },
+              }),
+            }
+          );
+
+          const emailData = await emailRes.json();
+          if (emailRes.ok) {
+            emailStatus = emailData.dry_run ? "dry_run" : "sent";
+          } else {
+            emailStatus = "failed";
+            emailError = emailData.error ?? "Unknown error";
+          }
+        } catch (err) {
+          emailStatus = "failed";
+          emailError = String(err);
+          console.error("[provision-org] email dispatch failed:", err);
+        }
+      }
 
       return new Response(
         JSON.stringify({
@@ -174,6 +215,10 @@ serve(async (req: Request) => {
           orgId,
           inviteToken: invite?.token ?? null,
           inviteUrl,
+          email: {
+            status: emailStatus,
+            error: emailError,
+          },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

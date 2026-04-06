@@ -8,6 +8,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { supabase } from '../../../lib/supabase';
 import { Copy, Check, UserPlus, Link as LinkIcon, Loader2, Layers } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useOrg } from '../../../contexts/OrgContext';
 import { useRoles } from '../../../hooks/useRoles';
 import { useProducts } from '../../../hooks/useProducts';
 import { cn } from '../../../lib/utils';
@@ -23,7 +24,8 @@ interface AddUserModalProps {
 }
 
 export function AddUserModal({ teams, onSuccess }: AddUserModalProps) {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
+    const { org } = useOrg();
     const { toast } = useToast();
     const { roles, isLoading: rolesLoading } = useRoles();
     const { products: PRODUCTS } = useProducts(true);
@@ -35,6 +37,7 @@ export function AddUserModal({ teams, onSuccess }: AddUserModalProps) {
     const [inviteProdutos, setInviteProdutos] = useState<string[]>([]);
     const [generatedLink, setGeneratedLink] = useState('');
     const [copied, setCopied] = useState(false);
+    const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'failed' | 'dry_run'>('idle');
 
     const toggleProduct = (value: string) => {
         setInviteProdutos(prev =>
@@ -66,7 +69,32 @@ export function AddUserModal({ teams, onSuccess }: AddUserModalProps) {
 
             const link = `${window.location.origin}/invite/${token}`;
             setGeneratedLink(link);
-            toast({ title: 'Convite gerado!', description: 'Copie o link abaixo.', type: 'success' });
+
+            // Disparar email automaticamente (best-effort — falha não bloqueia)
+            setEmailStatus('sending');
+            try {
+                const roleObj = roles.find(r => r.name === inviteRole);
+                const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email', {
+                    body: {
+                        to: inviteEmail,
+                        org_id: org?.id,
+                        template_key: 'invite',
+                        variables: {
+                            org_name: org?.name ?? 'WelcomeCRM',
+                            role_name: roleObj?.display_name ?? inviteRole,
+                            token: token,
+                            inviter_name: profile?.nome ?? 'Equipe',
+                        },
+                    },
+                });
+                if (emailError) throw emailError;
+                setEmailStatus(emailData?.dry_run ? 'dry_run' : 'sent');
+            } catch (emailErr) {
+                console.error('Failed to send invite email:', emailErr);
+                setEmailStatus('failed');
+            }
+
+            toast({ title: 'Convite gerado!', description: 'Copie o link abaixo ou aguarde envio por email.', type: 'success' });
             onSuccess();
         } catch (error: unknown) {
             console.error(error);
@@ -165,17 +193,45 @@ export function AddUserModal({ teams, onSuccess }: AddUserModalProps) {
                     </div>
 
                     {generatedLink ? (
-                        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-100">
-                            <Label className="text-green-800 mb-2 block">Link de Convite Gerado:</Label>
-                            <div className="flex gap-2">
-                                <Input value={generatedLink} readOnly className="bg-white" />
-                                <Button size="icon" variant="outline" onClick={copyToClipboard}>
-                                    {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                                </Button>
+                        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-100 space-y-3">
+                            <div>
+                                <Label className="text-green-800 mb-2 block">Status do email</Label>
+                                {emailStatus === 'sending' && (
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        Enviando email para {inviteEmail}...
+                                    </div>
+                                )}
+                                {emailStatus === 'sent' && (
+                                    <div className="flex items-center gap-2 text-xs text-green-700">
+                                        <Check className="w-3 h-3" />
+                                        Email enviado para {inviteEmail}
+                                    </div>
+                                )}
+                                {emailStatus === 'dry_run' && (
+                                    <div className="text-xs text-amber-700">
+                                        ⚠️ RESEND_API_KEY não configurada — email NÃO foi enviado. Copie o link manualmente.
+                                    </div>
+                                )}
+                                {emailStatus === 'failed' && (
+                                    <div className="text-xs text-red-700">
+                                        ❌ Envio de email falhou. Copie o link manualmente.
+                                    </div>
+                                )}
                             </div>
-                            <p className="text-xs text-green-600 mt-2">
-                                Este link expira em 7 dias e só pode ser usado uma vez.
-                            </p>
+
+                            <div>
+                                <Label className="text-green-800 mb-2 block">Link de convite (cópia manual)</Label>
+                                <div className="flex gap-2">
+                                    <Input value={generatedLink} readOnly className="bg-white" />
+                                    <Button size="icon" variant="outline" onClick={copyToClipboard}>
+                                        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-green-600 mt-2">
+                                    Este link expira em 7 dias e só pode ser usado uma vez.
+                                </p>
+                            </div>
                         </div>
                     ) : (
                         <Button onClick={handleGenerateInvite} disabled={isLoading} className="w-full">

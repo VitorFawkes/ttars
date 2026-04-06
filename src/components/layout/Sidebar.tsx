@@ -4,6 +4,7 @@ import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User,
 import { cn } from '../../lib/utils'
 import { ProductSwitcher } from './ProductSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrg } from '../../contexts/OrgContext'
 import { useProductContext } from '../../hooks/useProductContext'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
@@ -26,6 +27,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?:
 export default function Sidebar() {
     const location = useLocation()
     const { session, signOut, profile } = useAuth()
+    const { org } = useOrg()
     const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     const { data: todayCount } = useTodayMeetingCount()
@@ -65,27 +67,47 @@ export default function Sidebar() {
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
-            {/* Header */}
+            {/* Header — logo da org se existir, senão fallback WelcomeCRM */}
             <div className={cn(
                 "relative flex items-center justify-center transition-all duration-300",
                 isExpanded ? "h-20 px-3" : "h-20 px-1"
             )}>
-                <img
-                    src="/icon-light.png"
-                    alt="TTARS"
-                    className={cn(
-                        "absolute object-contain w-10 brightness-0 invert transition-opacity duration-300",
-                        isExpanded ? "opacity-0" : "opacity-100"
-                    )}
-                />
-                <img
-                    src="/logo-dark.png"
-                    alt="TTARS"
-                    className={cn(
-                        "object-contain w-full max-w-[180px] transition-opacity duration-300",
-                        isExpanded ? "opacity-100" : "opacity-0 max-w-[40px]"
-                    )}
-                />
+                {org?.logo_url ? (
+                    <>
+                        {/* Logo da org — mesma imagem em ambos estados, tamanho adaptativo */}
+                        <img
+                            src={org.logo_url}
+                            alt={org.name}
+                            className={cn(
+                                "object-contain transition-all duration-300",
+                                isExpanded ? "max-h-12 max-w-[180px]" : "max-h-10 max-w-[40px]"
+                            )}
+                            onError={(e) => {
+                                // Se logo da org falhar, esconde e deixa o fallback aparecer
+                                (e.currentTarget as HTMLImageElement).style.display = 'none'
+                            }}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <img
+                            src="/icon-light.png"
+                            alt={org?.name ?? 'WelcomeCRM'}
+                            className={cn(
+                                "absolute object-contain w-10 brightness-0 invert transition-opacity duration-300",
+                                isExpanded ? "opacity-0" : "opacity-100"
+                            )}
+                        />
+                        <img
+                            src="/logo-dark.png"
+                            alt={org?.name ?? 'WelcomeCRM'}
+                            className={cn(
+                                "object-contain w-full max-w-[180px] transition-opacity duration-300",
+                                isExpanded ? "opacity-100" : "opacity-0 max-w-[40px]"
+                            )}
+                        />
+                    </>
+                )}
             </div>
 
             {/* Global Product Switcher - Always visible, adapts to collapsed state */}

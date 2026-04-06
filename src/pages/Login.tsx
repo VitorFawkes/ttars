@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -46,8 +46,9 @@ export default function Login() {
                 <div className="flex flex-col items-center">
                     <img
                         src="/logo-light.png"
-                        alt="TTARS"
+                        alt="WelcomeCRM"
                         className="w-64 object-contain"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                     />
                     <p className="mt-3 text-sm text-gray-600">
                         Entre com suas credenciais
@@ -106,6 +107,15 @@ export default function Login() {
                         >
                             {loading ? 'Processando...' : 'Entrar'}
                         </button>
+                    </div>
+
+                    <div className="text-center">
+                        <Link
+                            to="/forgot-password"
+                            className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                        >
+                            Esqueci minha senha
+                        </Link>
                     </div>
                 </form>
             </div>

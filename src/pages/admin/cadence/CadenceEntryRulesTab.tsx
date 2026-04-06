@@ -102,10 +102,13 @@ const actionTypeOptions = [
 ];
 
 const taskTypeOptions = [
+    { value: 'tarefa', label: 'Tarefa' },
     { value: 'contato', label: 'Contato' },
     { value: 'email', label: 'E-mail' },
     { value: 'reuniao', label: 'Reunião' },
-    { value: 'followup', label: 'Follow-up' }
+    { value: 'solicitacao_mudanca', label: 'Mudança' },
+    { value: 'enviar_proposta', label: 'Proposta' },
+    { value: 'coleta_documentos', label: 'Coleta Docs' }
 ];
 
 const priorityOptions = [

@@ -272,3 +272,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-06T20:14:29Z | supabase/migrations/20260406_h3_023_taxa_trips_org_id.sql | applied_to_prod
 2026-04-06T20:16:00Z | supabase/migrations/20260406_h3_024_fix_org_id_defaults.sql | applied_to_prod
 2026-04-06T20:17:48Z | supabase/migrations/20260406_criar_card_echo_rpc.sql | applied_to_prod
+2026-04-06T21:36:28Z | supabase/migrations/20260406_h3_025_email_infrastructure.sql | applied_to_prod
+2026-04-06T21:40:55Z | supabase/migrations/20260406_h3_026_terms_acceptance.sql | applied_to_prod

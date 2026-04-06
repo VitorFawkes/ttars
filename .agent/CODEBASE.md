@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 133 tabelas | 45 paginas | 100 hooks | 17 views | 438 components
+> **Stats:** 136 tabelas | 50 paginas | 101 hooks | 17 views | 438 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **100 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **101 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -237,6 +237,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `useNotificationConfig()` | `useNotificationConfig.ts` |
 | `useNotifications()` | `useNotifications.ts` |
+| `useOrgBranding()` | `useOrgBranding.ts` |
 | `useOrganizations()` | `useOrganizations.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
@@ -344,7 +345,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **45 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **50 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -354,6 +355,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
+| `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |
 | `Leads` | `src/pages/Leads.tsx` |
@@ -365,6 +367,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` |
 | `ProposalBuilderV4` | `src/pages/ProposalBuilderV4.tsx` |
 | `ProposalsPage` | `src/pages/ProposalsPage.tsx` |
+| `ResetPassword` | `src/pages/ResetPassword.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
@@ -388,6 +391,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
+| `DPA` | `src/pages/legal/DPA.tsx` |
+| `Privacy` | `src/pages/legal/Privacy.tsx` |
+| `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |

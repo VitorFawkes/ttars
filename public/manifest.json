@@ -1,6 +1,7 @@
 {
-  "name": "TTARS CRM",
-  "short_name": "TTARS",
+  "name": "WelcomeCRM",
+  "short_name": "WelcomeCRM",
+  "description": "CRM multi-tenant para gestão de vendas, pipeline e relacionamento com clientes",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -16,5 +17,6 @@
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#4f46e5",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "lang": "pt-BR"
 }
