@@ -1,10 +1,26 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+
+// Password policy — min 12, maiúscula, minúscula, número
+const MIN_PASSWORD_LENGTH = 12
+
+function validatePassword(pwd: string): string | null {
+    if (pwd.length < MIN_PASSWORD_LENGTH) return `Senha deve ter no mínimo ${MIN_PASSWORD_LENGTH} caracteres`
+    if (!/[a-z]/.test(pwd)) return 'Senha deve conter ao menos uma letra minúscula'
+    if (!/[A-Z]/.test(pwd)) return 'Senha deve conter ao menos uma letra maiúscula'
+    if (!/\d/.test(pwd)) return 'Senha deve conter ao menos um número'
+    return null
+}
+
+// Versões atuais dos documentos legais (devem refletir src/pages/legal/*)
+const TERMS_VERSION = '1.0'
+const PRIVACY_VERSION = '1.0'
+const DPA_VERSION = '1.0'
 
 export default function InvitePage() {
     const { token } = useParams();
@@ -13,11 +29,13 @@ export default function InvitePage() {
 
     const [loading, setLoading] = useState(true);
     const [valid, setValid] = useState(false);
-    const [inviteData, setInviteData] = useState<{ email: string; role: string; team_id?: string; team_name?: string } | null>(null);
+    const [inviteData, setInviteData] = useState<{ email: string; role: string; team_id?: string; team_name?: string; org_id?: string } | null>(null);
 
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -33,15 +51,15 @@ export default function InvitePage() {
 
             if (error) throw error;
 
-            const result = data as unknown as { id?: string; email: string; role: string; team_id?: string; team_name?: string } | null;
-            // Check if we got valid data (has email and role)
+            const result = data as unknown as { id?: string; email: string; role: string; team_id?: string; team_name?: string; org_id?: string } | null;
             if (result && result.email && result.role) {
                 setValid(true);
                 setInviteData({
                     email: result.email,
                     role: result.role,
                     team_id: result.team_id,
-                    team_name: result.team_name
+                    team_name: result.team_name,
+                    org_id: result.org_id,
                 });
             } else {
                 setValid(false);
@@ -56,39 +74,65 @@ export default function InvitePage() {
 
     const handleAccept = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validação de senha
+        const pwdError = validatePassword(password)
+        if (pwdError) {
+            toast({ title: 'Senha inválida', description: pwdError, type: 'error' });
+            return
+        }
+
         if (password !== confirmPassword) {
             toast({ title: 'Erro', description: 'As senhas não coincidem.', type: 'error' });
             return;
         }
-        if (password.length < 6) {
-            toast({ title: 'Erro', description: 'A senha deve ter no mínimo 6 caracteres.', type: 'error' });
-            return;
+
+        if (!acceptedTerms) {
+            toast({ title: 'Atenção', description: 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.', type: 'error' });
+            return
         }
 
         setSubmitting(true);
         try {
-            // 1. Sign Up (Trigger will validate whitelist)
-            const { error } = await supabase.auth.signUp({
+            // 1. Sign Up (trigger handle_new_user valida invite e injeta profile/org_id)
+            const { data: signUpData, error } = await supabase.auth.signUp({
                 email: inviteData!.email,
                 password: password,
                 options: {
                     data: {
                         full_name: name,
                         role: inviteData!.role,
-                        team_id: inviteData!.team_id // Pass team_id to metadata
+                        team_id: inviteData!.team_id,
                     }
                 }
             });
 
             if (error) throw error;
 
+            // 2. Registrar aceite de termos (best-effort — não bloqueia login)
+            if (signUpData.user?.id) {
+                await supabase
+                    .from('terms_acceptance')
+                    .insert({
+                        user_id: signUpData.user.id,
+                        org_id: inviteData?.org_id ?? null,
+                        terms_version: TERMS_VERSION,
+                        privacy_version: PRIVACY_VERSION,
+                        dpa_version: DPA_VERSION,
+                        user_agent: navigator.userAgent,
+                        context: 'signup',
+                    })
+                    .then(() => {}, (err) => {
+                        console.warn('Failed to log terms acceptance:', err)
+                    })
+            }
+
             toast({
-                title: 'Conta Criada!',
-                description: 'Bem-vindo ao time de Elite.',
+                title: 'Conta criada!',
+                description: 'Bem-vindo ao WelcomeCRM.',
                 type: 'success'
             });
 
-            // Redirect to dashboard
             navigate('/dashboard');
 
         } catch (error) {
@@ -119,7 +163,7 @@ export default function InvitePage() {
                     <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <XCircle className="w-8 h-8 text-red-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Convite Inválido</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Convite inválido</h2>
                     <p className="text-gray-500 mb-6">
                         Este link de convite expirou ou não existe. Peça um novo convite ao administrador.
                     </p>
@@ -134,11 +178,11 @@ export default function InvitePage() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-                <div className="text-center mb-8">
+                <div className="text-center mb-6">
                     <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="w-6 h-6 text-indigo-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Aceitar Convite</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">Aceitar convite</h2>
                     <p className="text-gray-500 mt-2">
                         Você foi convidado para o WelcomeCRM.
                     </p>
@@ -152,7 +196,7 @@ export default function InvitePage() {
 
                 <form onSubmit={handleAccept} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
                         <Input
                             value={name}
                             onChange={e => setName(e.target.value)}
@@ -162,40 +206,77 @@ export default function InvitePage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Definir Senha</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Definir senha</label>
+                        <div className="relative">
+                            <Input
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                placeholder="Mínimo 12 caracteres"
+                                required
+                                className="pr-10"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                            >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                            Mínimo 12 caracteres, com maiúscula, minúscula e número
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar senha</label>
                         <Input
-                            type="password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            placeholder="******"
+                            type={showPassword ? 'text' : 'password'}
+                            value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
                             required
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
-                        <Input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={e => setConfirmPassword(e.target.value)}
-                            placeholder="******"
-                            required
+                    <div className="flex items-start gap-2 pt-2">
+                        <input
+                            id="accept-terms"
+                            type="checkbox"
+                            checked={acceptedTerms}
+                            onChange={(e) => setAcceptedTerms(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
                         />
+                        <label htmlFor="accept-terms" className="text-xs text-slate-600 leading-relaxed">
+                            Li e aceito os{' '}
+                            <Link to="/legal/terms" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-medium underline">
+                                Termos de Uso
+                            </Link>
+                            {', a '}
+                            <Link to="/legal/privacy" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-medium underline">
+                                Política de Privacidade
+                            </Link>
+                            {' e o '}
+                            <Link to="/legal/dpa" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-medium underline">
+                                DPA
+                            </Link>
+                            {' do WelcomeCRM.'}
+                        </label>
                     </div>
 
                     <Button
                         type="submit"
                         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white mt-4"
-                        disabled={submitting}
+                        disabled={submitting || !acceptedTerms}
                     >
                         {submitting ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                Criando Conta...
+                                Criando conta...
                             </>
                         ) : (
                             <>
-                                Entrar no Sistema
+                                Entrar no sistema
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </>
                         )}

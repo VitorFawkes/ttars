@@ -6,6 +6,9 @@ import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import Terms from './pages/legal/Terms'
+import Privacy from './pages/legal/Privacy'
+import DPA from './pages/legal/DPA'
 import Dashboard from './pages/Dashboard'
 import InvitePage from './pages/InvitePage'
 import Pipeline from './pages/Pipeline'
@@ -146,6 +149,9 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/legal/terms" element={<Terms />} />
+                <Route path="/legal/privacy" element={<Privacy />} />
+                <Route path="/legal/dpa" element={<DPA />} />
                 <Route path="/invite/:token" element={<InvitePage />} />
                 <Route path="/p/:token" element={<ProposalView />} />
                 <Route path="/p/:token/review" element={<ProposalReview />} />

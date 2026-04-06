@@ -21,6 +21,8 @@ export interface Organization {
     logo_url: string | null
     branding: OrgBranding | null
     settings: OrgSettings | null
+    onboarding_step: number
+    onboarding_completed_at: string | null
 }
 
 interface OrgContextType {
@@ -39,7 +41,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
             if (!profile?.org_id) return null
             const { data, error } = await supabase
                 .from('organizations')
-                .select('id, name, slug, logo_url, branding, settings')
+                .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at')
                 .eq('id', profile.org_id)
                 .single()
             if (error) throw error

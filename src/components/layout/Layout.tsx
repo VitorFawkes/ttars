@@ -12,6 +12,7 @@ import { GlobalSearchModal } from '@/components/search/GlobalSearchModal';
 import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
 import { FeedbackPopup } from '@/components/feedback/FeedbackPopup';
 import NotificationCenter from './NotificationCenter';
+import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 
 
 export default function Layout() {
@@ -78,6 +79,7 @@ export default function Layout() {
             <GlobalSearchModal />
             <FeedbackPopup />
             <NotificationCenter />
+            <OnboardingWizard />
         </GlobalSearchProvider>
     );
 }
