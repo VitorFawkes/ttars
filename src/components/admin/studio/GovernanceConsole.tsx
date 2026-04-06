@@ -10,7 +10,8 @@ import {
     LayoutList,
     Copy,
     X,
-    ShieldAlert
+    ShieldAlert,
+    UserCheck
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -58,7 +59,9 @@ interface ActionRequirement {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SPECIAL_RULES = [
-    { key: 'lost_reason_required', label: 'Motivo de Perda Obrigatório', icon: ShieldAlert }
+    { key: 'lost_reason_required', label: 'Motivo de Perda Obrigatório', icon: ShieldAlert },
+    { key: 'contato_principal_required', label: 'Contato Principal Obrigatório', icon: UserCheck },
+    { key: 'contato_principal_completo', label: 'Dados Completos do Contato Principal', icon: UserCheck },
 ]
 
 

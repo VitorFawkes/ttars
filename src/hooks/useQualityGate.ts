@@ -205,6 +205,19 @@ export function useQualityGate() {
 
         // --- Validate Special Rules ---
         const specialRules = stageRules.filter(r => r.requirement_type === 'rule')
+
+        // Fetch contato principal once if needed for completeness check
+        const needsContatoFetch = specialRules.some(r => r.field_key === 'contato_principal_completo')
+        let contatoPrincipal: Record<string, unknown> | null = null
+        if (needsContatoFetch && card.pessoa_principal_id) {
+            const { data } = await supabase
+                .from('contatos')
+                .select('nome, sobrenome, telefone, email, cpf')
+                .eq('id', card.pessoa_principal_id as string)
+                .single()
+            contatoPrincipal = data
+        }
+
         for (const rule of specialRules) {
             if (!rule.field_key) continue // We store rule key in field_key
 
@@ -215,6 +228,22 @@ export function useQualityGate() {
                 const hasId = !!card.motivo_perda_id
                 const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
                 isValid = hasId || hasComment
+            } else if (rule.field_key === 'contato_principal_required') {
+                isValid = !!card.pessoa_principal_id
+            } else if (rule.field_key === 'contato_principal_completo') {
+                if (!card.pessoa_principal_id) {
+                    isValid = false
+                } else if (!contatoPrincipal) {
+                    isValid = false
+                } else {
+                    isValid = !!(
+                        contatoPrincipal.nome &&
+                        contatoPrincipal.sobrenome &&
+                        contatoPrincipal.telefone &&
+                        contatoPrincipal.email &&
+                        contatoPrincipal.cpf
+                    )
+                }
             }
 
             if (!isValid) {
@@ -324,7 +353,10 @@ export function useQualityGate() {
                     const hasId = !!card.motivo_perda_id
                     const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
                     isValid = hasId || hasComment
+                } else if (rule.field_key === 'contato_principal_required') {
+                    isValid = !!card.pessoa_principal_id
                 }
+                // contato_principal_completo NÃO é verificado aqui (requer fetch async)
 
                 if (!isValid) {
                     missingRules.push({ key: rule.field_key, label: rule.label })
@@ -344,7 +376,12 @@ export function useQualityGate() {
         return rules.some(r =>
             r.stage_id === targetStageId &&
             r.is_blocking &&
-            (r.requirement_type === 'proposal' || r.requirement_type === 'task' || r.requirement_type === 'document')
+            (
+                r.requirement_type === 'proposal' ||
+                r.requirement_type === 'task' ||
+                r.requirement_type === 'document' ||
+                (r.requirement_type === 'rule' && r.field_key === 'contato_principal_completo')
+            )
         )
     }
 

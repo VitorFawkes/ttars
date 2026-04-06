@@ -98,6 +98,22 @@ export function useStageRequirements(card: Card) {
         staleTime: 1000 * 60 * 2
     })
 
+    // Fetch contato principal data (for contato_principal_completo rule)
+    const { data: contatoPrincipal } = useQuery({
+        queryKey: ['card-contato-principal', card.pessoa_principal_id],
+        queryFn: async () => {
+            if (!card.pessoa_principal_id) return null
+            const { data } = await supabase
+                .from('contatos')
+                .select('nome, sobrenome, telefone, email, cpf')
+                .eq('id', card.pessoa_principal_id)
+                .single()
+            return data
+        },
+        enabled: !!card.pessoa_principal_id,
+        staleTime: 1000 * 60 * 5
+    })
+
     const { data: requirements, isLoading } = useQuery({
         queryKey: ['stage-requirements', card.pipeline_stage_id],
         queryFn: async () => {
@@ -281,6 +297,20 @@ export function useStageRequirements(card: Card) {
                     const hasId = !!card.motivo_perda_id
                     const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
                     return hasId || hasComment
+                }
+                if (req.field_key === 'contato_principal_required') {
+                    return !!card.pessoa_principal_id
+                }
+                if (req.field_key === 'contato_principal_completo') {
+                    if (!card.pessoa_principal_id) return false
+                    if (!contatoPrincipal) return false // ainda carregando — assume inválido
+                    return !!(
+                        contatoPrincipal.nome &&
+                        contatoPrincipal.sobrenome &&
+                        contatoPrincipal.telefone &&
+                        contatoPrincipal.email &&
+                        contatoPrincipal.cpf
+                    )
                 }
                 return true
             default:
