@@ -62,13 +62,8 @@ Reincidencia: `DynamicSectionWidget.tsx` L454 — `useCardAlerts(isAlertas ? car
 ### 50. Helpers duplicados entre hooks — MEDIO
 Extrair helpers compartilhados (ex: `blobToBase64`, `N8N_WEBHOOK_URL`) para arquivo fonte unico.
 
-### 53. invalidateQueries com queryKey errada (singular vs plural) nao propaga — MEDIO
-`GovernanceConsole` invalida `['stage-field-config-all']` mas `useFieldConfig` registra `['stage-field-configs-all']` (plural).
-Mutacoes no console nao atualizam a matriz do Studio nem o quality gate. Verificar ortografia exata de todas as queryKeys ao invalidar.
-
-### 54. Query local de pipeline_stages duplica usePipelineStages — ALTO
-`GovernanceConsole` (L92-110) faz query propria de `pipeline_stages` com sort identico ao centralizado em `usePipelineStages`.
-queryKey privada `['pipeline-stages-governance']` nao e invalidada pelo Studio. Correto: usar `usePipelineStages(pipelineId)`.
+### 53/54. invalidateQueries key errada + query duplicada — MEDIO/ALTO
+Verificar ortografia exata (singular vs plural) de queryKeys ao invalidar. Nao duplicar queries que ja existem em hooks centralizados (ex: `usePipelineStages`).
 
 ### 55. UUIDs hardcoded em pagina de importacao — ALTO
 `ImportacaoPosVendaPage.tsx` L26-33 hardcoda stage_ids, SAMANTHA_ID, TEAM_PLANNER_ID, pipeline_id no codigo.
@@ -99,30 +94,17 @@ REGRA: Callbacks que recebem dados de `ContactSelector` devem tipar `SelectedCon
 Se a mutacao falhar, overlay fecha mas alertas permanecem nao lidos — na proxima abertura o overlay reaparece confundindo o usuario.
 REGRA: Quando fechar UI depende do sucesso da mutacao, usar `.mutateAsync` com try/catch ou mover o dismiss para `onSuccess`.
 
-### 62. Constante literal declarada dentro do componente — BAIXO
-`SCROLL_KEY = 'kanban-scroll-left'` em `KanbanBoard.tsx` L82 recriada a cada render.
-REGRA: Strings/numeros constantes sem dependencia do componente devem ser declaradas no escopo do modulo.
-
-### 63. Comentarios de rascunho de depuracao deixados no arquivo — MEDIO
-`KanbanBoard.tsx` L125-137: bloco de 13 linhas de raciocinio de escrita ("This is TRICKY", "Wait. If we return early...").
-REGRA: Comentarios que descrevem o processo de pensar o codigo (nao o codigo em si) devem ser removidos antes do merge.
-
-### 64. sessionStorage key nao inclui productFilter — BAIXO
-`KanbanBoard.tsx`: `'kanban-scroll-left'` e compartilhado entre TRIPS e WEDDING.
-Ao trocar produto, o scroll restaurado e o do outro produto. Correto: `kanban-scroll-left-${productFilter}`.
+### 62/63/64. KanbanBoard: constante no escopo errado, comentarios rascunho, scroll key sem produto — BAIXO
+Constantes sem dependencia de componente devem ser no modulo. Comentarios de raciocinio removidos antes do merge. sessionStorage key sem `${productFilter}` sufixo mistura produtos.
 
 ### 65. formatDisplayValue: ordem de branches captura data_exata como range_meses — ALTO
 `AIExtractionReviewModal.tsx` L54-72: `EpocaViagem` do tipo `data_exata` tem `mes_inicio + mes_fim + data_inicio`.
 Branch `mes_inicio/mes_fim` (L57) dispara antes da branch `data_inicio/data_fim` (L65) — exibe "Agosto a Agosto/2026" em vez de "15/08/2026 a 30/08/2026".
 REGRA: Em `formatDisplayValue` com shape `EpocaViagem`, checar `data_inicio` antes de `mes_inicio`.
 
-### 66. Set.size comparado com subset filtrado causa toggle invertido — ALTO
-`toggleAllTrips` (ImportacaoPosVendaPage.tsx L1108): `prev.size >= actionableTrips.length` falha quando Set inclui IDs de trips com action=skip (inicializados junto). Desmarcar-tudo dispara na primeira interacao.
-REGRA: Ao comparar tamanho de Set com um subconjunto, filtrar o Set antes de comparar: `[...prev].filter(id => actionableIds.has(id)).length`.
-
-### 67. selectedTrips inicializado com trips nao-acionaveis — MEDIO
-`ImportacaoPosVendaPage.tsx` L904: `new Set(fullTrips.map(t => t.id))` inclui trips com action=skip.
-Checkbox aparece marcado para viagens que serao puladas de qualquer forma — confusao visual. Inicializar apenas com `fullTrips.filter(t => t.action !== 'skip')`.
+### 66/67. Set inicializado com itens nao-acionaveis causa toggle invertido — ALTO
+`selectedTrips` inclui trips `action=skip`. `prev.size >= actionableTrips.length` dispara errado.
+REGRA: Inicializar Set apenas com itens acionaveis. Comparar filtrando o Set: `[...prev].filter(id => actionableIds.has(id)).length`.
 
 ### 68. Coluna inserida que existe apenas como comentario no schema — ALTO
 `previous_state` inserida em `pos_venda_import_log_items` (L1049, L1068) mas coluna esta apenas como `-- previous_state jsonb NULL` no baseline, nunca criada via migration ativa.
@@ -201,6 +183,43 @@ FIX: `USING (auth.role() = 'service_role')`. Visto em: `monde_people_queue`.
 ### 82. Dedup por nome (low confidence) nao bloqueia merge — MEDIO
 Import Monde: match_type='nome' gera confidence='low' mas ainda executa merge — dois clientes homônimos se fundem.
 FIX: confidence='low' deve criar contato novo ou pular para revisao manual.
+
+### 83. usePhaseCapabilities: cast desnecessario para campos que ja existem em PipelinePhase — MEDIO
+`usePhaseCapabilities.ts` L35-41: `supports_win`, `win_action`, `owner_field` etc. sao campos tipados em `PipelinePhase` (`types/pipeline.ts` L23-29). `(p as unknown as Record<string, unknown>).supports_win` e redundante e esconde checagem TypeScript.
+REGRA: Ler campos diretamente: `p.supports_win ?? false`. Usar cast apenas quando o tipo do banco nao incluir o campo.
+
+### 84. KanbanBoard.handleWin L887: is_terminal_phase lido via `as any` quando campo existe em PipelinePhase — MEDIO
+`(phase as any).is_terminal_phase` em KanbanBoard L887 enquanto `PipelinePhase.is_terminal_phase` esta tipado.
+REGRA: Quando `phasesData` e `PipelinePhase[]`, ler `phase.is_terminal_phase` diretamente sem cast.
+
+### 85. CardHeader.handleMarkAsWon: win_action lido via `as any` mesmo apos PipelinePhase tipado — MEDIO
+`CardHeader.tsx` L859: `(currentPhaseObj as any)?.win_action`. `currentPhaseObj` e `PipelinePhase | undefined`, campo tipado.
+REGRA: Apos H3-015 adicionar campos a `PipelinePhase`, revisar todos `as any` que acessam esses campos.
+
+### 86. AppProduct importado de useProductContext mas re-declarado localmente em EditUserModal — BAIXO
+`EditUserModal.tsx` L76: `type AppProduct = Database['public']['Enums']['app_product']` redefine o tipo localmente.
+`useProductContext.ts` exporta `AppProduct = string`. Os dois types sao incompativeis se o enum for restrito.
+REGRA: Usar apenas um AppProduct. Se a tabela tem enum, importar de `database.types.ts` em todos os lugares.
+
+### 87. ProductSwitcher importa AppProduct do hook mas chama `as AppProduct` desnecessariamente — BAIXO
+`ProductSwitcher.tsx` L37/75: `setProduct(product.slug as AppProduct)`. Com `AppProduct = string`, o cast e no-op mas mascara tipo errado futuro.
+
+### 88. Multi-row INSERT RETURNING INTO scalar var em PL/pgSQL lanca erro em runtime — CRITICO
+`INSERT INTO t VALUES(r1),(r2),(r3) RETURNING id INTO v_id` lanca "query returned more than one row".
+FIX: Remover RETURNING da clause multi-row; buscar IDs individualmente com SELECT apos INSERT.
+Visto em: H3-017 provision_organization L64 (roles INSERT).
+
+### 89. provision_organization insere em sections com UNIQUE(key) global — CRITICO
+`sections.key` tem UNIQUE global (nunca scoped por org). Chaves 'people' e 'payment' ja existem.
+Segunda org provisionada falha com unique violation. FIX: ON CONFLICT (key) DO NOTHING ou dropar sections_key_key e criar UNIQUE(org_id, key, pipeline_id).
+
+### 90. roles_name_key UNIQUE global nao atualizado para multi-tenant — CRITICO
+H3-002 adicionou org_id em roles mas nao atualizou UNIQUE(name). Segunda org com 'admin','sales','support' falha.
+FIX: DROP CONSTRAINT roles_name_key; ADD CONSTRAINT roles_org_name_key UNIQUE(org_id, name).
+
+### 91. pipelines.produto e app_product ENUM — 'MAIN' nao e valor valido — CRITICO
+app_product ENUM = ('TRIPS','WEDDING','CORP'). provision_organization usa p_product_slug='MAIN' como DEFAULT.
+INSERT pipelines com produto='MAIN' falha em runtime. FIX: adicionar 'MAIN' ao enum, ou mudar pipelines.produto para TEXT, ou exigir que o caller passe slug valido.
 
 ---
 
