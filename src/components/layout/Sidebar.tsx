@@ -30,6 +30,9 @@ export default function Sidebar() {
     const { org } = useOrg()
     const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
+    // Set de URLs de logo que falharam ao carregar — derivado por URL, não precisa reset
+    const [failedLogoUrls, setFailedLogoUrls] = useState<Set<string>>(new Set())
+    const logoFailed = org?.logo_url ? failedLogoUrls.has(org.logo_url) : false
     const { data: todayCount } = useTodayMeetingCount()
 
     // Persist last visited route for restoring on return
@@ -72,7 +75,7 @@ export default function Sidebar() {
                 "relative flex items-center justify-center transition-all duration-300",
                 isExpanded ? "h-20 px-3" : "h-20 px-1"
             )}>
-                {org?.logo_url ? (
+                {org?.logo_url && !logoFailed ? (
                     <>
                         {/* Logo da org — mesma imagem em ambos estados, tamanho adaptativo */}
                         <img
@@ -82,9 +85,14 @@ export default function Sidebar() {
                                 "object-contain transition-all duration-300",
                                 isExpanded ? "max-h-12 max-w-[180px]" : "max-h-10 max-w-[40px]"
                             )}
-                            onError={(e) => {
-                                // Se logo da org falhar, esconde e deixa o fallback aparecer
-                                (e.currentTarget as HTMLImageElement).style.display = 'none'
+                            onError={() => {
+                                if (org?.logo_url) {
+                                    setFailedLogoUrls((prev) => {
+                                        const next = new Set(prev)
+                                        next.add(org.logo_url!)
+                                        return next
+                                    })
+                                }
                             }}
                         />
                     </>

@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-
-const TERMS_VERSION = '1.0'
-const TERMS_DATE = '2026-04-06'
+import { TERMS_VERSION, TERMS_DATE } from './versions'
 
 export default function Terms() {
     return (
@@ -107,5 +105,3 @@ export default function Terms() {
         </div>
     )
 }
-
-export { TERMS_VERSION, TERMS_DATE }

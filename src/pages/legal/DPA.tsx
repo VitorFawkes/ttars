@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Download } from 'lucide-react'
-
-const DPA_VERSION = '1.0'
-const DPA_DATE = '2026-04-06'
+import { DPA_VERSION, DPA_DATE } from './versions'
 
 export default function DPA() {
     return (
@@ -159,5 +157,3 @@ export default function DPA() {
         </div>
     )
 }
-
-export { DPA_VERSION, DPA_DATE }

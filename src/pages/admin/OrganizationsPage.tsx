@@ -50,8 +50,11 @@ const defaultForm: NewOrgForm = {
   slug: '',
   adminEmail: '',
   template: 'generic_3phase',
-  productName: 'Principal',
-  productSlug: 'MAIN',
+  // productSlug precisa estar no enum app_product (TRIPS | WEDDING | CORP).
+  // Para criar orgs com produtos novos, o admin precisa chamar
+  // ensure_app_product_value() primeiro via SQL (até termos UI para isso).
+  productName: 'Viagens',
+  productSlug: 'TRIPS',
 }
 
 export default function OrganizationsPage() {

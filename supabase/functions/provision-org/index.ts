@@ -119,12 +119,12 @@ serve(async (req: Request) => {
         );
       }
 
-      // Verificar se slug já existe
+      // Verificar se slug já existe (maybeSingle para não erroar quando não existe)
       const { data: existing } = await supabase
         .from("organizations")
         .select("id")
         .eq("slug", slug)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         return new Response(
@@ -134,6 +134,9 @@ serve(async (req: Request) => {
       }
 
       // Chamar provision_organization()
+      // p_product_slug precisa estar no enum app_product (TRIPS/WEDDING/CORP).
+      // Default é TRIPS para white-label de viagens. Para produtos customizados,
+      // chamar ensure_app_product_value() em outra RPC primeiro.
       const { data: orgId, error: provisionError } = await supabase.rpc(
         "provision_organization",
         {
@@ -142,7 +145,7 @@ serve(async (req: Request) => {
           p_admin_email: adminEmail,
           p_template: template ?? "generic_3phase",
           p_product_name: productName ?? "Principal",
-          p_product_slug: productSlug ?? "MAIN",
+          p_product_slug: productSlug ?? "TRIPS",
         }
       );
 

@@ -26,7 +26,9 @@ export function useEmailNotificationPreferences() {
         queryKey: ['email-notification-preferences', user?.id],
         queryFn: async () => {
             if (!user) return DEFAULT_PREFERENCES
-            const { data, error } = await supabase
+            // Tabela nova (H3-030) ainda não está em database.types.ts — usar cast
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase as any)
                 .from('email_notification_preferences')
                 .select('email_notifications_enabled, notification_types')
                 .eq('user_id', user.id)
@@ -34,7 +36,7 @@ export function useEmailNotificationPreferences() {
             if (error) throw error
             if (!data) return DEFAULT_PREFERENCES
             return {
-                email_notifications_enabled: data.email_notifications_enabled,
+                email_notifications_enabled: data.email_notifications_enabled as boolean,
                 notification_types: (data.notification_types as Record<string, boolean>) ?? DEFAULT_PREFERENCES.notification_types,
             }
         },

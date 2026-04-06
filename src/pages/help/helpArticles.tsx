@@ -1,3 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
+// Este arquivo contém artigos do help center como componentes React.
+// Fast refresh não se aplica porque exportamos tanto dados (HELP_ARTICLES) quanto
+// components helpers (H2/P/etc). Isso é intencional — ignorar regra.
+
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
@@ -14,9 +19,6 @@ export interface HelpArticle {
 // Helpers de estilo para manter artigos consistentes
 const H2 = ({ children }: { children: ReactNode }) => (
     <h2 className="text-base font-semibold text-slate-900 mt-5 mb-2">{children}</h2>
-)
-const H3 = ({ children }: { children: ReactNode }) => (
-    <h3 className="text-sm font-semibold text-slate-800 mt-4 mb-1.5">{children}</h3>
 )
 const P = ({ children }: { children: ReactNode }) => (
     <p className="text-sm text-slate-600 leading-relaxed mb-3">{children}</p>

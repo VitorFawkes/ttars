@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Loader2, CheckCircle, XCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import { TERMS_VERSION, PRIVACY_VERSION, DPA_VERSION } from './legal/versions';
 
 // Password policy — min 12, maiúscula, minúscula, número
 const MIN_PASSWORD_LENGTH = 12
@@ -16,11 +17,6 @@ function validatePassword(pwd: string): string | null {
     if (!/\d/.test(pwd)) return 'Senha deve conter ao menos um número'
     return null
 }
-
-// Versões atuais dos documentos legais (devem refletir src/pages/legal/*)
-const TERMS_VERSION = '1.0'
-const PRIVACY_VERSION = '1.0'
-const DPA_VERSION = '1.0'
 
 export default function InvitePage() {
     const { token } = useParams();

@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-
-const PRIVACY_VERSION = '1.0'
-const PRIVACY_DATE = '2026-04-06'
+import { PRIVACY_VERSION, PRIVACY_DATE } from './versions'
 
 export default function Privacy() {
     return (
@@ -127,5 +125,3 @@ export default function Privacy() {
         </div>
     )
 }
-
-export { PRIVACY_VERSION, PRIVACY_DATE }
