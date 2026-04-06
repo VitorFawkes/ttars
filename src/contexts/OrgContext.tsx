@@ -3,10 +3,24 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 
-interface Organization {
+export interface OrgBranding {
+    primary_color?: string
+    accent_color?: string
+}
+
+export interface OrgSettings {
+    default_currency?: string
+    timezone?: string
+    date_format?: string
+}
+
+export interface Organization {
     id: string
     name: string
     slug: string
+    logo_url: string | null
+    branding: OrgBranding | null
+    settings: OrgSettings | null
 }
 
 interface OrgContextType {
@@ -25,7 +39,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
             if (!profile?.org_id) return null
             const { data, error } = await supabase
                 .from('organizations')
-                .select('id, name, slug')
+                .select('id, name, slug, logo_url, branding, settings')
                 .eq('id', profile.org_id)
                 .single()
             if (error) throw error

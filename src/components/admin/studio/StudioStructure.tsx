@@ -146,16 +146,34 @@ export default function StudioStructure() {
     const createPhaseMutation = useMutation({
         mutationFn: async (name: string) => {
             const maxOrder = Math.max(...localPhases.map(p => p.order_index), 0)
-            const { error } = await supabase.from('pipeline_phases').insert({
+            // Gera slug a partir do nome (ASCII-safe, único dentro da org via unique index)
+            const baseSlug = name
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '') || 'fase'
+            // Adiciona sufixo numérico se já existe
+            const existingSlugs = new Set(localPhases.map(p => p.slug).filter(Boolean))
+            let slug = baseSlug
+            let counter = 2
+            while (existingSlugs.has(slug)) {
+                slug = `${baseSlug}_${counter}`
+                counter++
+            }
+            // org_id cai no default (requesting_org_id()) — não passar explícito
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase.from('pipeline_phases') as any).insert({
                 name,
                 label: name,
-                color: 'bg-gray-500',
+                slug,
+                color: '#6b7280', // slate-500 hex (coluna é TEXT — aceita hex ou classe tw)
                 order_index: maxOrder + 1,
                 active: true
             })
             if (error) throw error
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline_phases'] })
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-phases'] })
     })
 
     const deletePhaseMutation = useMutation({
@@ -167,7 +185,7 @@ export default function StudioStructure() {
             const { error } = await supabase.from('pipeline_phases').delete().eq('id', id)
             if (error) throw error
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline_phases'] }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-phases'] }),
         onError: (err) => alert(err.message)
     })
 
