@@ -279,3 +279,7 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-06T21:52:17Z | supabase/migrations/20260406_h3_029_auth_rate_limit.sql | applied_to_prod
 2026-04-06T21:59:33Z | supabase/migrations/20260406_h3_030_email_notifications.sql | applied_to_prod
 2026-04-06T22:20:02Z | supabase/migrations/20260406_h3_031_get_invite_details_org_id.sql | applied_to_prod
+2026-04-06T22:44:24Z | supabase/migrations/20260406_default_stage_field_config_requirement_type.sql | applied_to_prod
+2026-04-06T23:15:49Z | supabase/migrations/20260406_enforce_stage_requirements_trigger.sql | applied_to_prod
+2026-04-06T23:18:38Z | supabase/migrations/20260406_soften_contato_principal_completo.sql | applied_to_prod
+2026-04-06T23:21:20Z | supabase/migrations/20260406_validate_against_auto_advance_destination.sql | applied_to_prod
