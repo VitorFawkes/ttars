@@ -130,7 +130,7 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('cards')
-                .select('sdr_owner_id, vendas_owner_id, pos_owner_id, concierge_owner_id, dono_atual_id')
+                .select('sdr_owner_id, vendas_owner_id, pos_owner_id, concierge_owner_id, dono_atual_id, org_id')
                 .eq('id', cardId)
                 .single()
             if (error) return null
@@ -310,6 +310,7 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
                     body: message || null,
                     url: `/cards/${cardId}`,
                     card_id: cardId,
+                    org_id: cardData?.org_id,
                 })
             if (notifError) throw notifError
 
@@ -325,6 +326,7 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
                         url: `/cards/${cardId}`,
                         card_id: cardId,
                         read: true,
+                        org_id: cardData?.org_id,
                     })
             }
             const { error: actError } = await supabase

@@ -312,12 +312,24 @@ Deno.serve(async (req) => {
                 case 'stage_change': {
                     endpoint = `/api/3/deals/${event.external_id}`;
                     const targetStageId = (event.payload as { target_external_stage_id?: string }).target_external_stage_id;
-                    body = {
-                        deal: {
-                            stage: targetStageId
-                        }
-                    };
-                    console.log(`[integration-dispatch] Stage change: Deal ${event.external_id} -> Stage ${targetStageId}`);
+
+                    // Buscar pipeline (group) do AC para o stage alvo — necessário quando o deal
+                    // muda entre pipelines (ex: SDR → Planner). AC rejeita stage_change sem group
+                    // se o stage pertence a pipeline diferente do deal atual.
+                    const { data: scStageMap } = await supabase
+                        .from('integration_stage_map')
+                        .select('pipeline_id')
+                        .eq('external_stage_id', targetStageId)
+                        .limit(1)
+                        .maybeSingle();
+
+                    const scDealBody: Record<string, unknown> = { stage: targetStageId };
+                    if (scStageMap?.pipeline_id) {
+                        scDealBody.group = scStageMap.pipeline_id;
+                    }
+
+                    body = { deal: scDealBody };
+                    console.log(`[integration-dispatch] Stage change: Deal ${event.external_id} -> Stage ${targetStageId} Pipeline ${scStageMap?.pipeline_id || 'unknown'}`);
                     break;
                 }
 
@@ -759,7 +771,7 @@ Deno.serve(async (req) => {
                 await supabase.from('cards')
                     .update({
                         external_id: newExternalId,
-                        external_source: 'activecampaign'
+                        external_source: 'active_campaign'
                     })
                     .eq('id', event.card_id);
                 // Atualizar o evento da fila com o external_id para rastreamento
