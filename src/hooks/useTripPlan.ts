@@ -58,6 +58,7 @@ export function usePublicTripPlan(token: string) {
     return useQuery({
         queryKey: ['trip-plan-public', token],
         queryFn: async (): Promise<TripPlan | null> => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.rpc as any)('get_trip_plan_by_token', {
                 p_token: token,
             })
@@ -78,6 +79,8 @@ export function useTripPlan(proposalId: string | undefined) {
     return useQuery({
         queryKey: ['trip-plan', proposalId],
         queryFn: async (): Promise<TripPlan | null> => {
+            if (!proposalId) return null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from as any)('proposal_trip_plans')
                 .select('*')
                 .eq('proposal_id', proposalId)
@@ -108,6 +111,7 @@ export function useUpdateTripPlan() {
             checklist?: ChecklistEntry[]
             status?: 'active' | 'completed' | 'cancelled'
         }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase.from as any)('proposal_trip_plans')
                 .update(updates)
                 .eq('id', id)
