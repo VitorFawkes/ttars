@@ -17,6 +17,13 @@ import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { useUsers } from '@/hooks/useUsers';
 
+interface TaskConfig {
+    tipo: string;
+    titulo: string;
+    assign_to: 'card_owner' | 'specific';
+    assign_to_user_id: string | null;
+}
+
 interface EntryRule {
     id: string;
     name: string | null;
@@ -25,12 +32,9 @@ interface EntryRule {
     applicable_pipeline_ids: string[] | null;
     action_type: 'create_task' | 'start_cadence';
     target_template_id: string | null;
-    task_config: {
-        tipo?: string;
-        titulo?: string;
-        assign_to?: 'card_owner' | 'specific';
-        assign_to_user_id?: string | null;
-    } | null;
+    task_configs: TaskConfig[] | null;
+    // legacy (leitura apenas — backfill cobriu existentes)
+    task_config: Partial<TaskConfig> | null;
     delay_minutes: number;
     delay_type: 'business' | 'calendar';
     business_hours_start: number | null;
@@ -61,12 +65,7 @@ interface FormData {
     stageIds: string[];
     actionType: 'create_task' | 'start_cadence';
     targetTemplateId: string;
-    taskConfig: {
-        tipo: string;
-        titulo: string;
-        assign_to: 'card_owner' | 'specific';
-        assign_to_user_id: string | null;
-    };
+    taskConfigs: TaskConfig[];
     delayMinutes: number;
     delayType: 'business' | 'calendar';
     businessHoursStart: number;
@@ -81,12 +80,14 @@ const emptyFormData: FormData = {
     stageIds: [],
     actionType: 'create_task',
     targetTemplateId: '',
-    taskConfig: {
-        tipo: 'contato',
-        titulo: '',
-        assign_to: 'card_owner',
-        assign_to_user_id: null
-    },
+    taskConfigs: [
+        {
+            tipo: 'contato',
+            titulo: '',
+            assign_to: 'card_owner',
+            assign_to_user_id: null
+        }
+    ],
     delayMinutes: 5,
     delayType: 'business',
     businessHoursStart: 9,
@@ -236,7 +237,8 @@ export function CadenceEntryRulesTab() {
                     ? templates?.find(t => t.id === rule.target_template_id)?.name || ''
                     : '';
                 const templateMatch = templateName.toLowerCase().includes(term);
-                const taskMatch = rule.task_config?.titulo?.toLowerCase().includes(term);
+                const taskMatch = (rule.task_configs || []).some(tc => tc.titulo?.toLowerCase().includes(term))
+                    || rule.task_config?.titulo?.toLowerCase().includes(term);
                 if (!nameMatch && !templateMatch && !taskMatch) return false;
             }
             return true;
@@ -271,7 +273,8 @@ export function CadenceEntryRulesTab() {
                 applicable_stage_ids: formData.stageIds.length > 0 ? formData.stageIds : null,
                 action_type: formData.actionType,
                 target_template_id: formData.actionType === 'start_cadence' ? formData.targetTemplateId : null,
-                task_config: formData.actionType === 'create_task' ? formData.taskConfig : null,
+                task_configs: formData.actionType === 'create_task' ? formData.taskConfigs : [],
+                task_config: null,
                 delay_minutes: formData.delayMinutes,
                 delay_type: formData.delayType,
                 business_hours_start: formData.delayType === 'business' ? formData.businessHoursStart : null,
@@ -308,7 +311,8 @@ export function CadenceEntryRulesTab() {
                 applicable_stage_ids: formData.stageIds.length > 0 ? formData.stageIds : null,
                 action_type: formData.actionType,
                 target_template_id: formData.actionType === 'start_cadence' ? formData.targetTemplateId : null,
-                task_config: formData.actionType === 'create_task' ? formData.taskConfig : null,
+                task_configs: formData.actionType === 'create_task' ? formData.taskConfigs : [],
+                task_config: null,
                 delay_minutes: formData.delayMinutes,
                 delay_type: formData.delayType,
                 business_hours_start: formData.delayType === 'business' ? formData.businessHoursStart : null,
@@ -389,12 +393,19 @@ export function CadenceEntryRulesTab() {
             stageIds: rule.applicable_stage_ids || [],
             actionType: rule.action_type,
             targetTemplateId: rule.target_template_id || '',
-            taskConfig: {
-                tipo: rule.task_config?.tipo || 'contato',
-                titulo: rule.task_config?.titulo || '',
-                assign_to: rule.task_config?.assign_to || 'card_owner',
-                assign_to_user_id: rule.task_config?.assign_to_user_id || null
-            },
+            taskConfigs: (rule.task_configs && rule.task_configs.length > 0)
+                ? rule.task_configs.map(tc => ({
+                    tipo: tc.tipo || 'contato',
+                    titulo: tc.titulo || '',
+                    assign_to: tc.assign_to || 'card_owner',
+                    assign_to_user_id: tc.assign_to_user_id || null
+                }))
+                : [{
+                    tipo: rule.task_config?.tipo || 'contato',
+                    titulo: rule.task_config?.titulo || '',
+                    assign_to: rule.task_config?.assign_to || 'card_owner',
+                    assign_to_user_id: rule.task_config?.assign_to_user_id || null
+                }],
             delayMinutes: rule.delay_minutes || 5,
             delayType: rule.delay_type || 'business',
             businessHoursStart: rule.business_hours_start ?? 9,
@@ -477,17 +488,27 @@ export function CadenceEntryRulesTab() {
                         {/* Action */}
                         <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs text-slate-500">Ação:</span>
-                            {rule.action_type === 'create_task' ? (
-                                <>
-                                    <Badge className="text-xs bg-purple-100 text-purple-700">
-                                        <ListTodo className="w-3 h-3 mr-1" />
-                                        Criar Tarefa
-                                    </Badge>
-                                    {rule.task_config?.titulo && (
-                                        <span className="text-sm text-slate-600">"{rule.task_config.titulo}"</span>
-                                    )}
-                                </>
-                            ) : (
+                            {rule.action_type === 'create_task' ? (() => {
+                                const configs = (rule.task_configs && rule.task_configs.length > 0)
+                                    ? rule.task_configs
+                                    : (rule.task_config && Object.keys(rule.task_config).length > 0 ? [rule.task_config] : []);
+                                return (
+                                    <>
+                                        <Badge className="text-xs bg-purple-100 text-purple-700">
+                                            <ListTodo className="w-3 h-3 mr-1" />
+                                            {configs.length > 1 ? `Criar ${configs.length} Tarefas` : 'Criar Tarefa'}
+                                        </Badge>
+                                        {configs.length === 1 && configs[0].titulo && (
+                                            <span className="text-sm text-slate-600">"{configs[0].titulo}"</span>
+                                        )}
+                                        {configs.length > 1 && (
+                                            <span className="text-sm text-slate-600">
+                                                {configs.map(c => c.titulo).filter(Boolean).join(' · ')}
+                                            </span>
+                                        )}
+                                    </>
+                                );
+                            })() : (
                                 <>
                                     <Badge className="text-xs bg-indigo-100 text-indigo-700">
                                         <CalendarDays className="w-3 h-3 mr-1" />
@@ -708,67 +729,102 @@ export function CadenceEntryRulesTab() {
                         />
                     </div>
 
-                    {/* Config de Tarefa */}
+                    {/* Config de Tarefas (múltiplas) */}
                     {formData.actionType === 'create_task' && (
-                        <div className="space-y-4 p-3 bg-white rounded-lg border border-blue-200">
-                            <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
-                                <ListTodo className="w-4 h-4" />
-                                Configuração da Tarefa
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium mb-2 block">Tipo</label>
-                                    <Select
-                                        value={formData.taskConfig.tipo}
-                                        onChange={(v) => setFormData(prev => ({
-                                            ...prev,
-                                            taskConfig: { ...prev.taskConfig, tipo: v }
-                                        }))}
-                                        options={taskTypeOptions}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium mb-2 block">Título</label>
-                                    <Input
-                                        value={formData.taskConfig.titulo}
-                                        onChange={(e) => setFormData(prev => ({
-                                            ...prev,
-                                            taskConfig: { ...prev.taskConfig, titulo: e.target.value }
-                                        }))}
-                                        placeholder="Ex: Primeiro Contato"
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium mb-2 block">Atribuir a</label>
-                                    <Select
-                                        value={formData.taskConfig.assign_to}
-                                        onChange={(v) => setFormData(prev => ({
-                                            ...prev,
-                                            taskConfig: {
-                                                ...prev.taskConfig,
-                                                assign_to: v as 'card_owner' | 'specific',
-                                                assign_to_user_id: v === 'card_owner' ? null : prev.taskConfig.assign_to_user_id
-                                            }
-                                        }))}
-                                        options={assignToOptions}
-                                    />
-                                </div>
-                                {formData.taskConfig.assign_to === 'specific' && (
-                                    <div>
-                                        <label className="text-sm font-medium mb-2 block">Pessoa</label>
-                                        <Select
-                                            value={formData.taskConfig.assign_to_user_id || ''}
-                                            onChange={(v) => setFormData(prev => ({
-                                                ...prev,
-                                                taskConfig: { ...prev.taskConfig, assign_to_user_id: v || null }
-                                            }))}
-                                            options={userOptions}
-                                        />
+                        <div className="space-y-3">
+                            {formData.taskConfigs.map((tc, idx) => (
+                                <div key={idx} className="space-y-4 p-3 bg-white rounded-lg border border-blue-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                                            <ListTodo className="w-4 h-4" />
+                                            Tarefa {idx + 1}
+                                        </div>
+                                        {formData.taskConfigs.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({
+                                                    ...prev,
+                                                    taskConfigs: prev.taskConfigs.filter((_, i) => i !== idx)
+                                                }))}
+                                                className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
+                                            >
+                                                <Trash2 className="w-4 h-4" /> Remover
+                                            </button>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium mb-2 block">Tipo</label>
+                                            <Select
+                                                value={tc.tipo}
+                                                onChange={(v) => setFormData(prev => ({
+                                                    ...prev,
+                                                    taskConfigs: prev.taskConfigs.map((t, i) => i === idx ? { ...t, tipo: v } : t)
+                                                }))}
+                                                options={taskTypeOptions}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium mb-2 block">Título</label>
+                                            <Input
+                                                value={tc.titulo}
+                                                onChange={(e) => setFormData(prev => ({
+                                                    ...prev,
+                                                    taskConfigs: prev.taskConfigs.map((t, i) => i === idx ? { ...t, titulo: e.target.value } : t)
+                                                }))}
+                                                placeholder="Ex: Primeiro Contato"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium mb-2 block">Atribuir a</label>
+                                            <Select
+                                                value={tc.assign_to}
+                                                onChange={(v) => setFormData(prev => ({
+                                                    ...prev,
+                                                    taskConfigs: prev.taskConfigs.map((t, i) => i === idx
+                                                        ? {
+                                                            ...t,
+                                                            assign_to: v as 'card_owner' | 'specific',
+                                                            assign_to_user_id: v === 'card_owner' ? null : t.assign_to_user_id
+                                                        }
+                                                        : t)
+                                                }))}
+                                                options={assignToOptions}
+                                            />
+                                        </div>
+                                        {tc.assign_to === 'specific' && (
+                                            <div>
+                                                <label className="text-sm font-medium mb-2 block">Pessoa</label>
+                                                <Select
+                                                    value={tc.assign_to_user_id || ''}
+                                                    onChange={(v) => setFormData(prev => ({
+                                                        ...prev,
+                                                        taskConfigs: prev.taskConfigs.map((t, i) => i === idx ? { ...t, assign_to_user_id: v || null } : t)
+                                                    }))}
+                                                    options={userOptions}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    taskConfigs: [
+                                        ...prev.taskConfigs,
+                                        { tipo: 'contato', titulo: '', assign_to: 'card_owner', assign_to_user_id: null }
+                                    ]
+                                }))}
+                                className="w-full border-dashed"
+                            >
+                                <Plus className="w-4 h-4 mr-2" /> Adicionar outra tarefa
+                            </Button>
                         </div>
                     )}
 
@@ -910,7 +966,7 @@ export function CadenceEntryRulesTab() {
                         onClick={handleSave}
                         disabled={
                             (formData.actionType === 'start_cadence' && !formData.targetTemplateId) ||
-                            (formData.actionType === 'create_task' && !formData.taskConfig.titulo) ||
+                            (formData.actionType === 'create_task' && (formData.taskConfigs.length === 0 || formData.taskConfigs.some(tc => !tc.titulo))) ||
                             isSaving
                         }
                     >

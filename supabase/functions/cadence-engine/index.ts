@@ -367,47 +367,16 @@ async function executeCreateTaskAction(
     cardId: string,
     trigger: any
 ) {
-    const taskConfig = trigger.task_config || {};
-    const taskTipo = taskConfig.tipo || 'contato';
+    // task_configs = array de configs. Fallback para task_config (legacy, objeto único).
+    const rawConfigs: any[] = Array.isArray(trigger.task_configs) && trigger.task_configs.length > 0
+        ? trigger.task_configs
+        : (trigger.task_config && Object.keys(trigger.task_config).length > 0 ? [trigger.task_config] : []);
 
-    // =========================================================================
-    // REGRA ANTI-DUPLICATA: Não criar tarefa se já existe uma pendente do mesmo tipo
-    // =========================================================================
-    const { data: existingTasks } = await supabaseClient
-        .from("tarefas")
-        .select("id, titulo, tipo, concluida")
-        .eq("card_id", cardId)
-        .eq("tipo", taskTipo)
-        .eq("concluida", false)
-        .limit(1);
-
-    if (existingTasks && existingTasks.length > 0) {
-        console.log(`[CadenceEngine] Skipping task creation - already exists uncompleted "${taskTipo}" task for card ${cardId}`);
-
-        // Log que foi pulado
-        await supabaseClient.from("cadence_event_log").insert({
-            card_id: cardId,
-            event_type: 'entry_rule_task_skipped',
-            event_source: 'entry_trigger',
-            event_data: {
-                trigger_id: trigger.id,
-                trigger_name: trigger.name,
-                task_tipo: taskTipo,
-                reason: 'existing_uncompleted_task',
-                existing_task_id: existingTasks[0].id
-            },
-            action_taken: 'skip_duplicate'
-        });
-
-        return {
-            skipped: true,
-            reason: 'existing_uncompleted_task',
-            existing_task_id: existingTasks[0].id
-        };
+    if (rawConfigs.length === 0) {
+        return { skipped: true, reason: 'no_task_config' };
     }
-    // =========================================================================
 
-    // Buscar card para obter responsável
+    // Buscar card uma única vez
     const { data: card, error: cardError } = await supabaseClient
         .from("cards")
         .select("id, dono_atual_id, responsavel_id")
@@ -418,11 +387,10 @@ async function executeCreateTaskAction(
         throw new Error(`Card not found: ${cardId}`);
     }
 
-    // Calcular data de vencimento
+    // Calcular data de vencimento uma única vez (compartilhada)
     let dueDate = new Date();
     if (trigger.delay_minutes > 0) {
         if (trigger.delay_type === 'business') {
-            // Usar configurações customizadas de horário comercial do trigger
             const businessConfig: BusinessHoursConfig = {
                 start: trigger.business_hours_start ?? BUSINESS_HOURS_START,
                 end: trigger.business_hours_end ?? BUSINESS_HOURS_END,
@@ -434,50 +402,91 @@ async function executeCreateTaskAction(
         }
     }
 
-    // Determinar responsável (entry rule pode ter pessoa específica)
-    let assignToId = card.dono_atual_id || card.responsavel_id;
-    if (taskConfig.assign_to === 'specific' && taskConfig.assign_to_user_id) {
-        assignToId = taskConfig.assign_to_user_id;
-    }
+    const createdTaskIds: string[] = [];
+    const skipped: Array<{ tipo: string; reason: string }> = [];
 
-    // Criar tarefa
-    const { data: task, error: taskError } = await supabaseClient
-        .from("tarefas")
-        .insert({
+    for (const taskConfig of rawConfigs) {
+        const taskTipo = taskConfig.tipo || 'contato';
+
+        // Anti-duplicata: pula se já existe tarefa pendente do mesmo tipo neste card
+        const { data: existingTasks } = await supabaseClient
+            .from("tarefas")
+            .select("id")
+            .eq("card_id", cardId)
+            .eq("tipo", taskTipo)
+            .eq("concluida", false)
+            .limit(1);
+
+        if (existingTasks && existingTasks.length > 0) {
+            console.log(`[CadenceEngine] Skipping task "${taskTipo}" for card ${cardId} — already has uncompleted one`);
+            skipped.push({ tipo: taskTipo, reason: 'existing_uncompleted_task' });
+
+            await supabaseClient.from("cadence_event_log").insert({
+                card_id: cardId,
+                event_type: 'entry_rule_task_skipped',
+                event_source: 'entry_trigger',
+                event_data: {
+                    trigger_id: trigger.id,
+                    trigger_name: trigger.name,
+                    task_tipo: taskTipo,
+                    reason: 'existing_uncompleted_task',
+                    existing_task_id: existingTasks[0].id
+                },
+                action_taken: 'skip_duplicate'
+            });
+            continue;
+        }
+
+        // Resolver responsável por tarefa
+        let assignToId = card.dono_atual_id || card.responsavel_id;
+        if (taskConfig.assign_to === 'specific' && taskConfig.assign_to_user_id) {
+            assignToId = taskConfig.assign_to_user_id;
+        }
+
+        const { data: task, error: taskError } = await supabaseClient
+            .from("tarefas")
+            .insert({
+                card_id: cardId,
+                tipo: taskTipo,
+                titulo: taskConfig.titulo || 'Tarefa Automática',
+                descricao: taskConfig.descricao || '',
+                responsavel_id: assignToId,
+                prioridade: mapPrioridade(taskConfig.prioridade) || 'alta',
+                data_vencimento: dueDate.toISOString(),
+                metadata: {
+                    created_by_trigger: trigger.id,
+                    trigger_name: trigger.name
+                }
+            })
+            .select()
+            .single();
+
+        if (taskError) {
+            throw new Error(`Failed to create task "${taskTipo}": ${taskError.message}`);
+        }
+
+        createdTaskIds.push(task.id);
+
+        await supabaseClient.from("cadence_event_log").insert({
             card_id: cardId,
-            tipo: taskTipo,
-            titulo: taskConfig.titulo || 'Tarefa Automática',
-            descricao: taskConfig.descricao || '',
-            responsavel_id: assignToId,
-            prioridade: mapPrioridade(taskConfig.prioridade) || 'alta',
-            data_vencimento: dueDate.toISOString(),
-            metadata: {
-                created_by_trigger: trigger.id,
-                trigger_name: trigger.name
-            }
-        })
-        .select()
-        .single();
-
-    if (taskError) {
-        throw new Error(`Failed to create task: ${taskError.message}`);
+            event_type: 'entry_rule_task_created',
+            event_source: 'entry_trigger',
+            event_data: {
+                trigger_id: trigger.id,
+                trigger_name: trigger.name,
+                task_tipo: taskTipo
+            },
+            action_taken: 'create_task',
+            action_result: { task_id: task.id }
+        });
     }
 
-    // Log
-    await supabaseClient.from("cadence_event_log").insert({
-        card_id: cardId,
-        event_type: 'entry_rule_task_created',
-        event_source: 'entry_trigger',
-        event_data: {
-            trigger_id: trigger.id,
-            trigger_name: trigger.name,
-            task_tipo: taskConfig.tipo
-        },
-        action_taken: 'create_task',
-        action_result: { task_id: task.id }
-    });
-
-    return { task_id: task.id };
+    return {
+        created_count: createdTaskIds.length,
+        task_ids: createdTaskIds,
+        skipped_count: skipped.length,
+        skipped
+    };
 }
 
 async function executeStartCadenceAction(

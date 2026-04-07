@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from '@/components/ui/Badge';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useUsers } from '@/hooks/useUsers';
 import { DayPatternEditor } from './components/DayPatternEditor';
 import { CadenceTimeline } from './components/CadenceTimeline';
 
@@ -42,7 +43,8 @@ interface CadenceStep {
         titulo?: string;
         descricao?: string;
         prioridade?: string;
-        assign_to?: string;
+        assign_to?: 'card_owner' | 'specific';
+        assign_to_user_id?: string | null;
     } | null;
     wait_config: {
         duration_minutes?: number;
@@ -121,6 +123,11 @@ const durationTypeOptions = [
     { value: 'calendar', label: 'Calendário' },
 ];
 
+const assignToOptions = [
+    { value: 'card_owner', label: 'Responsável do card' },
+    { value: 'specific', label: 'Pessoa específica' },
+];
+
 const resultOptions = [
     { value: 'success', label: 'Sucesso' },
     { value: 'failure', label: 'Falha' },
@@ -133,6 +140,13 @@ const CadenceBuilderPage: React.FC = () => {
     const isNew = id === 'new';
     const { pipelineId: pipelineIdFromMeta } = useCurrentProductMeta();
     const pipelineId = pipelineIdFromMeta ?? '';
+    const { users } = useUsers();
+    const userOptions = useMemo(() => {
+        const list = (users || [])
+            .filter(u => u.active)
+            .map(u => ({ value: u.id, label: u.nome || u.email }));
+        return [{ value: '', label: 'Selecionar pessoa...' }, ...list];
+    }, [users]);
 
     const [template, setTemplate] = useState<CadenceTemplate>(defaultTemplate);
     const [steps, setSteps] = useState<CadenceStep[]>([]);
@@ -342,6 +356,7 @@ const CadenceBuilderPage: React.FC = () => {
                 titulo: '',
                 prioridade: 'high',
                 assign_to: 'card_owner',
+                assign_to_user_id: null,
             } : null,
             wait_config: type === 'wait' ? {
                 duration_minutes: 120,
@@ -671,36 +686,66 @@ const CadenceBuilderPage: React.FC = () => {
 
                                                             {/* Task config */}
                                                             {step.step_type === 'task' && (
-                                                                <div className="grid grid-cols-3 gap-3">
-                                                                    <div>
-                                                                        <Label className="text-xs">Tipo</Label>
-                                                                        <CustomSelect
-                                                                            value={step.task_config?.tipo || 'contato'}
-                                                                            onChange={(value) => updateStep(index, {
-                                                                                task_config: { ...step.task_config, tipo: value }
-                                                                            })}
-                                                                            options={taskTypeOptions}
-                                                                        />
+                                                                <div className="space-y-3">
+                                                                    <div className="grid grid-cols-3 gap-3">
+                                                                        <div>
+                                                                            <Label className="text-xs">Tipo</Label>
+                                                                            <CustomSelect
+                                                                                value={step.task_config?.tipo || 'contato'}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    task_config: { ...step.task_config, tipo: value }
+                                                                                })}
+                                                                                options={taskTypeOptions}
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <Label className="text-xs">Título</Label>
+                                                                            <Input
+                                                                                placeholder="Ex: 1ª Tentativa"
+                                                                                value={step.task_config?.titulo || ''}
+                                                                                onChange={(e) => updateStep(index, {
+                                                                                    task_config: { ...step.task_config, titulo: e.target.value }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <Label className="text-xs">Prioridade</Label>
+                                                                            <CustomSelect
+                                                                                value={step.task_config?.prioridade || 'high'}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    task_config: { ...step.task_config, prioridade: value }
+                                                                                })}
+                                                                                options={prioridadeOptions}
+                                                                            />
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <Label className="text-xs">Título</Label>
-                                                                        <Input
-                                                                            placeholder="Ex: 1ª Tentativa"
-                                                                            value={step.task_config?.titulo || ''}
-                                                                            onChange={(e) => updateStep(index, {
-                                                                                task_config: { ...step.task_config, titulo: e.target.value }
-                                                                            })}
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <Label className="text-xs">Prioridade</Label>
-                                                                        <CustomSelect
-                                                                            value={step.task_config?.prioridade || 'high'}
-                                                                            onChange={(value) => updateStep(index, {
-                                                                                task_config: { ...step.task_config, prioridade: value }
-                                                                            })}
-                                                                            options={prioridadeOptions}
-                                                                        />
+                                                                    <div className="grid grid-cols-3 gap-3">
+                                                                        <div>
+                                                                            <Label className="text-xs">Atribuir a</Label>
+                                                                            <CustomSelect
+                                                                                value={step.task_config?.assign_to || 'card_owner'}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    task_config: {
+                                                                                        ...step.task_config,
+                                                                                        assign_to: value as 'card_owner' | 'specific',
+                                                                                        assign_to_user_id: value === 'card_owner' ? null : step.task_config?.assign_to_user_id ?? null,
+                                                                                    }
+                                                                                })}
+                                                                                options={assignToOptions}
+                                                                            />
+                                                                        </div>
+                                                                        {step.task_config?.assign_to === 'specific' && (
+                                                                            <div className="col-span-2">
+                                                                                <Label className="text-xs">Pessoa</Label>
+                                                                                <CustomSelect
+                                                                                    value={step.task_config?.assign_to_user_id || ''}
+                                                                                    onChange={(value) => updateStep(index, {
+                                                                                        task_config: { ...step.task_config, assign_to_user_id: value || null }
+                                                                                    })}
+                                                                                    options={userOptions}
+                                                                                />
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             )}
