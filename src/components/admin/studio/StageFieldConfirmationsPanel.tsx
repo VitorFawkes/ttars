@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Trash2, GripVertical, Info } from 'lucide-react'
 import {
     useStageFieldConfirmationsByStage,
     useUpsertStageFieldConfirmation,
     useDeleteStageFieldConfirmation,
 } from '../../../hooks/useStageFieldConfirmations'
-import { getFieldRegistry } from '../../../lib/fieldRegistry'
+import { supabase } from '../../../lib/supabase'
 import { cn } from '../../../lib/utils'
 
 interface StageFieldConfirmationsPanelProps {
@@ -13,18 +14,58 @@ interface StageFieldConfirmationsPanelProps {
     produto: string | null
 }
 
+interface SystemFieldRow {
+    key: string
+    label: string
+    section: string | null
+}
+
+const EXTRA_CARD_FIELDS: SystemFieldRow[] = [
+    { key: 'titulo', label: 'Título', section: 'geral' },
+    { key: 'valor_final', label: 'Valor Final', section: 'financeiro' },
+    { key: 'valor_estimado', label: 'Valor Estimado', section: 'financeiro' },
+]
+
 export default function StageFieldConfirmationsPanel({ stageId, produto }: StageFieldConfirmationsPanelProps) {
     const { data: confirmations = [], isLoading } = useStageFieldConfirmationsByStage(stageId)
     const upsert = useUpsertStageFieldConfirmation()
     const del = useDeleteStageFieldConfirmation()
     const [showPicker, setShowPicker] = useState(false)
 
-    // Campos disponíveis: do fieldRegistry do produto do pipeline
+    const { data: systemFields = [] } = useQuery({
+        queryKey: ['system-fields-for-confirmations'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('system_fields')
+                .select('key, label, section')
+                .eq('active', true)
+                .order('section')
+                .order('label')
+            if (error) throw error
+            return (data as SystemFieldRow[]) || []
+        },
+        staleTime: 1000 * 60 * 5,
+    })
+
     const availableFields = useMemo(() => {
-        if (!produto) return []
-        const registry = getFieldRegistry(produto)
-        return Object.values(registry).map(f => ({ key: f.name, label: f.label }))
-    }, [produto])
+        const seen = new Set<string>()
+        const all: SystemFieldRow[] = []
+        for (const f of systemFields) {
+            if (!seen.has(f.key)) {
+                seen.add(f.key)
+                all.push(f)
+            }
+        }
+        for (const f of EXTRA_CARD_FIELDS) {
+            if (!seen.has(f.key)) {
+                seen.add(f.key)
+                all.push(f)
+            }
+        }
+        return all
+    }, [systemFields])
+
+    void produto
 
     // Filtra os já adicionados
     const alreadyAdded = new Set(confirmations.map(c => c.field_key))
@@ -130,7 +171,7 @@ export default function StageFieldConfirmationsPanel({ stageId, produto }: Stage
             )}
 
             {showPicker ? (
-                <div className="space-y-1 border border-slate-200 rounded-xl p-2 bg-white">
+                <div className="space-y-1 border border-slate-200 rounded-xl p-2 bg-white max-h-80 overflow-y-auto">
                     {pickable.length === 0 ? (
                         <p className="text-xs text-slate-500 p-2">Todos os campos já foram adicionados.</p>
                     ) : (
@@ -139,10 +180,17 @@ export default function StageFieldConfirmationsPanel({ stageId, produto }: Stage
                                 key={f.key}
                                 type="button"
                                 onClick={() => handleAdd(f.key, f.label)}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-slate-700"
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-slate-700 flex items-center justify-between gap-2"
                             >
-                                <span className="font-medium">{f.label}</span>
-                                <span className="ml-2 text-xs text-slate-400 font-mono">{f.key}</span>
+                                <div className="min-w-0 flex-1">
+                                    <span className="font-medium block truncate">{f.label}</span>
+                                    <span className="text-xs text-slate-400 font-mono">{f.key}</span>
+                                </div>
+                                {f.section && (
+                                    <span className="text-[10px] uppercase tracking-wide text-slate-400 flex-shrink-0">
+                                        {f.section}
+                                    </span>
+                                )}
                             </button>
                         ))
                     )}
@@ -158,7 +206,7 @@ export default function StageFieldConfirmationsPanel({ stageId, produto }: Stage
                 <button
                     type="button"
                     onClick={() => setShowPicker(true)}
-                    disabled={pickable.length === 0}
+                    disabled={availableFields.length === 0 || pickable.length === 0}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl text-sm text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Plus className="w-4 h-4" />
