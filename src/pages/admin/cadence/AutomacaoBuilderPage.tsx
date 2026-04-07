@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useUsers } from '@/hooks/useUsers';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { BlockEditor, type Block, type BlockTask } from './components/BlockEditor';
 import {
     encodeNaturalDue,
@@ -27,12 +28,6 @@ interface AutomationForm {
     event_type: EventType;
     stage_ids: string[];
     respect_business_hours: boolean;
-}
-
-interface StageRow {
-    id: string;
-    nome: string;
-    phase_label?: string;
 }
 
 const eventOptions: { value: EventType; label: string }[] = [
@@ -67,7 +62,7 @@ export default function AutomacaoBuilderPage() {
             tasks: [],
         },
     ]);
-    const [stages, setStages] = useState<StageRow[]>([]);
+    const { data: allStages } = usePipelineStages(pipelineId);
     const [triggerId, setTriggerId] = useState<string | null>(null);
     const [loading, setLoading] = useState(!isNew);
     const [saving, setSaving] = useState(false);
@@ -80,33 +75,9 @@ export default function AutomacaoBuilderPage() {
     }, [users]);
 
     const stageOptions = useMemo(
-        () => stages.map(s => ({ value: s.id, label: s.nome })),
-        [stages]
+        () => (allStages || []).map(s => ({ value: s.id, label: s.nome })),
+        [allStages]
     );
-
-    // Carregar stages do pipeline atual
-    useEffect(() => {
-        if (!pipelineId) return;
-        (async () => {
-            const { data } = await supabase
-                .from('pipeline_stages')
-                .select('id, nome, ordem, pipeline_phases!pipeline_stages_phase_id_fkey(nome, order_index)')
-                .eq('pipeline_id', pipelineId)
-                .order('ordem');
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const sorted = (data || []).sort((a: any, b: any) => {
-                const pa = a.pipeline_phases?.order_index ?? 999;
-                const pb = b.pipeline_phases?.order_index ?? 999;
-                if (pa !== pb) return pa - pb;
-                return a.ordem - b.ordem;
-            });
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setStages(sorted.map((s: any) => ({
-                id: s.id,
-                nome: s.pipeline_phases?.nome ? `${s.pipeline_phases.nome} · ${s.nome}` : s.nome,
-            })));
-        })();
-    }, [pipelineId]);
 
     // Carregar automação existente
     useEffect(() => {
