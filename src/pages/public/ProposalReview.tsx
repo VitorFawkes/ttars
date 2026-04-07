@@ -41,7 +41,7 @@ export default function ProposalReview() {
             })
         })
         setSelections(initial)
-    }, [proposal?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [proposal?.id, sections])
 
     // Verificar se item está selecionado
     const isItemSelected = useCallback((itemId: string, isOptional: boolean, defaultSelected: boolean) => {
@@ -51,7 +51,8 @@ export default function ProposalReview() {
 
     // Toggle de seleção do item e persistir via RPC
     const toggleSelection = useCallback(async (itemId: string) => {
-        const newValue = !selections[itemId]
+        const previousValue = selections[itemId]
+        const newValue = !previousValue
         setSelections(prev => ({ ...prev, [itemId]: newValue }))
 
         // Persistir no backend de forma fire-and-forget (não bloquear UI)
