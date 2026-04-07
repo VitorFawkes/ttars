@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
 import { Button } from '@/components/ui/Button'
@@ -23,25 +23,23 @@ export default function ProposalReview() {
     const [termsAccepted, setTermsAccepted] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showTerms, setShowTerms] = useState(false)
-    // Seleções: map de item_id → boolean (se o cliente marcou/desmarcou)
-    const [selections, setSelections] = useState<Record<string, boolean>>({})
-
     const version = proposal?.active_version
     const sections = useMemo(() => version?.sections || [], [version?.sections])
 
-    // Inicializar seleções a partir dos defaults quando a proposta carrega
-    useEffect(() => {
-        if (!sections.length) return
+    // Defaults computados a partir dos itens da proposta (sem useEffect + setState)
+    const defaultSelections = useMemo(() => {
         const initial: Record<string, boolean> = {}
         sections.forEach(section => {
             section.items.forEach(item => {
-                // Itens obrigatórios são sempre selecionados
-                // Itens opcionais usam is_default_selected como valor inicial
                 initial[item.id] = item.is_optional ? !!item.is_default_selected : true
             })
         })
-        setSelections(initial)
-    }, [proposal?.id, sections])
+        return initial
+    }, [sections])
+
+    // Seleções do cliente: overrides sobre os defaults
+    const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+    const selections = useMemo(() => ({ ...defaultSelections, ...overrides }), [defaultSelections, overrides])
 
     // Verificar se item está selecionado
     const isItemSelected = useCallback((itemId: string, isOptional: boolean, defaultSelected: boolean) => {
@@ -53,16 +51,18 @@ export default function ProposalReview() {
     const toggleSelection = useCallback(async (itemId: string) => {
         const previousValue = selections[itemId]
         const newValue = !previousValue
-        setSelections(prev => ({ ...prev, [itemId]: newValue }))
+        setOverrides(prev => ({ ...prev, [itemId]: newValue }))
 
-        // Persistir no backend de forma fire-and-forget (não bloquear UI)
         // Cast necessário: RPC existe no banco mas database.types.ts ainda não foi regenerado
-        ;(supabase.rpc as unknown as (fn: string, params: Record<string, unknown>) => Promise<{ error: Error | null }>)(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: rpcError } = await (supabase.rpc as any)(
             'save_client_selection',
             { p_token: token!, p_item_id: itemId, p_selected: newValue },
-        ).then(({ error: rpcError }) => {
-            if (rpcError) console.warn('Erro ao salvar seleção:', rpcError)
-        })
+        )
+        if (rpcError) {
+            setOverrides(prev => ({ ...prev, [itemId]: previousValue }))
+            console.warn('Erro ao salvar seleção:', rpcError)
+        }
     }, [selections, token])
 
     // Calculate totals com base nas seleções do cliente
