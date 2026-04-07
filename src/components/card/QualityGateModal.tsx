@@ -1,7 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2, LayoutList } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2, LayoutList, ShieldAlert, AlertCircle, type LucideIcon } from 'lucide-react'
+import { createElement } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { MissingRequirement } from '../../hooks/useQualityGate'
 
 interface QualityGateModalProps {
     isOpen: boolean
@@ -9,19 +11,80 @@ interface QualityGateModalProps {
     onConfirm: () => void // Keep for API compatibility but not used in new flow
     cardId: string
     targetStageName: string
-    missingFields: { key: string, label: string }[]
-    missingProposals?: { label: string, min_status: string }[]
-    missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[]
-    missingDocuments?: { label: string, total: number, completed: number }[]
+    missingRequirements: MissingRequirement[]
     initialData?: Record<string, unknown>  // Keep for API compatibility
     context?: 'kanban' | 'card-detail'
 }
 
-const PROPOSAL_STATUS_LABELS: Record<string, string> = {
-    'sent': 'Enviada',
-    'viewed': 'Visualizada',
-    'in_progress': 'Em Análise',
-    'accepted': 'Aceita'
+// --- Config map: defines how each requirement type renders ---
+// Adding a new type here is all that's needed for visual support.
+// Types NOT in this map still render with a fallback style.
+interface TypeConfig {
+    title: string
+    icon: LucideIcon
+    bg: string
+    border: string
+    text: string
+    dot: string
+    titleColor: string
+}
+
+const TYPE_CONFIG: Record<string, TypeConfig> = {
+    field: {
+        title: 'Campos Obrigatórios',
+        icon: LayoutList,
+        bg: 'bg-blue-50',
+        border: 'border-blue-100',
+        text: 'text-blue-800',
+        dot: 'bg-blue-500',
+        titleColor: 'text-blue-700',
+    },
+    proposal: {
+        title: 'Propostas Obrigatórias',
+        icon: FileText,
+        bg: 'bg-emerald-50',
+        border: 'border-emerald-100',
+        text: 'text-emerald-800',
+        dot: 'bg-emerald-500',
+        titleColor: 'text-emerald-700',
+    },
+    task: {
+        title: 'Tarefas Obrigatórias',
+        icon: CheckCircle2,
+        bg: 'bg-purple-50',
+        border: 'border-purple-100',
+        text: 'text-purple-800',
+        dot: 'bg-purple-500',
+        titleColor: 'text-purple-700',
+    },
+    document: {
+        title: 'Documentos Pendentes',
+        icon: FileCheck,
+        bg: 'bg-teal-50',
+        border: 'border-teal-100',
+        text: 'text-teal-800',
+        dot: 'bg-teal-500',
+        titleColor: 'text-teal-700',
+    },
+    rule: {
+        title: 'Requisitos Obrigatórios',
+        icon: ShieldAlert,
+        bg: 'bg-amber-50',
+        border: 'border-amber-100',
+        text: 'text-amber-800',
+        dot: 'bg-amber-500',
+        titleColor: 'text-amber-700',
+    },
+}
+
+const FALLBACK_CONFIG: TypeConfig = {
+    title: 'Outros Requisitos',
+    icon: AlertCircle,
+    bg: 'bg-gray-50',
+    border: 'border-gray-200',
+    text: 'text-gray-800',
+    dot: 'bg-gray-500',
+    titleColor: 'text-gray-700',
 }
 
 export default function QualityGateModal({
@@ -29,10 +92,7 @@ export default function QualityGateModal({
     onClose,
     cardId,
     targetStageName,
-    missingFields,
-    missingProposals = [],
-    missingTasks = [],
-    missingDocuments = [],
+    missingRequirements,
     context = 'kanban',
 }: QualityGateModalProps) {
     const navigate = useNavigate()
@@ -42,10 +102,13 @@ export default function QualityGateModal({
         navigate(`/cards/${cardId}`)
     }
 
-    const hasFields = missingFields.length > 0
-    const hasProposals = missingProposals.length > 0
-    const hasTasks = missingTasks.length > 0
-    const hasDocuments = missingDocuments.length > 0
+    // Group requirements by type, preserving insertion order
+    const grouped = new Map<string, MissingRequirement[]>()
+    for (const req of missingRequirements) {
+        const list = grouped.get(req.type) || []
+        list.push(req)
+        grouped.set(req.type, list)
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -65,89 +128,32 @@ export default function QualityGateModal({
                         }
                     </p>
 
-                    {/* Campos Obrigatórios */}
-                    {hasFields && (
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-2 text-blue-700 font-medium text-sm">
-                                <LayoutList className="w-4 h-4" />
-                                Campos Obrigatórios
-                            </div>
-                            <ul className="space-y-1.5">
-                                {missingFields.map(field => (
-                                    <li
-                                        key={field.key}
-                                        className="flex items-center gap-2 text-sm text-blue-800"
-                                    >
-                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
-                                        {field.label}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                    {Array.from(grouped.entries()).map(([type, items]) => {
+                        const config = TYPE_CONFIG[type] || FALLBACK_CONFIG
 
-                    {/* Propostas Obrigatórias */}
-                    {hasProposals && (
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-2 text-emerald-700 font-medium text-sm">
-                                <FileText className="w-4 h-4" />
-                                Propostas Obrigatórias
+                        return (
+                            <div key={type} className={`${config.bg} border ${config.border} rounded-lg p-4`}>
+                                <div className={`flex items-center gap-2 mb-2 ${config.titleColor} font-medium text-sm`}>
+                                    {createElement(config.icon, { className: 'w-4 h-4' })}
+                                    {config.title}
+                                </div>
+                                <ul className="space-y-1.5">
+                                    {items.map((item, idx) => (
+                                        <li
+                                            key={idx}
+                                            className={`flex items-center gap-2 text-sm ${config.text}`}
+                                        >
+                                            <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
+                                            {item.label}
+                                            {item.detail && (
+                                                <span className="text-xs opacity-70">({item.detail})</span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
-                            <ul className="space-y-1.5">
-                                {missingProposals.map((proposal, idx) => (
-                                    <li
-                                        key={idx}
-                                        className="flex items-center gap-2 text-sm text-emerald-800"
-                                    >
-                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0" />
-                                        Proposta {PROPOSAL_STATUS_LABELS[proposal.min_status] || proposal.min_status}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Tarefas Obrigatórias */}
-                    {hasTasks && (
-                        <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-2 text-purple-700 font-medium text-sm">
-                                <CheckCircle2 className="w-4 h-4" />
-                                Tarefas Obrigatórias
-                            </div>
-                            <ul className="space-y-1.5">
-                                {missingTasks.map((task, idx) => (
-                                    <li
-                                        key={idx}
-                                        className="flex items-center gap-2 text-sm text-purple-800"
-                                    >
-                                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full flex-shrink-0" />
-                                        {task.label} {task.task_require_completed ? '(concluída)' : '(criada)'}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Documentos Obrigatórios */}
-                    {hasDocuments && (
-                        <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-2 text-teal-700 font-medium text-sm">
-                                <FileCheck className="w-4 h-4" />
-                                Documentos Pendentes
-                            </div>
-                            <ul className="space-y-1.5">
-                                {missingDocuments.map((doc, idx) => (
-                                    <li
-                                        key={idx}
-                                        className="flex items-center gap-2 text-sm text-teal-800"
-                                    >
-                                        <span className="w-1.5 h-1.5 bg-teal-500 rounded-full flex-shrink-0" />
-                                        {doc.label} ({doc.completed}/{doc.total} recebidos)
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                        )
+                    })}
 
                     {context === 'kanban' && (
                         <p className="text-xs text-gray-500">

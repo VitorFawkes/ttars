@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 143 tabelas | 56 paginas | 108 hooks | 17 views | 443 components
+> **Stats:** 144 tabelas | 56 paginas | 109 hooks | 17 views | 443 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **108 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **109 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -233,6 +233,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadQuickUpdate()` | `useLeadQuickUpdate.ts` |
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
+| `useMondePendingSales()` | `useMondePendingSales.ts` |
 | `useMondeSales()` | `useMondeSales.ts` |
 | `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
 | `useMyDayTasks()` | `useMyDayTasks.ts` |

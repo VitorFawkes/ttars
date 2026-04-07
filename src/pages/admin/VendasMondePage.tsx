@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, ExternalLink, Clock, ChevronDown, ChevronRight,
-    XCircle, Package, User as UserIcon, Download, Users,
+    XCircle, Package, User as UserIcon, Download, Users, Inbox, Link2, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -20,6 +20,7 @@ import {
     PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, REPRESENTANTE_ALIASES, DOCUMENTO_ALIASES,
     DATA_INICIO_ALIASES, DATA_FIM_ALIASES,
 } from '@/lib/csvUtils'
+import { useMondePendingSales, useMondeMatchedSales, useExpirePendingSale, type MondePendingSale } from '@/hooks/useMondePendingSales'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -299,14 +300,158 @@ function PreviewCardRow({ card }: { card: MatchedCard }) {
     )
 }
 
+// ─── Pending sale row ────────────────────────────────────────
+
+ 
+function PendingSaleRow({ sale, onExpire }: { sale: MondePendingSale; onExpire: (id: string) => void }) {
+    const [expanded, setExpanded] = useState(false)
+    const Chevron = expanded ? ChevronDown : ChevronRight
+    const products = Array.isArray(sale.products) ? sale.products : []
+
+    return (
+        <div className="border-b border-slate-100 last:border-b-0">
+            <button
+                onClick={() => setExpanded(!expanded)}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors text-left"
+            >
+                <Chevron className="h-4 w-4 text-slate-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-mono text-amber-600 font-semibold">#{sale.venda_num}</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                            <Clock className="h-2.5 w-2.5" /> Aguardando card
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDate(sale.created_at)}
+                        </span>
+                        {sale.profile_name && (
+                            <span className="flex items-center gap-1">
+                                <UserIcon className="h-3 w-3" />
+                                {sale.profile_name}
+                            </span>
+                        )}
+                        {sale.file_name && (
+                            <span className="flex items-center gap-1">
+                                <FileSpreadsheet className="h-3 w-3" />
+                                {sale.file_name}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-right">
+                    <div>
+                        <p className="text-sm font-semibold text-slate-900">{sale.products_count}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Produtos</p>
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-slate-900">{formatBRL(Number(sale.total_venda))}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Venda</p>
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-emerald-600">{formatBRL(Number(sale.total_receita))}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Receita</p>
+                    </div>
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="bg-slate-50/50 border-t border-slate-100 px-4 py-2">
+                    <div className="space-y-2">
+                        {products.map((p, idx) => (
+                            <div key={idx} className="flex items-start gap-3 py-1.5">
+                                <span className="text-[10px] text-slate-400 mt-0.5 shrink-0 w-4 text-right">{idx + 1}.</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-slate-700 truncate">{p.produto || 'Produto'}</span>
+                                        <span className="text-xs text-slate-500 shrink-0 ml-2">{formatBRL(p.valorTotal)}</span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-slate-400">
+                                        {p.fornecedor && <span>{p.fornecedor}</span>}
+                                        {p.representante && <span>via {p.representante}</span>}
+                                        {p.passageiros?.length > 0 && (
+                                            <span className="text-indigo-400">{p.passageiros.join(', ')}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end pt-2 pb-1">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onExpire(sale.id) }}
+                            className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors"
+                        >
+                            <Trash2 className="h-3 w-3" /> Remover
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── Matched sale row ────────────────────────────────────────
+
+ 
+function MatchedSaleRow({ sale }: { sale: MondePendingSale }) {
+    const products = Array.isArray(sale.products) ? sale.products : []
+
+    return (
+        <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100 last:border-b-0">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-mono text-slate-400">#{sale.venda_num}</span>
+                    {sale.card_titulo ? (
+                        <Link
+                            to={`/cards/${sale.matched_card_id}`}
+                            className="text-sm text-indigo-600 hover:text-indigo-800 truncate hover:underline"
+                        >
+                            {sale.card_titulo}
+                        </Link>
+                    ) : (
+                        <span className="text-sm text-slate-700 truncate">Card vinculado</span>
+                    )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                    {sale.matched_at && (
+                        <span className="flex items-center gap-1">
+                            <Link2 className="h-3 w-3" />
+                            Vinculado em {formatDate(sale.matched_at)}
+                        </span>
+                    )}
+                    <span>{products.length} produtos importados</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 text-right">
+                <span className="text-sm font-medium text-slate-700">{formatBRL(Number(sale.total_venda))}</span>
+                {sale.matched_card_id && (
+                    <Link
+                        to={`/cards/${sale.matched_card_id}`}
+                        className="text-slate-400 hover:text-indigo-600"
+                    >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                )}
+
+            </div>
+        </div>
+    )
+}
+
 // ─── Main page ───────────────────────────────────────────────
 
 type Step = 'idle' | 'preview' | 'importing' | 'done'
+type Tab = 'importar' | 'pendentes' | 'matched'
 
 export default function VendasMondePage() {
     const { profile } = useAuth()
     const queryClient = useQueryClient()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [activeTab, setActiveTab] = useState<Tab>('importar')
 
     const [step, setStep] = useState<Step>('idle')
     const [fileName, setFileName] = useState('')
@@ -319,6 +464,11 @@ export default function VendasMondePage() {
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isGestor = (profile as any)?.role_info?.name === 'gestor'
+
+    // ─── Pending / Matched sales ────────────────────────────
+    const { data: pendingSales = [], isLoading: pendingLoading } = useMondePendingSales()
+    const { data: matchedSales = [], isLoading: matchedLoading } = useMondeMatchedSales()
+    const expireMutation = useExpirePendingSale()
 
     // ─── Import history ──────────────────────────────────────
     const { data: history = [], isLoading: historyLoading } = useQuery({
@@ -602,11 +752,40 @@ export default function VendasMondePage() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (supabase.from('monde_import_log_items') as any).insert(logItems)
             }
+
+            // ─── Salvar vendas sem match como pendentes ──────
+            if (unmatched.length > 0) {
+                const grouped = new Map<string, CsvRow[]>()
+                for (const row of parsedRows) {
+                    const existing = grouped.get(row.vendaNum) || []
+                    existing.push(row)
+                    grouped.set(row.vendaNum, existing)
+                }
+
+                const pendingRows = unmatched.map(vendaNum => {
+                    const prods = grouped.get(vendaNum) || []
+                    return {
+                        venda_num: vendaNum,
+                        products: prods,
+                        total_venda: prods.reduce((s, p) => s + p.valorTotal, 0),
+                        total_receita: prods.reduce((s, p) => s + p.receita, 0),
+                        products_count: prods.length,
+                        file_name: fileName,
+                        import_log_id: logRow?.id || null,
+                        created_by: profile?.id,
+                    }
+                })
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).from('monde_pending_sales')
+                    .upsert(pendingRows, { onConflict: 'org_id,venda_num' })
+            }
         } catch (logErr) {
             console.error('Erro ao salvar log:', logErr)
         }
 
         queryClient.invalidateQueries({ queryKey: ['monde-import-logs'] })
+        queryClient.invalidateQueries({ queryKey: ['monde-pending-sales'] })
         setImportResult({ cardsUpdated, productsImported, errors, matched })
         setStep('done')
 
@@ -646,7 +825,7 @@ export default function VendasMondePage() {
                             Importe os produtos dos cards a partir do CSV ou Excel do sistema Monde
                         </p>
                     </div>
-                    {step === 'idle' && (
+                    {step === 'idle' && activeTab === 'importar' && (
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => {
@@ -688,6 +867,28 @@ export default function VendasMondePage() {
                         </div>
                     )}
                 </div>
+
+
+                {/* Tabs */}
+                {step === 'idle' && (
+                    <div className="flex items-center gap-1 mb-6 border-b border-slate-200">
+                        <button onClick={() => setActiveTab('importar')} className={cn('px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px', activeTab === 'importar' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                            <span className="flex items-center gap-2"><Upload className="h-4 w-4" />Importar</span>
+                        </button>
+                        <button onClick={() => setActiveTab('pendentes')} className={cn('px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px', activeTab === 'pendentes' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                            <span className="flex items-center gap-2">
+                                <Inbox className="h-4 w-4" />Pendentes
+                                {pendingSales.length > 0 && <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">{pendingSales.length}</span>}
+                            </span>
+                        </button>
+                        <button onClick={() => setActiveTab('matched')} className={cn('px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px', activeTab === 'matched' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                            <span className="flex items-center gap-2">
+                                <Link2 className="h-4 w-4" />Vinculados
+                                {matchedSales.length > 0 && <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">{matchedSales.length}</span>}
+                            </span>
+                        </button>
+                    </div>
+                )}
 
                 {/* ─── Active import flow ──────────────────── */}
                 {step !== 'idle' && (
@@ -881,7 +1082,7 @@ export default function VendasMondePage() {
                 )}
 
                 {/* ─── Last import summary card ───────────── */}
-                {step === 'idle' && lastImport && (
+                {step === 'idle' && activeTab === 'importar' && lastImport && (
                     <div className="mb-6">
                         <div className={cn(
                             "bg-white border rounded-xl shadow-sm p-4",
@@ -924,7 +1125,7 @@ export default function VendasMondePage() {
                 )}
 
                 {/* ─── Import history ─────────────────────── */}
-                {step === 'idle' && (
+                {step === 'idle' && activeTab === 'importar' && (
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -951,6 +1152,75 @@ export default function VendasMondePage() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+                {/* Pendentes tab */}
+                {step === 'idle' && activeTab === 'pendentes' && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-white border border-amber-200 rounded-xl shadow-sm p-4 text-center">
+                                <p className="text-2xl font-bold text-amber-600">{pendingSales.length}</p>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Vendas aguardando</p>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
+                                <p className="text-2xl font-bold text-slate-900">{pendingSales.reduce((s, p) => s + p.products_count, 0)}</p>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Produtos totais</p>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
+                                <p className="text-2xl font-bold text-slate-900">{formatBRL(pendingSales.reduce((s, p) => s + Number(p.total_venda), 0))}</p>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Valor total</p>
+                            </div>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-amber-800">Como funciona?</p>
+                                <p className="text-xs text-amber-700 mt-0.5">Essas vendas foram importadas do CSV mas nenhum card tinha o numero de venda correspondente. Quando alguem preencher o &quot;N Venda Monde&quot; em um card, os produtos serao importados automaticamente.</p>
+                            </div>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
+                                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2"><Inbox className="h-4 w-4 text-amber-500" />Vendas aguardando card</h3>
+                            </div>
+                            {pendingLoading ? (
+                                <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+                            ) : pendingSales.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <CheckCircle2 className="h-10 w-10 text-emerald-200 mb-3" />
+                                    <p className="text-sm text-slate-500 font-medium">Nenhuma venda pendente</p>
+                                    <p className="text-xs text-slate-400 mt-1">Todas as vendas foram vinculadas a cards</p>
+                                </div>
+                            ) : (
+                                <div className="max-h-[600px] overflow-y-auto">
+                                    {pendingSales.map((sale: MondePendingSale) => (<PendingSaleRow key={sale.id} sale={sale} onExpire={(id: string) => expireMutation.mutate(id)} />))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Matched/Vinculados tab */}
+                {step === 'idle' && activeTab === 'matched' && (
+                    <div className="space-y-4">
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2"><Link2 className="h-4 w-4 text-emerald-500" />Vendas auto-vinculadas</h3>
+                                <span className="text-xs text-slate-400">{matchedSales.length} venda{matchedSales.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            {matchedLoading ? (
+                                <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+                            ) : matchedSales.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <Link2 className="h-10 w-10 text-slate-200 mb-3" />
+                                    <p className="text-sm text-slate-500 font-medium">Nenhuma venda auto-vinculada</p>
+                                    <p className="text-xs text-slate-400 mt-1">Quando um card receber um numero de venda pendente, aparecera aqui</p>
+                                </div>
+                            ) : (
+                                <div className="max-h-[600px] overflow-y-auto">
+                                    {matchedSales.map((sale: MondePendingSale) => (<MatchedSaleRow key={sale.id} sale={sale} />))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
