@@ -300,3 +300,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T14:11:00Z | supabase/migrations/20260408_stage_field_confirmations.sql | applied_to_prod
 2026-04-07T14:16:41Z | supabase/migrations/20260407_criar_card_echo_stage_oportunidade.sql | applied_to_prod
 2026-04-07T14:36:12Z | supabase/migrations/20260407_criar_card_echo_validate_phone.sql | applied_to_prod
+2026-04-07T16:23:47Z | supabase/migrations/20260407_fix_handle_new_user_role_cast.sql | applied_to_prod
