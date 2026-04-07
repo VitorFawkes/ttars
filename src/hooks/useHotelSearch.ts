@@ -22,6 +22,7 @@ export interface HotelDetailsResult {
     name: string
     description?: string
     address?: string
+    city?: string
     phone?: string
     website?: string
     lat?: number
