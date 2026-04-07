@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useUsers } from '@/hooks/useUsers';
 
 interface EntryRule {
     id: string;
@@ -27,8 +28,8 @@ interface EntryRule {
     task_config: {
         tipo?: string;
         titulo?: string;
-        prioridade?: string;
-        assign_to?: string;
+        assign_to?: 'card_owner' | 'specific';
+        assign_to_user_id?: string | null;
     } | null;
     delay_minutes: number;
     delay_type: 'business' | 'calendar';
@@ -63,7 +64,8 @@ interface FormData {
     taskConfig: {
         tipo: string;
         titulo: string;
-        prioridade: string;
+        assign_to: 'card_owner' | 'specific';
+        assign_to_user_id: string | null;
     };
     delayMinutes: number;
     delayType: 'business' | 'calendar';
@@ -82,7 +84,8 @@ const emptyFormData: FormData = {
     taskConfig: {
         tipo: 'contato',
         titulo: '',
-        prioridade: 'high'
+        assign_to: 'card_owner',
+        assign_to_user_id: null
     },
     delayMinutes: 5,
     delayType: 'business',
@@ -111,10 +114,9 @@ const taskTypeOptions = [
     { value: 'coleta_documentos', label: 'Coleta Docs' }
 ];
 
-const priorityOptions = [
-    { value: 'high', label: 'Alta' },
-    { value: 'medium', label: 'Média' },
-    { value: 'low', label: 'Baixa' }
+const assignToOptions = [
+    { value: 'card_owner', label: 'Responsável do card' },
+    { value: 'specific', label: 'Pessoa específica' }
 ];
 
 const delayTypeOptions = [
@@ -208,6 +210,13 @@ export function CadenceEntryRulesTab() {
 
     // Fetch stages
     const { data: allStages } = usePipelineStages(pipelineId);
+    const { users } = useUsers();
+    const userOptions = useMemo(() => {
+        const list = (users || [])
+            .filter(u => u.active)
+            .map(u => ({ value: u.id, label: u.nome || u.email }));
+        return [{ value: '', label: 'Selecionar pessoa...' }, ...list];
+    }, [users]);
 
     // Filter stages by selected pipelines
     const filteredStages = allStages?.filter(s =>
@@ -383,7 +392,8 @@ export function CadenceEntryRulesTab() {
             taskConfig: {
                 tipo: rule.task_config?.tipo || 'contato',
                 titulo: rule.task_config?.titulo || '',
-                prioridade: rule.task_config?.prioridade || 'high'
+                assign_to: rule.task_config?.assign_to || 'card_owner',
+                assign_to_user_id: rule.task_config?.assign_to_user_id || null
             },
             delayMinutes: rule.delay_minutes || 5,
             delayType: rule.delay_type || 'business',
@@ -705,7 +715,7 @@ export function CadenceEntryRulesTab() {
                                 <ListTodo className="w-4 h-4" />
                                 Configuração da Tarefa
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-sm font-medium mb-2 block">Tipo</label>
                                     <Select
@@ -728,17 +738,36 @@ export function CadenceEntryRulesTab() {
                                         placeholder="Ex: Primeiro Contato"
                                     />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium mb-2 block">Prioridade</label>
+                                    <label className="text-sm font-medium mb-2 block">Atribuir a</label>
                                     <Select
-                                        value={formData.taskConfig.prioridade}
+                                        value={formData.taskConfig.assign_to}
                                         onChange={(v) => setFormData(prev => ({
                                             ...prev,
-                                            taskConfig: { ...prev.taskConfig, prioridade: v }
+                                            taskConfig: {
+                                                ...prev.taskConfig,
+                                                assign_to: v as 'card_owner' | 'specific',
+                                                assign_to_user_id: v === 'card_owner' ? null : prev.taskConfig.assign_to_user_id
+                                            }
                                         }))}
-                                        options={priorityOptions}
+                                        options={assignToOptions}
                                     />
                                 </div>
+                                {formData.taskConfig.assign_to === 'specific' && (
+                                    <div>
+                                        <label className="text-sm font-medium mb-2 block">Pessoa</label>
+                                        <Select
+                                            value={formData.taskConfig.assign_to_user_id || ''}
+                                            onChange={(v) => setFormData(prev => ({
+                                                ...prev,
+                                                taskConfig: { ...prev.taskConfig, assign_to_user_id: v || null }
+                                            }))}
+                                            options={userOptions}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

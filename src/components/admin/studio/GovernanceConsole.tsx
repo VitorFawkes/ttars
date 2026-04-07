@@ -61,6 +61,7 @@ interface ActionRequirement {
 export const SPECIAL_RULES = [
     { key: 'lost_reason_required', label: 'Motivo de Perda Obrigatório', icon: ShieldAlert },
     { key: 'contato_principal_required', label: 'Contato Principal Obrigatório', icon: UserCheck },
+    { key: 'contato_principal_basico', label: 'Contato Principal (Nome + Sobrenome)', icon: UserCheck },
     { key: 'contato_principal_completo', label: 'Dados Completos do Contato Principal', icon: UserCheck },
 ]
 

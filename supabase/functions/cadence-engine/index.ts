@@ -434,6 +434,12 @@ async function executeCreateTaskAction(
         }
     }
 
+    // Determinar responsável (entry rule pode ter pessoa específica)
+    let assignToId = card.dono_atual_id || card.responsavel_id;
+    if (taskConfig.assign_to === 'specific' && taskConfig.assign_to_user_id) {
+        assignToId = taskConfig.assign_to_user_id;
+    }
+
     // Criar tarefa
     const { data: task, error: taskError } = await supabaseClient
         .from("tarefas")
@@ -442,7 +448,7 @@ async function executeCreateTaskAction(
             tipo: taskTipo,
             titulo: taskConfig.titulo || 'Tarefa Automática',
             descricao: taskConfig.descricao || '',
-            responsavel_id: card.dono_atual_id || card.responsavel_id,
+            responsavel_id: assignToId,
             prioridade: mapPrioridade(taskConfig.prioridade) || 'alta',
             data_vencimento: dueDate.toISOString(),
             metadata: {
