@@ -158,6 +158,9 @@ async function handleSearch(
     }
 
     const payload = await r.json();
+    if (payload?.error) {
+        throw new Error(`SerpAPI error: ${payload.error}`);
+    }
     const suggestions: unknown[] = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
 
     const results: HotelSummary[] = suggestions
@@ -216,6 +219,7 @@ async function handleDetails(
 
     const url = new URL(SERPAPI_BASE);
     url.searchParams.set("engine", "google_hotels");
+    url.searchParams.set("q", "hotel");  // Required by API even when using property_token
     url.searchParams.set("property_token", token);
     url.searchParams.set("check_in_date", fmt(checkIn));
     url.searchParams.set("check_out_date", fmt(checkOut));
@@ -231,6 +235,9 @@ async function handleDetails(
     }
 
     const payload = await r.json();
+    if (payload?.error) {
+        throw new Error(`SerpAPI error: ${payload.error}`);
+    }
     const details = mapPayloadToDetails(token, payload);
 
     const responseBody = { details };
