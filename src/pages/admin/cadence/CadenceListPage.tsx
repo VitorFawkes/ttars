@@ -38,6 +38,7 @@ interface CadenceTemplate {
     respect_business_hours: boolean;
     soft_break_after_days: number;
     is_active: boolean;
+    execution_mode?: 'linear' | 'blocks';
     created_at: string;
     updated_at: string;
     steps_count?: number;
@@ -68,7 +69,7 @@ const CadenceListPage: React.FC = () => {
         try {
             setLoading(true);
 
-            // Buscar templates
+            /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
             const { data: templatesData, error: templatesError } = await (supabase
                 .from('cadence_templates' as any) as any)
                 .select('*')
@@ -76,15 +77,14 @@ const CadenceListPage: React.FC = () => {
 
             if (templatesError) throw templatesError;
 
-            // Buscar contagem de steps por template
             const { data: stepsData } = await (supabase
                 .from('cadence_steps' as any) as any)
                 .select('template_id');
 
-            // Buscar contagem de instâncias por template
             const { data: instancesData } = await (supabase
                 .from('cadence_instances' as any) as any)
                 .select('template_id, status');
+            /* eslint-enable @typescript-eslint/no-explicit-any */
 
             // Agregar dados
             const templatesWithCounts = (templatesData || []).map((template: { id: string; name: string; description: string | null; target_audience: string | null; respect_business_hours: boolean; soft_break_after_days: number; is_active: boolean; created_at: string; updated_at: string }) => {
@@ -103,11 +103,12 @@ const CadenceListPage: React.FC = () => {
 
             setTemplates(templatesWithCounts);
 
-            // Calcular stats
+            /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
             const { data: queueData } = await (supabase
                 .from('cadence_queue' as any) as any)
                 .select('id')
                 .eq('status', 'pending');
+            /* eslint-enable @typescript-eslint/no-explicit-any */
 
             setStats({
                 total_templates: templatesWithCounts.length,
@@ -134,18 +135,18 @@ const CadenceListPage: React.FC = () => {
         if (!confirm('Tem certeza que deseja excluir esta cadência? Todas as instâncias ativas serão canceladas.')) return;
 
         try {
-            // Cancelar instâncias ativas primeiro
+            /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
             await (supabase
                 .from('cadence_instances' as any) as any)
                 .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
                 .eq('template_id', id)
                 .in('status', ['active', 'waiting_task', 'paused']);
 
-            // Deletar template (cascadeia para steps)
             const { error } = await (supabase
                 .from('cadence_templates' as any) as any)
                 .delete()
                 .eq('id', id);
+            /* eslint-enable @typescript-eslint/no-explicit-any */
 
             if (error) throw error;
 
@@ -162,10 +163,12 @@ const CadenceListPage: React.FC = () => {
             // Optimistic update
             setTemplates(prev => prev.map(t => t.id === id ? { ...t, is_active: !currentState } : t));
 
+            /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
             const { error } = await (supabase
                 .from('cadence_templates' as any) as any)
                 .update({ is_active: !currentState })
                 .eq('id', id);
+            /* eslint-enable @typescript-eslint/no-explicit-any */
 
             if (error) throw error;
 
@@ -320,7 +323,11 @@ const CadenceListPage: React.FC = () => {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => navigate(`/settings/cadence/${template.id}`)}>
+                                                <DropdownMenuItem onClick={() => navigate(
+                                                    template.execution_mode === 'blocks'
+                                                        ? `/settings/cadence/automacao/${template.id}`
+                                                        : `/settings/cadence/${template.id}`
+                                                )}>
                                                     <Edit className="w-4 h-4 mr-2" />
                                                     Editar
                                                 </DropdownMenuItem>
@@ -357,11 +364,11 @@ const CadenceListPage: React.FC = () => {
                 </div>
                 {activeTab === 'templates' && (
                     <Button
-                        onClick={() => navigate('/settings/cadence/new')}
+                        onClick={() => navigate('/settings/cadence/automacao/new')}
                         className="bg-indigo-600 hover:bg-indigo-700"
                     >
                         <Plus className="w-4 h-4 mr-2" />
-                        Nova Cadência
+                        Nova Automação
                     </Button>
                 )}
             </header>

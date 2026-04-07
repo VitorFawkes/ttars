@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 export default function SettingsLayout() {
     const location = useLocation();
-    const isBuilder = location.pathname.includes('/builder');
+    const isBuilder = location.pathname.includes('/builder') || location.pathname.includes('/cadence/');
 
     return (
         <div className="flex w-full h-full bg-muted/30">
