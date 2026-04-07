@@ -653,7 +653,6 @@ export function BlockSearchDrawer({
                         <div className="p-4">
                             <AIImageExtractor
                                 onExtractComplete={handleAIExtractComplete}
-                                onCancel={handleClose}
                             />
                         </div>
                     )}
@@ -664,13 +663,11 @@ export function BlockSearchDrawer({
                             {blockType === 'hotel' && (
                                 <HotelCatalogPicker
                                     onImport={handleHotelImport}
-                                    onCancel={handleClose}
                                 />
                             )}
                             {blockType === 'flight' && (
                                 <FlightLookupPicker
                                     onImport={handleFlightImport}
-                                    onCancel={handleClose}
                                 />
                             )}
                         </div>

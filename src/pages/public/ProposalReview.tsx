@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
 import { Button } from '@/components/ui/Button'
@@ -27,7 +27,7 @@ export default function ProposalReview() {
     const [selections, setSelections] = useState<Record<string, boolean>>({})
 
     const version = proposal?.active_version
-    const sections = version?.sections || []
+    const sections = useMemo(() => version?.sections || [], [version?.sections])
 
     // Inicializar seleções a partir dos defaults quando a proposta carrega
     useEffect(() => {
@@ -57,11 +57,10 @@ export default function ProposalReview() {
 
         // Persistir no backend de forma fire-and-forget (não bloquear UI)
         // Cast necessário: RPC existe no banco mas database.types.ts ainda não foi regenerado
-        ;(supabase.rpc as any)('save_client_selection', {
-            p_token: token!,
-            p_item_id: itemId,
-            p_selected: newValue,
-        }).then(({ error: rpcError }: { error: any }) => {
+        ;(supabase.rpc as unknown as (fn: string, params: Record<string, unknown>) => Promise<{ error: Error | null }>)(
+            'save_client_selection',
+            { p_token: token!, p_item_id: itemId, p_selected: newValue },
+        ).then(({ error: rpcError }) => {
             if (rpcError) console.warn('Erro ao salvar seleção:', rpcError)
         })
     }, [selections, token])
