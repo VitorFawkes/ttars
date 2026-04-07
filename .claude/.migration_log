@@ -293,3 +293,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T01:55:56Z | supabase/migrations/20260407_card_alert_triggers.sql | applied_to_prod
 2026-04-07T01:56:02Z | supabase/migrations/20260407_card_opens_and_record_rpc.sql | applied_to_prod
 2026-04-07T11:53:07Z | supabase/migrations/20260407_card_alert_rules_org_id_default.sql | applied_to_prod
+2026-04-07T12:10:32Z | supabase/migrations/20260407_fix_criar_card_echo_tipo_viajante.sql | applied_to_prod
+2026-04-07T12:14:22Z | supabase/migrations/20260407_fix_criar_card_echo_remove_cards_contatos.sql | applied_to_prod
