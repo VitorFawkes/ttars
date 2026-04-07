@@ -85,14 +85,14 @@ export function useHotelDetails() {
     const queryClient = useQueryClient()
 
     return useMutation({
-        mutationFn: async (propertyToken: string): Promise<HotelDetailsResult> => {
+        mutationFn: async (hotelId: string): Promise<HotelDetailsResult> => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) throw new Error('Não autenticado')
 
             const response = await supabase.functions.invoke('enrich-hotel', {
                 body: {
                     mode: 'details',
-                    property_token: propertyToken,
+                    hotelId: hotelId,
                 },
             })
 

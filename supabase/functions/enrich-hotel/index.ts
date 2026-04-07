@@ -1,24 +1,27 @@
 /**
- * enrich-hotel — busca conteúdo de hotéis via SerpAPI Google Hotels.
+ * enrich-hotel — busca conteúdo de hotéis via LiteAPI (Nuitée).
  *
  * NÃO faz reservas. NÃO cota preços para venda. Apenas extrai conteúdo
  * (nome, descrição, fotos HD, amenidades, rating) para preencher uma
  * proposta no builder do WelcomeCRM.
+ *
+ * LiteAPI tem base de 2.6M+ hotéis com fotos e descrições próprias.
+ * Muito melhor cobertura que SerpAPI Google Hotels (especialmente Brasil).
  *
  * Endpoints:
  *
  *   POST /enrich-hotel  { mode: "search", query: "Copacabana Palace", country?: "BR" }
  *     → { results: HotelSummary[] }
  *
- *   POST /enrich-hotel  { mode: "details", property_token: "..." }
+ *   POST /enrich-hotel  { mode: "details", hotelId: "lp1897" }
  *     → { details: HotelDetails }
  *
  * Cache:
- *   - search:    TTL 7 dias  (queries voláteis)
- *   - details:   TTL 30 dias (conteúdo de hotel raramente muda)
+ *   - search:    TTL 7 dias
+ *   - details:   TTL 30 dias
  *
  * Secrets necessários (set via supabase secrets set):
- *   SERPAPI_KEY
+ *   LITEAPI_KEY
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -29,19 +32,20 @@ import {
     setCached,
 } from "../_shared/provider-cache.ts";
 
-const PROVIDER = "serpapi_google_hotels";
-const SERPAPI_BASE = "https://serpapi.com/search";
+const PROVIDER = "liteapi";
+const LITEAPI_BASE = "https://api.liteapi.travel/v3.0";
 
 interface SearchRequest {
     mode: "search";
     query: string;
     country?: string;
-    language?: string;
+    city?: string;
+    limit?: number;
 }
 
 interface DetailsRequest {
     mode: "details";
-    property_token: string;
+    hotelId: string;
     language?: string;
 }
 
@@ -65,10 +69,7 @@ interface HotelSummary {
 interface PhotoRef {
     url: string;
     thumbnailUrl?: string;
-    width?: number;
-    height?: number;
     alt?: string;
-    section?: string;
 }
 
 interface HotelDetails extends HotelSummary {
@@ -89,10 +90,10 @@ serve(async (req) => {
         return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
-    const apiKey = Deno.env.get("SERPAPI_KEY");
+    const apiKey = Deno.env.get("LITEAPI_KEY");
     if (!apiKey) {
         return jsonResponse(
-            { error: "SERPAPI_KEY not configured on this environment" },
+            { error: "LITEAPI_KEY not configured on this environment" },
             500,
         );
     }
@@ -136,35 +137,41 @@ async function handleSearch(
     const query = (body.query ?? "").trim();
     if (!query) return jsonResponse({ error: "query is required" }, 400);
 
-    const language = body.language ?? "pt-br";
-    const country = (body.country ?? "br").toLowerCase();
-    const cacheKey = `search:${language}:${country}:${query.toLowerCase()}`;
+    const country = (body.country ?? "").toUpperCase();
+    const city = (body.city ?? "").trim();
+    const limit = body.limit ?? 10;
+    const cacheKey = `search:${country}:${city}:${query.toLowerCase()}`;
 
     const cached = await getCached<{ results: HotelSummary[] }>(supabase, PROVIDER, cacheKey);
     if (cached) return jsonResponse({ ...cached, cached: true });
 
-    // Autocomplete: retorna sugestões + property_token sem precisar de datas
-    const url = new URL(SERPAPI_BASE);
-    url.searchParams.set("engine", "google_hotels_autocomplete");
-    url.searchParams.set("q", query);
-    url.searchParams.set("gl", country);
-    url.searchParams.set("hl", language);
-    url.searchParams.set("api_key", apiKey);
+    const url = new URL(`${LITEAPI_BASE}/data/hotels`);
+    url.searchParams.set("hotelName", query);
+    url.searchParams.set("limit", String(limit));
+    if (country) url.searchParams.set("countryCode", country);
+    if (city) url.searchParams.set("cityName", city);
 
-    const r = await fetch(url.toString());
+    const r = await fetch(url.toString(), {
+        headers: {
+            "X-API-Key": apiKey,
+            "Accept": "application/json",
+        },
+    });
+
     if (!r.ok) {
         const text = await r.text();
-        throw new Error(`SerpAPI autocomplete returned ${r.status}: ${text.slice(0, 200)}`);
+        throw new Error(`LiteAPI /data/hotels returned ${r.status}: ${text.slice(0, 200)}`);
     }
 
     const payload = await r.json();
     if (payload?.error) {
-        throw new Error(`SerpAPI error: ${payload.error}`);
+        throw new Error(`LiteAPI error: ${JSON.stringify(payload.error)}`);
     }
-    const suggestions: unknown[] = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
 
-    const results: HotelSummary[] = suggestions
-        .map((s) => mapSuggestionToSummary(s))
+    const hotels: unknown[] = Array.isArray(payload?.data) ? payload.data : [];
+
+    const results: HotelSummary[] = hotels
+        .map((h) => mapHotelToSummary(h))
         .filter((x): x is HotelSummary => x !== null);
 
     const responseBody = { results };
@@ -172,23 +179,26 @@ async function handleSearch(
     return jsonResponse({ ...responseBody, cached: false });
 }
 
-function mapSuggestionToSummary(s: unknown): HotelSummary | null {
-    if (typeof s !== "object" || s === null) return null;
-    const obj = s as Record<string, unknown>;
-    const propertyToken = typeof obj.property_token === "string" ? obj.property_token : null;
-    if (!propertyToken) return null;
+function mapHotelToSummary(h: unknown): HotelSummary | null {
+    if (typeof h !== "object" || h === null) return null;
+    const obj = h as Record<string, unknown>;
 
-    const value = typeof obj.value === "string" ? obj.value : "";
-    const subValue = typeof obj.sub_value === "string" ? obj.sub_value : undefined;
-    const thumbnail = typeof obj.thumbnail === "string" ? obj.thumbnail : undefined;
-
-    if (!value) return null;
+    const id = pickString(obj, "id");
+    const name = pickString(obj, "name");
+    if (!id || !name) return null;
 
     return {
-        externalId: propertyToken,
-        name: value,
-        address: subValue,
-        thumbnailUrl: thumbnail,
+        externalId: id,
+        name,
+        address: pickString(obj, "address"),
+        city: pickString(obj, "city"),
+        country: pickString(obj, "country"),
+        lat: pickNumber(obj, "latitude"),
+        lng: pickNumber(obj, "longitude"),
+        starRating: pickNumber(obj, "stars"),
+        guestRating: pickNumber(obj, "rating"),
+        reviewsCount: pickNumber(obj, "reviewCount"),
+        thumbnailUrl: pickString(obj, "thumbnail") ?? pickString(obj, "main_photo"),
         provider: PROVIDER,
     };
 }
@@ -200,94 +210,103 @@ async function handleDetails(
     apiKey: string,
     supabase: ReturnType<typeof getServiceClient>,
 ): Promise<Response> {
-    const token = (body.property_token ?? "").trim();
-    if (!token) return jsonResponse({ error: "property_token is required" }, 400);
+    const hotelId = (body.hotelId ?? "").trim();
+    if (!hotelId) return jsonResponse({ error: "hotelId is required" }, 400);
 
-    const language = body.language ?? "pt-br";
-    const cacheKey = `details:${language}:${token}`;
+    const language = body.language ?? "en";
+    const cacheKey = `details:${language}:${hotelId}`;
 
     const cached = await getCached<{ details: HotelDetails }>(supabase, PROVIDER, cacheKey);
     if (cached) return jsonResponse({ ...cached, cached: true });
 
-    // google_hotels engine exige check_in_date e check_out_date mesmo só
-    // para metadata. Passamos datas dummy 30/31 dias no futuro — não usamos
-    // o preço retornado, apenas o conteúdo (que não depende das datas).
-    const today = new Date();
-    const checkIn = new Date(today.getTime() + 30 * 86400 * 1000);
-    const checkOut = new Date(today.getTime() + 31 * 86400 * 1000);
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const url = new URL(`${LITEAPI_BASE}/data/hotel`);
+    url.searchParams.set("hotelId", hotelId);
+    if (language) url.searchParams.set("language", language);
 
-    const url = new URL(SERPAPI_BASE);
-    url.searchParams.set("engine", "google_hotels");
-    url.searchParams.set("q", "hotel");  // Required by API even when using property_token
-    url.searchParams.set("property_token", token);
-    url.searchParams.set("check_in_date", fmt(checkIn));
-    url.searchParams.set("check_out_date", fmt(checkOut));
-    url.searchParams.set("adults", "2");
-    url.searchParams.set("currency", "BRL");
-    url.searchParams.set("hl", language);
-    url.searchParams.set("api_key", apiKey);
+    const r = await fetch(url.toString(), {
+        headers: {
+            "X-API-Key": apiKey,
+            "Accept": "application/json",
+        },
+    });
 
-    const r = await fetch(url.toString());
     if (!r.ok) {
         const text = await r.text();
-        throw new Error(`SerpAPI google_hotels returned ${r.status}: ${text.slice(0, 200)}`);
+        throw new Error(`LiteAPI /data/hotel returned ${r.status}: ${text.slice(0, 200)}`);
     }
 
     const payload = await r.json();
     if (payload?.error) {
-        throw new Error(`SerpAPI error: ${payload.error}`);
+        throw new Error(`LiteAPI error: ${JSON.stringify(payload.error)}`);
     }
-    const details = mapPayloadToDetails(token, payload);
+
+    const details = mapPayloadToDetails(hotelId, payload?.data);
 
     const responseBody = { details };
     await setCached(supabase, PROVIDER, cacheKey, responseBody, 30);
     return jsonResponse({ ...responseBody, cached: false });
 }
 
-function mapPayloadToDetails(token: string, payload: unknown): HotelDetails {
-    if (typeof payload !== "object" || payload === null) {
-        throw new Error("SerpAPI returned non-object payload");
+function mapPayloadToDetails(hotelId: string, p: unknown): HotelDetails {
+    if (typeof p !== "object" || p === null) {
+        throw new Error("LiteAPI returned empty hotel data");
     }
-    const p = payload as Record<string, unknown>;
+    const obj = p as Record<string, unknown>;
 
-    const name = pickString(p, "name") ?? "Hotel sem nome";
-    const description = pickString(p, "description");
-    const address = pickString(p, "address");
-    const phone = pickString(p, "phone") ?? pickString(p, "phone_local");
-    const website = pickString(p, "link");
-    const overallRating = pickNumber(p, "overall_rating");
-    const reviews = pickNumber(p, "reviews");
-    const hotelClass = pickNumber(p, "extracted_hotel_class");
+    const name = pickString(obj, "name") ?? "Hotel sem nome";
+    const description = pickString(obj, "hotelDescription");
+    const address = pickString(obj, "address");
+    const city = pickString(obj, "city");
+    const country = pickString(obj, "country");
+    const starRating = pickNumber(obj, "starRating");
+    const guestRating = pickNumber(obj, "rating");
+    const reviewsCount = pickNumber(obj, "reviewCount");
 
-    const gps = (p.gps_coordinates ?? null) as Record<string, unknown> | null;
-    const lat = gps && typeof gps.latitude === "number" ? gps.latitude : undefined;
-    const lng = gps && typeof gps.longitude === "number" ? gps.longitude : undefined;
+    const loc = (obj.location ?? null) as Record<string, unknown> | null;
+    const lat = loc ? pickNumber(loc, "latitude") : pickNumber(obj, "latitude");
+    const lng = loc ? pickNumber(loc, "longitude") : pickNumber(obj, "longitude");
 
-    const amenities = Array.isArray(p.amenities)
-        ? (p.amenities as unknown[]).filter((a): a is string => typeof a === "string")
-        : undefined;
+    // Amenities: pode vir como hotelFacilities (string[]) ou facilities ({name}[])
+    let amenities: string[] | undefined;
+    if (Array.isArray(obj.hotelFacilities)) {
+        amenities = (obj.hotelFacilities as unknown[]).filter(
+            (a): a is string => typeof a === "string",
+        );
+    } else if (Array.isArray(obj.facilities)) {
+        amenities = (obj.facilities as Array<Record<string, unknown>>)
+            .map((f) => pickString(f, "name"))
+            .filter((n): n is string => !!n);
+    }
 
-    const images = Array.isArray(p.images) ? (p.images as unknown[]) : [];
-    const photos: PhotoRef[] = images
-        .map((img) => mapImageToPhoto(img))
-        .filter((x): x is PhotoRef => x !== null);
+    // Photos: hotelImages[] com url, urlHd, caption
+    const images = Array.isArray(obj.hotelImages) ? (obj.hotelImages as unknown[]) : [];
+    const mainPhoto = pickString(obj, "main_photo");
+
+    const photos: PhotoRef[] = [];
+    if (mainPhoto) {
+        photos.push({ url: mainPhoto, alt: name });
+    }
+    for (const img of images) {
+        const photo = mapImageToPhoto(img);
+        if (photo && photo.url !== mainPhoto) photos.push(photo);
+    }
 
     return {
-        externalId: token,
+        externalId: hotelId,
         provider: PROVIDER,
         name,
         description,
         address,
-        phone,
-        website,
+        city,
+        country,
         lat,
         lng,
-        starRating: hotelClass,
-        guestRating: overallRating,
-        reviewsCount: reviews,
+        starRating,
+        guestRating,
+        reviewsCount,
         amenities,
         photos,
+        thumbnailUrl: pickString(obj, "thumbnail") ?? mainPhoto,
         fetchedAt: new Date().toISOString(),
     };
 }
@@ -295,12 +314,13 @@ function mapPayloadToDetails(token: string, payload: unknown): HotelDetails {
 function mapImageToPhoto(img: unknown): PhotoRef | null {
     if (typeof img !== "object" || img === null) return null;
     const obj = img as Record<string, unknown>;
-    const original = pickString(obj, "original_image");
-    const thumbnail = pickString(obj, "thumbnail");
-    if (!original && !thumbnail) return null;
+    const urlHd = pickString(obj, "urlHd");
+    const url = pickString(obj, "url");
+    if (!url && !urlHd) return null;
     return {
-        url: original ?? thumbnail!,
-        thumbnailUrl: thumbnail,
+        url: urlHd ?? url!,
+        thumbnailUrl: url,
+        alt: pickString(obj, "caption"),
     };
 }
 
