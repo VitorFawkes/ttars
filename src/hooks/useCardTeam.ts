@@ -30,6 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
     sdr: 'SDR',
     planner: 'Planner',
     pos_venda: 'Pós-Venda',
+    concierge: 'Concierge',
     assistente_planner: 'Assist. Planner',
     assistente_pos: 'Assist. Pós',
     apoio: 'Apoio',
@@ -39,6 +40,7 @@ interface CardOwners {
     sdr_owner_id?: string | null
     vendas_owner_id?: string | null
     pos_owner_id?: string | null
+    concierge_owner_id?: string | null
     dono_atual_id?: string | null
 }
 
@@ -65,7 +67,7 @@ export function useCardTeam(cardId: string | undefined, card?: CardOwners | null
     // Query de profiles para resolver nomes dos owners
     const ownerIds = useMemo(() => {
         if (!card) return []
-        return [card.sdr_owner_id, card.vendas_owner_id, card.pos_owner_id].filter(Boolean) as string[]
+        return [card.sdr_owner_id, card.vendas_owner_id, card.pos_owner_id, card.concierge_owner_id].filter(Boolean) as string[]
     }, [card])
 
     const { data: ownerProfiles = [] } = useQuery({
@@ -120,6 +122,17 @@ export function useCardTeam(cardId: string | undefined, card?: CardOwners | null
                 nome: p?.nome || p?.email || 'Pós-Venda',
                 role: 'pos_venda',
                 roleLabel: 'Pós-Venda',
+                isOwner: true,
+            })
+        }
+        if (card?.concierge_owner_id && !seen.has(card.concierge_owner_id)) {
+            seen.add(card.concierge_owner_id)
+            const p = ownerProfiles.find(p => p.id === card.concierge_owner_id)
+            team.push({
+                profileId: card.concierge_owner_id,
+                nome: p?.nome || p?.email || 'Concierge',
+                role: 'concierge',
+                roleLabel: 'Concierge',
                 isOwner: true,
             })
         }

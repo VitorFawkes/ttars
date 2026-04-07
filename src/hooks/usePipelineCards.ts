@@ -72,12 +72,13 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
                     if (session?.user?.id) {
-                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda OU assistente
+                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda, Concierge OU assistente
                         const ownerConditions = [
                             `dono_atual_id.eq.${session.user.id}`,
                             `sdr_owner_id.eq.${session.user.id}`,
                             `vendas_owner_id.eq.${session.user.id}`,
                             `pos_owner_id.eq.${session.user.id}`,
+                            `concierge_owner_id.eq.${session.user.id}`,
                         ]
                         if (myAssistCardIds && myAssistCardIds.length > 0) {
                             ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
@@ -92,7 +93,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
                         const memberList = myTeamMembers.join(',')
                         query = query.or(
-                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
                         )
                     }
                     // !hasTeam → no filter applied (show all, same as belonging to all teams)
@@ -118,6 +119,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                         `dono_atual_nome.ilike.%${original}%`,
                         `sdr_owner_nome.ilike.%${original}%`,
                         `vendas_nome.ilike.%${original}%`,
+                        `concierge_nome.ilike.%${original}%`,
                         `pessoa_email.ilike.%${original}%`,
                         `external_id.ilike.%${original}%`
                     ]
@@ -161,7 +163,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 if (filteredTeamMembers.length > 0) {
                     const memberList = filteredTeamMembers.join(',')
                     query = query.or(
-                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList})`
+                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
                     )
                 } else {
                     // Time sem membros ativos — forçar zero resultados
