@@ -45,7 +45,7 @@ import { useCardTeam } from '../../hooks/useCardTeam'
 import { useRoles } from '../../hooks/useRoles'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { useQualityGate } from '../../hooks/useQualityGate'
+import { useQualityGate, type MissingRequirement } from '../../hooks/useQualityGate'
 import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
@@ -53,7 +53,7 @@ import WinOptionsModal from './WinOptionsModal'
 import FieldConfirmationModal from './FieldConfirmationModal'
 import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
 import SendAlertModal from './SendAlertModal'
-import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
+import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useCardAlerts } from '../../hooks/useCardAlerts'
@@ -387,10 +387,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
         targetStageName: string,
-        missingFields?: { key: string, label: string }[],
-        missingProposals?: { label: string, min_status: string }[],
-        missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[],
-        missingDocuments?: { label: string, total: number, completed: number }[],
+        missingRequirements?: MissingRequirement[],
         currentOwnerId?: string,
         sdrName?: string,
         targetPhaseId?: string,
@@ -632,8 +629,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         // 1. Validate Move (async - checks fields, proposals, tasks, rules)
         const validation = await validateMove(card, stageId)
 
-        // Check for Lost Reason Rule
-        if (validation.missingRules?.some(r => r.key === 'lost_reason_required')) {
+        // Check for Lost Reason Rule — if it's the ONLY rule missing, show loss reason modal
+        const lostReasonMissing = validation.missingRequirements.some(r => r.type === 'rule' && r.label.toLowerCase().includes('motivo'))
+        if (lostReasonMissing && validation.missingRequirements.length === 1) {
             setPendingLossMove({ stageId, stageName })
             setLossReasonModalOpen(true)
             setShowStageDropdown(false)
@@ -644,10 +642,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             setPendingStageChange({
                 stageId,
                 targetStageName: stageName,
-                missingFields: validation.missingFields,
-                missingProposals: validation.missingProposals,
-                missingTasks: validation.missingTasks,
-                missingDocuments: validation.missingDocuments
+                missingRequirements: validation.missingRequirements,
             })
             setQualityGateModalOpen(true)
             setShowStageDropdown(false)
@@ -897,10 +892,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     setPendingStageChange({
                         stageId: nextStage.id,
                         targetStageName: `Ganho ${currentStage?.pipeline_phases?.name || currentFase}`,
-                        missingFields: validation.missingFields,
-                        missingProposals: validation.missingProposals,
-                        missingTasks: validation.missingTasks,
-                        missingDocuments: validation.missingDocuments,
+                        missingRequirements: validation.missingRequirements,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -944,10 +936,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 if (!validation.valid) {
                     setPendingStageChange({
                         ...pendingStageChange,
-                        missingFields: validation.missingFields,
-                        missingProposals: validation.missingProposals,
-                        missingTasks: validation.missingTasks,
-                        missingDocuments: validation.missingDocuments,
+                        missingRequirements: validation.missingRequirements,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -1699,10 +1688,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             <QualityGateModal
                 isOpen={qualityGateModalOpen}
                 onClose={() => setQualityGateModalOpen(false)}
-                missingFields={pendingStageChange?.missingFields || missingBlocking.filter((r): r is FieldRequirement => r.requirement_type === 'field').map(r => ({ key: r.field_key, label: r.label }))}
-                missingProposals={pendingStageChange?.missingProposals || missingBlocking.filter((r): r is ProposalRequirement => r.requirement_type === 'proposal').map(r => ({ label: r.label, min_status: r.proposal_min_status }))}
-                missingTasks={pendingStageChange?.missingTasks || missingBlocking.filter((r): r is TaskRequirement => r.requirement_type === 'task').map(r => ({ label: r.label, task_tipo: r.task_tipo, task_require_completed: r.task_require_completed }))}
-                missingDocuments={pendingStageChange?.missingDocuments || missingBlocking.filter((r): r is DocumentRequirement => r.requirement_type === 'document').map(r => ({ label: r.label, total: 1, completed: 0 }))}
+                missingRequirements={pendingStageChange?.missingRequirements || missingBlocking.map(r => ({ type: r.requirement_type, label: r.label }))}
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || currentStage?.nome || ''}
                 cardId={card.id!}

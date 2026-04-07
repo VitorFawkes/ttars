@@ -15,45 +15,27 @@ interface RequirementRule {
     task_require_completed: boolean
 }
 
-interface MissingField {
-    key: string
+// --- Unified missing requirement (single source of truth for the modal) ---
+export interface MissingRequirement {
+    type: RequirementType | string  // string allows future types without code changes
     label: string
-    type: RequirementType
-}
-
-interface MissingProposal {
-    label: string
-    min_status: string
-}
-
-interface MissingTask {
-    label: string
-    task_tipo: string
-    task_require_completed: boolean
-}
-
-interface MissingRule {
-    key: string
-    label: string
-}
-
-interface MissingDocument {
-    label: string
-    total: number
-    completed: number
+    detail?: string  // e.g. "(concluída)", "Enviada", "2/3 recebidos"
 }
 
 interface ValidationResult {
     valid: boolean
-    missingFields: MissingField[]
-    missingProposals: MissingProposal[]
-    missingTasks: MissingTask[]
-    missingRules: MissingRule[]
-    missingDocuments: MissingDocument[]
+    missingRequirements: MissingRequirement[]
 }
 
 // Proposal status hierarchy
 const PROPOSAL_STATUS_ORDER = ['draft', 'sent', 'viewed', 'in_progress', 'accepted']
+
+const PROPOSAL_STATUS_LABELS: Record<string, string> = {
+    'sent': 'Enviada',
+    'viewed': 'Visualizada',
+    'in_progress': 'Em Análise',
+    'accepted': 'Aceita'
+}
 
 export function useQualityGate() {
     // Fetch all required configurations
@@ -104,22 +86,16 @@ export function useQualityGate() {
     })
 
     const validateMove = async (card: Record<string, unknown>, targetStageId: string): Promise<ValidationResult> => {
-        if (!rules) return { valid: true, missingFields: [], missingProposals: [], missingTasks: [], missingRules: [], missingDocuments: [] }
+        if (!rules) return { valid: true, missingRequirements: [] }
 
         const stageRules = rules.filter(r => r.stage_id === targetStageId && r.is_blocking)
-
-        const missingFields: MissingField[] = []
-        const missingProposals: MissingProposal[] = []
-        const missingTasks: MissingTask[] = []
-        const missingRules: MissingRule[] = []
-        const missingDocuments: MissingDocument[] = []
+        const missing: MissingRequirement[] = []
 
         // --- Validate Field Requirements ---
         const fieldRules = stageRules.filter(r => r.requirement_type === 'field')
         for (const rule of fieldRules) {
             if (!rule.field_key) continue
 
-            // Check multiple data sources (waterfall resolution)
             let value = card[rule.field_key]
 
             if (value === undefined || value === null || value === '') {
@@ -147,7 +123,6 @@ export function useQualityGate() {
             }
 
             let isValid = true
-
             if (value === null || value === undefined || value === '') {
                 isValid = false
             } else if (Array.isArray(value) && value.length === 0) {
@@ -157,18 +132,13 @@ export function useQualityGate() {
             }
 
             if (!isValid) {
-                missingFields.push({
-                    key: rule.field_key,
-                    label: rule.label,
-                    type: 'field'
-                })
+                missing.push({ type: 'field', label: rule.label })
             }
         }
 
         // --- Validate Proposal Requirements ---
         const proposalRules = stageRules.filter(r => r.requirement_type === 'proposal')
         if (proposalRules.length > 0) {
-            // Fetch proposals for this card
             const { data: proposals } = await supabase
                 .from('proposals')
                 .select('id, status')
@@ -184,9 +154,10 @@ export function useQualityGate() {
                 })
 
                 if (!hasValidProposal) {
-                    missingProposals.push({
+                    missing.push({
+                        type: 'proposal',
                         label: rule.label,
-                        min_status: rule.proposal_min_status
+                        detail: PROPOSAL_STATUS_LABELS[rule.proposal_min_status] || rule.proposal_min_status
                     })
                 }
             }
@@ -195,7 +166,6 @@ export function useQualityGate() {
         // --- Validate Task Requirements ---
         const taskRules = stageRules.filter(r => r.requirement_type === 'task')
         if (taskRules.length > 0) {
-            // Fetch tasks for this card
             const { data: tasks } = await supabase
                 .from('tarefas')
                 .select('id, tipo, concluida')
@@ -211,10 +181,10 @@ export function useQualityGate() {
                 })
 
                 if (!hasValidTask) {
-                    missingTasks.push({
+                    missing.push({
+                        type: 'task',
                         label: rule.label,
-                        task_tipo: rule.task_tipo,
-                        task_require_completed: rule.task_require_completed
+                        detail: rule.task_require_completed ? 'concluída' : 'criada'
                     })
                 }
             }
@@ -223,7 +193,6 @@ export function useQualityGate() {
         // --- Validate Special Rules ---
         const specialRules = stageRules.filter(r => r.requirement_type === 'rule')
 
-        // Fetch contato principal once if needed for completeness check
         const needsContatoFetch = specialRules.some(r =>
             r.field_key === 'contato_principal_completo'
             || r.field_key === 'contato_principal_basico'
@@ -239,12 +208,11 @@ export function useQualityGate() {
         }
 
         for (const rule of specialRules) {
-            if (!rule.field_key) continue // We store rule key in field_key
+            if (!rule.field_key) continue
 
             let isValid = true
 
             if (rule.field_key === 'lost_reason_required') {
-                // Check if lost reason is present
                 const hasId = !!card.motivo_perda_id
                 const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
                 isValid = hasId || hasComment
@@ -277,10 +245,7 @@ export function useQualityGate() {
             }
 
             if (!isValid) {
-                missingRules.push({
-                    key: rule.field_key,
-                    label: rule.label
-                })
+                missing.push({ type: 'rule', label: rule.label })
             }
         }
 
@@ -296,52 +261,48 @@ export function useQualityGate() {
 
             if (total === 0) {
                 for (const rule of documentRules) {
-                    missingDocuments.push({
-                        label: rule.label,
-                        total: 0,
-                        completed: 0
-                    })
+                    missing.push({ type: 'document', label: rule.label, detail: `0/${total} recebidos` })
                 }
             }
         }
 
+        // --- Any future requirement_type added in the DB will be caught here ---
+        const handledTypes = new Set(['field', 'proposal', 'task', 'rule', 'document'])
+        const unknownRules = stageRules.filter(r => !handledTypes.has(r.requirement_type))
+        for (const rule of unknownRules) {
+            // Unknown types are always treated as missing (fail-closed) until validation logic is added
+            missing.push({ type: rule.requirement_type, label: rule.label })
+        }
+
         return {
-            valid: missingFields.length === 0 && missingProposals.length === 0 && missingTasks.length === 0 && missingRules.length === 0 && missingDocuments.length === 0,
-            missingFields,
-            missingProposals,
-            missingTasks,
-            missingRules,
-            missingDocuments
+            valid: missing.length === 0,
+            missingRequirements: missing
         }
     }
 
-    // Synchronous version for backward compatibility (fields only + rules sync check)
-    const validateMoveSync = (card: Record<string, unknown>, targetStageId: string): { valid: boolean, missingFields: { key: string, label: string }[], missingRules: { key: string, label: string }[] } => {
-        if (!rules) return { valid: true, missingFields: [], missingRules: [] }
+    // Synchronous version (fields + sync rules only — async types use validateMove)
+    const validateMoveSync = (card: Record<string, unknown>, targetStageId: string): ValidationResult & { hasLostReasonRule: boolean } => {
+        if (!rules) return { valid: true, missingRequirements: [], hasLostReasonRule: false }
 
         const stageRules = rules.filter(r =>
             r.stage_id === targetStageId &&
             r.is_blocking
         )
-        const missingFields: { key: string, label: string }[] = []
-        const missingRules: { key: string, label: string }[] = []
+        const missing: MissingRequirement[] = []
+        let hasLostReasonRule = false
 
         for (const rule of stageRules) {
             if (rule.requirement_type === 'field') {
                 if (!rule.field_key) continue
 
-                // Check multiple data sources (waterfall resolution)
-                // Priority: card column → produto_data → briefing_inicial → marketing_data
                 let value = card[rule.field_key]
 
                 if (value === undefined || value === null || value === '') {
-                    // Check produto_data JSON
                     const produtoData = typeof card.produto_data === 'string'
                         ? JSON.parse(card.produto_data || '{}')
                         : (card.produto_data || {})
                     value = produtoData[rule.field_key]
 
-                    // For nested objects like orcamento, check if it has content
                     if (typeof value === 'object' && value !== null) {
                         if ('total' in value) value = value.total
                         else if (Object.keys(value).length === 0) value = undefined
@@ -349,7 +310,6 @@ export function useQualityGate() {
                 }
 
                 if (value === undefined || value === null || value === '') {
-                    // Check briefing_inicial JSON
                     const briefingData = typeof card.briefing_inicial === 'string'
                         ? JSON.parse(card.briefing_inicial || '{}')
                         : (card.briefing_inicial || {})
@@ -362,7 +322,6 @@ export function useQualityGate() {
                 }
 
                 let isValid = true
-
                 if (value === null || value === undefined || value === '') {
                     isValid = false
                 } else if (Array.isArray(value) && value.length === 0) {
@@ -372,33 +331,32 @@ export function useQualityGate() {
                 }
 
                 if (!isValid) {
-                    missingFields.push({ key: rule.field_key, label: rule.label })
+                    missing.push({ type: 'field', label: rule.label })
                 }
             } else if (rule.requirement_type === 'rule') {
                 if (!rule.field_key) continue
 
-                let isValid = true
-
                 if (rule.field_key === 'lost_reason_required') {
+                    hasLostReasonRule = true
                     const hasId = !!card.motivo_perda_id
                     const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
-                    isValid = hasId || hasComment
+                    if (!hasId && !hasComment) {
+                        missing.push({ type: 'rule', label: rule.label })
+                    }
                 } else if (rule.field_key === 'contato_principal_required') {
-                    isValid = !!card.pessoa_principal_id
+                    if (!card.pessoa_principal_id) {
+                        missing.push({ type: 'rule', label: rule.label })
+                    }
                 }
                 // contato_principal_completo e contato_principal_basico NÃO são
                 // verificados aqui (requerem fetch async — usar validateMove)
-
-                if (!isValid) {
-                    missingRules.push({ key: rule.field_key, label: rule.label })
-                }
             }
         }
 
         return {
-            valid: missingFields.length === 0 && missingRules.length === 0,
-            missingFields,
-            missingRules
+            valid: missing.length === 0,
+            missingRequirements: missing,
+            hasLostReasonRule
         }
     }
 

@@ -137,42 +137,53 @@ async function handleSearch(
     const query = (body.query ?? "").trim();
     if (!query) return jsonResponse({ error: "query is required" }, 400);
 
+    // LiteAPI exige pelo menos countryCode. Se não informado, buscamos
+    // em vários países comuns para agência de viagens brasileira.
     const country = (body.country ?? "").toUpperCase();
     const city = (body.city ?? "").trim();
     const limit = body.limit ?? 10;
-    const cacheKey = `search:${country}:${city}:${query.toLowerCase()}`;
+
+    // Se country informado, busca direto. Senão, busca em múltiplos países.
+    const countries = country ? [country] : ["BR", "IT", "FR", "GR", "PT", "ES", "US", "GB", "MX", "AR"];
+    const cacheKey = `search:${country || "multi"}:${city}:${query.toLowerCase()}`;
 
     const cached = await getCached<{ results: HotelSummary[] }>(supabase, PROVIDER, cacheKey);
     if (cached) return jsonResponse({ ...cached, cached: true });
 
-    const url = new URL(`${LITEAPI_BASE}/data/hotels`);
-    url.searchParams.set("hotelName", query);
-    url.searchParams.set("limit", String(limit));
-    if (country) url.searchParams.set("countryCode", country);
-    if (city) url.searchParams.set("cityName", city);
+    // Buscar em paralelo em todos os países
+    const allResults: HotelSummary[] = [];
+    const fetches = countries.map(async (cc) => {
+        const url = new URL(`${LITEAPI_BASE}/data/hotels`);
+        url.searchParams.set("hotelName", query);
+        url.searchParams.set("limit", String(Math.ceil(limit / countries.length) + 2));
+        url.searchParams.set("countryCode", cc);
+        if (city) url.searchParams.set("cityName", city);
 
-    const r = await fetch(url.toString(), {
-        headers: {
-            "X-API-Key": apiKey,
-            "Accept": "application/json",
-        },
+        try {
+            const r = await fetch(url.toString(), {
+                headers: { "X-API-Key": apiKey, "Accept": "application/json" },
+            });
+            if (!r.ok) return;
+            const payload = await r.json();
+            if (payload?.error) return;
+            const hotels: unknown[] = Array.isArray(payload?.data) ? payload.data : [];
+            for (const h of hotels) {
+                const s = mapHotelToSummary(h);
+                if (s) allResults.push(s);
+            }
+        } catch {
+            // silently skip failed country
+        }
     });
+    await Promise.all(fetches);
 
-    if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`LiteAPI /data/hotels returned ${r.status}: ${text.slice(0, 200)}`);
-    }
-
-    const payload = await r.json();
-    if (payload?.error) {
-        throw new Error(`LiteAPI error: ${JSON.stringify(payload.error)}`);
-    }
-
-    const hotels: unknown[] = Array.isArray(payload?.data) ? payload.data : [];
-
-    const results: HotelSummary[] = hotels
-        .map((h) => mapHotelToSummary(h))
-        .filter((x): x is HotelSummary => x !== null);
+    // Dedup por externalId e limitar
+    const seen = new Set<string>();
+    const results = allResults.filter((r) => {
+        if (seen.has(r.externalId)) return false;
+        seen.add(r.externalId);
+        return true;
+    }).slice(0, limit);
 
     const responseBody = { results };
     await setCached(supabase, PROVIDER, cacheKey, responseBody, 7);

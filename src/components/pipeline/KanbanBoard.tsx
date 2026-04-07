@@ -22,7 +22,7 @@ import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
 import WinOptionsModal from '../card/WinOptionsModal'
 import FieldConfirmationModal from '../card/FieldConfirmationModal'
-import { useQualityGate } from '../../hooks/useQualityGate'
+import { useQualityGate, type MissingRequirement } from '../../hooks/useQualityGate'
 import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
 import type { Database } from '../../database.types'
 import { usePipelineFilters, type ViewMode, type SubView, type FilterState } from '../../hooks/usePipelineFilters'
@@ -260,10 +260,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         currentOwnerId?: string,
         sdrName?: string,
         targetStageName: string,
-        missingFields?: { key: string, label: string }[],
-        missingProposals?: { label: string, min_status: string }[],
-        missingTasks?: { label: string, task_tipo: string, task_require_completed: boolean }[],
-        missingDocuments?: { label: string, total: number, completed: number }[],
+        missingRequirements?: MissingRequirement[],
         targetPhaseId?: string,
         targetPhaseName?: string
     } | null>(null)
@@ -350,7 +347,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         // --- SYNC GATE 1: Field & rule validation (no network calls) ---
         const syncResult = validateMoveSync(card as unknown as Record<string, unknown>, stageId)
 
-        if (syncResult.missingRules?.some(r => r.key === 'lost_reason_required')) {
+        if (syncResult.hasLostReasonRule) {
             setPendingMove({ cardId, stageId, targetStageName: targetStage?.nome || 'Perdido' })
             setLossReasonModalOpen(true)
             return
@@ -360,7 +357,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             setPendingMove({
                 cardId, stageId,
                 targetStageName: targetStage?.nome || 'Nova Etapa',
-                missingFields: syncResult.missingFields,
+                missingRequirements: syncResult.missingRequirements,
             })
             setQualityGateModalOpen(true)
             return
@@ -424,10 +421,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     setPendingMove({
                         cardId, stageId,
                         targetStageName: targetStage?.nome || 'Nova Etapa',
-                        missingFields: asyncResult.missingFields,
-                        missingProposals: asyncResult.missingProposals,
-                        missingTasks: asyncResult.missingTasks,
-                        missingDocuments: asyncResult.missingDocuments,
+                        missingRequirements: asyncResult.missingRequirements,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -645,10 +639,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         cardId,
                         stageId: '',
                         targetStageName: wonLabel,
-                        missingFields: validation.missingFields,
-                        missingProposals: validation.missingProposals,
-                        missingTasks: validation.missingTasks,
-                        missingDocuments: validation.missingDocuments,
+                        missingRequirements: validation.missingRequirements,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -689,10 +680,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                     setPendingMove({
                         ...pendingMove,
                         stageId: targetStage.id,
-                        missingFields: validation.missingFields,
-                        missingProposals: validation.missingProposals,
-                        missingTasks: validation.missingTasks,
-                        missingDocuments: validation.missingDocuments,
+                        missingRequirements: validation.missingRequirements,
                     })
                     setQualityGateModalOpen(true)
                     return
@@ -932,10 +920,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         onConfirm={handleConfirmQualityGate}
                                         cardId={pendingMove.cardId}
                                         targetStageName={pendingMove.targetStageName}
-                                        missingFields={pendingMove.missingFields || []}
-                                        missingProposals={pendingMove.missingProposals || []}
-                                        missingTasks={pendingMove.missingTasks || []}
-                                        missingDocuments={pendingMove.missingDocuments || []}
+                                        missingRequirements={pendingMove.missingRequirements || []}
                                         initialData={allCards?.find(c => c.id === pendingMove.cardId) as Record<string, unknown> | undefined}
                                     />
 
