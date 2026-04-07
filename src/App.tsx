@@ -75,6 +75,7 @@ import NotificationConfigPage from './components/settings/customization/Notifica
 // Cadence Engine v3 (replaces Workflow Engine v2)
 import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
+import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
@@ -206,6 +207,8 @@ function App() {
 
                   {/* Cadências de Vendas */}
                   <Route path="/admin/cadence" element={<CadenceListPage />} />
+                  <Route path="/admin/cadence/automacao/new" element={<AutomacaoBuilderPage />} />
+                  <Route path="/admin/cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                   <Route path="/admin/cadence/new" element={<CadenceBuilderPage />} />
                   <Route path="/admin/cadence/:id" element={<CadenceBuilderPage />} />
                   <Route path="/admin/cadence/:id/monitor" element={<CadenceMonitorPage />} />
@@ -243,6 +246,8 @@ function App() {
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />
+                    <Route path="cadence/automacao/new" element={<AutomacaoBuilderPage />} />
+                    <Route path="cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                     <Route path="cadence/new" element={<CadenceBuilderPage />} />
                     <Route path="cadence/:id" element={<CadenceBuilderPage />} />
                     <Route path="cadence/:id/monitor" element={<CadenceMonitorPage />} />
