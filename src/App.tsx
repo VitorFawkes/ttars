@@ -52,6 +52,7 @@ import OrganizationsPage from './pages/admin/OrganizationsPage'
 import ProductsManagement from './pages/admin/ProductsManagement'
 import WorkspaceGeneral from './pages/admin/WorkspaceGeneral'
 import DepartmentsManagement from './pages/admin/DepartmentsManagement'
+import CardAlertRulesPage from './pages/admin/CardAlertRulesPage'
 import HelpCenter from './pages/help/HelpCenter'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
@@ -235,6 +236,7 @@ function App() {
                     <Route path="customization/automations" element={<Navigate to="/settings/cadence" replace />} />
 
                     <Route path="customization/notifications" element={<NotificationConfigPage />} />
+                    <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />

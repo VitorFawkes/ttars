@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 138 tabelas | 53 paginas | 103 hooks | 17 views | 440 components
+> **Stats:** 139 tabelas | 54 paginas | 104 hooks | 17 views | 440 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **103 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **104 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -258,6 +258,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useArchiveCard()` | `useArchiveCard.ts` |
+| `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
@@ -347,7 +348,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **53 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **54 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -374,6 +375,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
+| `CardAlertRulesPage` | `src/pages/admin/CardAlertRulesPage.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
 | `DepartmentsManagement` | `src/pages/admin/DepartmentsManagement.tsx` |

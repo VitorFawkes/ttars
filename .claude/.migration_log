@@ -285,3 +285,8 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-06T23:21:20Z | supabase/migrations/20260406_validate_against_auto_advance_destination.sql | applied_to_prod
 2026-04-06T23:29:46Z | supabase/migrations/20260406_contato_principal_completo_sem_telefone.sql | applied_to_prod
 2026-04-06T23:32:33Z | supabase/migrations/20260406_add_contato_basico_and_reactivate_pos_venda.sql | applied_to_prod
+2026-04-07T01:01:04Z | supabase/migrations/20260407_card_alert_rules_table.sql | applied_to_prod
+2026-04-07T01:01:09Z | supabase/migrations/20260407_evaluate_alert_condition.sql | applied_to_prod
+2026-04-07T01:01:14Z | supabase/migrations/20260407_generate_card_alerts.sql | applied_to_prod
+2026-04-07T01:01:19Z | supabase/migrations/20260407_card_alert_cron.sql | applied_to_prod
+2026-04-07T01:01:24Z | supabase/migrations/20260407_seed_pos_venda_alert_rule.sql | applied_to_prod
