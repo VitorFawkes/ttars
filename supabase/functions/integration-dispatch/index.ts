@@ -189,20 +189,15 @@ Deno.serve(async (req) => {
             let acApiKey = integration?.config?.api_key;
             let acApiUrl = integration?.config?.api_url;
 
-            // Fallback to integration_settings if not in config
+            // Fallback to integration_settings via RPC (desencripta chaves)
             if (!acApiKey || !acApiUrl) {
-                const { data: acSettings } = await supabase
-                    .from('integration_settings')
-                    .select('key, value')
-                    .in('key', ['ACTIVECAMPAIGN_API_KEY', 'ACTIVECAMPAIGN_API_URL']);
+                const [keyRes, urlRes] = await Promise.all([
+                    !acApiKey ? supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_KEY' }) : { data: acApiKey },
+                    !acApiUrl ? supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_URL' }) : { data: acApiUrl },
+                ]);
 
-                const acSettingsMap = (acSettings || []).reduce((acc, s) => {
-                    acc[s.key] = s.value;
-                    return acc;
-                }, {} as Record<string, string>);
-
-                acApiKey = acApiKey || acSettingsMap['ACTIVECAMPAIGN_API_KEY'];
-                acApiUrl = acApiUrl || acSettingsMap['ACTIVECAMPAIGN_API_URL'];
+                acApiKey = acApiKey || (keyRes.data as string) || '';
+                acApiUrl = acApiUrl || (urlRes.data as string) || '';
             }
 
             if (!acApiKey || !acApiUrl) {
