@@ -675,6 +675,14 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 targetPhaseId: handoffPhaseId,
                 targetPhaseName: targetPhase?.name || 'Nova Fase'
             })
+            // Confirmação de campos antes do handoff (se configurada)
+            const confirmations = getFieldConfirmationsForStage(stageId)
+            if (confirmations.length > 0) {
+                setPendingConfirmationFields(confirmations)
+                setFieldConfirmationModalOpen(true)
+                setShowStageDropdown(false)
+                return
+            }
             setStageChangeModalOpen(true)
             setShowStageDropdown(false)
             return
@@ -704,9 +712,16 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
     const handleFieldConfirmationConfirm = () => {
         if (!pendingStageChange) return
-        updateStageMutation.mutate(pendingStageChange.stageId)
         setFieldConfirmationModalOpen(false)
         setPendingConfirmationFields([])
+
+        // Se é handoff cross-phase ou win → abrir StageChangeModal em vez de mover direto
+        if (pendingStageChange.targetPhaseId) {
+            setStageChangeModalOpen(true)
+            return
+        }
+
+        updateStageMutation.mutate(pendingStageChange.stageId)
         setPendingStageChange(null)
     }
 
@@ -904,6 +919,13 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 targetPhaseId: nextStage.phase_id || undefined,
                 targetPhaseName: targetPhase?.name || nextStage.pipeline_phases?.name || 'Próxima Fase'
             })
+            // Confirmação de campos antes do handoff (se configurada)
+            const confirmations = getFieldConfirmationsForStage(nextStage.id)
+            if (confirmations.length > 0) {
+                setPendingConfirmationFields(confirmations)
+                setFieldConfirmationModalOpen(true)
+                return
+            }
             setStageChangeModalOpen(true)
         } else {
             marcarGanhoMutation.mutate(undefined)
@@ -933,6 +955,14 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             } catch (err) {
                 console.error('[QualityGate] Win validation failed — move bloqueado (fail-closed):', err)
                 alert('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
+                return
+            }
+
+            // Confirmação de campos antes do handoff (se configurada)
+            const confirmations = getFieldConfirmationsForStage(pendingStageChange.stageId)
+            if (confirmations.length > 0) {
+                setPendingConfirmationFields(confirmations)
+                setFieldConfirmationModalOpen(true)
                 return
             }
         }
