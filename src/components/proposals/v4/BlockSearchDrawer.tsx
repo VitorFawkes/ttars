@@ -188,10 +188,12 @@ export function BlockSearchDrawer({
             // Initialize rich_content for specific block types
             if (blockType === 'cruise') {
                 updateItem(itemId, {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     rich_content: { cruise: createInitialCruiseData() } as any
                 })
             } else if (blockType === 'insurance') {
                 updateItem(itemId, {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     rich_content: { insurance: createInitialInsuranceData() } as any
                 })
             }
@@ -240,60 +242,114 @@ export function BlockSearchDrawer({
     }, [sectionId, blockType, addItem, updateItem, onClose])
 
     // Handle hotel import from catalog
+    // Formato: rich_content.hotel.{hotel_name, star_rating, images, amenities, ...}
+    // Alinhado com readHotelData.ts que lê rich_content.hotel namespace
     const handleHotelImport = useCallback((hotel: HotelDetailsResult) => {
         if (!sectionId) return
 
+        const photoUrls = (hotel.photos || []).map(p => p.url).filter(Boolean)
+
         const itemId = addItem(sectionId, 'hotel', hotel.name)
         updateItem(itemId, {
-            description: hotel.description || null,
             image_url: hotel.photos[0]?.url || null,
             rich_content: {
-                imported_from_catalog: true,
-                external_provider: hotel.provider,
-                external_id: hotel.externalId,
-                address: hotel.address,
-                phone: hotel.phone,
-                website: hotel.website,
-                star_rating: hotel.starRating,
-                guest_rating: hotel.guestRating,
-                reviews_count: hotel.reviewsCount,
-                amenities: hotel.amenities,
-                photos: hotel.photos,
-                lat: hotel.lat,
-                lng: hotel.lng,
+                hotel: {
+                    hotel_name: hotel.name,
+                    location_city: hotel.city || hotel.address || '',
+                    star_rating: hotel.starRating || 0,
+                    room_type: '',
+                    board_type: '',
+                    check_in_date: '',
+                    check_out_date: '',
+                    check_in_time: '14:00',
+                    check_out_time: '12:00',
+                    nights: 0,
+                    price_per_night: 0,
+                    currency: 'BRL',
+                    amenities: hotel.amenities || [],
+                    cancellation_policy: '',
+                    description: hotel.description || '',
+                    image_url: hotel.photos[0]?.url || '',
+                    images: photoUrls,
+                    options: [],
+                    // Metadados do catálogo (não usados pelo reader, mas úteis para debug)
+                    _catalog: {
+                        provider: hotel.provider,
+                        external_id: hotel.externalId,
+                        guest_rating: hotel.guestRating,
+                        reviews_count: hotel.reviewsCount,
+                        phone: hotel.phone,
+                        website: hotel.website,
+                        lat: hotel.lat,
+                        lng: hotel.lng,
+                    },
+                },
             },
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
 
     // Handle flight import from lookup
+    // Formato: rich_content.flights.legs[].options[]
+    // Alinhado com readFlightData.ts que lê rich_content.flights namespace
     const handleFlightImport = useCallback((flight: FlightLookupResult) => {
         if (!sectionId) return
+
+        const depTime = flight.departure.scheduledTime
+            ? formatTimeFromISO(flight.departure.scheduledTime)
+            : ''
+        const arrTime = flight.arrival.scheduledTime
+            ? formatTimeFromISO(flight.arrival.scheduledTime)
+            : ''
 
         const title = `${flight.airline.name} ${flight.flightNumber}`
         const itemId = addItem(sectionId, 'flight', title)
         updateItem(itemId, {
             rich_content: {
-                imported_from_catalog: true,
-                external_provider: flight.provider,
-                flight_number: flight.flightNumber,
-                departure_date: flight.departureDate,
-                airline_code: flight.airline.iata,
-                airline_name: flight.airline.name,
-                airline_logo: flight.airline.logoUrl,
-                departure_airport: flight.departure.iata,
-                departure_city: flight.departure.city,
-                departure_name: flight.departure.name,
-                departure_time: flight.departure.scheduledTime,
-                departure_terminal: flight.departure.terminal,
-                arrival_airport: flight.arrival.iata,
-                arrival_city: flight.arrival.city,
-                arrival_name: flight.arrival.name,
-                arrival_time: flight.arrival.scheduledTime,
-                arrival_terminal: flight.arrival.terminal,
-                duration_minutes: flight.durationMinutes,
-                aircraft: flight.aircraft,
-                status: flight.status,
+                flights: {
+                    legs: [
+                        {
+                            id: `leg-${Date.now()}`,
+                            leg_type: 'outbound',
+                            label: 'IDA',
+                            origin_code: flight.departure.iata,
+                            origin_city: flight.departure.city || '',
+                            destination_code: flight.arrival.iata,
+                            destination_city: flight.arrival.city || '',
+                            date: flight.departureDate,
+                            ordem: 0,
+                            options: [
+                                {
+                                    id: `opt-${Date.now()}`,
+                                    airline_code: flight.airline.iata,
+                                    airline_name: flight.airline.name,
+                                    flight_number: flight.flightNumber,
+                                    departure_time: depTime,
+                                    arrival_time: arrTime,
+                                    cabin_class: 'economy',
+                                    fare_family: '',
+                                    equipment: flight.aircraft || '',
+                                    stops: 0,
+                                    baggage: '',
+                                    price: 0,
+                                    currency: 'BRL',
+                                    is_recommended: true,
+                                    enabled: true,
+                                    ordem: 0,
+                                },
+                            ],
+                        },
+                    ],
+                    show_prices: true,
+                    allow_mix_airlines: true,
+                    _catalog: {
+                        provider: flight.provider,
+                        departure_terminal: flight.departure.terminal,
+                        arrival_terminal: flight.arrival.terminal,
+                        duration_minutes: flight.durationMinutes,
+                        status: flight.status,
+                    },
+                },
             },
         })
         onClose()
@@ -679,3 +735,19 @@ export function BlockSearchDrawer({
 }
 
 export default BlockSearchDrawer
+
+/** Extrai HH:MM de um ISO timestamp (ex: "2026-07-16 01:50Z" → "01:50") */
+function formatTimeFromISO(iso: string): string {
+    try {
+        // Tenta parsear como Date
+        const d = new Date(iso)
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
+        }
+        // Fallback: extrair HH:MM de string tipo "2026-07-16 01:50Z"
+        const match = iso.match(/(\d{2}):(\d{2})/)
+        return match ? `${match[1]}:${match[2]}` : ''
+    } catch {
+        return ''
+    }
+}
