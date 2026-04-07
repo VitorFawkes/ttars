@@ -16,6 +16,7 @@ export interface Notification {
     read: boolean;
     card_id: string | null;
     created_at: string;
+    metadata?: Record<string, unknown> | null;
 }
 
 // Tabela notifications ainda não está no database.types.ts — usar client untyped

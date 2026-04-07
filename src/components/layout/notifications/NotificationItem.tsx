@@ -9,7 +9,9 @@ interface NotificationItemProps {
 }
 
 export default function NotificationItem({ notification, onClick, onMarkAsRead }: NotificationItemProps) {
-    const typeDisplay = getTypeDisplay(notification.type)
+    const severity =
+        (notification.metadata as { severity?: string } | null | undefined)?.severity ?? null
+    const typeDisplay = getTypeDisplay(notification.type, severity)
     const Icon = typeDisplay.icon
     const [textColor] = typeDisplay.color.split(' ')
 

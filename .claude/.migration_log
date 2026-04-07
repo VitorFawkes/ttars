@@ -290,3 +290,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T01:01:14Z | supabase/migrations/20260407_generate_card_alerts.sql | applied_to_prod
 2026-04-07T01:01:19Z | supabase/migrations/20260407_card_alert_cron.sql | applied_to_prod
 2026-04-07T01:01:24Z | supabase/migrations/20260407_seed_pos_venda_alert_rule.sql | applied_to_prod
+2026-04-07T01:55:56Z | supabase/migrations/20260407_card_alert_triggers.sql | applied_to_prod
+2026-04-07T01:56:02Z | supabase/migrations/20260407_card_opens_and_record_rpc.sql | applied_to_prod

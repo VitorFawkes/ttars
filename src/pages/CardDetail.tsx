@@ -25,6 +25,7 @@ import type { Database } from '../database.types'
 import { getProductLabels } from '../lib/productLabels'
 import { useSeenCards } from '../hooks/useSeenCards'
 import { useCardAlerts } from '../hooks/useCardAlerts'
+import { useRecordCardOpen } from '../hooks/useRecordCardOpen'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -53,6 +54,10 @@ export default function CardDetail() {
 
     // Mark card as seen for "new card" highlight (only owner can dismiss)
     const { markSeen } = useSeenCards()
+
+    // Registra abertura do card — aciona regras de alerta trigger_mode='on_card_open'
+    // se é a 1ª vez do usuário abrindo este card
+    useRecordCardOpen(id)
 
     // Check if card is a sub-card and get parent info
     const { isSubCard, parentCard } = useSubCardParent(id)

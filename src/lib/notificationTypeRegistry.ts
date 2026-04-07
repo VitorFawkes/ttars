@@ -1,4 +1,4 @@
-import { UserCheck, FileSpreadsheet, Megaphone, Bell, type LucideIcon } from 'lucide-react'
+import { UserCheck, FileSpreadsheet, Megaphone, Bell, AlertTriangle, AlertCircle, Info, type LucideIcon } from 'lucide-react'
 
 export function formatTimeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -36,6 +36,12 @@ export const NOTIFICATION_TYPE_REGISTRY: Record<string, NotificationTypeDisplay>
         label: 'Alerta no Card',
         description: 'Quando alguém envia um alerta para você em um card',
     },
+    card_alert_rule: {
+        icon: AlertTriangle,
+        color: 'text-amber-600 bg-amber-50',
+        label: 'Ajustes Pendentes',
+        description: 'Alerta automático de regra admin — card precisa de ajuste',
+    },
 }
 
 const FALLBACK_TYPE: NotificationTypeDisplay = {
@@ -45,6 +51,17 @@ const FALLBACK_TYPE: NotificationTypeDisplay = {
     description: '',
 }
 
-export function getTypeDisplay(typeKey: string): NotificationTypeDisplay {
-    return NOTIFICATION_TYPE_REGISTRY[typeKey] ?? FALLBACK_TYPE
+// Variação por severidade para notificações do tipo card_alert_rule
+const SEVERITY_OVERRIDES: Record<string, Partial<NotificationTypeDisplay>> = {
+    info: { icon: Info, color: 'text-sky-600 bg-sky-50' },
+    warning: { icon: AlertTriangle, color: 'text-amber-600 bg-amber-50' },
+    critical: { icon: AlertCircle, color: 'text-red-600 bg-red-50' },
+}
+
+export function getTypeDisplay(typeKey: string, severity?: string | null): NotificationTypeDisplay {
+    const base = NOTIFICATION_TYPE_REGISTRY[typeKey] ?? FALLBACK_TYPE
+    if (typeKey === 'card_alert_rule' && severity && SEVERITY_OVERRIDES[severity]) {
+        return { ...base, ...SEVERITY_OVERRIDES[severity] }
+    }
+    return base
 }

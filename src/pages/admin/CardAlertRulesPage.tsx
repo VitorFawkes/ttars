@@ -515,14 +515,14 @@ export default function CardAlertRulesPage() {
                                     className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm"
                                 >
                                     <option value="daily_cron">Diariamente (6h BRT)</option>
-                                    <option value="on_card_enter" disabled>
-                                        Ao entrar no stage (Fase 2)
+                                    <option value="on_card_enter">
+                                        Ao entrar no stage
                                     </option>
-                                    <option value="on_card_open" disabled>
-                                        Na 1ª abertura (Fase 2)
+                                    <option value="on_card_open">
+                                        Na 1ª abertura do card
                                     </option>
-                                    <option value="on_field_change" disabled>
-                                        Ao editar campo (Fase 2)
+                                    <option value="on_field_change">
+                                        Ao editar campo relevante
                                     </option>
                                 </select>
                             </div>
