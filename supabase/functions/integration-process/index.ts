@@ -1245,10 +1245,24 @@ Deno.serve(async (req) => {
                             const isEmpty = value === '' || value === null || value === undefined;
 
                             // Route based on storage_location from database configuration
+                            const NUMERIC_COLUMNS = new Set([
+                                'valor_estimado','valor_final','valor_proprio','receita',
+                                'taxa_valor','group_total_revenue','group_capacity','group_total_pax'
+                            ]);
                             if (storageLocation === 'column' && dbColumnName) {
                                 // Direct column in cards table - skip empty values to avoid wiping existing data
                                 if (!isEmpty) {
-                                    topLevelUpdates[dbColumnName] = value;
+                                    // Sanitizar: colunas numéricas recebem apenas números válidos
+                                    if (NUMERIC_COLUMNS.has(dbColumnName)) {
+                                        const parsed = parseFloat(String(value).replace(/,/g, ''));
+                                        if (isNaN(parsed)) {
+                                            console.warn(`[FIELD_SKIP] "${dbColumnName}" expected numeric, got "${String(value).slice(0, 50)}" — skipping`);
+                                        } else {
+                                            topLevelUpdates[dbColumnName] = parsed;
+                                        }
+                                    } else {
+                                        topLevelUpdates[dbColumnName] = value;
+                                    }
                                 }
                             } else if (storageLocation === 'produto_data') {
                                 if (!isEmpty) {

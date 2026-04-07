@@ -137,7 +137,7 @@ const resultOptions = [
 const CadenceBuilderPage: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const isNew = id === 'new';
+    const isNew = !id || id === 'new';
     const { pipelineId: pipelineIdFromMeta } = useCurrentProductMeta();
     const pipelineId = pipelineIdFromMeta ?? '';
     const { users } = useUsers();
