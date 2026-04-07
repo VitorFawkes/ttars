@@ -12,7 +12,9 @@ import NotificationGroup from './NotificationGroup'
 
 // Tipos visíveis por aba
 const NOTIF_TYPES = new Set(['lead_assigned'])
-const ALERT_TYPES = new Set(['card_alert'])
+// Aba "Alertas" agrupa tanto alertas manuais (card_alert via SendAlertModal)
+// quanto alertas automáticos do motor de regras admin (card_alert_rule)
+const ALERT_TYPES = new Set(['card_alert', 'card_alert_rule'])
 
 // ═══════════════════════════════════════════════════════════
 // Notification Panel (expanding box from bottom-right)

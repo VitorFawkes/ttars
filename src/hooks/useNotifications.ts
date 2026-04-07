@@ -107,8 +107,8 @@ export function useNotifications() {
         };
     }, [user?.id, queryClient]);
 
-    // Only count types that are visible in the UI (lead_assigned + card_alert)
-    const VISIBLE_TYPES = new Set(['lead_assigned', 'card_alert']);
+    // Only count types that são visíveis na UI
+    const VISIBLE_TYPES = new Set(['lead_assigned', 'card_alert', 'card_alert_rule']);
     const unreadCount = notifications.filter(n => !n.read && VISIBLE_TYPES.has(n.type)).length;
 
     const groupedByType = useMemo(() => {

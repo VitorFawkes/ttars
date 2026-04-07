@@ -228,6 +228,14 @@ export default function CardAlertRulesPage() {
         const condition = parseCondition()
         if (!condition) return null
 
+        // Exige valor de escopo quando scope_type != 'all'
+        if (form.scope_type !== 'all' && !form.scope_value) {
+            toast.error('Selecione um valor para o escopo escolhido (ou use "Todos")')
+            return null
+        }
+
+        const scopeValue = form.scope_value || null
+
         const input: CardAlertRuleInput = {
             name: form.name,
             description: form.description || null,
@@ -237,10 +245,10 @@ export default function CardAlertRulesPage() {
             title_template: form.title_template,
             body_template: form.body_template || null,
             send_email: form.send_email,
-            pipeline_id: form.scope_type === 'pipeline' ? form.scope_value : null,
-            phase_id: form.scope_type === 'phase' ? form.scope_value : null,
-            stage_id: form.scope_type === 'stage' ? form.scope_value : null,
-            product: form.scope_type === 'product' ? form.scope_value : null,
+            pipeline_id: form.scope_type === 'pipeline' ? scopeValue : null,
+            phase_id: form.scope_type === 'phase' ? scopeValue : null,
+            stage_id: form.scope_type === 'stage' ? scopeValue : null,
+            product: form.scope_type === 'product' ? scopeValue : null,
         }
         return input
     }
