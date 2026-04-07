@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
+import { usePublicTripPlan } from '@/hooks/useTripPlan'
 import { ProposalViewRouter } from '@/components/proposals/public/ProposalViewRouter'
 import { MobileProposalViewer } from '@/components/proposals/public/mobile'
+import TripPlanView from '@/pages/public/TripPlanView'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -11,6 +13,7 @@ export default function ProposalView() {
     const [searchParams] = useSearchParams()
     const forceMobile = searchParams.get('mode') === 'mobile'
     const { data: proposal, isLoading, error } = usePublicProposal(token!)
+    const { data: tripPlan } = usePublicTripPlan(token!)
 
     // Track link opened event
     useEffect(() => {
@@ -52,6 +55,11 @@ export default function ProposalView() {
                 </div>
             </div>
         )
+    }
+
+    // Portal "Minha Viagem" — quando proposta aceita e trip plan existe
+    if (proposal.status === 'accepted' && tripPlan) {
+        return <TripPlanView plan={tripPlan} />
     }
 
     // Check if expired

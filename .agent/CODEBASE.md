@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 141 tabelas | 55 paginas | 107 hooks | 17 views | 443 components
+> **Stats:** 141 tabelas | 56 paginas | 108 hooks | 17 views | 443 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **107 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **108 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -253,6 +253,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
+| `useTripPlan()` | `useTripPlan.ts` |
 | `useTrips()` | `useTrips.ts` |
 
 #### Pipeline & Cards
@@ -351,7 +352,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **55 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **56 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -410,6 +411,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |
+| `TripPlanView` | `src/pages/public/TripPlanView.tsx` |
 
 ## 4. UI Component Library
 
