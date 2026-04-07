@@ -1521,10 +1521,19 @@ Deno.serve(async (req) => {
                     // ═══════════════════════════════════════════════════════════════════
                     // ANTI-REGRESSION: Don't move card backward if CRM is already more advanced
                     // Comparison: (phase.order_index, stage.ordem) — phase weighs more than ordem
+                    // EXCEPTION: If the deal changed PIPELINE in AC, always allow the move
+                    // (regression check only makes sense within the same pipeline)
                     // ═══════════════════════════════════════════════════════════════════
                     let skipStageUpdate = false;
 
-                    if (existingCard && targetStageId && existingCard.pipeline_stage_id) {
+                    // Detect pipeline change: AC target pipeline differs from CRM card pipeline
+                    const isPipelineChange = existingCard && topology?.pipelineId && existingCard.pipeline_id !== topology.pipelineId;
+
+                    if (isPipelineChange) {
+                        log += ` [PIPELINE_CHANGE: CRM=${existingCard.pipeline_id} -> AC=${topology.pipelineId} (${topology.pipelineName})]`;
+                    }
+
+                    if (existingCard && targetStageId && existingCard.pipeline_stage_id && !isPipelineChange) {
                         const currentCrmStageId = existingCard.pipeline_stage_id;
 
                         // Status 'perdido' always forces to lost stage (handled above), skip regression check
