@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 140 tabelas | 54 paginas | 105 hooks | 17 views | 441 components
+> **Stats:** 141 tabelas | 55 paginas | 107 hooks | 17 views | 443 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **105 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **107 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -181,6 +181,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useChatIA()` | `useChatIA.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
+| `useHotelSearch()` | `useHotelSearch.ts` |
 
 #### Analytics
 | Hook | File |
@@ -221,6 +222,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
+| `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
@@ -349,7 +351,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **54 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **55 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -391,6 +393,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |
 | `VendasMondePage` | `src/pages/admin/VendasMondePage.tsx` |
 | `WorkspaceGeneral` | `src/pages/admin/WorkspaceGeneral.tsx` |
+| `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
 | `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` |

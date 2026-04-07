@@ -37,11 +37,16 @@ import {
     Table,
     Type,
     AlertCircle,
+    Globe,
 } from 'lucide-react'
 import type { BlockType } from '@/pages/ProposalBuilderV4'
 import type { ProposalItemType } from '@/types/proposals'
 import { createInitialCruiseData } from './cruises/types'
 import { createInitialInsuranceData } from './insurance/types'
+import { HotelCatalogPicker } from './HotelCatalogPicker'
+import { FlightLookupPicker } from './FlightLookupPicker'
+import type { HotelDetailsResult } from '@/hooks/useHotelSearch'
+import type { FlightLookupResult } from '@/hooks/useFlightLookup'
 
 interface BlockSearchDrawerProps {
     isOpen: boolean
@@ -140,7 +145,10 @@ const AI_ENABLED_BLOCKS: BlockType[] = ['flight']
 // Blocks that support library search
 const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'experience', 'transfer', 'insurance']
 
-type TabType = 'create' | 'library' | 'ai'
+// Blocks that support external catalog/lookup
+const CATALOG_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight']
+
+type TabType = 'create' | 'library' | 'ai' | 'catalog'
 
 export function BlockSearchDrawer({
     isOpen,
@@ -156,6 +164,7 @@ export function BlockSearchDrawer({
     // Check features for this block type
     const hasAISupport = blockType && AI_ENABLED_BLOCKS.includes(blockType)
     const hasLibrarySupport = blockType && LIBRARY_ENABLED_BLOCKS.includes(blockType)
+    const hasCatalogSupport = blockType && CATALOG_ENABLED_BLOCKS.includes(blockType)
 
     // Get library category for this block type
     const libraryCategory = blockType ? BLOCK_TO_LIBRARY_CATEGORY[blockType] : undefined
@@ -230,6 +239,66 @@ export function BlockSearchDrawer({
         onClose()
     }, [sectionId, blockType, addItem, updateItem, onClose])
 
+    // Handle hotel import from catalog
+    const handleHotelImport = useCallback((hotel: HotelDetailsResult) => {
+        if (!sectionId) return
+
+        const itemId = addItem(sectionId, 'hotel', hotel.name)
+        updateItem(itemId, {
+            description: hotel.description || null,
+            image_url: hotel.photos[0]?.url || null,
+            rich_content: {
+                imported_from_catalog: true,
+                external_provider: hotel.provider,
+                external_id: hotel.externalId,
+                address: hotel.address,
+                phone: hotel.phone,
+                website: hotel.website,
+                star_rating: hotel.starRating,
+                guest_rating: hotel.guestRating,
+                reviews_count: hotel.reviewsCount,
+                amenities: hotel.amenities,
+                photos: hotel.photos,
+                lat: hotel.lat,
+                lng: hotel.lng,
+            },
+        })
+        onClose()
+    }, [sectionId, addItem, updateItem, onClose])
+
+    // Handle flight import from lookup
+    const handleFlightImport = useCallback((flight: FlightLookupResult) => {
+        if (!sectionId) return
+
+        const title = `${flight.airline.name} ${flight.flightNumber}`
+        const itemId = addItem(sectionId, 'flight', title)
+        updateItem(itemId, {
+            rich_content: {
+                imported_from_catalog: true,
+                external_provider: flight.provider,
+                flight_number: flight.flightNumber,
+                departure_date: flight.departureDate,
+                airline_code: flight.airline.iata,
+                airline_name: flight.airline.name,
+                airline_logo: flight.airline.logoUrl,
+                departure_airport: flight.departure.iata,
+                departure_city: flight.departure.city,
+                departure_name: flight.departure.name,
+                departure_time: flight.departure.scheduledTime,
+                departure_terminal: flight.departure.terminal,
+                arrival_airport: flight.arrival.iata,
+                arrival_city: flight.arrival.city,
+                arrival_name: flight.arrival.name,
+                arrival_time: flight.arrival.scheduledTime,
+                arrival_terminal: flight.arrival.terminal,
+                duration_minutes: flight.durationMinutes,
+                aircraft: flight.aircraft,
+                status: flight.status,
+            },
+        })
+        onClose()
+    }, [sectionId, addItem, updateItem, onClose])
+
     // Close drawer and reset
     const handleClose = useCallback(() => {
         setSearch('')
@@ -244,7 +313,7 @@ export function BlockSearchDrawer({
     const colors = BLOCK_COLORS[blockType] || BLOCK_COLORS.custom
 
     // Count available tabs
-    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0)
+    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0) + (hasCatalogSupport ? 1 : 0)
 
     return (
         <>
@@ -330,6 +399,23 @@ export function BlockSearchDrawer({
                             >
                                 <Library className="h-4 w-4" />
                                 Biblioteca
+                            </button>
+                        )}
+
+                        {/* Catalog Tab */}
+                        {hasCatalogSupport && (
+                            <button
+                                onClick={() => setActiveTab('catalog')}
+                                className={cn(
+                                    'flex-1 py-3 px-3 text-sm font-medium transition-all',
+                                    'flex items-center justify-center gap-2 rounded-t-lg mx-1',
+                                    activeTab === 'catalog'
+                                        ? 'text-indigo-700 bg-indigo-100'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                )}
+                            >
+                                <Globe className="h-4 w-4" />
+                                Catálogo
                             </button>
                         )}
 
@@ -569,6 +655,24 @@ export function BlockSearchDrawer({
                                 onExtractComplete={handleAIExtractComplete}
                                 onCancel={handleClose}
                             />
+                        </div>
+                    )}
+
+                    {/* CATALOG TAB */}
+                    {activeTab === 'catalog' && hasCatalogSupport && (
+                        <div className="p-4">
+                            {blockType === 'hotel' && (
+                                <HotelCatalogPicker
+                                    onImport={handleHotelImport}
+                                    onCancel={handleClose}
+                                />
+                            )}
+                            {blockType === 'flight' && (
+                                <FlightLookupPicker
+                                    onImport={handleFlightImport}
+                                    onCancel={handleClose}
+                                />
+                            )}
                         </div>
                     )}
                 </div>
