@@ -33,6 +33,8 @@ import {
     type PreviewResult,
 } from '../../hooks/useCardAlertRules'
 import { useAuth } from '../../contexts/AuthContext'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
+import { useProductContext } from '../../hooks/useProductContext'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 
@@ -94,6 +96,9 @@ export default function CardAlertRulesPage() {
         isMutating,
     } = useCardAlertRules()
 
+    const { pipelineId } = useCurrentProductMeta()
+    const { currentProduct } = useProductContext()
+
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingRule, setEditingRule] = useState<CardAlertRule | null>(null)
     const [form, setForm] = useState<FormState>(emptyForm)
@@ -102,11 +107,13 @@ export default function CardAlertRulesPage() {
     const [previewLoading, setPreviewLoading] = useState(false)
     const [jsonError, setJsonError] = useState<string | null>(null)
 
-    // Opções de escopo — pipelines / fases / stages / produtos
+    // Opções de escopo — filtradas pelo produto atual
     const { data: pipelines } = useQuery({
-        queryKey: ['pipelines-for-alert-rules'],
+        queryKey: ['pipelines-for-alert-rules', currentProduct],
         queryFn: async () => {
-            const { data, error } = await db.from('pipelines').select('id, nome, produto').order('nome')
+            let q = db.from('pipelines').select('id, nome, produto').order('nome')
+            if (currentProduct) q = q.eq('produto', currentProduct)
+            const { data, error } = await q
             if (error) throw error
             return data as { id: string; nome: string; produto: string | null }[]
         },
@@ -125,13 +132,15 @@ export default function CardAlertRulesPage() {
     })
 
     const { data: stages } = useQuery({
-        queryKey: ['stages-for-alert-rules'],
+        queryKey: ['stages-for-alert-rules', pipelineId],
         queryFn: async () => {
-            const { data, error } = await db
+            let q = db
                 .from('pipeline_stages')
                 .select('id, nome, pipeline_id, phase_id, ordem')
                 .eq('ativo', true)
                 .order('ordem')
+            if (pipelineId) q = q.eq('pipeline_id', pipelineId)
+            const { data, error } = await q
             if (error) throw error
             return data as { id: string; nome: string; pipeline_id: string; phase_id: string; ordem: number }[]
         },

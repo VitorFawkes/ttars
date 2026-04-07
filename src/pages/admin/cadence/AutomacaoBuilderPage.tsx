@@ -62,7 +62,7 @@ export default function AutomacaoBuilderPage() {
             tasks: [],
         },
     ]);
-    const { data: allStages } = usePipelineStages(pipelineId);
+    const { data: allStages } = usePipelineStages();
     const [triggerId, setTriggerId] = useState<string | null>(null);
     const [loading, setLoading] = useState(!isNew);
     const [saving, setSaving] = useState(false);
