@@ -55,9 +55,10 @@ export default function ProductFormModal({ product, onClose }: ProductFormModalP
         setSaving(true)
         try {
             if (isEditing) {
+                const { current_stock: _, ...editFields } = form // eslint-disable-line @typescript-eslint/no-unused-vars
                 await updateProduct.mutateAsync({
                     id: product.id,
-                    ...form,
+                    ...editFields,
                     image_path: imagePath || null,
                 })
                 toast.success('Produto atualizado')

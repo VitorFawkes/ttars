@@ -429,9 +429,14 @@ Deno.serve(async (req) => {
                     const email = payload['contact[email]'] || payload.email;
                     const phone = payload['contact[phone]'] || payload.phone;
 
-                    // Use separate fields for nome and sobrenome
-                    const nome = firstName.trim() || 'Sem Nome';
-                    const sobrenome = lastName.trim() || null;
+                    // Se last_name vazio mas first_name tem múltiplas palavras, splittar
+                    let nome = firstName.trim() || 'Sem Nome';
+                    let sobrenome = lastName.trim() || null;
+                    if (!sobrenome && nome !== 'Sem Nome' && nome.includes(' ')) {
+                        const parts = nome.split(/\s+/);
+                        nome = parts[0];
+                        sobrenome = parts.slice(1).join(' ');
+                    }
 
                     if (!acContactId) {
                         stats.ignored++;
@@ -1032,8 +1037,14 @@ Deno.serve(async (req) => {
                 // Build contact name from first_name + last_name - keep separate
                 const acFirstName = payload['contact[first_name]'] || payload.contact_first_name || payload['deal[contact_firstname]'] || '';
                 const acLastName = payload['contact[last_name]'] || payload.contact_last_name || payload['deal[contact_lastname]'] || '';
-                const contactNome = acFirstName.trim() || payload.contact_name || payload['deal[contact_name]'] || 'Sem Nome';
-                const contactSobrenome = acLastName.trim() || null;
+                // Se last_name vazio mas first_name tem múltiplas palavras, splittar
+                let contactNome = acFirstName.trim() || payload.contact_name || payload['deal[contact_name]'] || 'Sem Nome';
+                let contactSobrenome = acLastName.trim() || null;
+                if (!contactSobrenome && contactNome !== 'Sem Nome' && contactNome.includes(' ')) {
+                    const parts = contactNome.split(/\s+/);
+                    contactNome = parts[0];
+                    contactSobrenome = parts.slice(1).join(' ');
+                }
                 const contactPhone = payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
                 const acContactId = payload['deal[contactid]'] || payload.contactid || payload.contact_id;
 

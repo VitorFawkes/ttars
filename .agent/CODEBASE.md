@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 141 tabelas | 56 paginas | 108 hooks | 17 views | 443 components
+> **Stats:** 143 tabelas | 56 paginas | 108 hooks | 17 views | 443 components
 
 ---
 
