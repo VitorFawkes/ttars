@@ -306,3 +306,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T19:08:33Z | supabase/migrations/20260408_proposals_v2_provider_cache.sql | applied_to_prod
 2026-04-07T19:08:46Z | supabase/migrations/20260408_save_client_selection_rpc.sql | applied_to_prod
 2026-04-07T19:08:56Z | supabase/migrations/20260408_proposal_trip_plans.sql | applied_to_prod
+2026-04-07T20:54:12Z | supabase/migrations/20260408_fix_record_card_open_org_check.sql | applied_to_prod

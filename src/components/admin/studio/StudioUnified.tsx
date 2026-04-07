@@ -92,13 +92,20 @@ export default function StudioUnified() {
     const { data: phasesData } = usePipelinePhases(pipelineId)
     const phases = useMemo(() => phasesData || [], [phasesData])
 
-    const { data: fields, isLoading: loadingFields } = useQuery({
+    const { data: allFieldsRaw, isLoading: loadingFields } = useQuery({
         queryKey: ['system-fields-unified'],
         queryFn: async () => {
             const { data } = await supabase.from('system_fields').select('*').order('section').order('order_index').order('label')
             return data as SystemField[]
         }
     })
+
+    // Filtrar campos pelas seções do produto atual
+    const fields = useMemo(() => {
+        if (!allFieldsRaw) return undefined
+        const sectionKeys = new Set(sectionsData.map(s => s.key))
+        return allFieldsRaw.filter(f => !f.section || sectionKeys.has(f.section))
+    }, [allFieldsRaw, sectionsData])
 
     const { data: configs } = useQuery({
         queryKey: ['stage-field-configs-unified'],

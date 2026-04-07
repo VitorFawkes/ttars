@@ -2,6 +2,9 @@ import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { Loader2, Eye, EyeOff, CheckSquare, Square, LayoutTemplate } from 'lucide-react'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
+import { useProductContext } from '../../../hooks/useProductContext'
+import { useSections } from '../../../hooks/useSections'
 import type { Database } from '../../../database.types'
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row']
@@ -10,12 +13,17 @@ type StageFieldConfig = Database['public']['Tables']['stage_field_config']['Row'
 
 export default function StudioLayout() {
     const queryClient = useQueryClient()
+    const { pipelineId } = useCurrentProductMeta()
+    const { currentProduct } = useProductContext()
+    const { data: productSections = [] } = useSections(currentProduct)
 
-    // Fetch Data
+    // Fetch Data — filtrado pelo pipeline do produto atual
     const { data: stages, isLoading: loadingStages } = useQuery({
-        queryKey: ['pipeline-stages-layout'],
+        queryKey: ['pipeline-stages-layout', pipelineId],
         queryFn: async () => {
-            const { data } = await supabase.from('pipeline_stages').select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)').order('ordem')
+            let q = supabase.from('pipeline_stages').select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index)').order('ordem')
+            if (pipelineId) q = q.eq('pipeline_id', pipelineId)
+            const { data } = await q
             // Sort by phase order_index then stage ordem
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const sorted = (data || []).sort((a: any, b: any) => {
@@ -28,13 +36,20 @@ export default function StudioLayout() {
         }
     })
 
-    const { data: fields, isLoading: loadingFields } = useQuery({
+    const { data: allFields, isLoading: loadingFields } = useQuery({
         queryKey: ['system-fields-layout'],
         queryFn: async () => {
             const { data } = await supabase.from('system_fields').select('*').eq('active', true).order('section').order('label')
             return data as SystemField[]
         }
     })
+
+    // Filtrar campos pelas seções do produto atual
+    const fields = useMemo(() => {
+        if (!allFields) return undefined
+        const sectionKeys = new Set(productSections.map(s => s.key))
+        return allFields.filter(f => !f.section || sectionKeys.has(f.section))
+    }, [allFields, productSections])
 
     const { data: configs, isLoading: loadingConfigs } = useQuery({
         queryKey: ['stage-field-configs'],

@@ -17,6 +17,8 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
 import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
+import { useProductContext } from '../../../hooks/useProductContext'
+import { useSections } from '../../../hooks/useSections'
 import { Button } from '../../ui/Button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -74,6 +76,8 @@ export const SPECIAL_RULES = [
 export default function GovernanceConsole() {
     const queryClient = useQueryClient()
     const { pipelineId } = useCurrentProductMeta()
+    const { currentProduct } = useProductContext()
+    const { data: productSections = [] } = useSections(currentProduct)
     const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
     const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set())
     const [isReplicating, setIsReplicating] = useState(false)
@@ -128,8 +132,8 @@ export default function GovernanceConsole() {
         enabled: stageIds.length > 0
     })
 
-    // 2.5 Fetch System Fields (with section for grouping)
-    const { data: systemFields } = useQuery({
+    // 2.5 Fetch System Fields (with section for grouping) — filtrado por produto
+    const { data: systemFieldsRaw } = useQuery({
         queryKey: ['system-fields-governance'],
         queryFn: async () => {
             const { data } = await supabase
@@ -140,6 +144,13 @@ export default function GovernanceConsole() {
             return data || []
         }
     })
+
+    const systemFields = useMemo(() => {
+        if (!systemFieldsRaw) return systemFieldsRaw
+        if (productSections.length === 0) return systemFieldsRaw
+        const sectionKeys = new Set(productSections.map(s => s.key))
+        return systemFieldsRaw.filter(f => !f.section || sectionKeys.has(f.section))
+    }, [systemFieldsRaw, productSections])
 
     // 3. Fetch Dynamic Task Types
     const { data: taskTypes } = useQuery({
@@ -168,17 +179,10 @@ export default function GovernanceConsole() {
         }
     })
 
-    // 3.5 Fetch Sections for Grouping
-    const { data: sections } = useQuery({
-        queryKey: ['sections-governance'],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('sections')
-                .select('key, label, order_index')
-                .order('order_index')
-            return data || []
-        }
-    })
+    // 3.5 Sections for Grouping — usa productSections já filtrado por produto
+    const sections = useMemo(() =>
+        productSections.map(s => ({ key: s.key, label: s.label, order_index: s.order_index }))
+    , [productSections])
 
     // Mutations
     const insertMutation = useMutation({

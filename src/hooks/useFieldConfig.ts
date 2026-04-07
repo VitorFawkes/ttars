@@ -76,25 +76,30 @@ export function useFieldConfig() {
         queryFn: async () => {
             const { data } = await supabase
                 .from('pipeline_stages')
-                .select('id, phase_id')
-            return data as { id: string; phase_id: string | null }[] | null
+                .select('id, phase_id, pipeline_id')
+            return data as { id: string; phase_id: string | null; pipeline_id: string | null }[] | null
         },
         staleTime: 1000 * 60 * 5
     })
 
     // Build phase → stages mapping for fallback lookups
-    const { stageToPhase, phaseToStages } = useMemo(() => {
+    // Agrupa por phase_id+pipeline_id para não herdar configs cross-pipeline
+    const { stageToPhase, phaseToStages, stageToPipeline } = useMemo(() => {
         const s2p = new Map<string, string>()
+        const s2pip = new Map<string, string>()
         const p2s = new Map<string, string[]>()
-        if (!pipelineStages) return { stageToPhase: s2p, phaseToStages: p2s }
+        if (!pipelineStages) return { stageToPhase: s2p, phaseToStages: p2s, stageToPipeline: s2pip }
         for (const stage of pipelineStages) {
             if (!stage.phase_id) continue
             s2p.set(stage.id, stage.phase_id)
-            const arr = p2s.get(stage.phase_id) || []
+            if (stage.pipeline_id) s2pip.set(stage.id, stage.pipeline_id)
+            // Chave composta phase+pipeline para não misturar pipelines
+            const key = `${stage.phase_id}|${stage.pipeline_id || ''}`
+            const arr = p2s.get(key) || []
             arr.push(stage.id)
-            p2s.set(stage.phase_id, arr)
+            p2s.set(key, arr)
         }
-        return { stageToPhase: s2p, phaseToStages: p2s }
+        return { stageToPhase: s2p, phaseToStages: p2s, stageToPipeline: s2pip }
     }, [pipelineStages])
 
     const isLoading = loadingFields || loadingConfigs || loadingSectionDefaults || loadingStages
@@ -117,8 +122,10 @@ export function useFieldConfig() {
         // If siblings diverge, skip fallback to avoid arbitrary results.
         if (!stageConfig && stageConfigs) {
             const phaseId = stageToPhase.get(stageId)
+            const pipeId = stageToPipeline.get(stageId)
             if (phaseId) {
-                const siblingIds = phaseToStages.get(phaseId) || []
+                const key = `${phaseId}|${pipeId || ''}`
+                const siblingIds = phaseToStages.get(key) || []
                 const sibConfigs = siblingIds
                     .filter(id => id !== stageId)
                     .map(id => stageConfigs.find(c => c.stage_id === id && c.field_key === fieldKey))
@@ -156,7 +163,7 @@ export function useFieldConfig() {
             customLabel: stageConfig?.custom_label,
             options: field.options
         }
-    }, [systemFields, stageConfigs, sectionFieldConfigs, stageToPhase, phaseToStages])
+    }, [systemFields, stageConfigs, sectionFieldConfigs, stageToPhase, phaseToStages, stageToPipeline])
 
     // Helper: Get all visible fields for a stage, optionally filtered by section
     const getVisibleFields = useCallback((stageId: string, section?: string): FieldConfigResult[] => {

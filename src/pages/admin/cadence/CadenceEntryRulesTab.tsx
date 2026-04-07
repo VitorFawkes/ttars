@@ -166,19 +166,21 @@ export function CadenceEntryRulesTab() {
         stage_enter: true
     });
 
-    // Fetch existing entry rules
+    // Fetch existing entry rules — filtradas pelo pipeline do produto atual
     const { data: rules, isLoading: rulesLoading } = useQuery({
-        queryKey: ['cadence-entry-rules'],
+        queryKey: ['cadence-entry-rules', pipelineId],
         queryFn: async () => {
             const { data, error } = await (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('cadence_event_triggers' as any) as any)
                 .select('*')
                 .in('event_type', ['card_created', 'stage_enter'])
+                .or(`applicable_pipeline_ids.is.null,applicable_pipeline_ids.cs.{${pipelineId}}`)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return data as EntryRule[];
-        }
+        },
+        enabled: !!pipelineId,
     });
 
     // Fetch cadence templates
@@ -196,14 +198,13 @@ export function CadenceEntryRulesTab() {
         }
     });
 
-    // Fetch pipelines
+    // Fetch pipelines — filtrado pelo produto atual
     const { data: pipelines } = useQuery({
-        queryKey: ['pipelines'],
+        queryKey: ['pipelines', pipelineId],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('pipelines')
-                .select('id, nome, produto')
-                .order('nome');
+            let q = supabase.from('pipelines').select('id, nome, produto').order('nome')
+            if (pipelineId) q = q.eq('id', pipelineId)
+            const { data, error } = await q;
             if (error) throw error;
             return data as Pipeline[];
         }
