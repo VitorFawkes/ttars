@@ -50,8 +50,8 @@ import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
-import TripDateConfirmModal from './TripDateConfirmModal'
-import { usePosVendaAlert } from '../../hooks/usePosVendaAlert'
+import FieldConfirmationModal from './FieldConfirmationModal'
+import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
 import SendAlertModal from './SendAlertModal'
 import { useStageRequirements, type FieldRequirement, type ProposalRequirement, type TaskRequirement, type DocumentRequirement } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -382,8 +382,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
-    const [tripDateModalOpen, setTripDateModalOpen] = useState(false)
-    const [pendingTripDate, setPendingTripDate] = useState<{ start?: string; end?: string } | null>(null)
+    const [fieldConfirmationModalOpen, setFieldConfirmationModalOpen] = useState(false)
+    const [pendingConfirmationFields, setPendingConfirmationFields] = useState<StageFieldConfirmation[]>([])
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
         targetStageName: string,
@@ -457,7 +457,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         }
     })
 
-    const { shouldShowAlert: shouldShowTripDateAlert } = usePosVendaAlert(stages, phasesData)
+    const { getForStage: getFieldConfirmationsForStage } = useStageFieldConfirmations()
 
     // Derived fields
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
@@ -680,16 +680,15 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             return
         }
 
-        // 3. Trip date confirmation for pos-venda entry
-        if (shouldShowTripDateAlert(stageId)) {
-            const produtoData = card.produto_data as Record<string, unknown> | null
-            const dateValue = produtoData?.data_exata_da_viagem || null
-            setPendingTripDate(dateValue && typeof dateValue === 'object' ? dateValue as { start?: string; end?: string } : null)
+        // 3. Field confirmations configuradas pelo admin (generaliza o antigo trip date alert)
+        const confirmations = getFieldConfirmationsForStage(stageId)
+        if (confirmations.length > 0) {
+            setPendingConfirmationFields(confirmations)
             setPendingStageChange({
                 stageId,
                 targetStageName: stageName,
             })
-            setTripDateModalOpen(true)
+            setFieldConfirmationModalOpen(true)
             setShowStageDropdown(false)
             return
         }
@@ -703,33 +702,11 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
     // Status é controlado exclusivamente pelos RPCs: marcar_ganho, marcar_perdido, reabrir_card
 
-    const handleConfirmTripDate = async (updatedDate?: { start: string; end: string }) => {
+    const handleFieldConfirmationConfirm = () => {
         if (!pendingStageChange) return
-
-        if (updatedDate) {
-            try {
-                const prodData = (card.produto_data as Record<string, unknown>) || {}
-                await supabase
-                    .from('cards')
-                    .update({
-                        produto_data: { ...prodData, data_exata_da_viagem: updatedDate }
-                    })
-                    .eq('id', card.id)
-                // Lock para não auto-calcular sobre a edição manual
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const locked = (card as any).locked_fields || {}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase.from('cards') as any)
-                    .update({ locked_fields: { ...locked, data_exata_da_viagem: true } })
-                    .eq('id', card.id)
-            } catch (err) {
-                console.error('Erro ao salvar data de viagem:', err)
-            }
-        }
-
         updateStageMutation.mutate(pendingStageChange.stageId)
-        setTripDateModalOpen(false)
-        setPendingTripDate(null)
+        setFieldConfirmationModalOpen(false)
+        setPendingConfirmationFields([])
         setPendingStageChange(null)
     }
 
@@ -1735,16 +1712,17 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 cardTitle={card.titulo || undefined}
             />
 
-            <TripDateConfirmModal
-                isOpen={tripDateModalOpen}
+            <FieldConfirmationModal
+                isOpen={fieldConfirmationModalOpen}
                 onClose={() => {
-                    setTripDateModalOpen(false)
-                    setPendingTripDate(null)
+                    setFieldConfirmationModalOpen(false)
+                    setPendingConfirmationFields([])
                     setPendingStageChange(null)
                 }}
-                onConfirm={handleConfirmTripDate}
-                currentDate={pendingTripDate}
-                cardName={card.titulo || undefined}
+                onConfirm={handleFieldConfirmationConfirm}
+                card={card}
+                targetStageName={pendingStageChange?.targetStageName || ''}
+                fields={pendingConfirmationFields}
             />
 
             <SendAlertModal

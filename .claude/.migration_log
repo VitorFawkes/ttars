@@ -296,3 +296,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T12:10:32Z | supabase/migrations/20260407_fix_criar_card_echo_tipo_viajante.sql | applied_to_prod
 2026-04-07T12:14:22Z | supabase/migrations/20260407_fix_criar_card_echo_remove_cards_contatos.sql | applied_to_prod
 2026-04-07T12:51:03Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260407_cadence_entry_multi_tasks.sql | applied_to_prod
+2026-04-07T14:04:01Z | supabase/migrations/20260408_stage_field_confirmations.sql | applied_to_staging
+2026-04-07T14:11:00Z | supabase/migrations/20260408_stage_field_confirmations.sql | applied_to_prod

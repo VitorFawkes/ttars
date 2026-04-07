@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-06
+> **Last Updated:** 2026-04-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 140 tabelas | 54 paginas | 105 hooks | 17 views | 440 components
+> **Stats:** 140 tabelas | 54 paginas | 105 hooks | 17 views | 441 components
 
 ---
 
@@ -243,7 +243,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
-| `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
 | `useProductScopedSettings()` | `useProductScopedSettings.ts` |
@@ -280,6 +279,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePipelines()` | `usePipelines.ts` |
 | `useRecordCardOpen()` | `useRecordCardOpen.ts` |
 | `useSeenCards()` | `useSeenCards.ts` |
+| `useStageFieldConfirmations()` | `useStageFieldConfirmations.ts` |
 | `useStageRequirements()` | `useStageRequirements.ts` |
 | `useStageSectionConfig()` | `useStageSectionConfig.ts` |
 | `useSubCards()` | `useSubCards.ts` |

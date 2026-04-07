@@ -8,6 +8,7 @@ import { useProductContext } from '../../../hooks/useProductContext';
 import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta';
 import { useSections } from '../../../hooks/useSections';
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig';
+import StageFieldConfirmationsPanel from './StageFieldConfirmationsPanel';
 import type { Database } from '../../../database.types';
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row'];
@@ -24,7 +25,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
     const queryClient = useQueryClient();
     const { currentProduct } = useProductContext();
     const { pipelineId } = useCurrentProductMeta();
-    const [activeTab, setActiveTab] = useState<'general' | 'data'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'data' | 'confirmations'>('general');
 
     // Local state for stage details
     const [formData, setFormData] = useState<Partial<PipelineStage>>({});
@@ -213,11 +214,22 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                     >
                         Coleta de Dados
                     </button>
+                    <button
+                        onClick={() => setActiveTab('confirmations')}
+                        className={cn(
+                            "py-3 px-4 text-sm font-medium border-b-2 transition-colors",
+                            activeTab === 'confirmations' ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"
+                        )}
+                    >
+                        Confirmações
+                    </button>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    {activeTab === 'general' ? (
+                    {activeTab === 'confirmations' && stage ? (
+                        <StageFieldConfirmationsPanel stageId={stage.id} produto={currentProduct} />
+                    ) : activeTab === 'general' ? (
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Etapa</label>
