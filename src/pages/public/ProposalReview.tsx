@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
 import { Button } from '@/components/ui/Button'
@@ -10,7 +10,9 @@ import {
     ArrowLeft,
     ChevronDown,
     ChevronUp,
-    FileCheck
+    FileCheck,
+    ToggleLeft,
+    ToggleRight,
 } from 'lucide-react'
 
 export default function ProposalReview() {
@@ -21,16 +23,54 @@ export default function ProposalReview() {
     const [termsAccepted, setTermsAccepted] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showTerms, setShowTerms] = useState(false)
+    // Seleções: map de item_id → boolean (se o cliente marcou/desmarcou)
+    const [selections, setSelections] = useState<Record<string, boolean>>({})
 
     const version = proposal?.active_version
-    const sections = version?.sections || []
+    const sections = useMemo(() => version?.sections || [], [version?.sections])
 
-    // Calculate totals (simplified - in real app would use selections from state)
+    // Inicializar seleções a partir dos defaults quando a proposta carrega
+    useEffect(() => {
+        if (!sections.length) return
+        const initial: Record<string, boolean> = {}
+        sections.forEach(section => {
+            section.items.forEach(item => {
+                // Itens obrigatórios são sempre selecionados
+                // Itens opcionais usam is_default_selected como valor inicial
+                initial[item.id] = item.is_optional ? !!item.is_default_selected : true
+            })
+        })
+        setSelections(initial)
+    }, [proposal?.id, sections])
+
+    // Verificar se item está selecionado
+    const isItemSelected = useCallback((itemId: string, isOptional: boolean, defaultSelected: boolean) => {
+        if (!isOptional) return true // obrigatórios são sempre incluídos
+        return selections[itemId] ?? defaultSelected
+    }, [selections])
+
+    // Toggle de seleção do item e persistir via RPC
+    const toggleSelection = useCallback(async (itemId: string) => {
+        const previousValue = selections[itemId]
+        const newValue = !previousValue
+        setSelections(prev => ({ ...prev, [itemId]: newValue }))
+
+        // Persistir no backend de forma fire-and-forget (não bloquear UI)
+        // Cast necessário: RPC existe no banco mas database.types.ts ainda não foi regenerado
+        ;(supabase.rpc as unknown as (fn: string, params: Record<string, unknown>) => Promise<{ error: Error | null }>)(
+            'save_client_selection',
+            { p_token: token!, p_item_id: itemId, p_selected: newValue },
+        ).then(({ error: rpcError }) => {
+            if (rpcError) console.warn('Erro ao salvar seleção:', rpcError)
+        })
+    }, [selections, token])
+
+    // Calculate totals com base nas seleções do cliente
     const calculateTotal = () => {
         let total = 0
         sections.forEach(section => {
             section.items.forEach(item => {
-                if (!item.is_optional || item.is_default_selected) {
+                if (isItemSelected(item.id, !!item.is_optional, !!item.is_default_selected)) {
                     total += Number(item.base_price) || 0
                 }
             })
@@ -57,13 +97,15 @@ export default function ProposalReview() {
 
             if (updateError) throw updateError
 
-            // Log event
+            // Log event com seleções finais
             await supabase.from('proposal_events').insert({
                 proposal_id: proposal.id,
                 event_type: 'proposal_accepted',
                 payload: {
                     token,
                     accepted_at: new Date().toISOString(),
+                    accepted_total: calculateTotal(),
+                    selections,
                 },
                 user_agent: navigator.userAgent,
             })
@@ -135,22 +177,37 @@ export default function ProposalReview() {
                                 <h3 className="font-medium text-sm text-slate-700 mb-2">{section.title}</h3>
                                 <div className="space-y-2">
                                     {section.items.map(item => {
-                                        const isIncluded = !item.is_optional || item.is_default_selected
+                                        const isOptional = !!item.is_optional
+                                        const isIncluded = isItemSelected(item.id, isOptional, !!item.is_default_selected)
+
                                         return (
                                             <div
                                                 key={item.id}
-                                                className={`flex items-center justify-between text-sm ${isIncluded ? 'text-slate-900' : 'text-slate-400 line-through'
-                                                    }`}
+                                                className={`flex items-center justify-between text-sm ${
+                                                    isIncluded ? 'text-slate-900' : 'text-slate-400'
+                                                } ${isOptional ? 'cursor-pointer hover:bg-slate-50 -mx-2 px-2 py-1 rounded-lg transition-colors' : ''}`}
+                                                onClick={isOptional ? () => toggleSelection(item.id) : undefined}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    {isIncluded ? (
-                                                        <Check className="h-4 w-4 text-green-500" />
+                                                    {isOptional ? (
+                                                        isIncluded ? (
+                                                            <ToggleRight className="h-5 w-5 text-green-500 shrink-0" />
+                                                        ) : (
+                                                            <ToggleLeft className="h-5 w-5 text-slate-300 shrink-0" />
+                                                        )
                                                     ) : (
-                                                        <span className="w-4 h-4" />
+                                                        <Check className="h-4 w-4 text-green-500 shrink-0" />
                                                     )}
-                                                    <span>{item.title}</span>
+                                                    <span className={!isIncluded && isOptional ? 'line-through' : ''}>
+                                                        {item.title}
+                                                    </span>
+                                                    {isOptional && (
+                                                        <span className="text-xs text-slate-400 font-normal">
+                                                            (opcional)
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <span className="font-medium">
+                                                <span className={`font-medium ${!isIncluded ? 'line-through' : ''}`}>
                                                     {formatPrice(Number(item.base_price))}
                                                 </span>
                                             </div>

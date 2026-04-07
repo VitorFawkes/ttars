@@ -110,6 +110,7 @@ export default function ProductGrid() {
                                     <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{product.category}</span>
                                     <span className="text-sm font-medium text-slate-700">{formatBRL(product.unit_price)}</span>
                                 </div>
+                                {/* Stepper inline: -  [número clicável]  + */}
                                 <div className="flex items-center gap-1">
                                     <button
                                         onClick={e => handleQuickAdjust(e, product, -1)}
@@ -120,9 +121,10 @@ export default function ProductGrid() {
                                     </button>
                                     <button
                                         onClick={e => { e.stopPropagation(); setAdjustingProduct(product) }}
-                                        className="flex-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium py-1.5 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                                        className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-slate-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
                                     >
-                                        Ajustar
+                                        <span className="text-sm font-semibold text-slate-900 tabular-nums">{product.current_stock}</span>
+                                        <span className="text-[10px] text-slate-400">un.</span>
                                     </button>
                                     <button
                                         onClick={e => handleQuickAdjust(e, product, 1)}
