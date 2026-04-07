@@ -148,7 +148,7 @@ export function HotelCatalogPicker({ onImport }: HotelCatalogPickerProps) {
                         {/* Description */}
                         {hotel.description && (
                             <p className="text-sm text-slate-600 leading-relaxed line-clamp-4">
-                                {hotel.description}
+                                {stripHtml(hotel.description)}
                             </p>
                         )}
 
@@ -294,4 +294,8 @@ export function HotelCatalogPicker({ onImport }: HotelCatalogPickerProps) {
             )}
         </div>
     )
+}
+
+function stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim()
 }
