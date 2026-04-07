@@ -80,7 +80,7 @@ export function useTripPlan(proposalId: string | undefined) {
         queryFn: async (): Promise<TripPlan | null> => {
             const { data, error } = await (supabase.from as any)('proposal_trip_plans')
                 .select('*')
-                .eq('proposal_id', proposalId!)
+                .eq('proposal_id', proposalId)
                 .maybeSingle()
 
             if (error) throw error

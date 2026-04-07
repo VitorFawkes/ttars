@@ -48,10 +48,11 @@ export interface HotelDetailsResult {
  */
 export function useHotelSearch(query: string, opts?: { country?: string; enabled?: boolean }) {
     const trimmed = query.trim()
+    const country = opts?.country
     const enabled = (opts?.enabled ?? true) && trimmed.length >= 3
 
     return useQuery({
-        queryKey: ['hotel-search', trimmed, opts?.country],
+        queryKey: ['hotel-search', trimmed, country],
         queryFn: async (): Promise<HotelSearchResult[]> => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) throw new Error('Não autenticado')

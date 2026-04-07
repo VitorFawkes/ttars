@@ -25,7 +25,6 @@ import {
 
 interface FlightLookupPickerProps {
     onImport: (flight: FlightLookupResult) => void
-    onCancel: () => void
 }
 
 export function FlightLookupPicker({ onImport }: FlightLookupPickerProps) {

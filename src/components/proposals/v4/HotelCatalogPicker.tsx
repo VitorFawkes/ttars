@@ -30,7 +30,6 @@ import {
 
 interface HotelCatalogPickerProps {
     onImport: (hotel: HotelDetailsResult) => void
-    onCancel: () => void
 }
 
 export function HotelCatalogPicker({ onImport }: HotelCatalogPickerProps) {
@@ -85,6 +84,7 @@ export function HotelCatalogPicker({ onImport }: HotelCatalogPickerProps) {
                                         i === 0 && "col-span-2 row-span-2 h-full"
                                     )}
                                     loading="lazy"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                                 />
                             ))}
                         </div>
