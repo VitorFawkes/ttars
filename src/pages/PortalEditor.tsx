@@ -56,13 +56,18 @@ export default function PortalEditor() {
         useSensor(KeyboardSensor)
     )
 
-    // Initialize editor when data loads
+    // Initialize editor when data loads (run once when tripPlan loads)
+    const [initialized, setInitialized] = useState(false)
     useEffect(() => {
-        if (tripPlan?.id && proposalId) {
+        if (tripPlan?.id && proposalId && !loadingBlocks && !initialized) {
             initialize(tripPlan.id, proposalId, blocks)
+            setInitialized(true)
         }
+    }, [tripPlan?.id, proposalId, loadingBlocks]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
         return () => reset()
-    }, [tripPlan?.id, proposalId, blocks, initialize, reset])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // DnD handlers
     const handleDragStart = useCallback((event: DragStartEvent) => {
