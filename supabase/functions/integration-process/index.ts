@@ -1158,6 +1158,8 @@ Deno.serve(async (req) => {
 
                     // DEDUP: If no card found by AC external_id, check if contact already has an active card
                     // (e.g., created by WhatsApp auto-create before the AC deal was synced)
+                    // GUARD: Only link if the existing card has NO AC deal linked (avoid stealing
+                    // cards that belong to a different AC deal of the same contact)
                     if (!existingCard && contactId) {
                         const { data: contactCard } = await supabase
                             .from('cards')
@@ -1170,13 +1172,20 @@ Deno.serve(async (req) => {
                             .single();
 
                         if (contactCard) {
-                            existingCard = contactCard;
-                            // Link the AC deal to the existing card so future updates find it directly
-                            await supabase.from('cards').update({
-                                external_id: dealId,
-                                external_source: 'active_campaign'
-                            }).eq('id', contactCard.id);
-                            console.log(`[DEDUP] Linked AC deal ${dealId} to existing card ${contactCard.id} (was created by ${contactCard.external_source || 'whatsapp'})`);
+                            const hasOtherAcDeal = contactCard.external_source === 'active_campaign'
+                                && contactCard.external_id
+                                && contactCard.external_id !== dealId;
+
+                            if (hasOtherAcDeal) {
+                                console.log(`[DEDUP_SKIP] Contact ${contactId} already has card ${contactCard.id} linked to AC deal ${contactCard.external_id} — creating new card for deal ${dealId}`);
+                            } else {
+                                existingCard = contactCard;
+                                await supabase.from('cards').update({
+                                    external_id: dealId,
+                                    external_source: 'active_campaign'
+                                }).eq('id', contactCard.id);
+                                console.log(`[DEDUP] Linked AC deal ${dealId} to existing card ${contactCard.id} (was created by ${contactCard.external_source || 'whatsapp'})`);
+                            }
                         }
                     }
 
