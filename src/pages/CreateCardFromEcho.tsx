@@ -18,9 +18,13 @@ export default function CreateCardFromEcho() {
     const { profile } = useAuth()
     const [error, setError] = useState<string | null>(null)
 
+    // Strip {}, {{}} e detectar templates não resolvidos do Echo (ex: {{contact.name}})
     const stripBraces = (v: string | null | undefined): string => {
         if (!v) return ''
-        return v.replace(/^\{/, '').replace(/\}$/, '').trim()
+        const cleaned = v.replace(/^\{+/, '').replace(/\}+$/, '').trim()
+        // Template não resolvido: "contact.name", "conversation.id", etc.
+        if (/^[a-z_]+\.[a-z_]+$/i.test(cleaned)) return ''
+        return cleaned
     }
     const onlyDigits = (v: string): string => v.replace(/\D/g, '')
 
@@ -49,7 +53,8 @@ export default function CreateCardFromEcho() {
     const nome = stripBraces(searchParams.get('nome'))
     const agentEmail = stripBraces(searchParams.get('agent_email'))
 
-    const missingConversation = !conversationId
+    const cleanConversationId = stripBraces(conversationId)
+    const missingConversation = !cleanConversationId
 
     useEffect(() => {
         if (missingConversation) return
@@ -64,7 +69,7 @@ export default function CreateCardFromEcho() {
                 const { data: contato } = await supabase
                     .from('contatos')
                     .select('nome, sobrenome, telefone')
-                    .eq('last_whatsapp_conversation_id', conversationId!)
+                    .eq('last_whatsapp_conversation_id', cleanConversationId!)
                     .limit(1)
                     .maybeSingle()
 
@@ -90,7 +95,7 @@ export default function CreateCardFromEcho() {
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC ainda não regenerada nos types
             const { data, error: rpcError } = await (supabase as any).rpc('criar_card_de_conversa_echo', {
-                p_conversation_id: conversationId!,
+                p_conversation_id: cleanConversationId!,
                 p_name: finalNome,
                 p_phone: finalPhone,
                 p_phone_number_id: phoneId || null,
@@ -114,9 +119,11 @@ export default function CreateCardFromEcho() {
         }
 
         createCard()
-    }, [missingConversation, conversationId, nome, phone, phoneId, phoneLabel, agentEmail, navigate, rawPhone])
+    }, [missingConversation, cleanConversationId, nome, phone, phoneId, phoneLabel, agentEmail, navigate, rawPhone])
 
-    const displayError = missingConversation ? 'ID da conversa não informado' : error
+    const displayError = missingConversation
+        ? 'O botão do Echo não enviou os dados do contato. Verifique a configuração do botão "Criar Card" no Echo.'
+        : error
 
     if (displayError) {
         return (
