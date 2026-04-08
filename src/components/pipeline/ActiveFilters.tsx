@@ -34,10 +34,29 @@ const ORIGEM_LABELS: Record<string, string> = {
     whatsapp: 'WhatsApp',
 }
 
+const SMART_FIELD_LABELS: Record<string, string> = {
+    data_viagem_inicio: 'Data da Viagem',
+    data_fechamento: 'Data de Fechamento',
+    valor_estimado: 'Valor Estimado',
+    valor_final: 'Valor Final',
+    pessoa_email: 'Email',
+    pessoa_telefone: 'Telefone',
+    origem: 'Origem',
+    dono_atual_id: 'Responsável',
+    destinos: 'Destinos',
+    condicoes_pagamento: 'Cond. Pagamento',
+}
+
+const PRIORIDADE_LABELS: Record<string, string> = {
+    alta: 'Alta',
+    media: 'Média',
+    baixa: 'Baixa',
+}
+
 export function ActiveFilters() {
     const {
         filters: rawFilters, showWonDirect,
-        setFilters, removeFilter, toggleFilterValue,
+        setFilters, removeFilter, toggleFilterValue, updateFilter,
         setShowWonDirect,
     } = usePipelineFilters()
     const filters = rawFilters || {}
@@ -70,6 +89,12 @@ export function ActiveFilters() {
         filters.valorMax != null ||
         filters.diasSemContato != null ||
         filters.diasAteViagem != null ||
+        filters.emptyFields?.length ||
+        filters.filledFields?.length ||
+        filters.closingStartDate ||
+        filters.closingEndDate ||
+        filters.prioridade?.length ||
+        filters.estadoOperacional?.length ||
         showWonDirect
     )
 
@@ -215,6 +240,50 @@ export function ActiveFilters() {
                 {filters.diasAteViagem != null && (
                     <Chip label={`Viagem < ${filters.diasAteViagem}d`} onRemove={() => removeFilter('diasAteViagem')} />
                 )}
+
+                {/* Data de Fechamento */}
+                {(filters.closingStartDate || filters.closingEndDate) && (
+                    <Chip
+                        label={`Fechamento: ${filters.closingStartDate ? format(new Date(filters.closingStartDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'} - ${filters.closingEndDate ? format(new Date(filters.closingEndDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'}`}
+                        onRemove={() => { removeFilter('closingStartDate'); removeFilter('closingEndDate'); }}
+                    />
+                )}
+
+                {/* Prioridade */}
+                {filters.prioridade?.map(p => (
+                    <Chip key={`prio-${p}`} label={`Prioridade: ${PRIORIDADE_LABELS[p] || p}`} onRemove={() => toggleFilterValue('prioridade', p)} />
+                ))}
+
+                {/* Estado Operacional */}
+                {filters.estadoOperacional?.map(e => (
+                    <Chip key={`estado-${e}`} label={`Estado: ${e}`} onRemove={() => toggleFilterValue('estadoOperacional', e)} />
+                ))}
+
+                {/* Campos Preenchidos */}
+                {filters.filledFields?.map(f => (
+                    <Chip
+                        key={`filled-${f}`}
+                        label={`${SMART_FIELD_LABELS[f] || f}: Preenchido`}
+                        variant="green"
+                        onRemove={() => {
+                            const updated = filters.filledFields!.filter(x => x !== f)
+                            updateFilter({ filledFields: updated.length ? updated : undefined })
+                        }}
+                    />
+                ))}
+
+                {/* Campos Vazios */}
+                {filters.emptyFields?.map(f => (
+                    <Chip
+                        key={`empty-${f}`}
+                        label={`${SMART_FIELD_LABELS[f] || f}: Vazio`}
+                        variant="amber"
+                        onRemove={() => {
+                            const updated = filters.emptyFields!.filter(x => x !== f)
+                            updateFilter({ emptyFields: updated.length ? updated : undefined })
+                        }}
+                    />
+                ))}
 
                 <button
                     onClick={clearAll}

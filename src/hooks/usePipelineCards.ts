@@ -220,6 +220,38 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 query = query.or(milestoneConditions)
             }
 
+            // Closing Date Filter
+            if (filters.closingStartDate) {
+                query = query.gte('data_fechamento', filters.closingStartDate)
+            }
+            if (filters.closingEndDate) {
+                query = query.lte('data_fechamento', filters.closingEndDate)
+            }
+
+            // Prioridade Filter
+            if ((filters.prioridade?.length ?? 0) > 0) {
+                query = query.in('prioridade', filters.prioridade)
+            }
+
+            // Estado Operacional Filter
+            if ((filters.estadoOperacional?.length ?? 0) > 0) {
+                query = query.in('estado_operacional', filters.estadoOperacional)
+            }
+
+            // Smart Field Filters — campos preenchidos (NOT NULL)
+            if ((filters.filledFields?.length ?? 0) > 0) {
+                for (const field of filters.filledFields!) {
+                    query = query.not(field, 'is', null)
+                }
+            }
+
+            // Smart Field Filters — campos vazios (IS NULL)
+            if ((filters.emptyFields?.length ?? 0) > 0) {
+                for (const field of filters.emptyFields!) {
+                    query = query.is(field, null)
+                }
+            }
+
             // Archived Filter — esconder cards arquivados do pipeline
             query = query.is('archived_at', null)
 
