@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react'
  *   /cards/echo/criar/:conversationId?nome=...&phone=...&phone_id=...&phone_label=...&agent_email=...
  *
  * Chama RPC criar_card_de_conversa_echo (idempotente) e redireciona para o card.
+ * Se nome/phone não vierem nos query params, busca o contato pelo conversationId.
  */
 export default function CreateCardFromEcho() {
     const { conversationId } = useParams<{ conversationId: string }>()
@@ -15,10 +16,6 @@ export default function CreateCardFromEcho() {
     const navigate = useNavigate()
     const [error, setError] = useState<string | null>(null)
 
-    // Sanitize: strip {...} placeholders e qualquer separador ☎
-    // O Echo (n8n) ocasionalmente envia tudo concatenado em "phone":
-    //   {554...}☎id={uuid}☎label={Linha Y}
-    // Aqui parseamos defensivamente para extrair os valores reais.
     const stripBraces = (v: string | null | undefined): string => {
         if (!v) return ''
         return v.replace(/^\{/, '').replace(/\}$/, '').trim()
@@ -43,32 +40,57 @@ export default function CreateCardFromEcho() {
         if (!phoneLabel && labelMatch) phoneLabel = labelMatch[1].trim()
     }
 
-    // Garantia final: phone só com dígitos (impede gravar lixo no banco)
     phone = onlyDigits(phone)
-    // phone_id costuma ser UUID — manter como veio (sem dígitos puros)
     phoneId = phoneId || ''
     phoneLabel = phoneLabel || ''
 
     const nome = stripBraces(searchParams.get('nome'))
     const agentEmail = stripBraces(searchParams.get('agent_email'))
 
-    const validationError = !conversationId
-        ? 'ID da conversa não informado'
-        : (!nome || !phone)
-            ? 'Dados incompletos: nome e telefone são obrigatórios'
-            : phone.length < 10
-                ? `Telefone inválido (recebido: "${rawPhone}")`
-                : null
+    const missingConversation = !conversationId
 
     useEffect(() => {
-        if (validationError) return
+        if (missingConversation) return
 
         async function createCard() {
+            let finalNome = nome
+            let finalPhone = phone
+
+            // Fallback: se nome ou phone não vieram nos query params,
+            // buscar contato pelo conversationId na tabela contatos
+            if (!finalNome || !finalPhone) {
+                const { data: contato } = await supabase
+                    .from('contatos')
+                    .select('nome, sobrenome, telefone')
+                    .eq('last_whatsapp_conversation_id', conversationId!)
+                    .limit(1)
+                    .maybeSingle()
+
+                if (contato) {
+                    if (!finalNome) {
+                        finalNome = [contato.nome, contato.sobrenome].filter(Boolean).join(' ')
+                    }
+                    if (!finalPhone && contato.telefone) {
+                        finalPhone = onlyDigits(contato.telefone)
+                    }
+                }
+            }
+
+            // Validar após fallback
+            if (!finalNome || !finalPhone) {
+                setError('Dados incompletos: nome e telefone são obrigatórios')
+                return
+            }
+            if (finalPhone.length < 10) {
+                setError(`Telefone inválido (recebido: "${rawPhone}")`)
+                return
+            }
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC ainda não regenerada nos types
             const { data, error: rpcError } = await (supabase as any).rpc('criar_card_de_conversa_echo', {
                 p_conversation_id: conversationId!,
-                p_name: nome,
-                p_phone: phone,
+                p_name: finalNome,
+                p_phone: finalPhone,
                 p_phone_number_id: phoneId || null,
                 p_phone_number_label: phoneLabel || null,
                 p_agent_email: agentEmail || null,
@@ -90,9 +112,9 @@ export default function CreateCardFromEcho() {
         }
 
         createCard()
-    }, [validationError, conversationId, nome, phone, phoneId, phoneLabel, agentEmail, navigate])
+    }, [missingConversation, conversationId, nome, phone, phoneId, phoneLabel, agentEmail, navigate, rawPhone])
 
-    const displayError = validationError || error
+    const displayError = missingConversation ? 'ID da conversa não informado' : error
 
     if (displayError) {
         return (
