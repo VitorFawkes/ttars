@@ -116,7 +116,7 @@ export function PreTripBlock({ data, onChange }: PreTripBlockProps) {
 
     const addCustomTopic = () => {
         if (!newTopicLabel.trim()) return
-        const key = `custom_${Date.now()}`
+        const key = `custom_${crypto.randomUUID().slice(0, 8)}`
         const newCustom = [...customTopics, { key, label: newTopicLabel.trim() }]
         onChange({ ...data, custom_topics: newCustom, topics: [...topics, key] })
         setNewTopicLabel('')
