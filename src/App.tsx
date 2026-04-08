@@ -24,15 +24,9 @@ import ProposalBuilderV4 from './pages/ProposalBuilderV4'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
+import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
-import OverviewView from './components/analytics/views/OverviewView'
-import TeamView from './components/analytics/views/TeamView'
-import FunnelView from './components/analytics/views/FunnelView'
-import SLAView from './components/analytics/views/SLAView'
 import WhatsAppView from './components/analytics/views/WhatsAppView'
-import OperationsView from './components/analytics/views/OperationsView'
-import FinancialView from './components/analytics/views/FinancialView'
-import RetentionView from './components/analytics/views/RetentionView'
 import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
@@ -159,6 +153,7 @@ function App() {
                 <Route path="/legal/dpa" element={<DPA />} />
                 <Route path="/invite/:token" element={<InvitePage />} />
                 <Route path="/p/:token" element={<ProposalView />} />
+                <Route path="/v/:token" element={<TripPortalPublic />} />
                 <Route path="/p/:token/review" element={<ProposalReview />} />
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 
@@ -186,19 +181,13 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />}>
-                    <Route index element={<Navigate to="/analytics/overview" replace />} />
-                    <Route path="overview" element={<OverviewView />} />
+                    <Route index element={<Navigate to="/analytics/pipeline" replace />} />
                     <Route path="pipeline" element={<PipelineCurrentView />} />
-                    <Route path="team" element={<TeamView />} />
-                    <Route path="funnel" element={<FunnelView />} />
-                    <Route path="sla" element={<SLAView />} />
                     <Route path="whatsapp" element={<WhatsAppView />} />
-                    <Route path="operations" element={<OperationsView />} />
-                    <Route path="financial" element={<FinancialView />} />
-                    <Route path="retention" element={<RetentionView />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
+                  <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
 
                   {/* Help Center */}

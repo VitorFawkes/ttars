@@ -34,12 +34,12 @@ import { Loader2, ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 
 export default function PortalEditor() {
-    const { proposalId } = useParams<{ proposalId: string }>()
+    const { proposalId, cardId } = useParams<{ proposalId?: string; cardId?: string }>()
     const navigate = useNavigate()
 
-    // Data fetching
-    const { data: proposal, isLoading: loadingProposal } = useProposal(proposalId!)
-    const { data: tripPlan, isLoading: loadingTripPlan } = useTripPlan(proposalId)
+    // Data fetching — suporta acesso via proposalId OU cardId
+    const { data: proposal, isLoading: loadingProposal } = useProposal(proposalId || '')
+    const { data: tripPlan, isLoading: loadingTripPlan } = useTripPlan(proposalId, cardId)
     const { data: blocks = [], isLoading: loadingBlocks } = useTripPlanBlocks(tripPlan?.id)
 
     // Editor store

@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 147 tabelas | 57 paginas | 114 hooks | 17 views | 462 components
+> **Stats:** 147 tabelas | 58 paginas | 114 hooks | 17 views | 462 components
 
 ---
 
@@ -358,7 +358,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **57 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **58 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -419,6 +419,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |
 | `TripPlanView` | `src/pages/public/TripPlanView.tsx` |
+| `TripPortalPublic` | `src/pages/public/TripPortalPublic.tsx` |
 
 ## 4. UI Component Library
 

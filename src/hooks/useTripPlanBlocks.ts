@@ -32,18 +32,62 @@ export function useTripPlanBlocks(tripPlanId: string | undefined) {
 }
 
 /**
- * Carrega blocos publicados de um portal via token público.
- * Não requer autenticação — usa RPC get_portal_by_token.
+ * Busca trip_plan por card_id (para o editor — operador autenticado).
+ * Retorna null se o card não tem trip_plan.
+ */
+export function useTripPlanByCard(cardId: string | undefined) {
+    return useQuery({
+        queryKey: ['trip-plan-by-card', cardId],
+        queryFn: async () => {
+            if (!cardId) return null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from as any)('proposal_trip_plans')
+                .select('*')
+                .eq('card_id', cardId)
+                .maybeSingle()
+
+            if (error) throw error
+            return data as TripPlanBlock extends never ? null : {
+                id: string
+                card_id: string
+                proposal_id: string | null
+                public_token: string
+                status: string
+                org_id: string
+            } | null
+        },
+        enabled: !!cardId,
+    })
+}
+
+/**
+ * Carrega portal público via token próprio do trip_plan.
+ * Não requer autenticação — usa RPC get_trip_portal_by_token.
+ * Aceita tanto token de proposta (backward compat) quanto token de trip_plan.
  */
 export function usePublicPortal(token: string | undefined) {
     return useQuery({
         queryKey: ['portal-public', token],
         queryFn: async () => {
             if (!token) return null
+
+            // Tentar nova RPC (token do trip_plan)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error } = await (supabase.rpc as any)('get_portal_by_token', {
+            let { data, error } = await (supabase.rpc as any)('get_trip_portal_by_token', {
                 p_token: token,
             })
+
+            // Fallback: tentar RPC antiga (token da proposta) para backward compat
+            if (data?.error && !error) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const fallback = await (supabase.rpc as any)('get_portal_by_token', {
+                    p_token: token,
+                })
+                if (!fallback.error && !fallback.data?.error) {
+                    data = fallback.data
+                    error = fallback.error
+                }
+            }
 
             if (error) throw error
             if (data?.error) return null

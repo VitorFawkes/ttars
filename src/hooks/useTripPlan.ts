@@ -73,23 +73,27 @@ export function usePublicTripPlan(token: string) {
 }
 
 /**
- * Busca trip plan por proposal_id (para o editor interno do operador).
+ * Busca trip plan por proposal_id OU card_id (para o editor interno).
+ * Prioriza proposalId se ambos forem fornecidos.
  */
-export function useTripPlan(proposalId: string | undefined) {
+export function useTripPlan(proposalId: string | undefined, cardId?: string) {
+    const filterField = proposalId ? 'proposal_id' : 'card_id'
+    const filterValue = proposalId || cardId
+
     return useQuery({
-        queryKey: ['trip-plan', proposalId],
+        queryKey: ['trip-plan', filterField, filterValue],
         queryFn: async (): Promise<TripPlan | null> => {
-            if (!proposalId) return null
+            if (!filterValue) return null
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from as any)('proposal_trip_plans')
                 .select('*')
-                .eq('proposal_id', proposalId)
+                .eq(filterField, filterValue)
                 .maybeSingle()
 
             if (error) throw error
             return data as TripPlan | null
         },
-        enabled: !!proposalId,
+        enabled: !!filterValue,
     })
 }
 
