@@ -175,7 +175,7 @@ function BlockPreview({ block }: { block: { block_type: string; data: Record<str
                 </div>
             )
 
-        case 'checklist':
+        case 'checklist': {
             const items = Array.isArray(block.data.items) ? block.data.items : []
             return (
                 <div className="space-y-1">
@@ -197,6 +197,7 @@ function BlockPreview({ block }: { block: { block_type: string; data: Record<str
                     ))}
                 </div>
             )
+        }
 
         default:
             return null
