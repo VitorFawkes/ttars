@@ -35,8 +35,8 @@ interface GiftStats {
     overdue: GiftOverdue[]
 }
 
-function daysUntil(dateStr: string): number {
-    const diff = new Date(dateStr).getTime() - Date.now()
+function daysUntil(dateStr: string, now: number): number {
+    const diff = new Date(dateStr).getTime() - now
     return Math.ceil(diff / 86400000)
 }
 
@@ -294,7 +294,7 @@ export default function OperationsView() {
                                 </tr>
                             ) : (
                                 readinessTrips.map((trip) => {
-                                    const days = daysUntil(trip.data_viagem_inicio)
+                                    const days = daysUntil(trip.data_viagem_inicio, now)
                                     const isOffTrack = trip.prods_ready < trip.prods_total && days < 7
                                     return (
                                         <tr
