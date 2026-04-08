@@ -26,8 +26,11 @@ import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
-import WhatsAppView from './components/analytics/views/WhatsAppView'
 import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
+import WhatsAppView from './components/analytics/views/WhatsAppView'
+import SalesFunnelView from './components/analytics/views/SalesFunnelView'
+import TeamAnalyticsView from './components/analytics/views/TeamAnalyticsView'
+import OperationsView from './components/analytics/views/OperationsView'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
@@ -186,6 +189,9 @@ function App() {
                     <Route index element={<Navigate to="/analytics/pipeline" replace />} />
                     <Route path="pipeline" element={<PipelineCurrentView />} />
                     <Route path="whatsapp" element={<WhatsAppView />} />
+                    <Route path="funnel" element={<SalesFunnelView />} />
+                    <Route path="team" element={<TeamAnalyticsView />} />
+                    <Route path="operations" element={<OperationsView />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />

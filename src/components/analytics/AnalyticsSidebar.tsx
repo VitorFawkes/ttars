@@ -1,27 +1,19 @@
 import { NavLink } from 'react-router-dom'
 import {
-    LayoutDashboard,
-    Users,
-    GitBranch,
-    Timer,
-    MessageCircle,
-    ShieldCheck,
-    DollarSign,
-    Repeat,
     Activity,
+    MessageCircle,
+    GitBranch,
+    Users,
+    PackageCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-    { to: '/analytics/overview', icon: LayoutDashboard, label: 'Visão Geral' },
     { to: '/analytics/pipeline', icon: Activity, label: 'Pipeline Atual' },
-    { to: '/analytics/team', icon: Users, label: 'Equipe' },
-    { to: '/analytics/funnel', icon: GitBranch, label: 'Funil End-to-End' },
-    { to: '/analytics/sla', icon: Timer, label: 'Velocidade & SLA' },
     { to: '/analytics/whatsapp', icon: MessageCircle, label: 'Conversas' },
-    { to: '/analytics/operations', icon: ShieldCheck, label: 'Operação & Qualidade' },
-    { to: '/analytics/financial', icon: DollarSign, label: 'Financeiro' },
-    { to: '/analytics/retention', icon: Repeat, label: 'Recorrência' },
+    { to: '/analytics/funnel', icon: GitBranch, label: 'Funil de Vendas' },
+    { to: '/analytics/team', icon: Users, label: 'Equipe' },
+    { to: '/analytics/operations', icon: PackageCheck, label: 'Operações' },
 ]
 
 export default function AnalyticsSidebar() {

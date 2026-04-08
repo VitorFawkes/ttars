@@ -1,61 +1,176 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-    ShieldCheck, Package, GitPullRequest, Users, ChevronUp, ChevronDown, DollarSign, Wallet,
+    Plane, MapPin, CheckCircle, PackageCheck, AlertTriangle,
 } from 'lucide-react'
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
-} from 'recharts'
+import { useQuery } from '@tanstack/react-query'
 import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { useOperationsData } from '@/hooks/analytics/useOperationsData'
-import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
-import { formatCurrency } from '@/utils/whatsappFormatters'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
-type SortKey = 'viagens' | 'mudancas' | 'additions' | 'changes' | 'mudancas_por_viagem' | 'receita'
-type SortDir = 'asc' | 'desc'
+interface ReadinessRow {
+    id: string
+    titulo: string
+    data_viagem_inicio: string
+    data_viagem_fim: string
+    estado_operacional: string
+    pos_owner_nome: string
+    prods_total: number
+    prods_ready: number
+    status_comercial: string
+}
+
+interface GiftOverdue {
+    id: string
+    contato: { nome: string } | null
+    scheduled_ship_date: string
+}
+
+interface GiftStats {
+    pending: number
+    overdue: GiftOverdue[]
+}
+
+function daysUntil(dateStr: string): number {
+    const diff = new Date(dateStr).getTime() - Date.now()
+    return Math.ceil(diff / 86400000)
+}
+
+function ProductDots({ ready, total }: { ready: number; total: number }) {
+    if (total === 0) return <span className="text-xs text-slate-400">—</span>
+    return (
+        <div className="flex items-center gap-1">
+            <div className="flex gap-0.5">
+                {Array.from({ length: total }, (_, i) => (
+                    <div
+                        key={i}
+                        className={cn(
+                            'w-2.5 h-2.5 rounded-full',
+                            i < ready ? 'bg-emerald-500' : 'bg-slate-200'
+                        )}
+                    />
+                ))}
+            </div>
+            <span className="text-xs text-slate-500 ml-1">{ready}/{total}</span>
+        </div>
+    )
+}
+
+function DaysUntilBadge({ days }: { days: number }) {
+    const label = days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days}d`
+    const color = days < 3 ? 'bg-red-100 text-red-700' : days < 7 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+    return (
+        <span className={cn('text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap', color)}>
+            {label}
+        </span>
+    )
+}
 
 export default function OperationsView() {
     const navigate = useNavigate()
-    const drillDown = useDrillDownStore()
+    const { setActiveView, product } = useAnalyticsFilters()
     const { data: ops, isLoading, error: opsError, refetch } = useOperationsData()
+    const [now] = useState(() => Date.now())
 
-    const [sortKey, setSortKey] = useState<SortKey>('viagens')
-    const [sortDir, setSortDir] = useState<SortDir>('desc')
+    useEffect(() => {
+        setActiveView('operations')
+    }, [setActiveView])
 
-    const kpis = ops?.kpis
-    const subStats = ops?.sub_card_stats
-    const planners = useMemo(() => ops?.per_planner || [], [ops?.per_planner])
-    const timeline = ops?.timeline || []
+    const readiness = useQuery({
+        queryKey: ['analytics', 'operations-readiness', product],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('view_cards_acoes')
+                .select('id, titulo, data_viagem_inicio, estado_operacional, pos_owner_nome, prods_total, prods_ready, status_comercial')
+                .eq('status_comercial', 'ganho')
+                .not('estado_operacional', 'in', '("realizada","cancelada")')
+                .eq('produto', product as 'TRIPS')
+                .is('deleted_at', null)
+                .is('archived_at', null)
+                .not('data_viagem_inicio', 'is', null)
+                .order('data_viagem_inicio', { ascending: true })
+                .limit(50)
+            if (error) throw error
+            return (data || []) as unknown as ReadinessRow[]
+        },
+        staleTime: 2 * 60 * 1000,
+    })
 
-    const sortedPlanners = useMemo(() => {
-        if (planners.length === 0) return planners
-        return [...planners].sort((a, b) => {
-            const aVal = a[sortKey]
-            const bVal = b[sortKey]
-            if (aVal === bVal) return 0
-            const dir = sortDir === 'desc' ? -1 : 1
-            return aVal > bVal ? dir : -dir
+    const giftStats = useQuery({
+        queryKey: ['analytics', 'gift-stats'],
+        queryFn: async () => {
+            const today = new Date().toISOString().split('T')[0]
+
+            const [pendingRes, overdueRes] = await Promise.all([
+                supabase.from('card_gift_assignments')
+                    .select('id', { count: 'exact', head: true })
+                    .in('status', ['pendente', 'preparando']),
+                supabase.from('card_gift_assignments')
+                    .select('id, contato:contato_id(nome), scheduled_ship_date')
+                    .in('status', ['pendente', 'preparando'])
+                    .lt('scheduled_ship_date', today)
+                    .order('scheduled_ship_date', { ascending: true })
+                    .limit(10),
+            ])
+
+            return {
+                pending: pendingRes.count ?? 0,
+                overdue: overdueRes.data || [],
+            } as GiftStats
+        },
+        staleTime: 2 * 60 * 1000,
+    })
+
+    const readinessTrips = useMemo(() => readiness.data || [], [readiness.data])
+
+    const departingSoon = useMemo(() => {
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+        return readinessTrips.filter(t => {
+            const dept = new Date(t.data_viagem_inicio).getTime()
+            return dept > now && dept <= now + sevenDaysMs
         })
-    }, [planners, sortKey, sortDir])
+    }, [readinessTrips, now])
 
-    function handleSort(key: SortKey) {
-        if (key === sortKey) {
-            setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-        } else {
-            setSortKey(key)
-            setSortDir('desc')
-        }
-    }
+    const inProgress = useMemo(() => {
+        return readinessTrips.filter(t => {
+            const start = new Date(t.data_viagem_inicio).getTime()
+            const end = t.data_viagem_fim ? new Date(t.data_viagem_fim).getTime() : start + 7 * 86400000
+            return start <= now && now <= end
+        })
+    }, [readinessTrips, now])
 
-    const sortIcon = (col: SortKey) => {
-        if (col !== sortKey) return <ChevronDown className="inline w-3 h-3 ml-0.5 opacity-30" />
-        return sortDir === 'desc'
-            ? <ChevronDown className="inline w-3 h-3 ml-0.5 text-indigo-600" />
-            : <ChevronUp className="inline w-3 h-3 ml-0.5 text-indigo-600" />
-    }
+    const readinessPercent = useMemo(() => {
+        if (readinessTrips.length === 0) return 100
+        const totalProds = readinessTrips.reduce((a, t) => a + t.prods_total, 0)
+        if (totalProds === 0) return 100
+        const readyProds = readinessTrips.reduce((a, t) => a + t.prods_ready, 0)
+        return Math.round(readyProds / totalProds * 100)
+    }, [readinessTrips])
+
+    const delivered = useMemo(() => {
+        return readinessTrips.filter(t => t.estado_operacional === 'realizada').length
+    }, [readinessTrips])
+
+    const pendingProductsIn48h = useMemo(() => {
+        const fortyEightHours = 48 * 60 * 60 * 1000
+        return readinessTrips.filter(t => {
+            const dept = new Date(t.data_viagem_inicio).getTime()
+            const hasOffTrack = t.prods_ready < t.prods_total
+            return hasOffTrack && dept > now && dept <= now + fortyEightHours
+        })
+    }, [readinessTrips, now])
+
+    const overdueGifts = useMemo(() => {
+        return giftStats.data?.overdue || []
+    }, [giftStats.data])
+
+    const hasAlerts = pendingProductsIn48h.length > 0 || overdueGifts.length > 0
+
+    const readinessIsHealthy = readinessPercent >= 80
 
     return (
         <div className="space-y-6">
@@ -67,230 +182,250 @@ export default function OperationsView() {
                 />
             )}
 
-            {/* KPIs */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Zone 1: Alert Banner */}
+            {hasAlerts && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                    {pendingProductsIn48h.length > 0 && (
+                        <div className="flex items-center gap-3 text-sm">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            <span className="text-amber-900">
+                                <span className="font-semibold">{pendingProductsIn48h.length}</span>
+                                {' '}
+                                viagens embarcam em 48h com produtos pendentes
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    document.getElementById('readiness-section')?.scrollIntoView({ behavior: 'smooth' })
+                                }}
+                                className="ml-auto text-amber-600 hover:text-amber-700 font-medium text-xs"
+                            >
+                                Ver
+                            </button>
+                        </div>
+                    )}
+                    {overdueGifts.length > 0 && (
+                        <div className="flex items-center gap-3 text-sm">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            <span className="text-amber-900">
+                                <span className="font-semibold">{overdueGifts.length}</span>
+                                {' '}
+                                presentes atrasados
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    document.getElementById('gifts-section')?.scrollIntoView({ behavior: 'smooth' })
+                                }}
+                                className="ml-auto text-amber-600 hover:text-amber-700 font-medium text-xs"
+                            >
+                                Ver
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Zone 2: KPI Cards */}
+            <div className="grid grid-cols-4 gap-4">
                 <KpiCard
-                    title="Viagens Realizadas"
-                    value={kpis?.viagens_realizadas ?? 0}
-                    icon={Package}
-                    color="text-green-600"
-                    bgColor="bg-green-50"
-                    isLoading={isLoading}
-                    onClick={() => drillDown.open({ label: 'Viagens Realizadas', drillStatus: 'ganho', drillSource: 'closed_deals' })}
-                    clickHint="Ver cards"
-                />
-                <KpiCard
-                    title="Faturamento"
-                    value={formatCurrency(kpis?.valor_total ?? 0)}
-                    icon={DollarSign}
-                    color="text-teal-600"
-                    bgColor="bg-teal-50"
-                    isLoading={isLoading}
-                    onClick={() => navigate('/analytics/financial')}
-                    clickHint="Ver financeiro"
-                />
-                <KpiCard
-                    title="Receita (Margem)"
-                    value={formatCurrency(kpis?.receita ?? 0)}
-                    icon={Wallet}
-                    color="text-rose-600"
-                    bgColor="bg-rose-50"
-                    isLoading={isLoading}
-                    onClick={() => navigate('/analytics/financial')}
-                    clickHint="Ver financeiro"
-                />
-                <KpiCard
-                    title="Itens / Viagem"
-                    value={subStats?.changes_per_trip ?? 0}
-                    subtitle={subStats ? `${subStats.additions_count ?? 0} extras, ${subStats.changes_count ?? 0} mudanças` : undefined}
-                    icon={GitPullRequest}
+                    title="Embarques próximos (7d)"
+                    value={departingSoon.length}
+                    icon={Plane}
                     color="text-amber-600"
                     bgColor="bg-amber-50"
-                    isLoading={isLoading}
+                    isLoading={isLoading || readiness.isLoading}
                 />
                 <KpiCard
-                    title="Viagens com Mudança"
-                    value={subStats?.cards_with_changes ?? 0}
-                    icon={ShieldCheck}
-                    color="text-indigo-600"
-                    bgColor="bg-indigo-50"
-                    isLoading={isLoading}
+                    title="Em andamento"
+                    value={inProgress.length}
+                    icon={MapPin}
+                    color="text-blue-600"
+                    bgColor="bg-blue-50"
+                    isLoading={isLoading || readiness.isLoading}
                 />
-                <button
-                    type="button"
-                    className="text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                    onClick={() => navigate('/analytics/team')}
-                    title="Ver equipe"
-                >
-                    <KpiCard
-                        title="Planners Ativos"
-                        value={planners.length}
-                        icon={Users}
-                        color="text-slate-700"
-                        bgColor="bg-slate-100"
-                        isLoading={isLoading}
-                    />
-                </button>
+                <KpiCard
+                    title="Readiness"
+                    value={`${readinessPercent}%`}
+                    icon={CheckCircle}
+                    color={readinessIsHealthy ? 'text-emerald-600' : 'text-rose-600'}
+                    bgColor={readinessIsHealthy ? 'bg-emerald-50' : 'bg-rose-50'}
+                    isLoading={isLoading || readiness.isLoading}
+                />
+                <KpiCard
+                    title="Entregues (período)"
+                    value={delivered}
+                    icon={PackageCheck}
+                    color="text-emerald-600"
+                    bgColor="bg-emerald-50"
+                    isLoading={isLoading || readiness.isLoading}
+                />
             </div>
 
-            {/* NPS Placeholder */}
-            <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
-                        <ShieldCheck size={20} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-800">NPS / Satisfação do Cliente</p>
-                        <p className="text-xs text-slate-400">Sistema de feedback em desenvolvimento. Dados estarão disponíveis após implementação.</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Timeline de Sub-cards */}
+            {/* Zone 3: Readiness Table */}
             <ChartCard
-                title="Solicitações de Mudança"
-                description="Tendência semanal de sub-cards criados"
-                isLoading={isLoading}
+                title="Readiness por Viagem"
+                isLoading={isLoading || readiness.isLoading}
             >
-                {timeline.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={timeline} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis
-                                dataKey="week"
-                                tick={{ fontSize: 11, fill: '#64748b' }}
-                                axisLine={false}
-                                tickLine={false}
-                                tickFormatter={(v: string) => v.slice(5)}
-                            />
-                            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            <Line type="monotone" dataKey="count" name="Mudanças" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} activeDot={{ r: 5 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="h-[250px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de mudanças
-                    </div>
-                )}
-            </ChartCard>
-
-            {/* Qualidade por Planner */}
-            <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100">
-                    <h3 className="text-sm font-semibold text-slate-800">Qualidade por Planner</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Taxa de mudanças por Planner que montou a viagem</p>
-                </div>
-                <div className="overflow-x-auto">
+                <div id="readiness-section" className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/50">
-                                <th className="text-left px-6 py-3 font-medium text-slate-500">Planner</th>
-                                <th
-                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('viagens')}
-                                >
-                                    Viagens {sortIcon('viagens')}
-                                </th>
-                                <th
-                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('additions')}
-                                >
-                                    Extras {sortIcon('additions')}
-                                </th>
-                                <th
-                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('changes')}
-                                >
-                                    Mudanças {sortIcon('changes')}
-                                </th>
-                                <th
-                                    className="text-right px-4 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('mudancas_por_viagem')}
-                                >
-                                    Itens/Viagem {sortIcon('mudancas_por_viagem')}
-                                </th>
-                                <th
-                                    className="text-right px-6 py-3 font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap"
-                                    onClick={() => handleSort('receita')}
-                                >
-                                    Receita {sortIcon('receita')}
-                                </th>
+                                <th className="text-left px-6 py-3 font-medium text-slate-500">Viagem</th>
+                                <th className="text-left px-4 py-3 font-medium text-slate-500">Embarque</th>
+                                <th className="text-left px-4 py-3 font-medium text-slate-500">Produtos</th>
+                                <th className="text-left px-6 py-3 font-medium text-slate-500">Responsável</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {isLoading ? (
+                            {readiness.isLoading ? (
                                 Array.from({ length: 3 }).map((_, i) => (
                                     <tr key={i} className="border-b border-slate-50">
-                                        <td colSpan={6} className="px-6 py-4">
+                                        <td colSpan={4} className="px-6 py-4">
                                             <div className="h-4 bg-slate-100 rounded animate-pulse" />
                                         </td>
                                     </tr>
                                 ))
-                            ) : sortedPlanners.length === 0 ? (
+                            ) : readinessTrips.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                                        Nenhum planner com viagens no período
+                                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                                        Nenhuma viagem em andamento ou planejada
                                     </td>
                                 </tr>
                             ) : (
-                                sortedPlanners.map((p) => (
-                                    <tr
-                                        key={p.planner_nome}
-                                        className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer"
-                                        onClick={() => drillDown.open({ label: `${p.planner_nome} — Viagens`, drillStatus: 'ganho', drillSource: 'closed_deals', drillOwnerId: p.planner_id })}
-                                    >
-                                        <td className="px-6 py-3 font-medium text-slate-800">{p.planner_nome}</td>
-                                        <td className="text-right px-4 py-3 text-slate-600">{p.viagens}</td>
-                                        <td className="text-right px-4 py-3 text-purple-600">{p.additions ?? 0}</td>
-                                        <td className="text-right px-4 py-3 text-orange-600">{p.changes ?? 0}</td>
-                                        <td className="text-right px-4 py-3">
-                                            <span className={cn(
-                                                'font-medium',
-                                                p.mudancas_por_viagem <= 0.5 ? 'text-green-600' :
-                                                    p.mudancas_por_viagem <= 1 ? 'text-amber-600' : 'text-rose-600'
-                                            )}>
-                                                {p.mudancas_por_viagem}
-                                            </span>
-                                        </td>
-                                        <td className="text-right px-6 py-3 text-slate-700 font-medium">{formatCurrency(p.receita)}</td>
-                                    </tr>
-                                ))
+                                readinessTrips.map((trip) => {
+                                    const days = daysUntil(trip.data_viagem_inicio)
+                                    const isOffTrack = trip.prods_ready < trip.prods_total && days < 7
+                                    return (
+                                        <tr
+                                            key={trip.id}
+                                            className={cn(
+                                                'border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer',
+                                                isOffTrack && 'bg-rose-50/50 border-l-2 border-l-rose-400'
+                                            )}
+                                            onClick={() => navigate(`/card/${trip.id}`)}
+                                        >
+                                            <td className="px-6 py-3 font-medium text-indigo-600 hover:text-indigo-700">{trip.titulo}</td>
+                                            <td className="px-4 py-3">
+                                                <DaysUntilBadge days={days} />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <ProductDots ready={trip.prods_ready} total={trip.prods_total} />
+                                            </td>
+                                            <td className="px-6 py-3 text-slate-600">{trip.pos_owner_nome || '—'}</td>
+                                        </tr>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* Workload Chart */}
-            <ChartCard
-                title="Viagens por Planner"
-                description="Distribuição de viagens realizadas"
-                isLoading={isLoading}
-            >
-                {planners.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(200, planners.length * 40 + 40)}>
-                        <BarChart
-                            data={planners.map(p => ({ name: p.planner_nome, viagens: p.viagens, extras: p.additions ?? 0, mudancas: p.changes ?? 0, planner_id: p.planner_id }))}
-                            layout="vertical"
-                            margin={{ left: 10, right: 30 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                            <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: '#334155' }} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '…' : v} />
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <Bar dataKey="viagens" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Viagens" cursor="pointer" onClick={(data: any) => { const d = data?.payload || data; if (d?.planner_id) drillDown.open({ label: `${d.name} — Viagens`, drillOwnerId: d.planner_id, drillStatus: 'ganho', drillSource: 'closed_deals' }) }} />
-                            <Bar dataKey="extras" fill="#a855f7" radius={[0, 4, 4, 0]} barSize={18} name="Extras" />
-                            <Bar dataKey="mudancas" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Mudanças" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">
-                        Nenhum dado de viagens por planner
-                    </div>
-                )}
             </ChartCard>
+
+            {/* Zone 4: Bottom panels */}
+            <div className="grid grid-cols-2 gap-4">
+                {/* Left: Sub-cards/Mudanças */}
+                <ChartCard
+                    title="Mudanças (Sub-cards)"
+                    isLoading={isLoading}
+                >
+                    <div className="px-4 pb-4">
+                        <div className="mb-4">
+                            <p className="text-sm text-slate-600">
+                                <span className="font-medium text-slate-900">{ops?.sub_card_stats?.total_sub_cards ?? 0}</span>
+                                {' '}
+                                ativos
+                                {' '}
+                                <span className="text-slate-400">|</span>
+                                {' '}
+                                <span className="font-medium text-slate-900">{(ops?.sub_card_stats?.changes_per_trip ?? 0).toFixed(1)}</span>
+                                {' '}
+                                por viagem
+                            </p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-100 bg-slate-50/50">
+                                        <th className="text-left px-4 py-2 font-medium text-slate-500">Planner</th>
+                                        <th className="text-right px-4 py-2 font-medium text-slate-500">Viagens</th>
+                                        <th className="text-right px-4 py-2 font-medium text-slate-500">Mudanças</th>
+                                        <th className="text-right px-4 py-2 font-medium text-slate-500">Itens/Viagem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {!isLoading && (ops?.per_planner || []).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-4 py-4 text-center text-slate-400 text-xs">
+                                                Sem dados
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        (ops?.per_planner || []).slice(0, 5).map((p) => (
+                                            <tr key={p.planner_id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                <td className="px-4 py-2 text-slate-800">{p.planner_nome}</td>
+                                                <td className="text-right px-4 py-2 text-slate-600">{p.viagens}</td>
+                                                <td className="text-right px-4 py-2 text-orange-600 font-medium">{p.mudancas}</td>
+                                                <td className="text-right px-4 py-2 text-slate-600">{p.mudancas_por_viagem.toFixed(1)}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </ChartCard>
+
+                {/* Right: Gifts */}
+                <ChartCard
+                    title="Presentes"
+                    isLoading={giftStats.isLoading}
+                >
+                    <div id="gifts-section" className="px-4 pb-4">
+                        <div className="mb-4">
+                            <p className="text-sm text-slate-600">
+                                <span className="font-medium text-slate-900">{giftStats.data?.pending ?? 0}</span>
+                                {' '}
+                                pendentes
+                                {giftStats.data && giftStats.data.overdue.length > 0 && (
+                                    <>
+                                        {' '}
+                                        <span className="text-slate-400">|</span>
+                                        {' '}
+                                        <span className={cn(
+                                            'font-medium',
+                                            giftStats.data.overdue.length > 0 ? 'text-rose-600' : 'text-slate-900'
+                                        )}>
+                                            {giftStats.data.overdue.length}
+                                        </span>
+                                        {' '}
+                                        <span className={giftStats.data.overdue.length > 0 ? 'text-rose-600' : 'text-slate-600'}>
+                                            atrasados
+                                        </span>
+                                    </>
+                                )}
+                            </p>
+                        </div>
+                        {!giftStats.isLoading && overdueGifts.length > 0 ? (
+                            <div className="space-y-2">
+                                {overdueGifts.map((gift) => {
+                                    const daysOverdue = Math.floor((now - new Date(gift.scheduled_ship_date).getTime()) / 86400000)
+                                    return (
+                                        <div key={gift.id} className="bg-rose-50/50 border-l-2 border-l-rose-400 px-3 py-2 rounded text-xs">
+                                            <p className="font-medium text-rose-900">{gift.contato?.nome || 'Contato desconhecido'}</p>
+                                            <p className="text-rose-700">{daysOverdue}d atrasado</p>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <div className="py-6 text-center text-slate-400 text-xs">
+                                {giftStats.isLoading ? 'Carregando...' : 'Nenhum presente atrasado'}
+                            </div>
+                        )}
+                    </div>
+                </ChartCard>
+            </div>
         </div>
     )
 }

@@ -28,6 +28,7 @@ export interface ReactivationPattern {
         value: number
         seasonality: number
         timing: number
+        interest: number
     } | null
     last_destinations: string[] | null
     preferred_duration_days: number | null
