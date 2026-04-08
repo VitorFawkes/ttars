@@ -233,22 +233,36 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 query = query.in('prioridade', filters.prioridade)
             }
 
-            // Estado Operacional Filter
-            if ((filters.estadoOperacional?.length ?? 0) > 0) {
-                query = query.in('estado_operacional', filters.estadoOperacional)
+            // Status Taxa Filter
+            if ((filters.statusTaxa?.length ?? 0) > 0) {
+                query = query.in('status_taxa', filters.statusTaxa)
+            }
+
+            // Cliente Recorrente Filter
+            if (filters.clienteRecorrente === 'sim') {
+                query = query.eq('cliente_recorrente', true)
+            } else if (filters.clienteRecorrente === 'nao') {
+                query = query.or('cliente_recorrente.is.null,cliente_recorrente.eq.false')
             }
 
             // Smart Field Filters — campos preenchidos (NOT NULL)
+            // Campos JSONB (dentro de produto_data) são tratados client-side
+            const JSONB_FIELDS = new Set(['numero_venda_monde'])
+
             if ((filters.filledFields?.length ?? 0) > 0) {
                 for (const field of filters.filledFields!) {
-                    query = query.not(field, 'is', null)
+                    if (!JSONB_FIELDS.has(field)) {
+                        query = query.not(field, 'is', null)
+                    }
                 }
             }
 
             // Smart Field Filters — campos vazios (IS NULL)
             if ((filters.emptyFields?.length ?? 0) > 0) {
                 for (const field of filters.emptyFields!) {
-                    query = query.is(field, null)
+                    if (!JSONB_FIELDS.has(field)) {
+                        query = query.is(field, null)
+                    }
                 }
             }
 
@@ -293,6 +307,24 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     const count = Number((card as unknown as Record<string, unknown>).anexos_count) || 0
                     if (count === 0) return filters.docStatus!.includes('sem_anexos')
                     return filters.docStatus!.includes('com_anexos')
+                })
+            }
+
+            // JSONB Smart Field Filters (client-side — campos dentro de produto_data)
+            const jsonbFilled = filters.filledFields?.filter(f => JSONB_FIELDS.has(f)) ?? []
+            const jsonbEmpty = filters.emptyFields?.filter(f => JSONB_FIELDS.has(f)) ?? []
+            if (jsonbFilled.length > 0 || jsonbEmpty.length > 0) {
+                filteredData = filteredData.filter(card => {
+                    const pd = card.produto_data as Record<string, unknown> | null
+                    for (const field of jsonbFilled) {
+                        const val = pd?.[field]
+                        if (val == null || val === '') return false
+                    }
+                    for (const field of jsonbEmpty) {
+                        const val = pd?.[field]
+                        if (val != null && val !== '') return false
+                    }
+                    return true
                 })
             }
 

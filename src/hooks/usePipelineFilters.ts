@@ -36,16 +36,17 @@ export interface FilterState {
     valorMax?: number
     diasSemContato?: number // Filtro: mostrar cards com tempo_sem_contato >= N
     diasAteViagem?: number // Filtro: mostrar cards com dias_ate_viagem <= N
-    // Filtros inteligentes — preenchimento de campos
-    emptyFields?: string[] // campos que devem estar vazios (NULL)
-    filledFields?: string[] // campos que devem estar preenchidos (NOT NULL)
+    // Preenchimento de campos (vazio/preenchido)
+    emptyFields?: string[]
+    filledFields?: string[]
     // Data de Fechamento
     closingStartDate?: string
     closingEndDate?: string
     // Prioridade
     prioridade?: string[]
-    // Estado Operacional
-    estadoOperacional?: string[]
+    // Financeiro
+    statusTaxa?: string[] // paga, pendente, cortesia, nao_aplicavel, nao_ativa
+    clienteRecorrente?: 'sim' | 'nao'
 }
 
 export type ArrayFilterField = Exclude<{

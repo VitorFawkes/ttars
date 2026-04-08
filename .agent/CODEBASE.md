@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 147 tabelas | 58 paginas | 114 hooks | 17 views | 474 components
+> **Stats:** 147 tabelas | 59 paginas | 115 hooks | 17 views | 477 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **114 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **115 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -253,6 +253,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useProductScopedSettings()` | `useProductScopedSettings.ts` |
 | `useProducts()` | `useProducts.ts` |
 | `usePushNotifications()` | `usePushNotifications.ts` |
+| `useReactivationPatterns()` | `useReactivationPatterns.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
@@ -358,7 +359,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **58 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **59 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -381,6 +382,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalBuilderElite` | `src/pages/ProposalBuilderElite.tsx` |
 | `ProposalBuilderV4` | `src/pages/ProposalBuilderV4.tsx` |
 | `ProposalsPage` | `src/pages/ProposalsPage.tsx` |
+| `ReactivationPage` | `src/pages/ReactivationPage.tsx` |
 | `ResetPassword` | `src/pages/ResetPassword.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |

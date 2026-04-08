@@ -1,4 +1,4 @@
-import { Calendar, Clock } from 'lucide-react'
+import { Calendar, Clock, CalendarCheck } from 'lucide-react'
 import type { FilterState } from '../../../hooks/usePipelineFilters'
 
 interface FilterSectionDatesProps {
@@ -60,6 +60,33 @@ export function FilterSectionDates({ filters, onUpdate }: FilterSectionDatesProp
                             className="w-full h-10 rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 outline-none transition-all px-3"
                             value={filters.creationEndDate || ''}
                             onChange={(e) => onUpdate({ creationEndDate: e.target.value || undefined })}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Data de Fechamento */}
+            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
+                <label className="text-sm font-semibold text-gray-700 block flex items-center gap-2">
+                    <CalendarCheck className="h-3.5 w-3.5 text-gray-400" /> Data de Fechamento
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <span className="text-xs text-gray-500 ml-1">De</span>
+                        <input
+                            type="date"
+                            className="w-full h-10 rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 outline-none transition-all px-3"
+                            value={filters.closingStartDate || ''}
+                            onChange={(e) => onUpdate({ closingStartDate: e.target.value || undefined })}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <span className="text-xs text-gray-500 ml-1">Até</span>
+                        <input
+                            type="date"
+                            className="w-full h-10 rounded-lg border-slate-200 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 outline-none transition-all px-3"
+                            value={filters.closingEndDate || ''}
+                            onChange={(e) => onUpdate({ closingEndDate: e.target.value || undefined })}
                         />
                     </div>
                 </div>

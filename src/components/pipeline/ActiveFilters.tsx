@@ -45,6 +45,17 @@ const SMART_FIELD_LABELS: Record<string, string> = {
     dono_atual_id: 'Responsável',
     destinos: 'Destinos',
     condicoes_pagamento: 'Cond. Pagamento',
+    forma_pagamento: 'Forma Pgto',
+    external_id: 'ID AC',
+    numero_venda_monde: 'N° Venda Monde',
+}
+
+const STATUS_TAXA_LABELS: Record<string, string> = {
+    paga: 'Paga',
+    pendente: 'Pendente',
+    cortesia: 'Cortesia',
+    nao_aplicavel: 'N/A',
+    nao_ativa: 'Não Ativa',
 }
 
 const PRIORIDADE_LABELS: Record<string, string> = {
@@ -94,7 +105,8 @@ export function ActiveFilters() {
         filters.closingStartDate ||
         filters.closingEndDate ||
         filters.prioridade?.length ||
-        filters.estadoOperacional?.length ||
+        filters.statusTaxa?.length ||
+        filters.clienteRecorrente ||
         showWonDirect
     )
 
@@ -254,10 +266,19 @@ export function ActiveFilters() {
                     <Chip key={`prio-${p}`} label={`Prioridade: ${PRIORIDADE_LABELS[p] || p}`} onRemove={() => toggleFilterValue('prioridade', p)} />
                 ))}
 
-                {/* Estado Operacional */}
-                {filters.estadoOperacional?.map(e => (
-                    <Chip key={`estado-${e}`} label={`Estado: ${e}`} onRemove={() => toggleFilterValue('estadoOperacional', e)} />
+                {/* Status Taxa */}
+                {filters.statusTaxa?.map(s => (
+                    <Chip key={`taxa-${s}`} label={`Taxa: ${STATUS_TAXA_LABELS[s] || s}`} onRemove={() => toggleFilterValue('statusTaxa', s)} />
                 ))}
+
+                {/* Cliente Recorrente */}
+                {filters.clienteRecorrente && (
+                    <Chip
+                        label={`Recorrente: ${filters.clienteRecorrente === 'sim' ? 'Sim' : 'Não'}`}
+                        variant={filters.clienteRecorrente === 'sim' ? 'green' : undefined}
+                        onRemove={() => removeFilter('clienteRecorrente')}
+                    />
+                )}
 
                 {/* Campos Preenchidos */}
                 {filters.filledFields?.map(f => (

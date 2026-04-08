@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Target, CheckSquare, Trophy } from 'lucide-react'
+import { Target, CheckSquare, Trophy, AlertTriangle } from 'lucide-react'
 import { FilterChipGroup } from './FilterChipGroup'
 import type { FilterState, ArrayFilterField } from '../../../hooks/usePipelineFilters'
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
@@ -11,6 +11,12 @@ const STATUS_COMERCIAL_OPTIONS = [
     { value: 'aberto', label: 'Em Aberto', color: 'bg-primary text-white border-primary' },
     { value: 'ganho', label: 'Ganho', color: 'bg-green-500 text-white border-green-500' },
     { value: 'perdido', label: 'Perdido', color: 'bg-red-500 text-white border-red-500' },
+]
+
+const PRIORIDADE_OPTIONS = [
+    { value: 'alta', label: 'Alta', color: 'bg-red-500 text-white border-red-500' },
+    { value: 'media', label: 'Média', color: 'bg-yellow-500 text-white border-yellow-500' },
+    { value: 'baixa', label: 'Baixa', color: 'bg-green-500 text-white border-green-500' },
 ]
 
 const TASK_STATUS_OPTIONS = [
@@ -76,6 +82,20 @@ export function FilterSectionStatus({ filters, onToggle }: FilterSectionStatusPr
                         options={milestoneOptions}
                         selected={filters.milestones || []}
                         onToggle={(v) => onToggle('milestones', v)}
+                    />
+                </div>
+            </div>
+
+            {/* Prioridade */}
+            <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                    <AlertTriangle className="h-3 w-3" /> Prioridade
+                </h3>
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <FilterChipGroup
+                        options={PRIORIDADE_OPTIONS}
+                        selected={filters.prioridade || []}
+                        onToggle={(v) => onToggle('prioridade', v)}
                     />
                 </div>
             </div>

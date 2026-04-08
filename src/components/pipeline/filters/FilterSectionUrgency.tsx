@@ -1,7 +1,7 @@
-import { DollarSign, Clock, Plane } from 'lucide-react'
+import { Clock, Plane } from 'lucide-react'
 import type { FilterState } from '../../../hooks/usePipelineFilters'
 
-interface FilterSectionAdvancedProps {
+interface FilterSectionUrgencyProps {
     filters: FilterState
     onUpdate: (partial: Partial<FilterState>) => void
 }
@@ -20,47 +20,16 @@ const URGENCIA_VIAGEM_PRESETS = [
     { label: '< 60 dias', value: 60 },
 ]
 
-export function FilterSectionAdvanced({ filters, onUpdate }: FilterSectionAdvancedProps) {
+export function FilterSectionUrgency({ filters, onUpdate }: FilterSectionUrgencyProps) {
     return (
         <>
-            {/* Faixa de Valor */}
-            <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                    <DollarSign className="h-3 w-3" /> Faixa de Valor
-                </h3>
-                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="flex-1">
-                            <label className="text-xs text-gray-500 mb-1 block">Mínimo (R$)</label>
-                            <input
-                                type="number"
-                                placeholder="0"
-                                value={filters.valorMin ?? ''}
-                                onChange={(e) => onUpdate({ valorMin: e.target.value ? Number(e.target.value) : undefined })}
-                                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                            />
-                        </div>
-                        <span className="text-gray-400 text-xs mt-5">até</span>
-                        <div className="flex-1">
-                            <label className="text-xs text-gray-500 mb-1 block">Máximo (R$)</label>
-                            <input
-                                type="number"
-                                placeholder="∞"
-                                value={filters.valorMax ?? ''}
-                                onChange={(e) => onUpdate({ valorMax: e.target.value ? Number(e.target.value) : undefined })}
-                                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {/* Dias Sem Contato */}
             <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
                     <Clock className="h-3 w-3" /> Dias Sem Contato
                 </h3>
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <p className="text-xs text-gray-400 mb-3">Cards sem interação há mais de N dias</p>
                     <div className="flex flex-wrap gap-2">
                         {DIAS_SEM_CONTATO_PRESETS.map(preset => {
                             const isActive = filters.diasSemContato === preset.value
@@ -88,7 +57,7 @@ export function FilterSectionAdvanced({ filters, onUpdate }: FilterSectionAdvanc
                     <Plane className="h-3 w-3" /> Urgência Viagem
                 </h3>
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <p className="text-xs text-gray-400 mb-3">Viagem em até N dias</p>
+                    <p className="text-xs text-gray-400 mb-3">Cards com viagem em até N dias</p>
                     <div className="flex flex-wrap gap-2">
                         {URGENCIA_VIAGEM_PRESETS.map(preset => {
                             const isActive = filters.diasAteViagem === preset.value

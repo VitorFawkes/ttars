@@ -308,3 +308,12 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-07T19:08:56Z | supabase/migrations/20260408_proposal_trip_plans.sql | applied_to_prod
 2026-04-07T20:54:12Z | supabase/migrations/20260408_fix_record_card_open_org_check.sql | applied_to_prod
 2026-04-07T21:04:56Z | supabase/migrations/20260407_monde_pending_sales.sql | applied_to_prod
+2026-04-08T13:07:26Z | supabase/migrations/20260408_fix_monde_trigger_array_concat.sql | applied_to_prod
+2026-04-08T14:24:09Z | supabase/migrations/20260409_trip_plan_blocks_approvals.sql | applied_to_prod
+2026-04-08T18:08:14Z | supabase/migrations/20260409_trip_plans_decouple_from_proposals.sql | applied_to_prod
+2026-04-09T00:00:00Z | supabase/migrations/20260408_create_reactivation_patterns.sql | applied_to_staging
+2026-04-09T00:00:00Z | supabase/migrations/20260408_reactivation_calculate_rpc.sql | applied_to_staging
+2026-04-08T18:41:53Z | supabase/migrations/20260408_cadence_instant_processing.sql | applied_to_prod
+2026-04-08T18:43:11Z | supabase/migrations/20260408_create_reactivation_patterns.sql | applied_to_prod
+2026-04-08T18:43:20Z | supabase/migrations/20260408_reactivation_calculate_rpc.sql | applied_to_prod
+2026-04-08T18:45:03Z | supabase/migrations/20260409_fix_reactivation_rpc_date_cast.sql | applied_to_prod

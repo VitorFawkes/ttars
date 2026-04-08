@@ -21,6 +21,7 @@ import People from './pages/People'
 import GroupsPage from './pages/GroupsPage'
 import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import ProposalBuilderV4 from './pages/ProposalBuilderV4'
+import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
@@ -31,6 +32,7 @@ import PipelineCurrentView from './components/analytics/views/PipelineCurrentVie
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
+import ReactivationPage from './pages/ReactivationPage'
 
 
 import ProposalReview from './pages/public/ProposalReview'
@@ -180,12 +182,14 @@ function App() {
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
+                  <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />}>
                     <Route index element={<Navigate to="/analytics/pipeline" replace />} />
                     <Route path="pipeline" element={<PipelineCurrentView />} />
                     <Route path="whatsapp" element={<WhatsAppView />} />
                   </Route>
-                  <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
+                  <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
+                  <Route path="/proposals/:id/edit-v4" element={<ProposalBuilderV4 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
