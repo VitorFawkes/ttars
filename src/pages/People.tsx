@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Plus, Filter } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '../components/ui/Button'
@@ -39,6 +40,22 @@ export default function People() {
     const [isQualityDrawerOpen, setIsQualityDrawerOpen] = useState(false)
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
     const quality = useContactQuality()
+    const [searchParams, setSearchParams] = useSearchParams()
+
+    // Deep-link: ?contactId=xxx abre o drawer do contato automaticamente
+    useEffect(() => {
+        const contactId = searchParams.get('contactId')
+        if (!contactId) return
+        supabase
+            .from('contatos')
+            .select('*')
+            .eq('id', contactId)
+            .single()
+            .then(({ data }) => {
+                if (data) setSelectedPerson(data as unknown as Person)
+                setSearchParams({}, { replace: true })
+            })
+    }, [searchParams, setSearchParams])
 
     const handleCreateSuccess = () => {
         setIsNewPersonDrawerOpen(false)

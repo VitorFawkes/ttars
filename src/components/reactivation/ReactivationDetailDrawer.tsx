@@ -118,7 +118,7 @@ export default function ReactivationDetailDrawer({ pattern, onClose }: Props) {
                             </a>
                         )}
                         <button
-                            onClick={() => { onClose(); navigate(`/people?search=${encodeURIComponent(ct?.nome ?? '')}`) }}
+                            onClick={() => { onClose(); navigate(`/people?contactId=${pattern.contact_id}`) }}
                             className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors">
                             <ExternalLink className="w-3.5 h-3.5" />
                             Ver perfil

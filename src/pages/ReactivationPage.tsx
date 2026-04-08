@@ -6,6 +6,7 @@ import type { ReactivationPattern } from '@/hooks/useReactivationPatterns'
 import ReactivationKPICards from '@/components/reactivation/ReactivationKPICards'
 import ReactivationTable from '@/components/reactivation/ReactivationTable'
 import ReactivationDetailDrawer from '@/components/reactivation/ReactivationDetailDrawer'
+import ReactivationChat from '@/components/reactivation/ReactivationChat'
 
 export default function ReactivationPage() {
     const {
@@ -145,6 +146,8 @@ export default function ReactivationPage() {
                     pattern={selectedPattern}
                     onClose={() => setSelectedPattern(null)}
                 />
+
+                <ReactivationChat patterns={data} />
             </div>
         </div>
     )
