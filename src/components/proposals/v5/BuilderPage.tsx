@@ -87,7 +87,11 @@ export default function BuilderPage() {
     const handleAddBlock = useCallback((sectionType: ProposalSectionType, label: string, blockType: string) => {
         const resolvedSectionType = BLOCK_SECTION_MAP[blockType] || sectionType
 
-        // Content blocks — create section + item immediately
+        // Helper: find existing section of same type to reuse
+        const findExistingSection = (type: ProposalSectionType) =>
+            sections.find(s => s.section_type === type)
+
+        // Content blocks — create section + item immediately (always new section)
         if (['text', 'title', 'divider', 'image', 'video'].includes(blockType)) {
             const { addItem: storeAddItem, updateItem: storeUpdateItem } = useProposalBuilder.getState()
             const sectionId = addSection(resolvedSectionType, '')
@@ -103,16 +107,20 @@ export default function BuilderPage() {
             return
         }
 
-        // Searchable blocks — create section, then open search drawer
+        // Searchable blocks — reuse existing section if available, otherwise create
         if (SEARCHABLE_BLOCKS.includes(blockType)) {
-            const sectionId = addSection(resolvedSectionType, DEFAULT_TITLES[blockType] || label)
+            const existing = findExistingSection(resolvedSectionType)
+            const sectionId = existing?.id || addSection(resolvedSectionType, DEFAULT_TITLES[blockType] || label)
             setSearchDrawer({ isOpen: true, blockType, sectionId })
             return
         }
 
-        // Other — just create section
-        addSection(resolvedSectionType, DEFAULT_TITLES[blockType] || label)
-    }, [addSection])
+        // Other — reuse or create
+        const existing = findExistingSection(resolvedSectionType)
+        if (!existing) {
+            addSection(resolvedSectionType, DEFAULT_TITLES[blockType] || label)
+        }
+    }, [addSection, sections])
 
     // DnD handlers (for section reordering in canvas)
     const handleDragStart = useCallback((e: DragStartEvent) => {

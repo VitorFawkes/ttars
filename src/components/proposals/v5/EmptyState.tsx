@@ -7,16 +7,17 @@ interface QuickAction {
     icon: React.ElementType
     sectionType: ProposalSectionType
     itemType?: ProposalItemType
+    blockType: string
     color: string
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-    { label: 'Hospedagem', icon: Building2, sectionType: 'hotels', itemType: 'hotel', color: 'text-blue-600 bg-blue-50 hover:bg-blue-100' },
-    { label: 'Voo', icon: Plane, sectionType: 'flights', itemType: 'flight', color: 'text-sky-600 bg-sky-50 hover:bg-sky-100' },
-    { label: 'Transfer', icon: Bus, sectionType: 'transfers', itemType: 'transfer', color: 'text-teal-600 bg-teal-50 hover:bg-teal-100' },
-    { label: 'Experiencia', icon: Star, sectionType: 'custom', itemType: 'experience', color: 'text-orange-600 bg-orange-50 hover:bg-orange-100' },
-    { label: 'Titulo', icon: Type, sectionType: 'custom', color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
-    { label: 'Texto', icon: FileText, sectionType: 'custom', color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
+    { label: 'Hospedagem', icon: Building2, sectionType: 'hotels', itemType: 'hotel', blockType: 'hotel', color: 'text-blue-600 bg-blue-50 hover:bg-blue-100' },
+    { label: 'Voo', icon: Plane, sectionType: 'flights', itemType: 'flight', blockType: 'flight', color: 'text-sky-600 bg-sky-50 hover:bg-sky-100' },
+    { label: 'Transfer', icon: Bus, sectionType: 'transfers', itemType: 'transfer', blockType: 'transfer', color: 'text-teal-600 bg-teal-50 hover:bg-teal-100' },
+    { label: 'Experiencia', icon: Star, sectionType: 'custom', itemType: 'experience', blockType: 'experience', color: 'text-orange-600 bg-orange-50 hover:bg-orange-100' },
+    { label: 'Titulo', icon: Type, sectionType: 'custom', blockType: 'title', color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
+    { label: 'Texto', icon: FileText, sectionType: 'custom', blockType: 'text', color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
 ]
 
 interface EmptyStateProps {
@@ -44,7 +45,7 @@ export function EmptyState({ onAddSection }: EmptyStateProps) {
                         <Button
                             key={action.label}
                             variant="ghost"
-                            onClick={() => onAddSection(action.sectionType, action.label, action.label.toLowerCase())}
+                            onClick={() => onAddSection(action.sectionType, action.label, action.blockType)}
                             className={`flex flex-col items-center gap-2 h-auto py-4 px-3 rounded-xl border border-slate-200 ${action.color} transition-all`}
                         >
                             <Icon className="h-5 w-5" />
