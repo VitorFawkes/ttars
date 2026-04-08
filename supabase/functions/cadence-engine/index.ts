@@ -514,7 +514,7 @@ async function executeStartCadenceAction(
         return { skipped: true, reason: 'already_active', instance_id: existing.id };
     }
 
-    // Buscar template e primeiro step
+    // Buscar template
     const { data: template, error: templateError } = await supabaseClient
         .from("cadence_templates")
         .select("*")
@@ -525,15 +525,43 @@ async function executeStartCadenceAction(
         throw new Error(`Template not found: ${templateId}`);
     }
 
-    const { data: firstStep, error: stepError } = await supabaseClient
-        .from("cadence_steps")
-        .select("*")
-        .eq("template_id", templateId)
-        .order("step_order", { ascending: true })
-        .limit(1)
-        .single();
+    const executionMode = template.execution_mode || 'linear';
 
-    if (stepError || !firstStep) {
+    // Buscar steps iniciais
+    //  - linear: apenas o primeiro (step_order asc)
+    //  - blocks: TODOS os steps do menor block_index
+    let initialSteps: any[] = [];
+
+    if (executionMode === 'blocks') {
+        const { data: minBlockRow } = await supabaseClient
+            .from("cadence_steps")
+            .select("block_index")
+            .eq("template_id", templateId)
+            .order("block_index", { ascending: true })
+            .limit(1)
+            .single();
+
+        if (minBlockRow) {
+            const { data: blockSteps } = await supabaseClient
+                .from("cadence_steps")
+                .select("*")
+                .eq("template_id", templateId)
+                .eq("block_index", minBlockRow.block_index)
+                .order("step_order", { ascending: true });
+            initialSteps = blockSteps || [];
+        }
+    } else {
+        const { data: firstStep } = await supabaseClient
+            .from("cadence_steps")
+            .select("*")
+            .eq("template_id", templateId)
+            .order("step_order", { ascending: true })
+            .limit(1)
+            .single();
+        if (firstStep) initialSteps = [firstStep];
+    }
+
+    if (initialSteps.length === 0) {
         throw new Error("Template has no steps");
     }
 
@@ -543,7 +571,7 @@ async function executeStartCadenceAction(
         .insert({
             card_id: cardId,
             template_id: templateId,
-            current_step_id: firstStep.id,
+            current_step_id: initialSteps[0].id,
             status: 'active'
         })
         .select()
@@ -553,20 +581,21 @@ async function executeStartCadenceAction(
         throw instanceError;
     }
 
-    // Calcular quando executar o primeiro step
-    let executeAt = new Date();
-    if (template.schedule_mode === 'day_pattern' && firstStep.day_offset !== null) {
-        // Day pattern mode - calcular baseado no dia
-        executeAt = calculateDayOffset(new Date(), firstStep.day_offset, template);
-    }
-
-    // Enfileirar primeiro step
-    await supabaseClient.from("cadence_queue").insert({
-        instance_id: instance.id,
-        step_id: firstStep.id,
-        execute_at: executeAt.toISOString(),
-        priority: 8
+    // Enfileirar todos os steps iniciais (em modo blocks pode ser > 1)
+    const nowIso = new Date().toISOString();
+    const queueRows = initialSteps.map(s => {
+        let executeAt = nowIso;
+        if (template.schedule_mode === 'day_pattern' && s.day_offset !== null) {
+            executeAt = calculateDayOffset(new Date(), s.day_offset, template).toISOString();
+        }
+        return {
+            instance_id: instance.id,
+            step_id: s.id,
+            execute_at: executeAt,
+            priority: 8
+        };
     });
+    await supabaseClient.from("cadence_queue").insert(queueRows);
 
     // Log
     await supabaseClient.from("cadence_event_log").insert({
@@ -672,17 +701,34 @@ async function executeTaskStep(
 ) {
     const config = step.task_config || {};
     const taskTipo = config.tipo || 'contato';
+    const execModeEarly = instance.template?.execution_mode || 'linear';
 
     // =========================================================================
-    // REGRA ANTI-DUPLICATA: Não criar tarefa se já existe uma pendente do mesmo tipo
+    // REGRA ANTI-DUPLICATA:
+    //  - linear: não criar se já existe tarefa pendente do mesmo tipo no card
+    //  - blocks: só pular se já existe tarefa pendente deste MESMO step
+    //    (permite múltiplas tarefas do mesmo tipo no mesmo bloco)
     // =========================================================================
-    const { data: existingTasks } = await supabaseClient
-        .from("tarefas")
-        .select("id, titulo, tipo, concluida")
-        .eq("card_id", card.id)
-        .eq("tipo", taskTipo)
-        .eq("concluida", false)
-        .limit(1);
+    let existingTasks: any[] | null = null;
+    if (execModeEarly === 'blocks') {
+        const res = await supabaseClient
+            .from("tarefas")
+            .select("id, titulo, tipo, concluida, metadata")
+            .eq("card_id", card.id)
+            .eq("concluida", false)
+            .contains("metadata", { cadence_step_id: step.id })
+            .limit(1);
+        existingTasks = res.data || null;
+    } else {
+        const res = await supabaseClient
+            .from("tarefas")
+            .select("id, titulo, tipo, concluida")
+            .eq("card_id", card.id)
+            .eq("tipo", taskTipo)
+            .eq("concluida", false)
+            .limit(1);
+        existingTasks = res.data || null;
+    }
 
     if (existingTasks && existingTasks.length > 0) {
         console.log(`[CadenceEngine] Cadence step skipped - already exists uncompleted "${taskTipo}" task for card ${card.id}`);
@@ -777,18 +823,24 @@ async function executeTaskStep(
         action_result: { task_id: task.id, task_titulo: task.titulo }
     });
 
+    // Em modo 'blocks', a cadência SEMPRE aguarda a conclusão das tarefas para
+    // decidir o próximo bloco via handleTaskOutcome. Nunca auto-avança via
+    // next_step_key, porque o encadeamento é por block_index, não por ponteiro.
+    const isBlocks = execModeEarly === 'blocks';
+    const shouldWait = isBlocks || !!config.wait_for_outcome;
+
     // Atualizar instância
     await supabaseClient
         .from("cadence_instances")
         .update({
             current_step_id: step.id,
-            status: config.wait_for_outcome ? 'waiting_task' : 'active',
+            status: shouldWait ? 'waiting_task' : 'active',
             total_contacts_attempted: instance.total_contacts_attempted + 1
         })
         .eq("id", instance.id);
 
-    // Se não precisa esperar outcome, agendar próximo step
-    if (!config.wait_for_outcome && step.next_step_key) {
+    // Linear mode: se não precisa esperar outcome, agendar próximo step
+    if (!isBlocks && !config.wait_for_outcome && step.next_step_key) {
         await scheduleNextStep(supabaseClient, instance, step.next_step_key, 0);
     }
 
@@ -954,16 +1006,50 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Buscar primeiro step do template
-    const { data: firstStep, error: stepError } = await supabaseClient
-        .from("cadence_steps")
-        .select("*")
-        .eq("template_id", template_id)
-        .order("step_order", { ascending: true })
-        .limit(1)
+    // Detectar modo de execução
+    const { data: templateRow } = await supabaseClient
+        .from("cadence_templates")
+        .select("execution_mode")
+        .eq("id", template_id)
         .single();
 
-    if (stepError || !firstStep) {
+    const executionMode = templateRow?.execution_mode || 'linear';
+
+    // Buscar steps iniciais
+    //  - linear: apenas o primeiro (step_order asc)
+    //  - blocks: TODOS os steps do menor block_index
+    let initialSteps: any[] = [];
+
+    if (executionMode === 'blocks') {
+        const { data: minBlockRow } = await supabaseClient
+            .from("cadence_steps")
+            .select("block_index")
+            .eq("template_id", template_id)
+            .order("block_index", { ascending: true })
+            .limit(1)
+            .single();
+
+        if (minBlockRow) {
+            const { data: blockSteps } = await supabaseClient
+                .from("cadence_steps")
+                .select("*")
+                .eq("template_id", template_id)
+                .eq("block_index", minBlockRow.block_index)
+                .order("step_order", { ascending: true });
+            initialSteps = blockSteps || [];
+        }
+    } else {
+        const { data: firstStep } = await supabaseClient
+            .from("cadence_steps")
+            .select("*")
+            .eq("template_id", template_id)
+            .order("step_order", { ascending: true })
+            .limit(1)
+            .single();
+        if (firstStep) initialSteps = [firstStep];
+    }
+
+    if (initialSteps.length === 0) {
         return new Response(JSON.stringify({
             error: "Template has no steps"
         }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -975,7 +1061,7 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         .insert({
             card_id,
             template_id,
-            current_step_id: firstStep.id,
+            current_step_id: initialSteps[0].id,
             status: 'active'
         })
         .select()
@@ -985,13 +1071,15 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         throw instanceError;
     }
 
-    // Agendar primeiro step
-    await supabaseClient.from("cadence_queue").insert({
+    // Agendar todos os steps iniciais (em modo blocks pode ser > 1)
+    const nowIso = new Date().toISOString();
+    const queueRows = initialSteps.map(s => ({
         instance_id: instance.id,
-        step_id: firstStep.id,
-        execute_at: new Date().toISOString(),
+        step_id: s.id,
+        execute_at: nowIso,
         priority: 8
-    });
+    }));
+    await supabaseClient.from("cadence_queue").insert(queueRows);
 
     // Log
     await logEvent(supabaseClient, {
@@ -1121,40 +1209,130 @@ async function handleTaskOutcome(supabaseClient: SupabaseClient, body: any) {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Buscar instância e step atual
+    // Buscar instância com template (precisa do execution_mode)
     const { data: instance } = await supabaseClient
         .from("cadence_instances")
-        .select("*, current_step:cadence_steps(*)")
+        .select("*, template:cadence_templates(*), current_step:cadence_steps(*)")
         .eq("id", instanceId)
         .single();
 
-    if (!instance || instance.status !== 'waiting_task') {
+    if (!instance) {
         return new Response(JSON.stringify({
-            success: true,
-            message: "Cadence is not waiting for task outcome"
+            success: true, message: "Instance not found"
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Avançar para próximo step
-    const nextStepKey = instance.current_step?.next_step_key;
-    if (nextStepKey) {
-        // Atualizar status e agendar próximo
-        await supabaseClient
-            .from("cadence_instances")
-            .update({
-                status: 'active',
-                successful_contacts: outcome === 'respondido_pelo_cliente'
-                    ? instance.successful_contacts + 1
-                    : instance.successful_contacts
-            })
+    const executionMode = instance.template?.execution_mode || 'linear';
+
+    // =========================================================================
+    // BLOCKS MODE — aguarda todos os irmãos do mesmo block_index
+    // =========================================================================
+    if (executionMode === 'blocks') {
+        const stepId = task.metadata?.cadence_step_id;
+        if (!stepId) {
+            return new Response(JSON.stringify({
+                success: true, message: "Task has no cadence_step_id"
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const { data: currentStep } = await supabaseClient
+            .from("cadence_steps").select("*").eq("id", stepId).single();
+        if (!currentStep) {
+            return new Response(JSON.stringify({ error: "Step not found" }),
+                { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const currentBlock = currentStep.block_index ?? 0;
+
+        // Todos os steps TASK do mesmo bloco
+        const { data: siblingSteps } = await supabaseClient
+            .from("cadence_steps").select("id")
+            .eq("template_id", instance.template_id)
+            .eq("block_index", currentBlock)
+            .eq("step_type", "task");
+        const siblingIds = (siblingSteps || []).map(s => s.id);
+
+        // Tarefas concluídas desta instância
+        const { data: completedTasks } = await supabaseClient
+            .from("tarefas").select("id, metadata")
+            .eq("concluida", true)
+            .contains("metadata", { cadence_instance_id: instanceId });
+        const completedStepIds = new Set(
+            (completedTasks || []).map(t => (t.metadata as any)?.cadence_step_id).filter(Boolean)
+        );
+
+        const allSiblingsDone = siblingIds.every(id => completedStepIds.has(id));
+        const successDelta = outcome === 'respondido_pelo_cliente' ? 1 : 0;
+
+        if (!allSiblingsDone) {
+            if (successDelta > 0) {
+                await supabaseClient.from("cadence_instances")
+                    .update({ successful_contacts: instance.successful_contacts + successDelta })
+                    .eq("id", instanceId);
+            }
+            return new Response(JSON.stringify({
+                success: true, message: "Waiting for sibling tasks in block",
+                block_index: currentBlock,
+                pending_siblings: siblingIds.filter(id => !completedStepIds.has(id))
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        // Todo o bloco concluído — procurar próximo bloco
+        const { data: nextBlockSteps } = await supabaseClient
+            .from("cadence_steps").select("*")
+            .eq("template_id", instance.template_id)
+            .gt("block_index", currentBlock)
+            .order("block_index", { ascending: true })
+            .order("step_order", { ascending: true });
+
+        if (!nextBlockSteps || nextBlockSteps.length === 0) {
+            await supabaseClient.from("cadence_instances")
+                .update({ status: 'completed', completed_at: new Date().toISOString(),
+                    successful_contacts: instance.successful_contacts + successDelta })
+                .eq("id", instanceId);
+            return new Response(JSON.stringify({
+                success: true, message: "Cadence completed", block_index: currentBlock
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const nextBlockIndex = nextBlockSteps[0].block_index;
+        const toSchedule = nextBlockSteps.filter(s => s.block_index === nextBlockIndex);
+        const nowIso = new Date().toISOString();
+        await supabaseClient.from("cadence_queue").insert(
+            toSchedule.map(s => ({ instance_id: instance.id, step_id: s.id, execute_at: nowIso, priority: 8 }))
+        );
+        await supabaseClient.from("cadence_instances")
+            .update({ status: 'active', current_step_id: toSchedule[0].id,
+                successful_contacts: instance.successful_contacts + successDelta })
             .eq("id", instanceId);
 
+        return new Response(JSON.stringify({
+            success: true, advanced_to_block: nextBlockIndex,
+            scheduled_steps: toSchedule.map(s => s.id)
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // =========================================================================
+    // LINEAR MODE (legado) — avança via next_step_key
+    // =========================================================================
+    if (instance.status !== 'waiting_task') {
+        return new Response(JSON.stringify({
+            success: true, message: "Cadence is not waiting for task outcome"
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const nextStepKey = instance.current_step?.next_step_key;
+    if (nextStepKey) {
+        await supabaseClient.from("cadence_instances")
+            .update({ status: 'active',
+                successful_contacts: outcome === 'respondido_pelo_cliente'
+                    ? instance.successful_contacts + 1 : instance.successful_contacts })
+            .eq("id", instanceId);
         await scheduleNextStep(supabaseClient, instance, nextStepKey, 0);
     }
 
     return new Response(JSON.stringify({
-        success: true,
-        advanced_to: nextStepKey
+        success: true, advanced_to: nextStepKey
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
