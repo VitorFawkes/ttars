@@ -1,10 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
-import { usePublicTripPlan } from '@/hooks/useTripPlan'
+import { usePublicPortal } from '@/hooks/useTripPlanBlocks'
 import { ProposalViewRouter } from '@/components/proposals/public/ProposalViewRouter'
 import { MobileProposalViewer } from '@/components/proposals/public/mobile'
-import TripPlanView from '@/pages/public/TripPlanView'
+import { PortalTabs, type PortalTab } from '@/components/trip-plan-portal/PortalTabs'
+import { TravelGuideTab } from '@/components/trip-plan-portal/TravelGuideTab'
+import { PendingTab } from '@/components/trip-plan-portal/PendingTab'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -13,7 +15,11 @@ export default function ProposalView() {
     const [searchParams] = useSearchParams()
     const forceMobile = searchParams.get('mode') === 'mobile'
     const { data: proposal, isLoading, error } = usePublicProposal(token!)
-    const { data: tripPlan } = usePublicTripPlan(token!)
+    const { data: portal } = usePublicPortal(
+        proposal?.status === 'accepted' ? token : undefined
+    )
+
+    const [activeTab, setActiveTab] = useState<PortalTab>('proposal')
 
     // Track link opened event
     useEffect(() => {
@@ -26,6 +32,13 @@ export default function ProposalView() {
             })
         }
     }, [proposal?.id, token])
+
+    // Auto-switch to travel tab when portal has content
+    useEffect(() => {
+        if (portal && portal.blocks.length > 0) {
+            setActiveTab('travel')
+        }
+    }, [portal?.blocks.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
     if (isLoading) {
         return (
@@ -57,9 +70,44 @@ export default function ProposalView() {
         )
     }
 
-    // Portal "Minha Viagem" — quando proposta aceita e trip plan existe
-    if (proposal.status === 'accepted' && tripPlan) {
-        return <TripPlanView plan={tripPlan} />
+    // Proposta aceita COM portal → mostrar abas
+    if (proposal.status === 'accepted' && portal) {
+        const hasTravelGuide = portal.blocks.length > 0
+        const pendingCount = portal.pending_count || 0
+
+        return (
+            <div className="min-h-dvh bg-slate-50">
+                <PortalTabs
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    pendingCount={pendingCount}
+                    hasTravelGuide={hasTravelGuide}
+                />
+
+                {activeTab === 'proposal' && (
+                    <ProposalViewRouter proposal={proposal} />
+                )}
+
+                {activeTab === 'travel' && (
+                    <TravelGuideTab
+                        blocks={portal.blocks}
+                        proposalTitle={portal.proposal.title || undefined}
+                    />
+                )}
+
+                {activeTab === 'pending' && (
+                    <PendingTab
+                        approvals={portal.approvals}
+                        token={token!}
+                    />
+                )}
+            </div>
+        )
+    }
+
+    // Proposta aceita SEM portal (fallback — portal ainda não criado)
+    if (proposal.status === 'accepted') {
+        return <ProposalViewRouter proposal={proposal} />
     }
 
     // Check if expired
