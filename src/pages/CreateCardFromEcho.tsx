@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
 
 /**
@@ -14,6 +15,7 @@ export default function CreateCardFromEcho() {
     const { conversationId } = useParams<{ conversationId: string }>()
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
+    const { profile } = useAuth()
     const [error, setError] = useState<string | null>(null)
 
     const stripBraces = (v: string | null | undefined): string => {
@@ -93,7 +95,7 @@ export default function CreateCardFromEcho() {
                 p_phone: finalPhone,
                 p_phone_number_id: phoneId || null,
                 p_phone_number_label: phoneLabel || null,
-                p_agent_email: agentEmail || null,
+                p_agent_email: agentEmail || profile?.email || null,
             })
 
             if (rpcError) {
