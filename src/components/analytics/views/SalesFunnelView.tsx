@@ -68,7 +68,7 @@ function RevenueTooltip({ active, payload }: any) {
 }
 
 export default function SalesFunnelView() {
-    const filters = useAnalyticsFilters()
+    const setActiveView = useAnalyticsFilters(s => s.setActiveView)
     const { data: kpiData, isLoading: kpiLoading, error: kpiError } = useOverviewKpis()
     const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelConversion()
     const { data: lossData, isLoading: lossLoading, error: lossError } = useLossReasons()
@@ -76,8 +76,8 @@ export default function SalesFunnelView() {
     const drillDown = useDrillDownStore()
 
     useEffect(() => {
-        filters.setActiveView('funnel')
-    }, [filters])
+        setActiveView('funnel')
+    }, [setActiveView])
 
     const hasError = !!(kpiError || funnelError || lossError || revenueError)
     const handleRetry = () => {
