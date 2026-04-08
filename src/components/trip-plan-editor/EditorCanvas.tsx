@@ -50,9 +50,34 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
     const days = getDayBlocks()
     const orphans = getOrphanBlocks()
 
+    // Separar blocos por posição semântica
+    const preTripBlocks = blocks.filter(b => b.block_type === 'pre_trip_section' && !b.parent_day_id)
+    const contactBlocks = blocks.filter(b => b.block_type === 'contact' && !b.parent_day_id)
+    const checklistBlocks = blocks.filter(b => b.block_type === 'checklist' && !b.parent_day_id)
+    const otherOrphans = orphans.filter(b =>
+        b.block_type !== 'pre_trip_section' &&
+        b.block_type !== 'contact' &&
+        b.block_type !== 'checklist'
+    )
+
     return (
         <div className="h-full overflow-y-auto p-6">
             <div className="max-w-3xl mx-auto space-y-4">
+                {/* Pré-viagem — SEMPRE no topo */}
+                {preTripBlocks.map(block => (
+                    <BlockRenderer
+                        key={block.id}
+                        block={block}
+                        isSelected={selectedBlockId === block.id}
+                        onSelect={() => selectBlock(block.id)}
+                        onRemove={() => removeBlock(block.id)}
+                        onUpdate={(data) => updateBlockData(block.id, data)}
+                        onPublish={() => publishBlock(block.id)}
+                        onUnpublish={() => unpublishBlock(block.id)}
+                        tripPlanId={tripPlanId}
+                    />
+                ))}
+
                 {/* Days — sortable */}
                 <SortableContext items={days.map(d => d.id)} strategy={verticalListSortingStrategy}>
                 {days.map(day => (
@@ -75,14 +100,14 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
                 ))}
                 </SortableContext>
 
-                {/* Orphan blocks (not assigned to a day) */}
-                {orphans.length > 0 && (
+                {/* Outros blocos órfãos (dicas gerais, fotos, vídeos sem dia) */}
+                {otherOrphans.length > 0 && (
                     <div className="border-2 border-dashed border-slate-200 rounded-xl p-4">
                         <h3 className="text-sm font-medium text-slate-500 mb-3">
-                            Blocos sem dia atribuído
+                            Blocos gerais
                         </h3>
                         <div className="space-y-2">
-                            {orphans.map(block => (
+                            {otherOrphans.map(block => (
                                 <BlockRenderer
                                     key={block.id}
                                     block={block}
@@ -98,6 +123,36 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
                         </div>
                     </div>
                 )}
+
+                {/* Checklist — após os dias */}
+                {checklistBlocks.map(block => (
+                    <BlockRenderer
+                        key={block.id}
+                        block={block}
+                        isSelected={selectedBlockId === block.id}
+                        onSelect={() => selectBlock(block.id)}
+                        onRemove={() => removeBlock(block.id)}
+                        onUpdate={(data) => updateBlockData(block.id, data)}
+                        onPublish={() => publishBlock(block.id)}
+                        onUnpublish={() => unpublishBlock(block.id)}
+                        tripPlanId={tripPlanId}
+                    />
+                ))}
+
+                {/* Contatos — SEMPRE no final */}
+                {contactBlocks.map(block => (
+                    <BlockRenderer
+                        key={block.id}
+                        block={block}
+                        isSelected={selectedBlockId === block.id}
+                        onSelect={() => selectBlock(block.id)}
+                        onRemove={() => removeBlock(block.id)}
+                        onUpdate={(data) => updateBlockData(block.id, data)}
+                        onPublish={() => publishBlock(block.id)}
+                        onUnpublish={() => unpublishBlock(block.id)}
+                        tripPlanId={tripPlanId}
+                    />
+                ))}
 
                 {/* Empty state */}
                 {blocks.length === 0 && (
