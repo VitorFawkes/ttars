@@ -173,20 +173,20 @@ export const useTripPlanEditor = create<TripPlanEditorState>((set, get) => ({
     // ─── Block CRUD ─────────────────────────────────────────────────────
 
     addBlock: (type, parentDayId = null, data = {}) => {
-        const { blocks, tripPlanId } = get()
-        if (!tripPlanId) return ''
+        const state = get()
+        if (!state.tripPlanId) return ''
 
         const id = crypto.randomUUID()
 
         // Calcular ordem: se tem parent, ordena dentro do dia; senão, no final
         const siblings = parentDayId
-            ? blocks.filter(b => b.parent_day_id === parentDayId)
-            : blocks.filter(b => b.parent_day_id === null)
-        const maxOrdem = siblings.reduce((max, b) => Math.max(max, b.ordem), -1)
+            ? state.blocks.filter(b => b.parent_day_id === parentDayId)
+            : state.blocks.filter(b => b.parent_day_id === null)
+        const maxOrdem = siblings.reduce((max: number, b: TripPlanBlock) => Math.max(max, b.ordem), -1)
 
         const newBlock: TripPlanBlock = {
             id,
-            trip_plan_id: tripPlanId,
+            trip_plan_id: state.tripPlanId,
             block_type: type,
             parent_day_id: parentDayId,
             ordem: maxOrdem + 1,
@@ -243,7 +243,7 @@ export const useTripPlanEditor = create<TripPlanEditorState>((set, get) => ({
     // ─── Publishing ─────────────────────────────────────────────────────
 
     publishAll: async () => {
-        const { blocks, tripPlanId } = get()
+        const { tripPlanId } = get()
         if (!tripPlanId) return
 
         const now = new Date().toISOString()
@@ -298,7 +298,7 @@ export const useTripPlanEditor = create<TripPlanEditorState>((set, get) => ({
             const currentIds = new Set(blocks.map(b => b.id))
 
             // Delete removed blocks
-            const toDelete = [...existingIds].filter(id => !currentIds.has(id))
+            const toDelete = ([...existingIds] as string[]).filter((id: string) => !currentIds.has(id))
             if (toDelete.length > 0) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (supabase.from as any)('trip_plan_blocks')
