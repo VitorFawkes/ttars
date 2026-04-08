@@ -47,8 +47,8 @@ export function useUnifiedSearch(
                 try {
                     const { data } = await supabase.rpc('search_proposal_library', {
                         search_term: trimmed,
-                        category_filter: category || null,
-                        destination_filter: null,
+                        category_filter: category || undefined,
+                        destination_filter: undefined,
                         limit_count: 5,
                     })
                     if (Array.isArray(data)) {
