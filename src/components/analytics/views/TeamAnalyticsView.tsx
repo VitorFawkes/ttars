@@ -298,16 +298,16 @@ export default function TeamAnalyticsView() {
                                         <td className="text-right px-4 py-3 text-slate-600">{member.active_cards}</td>
                                         <td className="text-right px-4 py-3 text-emerald-600 font-medium">{member.won_cards}</td>
                                         <td className="text-right px-4 py-3 font-medium text-slate-900">
-                                            {member.conversion_rate.toFixed(1)}%
+                                            {(member.conversion_rate ?? 0).toFixed(1)}%
                                         </td>
                                         <td className="text-right px-4 py-3 text-slate-900 font-medium">
-                                            {formatCurrency(member.total_receita)}
+                                            {formatCurrency(member.total_receita ?? 0)}
                                         </td>
                                         <td className="text-right px-4 py-3 text-slate-600">
-                                            {formatCurrency(member.ticket_medio)}
+                                            {formatCurrency(member.ticket_medio ?? 0)}
                                         </td>
                                         <td className="text-right px-6 py-3 text-slate-600">
-                                            {Math.round(member.ciclo_medio_dias)}
+                                            {Math.round(member.ciclo_medio_dias ?? 0)}
                                         </td>
                                     </tr>
                                 ))

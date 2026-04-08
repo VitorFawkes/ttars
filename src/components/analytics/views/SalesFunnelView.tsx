@@ -59,7 +59,7 @@ function RevenueTooltip({ active, payload }: any) {
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts payload items typing */}
                 {payload.map((entry: any, i: number) => (
                     <p key={i} style={{ color: entry.color }}>
-                        {entry.name}: <span className="font-semibold">{entry.name === 'Faturamento' ? formatCurrency(Number(entry.value)) : formatCurrency(Number(entry.value))}</span>
+                        {entry.name}: <span className="font-semibold">{formatCurrency(Number(entry.value))}</span>
                     </p>
                 ))}
             </div>

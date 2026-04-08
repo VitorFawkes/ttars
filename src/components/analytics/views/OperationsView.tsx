@@ -42,10 +42,12 @@ function daysUntil(dateStr: string, now: number): number {
 
 function ProductDots({ ready, total }: { ready: number; total: number }) {
     if (total === 0) return <span className="text-xs text-slate-400">—</span>
+    const maxDots = 12
+    const displayCount = Math.min(total, maxDots)
     return (
         <div className="flex items-center gap-1">
             <div className="flex gap-0.5">
-                {Array.from({ length: total }, (_, i) => (
+                {Array.from({ length: displayCount }, (_, i) => (
                     <div
                         key={i}
                         className={cn(
@@ -54,6 +56,7 @@ function ProductDots({ ready, total }: { ready: number; total: number }) {
                         )}
                     />
                 ))}
+                {total > maxDots && <span className="text-[10px] text-slate-400">+{total - maxDots}</span>}
             </div>
             <span className="text-xs text-slate-500 ml-1">{ready}/{total}</span>
         </div>
@@ -85,9 +88,10 @@ export default function OperationsView() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('view_cards_acoes')
-                .select('id, titulo, data_viagem_inicio, estado_operacional, pos_owner_nome, prods_total, prods_ready, status_comercial')
+                .select('id, titulo, data_viagem_inicio, data_viagem_fim, estado_operacional, pos_owner_nome, prods_total, prods_ready, status_comercial')
                 .eq('status_comercial', 'ganho')
-                .not('estado_operacional', 'in', '("realizada","cancelada")')
+                .neq('estado_operacional', 'realizada')
+                .neq('estado_operacional', 'cancelada')
                 .eq('produto', product as 'TRIPS')
                 .is('deleted_at', null)
                 .is('archived_at', null)
@@ -151,9 +155,7 @@ export default function OperationsView() {
         return Math.round(readyProds / totalProds * 100)
     }, [readinessTrips])
 
-    const delivered = useMemo(() => {
-        return readinessTrips.filter(t => t.estado_operacional === 'realizada').length
-    }, [readinessTrips])
+    const delivered = ops?.kpis?.viagens_realizadas ?? 0
 
     const pendingProductsIn48h = useMemo(() => {
         const fortyEightHours = 48 * 60 * 60 * 1000
