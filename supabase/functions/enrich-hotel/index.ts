@@ -179,11 +179,24 @@ async function handleSearch(
 
     // Dedup por externalId e limitar
     const seen = new Set<string>();
-    const results = allResults.filter((r) => {
+    let results = allResults.filter((r) => {
         if (seen.has(r.externalId)) return false;
         seen.add(r.externalId);
         return true;
     }).slice(0, limit);
+
+    // FALLBACK: Google Places API quando LiteAPI não encontra
+    if (results.length === 0) {
+        const googleKey = Deno.env.get("GOOGLE_PLACES_KEY");
+        if (googleKey) {
+            try {
+                const gResults = await searchGooglePlaces(query, googleKey);
+                results = gResults.slice(0, limit);
+            } catch (err) {
+                console.error("[enrich-hotel] Google Places fallback error:", err);
+            }
+        }
+    }
 
     const responseBody = { results };
     await setCached(supabase, PROVIDER, cacheKey, responseBody, 7);
@@ -229,6 +242,19 @@ async function handleDetails(
 
     const cached = await getCached<{ details: HotelDetails }>(supabase, PROVIDER, cacheKey);
     if (cached) return jsonResponse({ ...cached, cached: true });
+
+    // Google Places fallback: se hotelId começa com gp_
+    if (hotelId.startsWith("gp_")) {
+        const googleKey = Deno.env.get("GOOGLE_PLACES_KEY");
+        if (!googleKey) return jsonResponse({ error: "GOOGLE_PLACES_KEY not configured" }, 500);
+
+        const details = await getGooglePlaceDetails(hotelId, googleKey);
+        if (!details) return jsonResponse({ error: "Hotel não encontrado no Google Places" }, 404);
+
+        const responseBody = { details };
+        await setCached(supabase, PROVIDER, cacheKey, responseBody, 30);
+        return jsonResponse({ ...responseBody, cached: false });
+    }
 
     const url = new URL(`${LITEAPI_BASE}/data/hotel`);
     url.searchParams.set("hotelId", hotelId);
@@ -352,4 +378,106 @@ function jsonResponse(body: unknown, status = 200): Response {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+}
+
+// ─── Google Places Fallback ─────────────────────────────────────────────────
+// Usado quando LiteAPI não encontra o hotel.
+// Google Places tem cobertura global massiva (todo estabelecimento no Maps).
+
+const GOOGLE_PLACES_BASE = "https://places.googleapis.com/v1/places";
+
+async function searchGooglePlaces(query: string, apiKey: string): Promise<HotelSummary[]> {
+    // Text Search (New) — busca por nome de hotel
+    const r = await fetch(`${GOOGLE_PLACES_BASE}:searchText`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.location",
+        },
+        body: JSON.stringify({
+            textQuery: query + " hotel",
+            includedType: "hotel",
+            languageCode: "pt-BR",
+            maxResultCount: 10,
+        }),
+    });
+
+    if (!r.ok) {
+        const text = await r.text();
+        throw new Error(`Google Places returned ${r.status}: ${text.slice(0, 200)}`);
+    }
+
+    const data = await r.json();
+    const places = Array.isArray(data?.places) ? data.places : [];
+
+    return places.map((p: Record<string, unknown>): HotelSummary | null => {
+        const displayName = p.displayName as Record<string, unknown> | undefined;
+        const name = displayName?.text ? String(displayName.text) : null;
+        if (!name) return null;
+
+        const location = p.location as Record<string, unknown> | undefined;
+        const photos = Array.isArray(p.photos) ? p.photos as Array<Record<string, unknown>> : [];
+        const firstPhoto = photos[0];
+
+        // Gerar URL de foto via Google Places Photos API
+        let thumbnailUrl: string | undefined;
+        if (firstPhoto?.name) {
+            thumbnailUrl = `https://places.googleapis.com/v1/${firstPhoto.name}/media?maxHeightPx=400&maxWidthPx=600&key=${apiKey}`;
+        }
+
+        return {
+            externalId: `gp_${String(p.id || '')}`,
+            name,
+            address: pickString(p as Record<string, unknown>, "formattedAddress"),
+            lat: location ? pickNumber(location, "latitude") : undefined,
+            lng: location ? pickNumber(location, "longitude") : undefined,
+            guestRating: pickNumber(p as Record<string, unknown>, "rating"),
+            reviewsCount: pickNumber(p as Record<string, unknown>, "userRatingCount"),
+            thumbnailUrl,
+            provider: "google_places" as typeof PROVIDER,
+        };
+    }).filter((x): x is HotelSummary => x !== null);
+}
+
+async function getGooglePlaceDetails(placeId: string, apiKey: string): Promise<HotelDetails | null> {
+    const cleanId = placeId.replace('gp_', '');
+    const r = await fetch(`${GOOGLE_PLACES_BASE}/${cleanId}`, {
+        headers: {
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "id,displayName,formattedAddress,rating,userRatingCount,photos,location,editorialSummary,currentOpeningHours,internationalPhoneNumber,websiteUri,reviews",
+        },
+    });
+
+    if (!r.ok) return null;
+
+    const p = await r.json();
+    const displayName = p.displayName as Record<string, unknown> | undefined;
+    const name = displayName?.text ? String(displayName.text) : "Hotel";
+    const location = p.location as Record<string, unknown> | undefined;
+    const editorial = p.editorialSummary as Record<string, unknown> | undefined;
+    const rawPhotos = Array.isArray(p.photos) ? p.photos as Array<Record<string, unknown>> : [];
+
+    const photos: PhotoRef[] = rawPhotos.slice(0, 10).map((photo) => ({
+        url: `https://places.googleapis.com/v1/${photo.name}/media?maxHeightPx=1200&maxWidthPx=1600&key=${apiKey}`,
+        thumbnailUrl: `https://places.googleapis.com/v1/${photo.name}/media?maxHeightPx=400&maxWidthPx=600&key=${apiKey}`,
+        htmlAttribution: String((photo.authorAttributions as Array<Record<string, unknown>>)?.[0]?.displayName || ''),
+    }));
+
+    return {
+        externalId: placeId,
+        provider: "google_places" as typeof PROVIDER,
+        name,
+        description: editorial?.text ? String(editorial.text) : undefined,
+        address: pickString(p, "formattedAddress"),
+        phone: pickString(p, "internationalPhoneNumber"),
+        website: pickString(p, "websiteUri"),
+        lat: location ? pickNumber(location, "latitude") : undefined,
+        lng: location ? pickNumber(location, "longitude") : undefined,
+        guestRating: pickNumber(p, "rating"),
+        reviewsCount: pickNumber(p, "userRatingCount"),
+        photos,
+        thumbnailUrl: photos[0]?.thumbnailUrl,
+        fetchedAt: new Date().toISOString(),
+    };
 }
