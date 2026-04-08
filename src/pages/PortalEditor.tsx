@@ -41,6 +41,7 @@ export default function PortalEditor() {
     const { data: proposal, isLoading: loadingProposal } = useProposal(proposalId || '')
     const { data: tripPlan, isLoading: loadingTripPlan } = useTripPlan(proposalId, cardId)
     const { data: blocks = [], isLoading: loadingBlocks } = useTripPlanBlocks(tripPlan?.id)
+    const hasCardMode = !!cardId && !proposalId
 
     // Editor store
     const { initialize, reset, isDirty, isSaving } = useTripPlanEditor()
@@ -57,10 +58,11 @@ export default function PortalEditor() {
     )
 
     // Initialize editor when data loads
+    const editorKey = proposalId || cardId || ''
     const initRef = useRef(false)
-    if (!initRef.current && tripPlan?.id && proposalId && !loadingBlocks) {
+    if (!initRef.current && tripPlan?.id && editorKey && !loadingBlocks) {
         initRef.current = true
-        initialize(tripPlan.id, proposalId, blocks)
+        initialize(tripPlan.id, editorKey, blocks)
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,8 +116,8 @@ export default function PortalEditor() {
         }
     }, [])
 
-    // Loading
-    const isLoading = loadingProposal || loadingTripPlan || loadingBlocks
+    // Loading — se cardMode, não espera proposal carregar
+    const isLoading = (hasCardMode ? false : loadingProposal) || loadingTripPlan || loadingBlocks
     if (isLoading) {
         return (
             <div className="h-dvh flex items-center justify-center bg-slate-50">
@@ -127,27 +129,30 @@ export default function PortalEditor() {
         )
     }
 
-    // Error: proposta não encontrada ou não aceita
-    if (!proposal || !tripPlan) {
+    // Error: trip plan não encontrado
+    // Em cardMode, não precisa de proposal; em proposalMode, precisa de ambos
+    if (!tripPlan || (!hasCardMode && !proposal)) {
         return (
             <div className="h-dvh flex items-center justify-center bg-slate-50">
                 <div className="text-center max-w-sm">
                     <p className="text-red-500 mb-4">
-                        {!proposal ? 'Proposta não encontrada' : 'Portal da viagem não disponível. A proposta precisa ser aceita primeiro.'}
+                        {!tripPlan
+                            ? 'Portal da viagem não encontrado. Crie um portal para este card primeiro.'
+                            : 'Proposta não encontrada.'}
                     </p>
                     <button
-                        onClick={() => navigate('/proposals')}
+                        onClick={() => navigate(-1)}
                         className="text-indigo-600 hover:underline flex items-center gap-2 mx-auto"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        Voltar para propostas
+                        Voltar
                     </button>
                 </div>
             </div>
         )
     }
 
-    const title = proposal.active_version?.title || 'Portal da Viagem'
+    const title = proposal?.active_version?.title || 'Portal da Viagem'
 
     return (
         <DndContext
