@@ -45,10 +45,11 @@ export function useUnifiedSearch(
             // 1. Buscar na biblioteca interna (RPC)
             const libraryPromise = (async () => {
                 try {
-                    const { data } = await supabase.rpc('search_proposal_library', {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data } = await (supabase.rpc as any)('search_proposal_library', {
                         search_term: trimmed,
-                        category_filter: category || undefined,
-                        destination_filter: undefined,
+                        category_filter: category || null,
+                        destination_filter: null,
                         limit_count: 5,
                     })
                     if (Array.isArray(data)) {
