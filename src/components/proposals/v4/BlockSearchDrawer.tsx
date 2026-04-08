@@ -218,23 +218,102 @@ export function BlockSearchDrawer({
 
         for (const extracted of extractedItems) {
             const itemType = BLOCK_TO_ITEM[blockType] || 'flight'
-            addItem(sectionId, itemType, extracted.title)
+            const details = extracted.details || {}
+            const segments = (details.segments || []) as Array<Record<string, unknown>>
 
-            const sections = useProposalBuilder.getState().sections
-            const section = sections.find(s => s.id === sectionId)
-            if (section && section.items.length > 0) {
-                const lastItem = section.items[section.items.length - 1]
-                updateItem(lastItem.id, {
-                    description: extracted.description || null,
+            // Para voos: converter segments da IA em flights.legs[].options[]
+            if (extracted.category === 'flight' && segments.length > 0) {
+                const title = extracted.title || `Voo extraído por IA`
+                const itemId = addItem(sectionId, 'flight', title)
+
+                // Agrupar segments em IDA e VOLTA (mesma lógica do readFlightData)
+                
+                let splitIndex = segments.length // tudo é ida por default
+
+                // Procurar ponto de retorno (segment que volta para a origem)
+                for (let i = 1; i < segments.length; i++) {
+                    const depDate = String(segments[i].departure_date || '')
+                    const prevArrDate = String(segments[i - 1].arrival_date || '')
+                    if (depDate && prevArrDate && depDate > prevArrDate) {
+                        // Gap de dias = provavelmente separação ida/volta
+                        const d1 = new Date(prevArrDate).getTime()
+                        const d2 = new Date(depDate).getTime()
+                        if ((d2 - d1) > 2 * 86400000) { // gap > 2 dias
+                            splitIndex = i
+                            break
+                        }
+                    }
+                }
+
+                const outboundSegs = segments.slice(0, splitIndex)
+                const returnSegs = segments.slice(splitIndex)
+
+                const createLeg = (segs: Array<Record<string, unknown>>, legType: string, label: string) => {
+                    const first = segs[0]
+                    return {
+                        id: `leg-${legType}-${Date.now()}`,
+                        leg_type: legType,
+                        label,
+                        origin_code: String(first.departure_airport || ''),
+                        origin_city: String(first.departure_city || ''),
+                        destination_code: String(segs[segs.length - 1].arrival_airport || ''),
+                        destination_city: String(segs[segs.length - 1].arrival_city || ''),
+                        date: String(first.departure_date || ''),
+                        ordem: legType === 'outbound' ? 0 : 1,
+                        options: [{
+                            id: `opt-${legType}-${Date.now()}`,
+                            airline_code: String(first.airline_code || ''),
+                            airline_name: String(first.airline_name || ''),
+                            flight_number: segs.map(s => String(s.flight_number || '')).join(' / '),
+                            departure_time: String(first.departure_time || ''),
+                            arrival_time: String(segs[segs.length - 1].arrival_time || ''),
+                            cabin_class: String(first.cabin_class || 'economy'),
+                            equipment: '',
+                            stops: segs.length - 1,
+                            baggage: String(first.baggage_included || ''),
+                            price: Number(first.price) || 0,
+                            currency: 'BRL',
+                            is_recommended: true,
+                            enabled: true,
+                            ordem: 0,
+                        }],
+                    }
+                }
+
+                const legs = []
+                if (outboundSegs.length > 0) legs.push(createLeg(outboundSegs, 'outbound', 'IDA'))
+                if (returnSegs.length > 0) legs.push(createLeg(returnSegs, 'return', 'VOLTA'))
+
+                updateItem(itemId, {
                     base_price: extracted.price || 0,
                     rich_content: {
                         extracted_from_ai: true,
-                        location: extracted.location,
-                        dates: extracted.dates,
-                        category: extracted.category,
-                        ...extracted.details,
+                        flights: {
+                            legs,
+                            show_prices: true,
+                            allow_mix_airlines: true,
+                        },
                     },
                 })
+            } else {
+                // Para outros tipos (hotel, transfer, etc): manter formato original
+                addItem(sectionId, itemType, extracted.title)
+                const sections = useProposalBuilder.getState().sections
+                const section = sections.find(s => s.id === sectionId)
+                if (section && section.items.length > 0) {
+                    const lastItem = section.items[section.items.length - 1]
+                    updateItem(lastItem.id, {
+                        description: extracted.description || null,
+                        base_price: extracted.price || 0,
+                        rich_content: {
+                            extracted_from_ai: true,
+                            location: extracted.location,
+                            dates: extracted.dates,
+                            category: extracted.category,
+                            ...details,
+                        },
+                    })
+                }
             }
         }
 

@@ -214,7 +214,7 @@ Retorne o resultado como um array "items" com um único objeto contendo:
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "gpt-5.1",
+                model: "gpt-5.4",
                 messages: [
                     {
                         role: "system",
