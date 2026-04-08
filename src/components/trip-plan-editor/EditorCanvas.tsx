@@ -78,25 +78,31 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
                     />
                 ))}
 
+                {/* Drop zone antes dos dias */}
+                <DropZone id="drop-before-days" />
+
                 {/* Days — sortable */}
                 <SortableContext items={days.map(d => d.id)} strategy={verticalListSortingStrategy}>
-                {days.map(day => (
-                    <DayContainer
-                        key={day.id}
-                        day={day}
-                        children={getChildrenOfDay(day.id)}
-                        isSelected={selectedBlockId === day.id}
-                        onSelect={() => selectBlock(day.id)}
-                        onRemove={() => removeBlock(day.id)}
-                        onUpdate={(data) => updateBlockData(day.id, data)}
-                        onRemoveChild={removeBlock}
-                        onUpdateChild={updateBlockData}
-                        onPublishChild={publishBlock}
-                        onUnpublishChild={unpublishBlock}
-                        onSelectChild={selectBlock}
-                        selectedBlockId={selectedBlockId}
-                        tripPlanId={tripPlanId}
-                    />
+                {days.map((day, index) => (
+                    <div key={day.id}>
+                        <DayContainer
+                            day={day}
+                            children={getChildrenOfDay(day.id)}
+                            isSelected={selectedBlockId === day.id}
+                            onSelect={() => selectBlock(day.id)}
+                            onRemove={() => removeBlock(day.id)}
+                            onUpdate={(data) => updateBlockData(day.id, data)}
+                            onRemoveChild={removeBlock}
+                            onUpdateChild={updateBlockData}
+                            onPublishChild={publishBlock}
+                            onUnpublishChild={unpublishBlock}
+                            onSelectChild={selectBlock}
+                            selectedBlockId={selectedBlockId}
+                            tripPlanId={tripPlanId}
+                        />
+                        {/* Drop zone entre dias */}
+                        <DropZone id={`drop-after-day-${index}`} />
+                    </div>
                 ))}
                 </SortableContext>
 
@@ -372,10 +378,27 @@ function DropZone({ id }: { id: string }) {
         <div
             ref={setNodeRef}
             className={cn(
-                'h-2 rounded-full transition-all mx-4',
-                isOver ? 'bg-indigo-400 h-3' : 'bg-transparent hover:bg-slate-200'
+                'relative transition-all duration-200 my-1',
+                isOver ? 'h-14' : 'h-3'
             )}
-        />
+        >
+            {/* Linha indicadora sempre visível ao hover */}
+            <div className={cn(
+                'absolute inset-x-2 top-1/2 -translate-y-1/2 transition-all duration-200 rounded-full',
+                isOver
+                    ? 'h-1.5 bg-indigo-500'
+                    : 'h-0.5 bg-transparent group-hover:bg-slate-200'
+            )} />
+
+            {/* Label "Solte aqui" quando arrastando sobre */}
+            {isOver && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-indigo-500 text-white text-[10px] font-semibold px-3 py-1 rounded-full shadow-sm animate-pulse">
+                        Solte aqui
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
 

@@ -20,7 +20,6 @@ import Leads from './pages/Leads'
 import People from './pages/People'
 import GroupsPage from './pages/GroupsPage'
 import ProposalBuilderElite from './pages/ProposalBuilderElite'
-import ProposalBuilderV4 from './pages/ProposalBuilderV4'
 import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
@@ -189,7 +188,6 @@ function App() {
                     <Route path="whatsapp" element={<WhatsAppView />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
-                  <Route path="/proposals/:id/edit-v4" element={<ProposalBuilderV4 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
