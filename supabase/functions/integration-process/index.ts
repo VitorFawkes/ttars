@@ -1063,8 +1063,13 @@ Deno.serve(async (req) => {
                         if (byExtId) contactId = byExtId.id;
                     }
 
-                    // Tier 2: email
-                    if (!contactId && contactEmail) {
+                    // Tier 2: email (ignora placeholders genéricos que causam dedup incorreto)
+                    const PLACEHOLDER_EMAILS = new Set([
+                        'sememail@email.com', 'sem@email.com', 'naotem@email.com',
+                        'semmail@email.com', 'sem.email@email.com', 'noreply@email.com',
+                        'teste@email.com', 'test@test.com', 'test@email.com',
+                    ]);
+                    if (!contactId && contactEmail && !PLACEHOLDER_EMAILS.has(contactEmail.toLowerCase())) {
                         const { data: byEmail } = await supabase
                             .from('contatos')
                             .select('id')
