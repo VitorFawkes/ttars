@@ -20,14 +20,14 @@ function formatCurrency(value: number): string {
 
 export default function ReactivationKPICards({ kpis, loading, onFilterUrgency }: Props) {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <KpiCard
-                title="Contatos Prioritarios"
+                title="Prioritários"
                 value={kpis.totalPriority}
                 icon={Users}
                 color="text-indigo-600"
                 bgColor="bg-indigo-50"
-                subtitle="Score >= 70"
+                subtitle="Score ≥ 70"
                 isLoading={loading}
                 onClick={() => onFilterUrgency('all')}
                 clickHint="Ver todos"
@@ -38,29 +38,29 @@ export default function ReactivationKPICards({ kpis, loading, onFilterUrgency }:
                 icon={AlertTriangle}
                 color="text-red-600"
                 bgColor="bg-red-50"
-                subtitle="Janela ja passou"
+                subtitle="Janela já passou"
                 isLoading={loading}
                 onClick={() => onFilterUrgency('overdue')}
                 clickHint="Filtrar atrasados"
             />
             <KpiCard
-                title="Janela Aberta"
+                title="Agir agora"
                 value={kpis.totalSoon}
                 icon={Clock}
                 color="text-amber-600"
                 bgColor="bg-amber-50"
-                subtitle="Proximos 30 dias"
+                subtitle="Próximos 30 dias"
                 isLoading={loading}
                 onClick={() => onFilterUrgency('soon')}
-                clickHint="Filtrar proximos"
+                clickHint="Filtrar próximos"
             />
             <KpiCard
-                title="Receita Potencial"
+                title="Receita potencial"
                 value={formatCurrency(kpis.estimatedRevenue)}
                 icon={DollarSign}
                 color="text-emerald-600"
                 bgColor="bg-emerald-50"
-                subtitle="Valor medio dos contatos score >= 50"
+                subtitle="Score ≥ 50"
                 isLoading={loading}
             />
         </div>
