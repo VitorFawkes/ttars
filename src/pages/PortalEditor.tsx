@@ -11,7 +11,7 @@
  * Padrão: mesmo do ProposalBuilderV4 (DnD, Zustand, auto-save)
  */
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
     DndContext,
@@ -56,18 +56,15 @@ export default function PortalEditor() {
         useSensor(KeyboardSensor)
     )
 
-    // Initialize editor when data loads (run once when tripPlan loads)
-    const [initialized, setInitialized] = useState(false)
-    useEffect(() => {
-        if (tripPlan?.id && proposalId && !loadingBlocks && !initialized) {
-            initialize(tripPlan.id, proposalId, blocks)
-            setInitialized(true)
-        }
-    }, [tripPlan?.id, proposalId, loadingBlocks]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Initialize editor when data loads
+    const initRef = useRef(false)
+    if (!initRef.current && tripPlan?.id && proposalId && !loadingBlocks) {
+        initRef.current = true
+        initialize(tripPlan.id, proposalId, blocks)
+    }
 
-    useEffect(() => {
-        return () => reset()
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => () => { reset(); initRef.current = false }, [])
 
     // DnD handlers
     const handleDragStart = useCallback((event: DragStartEvent) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
 import { usePublicPortal } from '@/hooks/useTripPlanBlocks'
@@ -19,14 +19,10 @@ export default function ProposalView() {
         proposal?.status === 'accepted' ? token : undefined
     )
 
-    const [activeTab, setActiveTab] = useState<PortalTab>('proposal')
-    const tabInitRef = useRef(false)
-
-    // Sync tab quando portal carrega pela primeira vez
-    if (!tabInitRef.current && portal && portal.blocks.length > 0) {
-        tabInitRef.current = true
-        setActiveTab('travel')
-    }
+    // Tab ativa: usuário pode trocar manualmente; default depende do portal ter conteúdo
+    const [userSelectedTab, setUserSelectedTab] = useState<PortalTab | null>(null)
+    const defaultTab: PortalTab = (portal && portal.blocks.length > 0) ? 'travel' : 'proposal'
+    const activeTab = userSelectedTab ?? defaultTab
 
     // Track link opened event
     useEffect(() => {
@@ -79,7 +75,7 @@ export default function ProposalView() {
             <div className="min-h-dvh bg-slate-50">
                 <PortalTabs
                     activeTab={activeTab}
-                    onTabChange={setActiveTab}
+                    onTabChange={setUserSelectedTab}
                     pendingCount={pendingCount}
                     hasTravelGuide={hasTravelGuide}
                 />
