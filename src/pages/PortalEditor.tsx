@@ -75,30 +75,42 @@ export default function PortalEditor() {
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         setActiveBlockType(null)
         const { active, over } = event
-        if (!over) return
+        if (!over || active.id === over.id) return
 
-        const blockType = active.data.current?.blockType as BlockType
-        if (!blockType) return
+        const activeId = String(active.id)
 
-        const { addBlock } = useTripPlanEditor.getState()
+        // SE vem da palette (criar novo bloco)
+        if (activeId.startsWith('palette-')) {
+            const blockType = active.data.current?.blockType as BlockType
+            if (!blockType) return
 
-        // Determinar parent_day_id do drop target
-        const overId = String(over.id)
-        let parentDayId: string | null = null
+            const { addBlock } = useTripPlanEditor.getState()
 
-        if (overId.startsWith('day-drop-')) {
-            parentDayId = overId.replace('day-drop-', '')
+            const overId = String(over.id)
+            let parentDayId: string | null = null
+            if (overId.startsWith('day-drop-')) {
+                parentDayId = overId.replace('day-drop-', '')
+            }
+
+            if (blockType === 'day_header') {
+                addBlock('day_header', null, { date: '', title: 'Novo Dia', city: '' })
+            } else {
+                addBlock(blockType, parentDayId, getDefaultData(blockType))
+            }
+            return
         }
 
-        // Criar bloco
-        if (blockType === 'day_header') {
-            addBlock('day_header', null, {
-                date: '',
-                title: `Novo Dia`,
-                city: '',
-            })
-        } else {
-            addBlock(blockType, parentDayId, getDefaultData(blockType))
+        // SE é reordenação de bloco existente (sortable)
+        const { blocks, reorderBlocks } = useTripPlanEditor.getState()
+        const oldIndex = blocks.findIndex(b => b.id === activeId)
+        const newIndex = blocks.findIndex(b => b.id === String(over.id))
+
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            // Array move
+            const newOrder = [...blocks]
+            const [moved] = newOrder.splice(oldIndex, 1)
+            newOrder.splice(newIndex, 0, moved)
+            reorderBlocks(newOrder.map(b => b.id))
         }
     }, [])
 

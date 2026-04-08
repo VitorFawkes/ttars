@@ -19,6 +19,7 @@ import {
     MapPin,
     Check,
     Download,
+    ClipboardList,
 } from 'lucide-react'
 
 interface Block {
@@ -333,32 +334,44 @@ function ContactCard({ data }: { data: Record<string, unknown> }) {
 function PreTripSection({ data }: { data: Record<string, unknown> }) {
     const topics = Array.isArray(data.topics) ? (data.topics as string[]) : []
     const customNotes = (data.custom_notes || {}) as Record<string, string>
+    const customTopics = Array.isArray(data.custom_topics)
+        ? (data.custom_topics as Array<{ key: string; label: string }>)
+        : []
     if (topics.length === 0) return null
 
-    const TOPIC_LABELS: Record<string, { emoji: string; label: string }> = {
-        passport: { emoji: '🛂', label: 'Passaporte' },
-        visa: { emoji: '📋', label: 'Vistos' },
-        vaccines: { emoji: '💉', label: 'Vacinas' },
-        insurance: { emoji: '🛡️', label: 'Seguro Viagem' },
-        currency: { emoji: '💰', label: 'Câmbio e Moeda' },
-        timezone: { emoji: '🕐', label: 'Fuso Horário' },
-        luggage: { emoji: '🧳', label: 'Bagagem' },
-        weather: { emoji: '☀️', label: 'Clima' },
-        transport: { emoji: '🚇', label: 'Transporte Local' },
-        emergency: { emoji: '🚨', label: 'Emergências' },
+    const TOPIC_LABELS: Record<string, string> = {
+        passport: 'Passaporte',
+        visa: 'Vistos',
+        vaccines: 'Vacinas',
+        insurance: 'Seguro Viagem',
+        currency: 'Câmbio e Moeda',
+        timezone: 'Fuso Horário',
+        luggage: 'Bagagem',
+        weather: 'Clima',
+        transport: 'Transporte Local',
+        emergency: 'Emergências',
+    }
+
+    const getLabel = (key: string): string => {
+        if (TOPIC_LABELS[key]) return TOPIC_LABELS[key]
+        const custom = customTopics.find(ct => ct.key === key)
+        return custom?.label || key
     }
 
     return (
         <div className="px-4 py-4 mb-4">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">📋 Antes da Viagem</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-orange-500" />
+                Antes da Viagem
+            </h3>
             <div className="space-y-3">
                 {topics.map(key => {
-                    const config = TOPIC_LABELS[key] || { emoji: '📌', label: key }
+                    const label = getLabel(key)
                     const note = customNotes[key]
                     return (
                         <div key={key} className="bg-orange-50 rounded-xl p-3 border border-orange-100">
                             <p className="text-sm font-medium text-orange-900">
-                                {config.emoji} {config.label}
+                                {label}
                             </p>
                             {note && (
                                 <p className="text-xs text-orange-700 mt-1 whitespace-pre-line">{note}</p>

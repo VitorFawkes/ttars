@@ -8,6 +8,8 @@
  */
 
 import { useDroppable } from '@dnd-kit/core'
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTripPlanEditor, BLOCK_TYPE_CONFIG, type TripPlanBlock } from '@/hooks/useTripPlanEditor'
 import { cn } from '@/lib/utils'
 import { DayHeaderBlock } from './blocks/DayHeaderBlock'
@@ -51,7 +53,8 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
     return (
         <div className="h-full overflow-y-auto p-6">
             <div className="max-w-3xl mx-auto space-y-4">
-                {/* Days */}
+                {/* Days — sortable */}
+                <SortableContext items={days.map(d => d.id)} strategy={verticalListSortingStrategy}>
                 {days.map(day => (
                     <DayContainer
                         key={day.id}
@@ -70,6 +73,7 @@ export function EditorCanvas({ tripPlanId }: EditorCanvasProps) {
                         tripPlanId={tripPlanId}
                     />
                 ))}
+                </SortableContext>
 
                 {/* Orphan blocks (not assigned to a day) */}
                 {orphans.length > 0 && (
@@ -151,16 +155,27 @@ function DayContainer({
     selectedBlockId,
     tripPlanId,
 }: DayContainerProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: day.id })
+    const style = { transform: CSS.Transform.toString(transform), transition }
+
     return (
-        <div className={cn(
-            'bg-white rounded-xl border shadow-sm overflow-hidden transition-all',
-            isSelected ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'
-        )}>
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={cn(
+                'bg-white rounded-xl border shadow-sm overflow-hidden transition-all',
+                isSelected ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200',
+                isDragging && 'opacity-50 shadow-lg'
+            )}
+        >
             {/* Day header */}
             <div
                 onClick={onSelect}
                 className="flex items-center justify-between px-4 py-3 bg-indigo-50/50 border-b border-indigo-100 cursor-pointer"
             >
+                <button {...attributes} {...listeners} className="p-1 cursor-grab active:cursor-grabbing mr-1 shrink-0">
+                    <GripVertical className="h-4 w-4 text-indigo-300" />
+                </button>
                 <DayHeaderBlock
                     data={day.data}
                     onChange={onUpdate}
@@ -179,8 +194,9 @@ function DayContainer({
                 </div>
             </div>
 
-            {/* Day children */}
+            {/* Day children — sortable */}
             <div className="p-3 space-y-2">
+                <SortableContext items={children.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 {children.map(block => (
                     <BlockRenderer
                         key={block.id}
@@ -194,6 +210,7 @@ function DayContainer({
                         tripPlanId={tripPlanId}
                     />
                 ))}
+                </SortableContext>
 
                 {/* Drop zone inside day */}
                 <DropZone id={`day-drop-${day.id}`} />
@@ -232,6 +249,8 @@ function BlockRenderer({
     tripPlanId,
 }: BlockRendererProps) {
     const config = BLOCK_TYPE_CONFIG[block.block_type]
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id })
+    const style = { transform: CSS.Transform.toString(transform), transition }
 
     const editorMap: Record<string, React.ReactNode> = {
         tip: <TipBlock data={block.data} onChange={onUpdate} />,
@@ -246,18 +265,23 @@ function BlockRenderer({
 
     return (
         <div
+            ref={setNodeRef}
+            style={style}
             onClick={onSelect}
             className={cn(
                 'rounded-lg border p-3 transition-all cursor-pointer group',
                 isSelected
                     ? `${config.color.border} ${config.color.bg} ring-1 ring-offset-1`
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    : 'border-slate-200 bg-white hover:border-slate-300',
+                isDragging && 'opacity-50 shadow-lg z-50'
             )}
         >
             {/* Block header bar */}
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                    <GripVertical className="h-3.5 w-3.5 text-slate-300 cursor-grab" />
+                    <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-3.5 w-3.5 text-slate-300" />
+                    </button>
                     <span className={cn('text-[10px] font-semibold uppercase tracking-wider', config.color.text)}>
                         {config.label}
                     </span>
