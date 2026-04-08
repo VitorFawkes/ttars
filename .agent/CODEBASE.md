@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 144 tabelas | 56 paginas | 110 hooks | 17 views | 445 components
+> **Stats:** 147 tabelas | 56 paginas | 114 hooks | 17 views | 445 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **110 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **114 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -182,6 +182,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
 | `useHotelSearch()` | `useHotelSearch.ts` |
+| `useVoucherExtraction()` | `useVoucherExtraction.ts` |
 
 #### Analytics
 | Hook | File |
@@ -256,6 +257,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
+| `useTripPlanApprovals()` | `useTripPlanApprovals.ts` |
+| `useTripPlanBlocks()` | `useTripPlanBlocks.ts` |
+| `useTripPlanEditor()` | `useTripPlanEditor.ts` |
 | `useTrips()` | `useTrips.ts` |
 
 #### Pipeline & Cards
