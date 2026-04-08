@@ -1176,8 +1176,15 @@ Deno.serve(async (req) => {
                                 && contactCard.external_id
                                 && contactCard.external_id !== dealId;
 
+                            // PRODUCT ISOLATION: never link a card from a different product
+                            const isDifferentProduct = topology?.produto
+                                && contactCard.produto
+                                && contactCard.produto !== topology.produto;
+
                             if (hasOtherAcDeal) {
                                 console.log(`[DEDUP_SKIP] Contact ${contactId} already has card ${contactCard.id} linked to AC deal ${contactCard.external_id} — creating new card for deal ${dealId}`);
+                            } else if (isDifferentProduct) {
+                                console.log(`[DEDUP_SKIP_PRODUCT] Card ${contactCard.id} is ${contactCard.produto}, deal ${dealId} is ${topology.produto} — creating new card`);
                             } else {
                                 existingCard = contactCard;
                                 await supabase.from('cards').update({
