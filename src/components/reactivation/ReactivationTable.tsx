@@ -144,10 +144,23 @@ export default function ReactivationTable({
                                     </td>
                                     <td className="px-4 py-3">
                                         <div>
-                                            <p className="text-sm font-medium text-slate-900">
-                                                {contact?.nome} {contact?.sobrenome}
-                                            </p>
-                                            <p className="text-xs text-slate-400">{contact?.email}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-sm font-medium text-slate-900">
+                                                    {contact?.nome} {contact?.sobrenome}
+                                                </p>
+                                                {row.days_until_birthday !== null && row.days_until_birthday <= 30 && (
+                                                    <span title={`Aniversario em ${row.days_until_birthday}d`} className="text-pink-500 text-xs">🎂</span>
+                                                )}
+                                                {row.is_referrer && (
+                                                    <span title={`Indicou ${row.referral_count} clientes`} className="text-emerald-500 text-xs">★</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-slate-400">{contact?.email}</p>
+                                                {row.companion_count > 0 && (
+                                                    <span className="text-[10px] text-blue-500">+{row.companion_count}</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">

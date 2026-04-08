@@ -1,4 +1,4 @@
-import { X, MapPin, Calendar, DollarSign, TrendingUp, Clock } from 'lucide-react'
+import { X, MapPin, Calendar, DollarSign, TrendingUp, Clock, Users, MessageCircle, Gift, Star, Cake } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ReactivationPattern } from '@/hooks/useReactivationPatterns'
 
@@ -89,11 +89,17 @@ export default function ReactivationDetailDrawer({ pattern, onClose }: Props) {
                         {breakdown && (
                             <div className="space-y-2">
                                 <ScoreBar label="Frequencia" value={breakdown.frequency} max={25} color="bg-indigo-500" />
-                                <ScoreBar label="Recencia" value={breakdown.recency} max={15} color="bg-blue-500" />
-                                <ScoreBar label="Valor" value={breakdown.value} max={35} color="bg-emerald-500" />
-                                <ScoreBar label="Sazonalidade" value={breakdown.seasonality} max={25} color="bg-amber-500" />
+                                <ScoreBar label="Recencia" value={breakdown.recency} max={20} color="bg-blue-500" />
+                                <ScoreBar label="Valor" value={breakdown.value} max={30} color="bg-emerald-500" />
+                                <ScoreBar label="Sazonalidade" value={breakdown.seasonality} max={15} color="bg-amber-500" />
                                 {breakdown.timing > 0 && (
-                                    <ScoreBar label="Timing" value={breakdown.timing} max={10} color="bg-red-500" />
+                                    <ScoreBar label="Timing" value={breakdown.timing} max={5} color="bg-orange-500" />
+                                )}
+                                {breakdown.interest > 0 && (
+                                    <ScoreBar label="Interesse recente" value={breakdown.interest} max={10} color="bg-red-500" />
+                                )}
+                                {breakdown.engagement > 0 && (
+                                    <ScoreBar label="Engajamento" value={breakdown.engagement} max={15} color="bg-purple-500" />
                                 )}
                             </div>
                         )}
@@ -220,6 +226,112 @@ export default function ReactivationDetailDrawer({ pattern, onClose }: Props) {
                                 {pattern.last_destinations.map((d, i) => (
                                     <span key={i} className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-600 rounded-full">
                                         {d}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Relacionamento */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                        <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                            <Star className="w-4 h-4 text-slate-400" />
+                            Relacionamento
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Aniversário */}
+                            {pattern.birthday_date && (
+                                <div className="flex items-start gap-2">
+                                    <Cake className="w-4 h-4 text-pink-400 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                        <p className="text-xs text-slate-400">Aniversario</p>
+                                        <p className="text-sm font-medium text-slate-700">
+                                            {formatDate(pattern.birthday_date)}
+                                        </p>
+                                        {pattern.days_until_birthday !== null && (
+                                            <p className={cn(
+                                                'text-xs font-medium mt-0.5',
+                                                pattern.days_until_birthday <= 30 ? 'text-pink-600' : 'text-slate-400'
+                                            )}>
+                                                {pattern.days_until_birthday <= 30
+                                                    ? `Em ${pattern.days_until_birthday} dias!`
+                                                    : `Em ${pattern.days_until_birthday} dias`}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Última interação */}
+                            <div className="flex items-start gap-2">
+                                <MessageCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-xs text-slate-400">Ultima interacao</p>
+                                    {pattern.last_interaction_date ? (
+                                        <>
+                                            <p className="text-sm font-medium text-slate-700">
+                                                {pattern.days_since_interaction !== null
+                                                    ? `${pattern.days_since_interaction} dias atras`
+                                                    : formatDate(pattern.last_interaction_date)}
+                                            </p>
+                                            <p className="text-xs text-slate-400 capitalize">
+                                                via {pattern.last_interaction_type}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-slate-400">Sem registro</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Indicações */}
+                            {pattern.referral_count > 0 && (
+                                <div className="flex items-start gap-2">
+                                    <Users className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                        <p className="text-xs text-slate-400">Indicacoes feitas</p>
+                                        <p className="text-sm font-bold text-emerald-600">
+                                            {pattern.referral_count} {pattern.referral_count === 1 ? 'cliente' : 'clientes'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Presentes */}
+                            <div className="flex items-start gap-2">
+                                <Gift className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-xs text-slate-400">Presentes</p>
+                                    {pattern.gifts_sent_count > 0 ? (
+                                        <>
+                                            <p className="text-sm font-medium text-slate-700">
+                                                {pattern.gifts_sent_count} enviado{pattern.gifts_sent_count > 1 ? 's' : ''}
+                                            </p>
+                                            {pattern.last_gift_date && (
+                                                <p className="text-xs text-slate-400">
+                                                    Ultimo: {formatDate(pattern.last_gift_date)}
+                                                </p>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-amber-600 font-medium">Nenhum enviado</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Acompanhantes frequentes */}
+                    {pattern.companion_names && pattern.companion_names.length > 0 && (
+                        <div className="bg-white border border-slate-200 rounded-xl p-5">
+                            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <Users className="w-4 h-4 text-slate-400" />
+                                Viaja com ({pattern.companion_count} {pattern.companion_count === 1 ? 'pessoa' : 'pessoas'})
+                            </h3>
+                            <div className="flex flex-wrap gap-1.5">
+                                {pattern.companion_names.map((name, i) => (
+                                    <span key={i} className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">
+                                        {name}
                                     </span>
                                 ))}
                             </div>

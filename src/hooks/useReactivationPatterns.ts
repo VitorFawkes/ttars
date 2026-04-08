@@ -29,11 +29,24 @@ export interface ReactivationPattern {
         seasonality: number
         timing: number
         interest: number
+        engagement: number
     } | null
     last_destinations: string[] | null
     preferred_duration_days: number | null
     days_since_last_trip: number | null
     days_until_ideal_contact: number | null
+    // Novas dimensões v3
+    birthday_date: string | null
+    days_until_birthday: number | null
+    companion_names: string[] | null
+    companion_count: number
+    last_interaction_date: string | null
+    last_interaction_type: string | null
+    days_since_interaction: number | null
+    referral_count: number
+    is_referrer: boolean
+    last_gift_date: string | null
+    gifts_sent_count: number
     calculated_at: string
     // Joined from contatos
     contato?: {
