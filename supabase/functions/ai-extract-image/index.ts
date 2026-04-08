@@ -151,7 +151,7 @@ serve(async (req) => {
     try {
         console.log('[AI Extract] Request received');
 
-        const { image, imageUrl, extractionMode, flightExtraction } = await req.json();
+        const { image, imageUrl, extractionMode, flightExtraction, voucherExtraction, voucherType, voucherPrompt } = await req.json();
 
         if (!image && !imageUrl) {
             console.error('[AI Extract] No image provided');
@@ -177,13 +177,30 @@ serve(async (req) => {
             : { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image}` } };
 
         // Selecionar o prompt baseado no modo
-        const systemPrompt = flightExtraction && extractionMode
-            ? getFlightExtractionPrompt(extractionMode as ExtractionMode)
-            : GENERIC_PROMPT;
+        let systemPrompt: string;
+        let userMessage: string;
 
-        const userMessage = flightExtraction
-            ? "Extraia TODOS os voos desta imagem de cotação/reserva aérea."
-            : "Extraia todas as informações de viagem desta imagem de orçamento.";
+        if (voucherExtraction && voucherPrompt) {
+            // Modo voucher: prompt específico passado pelo frontend
+            systemPrompt = `Você é um assistente especializado em extrair dados de vouchers e confirmações de viagem.
+Analise a imagem/documento e extraia os dados no formato JSON estruturado.
+Retorne APENAS um JSON válido com os campos solicitados. Se um campo não for encontrado, use null.
+
+${voucherPrompt}
+
+Retorne o resultado como um array "items" com um único objeto contendo:
+- category: "${voucherType || 'generic'}"
+- title: nome descritivo do voucher
+- details: objeto com TODOS os campos extraídos
+- confidence: número de 0 a 1 indicando confiança na extração`;
+            userMessage = `Extraia todos os dados deste voucher/confirmação de ${voucherType || 'viagem'}.`;
+        } else if (flightExtraction && extractionMode) {
+            systemPrompt = getFlightExtractionPrompt(extractionMode as ExtractionMode);
+            userMessage = "Extraia TODOS os voos desta imagem de cotação/reserva aérea.";
+        } else {
+            systemPrompt = GENERIC_PROMPT;
+            userMessage = "Extraia todas as informações de viagem desta imagem de orçamento.";
+        }
 
         console.log(`[AI Extract] Mode: ${extractionMode || 'generic'}, Flight extraction: ${flightExtraction}`);
         console.log('[AI Extract] Calling OpenAI GPT-5.1 Vision API...');

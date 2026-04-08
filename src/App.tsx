@@ -21,6 +21,7 @@ import People from './pages/People'
 import GroupsPage from './pages/GroupsPage'
 import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import ProposalBuilderV4 from './pages/ProposalBuilderV4'
+import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -197,6 +198,7 @@ function App() {
                     <Route path="retention" element={<RetentionView />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<ProposalBuilderV4 />} />
+                  <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/proposals/:id/legacy" element={<ProposalBuilderElite />} />
 
                   {/* Help Center */}
