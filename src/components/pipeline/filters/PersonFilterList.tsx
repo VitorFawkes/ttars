@@ -39,11 +39,18 @@ export function PersonFilterList({
 }: PersonFilterListProps) {
     const [search, setSearch] = useState('')
 
-    const filtered = profiles.filter(p => {
-        if (!search) return true
-        const q = search.toLowerCase()
-        return (p.full_name?.toLowerCase() || '').includes(q) || (p.email?.toLowerCase() || '').includes(q)
-    })
+    const filtered = profiles
+        .filter(p => {
+            if (!search) return true
+            const q = search.toLowerCase()
+            return (p.full_name?.toLowerCase() || '').includes(q) || (p.email?.toLowerCase() || '').includes(q)
+        })
+        .sort((a, b) => {
+            const aSelected = selected.includes(a.id) ? 0 : 1
+            const bSelected = selected.includes(b.id) ? 0 : 1
+            if (aSelected !== bSelected) return aSelected - bSelected
+            return (a.full_name || '').localeCompare(b.full_name || '', 'pt-BR')
+        })
 
     return (
         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">

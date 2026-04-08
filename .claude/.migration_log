@@ -317,3 +317,7 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-08T18:43:11Z | supabase/migrations/20260408_create_reactivation_patterns.sql | applied_to_prod
 2026-04-08T18:43:20Z | supabase/migrations/20260408_reactivation_calculate_rpc.sql | applied_to_prod
 2026-04-08T18:45:03Z | supabase/migrations/20260409_fix_reactivation_rpc_date_cast.sql | applied_to_prod
+2026-04-08T19:24:54Z | supabase/migrations/20260409_reactivation_rpc_v2.sql | applied_to_prod
+2026-04-08T19:47:50Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260408_fix_dono_atual_sync_on_owner_change.sql | applied_to_prod
+2026-04-08T19:55:30Z | supabase/migrations/20260409_reactivation_v3_new_dimensions.sql | applied_to_prod
+2026-04-08T19:56:26Z | supabase/migrations/20260409_reactivation_v3_new_dimensions.sql | applied_to_prod

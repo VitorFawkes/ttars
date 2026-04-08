@@ -567,8 +567,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     // statusColors moved to StatusSelector component
 
     const updateOwnerMutation = useMutation({
-        mutationFn: async ({ field, userId }: { field: 'dono_atual_id' | 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id', userId: string | null }) => {
-            const updateData: Partial<CardBase> = { [field]: userId || null }
+        mutationFn: async ({ field, userId, fields }: { field?: 'dono_atual_id' | 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id', userId?: string | null, fields?: Partial<CardBase> }) => {
+            const updateData: Partial<CardBase> = fields ?? { [field!]: userId || null }
 
             const { error } = await supabase.from('cards')
                 .update(updateData)
@@ -1034,34 +1034,25 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
 
     const handleSdrSelect = (userId: string | null) => {
-        updateOwnerMutation.mutate({ field: 'sdr_owner_id', userId })
-
-        // If current stage is the entry phase (SDR by slug, or is_entry_phase from DB), update current owner too
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isEntryPhase = (currentPhaseObj as any)?.is_entry_phase === true || currentPhaseObj?.slug === SystemPhase.SDR
-        if (isEntryPhase) {
-            updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
-        }
+        const fields: Partial<CardBase> = { sdr_owner_id: userId || null }
+        if (isEntryPhase) fields.dono_atual_id = userId || null
+        updateOwnerMutation.mutate({ fields })
     }
 
     const handlePlannerSelect = (userId: string | null) => {
-        updateOwnerMutation.mutate({ field: 'vendas_owner_id', userId })
-
-        // If current stage is the sales phase (planner by slug), update current owner too
-        if (currentPhaseObj?.slug === SystemPhase.PLANNER) {
-            updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
-        }
+        const fields: Partial<CardBase> = { vendas_owner_id: userId || null }
+        if (currentPhaseObj?.slug === SystemPhase.PLANNER) fields.dono_atual_id = userId || null
+        updateOwnerMutation.mutate({ fields })
     }
 
     const handlePosVendaSelect = (userId: string | null) => {
-        updateOwnerMutation.mutate({ field: 'pos_owner_id', userId })
-
-        // If current stage is a terminal phase (pos_venda/resolucao by slug, or is_terminal_phase from DB), update current owner too
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isTerminalPhase = (currentPhaseObj as any)?.is_terminal_phase === true || currentPhaseObj?.slug === SystemPhase.POS_VENDA || currentPhaseObj?.slug === SystemPhase.RESOLUCAO
-        if (isTerminalPhase) {
-            updateOwnerMutation.mutate({ field: 'dono_atual_id', userId })
-        }
+        const fields: Partial<CardBase> = { pos_owner_id: userId || null }
+        if (isTerminalPhase) fields.dono_atual_id = userId || null
+        updateOwnerMutation.mutate({ fields })
     }
 
     const handleConciergeSelect = (userId: string | null) => {
