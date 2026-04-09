@@ -24,6 +24,7 @@ import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useMensagemTemplates, type MensagemTemplate } from '@/hooks/useMensagemTemplates'
 import type { TriggerType } from '@/hooks/useAutomacaoRegras'
+import JornadaStepEditor, { type JornadaStep } from '@/components/automacao/JornadaStepEditor'
 
 type AutomacaoType = 'single' | 'jornada'
 type ConditionType = 'card' | 'contato' | 'horario' | 'engajamento'
@@ -56,6 +57,7 @@ interface FormData {
   response_aware: boolean
   requer_aprovacao: boolean
   phone_number_id: string
+  jornada_passos: JornadaStep[]
 }
 
 const TRIGGER_LABELS: Record<TriggerType | '', string> = {
@@ -172,6 +174,7 @@ export default function AutomacaoBuilderPage() {
     max_mensagens_por_dia: 3,
     response_aware: true,
     phone_number_id: '',
+    jornada_passos: [],
     requer_aprovacao: false,
   })
 
@@ -209,6 +212,7 @@ export default function AutomacaoBuilderPage() {
             response_aware: data.response_aware ?? true,
             requer_aprovacao: data.requer_aprovacao ?? false,
             phone_number_id: data.phone_number_id || '',
+            jornada_passos: [],  // Loaded separately below
           })
         }
       } catch (err) {
@@ -291,18 +295,39 @@ export default function AutomacaoBuilderPage() {
         produto: currentProduct,
       }
 
+      let regraId = id
+
       if (isEditing) {
         const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any).from('automacao_regras').update(payload).eq('id', id)
         if (error) throw error
-        toast.success('Automação atualizada com sucesso')
       } else {
-        const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from('automacao_regras').insert([payload])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: created, error } = await (supabase as any).from('automacao_regras').insert([payload]).select('id').single()
         if (error) throw error
-        toast.success('Automação criada com sucesso')
+        regraId = created?.id
       }
 
+      // Save jornada steps if type=jornada
+      if (formData.tipo === 'jornada' && regraId && formData.jornada_passos.length > 0) {
+        // Delete existing steps first (for edit mode)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from('automacao_regra_passos').delete().eq('regra_id', regraId)
+
+        // Insert new steps
+        const passosToInsert = formData.jornada_passos.map((step: JornadaStep, idx: number) => ({
+          regra_id: regraId,
+          ordem: idx + 1,
+          tipo: step.tipo,
+          config: step.config,
+        }))
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: stepsError } = await (supabase as any).from('automacao_regra_passos').insert(passosToInsert)
+        if (stepsError) console.error('Erro ao salvar passos:', stepsError)
+      }
+
+      toast.success(isEditing ? 'Automação atualizada' : 'Automação criada')
       navigate('/settings/automacoes')
     } catch (err) {
       console.error('Erro ao salvar automação:', err)
@@ -1000,6 +1025,17 @@ export default function AutomacaoBuilderPage() {
                   />
                 </div>
               </div>
+
+              {/* Jornada Steps (only visible when type=jornada) */}
+              {formData.tipo === 'jornada' && (
+                <div className="mt-8 pt-6 border-t border-slate-200">
+                  <JornadaStepEditor
+                    steps={formData.jornada_passos}
+                    onChange={(passos: JornadaStep[]) => setFormData({ ...formData, jornada_passos: passos })}
+                    templates={templates}
+                  />
+                </div>
+              )}
             </div>
           )}
 
