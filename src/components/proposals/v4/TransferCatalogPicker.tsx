@@ -25,7 +25,7 @@ export function TransferCatalogPicker({ onImport }: TransferCatalogPickerProps) 
     const [dropoffType, setDropoffType] = useState('City_Location')
     const [date, setDate] = useState('')
     const [hour, setHour] = useState('10')
-    const [minutes, setMinutes] = useState('00')
+    const [minutes] = useState('00')
     const [adults, setAdults] = useState('2')
     const [criteria, setCriteria] = useState<IterpecTransferCriteria | null>(null)
 

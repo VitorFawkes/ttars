@@ -458,13 +458,15 @@ export function BlockSearchDrawer({
                         provider: 'iterpec_cangooroo',
                         iterpecTransferId: transfer.iterpecTransferId,
                         token,
-                        supplierName: transfer.supplierName,
+                        supplierName: transfer.supplierName || '',
                         transferType: transfer.transferType,
-                        price: transfer.price,
-                        cancellationPolicies: transfer.cancellationPolicies,
+                        price_currency: transfer.price.currency,
+                        price_value: transfer.price.value,
+                        cancellationPolicies: JSON.parse(JSON.stringify(transfer.cancellationPolicies)),
                     },
                 },
-            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
@@ -493,12 +495,14 @@ export function BlockSearchDrawer({
                         provider: 'iterpec_cangooroo',
                         iterpecTourId: tour.iterpecTourId,
                         token,
-                        price: tour.price,
+                        price_currency: tour.price.currency,
+                        price_value: tour.price.value,
                         availableDates: tour.availableDates,
-                        cancellationPolicies: tour.cancellationPolicies,
+                        cancellationPolicies: JSON.parse(JSON.stringify(tour.cancellationPolicies)),
                     },
                 },
-            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
@@ -527,12 +531,16 @@ export function BlockSearchDrawer({
                         model: car.model,
                         category: car.category,
                         transmission: car.transmission,
-                        rental: car.rental,
-                        price: car.price,
-                        cancellationPolicies: car.cancellationPolicies,
+                        rental_name: car.rental.name,
+                        rental_logoUrl: car.rental.logoUrl || '',
+                        rental_sippCode: car.rental.sippCode || '',
+                        price_currency: car.price.currency,
+                        price_value: car.price.value,
+                        cancellationPolicies: JSON.parse(JSON.stringify(car.cancellationPolicies)),
                     },
                 },
-            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
