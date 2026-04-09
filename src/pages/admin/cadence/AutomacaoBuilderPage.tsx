@@ -315,22 +315,20 @@ export default function AutomacaoBuilderPage() {
                     .update(templatePayload)
                     .eq('id', id);
                 if (updErr) throw updErr;
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any).from('cadence_steps').delete().eq('template_id', id);
             }
 
-            // Inserir steps gerados a partir dos blocks
-            const stepsToInsert: Record<string, unknown>[] = [];
+            // Montar steps a partir dos blocks
+            const stepsPayload: Record<string, unknown>[] = [];
             let orderCounter = 1;
             blocks.forEach((block, blockIdx) => {
                 block.tasks.forEach((task) => {
                     const currentOrder = orderCounter++;
                     const legacy = encodeNaturalDue(task.due_offset);
-                    stepsToInsert.push({
+                    const stepKey = `b${blockIdx}_t${currentOrder}`;
+                    const base: Record<string, unknown> = {
                         template_id: templateId,
                         step_order: currentOrder,
-                        step_key: `b${blockIdx}_t${currentOrder}`,
+                        step_key: stepKey,
                         step_type: 'task',
                         block_index: blockIdx,
                         day_offset: legacy.day_offset,
@@ -346,17 +344,50 @@ export default function AutomacaoBuilderPage() {
                             assign_to_user_id: task.assign_to_user_id,
                             wait_for_outcome: true,
                         },
-                        wait_for_outcome: true,
                         next_step_key: null,
-                    });
+                    };
+                    // Se é step existente (id persistido do DB), incluir id para upsert
+                    if (task.id && !task.id.startsWith('temp_')) {
+                        base.id = task.id;
+                    }
+                    stepsPayload.push(base);
                 });
             });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error: stepsErr } = await (supabase as any)
-                .from('cadence_steps')
-                .insert(stepsToInsert);
-            if (stepsErr) throw stepsErr;
+            if (!isNew) {
+                // Upsert: atualizar existentes, inserir novos
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: upsertErr } = await (supabase as any)
+                    .from('cadence_steps')
+                    .upsert(stepsPayload, { onConflict: 'id' });
+                if (upsertErr) throw upsertErr;
+
+                // Remover steps órfãos (que não estão mais na lista) — apenas os que não são referenciados
+                const keepIds = stepsPayload.map(s => s.id).filter(Boolean) as string[];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: allOldSteps } = await (supabase as any)
+                    .from('cadence_steps')
+                    .select('id')
+                    .eq('template_id', templateId);
+                const orphanIds = (allOldSteps || [])
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .map((s: any) => s.id)
+                    .filter((sid: string) => !keepIds.includes(sid) && !stepsPayload.some(sp => !sp.id && sp.step_key === sid));
+                if (orphanIds.length > 0) {
+                    // Tentar deletar — pode falhar silenciosamente se FK impede
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any)
+                        .from('cadence_steps')
+                        .delete()
+                        .in('id', orphanIds);
+                }
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: stepsErr } = await (supabase as any)
+                    .from('cadence_steps')
+                    .insert(stepsPayload);
+                if (stepsErr) throw stepsErr;
+            }
 
             // Gravar trigger (start_cadence)
             const triggerPayload = {
