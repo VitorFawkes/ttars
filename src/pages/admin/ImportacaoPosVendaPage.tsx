@@ -6,6 +6,7 @@ import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, Clock, ChevronDown, ChevronRight, XCircle,
     Package, Users, Plus, RefreshCw, Undo2, SquareCheck, Square, MinusSquare,
+    Filter, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -708,6 +709,15 @@ export default function ImportacaoPosVendaPage() {
     const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number } | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
+    // Filters
+    const [filterDataFimMin, setFilterDataFimMin] = useState('')
+    const [filterDataFimMax, setFilterDataFimMax] = useState('')
+    const [filterValorMin, setFilterValorMin] = useState('')
+    const [filterValorMax, setFilterValorMax] = useState('')
+    const [filterAction, setFilterAction] = useState<'all' | 'create' | 'update' | 'skip'>('all')
+    const [filterVendedor, setFilterVendedor] = useState('')
+    const [showFilters, setShowFilters] = useState(false)
+
     // Auth check: admin or pos_venda phase
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1093,8 +1103,60 @@ export default function ImportacaoPosVendaPage() {
         setSelectedTrips(new Set())
         setImportResult(null)
         setImportProgress({ current: 0, total: 0 })
+        setFilterDataFimMin('')
+        setFilterDataFimMax('')
+        setFilterValorMin('')
+        setFilterValorMax('')
+        setFilterAction('all')
+        setFilterVendedor('')
+        setShowFilters(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
+
+    // ─── Filter logic ────────────────────────────────────────
+    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor)
+
+    const filteredTrips = trips.filter(trip => {
+        if (filterAction !== 'all' && trip.action !== filterAction) return false
+        if (filterDataFimMin && (!trip.dataFim || trip.dataFim < filterDataFimMin)) return false
+        if (filterDataFimMax && (!trip.dataFim || trip.dataFim > filterDataFimMax)) return false
+        if (filterValorMin && trip.valorTotal < parseFloat(filterValorMin)) return false
+        if (filterValorMax && trip.valorTotal > parseFloat(filterValorMax)) return false
+        if (filterVendedor && !norm(trip.vendedor).includes(norm(filterVendedor))) return false
+        return true
+    })
+
+    const clearFilters = useCallback(() => {
+        setFilterDataFimMin('')
+        setFilterDataFimMax('')
+        setFilterValorMin('')
+        setFilterValorMax('')
+        setFilterAction('all')
+        setFilterVendedor('')
+    }, [])
+
+    const selectFiltered = useCallback(() => {
+        setSelectedTrips(prev => {
+            const next = new Set(prev)
+            for (const t of filteredTrips) {
+                if (t.action !== 'skip') next.add(t.id)
+            }
+            return next
+        })
+    }, [filteredTrips])
+
+    const deselectFiltered = useCallback(() => {
+        setSelectedTrips(prev => {
+            const next = new Set(prev)
+            for (const t of filteredTrips) {
+                next.delete(t.id)
+            }
+            return next
+        })
+    }, [filteredTrips])
+
+    // Unique vendedores for filter dropdown
+    const uniqueVendedores = [...new Set(trips.map(t => t.vendedor).filter(Boolean))].sort()
 
     const toggleTrip = useCallback((id: string) => {
         setSelectedTrips(prev => {
@@ -1226,6 +1288,138 @@ export default function ImportacaoPosVendaPage() {
                             )}
                         </div>
 
+                        {/* Filter bar */}
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+                            >
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Filter className="h-4 w-4 text-slate-400" />
+                                    <span className="font-medium text-slate-700">Filtros</span>
+                                    {hasActiveFilters && (
+                                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                                            {filteredTrips.length}/{trips.length} visíveis
+                                        </span>
+                                    )}
+                                </div>
+                                <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", showFilters && "rotate-180")} />
+                            </button>
+
+                            {showFilters && (
+                                <div className="border-t border-slate-100 px-4 py-3 space-y-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {/* Data fim range */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Data término (de)</label>
+                                            <input
+                                                type="date"
+                                                value={filterDataFimMin}
+                                                onChange={e => setFilterDataFimMin(e.target.value)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Data término (até)</label>
+                                            <input
+                                                type="date"
+                                                value={filterDataFimMax}
+                                                onChange={e => setFilterDataFimMax(e.target.value)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            />
+                                        </div>
+
+                                        {/* Valor range */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Valor total mínimo (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={filterValorMin}
+                                                onChange={e => setFilterValorMin(e.target.value)}
+                                                placeholder="0"
+                                                min="0"
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Valor total máximo (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={filterValorMax}
+                                                onChange={e => setFilterValorMax(e.target.value)}
+                                                placeholder="∞"
+                                                min="0"
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            />
+                                        </div>
+
+                                        {/* Ação */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Ação</label>
+                                            <select
+                                                value={filterAction}
+                                                onChange={e => setFilterAction(e.target.value as typeof filterAction)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            >
+                                                <option value="all">Todas</option>
+                                                <option value="create">Apenas criar</option>
+                                                <option value="update">Apenas atualizar</option>
+                                                <option value="skip">Apenas pular</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Vendedor */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Vendedor</label>
+                                            <select
+                                                value={filterVendedor}
+                                                onChange={e => setFilterVendedor(e.target.value)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            >
+                                                <option value="">Todos</option>
+                                                {uniqueVendedores.map(v => (
+                                                    <option key={v} value={v}>{v}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Filter actions */}
+                                    <div className="flex items-center justify-between pt-1">
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                onClick={selectFiltered}
+                                                className="text-xs h-7 px-2.5"
+                                                disabled={filteredTrips.length === 0}
+                                            >
+                                                <SquareCheck className="h-3 w-3 mr-1" />
+                                                Selecionar filtrados ({filteredTrips.filter(t => t.action !== 'skip').length})
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                onClick={deselectFiltered}
+                                                className="text-xs h-7 px-2.5"
+                                                disabled={filteredTrips.length === 0}
+                                            >
+                                                <Square className="h-3 w-3 mr-1" />
+                                                Desmarcar filtrados
+                                            </Button>
+                                        </div>
+                                        {hasActiveFilters && (
+                                            <button
+                                                onClick={clearFilters}
+                                                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                                            >
+                                                <X className="h-3 w-3" />
+                                                Limpar filtros
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* File info + select all */}
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
                             <div className="flex items-center gap-4">
@@ -1258,14 +1452,24 @@ export default function ImportacaoPosVendaPage() {
 
                         {/* Trip cards */}
                         <div className="space-y-2">
-                            {trips.map(trip => (
-                                <TripCard
-                                    key={trip.id}
-                                    trip={trip}
-                                    selected={selectedTrips.has(trip.id)}
-                                    onToggle={toggleTrip}
-                                />
-                            ))}
+                            {filteredTrips.length === 0 && hasActiveFilters ? (
+                                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm text-center">
+                                    <Filter className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-sm text-slate-500">Nenhuma viagem corresponde aos filtros aplicados</p>
+                                    <button onClick={clearFilters} className="text-sm text-indigo-600 hover:text-indigo-700 mt-1">
+                                        Limpar filtros
+                                    </button>
+                                </div>
+                            ) : (
+                                filteredTrips.map(trip => (
+                                    <TripCard
+                                        key={trip.id}
+                                        trip={trip}
+                                        selected={selectedTrips.has(trip.id)}
+                                        onToggle={toggleTrip}
+                                    />
+                                ))
+                            )}
                         </div>
                     </div>
                 )}

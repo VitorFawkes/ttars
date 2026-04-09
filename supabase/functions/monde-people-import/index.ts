@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const pageLimit = body.page_limit || MAX_PAGES;
     const singlePersonId = body.monde_person_id || null;
+    const searchName = body.search || null;
 
     // --- 1. Check sync enabled ---
     const { data: settings } = await supabase
@@ -147,7 +148,10 @@ Deno.serve(async (req) => {
       let hasMore = true;
 
       while (hasMore && page <= pageLimit) {
-        const url = `${auth.apiUrl}/people?page[number]=${page}&page[size]=${DEFAULT_PAGE_SIZE}`;
+        let url = `${auth.apiUrl}/people?page[number]=${page}&page[size]=${DEFAULT_PAGE_SIZE}`;
+        if (searchName) {
+          url += `&filter[search]=${encodeURIComponent(searchName)}`;
+        }
 
         let response = await fetch(url, {
           headers: mondeV2Headers(token),
@@ -178,8 +182,8 @@ Deno.serve(async (req) => {
           allPeople.push(...people);
           page++;
 
-          // Check if there's a next page via links
-          if (!json.links?.last || people.length < DEFAULT_PAGE_SIZE) {
+          // Check if there's a next page via JSON:API links
+          if (!json.links?.next || people.length < DEFAULT_PAGE_SIZE) {
             hasMore = false;
           }
         }
@@ -328,18 +332,6 @@ Deno.serve(async (req) => {
             id: _id,
             ...insertFields
           } = mapped;
-
-          // Skip contacts without phone (required by DB constraint)
-          if (!insertFields.telefone) {
-            results.push({
-              monde_person_id: mondePersonId,
-              status: "skipped",
-              match_type: "new",
-              match_confidence: "new",
-              error: "Sem telefone — obrigatório para criar contato",
-            });
-            continue;
-          }
 
           const { data: newContato, error: insertError } = await supabase
             .from("contatos")

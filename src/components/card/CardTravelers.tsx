@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Users, Loader2, Edit2, Trash2 } from 'lucide-react'
+import { Users, Loader2, Edit2, Trash2, AlertTriangle } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
@@ -42,6 +42,15 @@ function TravelerRow({
                         {tipo_viajante === 'titular' && (
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded-full font-medium">
                                 Titular
+                            </span>
+                        )}
+                        {!contact.telefone && (
+                            <span
+                                className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-600 text-[10px] rounded-full font-medium"
+                                title="Telefone pendente — preencha no cadastro do contato"
+                            >
+                                <AlertTriangle className="h-3 w-3" />
+                                Sem telefone
                             </span>
                         )}
                     </div>
