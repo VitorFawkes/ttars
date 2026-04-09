@@ -1,0 +1,627 @@
+/**
+ * automacao-mensagem-processor — Motor de processamento da fila de automações.
+ *
+ * Chamado via pg_cron a cada 1 minuto.
+ *
+ * Batches:
+ *   1. Pendentes: avalia condições → envia ou skip
+ *   2. Aguardando passo: avança jornadas multi-step
+ *   3. Retries: reprocessa falhas com backoff
+ *   4. Métricas: atualiza contadores
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const TIMEZONE = "America/Sao_Paulo";
+const BUSINESS_HOURS_START = 9;
+const BUSINESS_HOURS_END = 18;
+const BATCH_SIZE = 50;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function isBrazilBusinessHours(): boolean {
+  const now = new Date();
+  // Rough UTC-3 offset for São Paulo
+  const brHour = (now.getUTCHours() - 3 + 24) % 24;
+  const brDay = now.getUTCDay(); // 0=Sun, 6=Sat
+  return brDay >= 1 && brDay <= 5 && brHour >= BUSINESS_HOURS_START && brHour < BUSINESS_HOURS_END;
+}
+
+function isWeekday(daysAllowed?: number[]): boolean {
+  const now = new Date();
+  const brDay = now.getUTCDay(); // 0=Sun
+  // Convert to ISO weekday (1=Mon, 7=Sun)
+  const isoDay = brDay === 0 ? 7 : brDay;
+  if (!daysAllowed || daysAllowed.length === 0) return true;
+  return daysAllowed.includes(isoDay);
+}
+
+// ---------------------------------------------------------------------------
+// Condition evaluator
+// ---------------------------------------------------------------------------
+async function evaluateConditions(
+  supabase: SupabaseClient,
+  conditions: Array<Record<string, unknown>>,
+  cardId: string | null,
+  contactId: string | null
+): Promise<{ pass: boolean; reason: string }> {
+  if (!conditions || conditions.length === 0) return { pass: true, reason: "" };
+
+  for (const cond of conditions) {
+    const tipo = cond.tipo as string;
+    const campo = cond.campo as string;
+    const op = cond.op as string;
+
+    if (tipo === "horario") {
+      if (cond.business_hours_only && !isBrazilBusinessHours()) {
+        return { pass: false, reason: "fora_horario" };
+      }
+      if (!isWeekday(cond.dias_semana as number[])) {
+        return { pass: false, reason: "fora_horario" };
+      }
+    }
+
+    if (tipo === "contato" && contactId) {
+      if (campo === "telefone" && op === "not_null") {
+        const { data } = await supabase
+          .from("contatos")
+          .select("telefone")
+          .eq("id", contactId)
+          .single();
+        if (!data?.telefone) return { pass: false, reason: "sem_telefone" };
+      }
+      if (campo === "optout" && op === "eq") {
+        // Check optout is handled separately
+      }
+    }
+
+    if (tipo === "card" && cardId) {
+      const { data: card } = await supabase
+        .from("cards")
+        .select(campo)
+        .eq("id", cardId)
+        .single();
+      if (!card) return { pass: false, reason: "card_nao_encontrado" };
+
+      const value = (card as Record<string, unknown>)[campo];
+
+      if (op === "eq" && value !== cond.valor) return { pass: false, reason: "condicao_falhou" };
+      if (op === "neq" && value === cond.valor) return { pass: false, reason: "condicao_falhou" };
+      if (op === "not_in" && Array.isArray(cond.valores) && cond.valores.includes(value)) {
+        return { pass: false, reason: "condicao_falhou" };
+      }
+      if (op === "in" && Array.isArray(cond.valores) && !cond.valores.includes(value)) {
+        return { pass: false, reason: "condicao_falhou" };
+      }
+      if (op === "gte" && typeof value === "number" && value < (cond.valor as number)) {
+        return { pass: false, reason: "condicao_falhou" };
+      }
+      if (op === "gt" && typeof value === "number" && value <= (cond.valor as number)) {
+        return { pass: false, reason: "condicao_falhou" };
+      }
+      if (op === "not_null" && (value === null || value === undefined)) {
+        return { pass: false, reason: "condicao_falhou" };
+      }
+    }
+
+    if (tipo === "engajamento" && cardId && contactId) {
+      if (campo === "respondeu_ultimas_horas") {
+        const horas = (cond.horas as number) || 24;
+        const since = new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
+        const { count } = await supabase
+          .from("whatsapp_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", contactId)
+          .eq("direction", "inbound")
+          .gte("created_at", since);
+
+        const responded = (count ?? 0) > 0;
+        if (op === "eq" && cond.valor === false && responded) {
+          return { pass: false, reason: "cliente_respondeu" };
+        }
+        if (op === "eq" && cond.valor === true && !responded) {
+          return { pass: false, reason: "condicao_falhou" };
+        }
+      }
+    }
+  }
+
+  return { pass: true, reason: "" };
+}
+
+// ---------------------------------------------------------------------------
+// Check optout
+// ---------------------------------------------------------------------------
+async function isOptedOut(
+  supabase: SupabaseClient,
+  contactId: string,
+  regraId: string
+): Promise<boolean> {
+  // Global optout
+  const { count: globalCount } = await supabase
+    .from("automacao_optout")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", contactId)
+    .is("regra_id", null);
+
+  if ((globalCount ?? 0) > 0) return true;
+
+  // Per-rule optout
+  const { count: ruleCount } = await supabase
+    .from("automacao_optout")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", contactId)
+    .eq("regra_id", regraId);
+
+  return (ruleCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Check daily limit
+// ---------------------------------------------------------------------------
+async function dailyMessageCount(
+  supabase: SupabaseClient,
+  contactId: string
+): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  const { count } = await supabase
+    .from("automacao_execucoes")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", contactId)
+    .eq("status", "enviado")
+    .gte("enviado_at", todayStart.toISOString());
+
+  return count ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Check response-aware (client responded since execution was created)
+// ---------------------------------------------------------------------------
+async function clientRespondedSince(
+  supabase: SupabaseClient,
+  contactId: string,
+  since: string
+): Promise<boolean> {
+  const { count } = await supabase
+    .from("whatsapp_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", contactId)
+    .eq("direction", "inbound")
+    .gte("created_at", since);
+
+  return (count ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Send message via send-whatsapp-message Edge Function
+// ---------------------------------------------------------------------------
+async function sendMessage(
+  supabase: SupabaseClient,
+  execucao: Record<string, unknown>,
+  regra: Record<string, unknown>
+): Promise<{ success: boolean; error?: string }> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+  const payload: Record<string, unknown> = {
+    contact_id: execucao.contact_id,
+    card_id: execucao.card_id,
+    source: "automacao",
+    automacao_execucao_id: execucao.id,
+    phone_number_id: regra.phone_number_id || undefined,  // Linha WhatsApp escolhida na regra
+  };
+
+  // Template or direct body
+  if (execucao.template_id) {
+    payload.template_id = execucao.template_id;
+  } else if (execucao.corpo_renderizado) {
+    payload.corpo = execucao.corpo_renderizado;
+  } else if (regra.template_id) {
+    payload.template_id = regra.template_id;
+  }
+
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await resp.json().catch(() => ({}));
+    return { success: resp.ok, error: resp.ok ? undefined : JSON.stringify(result) };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Process pending executions
+// ---------------------------------------------------------------------------
+async function processPending(supabase: SupabaseClient): Promise<number> {
+  const { data: pendentes } = await supabase
+    .from("automacao_execucoes")
+    .select("*, automacao_regras!inner(id, condicoes, template_id, max_envios_por_card, dedup_janela_horas, max_mensagens_contato_dia, response_aware, modo_aprovacao, tipo, phone_number_id)")
+    .eq("status", "pending")
+    .limit(BATCH_SIZE)
+    .order("created_at", { ascending: true });
+
+  if (!pendentes || pendentes.length === 0) return 0;
+
+  let processed = 0;
+
+  for (const exec of pendentes) {
+    const regra = exec.automacao_regras;
+
+    // 1. Check optout
+    if (exec.contact_id && await isOptedOut(supabase, exec.contact_id, exec.regra_id)) {
+      await supabase.from("automacao_execucoes")
+        .update({ status: "skipped", skip_reason: "optout" })
+        .eq("id", exec.id);
+      processed++;
+      continue;
+    }
+
+    // 2. Check daily limit
+    if (exec.contact_id) {
+      const dailyCount = await dailyMessageCount(supabase, exec.contact_id);
+      if (dailyCount >= (regra.max_mensagens_contato_dia || 3)) {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "skipped", skip_reason: "limite_diario" })
+          .eq("id", exec.id);
+        processed++;
+        continue;
+      }
+    }
+
+    // 3. Check response-aware
+    if (regra.response_aware && exec.contact_id) {
+      if (await clientRespondedSince(supabase, exec.contact_id, exec.created_at)) {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "cancelado", skip_reason: "cliente_respondeu" })
+          .eq("id", exec.id);
+        processed++;
+        continue;
+      }
+    }
+
+    // 4. Evaluate conditions
+    const conditions = (regra.condicoes || []) as Array<Record<string, unknown>>;
+    const evalResult = await evaluateConditions(supabase, conditions, exec.card_id, exec.contact_id);
+
+    if (!evalResult.pass) {
+      if (evalResult.reason === "fora_horario") {
+        // Reschedule for next business hours window
+        await supabase.from("automacao_execucoes")
+          .update({ status: "aguardando_horario" })
+          .eq("id", exec.id);
+      } else {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "skipped", skip_reason: evalResult.reason })
+          .eq("id", exec.id);
+      }
+      processed++;
+      continue;
+    }
+
+    // 5. For jornada type, handle first step
+    if (regra.tipo === "jornada") {
+      const { data: firstStep } = await supabase
+        .from("automacao_regra_passos")
+        .select("*")
+        .eq("regra_id", exec.regra_id)
+        .order("ordem", { ascending: true })
+        .limit(1)
+        .single();
+
+      if (firstStep) {
+        await processJornadaStep(supabase, exec, regra, firstStep);
+      } else {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "skipped", skip_reason: "jornada_sem_passos" })
+          .eq("id", exec.id);
+      }
+      processed++;
+      continue;
+    }
+
+    // 6. Single mode — send message
+    // TODO: For template_ia/ia_generativa, call n8n workflow first
+    const sendResult = await sendMessage(supabase, exec, regra);
+
+    if (!sendResult.success) {
+      const attempts = (exec.attempts || 0) + 1;
+      const backoffMs = Math.min(attempts * 5 * 60 * 1000, 60 * 60 * 1000); // max 1h
+      await supabase.from("automacao_execucoes")
+        .update({
+          status: "falhou",
+          attempts,
+          next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
+          skip_reason: sendResult.error,
+        })
+        .eq("id", exec.id);
+    }
+    // send-whatsapp-message updates status to 'enviado' on success
+
+    processed++;
+  }
+
+  return processed;
+}
+
+// ---------------------------------------------------------------------------
+// Process jornada step
+// ---------------------------------------------------------------------------
+async function processJornadaStep(
+  supabase: SupabaseClient,
+  exec: Record<string, unknown>,
+  regra: Record<string, unknown>,
+  step: Record<string, unknown>
+): Promise<void> {
+  const config = step.config as Record<string, unknown>;
+
+  switch (step.tipo) {
+    case "enviar_mensagem": {
+      const templateId = config.template_id as string;
+      await supabase.from("automacao_execucoes")
+        .update({ template_id: templateId, passo_atual_id: step.id, passo_atual_ordem: step.ordem })
+        .eq("id", exec.id);
+
+      const sendResult = await sendMessage(supabase, { ...exec, template_id: templateId }, regra);
+      if (sendResult.success) {
+        await advanceToNextStep(supabase, exec, step);
+      }
+      break;
+    }
+    case "aguardar": {
+      const horas = (config.horas as number) || 24;
+      const horasMs = horas * 60 * 60 * 1000;
+      await supabase.from("automacao_execucoes")
+        .update({
+          status: "aguardando_passo",
+          passo_atual_id: step.id,
+          passo_atual_ordem: step.ordem,
+          proximo_passo_at: new Date(Date.now() + horasMs).toISOString(),
+        })
+        .eq("id", exec.id);
+      break;
+    }
+    case "verificar_resposta": {
+      const responded = exec.contact_id
+        ? await clientRespondedSince(supabase, exec.contact_id as string, exec.created_at as string)
+        : false;
+
+      if (responded && config.se_respondeu === "parar") {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "respondido", passo_atual_id: step.id })
+          .eq("id", exec.id);
+      } else {
+        await advanceToNextStep(supabase, exec, step);
+      }
+      break;
+    }
+    case "criar_tarefa": {
+      if (exec.card_id) {
+        await supabase.from("tarefas").insert({
+          card_id: exec.card_id,
+          tipo: (config.tipo as string) || "contato",
+          titulo: (config.titulo as string) || "Tarefa de automação",
+          descricao: config.descricao || null,
+          prioridade: (config.prioridade as string) || "alta",
+          status: "pendente",
+        });
+      }
+      await advanceToNextStep(supabase, exec, step);
+      break;
+    }
+    case "atualizar_campo": {
+      if (exec.card_id && config.tabela === "cards") {
+        await supabase.from("cards")
+          .update({ [config.campo as string]: config.valor })
+          .eq("id", exec.card_id);
+      }
+      await advanceToNextStep(supabase, exec, step);
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Advance jornada to next step
+// ---------------------------------------------------------------------------
+async function advanceToNextStep(
+  supabase: SupabaseClient,
+  exec: Record<string, unknown>,
+  currentStep: Record<string, unknown>
+): Promise<void> {
+  const currentOrdem = (currentStep.ordem as number) || 0;
+
+  const { data: nextStep } = await supabase
+    .from("automacao_regra_passos")
+    .select("*")
+    .eq("regra_id", exec.regra_id)
+    .gt("ordem", currentOrdem)
+    .order("ordem", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!nextStep) {
+    await supabase.from("automacao_execucoes")
+      .update({ status: "completo" })
+      .eq("id", exec.id);
+    return;
+  }
+
+  // Set as pending again to process next step in next cycle
+  await supabase.from("automacao_execucoes")
+    .update({
+      status: "pending",
+      passo_atual_id: nextStep.id,
+      passo_atual_ordem: nextStep.ordem,
+    })
+    .eq("id", exec.id);
+}
+
+// ---------------------------------------------------------------------------
+// Process waiting steps (jornadas)
+// ---------------------------------------------------------------------------
+async function processWaitingSteps(supabase: SupabaseClient): Promise<number> {
+  const { data: waiting } = await supabase
+    .from("automacao_execucoes")
+    .select("*, automacao_regras!inner(id, condicoes, template_id, response_aware, tipo)")
+    .eq("status", "aguardando_passo")
+    .lte("proximo_passo_at", new Date().toISOString())
+    .limit(BATCH_SIZE);
+
+  if (!waiting || waiting.length === 0) return 0;
+
+  let processed = 0;
+  for (const exec of waiting) {
+    // Advance: set back to pending so processPending picks it up
+    await supabase.from("automacao_execucoes")
+      .update({ status: "pending" })
+      .eq("id", exec.id);
+    processed++;
+  }
+  return processed;
+}
+
+// ---------------------------------------------------------------------------
+// Process business hours waiting
+// ---------------------------------------------------------------------------
+async function processWaitingHorario(supabase: SupabaseClient): Promise<number> {
+  if (!isBrazilBusinessHours()) return 0;
+
+  const { data: waiting } = await supabase
+    .from("automacao_execucoes")
+    .select("id")
+    .eq("status", "aguardando_horario")
+    .limit(BATCH_SIZE);
+
+  if (!waiting || waiting.length === 0) return 0;
+
+  const ids = waiting.map((w) => w.id);
+  await supabase
+    .from("automacao_execucoes")
+    .update({ status: "pending" })
+    .in("id", ids);
+
+  return ids.length;
+}
+
+// ---------------------------------------------------------------------------
+// Process retries
+// ---------------------------------------------------------------------------
+async function processRetries(supabase: SupabaseClient): Promise<number> {
+  const { data: retries } = await supabase
+    .from("automacao_execucoes")
+    .select("*, automacao_regras!inner(id, condicoes, template_id, tipo)")
+    .eq("status", "falhou")
+    .lt("attempts", 3)
+    .lte("next_retry_at", new Date().toISOString())
+    .limit(BATCH_SIZE);
+
+  if (!retries || retries.length === 0) return 0;
+
+  let processed = 0;
+  for (const exec of retries) {
+    // Set back to pending for reprocessing
+    await supabase.from("automacao_execucoes")
+      .update({ status: "pending" })
+      .eq("id", exec.id);
+    processed++;
+  }
+  return processed;
+}
+
+// ---------------------------------------------------------------------------
+// Update rule metrics
+// ---------------------------------------------------------------------------
+async function updateMetrics(supabase: SupabaseClient): Promise<void> {
+  // Get all active rules and update their counters from execucoes
+  const { data: rules } = await supabase
+    .from("automacao_regras")
+    .select("id")
+    .eq("ativa", true);
+
+  if (!rules) return;
+
+  for (const rule of rules) {
+    const { data: counts } = await supabase.rpc("count_automacao_metrics", {
+      p_regra_id: rule.id,
+    }).maybeSingle();
+
+    // If RPC doesn't exist yet, skip silently
+    if (!counts) continue;
+
+    await supabase
+      .from("automacao_regras")
+      .update(counts)
+      .eq("id", rule.id);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const start = Date.now();
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const pendingCount = await processPending(supabase);
+    const waitingStepsCount = await processWaitingSteps(supabase);
+    const waitingHorarioCount = await processWaitingHorario(supabase);
+    const retryCount = await processRetries(supabase);
+
+    // Update metrics every 5th run (to avoid excessive DB writes)
+    // We don't have a counter, so just do it if there was activity
+    if (pendingCount > 0) {
+      await updateMetrics(supabase).catch(() => {});
+    }
+
+    const elapsed = Date.now() - start;
+
+    const result = {
+      processed: {
+        pending: pendingCount,
+        waiting_steps: waitingStepsCount,
+        waiting_horario: waitingHorarioCount,
+        retries: retryCount,
+      },
+      elapsed_ms: elapsed,
+    };
+
+    console.log(`[automacao-processor] ${JSON.stringify(result)}`);
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("[automacao-processor] Error:", err);
+    return new Response(
+      JSON.stringify({ error: String(err) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

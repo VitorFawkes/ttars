@@ -23,6 +23,7 @@ import {
     Eye,
     Bell,
     AlertTriangle,
+    Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -134,6 +135,8 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/customization/sections" icon={Layers} label="Seções" />
                             <NavItem to="/settings/customization/action-requirements" icon={FileCheck} label="Requisitos de Ação" />
                             <NavItem to="/settings/cadence" icon={Zap} label="Cadências" />
+                            <NavItem to="/settings/automacoes" icon={Send} label="Automação de Mensagens" />
+                            <NavItem to="/settings/automacoes/templates" icon={MessageSquare} label="Templates de Mensagem" />
                             <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações" />
                             <NavItem to="/settings/customization/alert-rules" icon={AlertTriangle} label="Alertas de Cards" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />

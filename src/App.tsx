@@ -76,6 +76,10 @@ import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
+// Automação de Mensagens WhatsApp
+import AutomacaoMensagemListPage from './pages/admin/AutomacaoListPage'
+import AutomacaoMensagemBuilderPage from './pages/admin/AutomacaoBuilderPage'
+import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
@@ -242,6 +246,12 @@ function App() {
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />
+
+                    {/* Automação de Mensagens WhatsApp */}
+                    <Route path="automacoes" element={<AutomacaoMensagemListPage />} />
+                    <Route path="automacoes/builder/new" element={<AutomacaoMensagemBuilderPage />} />
+                    <Route path="automacoes/builder/:id" element={<AutomacaoMensagemBuilderPage />} />
+                    <Route path="automacoes/templates" element={<MensagemTemplatePage />} />
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />
