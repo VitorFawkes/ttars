@@ -61,7 +61,7 @@ export function CarRentalPicker({ onImport }: CarRentalPickerProps) {
             <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">Local (código IATA)</label>
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">Local (código, ex: GRU)</label>
                         <Input
                             placeholder="Ex: GRU"
                             value={pickupCode}

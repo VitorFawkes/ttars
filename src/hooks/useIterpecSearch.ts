@@ -24,7 +24,7 @@ export function useIterpecSearch<T>(
     enabled = true,
 ) {
     return useQuery({
-        queryKey: ['iterpec-search', mode, criteria],
+        queryKey: ['iterpec-search', mode, criteria ? JSON.stringify(criteria) : null],
         queryFn: async (): Promise<IterpecSearchResponse<T>> => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) throw new Error('Não autenticado')
