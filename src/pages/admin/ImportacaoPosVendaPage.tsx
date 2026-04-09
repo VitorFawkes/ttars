@@ -716,6 +716,8 @@ export default function ImportacaoPosVendaPage() {
     const [filterValorMax, setFilterValorMax] = useState('')
     const [filterAction, setFilterAction] = useState<'all' | 'create' | 'update' | 'skip'>('all')
     const [filterVendedor, setFilterVendedor] = useState('')
+    const [filterApp, setFilterApp] = useState<'all' | 'sim' | 'nao'>('all')
+    const [filterVoucher, setFilterVoucher] = useState<'all' | 'sim' | 'nao'>('all')
     const [showFilters, setShowFilters] = useState(false)
 
     // Auth check: admin or pos_venda phase
@@ -1109,12 +1111,14 @@ export default function ImportacaoPosVendaPage() {
         setFilterValorMax('')
         setFilterAction('all')
         setFilterVendedor('')
+        setFilterApp('all')
+        setFilterVoucher('all')
         setShowFilters(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     // ─── Filter logic ────────────────────────────────────────
-    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor)
+    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor || filterApp !== 'all' || filterVoucher !== 'all')
 
     const filteredTrips = trips.filter(trip => {
         if (filterAction !== 'all' && trip.action !== filterAction) return false
@@ -1123,6 +1127,13 @@ export default function ImportacaoPosVendaPage() {
         if (filterValorMin && trip.valorTotal < parseFloat(filterValorMin)) return false
         if (filterValorMax && trip.valorTotal > parseFloat(filterValorMax)) return false
         if (filterVendedor && !norm(trip.vendedor).includes(norm(filterVendedor))) return false
+        if (filterApp === 'sim' && !trip.appEnviadoConcluida) return false
+        if (filterApp === 'nao' && trip.appEnviadoConcluida) return false
+        if (filterVoucher !== 'all') {
+            const allVoucher = trip.products.every(p => isSim(p.vouchersNoApp) || isSim(p.contratoVoucher))
+            if (filterVoucher === 'sim' && !allVoucher) return false
+            if (filterVoucher === 'nao' && allVoucher) return false
+        }
         return true
     })
 
@@ -1133,6 +1144,8 @@ export default function ImportacaoPosVendaPage() {
         setFilterValorMax('')
         setFilterAction('all')
         setFilterVendedor('')
+        setFilterApp('all')
+        setFilterVoucher('all')
     }, [])
 
     const selectFiltered = useCallback(() => {
@@ -1380,6 +1393,34 @@ export default function ImportacaoPosVendaPage() {
                                                 {uniqueVendedores.map(v => (
                                                     <option key={v} value={v}>{v}</option>
                                                 ))}
+                                            </select>
+                                        </div>
+
+                                        {/* App Gerado */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">App Gerado</label>
+                                            <select
+                                                value={filterApp}
+                                                onChange={e => setFilterApp(e.target.value as typeof filterApp)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            >
+                                                <option value="all">Todos</option>
+                                                <option value="sim">Com app</option>
+                                                <option value="nao">Sem app</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Voucher */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Voucher</label>
+                                            <select
+                                                value={filterVoucher}
+                                                onChange={e => setFilterVoucher(e.target.value as typeof filterVoucher)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            >
+                                                <option value="all">Todos</option>
+                                                <option value="sim">Todos com voucher</option>
+                                                <option value="nao">Algum sem voucher</option>
                                             </select>
                                         </div>
                                     </div>
