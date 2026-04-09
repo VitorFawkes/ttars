@@ -1,6 +1,23 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle, GripVertical } from 'lucide-react';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +58,46 @@ const eventOptions: { value: EventType; label: string }[] = [
  * de tarefas encadeados. Salva como cadence_template (execution_mode='blocks')
  * + cadence_event_trigger (action_type='start_cadence').
  */
+function SortableBlock({ block, children }: {
+    block: Block;
+    index: number;
+    totalBlocks: number;
+    children: React.ReactNode;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: block.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style}>
+            {/* Drag handle bar */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="flex items-center justify-center gap-1 py-1 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors"
+                title="Arrastar para reordenar"
+            >
+                <GripVertical className="w-4 h-4" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">arrastar</span>
+                <GripVertical className="w-4 h-4" />
+            </div>
+            {children}
+        </div>
+    );
+}
+
 export default function AutomacaoBuilderPage() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -254,6 +311,40 @@ export default function AutomacaoBuilderPage() {
         }
         setBlocks(blocks.filter((_, i) => i !== idx));
     };
+
+    const fixAnchorsAfterReorder = useCallback((reordered: Block[]): Block[] => {
+        return reordered.map((block, idx) => ({
+            ...block,
+            tasks: block.tasks.map((task) => ({
+                ...task,
+                due_offset: {
+                    ...task.due_offset,
+                    anchor: idx === 0 ? 'cadence_start' as const : 'previous_block_completed' as const,
+                },
+            })),
+        }));
+    }, []);
+
+    const moveBlock = useCallback((fromIdx: number, toIdx: number) => {
+        setBlocks((prev) => fixAnchorsAfterReorder(arrayMove(prev, fromIdx, toIdx)));
+    }, [fixAnchorsAfterReorder]);
+
+    // DnD sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = blocks.findIndex((b) => b.id === active.id);
+            const newIndex = blocks.findIndex((b) => b.id === over.id);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                setBlocks((prev) => fixAnchorsAfterReorder(arrayMove(prev, oldIndex, newIndex)));
+            }
+        }
+    }, [blocks, fixAnchorsAfterReorder]);
 
     // Validação e save
     const validationError = useMemo(() => {
@@ -608,28 +699,34 @@ export default function AutomacaoBuilderPage() {
                     {/* Blocks */}
                     <div className="space-y-3">
                         <h2 className="text-sm font-semibold text-slate-900 px-1">Blocos de tarefas</h2>
-                        {blocks.map((block, idx) => (
-                            <div key={block.id}>
-                                <BlockEditor
-                                    block={block}
-                                    index={idx}
-                                    isFirst={idx === 0}
-                                    userOptions={userOptions}
-                                    onChange={(next) => updateBlock(idx, next)}
-                                    onRemove={() => removeBlock(idx)}
-                                />
-                                {idx < blocks.length - 1 && (
-                                    <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
-                                        <div className="flex-1 border-t border-dashed border-amber-300" />
-                                        <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                                            <Clock className="w-3 h-3" />
-                                            <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
-                                        </div>
-                                        <div className="flex-1 border-t border-dashed border-amber-300" />
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                {blocks.map((block, idx) => (
+                                    <SortableBlock key={block.id} block={block} index={idx} totalBlocks={blocks.length}>
+                                        <BlockEditor
+                                            block={block}
+                                            index={idx}
+                                            isFirst={idx === 0}
+                                            userOptions={userOptions}
+                                            onChange={(next) => updateBlock(idx, next)}
+                                            onRemove={() => removeBlock(idx)}
+                                            onMoveUp={idx > 0 ? () => moveBlock(idx, idx - 1) : undefined}
+                                            onMoveDown={idx < blocks.length - 1 ? () => moveBlock(idx, idx + 1) : undefined}
+                                        />
+                                        {idx < blocks.length - 1 && (
+                                            <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
+                                                <div className="flex-1 border-t border-dashed border-amber-300" />
+                                                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
+                                                </div>
+                                                <div className="flex-1 border-t border-dashed border-amber-300" />
+                                            </div>
+                                        )}
+                                    </SortableBlock>
+                                ))}
+                            </SortableContext>
+                        </DndContext>
                         <Button variant="outline" onClick={addBlock} className="w-full">
                             <Plus className="w-4 h-4 mr-2" />
                             Adicionar bloco que aguarda a conclusão do anterior

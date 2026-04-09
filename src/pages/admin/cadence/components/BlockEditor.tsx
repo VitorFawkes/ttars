@@ -1,4 +1,4 @@
-import { Plus, Trash2, Phone, Mail, Users, FileText, Clipboard, Package, GripVertical, Zap, Clock } from 'lucide-react';
+import { Plus, Trash2, Phone, Mail, Users, FileText, Clipboard, Package, GripVertical, Zap, Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,8 @@ interface BlockEditorProps {
     userOptions: { value: string; label: string }[];
     onChange: (next: Block) => void;
     onRemove: () => void;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
 }
 
 const taskTypeOptions = [
@@ -74,6 +76,8 @@ export function BlockEditor({
     userOptions,
     onChange,
     onRemove,
+    onMoveUp,
+    onMoveDown,
 }: BlockEditorProps) {
     const updateTask = (taskId: string, updates: Partial<BlockTask>) => {
         onChange({
@@ -129,15 +133,37 @@ export function BlockEditor({
                         </span>
                     </div>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onRemove}
-                    className="text-slate-400 hover:text-red-600"
-                    title="Remover bloco"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onMoveUp}
+                        disabled={!onMoveUp}
+                        className="text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                        title="Mover para cima"
+                    >
+                        <ChevronUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onMoveDown}
+                        disabled={!onMoveDown}
+                        className="text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                        title="Mover para baixo"
+                    >
+                        <ChevronDown className="w-4 h-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onRemove}
+                        className="text-slate-400 hover:text-red-600"
+                        title="Remover bloco"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
+                </div>
             </header>
 
             <div className="divide-y divide-slate-100">
