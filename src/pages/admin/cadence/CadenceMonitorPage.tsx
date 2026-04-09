@@ -39,7 +39,7 @@ interface CadenceInstance {
     card?: {
         id: string;
         titulo: string;
-        responsavel?: {
+        dono?: {
             nome: string;
         };
         pipeline_stages?: {
@@ -112,7 +112,7 @@ const CadenceMonitorPage: React.FC = () => {
                     card:cards (
                         id,
                         titulo,
-                        responsavel:users!cards_responsavel_id_fkey (nome),
+                        dono:profiles!cards_dono_atual_id_profiles_fkey (nome),
                         pipeline_stages (nome)
                     ),
                     current_step:cadence_steps (step_key, step_type)
@@ -347,7 +347,7 @@ const CadenceMonitorPage: React.FC = () => {
                                                 </a>
                                             </TableCell>
                                             <TableCell className="text-slate-600">
-                                                {instance.card?.responsavel?.nome || '-'}
+                                                {instance.card?.dono?.nome || '-'}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline">
