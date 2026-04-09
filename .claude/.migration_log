@@ -328,3 +328,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-09T17:10:48Z | supabase/migrations/20260409_automacao_phone_line.sql | applied_to_prod
 2026-04-09T17:29:10Z | supabase/migrations/20260409_fix_handle_new_user_set_role_id.sql | applied_to_prod
 2026-04-09T18:36:16Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260409_force_relogin.sql | applied_to_prod
+2026-04-09T19:01:32Z | supabase/migrations/20260409_force_relogin.sql | applied_to_prod
