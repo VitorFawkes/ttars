@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
@@ -23,6 +23,7 @@ export interface Organization {
     settings: OrgSettings | null
     onboarding_step: number
     onboarding_completed_at: string | null
+    force_relogin_after: string | null
 }
 
 interface OrgContextType {
@@ -32,8 +33,17 @@ interface OrgContextType {
 
 const OrgContext = createContext<OrgContextType | undefined>(undefined)
 
+const FORCE_RELOGIN_KEY = 'welcomecrm_last_login_ts'
+
 export function OrgProvider({ children }: { children: ReactNode }) {
-    const { profile, loading: authLoading } = useAuth()
+    const { profile, user, signOut, loading: authLoading } = useAuth()
+
+    // Marcar timestamp de login se ainda não existir (sessões pré-existentes)
+    useEffect(() => {
+        if (user && !localStorage.getItem(FORCE_RELOGIN_KEY)) {
+            localStorage.setItem(FORCE_RELOGIN_KEY, new Date().toISOString())
+        }
+    }, [user])
 
     const { data: org, isLoading: queryLoading } = useQuery({
         queryKey: ['organization', profile?.org_id],
@@ -41,15 +51,30 @@ export function OrgProvider({ children }: { children: ReactNode }) {
             if (!profile?.org_id) return null
             const { data, error } = await supabase
                 .from('organizations')
-                .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at')
+                .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at, force_relogin_after')
                 .eq('id', profile.org_id)
                 .single()
             if (error) throw error
-            return data as Organization
+            return data as unknown as Organization
         },
         enabled: !!profile?.org_id,
         staleTime: 30 * 60 * 1000, // 30 min — org metadata rarely changes
     })
+
+    // Verificar se admin forçou re-login
+    useEffect(() => {
+        if (!org?.force_relogin_after || !user) return
+
+        const forceAfter = new Date(org.force_relogin_after).getTime()
+        const loginTs = localStorage.getItem(FORCE_RELOGIN_KEY)
+        const lastLogin = loginTs ? new Date(loginTs).getTime() : 0
+
+        if (lastLogin < forceAfter) {
+            // Sessão é anterior ao force_relogin — deslogar
+            localStorage.removeItem(FORCE_RELOGIN_KEY)
+            signOut()
+        }
+    }, [org?.force_relogin_after, user, signOut])
 
     const isLoading = authLoading || queryLoading
 

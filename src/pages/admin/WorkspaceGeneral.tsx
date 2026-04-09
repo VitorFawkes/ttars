@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
-import { Settings, Loader2, Save, Building2, Palette, Clock, Download, ShieldCheck } from 'lucide-react'
+import { Settings, Loader2, Save, Building2, Palette, Clock, Download, ShieldCheck, LogOut, AlertTriangle } from 'lucide-react'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -97,6 +97,30 @@ export default function WorkspaceGeneral() {
     })
 
     const isAdmin = profile?.is_admin === true
+
+    const [forcingRelogin, setForcingRelogin] = useState(false)
+    const [showReloginConfirm, setShowReloginConfirm] = useState(false)
+
+    const handleForceRelogin = async () => {
+        if (!org) return
+        setForcingRelogin(true)
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any)
+                .from('organizations')
+                .update({ force_relogin_after: new Date().toISOString() })
+                .eq('id', org.id)
+            if (error) throw error
+            toast.success('Re-login forçado! Todos os usuários serão deslogados na próxima ação.')
+            queryClient.invalidateQueries({ queryKey: ['organization'] })
+            setShowReloginConfirm(false)
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Erro ao forçar re-login'
+            toast.error(`Erro: ${message}`)
+        } finally {
+            setForcingRelogin(false)
+        }
+    }
 
     const [exporting, setExporting] = useState(false)
     const handleExport = async () => {
@@ -314,6 +338,77 @@ export default function WorkspaceGeneral() {
                         </div>
                     </div>
                 </section>
+
+                {/* Gestão de Sessões */}
+                {isAdmin && (
+                    <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <LogOut className="w-4 h-4 text-slate-500" />
+                            <h2 className="text-sm font-semibold text-slate-900">Gestão de Sessões</h2>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <p className="text-sm text-slate-700 mb-1 font-medium">Forçar re-login de todos os usuários</p>
+                                <p className="text-xs text-slate-500 mb-3">
+                                    Todos os usuários da organização serão deslogados e precisarão fazer login novamente.
+                                    Útil após alterações de permissões, mudanças em equipes ou atualizações importantes.
+                                </p>
+
+                                {org.force_relogin_after && (
+                                    <p className="text-xs text-slate-400 mb-3">
+                                        Último re-login forçado: {new Date(org.force_relogin_after).toLocaleString('pt-BR')}
+                                    </p>
+                                )}
+
+                                {!showReloginConfirm ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowReloginConfirm(true)}
+                                    >
+                                        <LogOut className="w-4 h-4 mr-2" />
+                                        Forçar re-login
+                                    </Button>
+                                ) : (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                        <div className="flex items-start gap-2 mb-3">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                                            <p className="text-sm text-amber-800">
+                                                Tem certeza? Todos os usuários (incluindo você) serão deslogados ao acessar o CRM.
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={handleForceRelogin}
+                                                disabled={forcingRelogin}
+                                            >
+                                                {forcingRelogin ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        Processando...
+                                                    </>
+                                                ) : (
+                                                    'Confirmar re-login'
+                                                )}
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setShowReloginConfirm(false)}
+                                                disabled={forcingRelogin}
+                                            >
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                )}
 
                 {/* LGPD & Privacidade */}
                 {isAdmin && (

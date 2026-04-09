@@ -163,7 +163,7 @@ export function BlockEditor({
                                 />
                             </div>
                             <div className="flex gap-2 items-center flex-wrap">
-                                <span className="text-xs text-slate-500">Prazo:</span>
+                                <span className="text-xs text-slate-500">Prazo de conclusão:</span>
                                 <NaturalDueField
                                     value={task.due_offset}
                                     onChange={(v) => updateTask(task.id, { due_offset: v })}

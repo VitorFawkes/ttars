@@ -76,10 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
 
         // Listen for changes on auth state (logged in, signed out, etc.)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session)
             setUser(session?.user ?? null)
             if (session?.user) {
+                // Marcar timestamp de login ao fazer sign in
+                if (event === 'SIGNED_IN') {
+                    localStorage.setItem('welcomecrm_last_login_ts', new Date().toISOString())
+                }
                 fetchProfile(session.user.id)
             } else {
                 setProfile(null)

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Zap, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/label';
@@ -66,6 +66,22 @@ export default function AutomacaoBuilderPage() {
     const [triggerId, setTriggerId] = useState<string | null>(null);
     const [loading, setLoading] = useState(!isNew);
     const [saving, setSaving] = useState(false);
+
+    // Stats
+    interface BlockStats {
+        blockIndex: number;
+        waiting: number;
+        completed: number;
+        total: number;
+    }
+    interface AutomationStats {
+        totalActivations: number;
+        activeInstances: number;
+        completedInstances: number;
+        cancelledInstances: number;
+        perBlock: BlockStats[];
+    }
+    const [stats, setStats] = useState<AutomationStats | null>(null);
 
     const userOptions = useMemo(() => {
         const list = (users || [])
@@ -155,6 +171,73 @@ export default function AutomacaoBuilderPage() {
             }
         })();
     }, [id, isNew, navigate]);
+
+    // Carregar stats para automação existente
+    useEffect(() => {
+        if (isNew || !id) return;
+        (async () => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: instances } = await (supabase as any)
+                    .from('cadence_instances')
+                    .select('id, status, current_step_id')
+                    .eq('template_id', id);
+
+                if (!instances || instances.length === 0) {
+                    setStats({ totalActivations: 0, activeInstances: 0, completedInstances: 0, cancelledInstances: 0, perBlock: [] });
+                    return;
+                }
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: steps } = await (supabase as any)
+                    .from('cadence_steps')
+                    .select('id, block_index')
+                    .eq('template_id', id);
+
+                const stepToBlock = new Map<string, number>();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (steps || []).forEach((s: any) => stepToBlock.set(s.id, s.block_index ?? 0));
+
+                const blockIndices = [...new Set(stepToBlock.values())].sort((a, b) => a - b);
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const perBlock: BlockStats[] = blockIndices.map((bi: number) => {
+                    const stepsInBlock = new Set(
+                        [...stepToBlock.entries()].filter(([, b]) => b === bi).map(([sid]) => sid)
+                    );
+                    let waiting = 0;
+                    let completed = 0;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    instances.forEach((inst: any) => {
+                        const instBlock = stepToBlock.get(inst.current_step_id) ?? -1;
+                        if (inst.status === 'completed') {
+                            completed++;
+                        } else if (inst.status === 'cancelled') {
+                            // não conta
+                        } else if (stepsInBlock.has(inst.current_step_id)) {
+                            waiting++;
+                        } else if (instBlock > bi) {
+                            completed++;
+                        }
+                    });
+                    return { blockIndex: bi, waiting, completed, total: waiting + completed };
+                });
+
+                setStats({
+                    totalActivations: instances.length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    activeInstances: instances.filter((i: any) => i.status === 'waiting_task' || i.status === 'active').length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    completedInstances: instances.filter((i: any) => i.status === 'completed').length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    cancelledInstances: instances.filter((i: any) => i.status === 'cancelled').length,
+                    perBlock,
+                });
+            } catch (err) {
+                console.error('Failed to load stats', err);
+            }
+        })();
+    }, [id, isNew]);
 
     const addBlock = () => {
         setBlocks([...blocks, { id: `block_${Date.now()}`, tasks: [] }]);
@@ -388,6 +471,75 @@ export default function AutomacaoBuilderPage() {
                         </div>
                     </div>
 
+                    {/* Stats — só para automações existentes */}
+                    {!isNew && stats && stats.totalActivations > 0 && (
+                        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                                <BarChart3 className="w-4 h-4 text-indigo-600" />
+                                <h2 className="text-sm font-semibold text-slate-900">Desempenho</h2>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-slate-900">{stats.totalActivations}</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">Total ativações</div>
+                                </div>
+                                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-blue-700 flex items-center justify-center gap-1">
+                                        <Clock className="w-4 h-4" />
+                                        {stats.activeInstances}
+                                    </div>
+                                    <div className="text-xs text-blue-600 mt-0.5">Em andamento</div>
+                                </div>
+                                <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-emerald-700 flex items-center justify-center gap-1">
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        {stats.completedInstances}
+                                    </div>
+                                    <div className="text-xs text-emerald-600 mt-0.5">Concluídas</div>
+                                </div>
+                                <div className="bg-red-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-red-700 flex items-center justify-center gap-1">
+                                        <XCircle className="w-4 h-4" />
+                                        {stats.cancelledInstances}
+                                    </div>
+                                    <div className="text-xs text-red-600 mt-0.5">Canceladas</div>
+                                </div>
+                            </div>
+                            {stats.perBlock.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Por bloco</h3>
+                                    {stats.perBlock.map((pb) => {
+                                        const pct = stats.totalActivations > 0
+                                            ? Math.round(((pb.completed) / (stats.totalActivations - stats.cancelledInstances)) * 100)
+                                            : 0;
+                                        return (
+                                            <div key={pb.blockIndex} className="flex items-center gap-3">
+                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-semibold flex-shrink-0">
+                                                    {pb.blockIndex + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-600 mb-1">
+                                                        <span>{pb.waiting} aguardando</span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span className="text-emerald-600">{pb.completed} concluíram</span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span className="font-medium">{isFinite(pct) ? pct : 0}% taxa de conclusão</span>
+                                                    </div>
+                                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-indigo-600 rounded-full transition-all"
+                                                            style={{ width: `${isFinite(pct) ? pct : 0}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Gatilho */}
                     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
                         <div className="flex items-center gap-2">
@@ -467,8 +619,8 @@ export default function AutomacaoBuilderPage() {
                                             </div>
                                             {block.tasks.map((t) => (
                                                 <div key={t.id} className="text-xs text-slate-500 ml-0">
-                                                    • {t.titulo || '(sem título)'} —{' '}
-                                                    {formatDueOffset(t.due_offset)}
+                                                    • {t.titulo || '(sem título)'} — concluir{' '}
+                                                    {formatDueOffset(t.due_offset).toLowerCase()}
                                                 </div>
                                             ))}
                                         </div>

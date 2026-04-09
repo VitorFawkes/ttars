@@ -772,10 +772,33 @@ async function executeTaskStep(
         assignToId = config.assign_to_user_id;
     }
 
-    // Calcular data de vencimento respeitando business hours do template
+    // Calcular data de vencimento usando due_offset do step
     const template = instance.template || {};
+    const dueOffset = step.due_offset as { unit?: string; value?: number; anchor?: string } | null;
+    const offsetValue = dueOffset?.value ?? step.day_offset ?? 0;
+    const offsetUnit = dueOffset?.unit ?? 'business_days';
+
     let taskDueDate = new Date();
-    if (template.respect_business_hours) {
+    if (offsetValue > 0) {
+        if (offsetUnit === 'hours') {
+            const minutesToAdd = offsetValue * 60;
+            if (template.respect_business_hours) {
+                const businessConfig: BusinessHoursConfig = {
+                    start: template.business_hours_start ?? BUSINESS_HOURS_START,
+                    end: template.business_hours_end ?? BUSINESS_HOURS_END,
+                    allowedWeekdays: template.allowed_weekdays ?? [1, 2, 3, 4, 5]
+                };
+                taskDueDate = calculateBusinessTime(new Date(), minutesToAdd, businessConfig);
+            } else {
+                taskDueDate = addMinutes(new Date(), minutesToAdd);
+            }
+        } else if (offsetUnit === 'calendar_days') {
+            taskDueDate = addDays(new Date(), offsetValue);
+        } else {
+            // business_days (default)
+            taskDueDate = calculateDayOffset(new Date(), offsetValue, template);
+        }
+    } else if (template.respect_business_hours) {
         const businessConfig: BusinessHoursConfig = {
             start: template.business_hours_start ?? BUSINESS_HOURS_START,
             end: template.business_hours_end ?? BUSINESS_HOURS_END,

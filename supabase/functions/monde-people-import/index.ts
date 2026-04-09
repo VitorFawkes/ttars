@@ -20,9 +20,12 @@ import {
  * Merge inteligente: só preenche campos vazios no contato existente.
  *
  * Invocação:
- *   POST /monde-people-import {}                     — importa tudo
- *   POST /monde-people-import { page_limit: 5 }      — limita páginas (teste)
- *   POST /monde-people-import { monde_person_id: "x"} — importa 1 pessoa
+ *   POST /monde-people-import {}                          — importa tudo (paginado)
+ *   POST /monde-people-import { page_limit: 5 }           — limita páginas (teste)
+ *   POST /monde-people-import { monde_person_id: "x"}     — importa 1 pessoa por UUID
+ *   POST /monde-people-import { search: "Nome" }          — filtra por nome (filter[search])
+ *   POST /monde-people-import { start_page: 100 }         — começa da página N
+ *   POST /monde-people-import { debug: true }              — retorna metadata da API sem importar
  */
 
 const corsHeaders = {
@@ -68,8 +71,11 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const pageLimit = body.page_limit || MAX_PAGES;
+    const startPage = body.start_page || 1;
     const singlePersonId = body.monde_person_id || null;
     const searchName = body.search || null;
+    const searchCode = body.code || null;
+    const debugMode = body.debug === true;
 
     // --- 1. Check sync enabled ---
     const { data: settings } = await supabase
@@ -144,13 +150,17 @@ Deno.serve(async (req) => {
       allPeople.push(json.data);
     } else {
       // Paginated fetch
-      let page = 1;
+      let page = startPage;
       let hasMore = true;
+      const maxPage = startPage + pageLimit - 1;
 
-      while (hasMore && page <= pageLimit) {
+      while (hasMore && page <= maxPage) {
         let url = `${auth.apiUrl}/people?page[number]=${page}&page[size]=${DEFAULT_PAGE_SIZE}`;
         if (searchName) {
           url += `&filter[search]=${encodeURIComponent(searchName)}`;
+        }
+        if (searchCode) {
+          url += `&filter[code]=${encodeURIComponent(searchCode)}`;
         }
 
         let response = await fetch(url, {
@@ -175,6 +185,24 @@ Deno.serve(async (req) => {
 
         const json = await response.json();
         const people = json.data || [];
+
+        // Debug: return raw API response metadata
+        if (debugMode) {
+          return jsonResponse({
+            debug: true,
+            links: json.links,
+            meta: json.meta,
+            data_count: people.length,
+            sample: people.slice(0, 3).map((p: { id: string; attributes: Record<string, unknown> }) => ({
+              id: p.id,
+              name: p.attributes?.name,
+              code: p.attributes?.code,
+              phone: p.attributes?.phone,
+              email: p.attributes?.email,
+            })),
+            total_pages: json.links?.last ? new URL(json.links.last).searchParams.get("page[number]") : null,
+          });
+        }
 
         if (people.length === 0) {
           hasMore = false;
