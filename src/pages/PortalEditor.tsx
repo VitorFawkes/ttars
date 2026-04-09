@@ -80,35 +80,87 @@ export default function PortalEditor() {
         if (!over || active.id === over.id) return
 
         const activeId = String(active.id)
+        const overId = String(over.id)
+        const { blocks, addBlock, reorderBlocks } = useTripPlanEditor.getState()
+
+        // Resolve drop zone ID → { parentDayId, insertIndex }
+        const resolveDropTarget = () => {
+            // Soltou dentro de um dia
+            if (overId.startsWith('day-drop-')) {
+                const dayId = overId.replace('day-drop-', '')
+                const children = blocks.filter(b => b.parent_day_id === dayId)
+                return { parentDayId: dayId, insertIndex: children.length }
+            }
+            // Soltou antes de todos os dias
+            if (overId === 'drop-before-days') {
+                const days = blocks.filter(b => b.block_type === 'day_header')
+                if (days.length > 0) {
+                    const firstDayIndex = blocks.findIndex(b => b.id === days[0].id)
+                    return { parentDayId: null, insertIndex: Math.max(0, firstDayIndex) }
+                }
+                return { parentDayId: null, insertIndex: 0 }
+            }
+            // Soltou entre dias (drop-after-day-N)
+            if (overId.startsWith('drop-after-day-')) {
+                const dayIndex = parseInt(overId.replace('drop-after-day-', ''), 10)
+                const days = blocks.filter(b => b.block_type === 'day_header')
+                if (days[dayIndex]) {
+                    // Encontra a posição do próximo bloco de nível raiz após esse dia e seus filhos
+                    const thisDayId = days[dayIndex].id
+                    const thisDayPos = blocks.findIndex(b => b.id === thisDayId)
+                    let insertPos = thisDayPos + 1
+                    // Pula filhos do dia
+                    while (insertPos < blocks.length && blocks[insertPos].parent_day_id === thisDayId) {
+                        insertPos++
+                    }
+                    return { parentDayId: null, insertIndex: insertPos }
+                }
+                return { parentDayId: null, insertIndex: blocks.length }
+            }
+            // Soltou no final
+            if (overId === 'canvas-end') {
+                return { parentDayId: null, insertIndex: blocks.length }
+            }
+            // Soltou sobre um bloco existente (sortable)
+            const overBlock = blocks.find(b => b.id === overId)
+            if (overBlock) {
+                const idx = blocks.findIndex(b => b.id === overId)
+                return { parentDayId: overBlock.parent_day_id ?? null, insertIndex: idx }
+            }
+            return null
+        }
 
         // SE vem da palette (criar novo bloco)
         if (activeId.startsWith('palette-')) {
             const blockType = active.data.current?.blockType as BlockType
             if (!blockType) return
 
-            const { addBlock } = useTripPlanEditor.getState()
-
-            const overId = String(over.id)
-            let parentDayId: string | null = null
-            if (overId.startsWith('day-drop-')) {
-                parentDayId = overId.replace('day-drop-', '')
-            }
+            const target = resolveDropTarget()
+            if (!target) return
 
             if (blockType === 'day_header') {
-                addBlock('day_header', null, { date: '', title: 'Novo Dia', city: '' })
+                addBlock('day_header', null, { date: '', title: 'Novo Dia', city: '' }, target.insertIndex)
             } else {
-                addBlock(blockType, parentDayId, getDefaultData(blockType))
+                addBlock(blockType, target.parentDayId, getDefaultData(blockType), target.insertIndex)
             }
             return
         }
 
-        // SE é reordenação de bloco existente (sortable)
-        const { blocks, reorderBlocks } = useTripPlanEditor.getState()
+        // SE é reordenação de bloco existente
         const oldIndex = blocks.findIndex(b => b.id === activeId)
-        const newIndex = blocks.findIndex(b => b.id === String(over.id))
+        if (oldIndex === -1) return
 
-        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            // Array move
+        // Tenta resolver como bloco direto primeiro
+        let newIndex = blocks.findIndex(b => b.id === overId)
+
+        // Se over.id é um drop zone, resolve a posição
+        if (newIndex === -1) {
+            const target = resolveDropTarget()
+            if (!target) return
+            newIndex = Math.min(target.insertIndex, blocks.length - 1)
+        }
+
+        if (newIndex !== -1 && oldIndex !== newIndex) {
             const newOrder = [...blocks]
             const [moved] = newOrder.splice(oldIndex, 1)
             newOrder.splice(newIndex, 0, moved)
