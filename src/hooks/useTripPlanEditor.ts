@@ -23,6 +23,7 @@ export type BlockType =
     | 'contact'
     | 'checklist'
     | 'pre_trip_section'
+    | 'booking_status'
 
 export interface TripPlanBlock {
     id: string
@@ -113,7 +114,7 @@ interface TripPlanEditorState {
     reset: () => void
 
     // Block CRUD
-    addBlock: (type: BlockType, parentDayId?: string | null, data?: Record<string, unknown>) => string
+    addBlock: (type: BlockType, parentDayId?: string | null, data?: Record<string, unknown>, insertAtIndex?: number) => string
     removeBlock: (blockId: string) => void
     updateBlockData: (blockId: string, data: Record<string, unknown>) => void
     reorderBlocks: (orderedIds: string[]) => void
@@ -172,24 +173,31 @@ export const useTripPlanEditor = create<TripPlanEditorState>((set, get) => ({
 
     // ─── Block CRUD ─────────────────────────────────────────────────────
 
-    addBlock: (type, parentDayId = null, data = {}) => {
+    addBlock: (type, parentDayId = null, data = {}, insertAtIndex) => {
         const state = get()
         if (!state.tripPlanId) return ''
 
         const id = crypto.randomUUID()
 
-        // Calcular ordem: se tem parent, ordena dentro do dia; senão, no final
+        // Calcular ordem: se insertAtIndex foi dado, insere naquela posição e shifta os demais
         const siblings = parentDayId
             ? state.blocks.filter(b => b.parent_day_id === parentDayId)
             : state.blocks.filter(b => b.parent_day_id === null)
-        const maxOrdem = siblings.reduce((max: number, b: TripPlanBlock) => Math.max(max, b.ordem), -1)
+
+        let ordem: number
+        if (insertAtIndex != null && insertAtIndex >= 0) {
+            ordem = insertAtIndex
+        } else {
+            const maxOrdem = siblings.reduce((max: number, b: TripPlanBlock) => Math.max(max, b.ordem), -1)
+            ordem = maxOrdem + 1
+        }
 
         const newBlock: TripPlanBlock = {
             id,
             trip_plan_id: state.tripPlanId,
             block_type: type,
             parent_day_id: parentDayId,
-            ordem: maxOrdem + 1,
+            ordem,
             data,
             is_published: false,
             published_at: null,
@@ -197,11 +205,26 @@ export const useTripPlanEditor = create<TripPlanEditorState>((set, get) => ({
             updated_at: new Date().toISOString(),
         }
 
-        set(state => ({
-            blocks: [...state.blocks, newBlock],
-            isDirty: true,
-            selectedBlockId: id,
-        }))
+        set(state => {
+            // Shift blocos existentes para abrir espaço na posição inserida
+            const updated = insertAtIndex != null
+                ? state.blocks.map(b => {
+                    const isSibling = parentDayId
+                        ? b.parent_day_id === parentDayId
+                        : b.parent_day_id === null
+                    if (isSibling && b.ordem >= ordem) {
+                        return { ...b, ordem: b.ordem + 1 }
+                    }
+                    return b
+                })
+                : state.blocks
+
+            return {
+                blocks: [...updated, newBlock].sort((a, b) => a.ordem - b.ordem),
+                isDirty: true,
+                selectedBlockId: id,
+            }
+        })
 
         return id
     },
@@ -411,5 +434,11 @@ export const BLOCK_TYPE_CONFIG: Record<BlockType, {
         icon: 'ClipboardList',
         color: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200' },
         category: 'utility',
+    },
+    booking_status: {
+        label: 'Status Reserva',
+        icon: 'CheckCircle',
+        color: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
+        category: 'content',
     },
 }

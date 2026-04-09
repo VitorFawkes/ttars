@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-09
 > **Trigger:** ALWAYS ON
-> **Stats:** 148 tabelas | 59 paginas | 117 hooks | 17 views | 489 components
+> **Stats:** 153 tabelas | 62 paginas | 121 hooks | 17 views | 492 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **117 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **121 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -182,6 +182,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
 | `useHotelSearch()` | `useHotelSearch.ts` |
+| `useIterpecSearch()` | `useIterpecSearch.ts` |
 | `useReactivationChat()` | `useReactivationChat.ts` |
 | `useUnifiedSearch()` | `useUnifiedSearch.ts` |
 | `useVoucherExtraction()` | `useVoucherExtraction.ts` |
@@ -221,6 +222,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoCalcTripDate()` | `useAutoCalcTripDate.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
+| `useAutomacaoLogs()` | `useAutomacaoLogs.ts` |
+| `useAutomacaoRegras()` | `useAutomacaoRegras.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
@@ -236,6 +239,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadQuickUpdate()` | `useLeadQuickUpdate.ts` |
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
+| `useMensagemTemplates()` | `useMensagemTemplates.ts` |
 | `useMondePendingSales()` | `useMondePendingSales.ts` |
 | `useMondeSales()` | `useMondeSales.ts` |
 | `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
@@ -361,7 +365,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **59 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **62 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -389,6 +393,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
+| `AutomacaoBuilderPage` | `src/pages/admin/AutomacaoBuilderPage.tsx` |
+| `AutomacaoListPage` | `src/pages/admin/AutomacaoListPage.tsx` |
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
 | `CardAlertRulesPage` | `src/pages/admin/CardAlertRulesPage.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
@@ -397,6 +403,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ImportacaoPosVendaPage` | `src/pages/admin/ImportacaoPosVendaPage.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
+| `MensagemTemplatePage` | `src/pages/admin/MensagemTemplatePage.tsx` |
 | `OrganizationsPage` | `src/pages/admin/OrganizationsPage.tsx` |
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |

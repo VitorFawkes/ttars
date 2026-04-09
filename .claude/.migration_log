@@ -322,3 +322,6 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-08T19:55:30Z | supabase/migrations/20260409_reactivation_v3_new_dimensions.sql | applied_to_prod
 2026-04-08T19:56:26Z | supabase/migrations/20260409_reactivation_v3_new_dimensions.sql | applied_to_prod
 2026-04-08T21:44:01Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260408_allow_monde_import_no_phone.sql | applied_to_prod
+2026-04-09T14:48:38Z | supabase/migrations/20260409_automacao_mensagens_schema.sql | applied_to_prod
+2026-04-09T14:53:06Z | supabase/migrations/20260409_automacao_mensagens_cron.sql | applied_to_prod
+2026-04-09T15:01:26Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260409_iterpec_bookings.sql | applied_to_prod

@@ -45,8 +45,12 @@ import { createInitialCruiseData } from './cruises/types'
 import { createInitialInsuranceData } from './insurance/types'
 import { HotelCatalogPicker } from './HotelCatalogPicker'
 import { FlightLookupPicker } from './FlightLookupPicker'
+import { TransferCatalogPicker } from './TransferCatalogPicker'
+import { TourCatalogPicker } from './TourCatalogPicker'
+import { CarRentalPicker } from './CarRentalPicker'
 import type { HotelDetailsResult } from '@/hooks/useHotelSearch'
 import type { FlightLookupResult } from '@/hooks/useFlightLookup'
+import type { IterpecTransferResult, IterpecTourResult, IterpecCarResult } from '@/types/iterpec'
 
 interface BlockSearchDrawerProps {
     isOpen: boolean
@@ -146,7 +150,7 @@ const AI_ENABLED_BLOCKS: BlockType[] = ['flight']
 const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'experience', 'transfer', 'insurance']
 
 // Blocks that support external catalog/lookup
-const CATALOG_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight']
+const CATALOG_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'transfer', 'experience', 'car']
 
 type TabType = 'create' | 'library' | 'ai' | 'catalog'
 
@@ -427,6 +431,105 @@ export function BlockSearchDrawer({
                         arrival_terminal: flight.arrival.terminal,
                         duration_minutes: flight.durationMinutes,
                         status: flight.status,
+                    },
+                },
+            },
+        })
+        onClose()
+    }, [sectionId, addItem, updateItem, onClose])
+
+    // Handle transfer import from Iterpec catalog
+    const handleTransferImport = useCallback((transfer: IterpecTransferResult, token: string) => {
+        if (!sectionId) return
+        const itemId = addItem(sectionId, 'transfer', transfer.name)
+        updateItem(itemId, {
+            base_price: transfer.price.value,
+            rich_content: {
+                transfer: {
+                    route: `${transfer.vehicleType}`,
+                    datetime: '',
+                    vehicle: transfer.vehicleType,
+                    passengers: String(transfer.maxPassengers),
+                    show_route: true,
+                    show_datetime: true,
+                    show_vehicle: true,
+                    show_passengers: true,
+                    _iterpec: {
+                        provider: 'iterpec_cangooroo',
+                        iterpecTransferId: transfer.iterpecTransferId,
+                        token,
+                        supplierName: transfer.supplierName,
+                        transferType: transfer.transferType,
+                        price: transfer.price,
+                        cancellationPolicies: transfer.cancellationPolicies,
+                    },
+                },
+            },
+        })
+        onClose()
+    }, [sectionId, addItem, updateItem, onClose])
+
+    // Handle tour import from Iterpec catalog
+    const handleTourImport = useCallback((tour: IterpecTourResult, token: string) => {
+        if (!sectionId) return
+        const itemId = addItem(sectionId, 'experience', tour.name)
+        updateItem(itemId, {
+            base_price: tour.price.value,
+            description: tour.description || '',
+            rich_content: {
+                experience: {
+                    name: tour.name,
+                    date: '',
+                    time: '',
+                    duration: tour.duration || '',
+                    location: '',
+                    meeting_point: '',
+                    participants: '',
+                    price_type: 'per_person',
+                    included: [],
+                    provider: tour.supplierName || '',
+                    cancellation_policy: '',
+                    _iterpec: {
+                        provider: 'iterpec_cangooroo',
+                        iterpecTourId: tour.iterpecTourId,
+                        token,
+                        price: tour.price,
+                        availableDates: tour.availableDates,
+                        cancellationPolicies: tour.cancellationPolicies,
+                    },
+                },
+            },
+        })
+        onClose()
+    }, [sectionId, addItem, updateItem, onClose])
+
+    // Handle car rental import from Iterpec catalog
+    const handleCarImport = useCallback((car: IterpecCarResult, token: string) => {
+        if (!sectionId) return
+        const title = `${car.model} - ${car.rental.name}`
+        const itemId = addItem(sectionId, 'transfer', title)
+        updateItem(itemId, {
+            base_price: car.price.value,
+            rich_content: {
+                transfer: {
+                    route: car.pickup?.Address || '',
+                    datetime: '',
+                    vehicle: `${car.model} (${car.transmission})`,
+                    passengers: String(car.passengers),
+                    show_route: true,
+                    show_datetime: true,
+                    show_vehicle: true,
+                    show_passengers: true,
+                    _iterpec: {
+                        provider: 'iterpec_cangooroo',
+                        iterpecCarId: car.iterpecCarId,
+                        token,
+                        model: car.model,
+                        category: car.category,
+                        transmission: car.transmission,
+                        rental: car.rental,
+                        price: car.price,
+                        cancellationPolicies: car.cancellationPolicies,
                     },
                 },
             },
@@ -803,6 +906,21 @@ export function BlockSearchDrawer({
                             {blockType === 'flight' && (
                                 <FlightLookupPicker
                                     onImport={handleFlightImport}
+                                />
+                            )}
+                            {blockType === 'transfer' && (
+                                <TransferCatalogPicker
+                                    onImport={handleTransferImport}
+                                />
+                            )}
+                            {blockType === 'experience' && (
+                                <TourCatalogPicker
+                                    onImport={handleTourImport}
+                                />
+                            )}
+                            {blockType === 'car' && (
+                                <CarRentalPicker
+                                    onImport={handleCarImport}
                                 />
                             )}
                         </div>

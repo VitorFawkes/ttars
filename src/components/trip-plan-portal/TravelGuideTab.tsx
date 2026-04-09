@@ -20,6 +20,14 @@ import {
     Check,
     Download,
     ClipboardList,
+    CheckCircle,
+    AlertTriangle,
+    XCircle,
+    Clock,
+    Building2,
+    Bus,
+    Car,
+    Sparkles,
 } from 'lucide-react'
 
 interface Block {
@@ -290,6 +298,54 @@ function BlockRenderer({ block }: { block: Block }) {
                             </span>
                         </div>
                     ))}
+                </div>
+            )
+        }
+
+        case 'booking_status': {
+            const serviceType = String(block.data.service_type || 'hotel')
+            const status = String(block.data.status || 'pending')
+            const ServiceIcon = serviceType === 'hotel' ? Building2
+                : serviceType === 'transfer' ? Bus
+                : serviceType === 'car' ? Car
+                : Sparkles
+
+            const statusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
+                confirmed: { icon: CheckCircle, color: 'emerald', label: 'Confirmado' },
+                pending: { icon: Clock, color: 'amber', label: 'Aguardando confirmação' },
+                cancelled: { icon: XCircle, color: 'red', label: 'Cancelado' },
+                rejected: { icon: XCircle, color: 'red', label: 'Rejeitado' },
+                technical_problem: { icon: AlertTriangle, color: 'amber', label: 'Verificando' },
+                awaiting_payment: { icon: Clock, color: 'amber', label: 'Aguardando pagamento' },
+                quoted: { icon: Clock, color: 'slate', label: 'Cotado' },
+            }
+            const sc = statusConfig[status] || statusConfig.pending
+            const StatusIcon = sc.icon
+
+            return (
+                <div className={cn('p-3 rounded-xl border', `bg-${sc.color}-50 border-${sc.color}-100`)}>
+                    <div className="flex items-center gap-3">
+                        <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', `bg-${sc.color}-100`)}>
+                            <ServiceIcon className={cn('h-5 w-5', `text-${sc.color}-600`)} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className={cn('text-sm font-medium', `text-${sc.color}-900`)}>
+                                {String(block.data.title || 'Reserva')}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <StatusIcon className={cn('h-3.5 w-3.5', `text-${sc.color}-500`)} />
+                                <span className={cn('text-xs', `text-${sc.color}-600`)}>{sc.label}</span>
+                            </div>
+                            {(block.data.confirmation_number as string) && (
+                                <p className={cn('text-xs mt-1', `text-${sc.color}-500`)}>
+                                    Confirmação: {String(block.data.confirmation_number)}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    {(block.data.details as string) && (
+                        <p className={cn('text-xs mt-2', `text-${sc.color}-600`)}>{String(block.data.details)}</p>
+                    )}
                 </div>
             )
         }
