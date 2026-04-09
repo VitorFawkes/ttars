@@ -1,4 +1,4 @@
-import { Plus, Trash2, Phone, Mail, Users, FileText, Clipboard, Package, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Phone, Mail, Users, FileText, Clipboard, Package, GripVertical, Zap, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -111,7 +111,7 @@ export function BlockEditor({
     return (
         <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
             <header className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-semibold">
                         {index + 1}
                     </span>
@@ -119,11 +119,14 @@ export function BlockEditor({
                         <h3 className="text-sm font-semibold text-slate-900">
                             Bloco {index + 1}
                         </h3>
-                        <p className="text-xs text-slate-500">
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-md px-2 py-0.5">
+                        <Zap className="w-3 h-3" />
+                        <span className="text-xs font-medium">
                             {isFirst
-                                ? 'Criado quando a automação dispara'
-                                : `Criado quando o Bloco ${index} for concluído`}
-                        </p>
+                                ? 'Tarefas criadas imediatamente ao disparar'
+                                : `Tarefas criadas quando o Bloco ${index} for concluído`}
+                        </span>
                     </div>
                 </div>
                 <Button
@@ -162,13 +165,23 @@ export function BlockEditor({
                                     className="w-40"
                                 />
                             </div>
-                            <div className="flex gap-2 items-center flex-wrap">
-                                <span className="text-xs text-slate-500">Prazo de conclusão:</span>
-                                <NaturalDueField
-                                    value={task.due_offset}
-                                    onChange={(v) => updateTask(task.id, { due_offset: v })}
-                                    allowPreviousBlockAnchor={!isFirst}
-                                />
+                            <div className="flex gap-4 items-start flex-wrap bg-slate-50 rounded-lg px-3 py-2 -mx-1">
+                                <div className="flex items-center gap-1.5 text-xs text-slate-500 pt-1 flex-shrink-0">
+                                    <Zap className="w-3 h-3 text-amber-500" />
+                                    <span>Criação:</span>
+                                    <span className="font-medium text-slate-700">
+                                        {isFirst ? 'Imediata' : `Após Bloco ${index}`}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Clock className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                                    <span className="text-xs text-slate-500">Concluir em:</span>
+                                    <NaturalDueField
+                                        value={task.due_offset}
+                                        onChange={(v) => updateTask(task.id, { due_offset: v })}
+                                        allowPreviousBlockAnchor={!isFirst}
+                                    />
+                                </div>
                             </div>
                             <div className="flex gap-2 items-center flex-wrap">
                                 <span className="text-xs text-slate-500">Para:</span>

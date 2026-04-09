@@ -588,10 +588,13 @@ export default function AutomacaoBuilderPage() {
                                     onRemove={() => removeBlock(idx)}
                                 />
                                 {idx < blocks.length - 1 && (
-                                    <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-400">
-                                        <div className="flex-1 border-t border-dashed border-slate-300" />
-                                        <span>aguarda conclusão do bloco acima</span>
-                                        <div className="flex-1 border-t border-dashed border-slate-300" />
+                                    <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
+                                        <div className="flex-1 border-t border-dashed border-amber-300" />
+                                        <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                                            <Clock className="w-3 h-3" />
+                                            <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
+                                        </div>
+                                        <div className="flex-1 border-t border-dashed border-amber-300" />
                                     </div>
                                 )}
                             </div>
@@ -613,9 +616,14 @@ export default function AutomacaoBuilderPage() {
                                             {idx + 1}
                                         </span>
                                         <div className="flex-1">
-                                            <div className="text-slate-900">
+                                            <div className="text-slate-900 text-sm">
                                                 {block.tasks.length}{' '}
                                                 {block.tasks.length === 1 ? 'tarefa' : 'tarefas'}
+                                                <span className="text-xs text-amber-600 ml-2 font-normal">
+                                                    {idx === 0
+                                                        ? '(criadas imediatamente)'
+                                                        : `(criadas quando Bloco ${idx} concluir)`}
+                                                </span>
                                             </div>
                                             {block.tasks.map((t) => (
                                                 <div key={t.id} className="text-xs text-slate-500 ml-0">
