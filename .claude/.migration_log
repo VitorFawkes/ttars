@@ -325,3 +325,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-09T14:48:38Z | supabase/migrations/20260409_automacao_mensagens_schema.sql | applied_to_prod
 2026-04-09T14:53:06Z | supabase/migrations/20260409_automacao_mensagens_cron.sql | applied_to_prod
 2026-04-09T15:01:26Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260409_iterpec_bookings.sql | applied_to_prod
+2026-04-09T17:10:48Z | supabase/migrations/20260409_automacao_phone_line.sql | applied_to_prod
+2026-04-09T17:29:10Z | supabase/migrations/20260409_fix_handle_new_user_set_role_id.sql | applied_to_prod

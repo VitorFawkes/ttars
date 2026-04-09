@@ -48,6 +48,28 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const needsAssists = viewMode === 'AGENT' && subView === 'MY_QUEUE'
     const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists)
 
+    // Fetch stage IDs for user's team phase — garante que agentes veem cards na sua fase
+    // mesmo sem atribuição explícita (ex: pós-venda vê todos os cards pós-venda)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const myPhaseId = (profile as any)?.team?.phase_id as string | undefined
+    const { data: myPhaseStageIds } = useQuery({
+        queryKey: ['my-phase-stages', myPhaseId],
+        enabled: !!myPhaseId && (
+            (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+            (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
+        ),
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('pipeline_stages')
+                .select('id')
+                .eq('phase_id', myPhaseId!)
+                .eq('ativo', true)
+            if (error) throw error
+            return data.map(s => s.id)
+        },
+        staleTime: 10 * 60 * 1000,
+    })
+
     // Aguardar auth antes de disparar query para evitar busca sem filtro de dono (timeout)
     const needsAuth = (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
         (viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && hasTeam)
@@ -57,10 +79,16 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
+    const needsPhaseStages = !!myPhaseId && (
+        (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
+        (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
+    )
+    const isPhaseStagesReady = !needsPhaseStages || myPhaseStageIds !== undefined
+
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, showWonDirect],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, showClosedCards, showWonDirect],
         placeholderData: keepPreviousData,
-        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
+        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady && isPhaseStagesReady,
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico
             let query = (supabase.from('view_cards_acoes') as any)
@@ -72,7 +100,8 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
                     if (session?.user?.id) {
-                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda, Concierge OU assistente
+                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda, Concierge,
+                        // assistente, OU cards na fase do meu time (garante visibilidade mesmo sem atribuição)
                         const ownerConditions = [
                             `dono_atual_id.eq.${session.user.id}`,
                             `sdr_owner_id.eq.${session.user.id}`,
@@ -83,18 +112,31 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                         if (myAssistCardIds && myAssistCardIds.length > 0) {
                             ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
                         }
+                        // Incluir cards na fase do time do usuário (ex: pós-venda vê todos os cards pós-venda)
+                        if (myPhaseStageIds && myPhaseStageIds.length > 0) {
+                            ownerConditions.push(`pipeline_stage_id.in.(${myPhaseStageIds.join(',')})`)
+                        }
                         query = query.or(ownerConditions.join(','))
                     }
                 }
                 // 'ATTENTION' logic would go here (e.g. overdue)
             } else if (viewMode === 'MANAGER') {
                 if (subView === 'TEAM_VIEW') {
-                    // Filter by team members if user has a team; no team = belongs to all teams
+                    // Filter by team members + cards na fase do time
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
                         const memberList = myTeamMembers.join(',')
-                        query = query.or(
-                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
-                        )
+                        const teamConditions = [
+                            `dono_atual_id.in.(${memberList})`,
+                            `sdr_owner_id.in.(${memberList})`,
+                            `vendas_owner_id.in.(${memberList})`,
+                            `pos_owner_id.in.(${memberList})`,
+                            `concierge_owner_id.in.(${memberList})`,
+                        ]
+                        // Incluir cards na fase do time
+                        if (myPhaseStageIds && myPhaseStageIds.length > 0) {
+                            teamConditions.push(`pipeline_stage_id.in.(${myPhaseStageIds.join(',')})`)
+                        }
+                        query = query.or(teamConditions.join(','))
                     }
                     // !hasTeam → no filter applied (show all, same as belonging to all teams)
                 }
