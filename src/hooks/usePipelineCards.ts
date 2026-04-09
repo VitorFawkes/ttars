@@ -54,10 +54,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const myPhaseId = (profile as any)?.team?.phase_id as string | undefined
     const { data: myPhaseStageIds } = useQuery({
         queryKey: ['my-phase-stages', myPhaseId],
-        enabled: !!myPhaseId && (
-            (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
-            (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
-        ),
+        enabled: !!myPhaseId && viewMode === 'MANAGER' && subView === 'TEAM_VIEW',
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('pipeline_stages')
@@ -79,10 +76,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
 
-    const needsPhaseStages = !!myPhaseId && (
-        (viewMode === 'AGENT' && subView === 'MY_QUEUE') ||
-        (viewMode === 'MANAGER' && subView === 'TEAM_VIEW')
-    )
+    const needsPhaseStages = !!myPhaseId && viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
     const isPhaseStagesReady = !needsPhaseStages || myPhaseStageIds !== undefined
 
     const query = useQuery({
@@ -100,8 +94,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
                     if (session?.user?.id) {
-                        // Minha Fila: cards onde sou dono atual, SDR, Planner, Pós-Venda, Concierge,
-                        // assistente, OU cards na fase do meu time (garante visibilidade mesmo sem atribuição)
+                        // Minha Fila: APENAS cards onde estou nomeado (header OU equipe do card)
                         const ownerConditions = [
                             `dono_atual_id.eq.${session.user.id}`,
                             `sdr_owner_id.eq.${session.user.id}`,
@@ -111,10 +104,6 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                         ]
                         if (myAssistCardIds && myAssistCardIds.length > 0) {
                             ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
-                        }
-                        // Incluir cards na fase do time do usuário (ex: pós-venda vê todos os cards pós-venda)
-                        if (myPhaseStageIds && myPhaseStageIds.length > 0) {
-                            ownerConditions.push(`pipeline_stage_id.in.(${myPhaseStageIds.join(',')})`)
                         }
                         query = query.or(ownerConditions.join(','))
                     }
