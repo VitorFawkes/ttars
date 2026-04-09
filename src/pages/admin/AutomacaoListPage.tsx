@@ -17,6 +17,7 @@ import {
 
 import { useAutomacaoRegras, type AutomacaoRegra, type TriggerType } from '@/hooks/useAutomacaoRegras'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import AprovacaoPanel from '@/components/automacao/AprovacaoPanel'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/switch'
 
@@ -227,6 +228,9 @@ export default function AutomacaoListPage() {
             </div>
           </div>
         </div>
+
+        {/* Aprovações pendentes */}
+        <AprovacaoPanel />
 
         {/* Empty State */}
         {regras.length === 0 ? (
