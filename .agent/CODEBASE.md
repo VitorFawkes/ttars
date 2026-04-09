@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-09
 > **Trigger:** ALWAYS ON
-> **Stats:** 154 tabelas | 62 paginas | 121 hooks | 17 views | 492 components
+> **Stats:** 154 tabelas | 63 paginas | 121 hooks | 17 views | 492 components
 
 ---
 
@@ -365,7 +365,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **62 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **63 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -395,6 +395,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/AutomacaoBuilderPage.tsx` |
 | `AutomacaoListPage` | `src/pages/admin/AutomacaoListPage.tsx` |
+| `AutomacaoLogsPage` | `src/pages/admin/AutomacaoLogsPage.tsx` |
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
 | `CardAlertRulesPage` | `src/pages/admin/CardAlertRulesPage.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |

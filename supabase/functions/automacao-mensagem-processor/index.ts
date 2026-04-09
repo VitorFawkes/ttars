@@ -337,8 +337,101 @@ async function processPending(supabase: SupabaseClient): Promise<number> {
       continue;
     }
 
-    // 6. Single mode — send message
-    // TODO: For template_ia/ia_generativa, call n8n workflow first
+    // 6. Single mode — check if IA mode needs n8n first
+    const templateId = exec.template_id || regra.template_id;
+    let needsIA = false;
+
+    if (templateId) {
+      const { data: tpl } = await supabase
+        .from("mensagem_templates")
+        .select("modo, ia_prompt, ia_contexto_config, ia_restricoes")
+        .eq("id", templateId)
+        .single();
+
+      if (tpl && (tpl.modo === "template_ia" || tpl.modo === "ia_generativa")) {
+        needsIA = true;
+
+        // If already has corpo_ia_gerado (n8n already ran), skip to send
+        if (!exec.corpo_ia_gerado) {
+          // Call n8n to generate message
+          const n8nWebhookUrl = Deno.env.get("N8N_AUTOMACAO_GERAR_MENSAGEM_URL");
+          if (n8nWebhookUrl) {
+            await supabase.from("automacao_execucoes")
+              .update({ status: "gerando_ia" })
+              .eq("id", exec.id);
+
+            try {
+              const n8nResp = await fetch(n8nWebhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  card_id: exec.card_id,
+                  contact_id: exec.contact_id,
+                  template_id: templateId,
+                  ia_prompt: tpl.ia_prompt || "",
+                  ia_contexto_config: tpl.ia_contexto_config || {},
+                  ia_restricoes: tpl.ia_restricoes || {},
+                  execucao_id: exec.id,
+                }),
+              });
+
+              if (!n8nResp.ok) {
+                console.error(`[processor] n8n IA generation failed: ${n8nResp.status}`);
+                await supabase.from("automacao_execucoes")
+                  .update({ status: "falhou", skip_reason: "ia_generation_failed" })
+                  .eq("id", exec.id);
+              }
+              // n8n callback updates corpo_ia_gerado and sets status back to pending
+            } catch (n8nErr) {
+              console.error("[processor] n8n call error:", n8nErr);
+              await supabase.from("automacao_execucoes")
+                .update({ status: "falhou", skip_reason: `ia_error: ${String(n8nErr)}` })
+                .eq("id", exec.id);
+            }
+            processed++;
+            continue;
+          }
+        }
+
+        // IA already generated — use corpo_ia_gerado as the message
+        if (exec.corpo_ia_gerado) {
+          // Check if approval is needed
+          if (regra.modo_aprovacao) {
+            await supabase.from("automacao_execucoes")
+              .update({
+                status: "aguardando_aprovacao",
+                corpo_renderizado: exec.corpo_ia_gerado,
+              })
+              .eq("id", exec.id);
+            processed++;
+            continue;
+          }
+
+          // Send the IA-generated message directly
+          const sendResult = await sendMessage(
+            supabase,
+            { ...exec, corpo_renderizado: exec.corpo_ia_gerado },
+            regra
+          );
+          if (!sendResult.success) {
+            const attempts = (exec.attempts || 0) + 1;
+            const backoffMs = Math.min(attempts * 5 * 60 * 1000, 60 * 60 * 1000);
+            await supabase.from("automacao_execucoes")
+              .update({
+                status: "falhou",
+                attempts,
+                next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
+                skip_reason: sendResult.error,
+              })
+              .eq("id", exec.id);
+          }
+          processed++;
+          continue;
+        }
+      }
+    }
+
+    // 6b. Template fixo or direct — send message
     const sendResult = await sendMessage(supabase, exec, regra);
 
     if (!sendResult.success) {

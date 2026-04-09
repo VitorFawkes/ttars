@@ -80,6 +80,7 @@ import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
 import AutomacaoMensagemListPage from './pages/admin/AutomacaoListPage'
 import AutomacaoMensagemBuilderPage from './pages/admin/AutomacaoBuilderPage'
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
+import AutomacaoLogsPage from './pages/admin/AutomacaoLogsPage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
@@ -252,6 +253,7 @@ function App() {
                     <Route path="automacoes/builder/new" element={<AutomacaoMensagemBuilderPage />} />
                     <Route path="automacoes/builder/:id" element={<AutomacaoMensagemBuilderPage />} />
                     <Route path="automacoes/templates" element={<MensagemTemplatePage />} />
+                    <Route path="automacoes/:id/logs" element={<AutomacaoLogsPage />} />
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />
