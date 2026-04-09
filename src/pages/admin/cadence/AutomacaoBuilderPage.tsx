@@ -631,8 +631,9 @@ export default function AutomacaoBuilderPage() {
                                 <div className="space-y-2">
                                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Por bloco</h3>
                                     {stats.perBlock.map((pb) => {
-                                        const pct = stats.totalActivations > 0
-                                            ? Math.round(((pb.completed) / (stats.totalActivations - stats.cancelledInstances)) * 100)
+                                        const denominator = stats.totalActivations - stats.cancelledInstances;
+                                        const pct = denominator > 0
+                                            ? Math.round((pb.completed / denominator) * 100)
                                             : 0;
                                         return (
                                             <div key={pb.blockIndex} className="flex items-center gap-3">
