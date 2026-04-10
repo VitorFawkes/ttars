@@ -73,6 +73,22 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         staleTime: 1000 * 60 // 1 minute
     })
 
+    // Realtime: invalidar query quando tarefas do card mudam
+    useEffect(() => {
+        const channel = supabase
+            .channel(`card-tasks-${cardId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'tarefas',
+                filter: `card_id=eq.${cardId}`,
+            }, () => {
+                queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
+            })
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [cardId, queryClient])
+
     // Fetch Task Outcomes
     const { data: outcomes } = useQuery({
         queryKey: ['task-outcomes'],
