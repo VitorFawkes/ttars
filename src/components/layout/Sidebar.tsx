@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { ProductSwitcher } from './ProductSwitcher'
+import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
 import { useProductContext } from '../../hooks/useProductContext'
@@ -124,7 +124,7 @@ export default function Sidebar() {
                 "mb-2 transition-all duration-200",
                 isExpanded ? "px-3" : "px-3 flex justify-center"
             )}>
-                <ProductSwitcher isCollapsed={!isExpanded} />
+                <OrgSwitcher isCollapsed={!isExpanded} />
             </div>
 
             <nav className="flex-1 space-y-1 px-2 py-4">

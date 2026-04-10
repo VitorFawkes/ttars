@@ -45,19 +45,23 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         }
     }, [user])
 
+    // active_org_id = org escolhida pelo OrgSwitcher; org_id = org fixa do profile
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const effectiveOrgId = (profile as any)?.active_org_id ?? profile?.org_id
+
     const { data: org, isLoading: queryLoading } = useQuery({
-        queryKey: ['organization', profile?.org_id],
+        queryKey: ['organization', effectiveOrgId],
         queryFn: async () => {
-            if (!profile?.org_id) return null
+            if (!effectiveOrgId) return null
             const { data, error } = await supabase
                 .from('organizations')
                 .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at, force_relogin_after')
-                .eq('id', profile.org_id)
+                .eq('id', effectiveOrgId)
                 .single()
             if (error) throw error
             return data as unknown as Organization
         },
-        enabled: !!profile?.org_id,
+        enabled: !!effectiveOrgId,
         staleTime: 30 * 60 * 1000, // 30 min — org metadata rarely changes
     })
 
