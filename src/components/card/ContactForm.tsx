@@ -5,13 +5,14 @@ import type { Database } from '../../database.types'
 
 type Contato = Database['public']['Tables']['contatos']['Row']
 import { getTipoPessoa } from '../../lib/contactUtils'
-import { Loader2, X, Link } from 'lucide-react'
+import { Loader2, X, Link, Globe, UserPlus, Search } from 'lucide-react'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useDuplicateDetection } from '../../hooks/useDuplicateDetection'
 import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
 import { cn } from '../../lib/utils'
 import { ContactMeiosEditor } from './ContactMeiosEditor'
+import { useMondeSearch, useMondeImportPerson } from '../../hooks/useMondeSearch'
 
 
 interface ContactFormProps {
@@ -27,6 +28,10 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
     const [saving, setSaving] = useState(false)
     const [potentialGuardians, setPotentialGuardians] = useState<Contato[]>([])
     const [dismissed, setDismissed] = useState(false)
+    const mondeCheck = useMondeSearch()
+    const mondeImport = useMondeImportPerson()
+    const [mondeChecked, setMondeChecked] = useState(false)
+    const [skipMonde, setSkipMonde] = useState(false)
 
     const [formData, setFormData] = useState<Partial<Contato>>({
         nome: contact?.nome || initialName,
@@ -96,6 +101,14 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
             if (!formData.telefone?.trim()) missing.push('Telefone')
             if (missing.length > 0) {
                 toast.error(`${missing.join(', ')} ${missing.length === 1 ? 'é obrigatório' : 'são obrigatórios'}`)
+                return
+            }
+
+            // Check Monde before creating (first click)
+            if (!mondeChecked && !skipMonde) {
+                const searchTerm = `${formData.nome} ${formData.sobrenome || ''}`.trim()
+                mondeCheck.search(searchTerm)
+                setMondeChecked(true)
                 return
             }
         }
@@ -370,6 +383,68 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                 />
             )}
 
+            {/* Monde check results — shown before save for new contacts */}
+            {!contact?.id && mondeChecked && (mondeCheck.isSearching || mondeCheck.results.length > 0) && (
+                <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                    <div className="bg-indigo-50 px-3 py-2 flex items-center gap-2">
+                        <Search className="h-3.5 w-3.5 text-indigo-500" />
+                        <span className="text-xs font-medium text-indigo-700">
+                            {mondeCheck.isSearching ? 'Verificando no Monde...' : 'Encontrado no Monde — selecione ou crie novo'}
+                        </span>
+                    </div>
+                    {mondeCheck.isSearching ? (
+                        <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {mondeCheck.results.slice(0, 5).map(person => (
+                                <button
+                                    key={person.monde_person_id}
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const result = await mondeImport.mutateAsync({ mondePersonId: person.monde_person_id })
+                                            const { data } = await supabase.from('contatos').select('*').eq('id', result.id).single()
+                                            if (data) {
+                                                toast.success(result.status === 'created' ? 'Contato importado do Monde' : 'Contato atualizado do Monde')
+                                                onSave(data as Contato)
+                                            }
+                                        } catch {
+                                            // Error handled by mutation
+                                        }
+                                    }}
+                                    disabled={mondeImport.isPending}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50 text-left transition-colors"
+                                >
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                        <Globe className="h-4 w-4 text-indigo-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-900 truncate">{person.name}</p>
+                                        <p className="text-xs text-slate-400 truncate">
+                                            {[person.email, person.phone].filter(Boolean).join(' · ')}
+                                            {person.already_in_crm && ' · Já no CRM'}
+                                        </p>
+                                    </div>
+                                    {mondeImport.isPending ? (
+                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400 shrink-0" />
+                                    ) : (
+                                        <UserPlus className="h-4 w-4 text-indigo-400 shrink-0" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {!contact?.id && mondeChecked && !mondeCheck.isSearching && mondeCheck.results.length === 0 && (
+                <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                    <span className="text-green-600 text-xs">Nenhum contato similar no Monde. Pode criar.</span>
+                </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-4">
                 <button
                     type="button"
@@ -379,8 +454,9 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                     Cancelar
                 </button>
                 <button
-                    type="submit"
-                    disabled={saving}
+                    type={mondeChecked && mondeCheck.results.length > 0 && !skipMonde ? 'button' : 'submit'}
+                    onClick={mondeChecked && mondeCheck.results.length > 0 && !skipMonde ? () => { setSkipMonde(true) } : undefined}
+                    disabled={saving || mondeCheck.isSearching || mondeImport.isPending}
                     className={cn(
                         "inline-flex items-center px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50",
                         warnSubmit
@@ -388,8 +464,8 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                             : "bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
                     )}
                 >
-                    {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    {warnSubmit ? 'Salvar Mesmo Assim' : 'Salvar'}
+                    {(saving || mondeCheck.isSearching) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {mondeCheck.isSearching ? 'Verificando...' : mondeChecked && mondeCheck.results.length > 0 && !skipMonde ? 'Criar mesmo assim' : warnSubmit ? 'Salvar Mesmo Assim' : 'Salvar'}
                 </button>
             </div>
         </form>

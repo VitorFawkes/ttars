@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Search, ArrowLeft, Plus, Loader2, Phone, User, Check } from 'lucide-react'
+import { Search, ArrowLeft, Plus, Loader2, Phone, User, Check, Globe, UserPlus } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter, normalizePhone } from '../../lib/utils'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { toast } from 'sonner'
 import MondeSearchSection from '../../components/contacts/MondeSearchSection'
+import { useMondeSearch, useMondeImportPerson } from '../../hooks/useMondeSearch'
 
 interface SelectedContact {
   id: string
@@ -24,6 +25,10 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
   const [showCreate, setShowCreate] = useState(false)
   const [selected, setSelected] = useState<SelectedContact[]>([])
   const [newContact, setNewContact] = useState({ nome: '', sobrenome: '', telefone: '' })
+  const mondeCheck = useMondeSearch()
+  const mondeImport = useMondeImportPerson()
+  const [mondeChecked, setMondeChecked] = useState(false)
+  const [skipMonde, setSkipMonde] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300)
@@ -128,6 +133,15 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
       toast.error('Nome é obrigatório')
       return
     }
+
+    // Check Monde first
+    if (!mondeChecked && !skipMonde) {
+      const searchTerm = `${newContact.nome} ${newContact.sobrenome}`.trim()
+      mondeCheck.search(searchTerm)
+      setMondeChecked(true)
+      return
+    }
+
     createMutation.mutate()
   }
 
@@ -197,10 +211,83 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
             />
           </div>
 
+          {/* Monde check results */}
+          {mondeChecked && (mondeCheck.isSearching || mondeCheck.results.length > 0) && (
+            <div className="border border-indigo-200 rounded-xl overflow-hidden">
+              <div className="bg-indigo-50 px-3 py-2 flex items-center gap-2">
+                <Globe className="h-3.5 w-3.5 text-indigo-500" />
+                <span className="text-xs font-medium text-indigo-700">
+                  {mondeCheck.isSearching ? 'Verificando no Monde...' : 'Encontrado no Monde'}
+                </span>
+              </div>
+              {mondeCheck.isSearching ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {mondeCheck.results.slice(0, 5).map(person => (
+                    <button
+                      key={person.monde_person_id}
+                      onClick={async () => {
+                        try {
+                          const result = await mondeImport.mutateAsync({ mondePersonId: person.monde_person_id })
+                          const { data } = await supabase.from('contatos').select('id, nome, sobrenome').eq('id', result.id).single()
+                          if (data) {
+                            const name = formatContactName(data) || data.nome || 'Sem Nome'
+                            setSelected(prev => [...prev, { id: data.id, name }])
+                            setShowCreate(false)
+                            setMondeChecked(false)
+                            setSkipMonde(false)
+                            mondeCheck.clear()
+                            toast.success('Contato importado do Monde')
+                          }
+                        } catch {
+                          // Error handled by mutation
+                        }
+                      }}
+                      disabled={mondeImport.isPending}
+                      className="w-full flex items-center gap-3 px-3 py-3 active:bg-indigo-50 text-left"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                        <Globe className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{person.name}</p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {[person.email, person.phone].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      {mondeImport.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400 shrink-0" />
+                      ) : (
+                        <UserPlus className="h-4 w-4 text-indigo-400 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {mondeChecked && !mondeCheck.isSearching && mondeCheck.results.length === 0 && (
+            <div className="p-2.5 bg-green-50 border border-green-200 rounded-xl">
+              <span className="text-green-600 text-xs">Nenhum contato similar no Monde. Pode criar.</span>
+            </div>
+          )}
+
           <div className="pt-2">
             <button
-              onClick={handleCreate}
-              disabled={createMutation.isPending || !newContact.nome.trim()}
+              onClick={() => {
+                if (mondeChecked && mondeCheck.results.length > 0 && !skipMonde) {
+                  setSkipMonde(true)
+                  createMutation.mutate()
+                } else {
+                  handleCreate()
+                }
+              }}
+              disabled={createMutation.isPending || mondeCheck.isSearching || mondeImport.isPending || !newContact.nome.trim()}
               className={cn(
                 "w-full py-3.5 rounded-xl font-semibold text-sm transition-all min-h-[52px]",
                 "bg-indigo-600 text-white active:bg-indigo-700",
@@ -208,8 +295,10 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
               )}
               style={{ touchAction: 'manipulation' }}
             >
-              {createMutation.isPending ? (
+              {createMutation.isPending || mondeCheck.isSearching ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : mondeChecked && mondeCheck.results.length > 0 && !skipMonde ? (
+                'Criar mesmo assim'
               ) : (
                 'Criar e Selecionar'
               )}

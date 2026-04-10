@@ -12,6 +12,7 @@ import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
+import { useMondeSearch, useMondeImportPerson } from '../../hooks/useMondeSearch'
 import MondeSearchSection from '../contacts/MondeSearchSection'
 import { toast } from 'sonner'
 
@@ -274,6 +275,12 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
         }
     })
 
+    // Monde check before creating
+    const mondeCreateCheck = useMondeSearch()
+    const mondeImportForCreate = useMondeImportPerson()
+    const [mondeChecked, setMondeChecked] = useState(false)
+    const [skipMonde, setSkipMonde] = useState(false)
+
     const handleCreateContact = () => {
         const missing = []
         if (!newContact.nome.trim()) missing.push('Nome')
@@ -283,7 +290,34 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
             setError(`${missing.join(', ')} ${missing.length === 1 ? 'é obrigatório' : 'são obrigatórios'}`)
             return
         }
+
+        // First time clicking: check Monde before creating
+        if (!mondeChecked && !skipMonde) {
+            const searchTerm = `${newContact.nome} ${newContact.sobrenome}`.trim()
+            mondeCreateCheck.search(searchTerm)
+            setMondeChecked(true)
+            return
+        }
+
         createContactMutation.mutate()
+    }
+
+    const handleSelectMondeForCreate = async (mondePersonId: string) => {
+        try {
+            const result = await mondeImportForCreate.mutateAsync({ mondePersonId })
+            if (multiSelect) {
+                const { data } = await supabase.from('contatos').select('id, nome, sobrenome, email, telefone').eq('id', result.id).single()
+                if (data) toggleContactSelection({ id: data.id, nome: data.nome || '', sobrenome: data.sobrenome, email: data.email, telefone: data.telefone })
+                resetForm()
+            } else {
+                addContactMutation.mutate(result.id)
+            }
+            toast.success(result.status === 'created' ? 'Contato importado do Monde' : 'Contato atualizado do Monde')
+            mondeCreateCheck.clear()
+            setMondeChecked(false)
+        } catch {
+            // Error handled by mutation
+        }
     }
 
     const toggleContactSelection = (contact: SelectedContact) => {
@@ -308,6 +342,9 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
         setShowCreateForm(false)
         setNewContact({ nome: '', sobrenome: '', email: '', telefone: '', data_nascimento: '', tipo_pessoa: 'adulto' })
         setError(null)
+        setMondeChecked(false)
+        setSkipMonde(false)
+        mondeCreateCheck.clear()
     }
 
     return (
@@ -746,8 +783,59 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                 />
                             )}
 
+                            {/* Monde check results — shown after first "Criar" click */}
+                            {mondeChecked && (mondeCreateCheck.isSearching || mondeCreateCheck.results.length > 0) && (
+                                <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                                    <div className="bg-indigo-50 px-3 py-2 flex items-center gap-2">
+                                        <Search className="h-3.5 w-3.5 text-indigo-500" />
+                                        <span className="text-xs font-medium text-indigo-700">
+                                            {mondeCreateCheck.isSearching ? 'Verificando no Monde...' : 'Encontrado no Monde — selecione ou crie novo'}
+                                        </span>
+                                    </div>
+                                    {mondeCreateCheck.isSearching ? (
+                                        <div className="flex items-center justify-center py-4">
+                                            <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-slate-100">
+                                            {mondeCreateCheck.results.slice(0, 5).map(person => (
+                                                <button
+                                                    key={person.monde_person_id}
+                                                    onClick={() => handleSelectMondeForCreate(person.monde_person_id)}
+                                                    disabled={mondeImportForCreate.isPending}
+                                                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50 text-left transition-colors"
+                                                >
+                                                    <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 text-xs font-medium text-indigo-700">
+                                                        {person.name.charAt(0)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-slate-900 truncate">{person.name}</p>
+                                                        <p className="text-xs text-slate-400 truncate">
+                                                            {[person.email, person.phone].filter(Boolean).join(' · ')}
+                                                            {person.already_in_crm && ' · Já no CRM'}
+                                                        </p>
+                                                    </div>
+                                                    {mondeImportForCreate.isPending ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-400 shrink-0" />
+                                                    ) : (
+                                                        <UserPlus className="h-4 w-4 text-indigo-400 shrink-0" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Monde check done with no results */}
+                            {mondeChecked && !mondeCreateCheck.isSearching && mondeCreateCheck.results.length === 0 && (
+                                <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                                    <span className="text-green-600 text-xs">Nenhum contato similar encontrado no Monde. Pode criar.</span>
+                                </div>
+                            )}
+
                             {/* Hint - more compact */}
-                            {duplicates.length === 0 && (
+                            {duplicates.length === 0 && !mondeChecked && (
                                 <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
                                     <span className="text-amber-500">💡</span>
                                     <p className="text-xs text-amber-700">
@@ -767,19 +855,27 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                     Voltar
                                 </Button>
                                 <Button
-                                    onClick={handleCreateContact}
-                                    disabled={createContactMutation.isPending || !newContact.nome.trim() || !newContact.sobrenome.trim() || !newContact.telefone.trim()}
+                                    onClick={() => {
+                                        if (mondeChecked && mondeCreateCheck.results.length > 0 && !skipMonde) {
+                                            // User saw Monde results but wants to create anyway
+                                            setSkipMonde(true)
+                                            createContactMutation.mutate()
+                                        } else {
+                                            handleCreateContact()
+                                        }
+                                    }}
+                                    disabled={createContactMutation.isPending || mondeCreateCheck.isSearching || mondeImportForCreate.isPending || !newContact.nome.trim() || !newContact.sobrenome.trim() || !newContact.telefone.trim()}
                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
                                 >
-                                    {createContactMutation.isPending ? (
+                                    {createContactMutation.isPending || mondeCreateCheck.isSearching ? (
                                         <>
                                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Salvando...
+                                            {mondeCreateCheck.isSearching ? 'Verificando...' : 'Salvando...'}
                                         </>
                                     ) : (
                                         <>
                                             <Plus className="h-4 w-4 mr-2" />
-                                            {multiSelect ? 'Criar e Selecionar' : 'Criar e Adicionar'}
+                                            {mondeChecked && mondeCreateCheck.results.length > 0 ? 'Criar mesmo assim' : multiSelect ? 'Criar e Selecionar' : 'Criar e Adicionar'}
                                         </>
                                     )}
                                 </Button>
