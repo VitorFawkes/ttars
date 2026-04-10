@@ -203,45 +203,169 @@ async function clientRespondedSince(
 }
 
 // ---------------------------------------------------------------------------
-// Send message via send-whatsapp-message Edge Function
+// Send message DIRECTLY via Echo API (no intermediary Edge Function)
 // ---------------------------------------------------------------------------
 async function sendMessage(
   supabase: SupabaseClient,
   execucao: Record<string, unknown>,
   regra: Record<string, unknown>
 ): Promise<{ success: boolean; error?: string }> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const echoApiUrl = Deno.env.get("ECHO_API_URL");
+  const echoApiKey = Deno.env.get("ECHO_API_KEY");
+  const defaultPhoneNumberId = Deno.env.get("ECHO_PHONE_NUMBER_ID");
 
-  const payload: Record<string, unknown> = {
-    contact_id: execucao.contact_id,
-    card_id: execucao.card_id,
-    source: "automacao",
-    automacao_execucao_id: execucao.id,
-    phone_number_id: regra.phone_number_id || undefined,  // Linha WhatsApp escolhida na regra
-  };
-
-  // Template or direct body
-  if (execucao.template_id) {
-    payload.template_id = execucao.template_id;
-  } else if (execucao.corpo_renderizado) {
-    payload.corpo = execucao.corpo_renderizado;
-  } else if (regra.template_id) {
-    payload.template_id = regra.template_id;
+  if (!echoApiUrl || !echoApiKey) {
+    return { success: false, error: "ECHO_API_URL ou ECHO_API_KEY não configurado" };
   }
 
   try {
-    const resp = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+    // 1. Fetch contact phone
+    const { data: contact } = await supabase
+      .from("contatos")
+      .select("id, nome, sobrenome, telefone, telefone_normalizado, tipo_cliente, email")
+      .eq("id", execucao.contact_id)
+      .single();
+
+    if (!contact?.telefone && !contact?.telefone_normalizado) {
+      return { success: false, error: "Contato sem telefone" };
+    }
+
+    const rawPhone = (contact.telefone_normalizado || contact.telefone || "").replace(/\D/g, "");
+    const phone = rawPhone.startsWith("55") ? rawPhone : "55" + rawPhone;
+
+    // 2. Resolve message body
+    let messageBody = (execucao.corpo_renderizado as string) || "";
+
+    if (!messageBody) {
+      const templateId = execucao.template_id || regra.template_id;
+      if (templateId) {
+        const { data: tpl } = await supabase
+          .from("mensagem_templates")
+          .select("corpo, modo")
+          .eq("id", templateId)
+          .single();
+
+        if (tpl?.corpo) {
+          messageBody = tpl.corpo;
+        }
+      }
+    }
+
+    // 3. Render variables
+    if (messageBody) {
+      messageBody = messageBody.replace(/\{\{contact\.nome\}\}/g, contact.nome || "");
+      messageBody = messageBody.replace(/\{\{contact\.sobrenome\}\}/g, contact.sobrenome || "");
+      messageBody = messageBody.replace(/\{\{contact\.nome_completo\}\}/g,
+        [contact.nome, contact.sobrenome].filter(Boolean).join(" "));
+      messageBody = messageBody.replace(/\{\{contact\.email\}\}/g, contact.email || "");
+
+      // Card variables
+      if (execucao.card_id) {
+        const { data: card } = await supabase
+          .from("cards")
+          .select("titulo, valor_estimado, valor_final, data_viagem_inicio, data_viagem_fim, briefing_inicial, dono_atual_id")
+          .eq("id", execucao.card_id)
+          .single();
+
+        if (card) {
+          messageBody = messageBody.replace(/\{\{card\.titulo\}\}/g, card.titulo || "");
+          const valor = card.valor_final ?? card.valor_estimado;
+          messageBody = messageBody.replace(/\{\{card\.valor\}\}/g,
+            valor != null ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor) : "");
+          messageBody = messageBody.replace(/\{\{card\.data_viagem\}\}/g,
+            card.data_viagem_inicio ? new Date(card.data_viagem_inicio).toLocaleDateString("pt-BR") : "");
+          messageBody = messageBody.replace(/\{\{card\.data_retorno\}\}/g,
+            card.data_viagem_fim ? new Date(card.data_viagem_fim).toLocaleDateString("pt-BR") : "");
+
+          const bi = card.briefing_inicial as Record<string, Record<string, unknown>> | null;
+          messageBody = messageBody.replace(/\{\{card\.destino\}\}/g,
+            (bi?.trip_info?.destinos as string) || "");
+
+          // Agent variables
+          if (card.dono_atual_id) {
+            const { data: agent } = await supabase
+              .from("profiles")
+              .select("nome, email, telefone")
+              .eq("id", card.dono_atual_id)
+              .single();
+            if (agent) {
+              messageBody = messageBody.replace(/\{\{agent\.nome\}\}/g, agent.nome || "");
+              messageBody = messageBody.replace(/\{\{agent\.primeiro_nome\}\}/g, (agent.nome || "").split(" ")[0]);
+              messageBody = messageBody.replace(/\{\{agent\.email\}\}/g, agent.email || "");
+              messageBody = messageBody.replace(/\{\{agent\.telefone\}\}/g, agent.telefone || "");
+            }
+          }
+        }
+      }
+
+      // System variables
+      const now = new Date();
+      messageBody = messageBody.replace(/\{\{hoje\}\}/g, now.toLocaleDateString("pt-BR"));
+      const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+      messageBody = messageBody.replace(/\{\{dia_semana\}\}/g, dias[now.getDay()]);
+    }
+
+    if (!messageBody.trim()) {
+      return { success: false, error: "Mensagem vazia após renderização" };
+    }
+
+    // 4. Resolve phone number ID
+    const phoneNumberId = (regra.phone_number_id as string) || defaultPhoneNumberId;
+
+    // 5. Send via Echo API
+    const echoResp = await fetch(echoApiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
+        "x-api-key": echoApiKey,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ to: phone, message: messageBody, phone_number_id: phoneNumberId }),
     });
 
-    const result = await resp.json().catch(() => ({}));
-    return { success: resp.ok, error: resp.ok ? undefined : JSON.stringify(result) };
+    const echoResult = await echoResp.json().catch(() => ({}));
+    const echoSuccess = echoResp.ok || !!echoResult?.whatsapp_message_id;
+
+    // 6. Insert into whatsapp_messages
+    await supabase.from("whatsapp_messages").insert({
+      contact_id: execucao.contact_id,
+      card_id: execucao.card_id || null,
+      body: messageBody,
+      direction: "outbound",
+      is_from_me: true,
+      type: "text",
+      status: echoSuccess ? "sent" : "failed",
+      sender_phone: phone,
+      sent_by_user_name: "Automação",
+      phone_number_label: "Automação",
+      metadata: {
+        source: "automacao",
+        automacao_execucao_id: execucao.id,
+        echo_response: echoResult,
+      },
+    });
+
+    // 7. Insert activity
+    if (execucao.card_id) {
+      await supabase.from("activities").insert({
+        card_id: execucao.card_id,
+        tipo: "whatsapp_automation_sent",
+        descricao: `Mensagem automática enviada para ${contact.nome || "contato"}`,
+        metadata: { source: "automacao", message_length: messageBody.length, success: echoSuccess },
+      });
+    }
+
+    // 8. Update execution
+    if (echoSuccess) {
+      await supabase.from("automacao_execucoes")
+        .update({
+          status: "enviado",
+          corpo_renderizado: messageBody,
+          enviado_at: new Date().toISOString(),
+        })
+        .eq("id", execucao.id);
+    }
+
+    return { success: echoSuccess, error: echoSuccess ? undefined : JSON.stringify(echoResult) };
   } catch (err) {
     return { success: false, error: String(err) };
   }

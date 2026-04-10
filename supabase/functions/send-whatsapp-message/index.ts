@@ -394,7 +394,9 @@ serve(async (req) => {
     });
 
     const echoResult = await echoResponse.json().catch(() => ({}));
-    const echoSuccess = echoResponse.ok;
+    // Echo sometimes returns 500 but the message WAS sent (DB save error on their side)
+    // If we got a whatsapp_message_id back, the message was delivered
+    const echoSuccess = echoResponse.ok || !!echoResult?.whatsapp_message_id;
 
     // --- Insert into whatsapp_messages ---
     const { data: msgRecord } = await supabase
