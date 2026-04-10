@@ -253,7 +253,7 @@ async function sendMessage(
 async function processPending(supabase: SupabaseClient): Promise<number> {
   const { data: pendentes } = await supabase
     .from("automacao_execucoes")
-    .select("*, automacao_regras!inner(id, condicoes, template_id, max_envios_por_card, dedup_janela_horas, max_mensagens_contato_dia, response_aware, modo_aprovacao, tipo, phone_number_id)")
+    .select("*, automacao_regras!inner(id, condicoes, template_id, max_envios_por_card, dedup_janela_horas, max_mensagens_contato_dia, response_aware, modo_aprovacao, tipo, phone_number_id, agent_aware, business_hours)")
     .eq("status", "pending")
     .limit(BATCH_SIZE)
     .order("created_at", { ascending: true });
@@ -295,6 +295,37 @@ async function processPending(supabase: SupabaseClient): Promise<number> {
         processed++;
         continue;
       }
+    }
+
+    // 3b. Check agent-aware (agent sent manual message recently)
+    if (regra.agent_aware && exec.contact_id) {
+      const agentHours = 4;
+      const since = new Date(Date.now() - agentHours * 60 * 60 * 1000).toISOString();
+      const { count: agentMsgCount } = await supabase
+        .from("whatsapp_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", exec.contact_id)
+        .eq("direction", "outbound")
+        .eq("is_from_me", true)
+        .gte("created_at", since)
+        .is("metadata->automacao_execucao_id", null);  // Only manual msgs (not from automacao)
+
+      if ((agentMsgCount ?? 0) > 0) {
+        await supabase.from("automacao_execucoes")
+          .update({ status: "skipped", skip_reason: "agente_ja_enviou" })
+          .eq("id", exec.id);
+        processed++;
+        continue;
+      }
+    }
+
+    // 3c. Check business hours
+    if (regra.business_hours && !isBrazilBusinessHours()) {
+      await supabase.from("automacao_execucoes")
+        .update({ status: "aguardando_horario" })
+        .eq("id", exec.id);
+      processed++;
+      continue;
     }
 
     // 4. Evaluate conditions
