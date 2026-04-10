@@ -453,31 +453,38 @@ export default function AutomacaoBuilderPage() {
             });
 
             if (!isNew) {
-                // Limpar steps antigos: nullificar FKs e deletar
+                // 1) Buscar IDs dos steps antigos
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any)
-                    .from('cadence_instances')
-                    .update({ current_step_id: null })
-                    .eq('template_id', templateId);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any)
-                    .from('cadence_queue')
-                    .delete()
-                    .in('status', ['pending', 'processing'])
-                    .in('step_id', (
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        await (supabase as any)
-                            .from('cadence_steps')
-                            .select('id')
-                            .eq('template_id', templateId)
-                    ).data?.map((s: { id: string }) => s.id) || []);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (supabase as any)
+                const { data: oldSteps } = await (supabase as any)
                     .from('cadence_steps')
-                    .delete()
+                    .select('id')
                     .eq('template_id', templateId);
+                const oldStepIds = (oldSteps || []).map((s: { id: string }) => s.id);
 
-                // Inserir novos steps (sem ids antigos — todos são novos)
+                if (oldStepIds.length > 0) {
+                    // 2) Nullificar FK em cadence_instances
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any)
+                        .from('cadence_instances')
+                        .update({ current_step_id: null })
+                        .eq('template_id', templateId);
+
+                    // 3) Deletar TODOS os items da queue (qualquer status)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any)
+                        .from('cadence_queue')
+                        .delete()
+                        .in('step_id', oldStepIds);
+
+                    // 4) Deletar steps antigos
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (supabase as any)
+                        .from('cadence_steps')
+                        .delete()
+                        .eq('template_id', templateId);
+                }
+
+                // 5) Inserir novos steps
                 const cleanPayload = stepsPayload.map(({ id: _stepId, ...rest }) => rest);
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error: stepsErr } = await (supabase as any)
