@@ -85,8 +85,21 @@ export function useQualityGate() {
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    const validateMove = async (card: Record<string, unknown>, targetStageId: string): Promise<ValidationResult> => {
+    const validateMove = async (cardInput: Record<string, unknown>, targetStageId: string): Promise<ValidationResult> => {
         if (!rules) return { valid: true, missingRequirements: [] }
+
+        // Buscar card fresco do banco para evitar validação com dados stale do cache
+        let card = cardInput
+        if (cardInput.id) {
+            const { data: freshCard } = await supabase
+                .from('cards')
+                .select('*')
+                .eq('id', cardInput.id as string)
+                .single()
+            if (freshCard) {
+                card = freshCard as unknown as Record<string, unknown>
+            }
+        }
 
         const stageRules = rules.filter(r => r.stage_id === targetStageId && r.is_blocking)
         const missing: MissingRequirement[] = []
