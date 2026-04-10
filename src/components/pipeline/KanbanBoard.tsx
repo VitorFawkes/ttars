@@ -363,9 +363,9 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             return
         }
 
-        // --- SYNC GATE 3: Governance — cross-phase handoff ---
-        // Detecta mudança de fase (SDR→Planner, Planner→Pós-venda, etc.)
-        // e força troca de responsável via StageChangeModal
+        // --- ASYNC GATE (cross-phase): Validar quality gate antes do handoff ---
+        // contato_principal_basico/completo não são verificados no sync gate,
+        // então precisamos rodar validateMove antes de abrir StageChangeModal
         const sourceStage = stages?.find((s) => s.id === currentStageId)
         const sourcePhaseId = sourceStage?.phase_id
         const destPhaseId = targetStage?.phase_id
@@ -375,6 +375,24 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
 
         if (handoffPhaseId) {
+            // Validar async rules ANTES de abrir o modal de handoff
+            if (hasAsyncRules(stageId)) {
+                try {
+                    const asyncResult = await validateMove(card as unknown as Record<string, unknown>, stageId)
+                    if (!asyncResult.valid) {
+                        setPendingMove({
+                            cardId, stageId,
+                            targetStageName: targetStage?.nome || 'Nova Etapa',
+                            missingRequirements: asyncResult.missingRequirements,
+                        })
+                        setQualityGateModalOpen(true)
+                        return
+                    }
+                } catch (err) {
+                    console.error('[QualityGate] Async validation failed — move allowed (fail-open):', err)
+                }
+            }
+
             const targetPhase = phasesData?.find(p => p.id === handoffPhaseId)
             setPendingMove({
                 cardId, stageId,
@@ -495,29 +513,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         console.error('Erro ao marcar como ganho:', err)
                     }
                 } else {
-                    // Validar async quality gate antes de mover (contato_principal_basico, etc.)
-                    if (hasAsyncRules(pendingMove.stageId)) {
-                        const cards = queryClient.getQueryData<Card[]>(['cards'])
-                        const card = cards?.find(c => c.id === pendingMove.cardId)
-                        if (card) {
-                            const asyncResult = await validateMove(
-                                card as unknown as Record<string, unknown>,
-                                pendingMove.stageId
-                            )
-                            if (!asyncResult.valid) {
-                                setStageChangeModalOpen(false)
-                                setPendingMove({
-                                    ...pendingMove,
-                                    missingRequirements: asyncResult.missingRequirements,
-                                })
-                                setQualityGateModalOpen(true)
-                                setActiveCard(null)
-                                return
-                            }
-                        }
-                    }
-
                     // Normal cross-phase move — update owner then move
+                    // (async quality gate já foi validado em handleDragEnd antes de abrir este modal)
                     const { error } = await supabase.from('cards')
                         .update({ dono_atual_id: newOwnerId })
                         .eq('id', pendingMove.cardId)
