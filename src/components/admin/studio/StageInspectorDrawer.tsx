@@ -86,13 +86,8 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 ativo: data.ativo,
                 is_won: data.is_won,
                 is_lost: data.is_lost,
-                is_sdr_won: data.is_sdr_won,
-                is_planner_won: data.is_planner_won,
-                is_pos_won: data.is_pos_won,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
                 milestone_key: (data as any).milestone_key || null,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                auto_advance: (data as any).auto_advance ?? false
             };
 
             console.log('[StageInspector] Saving stage data:', updatePayload);
@@ -286,53 +281,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                 </select>
                             </div>
 
-                            {/* Status Final — desativado: ganho/perdido agora são ações, não etapas */}
-                            {/* is_won e is_lost mantidos no banco para compatibilidade, mas não editáveis */}
-
-                            {/* Marcos por Seção */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Marcos de Ganho</label>
-                                <p className="text-xs text-gray-500 mb-3">Badges visuais no card quando passar por esta etapa. Não altera status comercial.</p>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.is_sdr_won || false}
-                                            onChange={e => setFormData({ ...formData, is_sdr_won: e.target.checked })}
-                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Marco: Ganho SDR</span>
-                                            <p className="text-xs text-gray-500">Badge "SDR" aparece no card</p>
-                                        </div>
-                                    </label>
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.is_planner_won || false}
-                                            onChange={e => setFormData({ ...formData, is_planner_won: e.target.checked })}
-                                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Marco: Ganho Planner</span>
-                                            <p className="text-xs text-gray-500">Badge "Planner" aparece no card</p>
-                                        </div>
-                                    </label>
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.is_pos_won || false}
-                                            onChange={e => setFormData({ ...formData, is_pos_won: e.target.checked })}
-                                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Marco: Ganho Pós-Venda</span>
-                                            <p className="text-xs text-gray-500">Badge "Pós" aparece no card</p>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-
                             {/* Milestone para Analytics */}
                             <div className="border-t border-gray-200 pt-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Milestone Analytics</label>
@@ -350,29 +298,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                     <option value="proposta">% Proposta Enviada</option>
                                     <option value="ganho_planner">% Ganho Planner</option>
                                 </select>
-                            </div>
-
-                            {/* Automação */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Automação</label>
-                                <p className="text-xs text-gray-500 mb-3">
-                                    Ao ativar, o card avança automaticamente para a próxima etapa ao entrar nesta.
-                                    Útil para etapas de marco (Ganho SDR, Ganho Planner) onde o card não deve permanecer.
-                                </p>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={(formData as Record<string, unknown>).auto_advance as boolean || false}
-                                            onChange={e => setFormData({ ...formData, auto_advance: e.target.checked } as typeof formData)}
-                                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div>
-                                            <span className="text-sm font-medium text-gray-900">Auto-avanço</span>
-                                            <p className="text-xs text-gray-500">Card avança automaticamente para a próxima etapa ativa</p>
-                                        </div>
-                                    </label>
-                                </div>
                             </div>
 
                             <button
