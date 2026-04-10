@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
@@ -570,13 +571,17 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         mutationFn: async ({ field, userId, fields }: { field?: 'dono_atual_id' | 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id', userId?: string | null, fields?: Partial<CardBase> }) => {
             const updateData: Partial<CardBase> = fields ?? { [field!]: userId || null }
 
-            const { error } = await supabase.from('cards')
+            const { data, error } = await supabase.from('cards')
                 .update(updateData)
                 .eq('id', card.id)
+                .select('id')
+                .single()
 
             if (error) throw error
+            if (!data) throw new Error('Não foi possível atualizar o responsável. Verifique suas permissões.')
         },
         onSuccess: () => {
+            toast.success('Responsável atualizado')
             queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
             queryClient.invalidateQueries({ queryKey: ['card', card.id] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
@@ -584,7 +589,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         },
         onError: (error) => {
             console.error('Failed to update owner:', error)
-            alert('Erro ao atualizar responsável: ' + error.message)
+            toast.error('Erro ao atualizar responsável: ' + error.message)
         }
     })
 
@@ -606,9 +611,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
     const updateStageMutation = useMutation({
         mutationFn: async (stageId: string) => {
-            const { error } = await supabase.from('cards')
-                .update({ pipeline_stage_id: stageId })
-                .eq('id', card.id)
+            const { error } = await supabase.rpc('mover_card', {
+                p_card_id: card.id,
+                p_nova_etapa_id: stageId,
+            })
             if (error) throw error
         },
         onSuccess: () => {
@@ -617,6 +623,14 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
             setShowStageDropdown(false)
+        },
+        onError: (error: Error) => {
+            console.error('Failed to update stage:', error)
+            if (error.message?.includes('STAGE_REQUIREMENTS_VIOLATION')) {
+                toast.error('Campos obrigatórios pendentes para mover este card.')
+            } else {
+                toast.error('Erro ao mudar etapa: ' + error.message)
+            }
         }
     })
 
@@ -737,7 +751,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
             if (error) {
                 console.error('Failed to update loss reason:', error)
-                alert('Erro ao atualizar motivo: ' + error.message)
+                toast.error('Erro ao atualizar motivo: ' + error.message)
             } else {
                 queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['card', card.id] })
@@ -758,7 +772,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
             if (error) {
                 console.error('Failed to mark card as lost:', error)
-                alert('Erro ao marcar como perdido: ' + error.message)
+                toast.error('Erro ao marcar como perdido: ' + error.message)
             } else {
                 queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['card', card.id] })
@@ -798,7 +812,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             })
             if (error) {
                 console.error('Failed to mark card as lost:', error)
-                alert('Erro ao marcar como perdido: ' + error.message)
+                toast.error('Erro ao marcar como perdido: ' + error.message)
             } else {
                 queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['card', card.id] })
@@ -833,7 +847,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         },
         onError: (error) => {
             console.error('Failed to mark as won:', error)
-            alert('Erro ao marcar como ganho: ' + error.message)
+            toast.error('Erro ao marcar como ganho: ' + error.message)
         }
     })
 
@@ -899,7 +913,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 }
             } catch (err) {
                 console.error('[QualityGate] Win validation failed — move bloqueado (fail-closed):', err)
-                alert('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
+                toast.error('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
                 return
             }
 
@@ -943,7 +957,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 }
             } catch (err) {
                 console.error('[QualityGate] Win validation failed — move bloqueado (fail-closed):', err)
-                alert('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
+                toast.error('Não foi possível validar os requisitos da etapa. Tente novamente em alguns segundos.')
                 return
             }
 
@@ -980,7 +994,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         },
         onError: (error) => {
             console.error('Failed to reopen card:', error)
-            alert('Erro ao reabrir card: ' + error.message)
+            toast.error('Erro ao reabrir card: ' + error.message)
         }
     })
 
@@ -1021,13 +1035,42 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             if (isWinHandoff) {
                 // Win handoff: call marcar_ganho RPC with new owner
                 marcarGanhoMutation.mutate({ novoDonoId: newOwnerId })
+                setStageChangeModalOpen(false)
+                setPendingStageChange(null)
             } else {
-                // Normal cross-phase move
-                updateOwnerMutation.mutate({ field: 'dono_atual_id', userId: newOwnerId })
-                updateStageMutation.mutate(pendingStageChange.stageId)
+                // Normal cross-phase move — sequencial: owner primeiro, depois mover_card RPC
+                const execute = async () => {
+                    try {
+                        const { error: ownerError } = await supabase.from('cards')
+                            .update({ dono_atual_id: newOwnerId })
+                            .eq('id', card.id)
+                        if (ownerError) throw ownerError
+
+                        const { error: moveError } = await supabase.rpc('mover_card', {
+                            p_card_id: card.id,
+                            p_nova_etapa_id: pendingStageChange.stageId,
+                        })
+                        if (moveError) throw moveError
+
+                        queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['cards'] })
+                        queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
+                        setShowStageDropdown(false)
+                    } catch (err) {
+                        console.error('Erro ao mover card:', err)
+                        const msg = (err as Error).message || 'Erro desconhecido'
+                        if (msg.includes('STAGE_REQUIREMENTS_VIOLATION')) {
+                            toast.error('Campos obrigatórios pendentes para mover este card.')
+                        } else {
+                            toast.error('Erro ao mover card: ' + msg)
+                        }
+                    }
+                }
+                execute()
+                setStageChangeModalOpen(false)
+                setPendingStageChange(null)
             }
-            setStageChangeModalOpen(false)
-            setPendingStageChange(null)
         }
     }
 
