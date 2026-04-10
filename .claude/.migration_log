@@ -334,3 +334,12 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-09T20:24:27Z | supabase/migrations/20260409_generic_produto_data_activity_log.sql | applied_to_prod
 2026-04-10T12:26:56Z | supabase/migrations/20260410_cadence_replace_steps_rpc.sql | applied_to_prod
 2026-04-10T12:27:19Z | supabase/migrations/20260305_product_isolation_rpcs.sql | applied_to_prod
+2026-04-10T12:32:11Z | supabase/migrations/20260313_sub_card_fixes.sql | applied_to_prod
+2026-04-10T12:32:24Z | supabase/migrations/20260305_product_isolation_rpcs.sql | applied_to_prod
+2026-04-10T12:32:35Z | supabase/migrations/20260402_h3_010_analytics_rpcs_org_filter.sql | applied_to_prod
+2026-04-10T12:32:50Z | supabase/migrations/20260306_fix_enum_cast_analytics.sql | applied_to_prod
+2026-04-10T12:32:59Z | supabase/migrations/20260402_h3_014_patch_remaining_analytics.sql | applied_to_prod
+2026-04-10T12:34:40Z | supabase/migrations/20260410_fix_analytics_operations_and_funnel.sql | applied_to_prod
+2026-04-10T12:35:55Z | supabase/migrations/20260410_fix_analytics_v2.sql | applied_to_prod
+2026-04-10T12:36:45Z | supabase/migrations/20260410_fix_analytics_v2.sql | applied_to_prod
+2026-04-10T12:37:19Z | supabase/migrations/20260410_fix_analytics_v2.sql | applied_to_prod
