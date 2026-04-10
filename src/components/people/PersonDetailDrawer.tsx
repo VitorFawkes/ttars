@@ -10,13 +10,14 @@ import { Badge } from '../ui/Badge'
 import ContactForm from '../card/ContactForm'
 import type { Person } from '../../hooks/usePeopleIntelligence'
 import type { Database } from '../../database.types'
-import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package } from 'lucide-react'
+import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package, RefreshCw } from 'lucide-react'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
 import { toast } from 'sonner'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
 import ContactDetailsViewer from '../card/ContactDetailsViewer'
 import { useDeleteContact } from '../../hooks/useDeleteContact'
+import { useMondeImportPerson } from '../../hooks/useMondeSearch'
 import { useContactGifts } from '../../hooks/useContactGifts'
 import { getGiftItemName } from '../../hooks/useCardGifts'
 import { cn } from '../../lib/utils'
@@ -41,6 +42,7 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
     const { softDelete, isDeleting } = useDeleteContact({
         onSuccess: () => { onRefresh?.(); onClose() }
     })
+    const mondeImport = useMondeImportPerson()
 
     // Auto-fetch stats when not provided (e.g. when opened from CardDetail)
     const { data: fetchedStats } = useQuery({
@@ -124,6 +126,31 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            {person.monde_person_id && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await mondeImport.mutateAsync({
+                                                mondePersonId: person.monde_person_id!,
+                                                forceUpdate: true,
+                                            })
+                                            toast.success('Dados atualizados do Monde')
+                                            onRefresh?.()
+                                        } catch {
+                                            // Error handled by mutation
+                                        }
+                                    }}
+                                    disabled={mondeImport.isPending}
+                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                    title="Atualizar dados do Monde"
+                                >
+                                    {mondeImport.isPending ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <RefreshCw className="h-4 w-4" />
+                                    )}
+                                </button>
+                            )}
                             <button
                                 onClick={() => setShowDeleteConfirm(true)}
                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

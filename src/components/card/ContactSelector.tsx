@@ -12,6 +12,7 @@ import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
+import MondeSearchSection from '../contacts/MondeSearchSection'
 import { toast } from 'sonner'
 
 interface SelectedContact {
@@ -438,8 +439,8 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                         )
                                     })
                                 ) : debouncedSearch.length > 2 ? (
-                                    <div className="text-center py-8">
-                                        <p className="text-sm text-slate-500 mb-3">Nenhum contato encontrado</p>
+                                    <div className="text-center py-6">
+                                        <p className="text-sm text-slate-500 mb-3">Nenhum contato encontrado no CRM</p>
                                         <Button
                                             onClick={() => {
                                                 setShowCreateForm(true)
@@ -456,6 +457,20 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                             <UserPlus className="h-4 w-4 mr-2" />
                                             Criar "{searchTerm}"
                                         </Button>
+                                        <MondeSearchSection
+                                            searchTerm={debouncedSearch}
+                                            onPersonImported={(contatoId) => {
+                                                if (multiSelect) {
+                                                    // Fetch contact data for selection
+                                                    supabase.from('contatos').select('id, nome, sobrenome, email, telefone').eq('id', contatoId).single().then(({ data }) => {
+                                                        if (data) toggleContactSelection({ id: data.id, nome: data.nome || '', sobrenome: data.sobrenome, email: data.email, telefone: data.telefone })
+                                                    })
+                                                } else {
+                                                    addContactMutation.mutate(contatoId)
+                                                }
+                                            }}
+                                            excludeMondeIds={contacts?.map(c => c.monde_person_id).filter(Boolean) as string[]}
+                                        />
                                     </div>
                                 ) : (
                                     <div className="text-center py-12 text-slate-400">
@@ -464,6 +479,23 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                     </div>
                                 )}
                             </div>
+
+                            {/* Monde search — when few CRM results */}
+                            {debouncedSearch.length >= 2 && !isLoading && (contacts?.length || 0) > 0 && (contacts?.length || 0) < 3 && (
+                                <MondeSearchSection
+                                    searchTerm={debouncedSearch}
+                                    onPersonImported={(contatoId) => {
+                                        if (multiSelect) {
+                                            supabase.from('contatos').select('id, nome, sobrenome, email, telefone').eq('id', contatoId).single().then(({ data }) => {
+                                                if (data) toggleContactSelection({ id: data.id, nome: data.nome || '', sobrenome: data.sobrenome, email: data.email, telefone: data.telefone })
+                                            })
+                                        } else {
+                                            addContactMutation.mutate(contatoId)
+                                        }
+                                    }}
+                                    excludeMondeIds={contacts?.map(c => c.monde_person_id).filter(Boolean) as string[]}
+                                />
+                            )}
 
                             {/* Selected contacts bar (multi-select) */}
                             {multiSelect && selectedContacts.length > 0 && (

@@ -18,6 +18,7 @@ import { DataQualityDrawer } from '../components/people/DataQualityDrawer'
 import { useContactQuality } from '../hooks/useContactQuality'
 import { supabase } from '../lib/supabase'
 import { mergeContactData } from '../lib/contactMerge'
+import MondeSearchSection from '../components/contacts/MondeSearchSection'
 
 export default function People() {
     const {
@@ -181,6 +182,24 @@ export default function People() {
                         setSort={setSort}
                         onPersonClick={setSelectedPerson}
                     />
+
+                    {/* Monde search — when no CRM results and user is searching */}
+                    {!loading && people.length === 0 && filters.search && filters.search.length >= 2 && (
+                        <div className="max-w-md mx-auto -mt-16">
+                            <MondeSearchSection
+                                searchTerm={filters.search}
+                                onPersonImported={async (contatoId) => {
+                                    const { data } = await supabase
+                                        .from('contatos')
+                                        .select('*')
+                                        .eq('id', contatoId)
+                                        .single()
+                                    if (data) setSelectedPerson(data as unknown as Person)
+                                    refresh()
+                                }}
+                            />
+                        </div>
+                    )}
 
                     {/* Pagination Footer */}
                     {!loading && totalCount > 0 && (
