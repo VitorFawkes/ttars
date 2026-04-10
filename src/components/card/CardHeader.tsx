@@ -1726,7 +1726,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || currentStage?.nome || ''}
                 cardId={card.id!}
-                context={pendingStageChange ? 'kanban' : 'card-detail'}
+                context="card-detail"
             />
 
             <WinOptionsModal
