@@ -1314,26 +1314,60 @@ async function handleTaskOutcome(supabaseClient: SupabaseClient, body: any) {
             }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        // Todo o bloco concluído — procurar próximo bloco
-        const { data: nextBlockSteps } = await supabaseClient
+        // Todo o bloco concluído — procurar blocos que dependem deste
+        // Buscar TODOS os steps restantes que dependem do bloco atual
+        const { data: allRemainingSteps } = await supabaseClient
             .from("cadence_steps").select("*")
             .eq("template_id", instance.template_id)
-            .gt("block_index", currentBlock)
+            .eq("requires_previous_completed", true)
             .order("block_index", { ascending: true })
             .order("step_order", { ascending: true });
 
-        if (!nextBlockSteps || nextBlockSteps.length === 0) {
-            await supabaseClient.from("cadence_instances")
-                .update({ status: 'completed', completed_at: new Date().toISOString(),
-                    successful_contacts: instance.successful_contacts + successDelta })
-                .eq("id", instanceId);
-            return new Response(JSON.stringify({
-                success: true, message: "Cadence completed", block_index: currentBlock
-            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        // Filtrar: steps cujo depends_on_block == currentBlock, OU (sem depends_on_block e block_index == currentBlock+1)
+        const toSchedule = (allRemainingSteps || []).filter(s => {
+            const dep = s.wait_config?.depends_on_block;
+            if (dep != null) return dep === currentBlock;
+            // Fallback legado: bloco sequencial imediatamente após
+            return s.block_index === currentBlock + 1;
+        });
+
+        // Verificar se ainda há blocos pendentes além deste
+        const { data: anyPending } = await supabaseClient
+            .from("cadence_steps").select("id")
+            .eq("template_id", instance.template_id)
+            .eq("requires_previous_completed", true)
+            .gt("block_index", currentBlock)
+            .limit(1);
+
+        if (toSchedule.length === 0 && (!anyPending || anyPending.length === 0)) {
+            // Verificar se tem blocos paralelos ainda rodando
+            const { data: runningTasks } = await supabaseClient
+                .from("tarefas").select("id")
+                .eq("concluida", false)
+                .contains("metadata", { cadence_instance_id: instanceId })
+                .limit(1);
+
+            if (!runningTasks || runningTasks.length === 0) {
+                await supabaseClient.from("cadence_instances")
+                    .update({ status: 'completed', completed_at: new Date().toISOString(),
+                        successful_contacts: instance.successful_contacts + successDelta })
+                    .eq("id", instanceId);
+                return new Response(JSON.stringify({
+                    success: true, message: "Cadence completed", block_index: currentBlock
+                }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
         }
 
-        const nextBlockIndex = nextBlockSteps[0].block_index;
-        const toSchedule = nextBlockSteps.filter(s => s.block_index === nextBlockIndex);
+        if (toSchedule.length === 0) {
+            // Nada para agendar agora, mas cadência continua (outros blocos pendentes)
+            await supabaseClient.from("cadence_instances")
+                .update({ successful_contacts: instance.successful_contacts + successDelta })
+                .eq("id", instanceId);
+            return new Response(JSON.stringify({
+                success: true, message: "Block completed, waiting for other dependencies",
+                block_index: currentBlock
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
         const nowIso = new Date().toISOString();
         await supabaseClient.from("cadence_queue").insert(
             toSchedule.map(s => ({ instance_id: instance.id, step_id: s.id, execute_at: nowIso, priority: 8 }))

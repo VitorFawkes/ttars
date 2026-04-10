@@ -193,6 +193,7 @@ export default function AutomacaoBuilderPage() {
 
                 // Agrupar steps por block_index em blocks[]
                 const byBlock = new Map<number, BlockTask[]>();
+                const blockMeta = new Map<number, { dependsOn: number | null; requiresPrev: boolean }>();
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (stepsData || []).forEach((s: any) => {
                     if (s.step_type !== 'task') return;
@@ -214,14 +215,25 @@ export default function AutomacaoBuilderPage() {
                         }),
                     });
                     byBlock.set(bi, arr);
+                    if (!blockMeta.has(bi)) {
+                        blockMeta.set(bi, {
+                            dependsOn: s.wait_config?.depends_on_block ?? null,
+                            requiresPrev: !!s.requires_previous_completed,
+                        });
+                    }
                 });
                 const loadedBlocks: Block[] = Array.from(byBlock.entries())
                     .sort(([a], [b]) => a - b)
-                    .map(([bi, tasks], idx) => ({
-                        id: `block_${bi}`,
-                        tasks,
-                        startsFromTrigger: idx > 0 && tasks.some(t => t.due_offset?.anchor === 'cadence_start'),
-                    }));
+                    .map(([bi, tasks], idx) => {
+                        const meta = blockMeta.get(bi);
+                        const isParallel = idx > 0 && !meta?.requiresPrev;
+                        return {
+                            id: `block_${bi}`,
+                            tasks,
+                            startsFromTrigger: isParallel,
+                            dependsOnBlock: meta?.dependsOn ?? null,
+                        };
+                    });
                 setBlocks(loadedBlocks.length > 0 ? loadedBlocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
             } catch (err) {
                 console.error(err);
@@ -407,6 +419,10 @@ export default function AutomacaoBuilderPage() {
                     const currentOrder = orderCounter++;
                     const legacy = encodeNaturalDue(task.due_offset);
                     const stepKey = `b${blockIdx}_t${currentOrder}`;
+                    const dependsOn = block.startsFromTrigger ? null : (block.dependsOnBlock ?? (blockIdx > 0 ? blockIdx - 1 : null));
+                    const waitConfig = legacy.wait_config
+                        ? { ...legacy.wait_config, depends_on_block: dependsOn }
+                        : dependsOn != null ? { depends_on_block: dependsOn } : null;
                     const base: Record<string, unknown> = {
                         template_id: templateId,
                         step_order: currentOrder,
@@ -414,8 +430,8 @@ export default function AutomacaoBuilderPage() {
                         step_type: 'task',
                         block_index: blockIdx,
                         day_offset: legacy.day_offset,
-                        wait_config: legacy.wait_config,
-                        requires_previous_completed: legacy.requires_previous_completed,
+                        wait_config: waitConfig,
+                        requires_previous_completed: !block.startsFromTrigger && blockIdx > 0,
                         due_offset: task.due_offset,
                         task_config: {
                             tipo: task.tipo,
@@ -704,6 +720,7 @@ export default function AutomacaoBuilderPage() {
                                             block={block}
                                             index={idx}
                                             isFirst={idx === 0}
+                                            totalBlocks={blocks.length}
                                             userOptions={userOptions}
                                             onChange={(next) => updateBlock(idx, next)}
                                             onRemove={() => removeBlock(idx)}
@@ -760,7 +777,7 @@ export default function AutomacaoBuilderPage() {
                                                 <span className="text-xs text-amber-600 ml-2 font-normal">
                                                     {idx === 0 || block.startsFromTrigger
                                                         ? '(criadas imediatamente)'
-                                                        : `(criadas quando Bloco ${idx} concluir)`}
+                                                        : `(criadas quando Bloco ${(block.dependsOnBlock ?? idx - 1) + 1} concluir)`}
                                                 </span>
                                             </div>
                                             {block.tasks.map((t) => (

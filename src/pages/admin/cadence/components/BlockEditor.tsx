@@ -21,12 +21,15 @@ export interface Block {
     tasks: BlockTask[];
     /** Se true, bloco começa imediatamente ao disparar (não espera bloco anterior) */
     startsFromTrigger?: boolean;
+    /** Índice do bloco que deve concluir antes deste iniciar (null = gatilho) */
+    dependsOnBlock?: number | null;
 }
 
 interface BlockEditorProps {
     block: Block;
     index: number;
     isFirst: boolean;
+    totalBlocks: number;
     userOptions: { value: string; label: string }[];
     onChange: (next: Block) => void;
     onRemove: () => void;
@@ -75,6 +78,7 @@ export function BlockEditor({
     block,
     index,
     isFirst,
+    totalBlocks,
     userOptions,
     onChange,
     onRemove,
@@ -129,7 +133,7 @@ export function BlockEditor({
                     {isFirst ? (
                         <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-md px-2 py-0.5">
                             <Zap className="w-3 h-3" />
-                            <span className="text-xs font-medium">Tarefas criadas imediatamente ao disparar</span>
+                            <span className="text-xs font-medium">Criado imediatamente ao disparar</span>
                         </div>
                     ) : (
                         <div className="flex items-center gap-1">
@@ -138,6 +142,7 @@ export function BlockEditor({
                                 onClick={() => onChange({
                                     ...block,
                                     startsFromTrigger: true,
+                                    dependsOnBlock: null,
                                     tasks: block.tasks.map(t => ({
                                         ...t,
                                         due_offset: { ...t.due_offset, anchor: 'cadence_start' as const },
@@ -152,25 +157,48 @@ export function BlockEditor({
                                 <Zap className="w-3 h-3" />
                                 Ao disparar
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => onChange({
-                                    ...block,
-                                    startsFromTrigger: false,
-                                    tasks: block.tasks.map(t => ({
-                                        ...t,
-                                        due_offset: { ...t.due_offset, anchor: 'previous_block_completed' as const },
-                                    })),
-                                })}
-                                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium border transition-colors ${
-                                    !block.startsFromTrigger
-                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                                        : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                <Clock className="w-3 h-3" />
-                                Após Bloco {index}
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <select
+                                    value={block.startsFromTrigger ? '' : String(block.dependsOnBlock ?? index - 1)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '') {
+                                            onChange({
+                                                ...block,
+                                                startsFromTrigger: true,
+                                                dependsOnBlock: null,
+                                                tasks: block.tasks.map(t => ({
+                                                    ...t,
+                                                    due_offset: { ...t.due_offset, anchor: 'cadence_start' as const },
+                                                })),
+                                            });
+                                        } else {
+                                            const dep = parseInt(val, 10);
+                                            onChange({
+                                                ...block,
+                                                startsFromTrigger: false,
+                                                dependsOnBlock: dep,
+                                                tasks: block.tasks.map(t => ({
+                                                    ...t,
+                                                    due_offset: { ...t.due_offset, anchor: 'previous_block_completed' as const },
+                                                })),
+                                            });
+                                        }
+                                    }}
+                                    className={`text-xs font-medium rounded-md px-2 py-0.5 border transition-colors ${
+                                        !block.startsFromTrigger
+                                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                            : 'bg-white border-slate-200 text-slate-400'
+                                    }`}
+                                >
+                                    <option value="">Escolher...</option>
+                                    {Array.from({ length: totalBlocks }, (_, i) => i)
+                                        .filter(i => i !== index)
+                                        .map(i => (
+                                            <option key={i} value={i}>Após Bloco {i + 1}</option>
+                                        ))}
+                                </select>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -237,7 +265,9 @@ export function BlockEditor({
                                     <Zap className="w-3 h-3 text-amber-500" />
                                     <span>Criação:</span>
                                     <span className="font-medium text-slate-700">
-                                        {isFirst || block.startsFromTrigger ? 'Imediata' : `Após Bloco ${index}`}
+                                        {isFirst || block.startsFromTrigger
+                                            ? 'Imediata'
+                                            : `Após Bloco ${(block.dependsOnBlock ?? index - 1) + 1}`}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
