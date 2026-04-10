@@ -143,6 +143,8 @@ function renderVariables(
     );
   }
 
+  // card.stage is passed via extraVars (resolved outside renderVariables)
+
   // Agent variables
   if (agent) {
     result = result.replace(/\{\{agent\.nome\}\}/g, agent.nome || "");
@@ -266,10 +268,21 @@ serve(async (req) => {
     if (card?.dono_atual_id) {
       const { data } = await supabase
         .from("profiles")
-        .select("nome, email, telefone")
+        .select("nome, email, phone")
         .eq("id", card.dono_atual_id)
         .single();
-      agent = data;
+      if (data) agent = { nome: data.nome, email: data.email, telefone: data.phone };
+    }
+
+    // --- Fetch stage name ---
+    let stageName = "";
+    if (card?.pipeline_stage_id) {
+      const { data: stageData } = await supabase
+        .from("pipeline_stages")
+        .select("nome")
+        .eq("id", card.pipeline_stage_id)
+        .single();
+      if (stageData) stageName = stageData.nome;
     }
 
     // --- Resolve message body ---
@@ -292,32 +305,34 @@ serve(async (req) => {
 
       templateUsed = template;
 
+      // Merge stage name into variables
+      const allVars = { ...body.variables, "card.stage": stageName };
+
       if (template.modo === "template_fixo") {
         messageBody = renderVariables(
           template.corpo || "",
           contact,
           card,
           agent,
-          body.variables
+          allVars
         );
       } else {
-        // template_ia ou ia_generativa — corpo deve vir pré-renderizado pelo processor
-        // Se chamado diretamente com IA template, usa corpo como fallback
         messageBody = body.corpo || renderVariables(
           template.corpo || template.ia_prompt || "",
           contact,
           card,
           agent,
-          body.variables
+          allVars
         );
       }
     } else {
+      const allVars = { ...body.variables, "card.stage": stageName };
       messageBody = renderVariables(
         body.corpo || "",
         contact,
         card,
         agent,
-        body.variables
+        allVars
       );
     }
 

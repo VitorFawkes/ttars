@@ -285,14 +285,26 @@ async function sendMessage(
           if (card.dono_atual_id) {
             const { data: agent } = await supabase
               .from("profiles")
-              .select("nome, email, telefone")
+              .select("nome, email, phone")
               .eq("id", card.dono_atual_id)
               .single();
             if (agent) {
               messageBody = messageBody.replace(/\{\{agent\.nome\}\}/g, agent.nome || "");
               messageBody = messageBody.replace(/\{\{agent\.primeiro_nome\}\}/g, (agent.nome || "").split(" ")[0]);
               messageBody = messageBody.replace(/\{\{agent\.email\}\}/g, agent.email || "");
-              messageBody = messageBody.replace(/\{\{agent\.telefone\}\}/g, agent.telefone || "");
+              messageBody = messageBody.replace(/\{\{agent\.telefone\}\}/g, agent.phone || "");
+            }
+          }
+
+          // Stage name
+          if (card.pipeline_stage_id) {
+            const { data: stageData } = await supabase
+              .from("pipeline_stages")
+              .select("nome")
+              .eq("id", card.pipeline_stage_id)
+              .single();
+            if (stageData) {
+              messageBody = messageBody.replace(/\{\{card\.stage\}\}/g, stageData.nome || "");
             }
           }
         }
