@@ -91,6 +91,8 @@ const activityIcons = {
     // Title & Notes
     'title_changed': Pencil,
     'notes_changed': FileEdit,
+    // Field changes (generic produto_data)
+    'field_changed': Pencil,
     // Generic
     'created': Plus,
     'updated': Pencil,
@@ -157,6 +159,8 @@ const activityColors = {
     // Title & Notes
     'title_changed': 'text-slate-600 bg-slate-50',
     'notes_changed': 'text-orange-600 bg-orange-50',
+    // Field changes (generic produto_data)
+    'field_changed': 'text-blue-600 bg-blue-50',
     // Generic
     'created': 'text-green-600 bg-green-50',
     'updated': 'text-blue-600 bg-blue-50',
@@ -212,6 +216,8 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
         case 'period_changed':
         case 'budget_changed':
         case 'notes_changed':
+            return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
+        case 'field_changed':
             return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
         default:
             return null

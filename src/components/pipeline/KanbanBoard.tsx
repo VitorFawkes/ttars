@@ -495,6 +495,28 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         console.error('Erro ao marcar como ganho:', err)
                     }
                 } else {
+                    // Validar async quality gate antes de mover (contato_principal_basico, etc.)
+                    if (hasAsyncRules(pendingMove.stageId)) {
+                        const cards = queryClient.getQueryData<Card[]>(['cards'])
+                        const card = cards?.find(c => c.id === pendingMove.cardId)
+                        if (card) {
+                            const asyncResult = await validateMove(
+                                card as unknown as Record<string, unknown>,
+                                pendingMove.stageId
+                            )
+                            if (!asyncResult.valid) {
+                                setStageChangeModalOpen(false)
+                                setPendingMove({
+                                    ...pendingMove,
+                                    missingRequirements: asyncResult.missingRequirements,
+                                })
+                                setQualityGateModalOpen(true)
+                                setActiveCard(null)
+                                return
+                            }
+                        }
+                    }
+
                     // Normal cross-phase move — update owner then move
                     const { error } = await supabase.from('cards')
                         .update({ dono_atual_id: newOwnerId })
