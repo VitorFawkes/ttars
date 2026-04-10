@@ -1,13 +1,13 @@
--- Anti-duplicata: card voltando/avançando na mesma etapa não deve criar
--- cadência duplicada. Verifica se já existe instância ativa para o mesmo
--- template+card antes de enfileirar.
+-- Anti-duplicata V2: ao re-entrar na etapa, CANCELA instância antiga
+-- e permite criar nova. Garante que a cadência sempre reflita o estado atual.
 CREATE OR REPLACE FUNCTION process_cadence_entry_on_stage_change()
 RETURNS TRIGGER AS $$
 DECLARE
     v_trigger RECORD;
     v_card_pipeline_id UUID;
     v_result JSONB;
-    v_existing_count INT;
+    v_existing RECORD;
+    v_pending_count INT;
 BEGIN
     IF TG_OP = 'UPDATE' AND NEW.pipeline_stage_id IS DISTINCT FROM OLD.pipeline_stage_id THEN
         SELECT pipeline_id INTO v_card_pipeline_id
@@ -34,39 +34,45 @@ BEGIN
                 RAISE NOTICE '[Cadence] Immediate execution result: %', v_result;
 
             ELSIF v_trigger.action_type = 'start_cadence' THEN
-                -- Anti-duplicata: pular se já existe cadência ativa para este card+template
-                SELECT COUNT(*) INTO v_existing_count
-                FROM cadence_instances
-                WHERE card_id = NEW.id
-                  AND template_id = v_trigger.target_template_id
-                  AND status IN ('active', 'waiting_task');
+                -- Cancelar instâncias ativas anteriores do mesmo template+card
+                FOR v_existing IN
+                    SELECT id FROM cadence_instances
+                    WHERE card_id = NEW.id
+                      AND template_id = v_trigger.target_template_id
+                      AND status IN ('active', 'waiting_task')
+                LOOP
+                    UPDATE cadence_instances
+                    SET status = 'cancelled',
+                        cancelled_at = NOW(),
+                        cancelled_reason = 'replaced_by_reentry'
+                    WHERE id = v_existing.id;
 
-                IF v_existing_count > 0 THEN
-                    -- Apenas logar que foi pulado
+                    UPDATE cadence_queue
+                    SET status = 'cancelled'
+                    WHERE instance_id = v_existing.id
+                      AND status IN ('pending', 'processing');
+
                     INSERT INTO cadence_event_log (
-                        card_id, event_type, event_source, event_data, action_taken
+                        instance_id, card_id, event_type, event_source, event_data, action_taken
                     ) VALUES (
-                        NEW.id, 'entry_rule_skipped', 'db_trigger',
+                        v_existing.id, NEW.id, 'cadence_cancelled', 'db_trigger',
                         jsonb_build_object(
-                            'trigger_id', v_trigger.id,
-                            'trigger_name', v_trigger.name,
-                            'reason', 'active_instance_exists',
-                            'existing_count', v_existing_count,
-                            'new_stage_id', NEW.pipeline_stage_id
+                            'reason', 'replaced_by_reentry',
+                            'new_stage_id', NEW.pipeline_stage_id,
+                            'trigger_id', v_trigger.id
                         ),
-                        'skipped_duplicate'
+                        'cancel_and_restart'
                     );
-                    CONTINUE;
-                END IF;
+                END LOOP;
 
-                -- Também verificar se já tem entrada pendente na fila
-                SELECT COUNT(*) INTO v_existing_count
+                -- Verificar se já tem entrada pendente na fila
+                SELECT COUNT(*) INTO v_pending_count
                 FROM cadence_entry_queue
                 WHERE card_id = NEW.id
                   AND trigger_id = v_trigger.id
                   AND status = 'pending';
 
-                IF v_existing_count > 0 THEN
+                IF v_pending_count > 0 THEN
                     CONTINUE;
                 END IF;
 
