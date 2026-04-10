@@ -217,7 +217,11 @@ export default function AutomacaoBuilderPage() {
                 });
                 const loadedBlocks: Block[] = Array.from(byBlock.entries())
                     .sort(([a], [b]) => a - b)
-                    .map(([bi, tasks]) => ({ id: `block_${bi}`, tasks }));
+                    .map(([bi, tasks], idx) => ({
+                        id: `block_${bi}`,
+                        tasks,
+                        startsFromTrigger: idx > 0 && tasks.some(t => t.due_offset?.anchor === 'cadence_start'),
+                    }));
                 setBlocks(loadedBlocks.length > 0 ? loadedBlocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
             } catch (err) {
                 console.error(err);
@@ -312,22 +316,9 @@ export default function AutomacaoBuilderPage() {
         setBlocks(blocks.filter((_, i) => i !== idx));
     };
 
-    const fixAnchorsAfterReorder = useCallback((reordered: Block[]): Block[] => {
-        return reordered.map((block, idx) => ({
-            ...block,
-            tasks: block.tasks.map((task) => ({
-                ...task,
-                due_offset: {
-                    ...task.due_offset,
-                    anchor: idx === 0 ? 'cadence_start' as const : 'previous_block_completed' as const,
-                },
-            })),
-        }));
-    }, []);
-
     const moveBlock = useCallback((fromIdx: number, toIdx: number) => {
-        setBlocks((prev) => fixAnchorsAfterReorder(arrayMove(prev, fromIdx, toIdx)));
-    }, [fixAnchorsAfterReorder]);
+        setBlocks((prev) => arrayMove(prev, fromIdx, toIdx));
+    }, []);
 
     // DnD sensors
     const sensors = useSensors(
@@ -341,10 +332,10 @@ export default function AutomacaoBuilderPage() {
             const oldIndex = blocks.findIndex((b) => b.id === active.id);
             const newIndex = blocks.findIndex((b) => b.id === over.id);
             if (oldIndex !== -1 && newIndex !== -1) {
-                setBlocks((prev) => fixAnchorsAfterReorder(arrayMove(prev, oldIndex, newIndex)));
+                setBlocks((prev) => arrayMove(prev, oldIndex, newIndex));
             }
         }
-    }, [blocks, fixAnchorsAfterReorder]);
+    }, [blocks]);
 
     // Validação e save
     const validationError = useMemo(() => {
@@ -446,32 +437,37 @@ export default function AutomacaoBuilderPage() {
             });
 
             if (!isNew) {
-                // Upsert: atualizar existentes, inserir novos
+                // Limpar steps antigos: nullificar FKs e deletar
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error: upsertErr } = await (supabase as any)
-                    .from('cadence_steps')
-                    .upsert(stepsPayload, { onConflict: 'id' });
-                if (upsertErr) throw upsertErr;
-
-                // Remover steps órfãos (que não estão mais na lista) — apenas os que não são referenciados
-                const keepIds = stepsPayload.map(s => s.id).filter(Boolean) as string[];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: allOldSteps } = await (supabase as any)
-                    .from('cadence_steps')
-                    .select('id')
+                await (supabase as any)
+                    .from('cadence_instances')
+                    .update({ current_step_id: null })
                     .eq('template_id', templateId);
-                const orphanIds = (allOldSteps || [])
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .map((s: any) => s.id)
-                    .filter((sid: string) => !keepIds.includes(sid) && !stepsPayload.some(sp => !sp.id && sp.step_key === sid));
-                if (orphanIds.length > 0) {
-                    // Tentar deletar — pode falhar silenciosamente se FK impede
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    await (supabase as any)
-                        .from('cadence_steps')
-                        .delete()
-                        .in('id', orphanIds);
-                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any)
+                    .from('cadence_queue')
+                    .delete()
+                    .in('status', ['pending', 'processing'])
+                    .in('step_id', (
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase as any)
+                            .from('cadence_steps')
+                            .select('id')
+                            .eq('template_id', templateId)
+                    ).data?.map((s: { id: string }) => s.id) || []);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any)
+                    .from('cadence_steps')
+                    .delete()
+                    .eq('template_id', templateId);
+
+                // Inserir novos steps (sem ids antigos — todos são novos)
+                const cleanPayload = stepsPayload.map(({ id: _stepId, ...rest }) => rest);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: stepsErr } = await (supabase as any)
+                    .from('cadence_steps')
+                    .insert(cleanPayload);
+                if (stepsErr) throw stepsErr;
             } else {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error: stepsErr } = await (supabase as any)
@@ -714,16 +710,29 @@ export default function AutomacaoBuilderPage() {
                                             onMoveUp={idx > 0 ? () => moveBlock(idx, idx - 1) : undefined}
                                             onMoveDown={idx < blocks.length - 1 ? () => moveBlock(idx, idx + 1) : undefined}
                                         />
-                                        {idx < blocks.length - 1 && (
-                                            <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
-                                                <div className="flex-1 border-t border-dashed border-amber-300" />
-                                                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                                                    <Clock className="w-3 h-3" />
-                                                    <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
+                                        {idx < blocks.length - 1 && (() => {
+                                            const nextBlock = blocks[idx + 1];
+                                            const nextStartsFromTrigger = nextBlock?.startsFromTrigger;
+                                            return nextStartsFromTrigger ? (
+                                                <div className="flex items-center gap-2 py-3 px-4 text-xs text-slate-400">
+                                                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                                                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
+                                                        <Zap className="w-3 h-3 text-amber-500" />
+                                                        <span className="font-medium text-slate-500">Roda em paralelo (mesmo gatilho)</span>
+                                                    </div>
+                                                    <div className="flex-1 border-t border-dashed border-slate-200" />
                                                 </div>
-                                                <div className="flex-1 border-t border-dashed border-amber-300" />
-                                            </div>
-                                        )}
+                                            ) : (
+                                                <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
+                                                    <div className="flex-1 border-t border-dashed border-amber-300" />
+                                                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
+                                                    </div>
+                                                    <div className="flex-1 border-t border-dashed border-amber-300" />
+                                                </div>
+                                            );
+                                        })()}
                                     </SortableBlock>
                                 ))}
                             </SortableContext>
@@ -749,7 +758,7 @@ export default function AutomacaoBuilderPage() {
                                                 {block.tasks.length}{' '}
                                                 {block.tasks.length === 1 ? 'tarefa' : 'tarefas'}
                                                 <span className="text-xs text-amber-600 ml-2 font-normal">
-                                                    {idx === 0
+                                                    {idx === 0 || block.startsFromTrigger
                                                         ? '(criadas imediatamente)'
                                                         : `(criadas quando Bloco ${idx} concluir)`}
                                                 </span>

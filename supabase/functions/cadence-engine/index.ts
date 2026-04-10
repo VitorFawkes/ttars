@@ -533,6 +533,7 @@ async function executeStartCadenceAction(
     let initialSteps: any[] = [];
 
     if (executionMode === 'blocks') {
+        // Iniciar: bloco 0 + todos os blocos com requires_previous_completed=false
         const { data: minBlockRow } = await supabaseClient
             .from("cadence_steps")
             .select("block_index")
@@ -542,6 +543,7 @@ async function executeStartCadenceAction(
             .single();
 
         if (minBlockRow) {
+            // Steps do bloco 0 (sempre inicia)
             const { data: blockSteps } = await supabaseClient
                 .from("cadence_steps")
                 .select("*")
@@ -549,6 +551,18 @@ async function executeStartCadenceAction(
                 .eq("block_index", minBlockRow.block_index)
                 .order("step_order", { ascending: true });
             initialSteps = blockSteps || [];
+
+            // Blocos paralelos que começam do gatilho (requires_previous_completed=false)
+            const { data: parallelSteps } = await supabaseClient
+                .from("cadence_steps")
+                .select("*")
+                .eq("template_id", templateId)
+                .neq("block_index", minBlockRow.block_index)
+                .eq("requires_previous_completed", false)
+                .order("step_order", { ascending: true });
+            if (parallelSteps && parallelSteps.length > 0) {
+                initialSteps = [...initialSteps, ...parallelSteps];
+            }
         }
     } else {
         const { data: firstStep } = await supabaseClient
