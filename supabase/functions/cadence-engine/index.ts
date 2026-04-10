@@ -736,6 +736,7 @@ async function executeTaskStep(
             .select("id, titulo, tipo, concluida, metadata")
             .eq("card_id", card.id)
             .eq("concluida", false)
+            .is("deleted_at", null)
             .contains("metadata", { cadence_step_id: step.id })
             .limit(1);
         existingTasks = res.data || null;
@@ -746,6 +747,7 @@ async function executeTaskStep(
             .eq("card_id", card.id)
             .eq("tipo", taskTipo)
             .eq("concluida", false)
+            .is("deleted_at", null)
             .limit(1);
         existingTasks = res.data || null;
     }
