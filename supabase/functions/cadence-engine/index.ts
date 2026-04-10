@@ -731,13 +731,14 @@ async function executeTaskStep(
     // =========================================================================
     let existingTasks: any[] | null = null;
     if (execModeEarly === 'blocks') {
+        // Verificar ANY task (concluída ou não) para evitar race condition
+        // quando múltiplas chamadas pg_net chegam simultaneamente
         const res = await supabaseClient
             .from("tarefas")
             .select("id, titulo, tipo, concluida, metadata")
             .eq("card_id", card.id)
-            .eq("concluida", false)
             .is("deleted_at", null)
-            .contains("metadata", { cadence_step_id: step.id })
+            .contains("metadata", { cadence_instance_id: instance.id, cadence_step_id: step.id })
             .limit(1);
         existingTasks = res.data || null;
     } else {
@@ -753,7 +754,8 @@ async function executeTaskStep(
     }
 
     if (existingTasks && existingTasks.length > 0) {
-        console.log(`[CadenceEngine] Cadence step skipped - already exists uncompleted "${taskTipo}" task for card ${card.id}`);
+        const existingTask = existingTasks[0];
+        console.log(`[CadenceEngine] Cadence step skipped - task already exists for step ${step.id}, concluida=${existingTask.concluida}`);
 
         // Atualizar instância para waiting_task
         await supabaseClient
