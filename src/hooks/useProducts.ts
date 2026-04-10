@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Plane, Heart, Building2, type LucideIcon, HelpCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useOrg } from '../contexts/OrgContext'
 type Product = string
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -34,8 +35,10 @@ const FALLBACK_PRODUCTS: ProductMetadata[] = [
 ]
 
 export function useProducts(includeInactive = false) {
+    const { org } = useOrg()
+
     const query = useQuery({
-        queryKey: ['products', includeInactive],
+        queryKey: ['products', org?.id, includeInactive],
         queryFn: async () => {
             let q = supabase
                 .from('products')
@@ -44,6 +47,11 @@ export function useProducts(includeInactive = false) {
 
             if (!includeInactive) {
                 q = q.eq('active', true)
+            }
+
+            // Filtrar por org ativa (cada org filha tem seus próprios products)
+            if (org?.id) {
+                q = q.eq('org_id', org.id)
             }
 
             const { data, error } = await q
