@@ -150,9 +150,9 @@ export default function AutomacaoLogsPage() {
   const items = logs?.logs ?? []
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <>
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
+      <div className="bg-white border border-slate-200 rounded-lg px-6 py-4 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -342,6 +342,6 @@ export default function AutomacaoLogsPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
