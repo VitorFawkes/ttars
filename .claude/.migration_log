@@ -346,3 +346,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-10T13:40:48Z | supabase/migrations/20260409_fix_monde_pending_match_historico.sql | applied_to_prod
 2026-04-10T13:41:03Z | supabase/migrations/20260409_generic_produto_data_activity_log.sql | applied_to_prod
 2026-04-10T17:52:21Z | supabase/migrations/20260410_cadence_anti_dup_v2.sql | applied_to_prod
+2026-04-10T19:19:28Z | supabase/migrations/20260410_cadence_task_outcome_trigger.sql | applied_to_prod

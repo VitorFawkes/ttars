@@ -1386,7 +1386,7 @@ async function handleTaskOutcome(supabaseClient: SupabaseClient, body: any) {
             .eq("id", instanceId);
 
         return new Response(JSON.stringify({
-            success: true, advanced_to_block: nextBlockIndex,
+            success: true, advanced_to_block: toSchedule[0].block_index,
             scheduled_steps: toSchedule.map(s => s.id)
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
