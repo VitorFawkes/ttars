@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, User, Loader2 } from 'lucide-react'
+import { Search, User, Loader2, Globe } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useMondeSearch, useMondeImportPerson } from '@/hooks/useMondeSearch'
 
 interface ContactResult {
     id: string
@@ -40,6 +41,9 @@ export default function ContactSearchInput({ onSelect, placeholder = 'Buscar con
     })
 
     const filtered = contacts.filter(c => !excludeIds.includes(c.id))
+    const mondeSearch = useMondeSearch()
+    const mondeImport = useMondeImportPerson()
+    const [showMonde, setShowMonde] = useState(false)
 
     // Close on outside click
     useEffect(() => {
@@ -81,11 +85,51 @@ export default function ContactSearchInput({ onSelect, placeholder = 'Buscar con
 
             {isOpen && search.length >= 2 && (
                 <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    {filtered.length === 0 && !isLoading && (
-                        <div className="px-4 py-3 text-sm text-slate-500">
-                            Nenhum contato encontrado
+                    {filtered.length === 0 && !isLoading && !showMonde && (
+                        <div className="px-4 py-3 text-sm text-slate-500 space-y-2">
+                            <p>Nenhum contato encontrado</p>
+                            <button
+                                onClick={() => { setShowMonde(true); mondeSearch.search(search) }}
+                                className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700"
+                            >
+                                <Globe className="h-3.5 w-3.5" />
+                                Buscar no Monde
+                            </button>
                         </div>
                     )}
+                    {showMonde && mondeSearch.isSearching && (
+                        <div className="px-4 py-3 flex items-center gap-2 text-sm text-slate-400">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Buscando no Monde...
+                        </div>
+                    )}
+                    {showMonde && !mondeSearch.isSearching && mondeSearch.results.filter(r => !r.already_in_crm).length === 0 && mondeSearch.results.length > 0 && (
+                        <div className="px-4 py-3 text-xs text-slate-400">
+                            Todos os resultados do Monde já estão no CRM
+                        </div>
+                    )}
+                    {showMonde && mondeSearch.results.filter(r => !r.already_in_crm).map(person => (
+                        <button
+                            key={person.monde_person_id}
+                            onClick={async () => {
+                                const result = await mondeImport.mutateAsync({ mondePersonId: person.monde_person_id })
+                                const { data } = await supabase.from('contatos').select('id, nome, sobrenome, email, telefone').eq('id', result.id).single()
+                                if (data) { handleSelect(data); setShowMonde(false); mondeSearch.clear() }
+                            }}
+                            disabled={mondeImport.isPending}
+                            className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 flex items-center gap-3 text-sm transition-colors"
+                        >
+                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                <Globe className="h-4 w-4 text-indigo-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate">{person.name}</p>
+                                <p className="text-xs text-slate-400 truncate">
+                                    {[person.email, person.phone].filter(Boolean).join(' · ')} • Monde
+                                </p>
+                            </div>
+                        </button>
+                    ))}
                     {filtered.map(contact => (
                         <button
                             key={contact.id}

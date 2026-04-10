@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter, normalizePhone } from '../../lib/utils'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { toast } from 'sonner'
+import MondeSearchSection from '../../components/contacts/MondeSearchSection'
 
 interface SelectedContact {
   id: string
@@ -289,9 +290,45 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
             )}
 
             {!isLoading && debouncedSearch.length >= 2 && (!contacts || contacts.length === 0) && (
-              <div className="px-4 py-8 text-center">
+              <div className="px-4 py-6 text-center">
                 <User className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">Nenhum contato encontrado</p>
+                <div className="mt-2">
+                  <MondeSearchSection
+                    searchTerm={debouncedSearch}
+                    onPersonImported={async (contatoId) => {
+                      const { data } = await supabase
+                        .from('contatos')
+                        .select('id, nome, sobrenome')
+                        .eq('id', contatoId)
+                        .single()
+                      if (data) {
+                        const name = formatContactName(data) || data.nome || 'Sem Nome'
+                        setSelected(prev => [...prev, { id: data.id, name }])
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {!isLoading && debouncedSearch.length >= 2 && contacts && contacts.length > 0 && contacts.length < 3 && (
+              <div className="px-4">
+                <MondeSearchSection
+                  searchTerm={debouncedSearch}
+                  onPersonImported={async (contatoId) => {
+                    const { data } = await supabase
+                      .from('contatos')
+                      .select('id, nome, sobrenome')
+                      .eq('id', contatoId)
+                      .single()
+                    if (data) {
+                      const name = formatContactName(data) || data.nome || 'Sem Nome'
+                      setSelected(prev => [...prev, { id: data.id, name }])
+                    }
+                  }}
+                  excludeMondeIds={[]}
+                />
               </div>
             )}
 
