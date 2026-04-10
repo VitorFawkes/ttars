@@ -21,13 +21,13 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
-import { useMensagemTemplates, type MensagemTemplate } from '@/hooks/useMensagemTemplates'
+import { useMensagemTemplates } from '@/hooks/useMensagemTemplates'
 import type { TriggerType } from '@/hooks/useAutomacaoRegras'
 import JornadaStepEditor, { type JornadaStep } from '@/components/automacao/JornadaStepEditor'
 
 type AutomacaoType = 'single' | 'jornada'
 type ConditionType = 'card' | 'contato' | 'horario' | 'engajamento'
-type Operator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'not_in' | 'not_null'
+type Operator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'not_in' | 'not_null' | 'contains' | 'not_contains' | 'future' | 'past'
 
 interface Condition {
   id: string
@@ -54,6 +54,8 @@ interface FormData {
   janela_dedup_horas: number
   max_mensagens_por_dia: number
   response_aware: boolean
+  agent_aware: boolean
+  business_hours: boolean
   requer_aprovacao: boolean
   phone_number_id: string
   jornada_passos: JornadaStep[]
@@ -61,8 +63,8 @@ interface FormData {
 }
 
 const TRIGGER_LABELS: Record<TriggerType | '', string> = {
-  stage_enter: 'Card entrou em etapa',
-  stage_exit: 'Card saiu de etapa',
+  stage_enter: 'Entrou em etapa',
+  stage_exit: 'Saiu de etapa',
   card_won: 'Card ganho',
   card_lost: 'Card perdido',
   card_created: 'Card criado',
@@ -111,6 +113,7 @@ const TRIGGER_CATEGORIES = {
       'documento_recebido',
       'documento_pendente',
       'proposta_visualizada',
+      'proposta_aceita',
       'proposta_expirada',
       'voo_alterado',
       'milestone_atingido',
@@ -123,9 +126,52 @@ const TRIGGER_CATEGORIES = {
   },
 }
 
-const CARD_CAMPOS = ['status_comercial', 'valor_estimado', 'pipeline_id']
-const CONTATO_CAMPOS = ['telefone', 'tipo_pessoa']
-const OPERADORES: Operator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'not_in', 'not_null']
+const CONDITION_FIELDS: Record<string, Array<{ value: string; label: string; operators: Operator[] }>> = {
+  card: [
+    { value: 'status_comercial', label: 'Status', operators: ['eq', 'neq', 'in', 'not_in'] },
+    { value: 'valor_estimado', label: 'Valor estimado', operators: ['gt', 'gte', 'lt', 'lte'] },
+    { value: 'valor_final', label: 'Valor final', operators: ['gt', 'gte', 'lt', 'lte'] },
+    { value: 'cliente_recorrente', label: 'Cliente recorrente', operators: ['eq'] },
+    { value: 'is_group_parent', label: 'É grupo', operators: ['eq'] },
+    { value: 'data_viagem_inicio', label: 'Data viagem', operators: ['not_null', 'future', 'past'] },
+    { value: 'origem', label: 'Origem do lead', operators: ['eq', 'in'] },
+    { value: 'taxa_status', label: 'Status da taxa', operators: ['eq', 'neq'] },
+    { value: 'estado_operacional', label: 'Estado operacional', operators: ['eq', 'in'] },
+  ],
+  contato: [
+    { value: 'telefone', label: 'Tem telefone', operators: ['not_null'] },
+    { value: 'email', label: 'Tem email', operators: ['not_null'] },
+    { value: 'tipo_pessoa', label: 'Tipo pessoa', operators: ['eq'] },
+    { value: 'tipo_cliente', label: 'Tipo cliente', operators: ['eq', 'in'] },
+    { value: 'tags', label: 'Tags', operators: ['contains', 'not_contains'] },
+  ],
+  engajamento: [
+    { value: 'respondeu_ultimas_horas', label: 'Respondeu recentemente', operators: ['eq'] },
+    { value: 'agente_enviou_msg', label: 'Agente já mandou msg', operators: ['eq'] },
+    { value: 'proposta_visualizada', label: 'Proposta visualizada', operators: ['eq'] },
+    { value: 'ja_recebeu_automacao', label: 'Já recebeu esta automação', operators: ['eq'] },
+  ],
+  horario: [
+    { value: 'business_hours', label: 'Horário comercial', operators: ['eq'] },
+    { value: 'dias_semana', label: 'Dias da semana', operators: ['in'] },
+  ],
+}
+
+const OP_LABELS: Record<Operator, string> = {
+  eq: '=',
+  neq: '≠',
+  gt: '>',
+  gte: '≥',
+  lt: '<',
+  lte: '≤',
+  in: 'está em',
+  not_in: 'não está em',
+  not_null: 'preenchido',
+  contains: 'contém',
+  not_contains: 'não contém',
+  future: 'no futuro',
+  past: 'no passado',
+}
 
 export default function AutomacaoBuilderPage() {
   const navigate = useNavigate()
@@ -137,8 +183,9 @@ export default function AutomacaoBuilderPage() {
   const stages = stagesQuery.data || []
   const { templates } = useMensagemTemplates()
 
-  // Linhas WhatsApp disponíveis
-  const [phoneLines, setPhoneLines] = useState<Array<{ phone_number_id: string; phone_number_label: string; produto: string | null }>>([])
+  const [phoneLines, setPhoneLines] = useState<
+    Array<{ phone_number_id: string; phone_number_label: string; produto: string | null }>
+  >([])
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
@@ -146,7 +193,11 @@ export default function AutomacaoBuilderPage() {
       .select('phone_number_id, phone_number_label, produto')
       .eq('ativo', true)
       .order('phone_number_label')
-      .then(({ data }: { data: Array<{ phone_number_id: string; phone_number_label: string; produto: string | null }> | null }) => {
+      .then(({
+        data,
+      }: {
+        data: Array<{ phone_number_id: string; phone_number_label: string; produto: string | null }> | null
+      }) => {
         if (data) setPhoneLines(data)
       })
   }, [])
@@ -172,13 +223,14 @@ export default function AutomacaoBuilderPage() {
     janela_dedup_horas: 24,
     max_mensagens_por_dia: 3,
     response_aware: true,
+    agent_aware: true,
+    business_hours: true,
     phone_number_id: '',
     jornada_passos: [],
     requer_aprovacao: false,
     ativa: false,
   })
 
-  // Load existing regra if editing
   useEffect(() => {
     if (!isEditing) {
       setIsLoading(false)
@@ -210,6 +262,8 @@ export default function AutomacaoBuilderPage() {
             janela_dedup_horas: data.janela_dedup_horas || 24,
             max_mensagens_por_dia: data.max_mensagens_por_dia || 3,
             response_aware: data.response_aware ?? true,
+            agent_aware: data.agent_aware ?? true,
+            business_hours: data.business_hours ?? true,
             requer_aprovacao: data.requer_aprovacao ?? false,
             phone_number_id: data.phone_number_id || '',
             jornada_passos: [],
@@ -248,6 +302,8 @@ export default function AutomacaoBuilderPage() {
         janela_dedup_horas: formData.janela_dedup_horas,
         max_mensagens_por_dia: formData.max_mensagens_por_dia,
         response_aware: formData.response_aware,
+        agent_aware: formData.agent_aware,
+        business_hours: formData.business_hours,
         requer_aprovacao: formData.requer_aprovacao,
         phone_number_id: formData.phone_number_id || null,
         ativa: formData.ativa,
@@ -271,7 +327,6 @@ export default function AutomacaoBuilderPage() {
         regraId = created?.id
       }
 
-      // Save jornada steps if type=jornada
       if (formData.tipo === 'jornada' && regraId && formData.jornada_passos.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any)
@@ -305,16 +360,15 @@ export default function AutomacaoBuilderPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-slate-600">Carregando...</div>
+      <div className="h-full flex items-center justify-center bg-slate-50 text-slate-500">
+        Carregando…
       </div>
     )
   }
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* Fixed Header */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm shrink-0">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automacoes')}>
             <ArrowLeft className="w-4 h-4" />
@@ -335,12 +389,10 @@ export default function AutomacaoBuilderPage() {
         </div>
       </header>
 
-      {/* Scrollable Content */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
-          {/* Section 1: Identidade */}
+        <div className="max-w-3xl mx-auto p-6 space-y-5">
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900">Identidade</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Identidade</h2>
 
             <div>
               <Label htmlFor="nome" className="text-slate-700 font-medium text-sm">
@@ -364,7 +416,7 @@ export default function AutomacaoBuilderPage() {
                 value={formData.descricao}
                 onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                 placeholder="Descreva o objetivo desta automação..."
-                rows={3}
+                rows={2}
                 className="mt-2"
               />
             </div>
@@ -373,59 +425,55 @@ export default function AutomacaoBuilderPage() {
               <Label className="text-slate-700 font-medium text-sm mb-3 block">Tipo de Automação</Label>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { value: 'single' as AutomacaoType, label: 'Single', desc: '1 trigger → 1 mensagem' },
-                  { value: 'jornada' as AutomacaoType, label: 'Jornada', desc: 'Sequência de passos' },
+                  { value: 'single' as AutomacaoType, label: 'Mensagem única' },
+                  { value: 'jornada' as AutomacaoType, label: 'Jornada (multi-step)' },
                 ].map((option) => (
                   <button
                     key={option.value}
                     onClick={() => setFormData({ ...formData, tipo: option.value })}
-                    className={`p-3 rounded-lg border-2 text-left text-sm transition-colors ${
+                    className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
                       formData.tipo === option.value
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                        : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300'
                     }`}
                   >
-                    <div className="font-medium text-slate-900">{option.label}</div>
-                    <div className="text-xs text-slate-500 mt-1">{option.desc}</div>
+                    {option.label}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Section 2: Trigger */}
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900">Trigger</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Quando disparar?</h2>
 
             <div className="space-y-4">
               {Object.entries(TRIGGER_CATEGORIES).map(([categoryKey, category]) => {
                 const IconComponent = category.icon
+                const categoryLabel =
+                  categoryKey === 'pipeline'
+                    ? 'Pipeline'
+                    : categoryKey === 'temporal'
+                      ? 'Temporal'
+                      : categoryKey === 'dados'
+                        ? 'Dados'
+                        : 'Externo'
+
                 return (
                   <div key={categoryKey}>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <IconComponent className={`w-4 h-4 ${category.color}`} />
-                      <h3 className="font-medium text-slate-900 text-sm capitalize">
-                        {categoryKey === 'pipeline' && 'Pipeline'}
-                        {categoryKey === 'temporal' && 'Temporal'}
-                        {categoryKey === 'dados' && 'Dados'}
-                        {categoryKey === 'externo' && 'Externo'}
-                      </h3>
+                      <h3 className="font-medium text-slate-900 text-xs uppercase tracking-wide">{categoryLabel}</h3>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {category.triggers.map((trigger) => (
                         <button
                           key={trigger}
-                          onClick={() =>
-                            setFormData({
-                              ...formData,
-                              trigger_type: trigger,
-                              trigger_config: {},
-                            })
-                          }
-                          className={`p-2 rounded-lg border-2 text-xs font-medium transition-colors text-left ${
+                          onClick={() => setFormData({ ...formData, trigger_type: trigger, trigger_config: {} })}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
                             formData.trigger_type === trigger
-                              ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                              : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300'
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
                           }`}
                         >
                           {TRIGGER_LABELS[trigger]}
@@ -437,7 +485,6 @@ export default function AutomacaoBuilderPage() {
               })}
             </div>
 
-            {/* Dynamic Config */}
             {formData.trigger_type && (
               <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
                 <h3 className="font-medium text-slate-900 text-sm">Configuração do Trigger</h3>
@@ -450,9 +497,7 @@ export default function AutomacaoBuilderPage() {
                         <label key={stage.id} className="flex items-center gap-2 cursor-pointer text-sm">
                           <input
                             type="checkbox"
-                            checked={
-                              (formData.trigger_config.stage_ids as string[])?.includes(stage.id) || false
-                            }
+                            checked={(formData.trigger_config.stage_ids as string[])?.includes(stage.id) || false}
                             onChange={(e) => {
                               const stageIds = (formData.trigger_config.stage_ids as string[]) || []
                               const updated = e.target.checked
@@ -520,7 +565,7 @@ export default function AutomacaoBuilderPage() {
                   <div className="space-y-3">
                     <div>
                       <Label htmlFor="min_scroll" className="text-slate-700 font-medium text-sm">
-                        Min Scroll Depth (%)
+                        Scroll mínimo (%)
                       </Label>
                       <Input
                         id="min_scroll"
@@ -542,7 +587,7 @@ export default function AutomacaoBuilderPage() {
                     </div>
                     <div>
                       <Label htmlFor="min_duration" className="text-slate-700 font-medium text-sm">
-                        Min Duration (segundos)
+                        Tempo mínimo (segundos)
                       </Label>
                       <Input
                         id="min_duration"
@@ -567,413 +612,264 @@ export default function AutomacaoBuilderPage() {
             )}
           </div>
 
-          {/* Section 3: Condições */}
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
             <button
               onClick={() => setExpandedConditions(!expandedConditions)}
               className="flex items-center justify-between w-full hover:bg-slate-50 px-1 py-1 rounded transition-colors"
             >
-              <h2 className="text-base font-semibold text-slate-900">Condições (Opcional)</h2>
+              <h2 className="text-sm font-semibold text-slate-900">Quem recebe?</h2>
               <ChevronDown
-                className={`w-4 h-4 text-slate-600 transition-transform ${
-                  expandedConditions ? 'rotate-180' : ''
-                }`}
+                className={`w-4 h-4 text-slate-600 transition-transform ${expandedConditions ? 'rotate-180' : ''}`}
               />
             </button>
 
             {expandedConditions && (
               <>
-                <p className="text-xs text-slate-500">
-                  Todas as condições devem ser verdadeiras (AND)
-                </p>
+                <p className="text-xs text-slate-500">Opcional — filtra quais cards/contatos são elegíveis</p>
 
                 <div className="space-y-2">
-                  {formData.condiciones.map((condition: Condition, idx: number) => (
-                    <div key={condition.id} className="flex items-end gap-2 p-3 bg-slate-50 rounded-lg">
-                      <Select
-                        value={condition.tipo}
-                        onChange={(value: string) => {
-                          const updated = [...formData.condiciones]
-                          updated[idx] = { ...condition, tipo: value as ConditionType, campo: '' }
-                          setFormData({ ...formData, condiciones: updated })
-                        }}
-                        options={[
-                          { value: '', label: 'Tipo' },
-                          { value: 'card', label: 'Card' },
-                          { value: 'contato', label: 'Contato' },
-                          { value: 'horario', label: 'Horário' },
-                          { value: 'engajamento', label: 'Engajamento' },
-                        ]}
-                        className="w-24"
-                      />
+                  {formData.condiciones.map((condition: Condition, idx: number) => {
+                    const tipoOptions = CONDITION_FIELDS[condition.tipo] || []
+                    const campoConfig = tipoOptions.find((f) => f.value === condition.campo)
+                    const validOperators = campoConfig?.operators || []
 
-                      {condition.tipo === 'card' && (
-                        <>
-                          <Select
-                            value={condition.campo}
-                            onChange={(value: string) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, campo: value }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                            options={[
-                              { value: '', label: 'Campo' },
-                              ...CARD_CAMPOS.map((campo: string) => ({ value: campo, label: campo })),
-                            ]}
-                            className="flex-1"
-                          />
+                    return (
+                      <div key={condition.id} className="flex items-end gap-2 p-3 bg-slate-50 rounded-lg flex-wrap">
+                        <Select
+                          value={condition.tipo}
+                          onChange={(value: string) => {
+                            const updated = [...formData.condiciones]
+                            updated[idx] = { ...condition, tipo: value as ConditionType, campo: '', operador: 'eq' }
+                            setFormData({ ...formData, condiciones: updated })
+                          }}
+                          options={[
+                            { value: '', label: 'Tipo' },
+                            { value: 'card', label: 'Card' },
+                            { value: 'contato', label: 'Contato' },
+                            { value: 'horario', label: 'Horário' },
+                            { value: 'engajamento', label: 'Engajamento' },
+                          ]}
+                          className="w-28"
+                        />
 
-                          <Select
-                            value={condition.operador}
-                            onChange={(value: string) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, operador: value as Operator }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                            options={[
-                              { value: '', label: 'Op' },
-                              ...OPERADORES.map((op: Operator) => ({ value: op, label: op })),
-                            ]}
-                            className="w-16"
-                          />
-
-                          {condition.operador !== 'not_null' && (
-                            <Input
-                              value={condition.valor as string}
-                              onChange={(e) => {
+                        {condition.tipo && (
+                          <>
+                            <Select
+                              value={condition.campo}
+                              onChange={(value: string) => {
                                 const updated = [...formData.condiciones]
-                                updated[idx] = { ...condition, valor: e.target.value }
+                                updated[idx] = { ...condition, campo: value, operador: 'eq' }
                                 setFormData({ ...formData, condiciones: updated })
                               }}
-                              placeholder="Valor"
-                              className="flex-1"
+                              options={[
+                                { value: '', label: 'Campo' },
+                                ...CONDITION_FIELDS[condition.tipo].map((f) => ({ value: f.value, label: f.label })),
+                              ]}
+                              className="flex-1 min-w-40"
                             />
-                          )}
-                        </>
-                      )}
 
-                      {condition.tipo === 'contato' && (
-                        <>
-                          <Select
-                            value={condition.campo}
-                            onChange={(value: string) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, campo: value }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                            options={[
-                              { value: '', label: 'Campo' },
-                              ...CONTATO_CAMPOS.map((campo: string) => ({ value: campo, label: campo })),
-                            ]}
-                            className="flex-1"
-                          />
+                            {condition.campo && (
+                              <>
+                                <Select
+                                  value={condition.operador}
+                                  onChange={(value: string) => {
+                                    const updated = [...formData.condiciones]
+                                    updated[idx] = { ...condition, operador: value as Operator }
+                                    setFormData({ ...formData, condiciones: updated })
+                                  }}
+                                  options={[
+                                    { value: '', label: 'Op' },
+                                    ...validOperators.map((op) => ({ value: op, label: OP_LABELS[op] })),
+                                  ]}
+                                  className="w-24"
+                                />
 
-                          <Select
-                            value={condition.operador}
-                            onChange={(value: string) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, operador: value as Operator }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                            options={[
-                              { value: '', label: 'Op' },
-                              ...OPERADORES.map((op: Operator) => ({ value: op, label: op })),
-                            ]}
-                            className="w-16"
-                          />
+                                {!['not_null', 'future', 'past'].includes(condition.operador) && (
+                                  <Input
+                                    value={condition.valor as string}
+                                    onChange={(e) => {
+                                      const updated = [...formData.condiciones]
+                                      updated[idx] = { ...condition, valor: e.target.value }
+                                      setFormData({ ...formData, condiciones: updated })
+                                    }}
+                                    placeholder="Valor"
+                                    className="flex-1 min-w-32"
+                                  />
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
 
-                          {condition.operador !== 'not_null' && (
-                            <Input
-                              value={condition.valor as string}
-                              onChange={(e) => {
-                                const updated = [...formData.condiciones]
-                                updated[idx] = { ...condition, valor: e.target.value }
-                                setFormData({ ...formData, condiciones: updated })
-                              }}
-                              placeholder="Valor"
-                              className="flex-1"
-                            />
-                          )}
-                        </>
-                      )}
-
-                      {condition.tipo === 'horario' && (
-                        <label className="flex items-center gap-2 flex-1">
-                          <Switch
-                            checked={(condition.valor as boolean) || false}
-                            onCheckedChange={(checked) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, valor: checked }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                          />
-                          <span className="text-xs text-slate-700">Apenas comercial</span>
-                        </label>
-                      )}
-
-                      {condition.tipo === 'engajamento' && (
-                        <>
-                          <Input
-                            type="number"
-                            placeholder="Horas"
-                            value={String(condition.valor || '')}
-                            onChange={(e) => {
-                              const updated = [...formData.condiciones]
-                              updated[idx] = { ...condition, valor: e.target.value }
-                              setFormData({ ...formData, condiciones: updated })
-                            }}
-                            className="w-20"
-                          />
-                          <span className="text-xs text-slate-600">respondeu em</span>
-                        </>
-                      )}
-
-                      <button
-                        onClick={() => {
-                          const updated = formData.condiciones.filter((_, i) => i !== idx)
-                          setFormData({ ...formData, condiciones: updated })
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <button
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              condiciones: formData.condiciones.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="p-2 hover:bg-slate-200 rounded transition-colors"
+                        >
+                          <X className="w-4 h-4 text-slate-600" />
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  onClick={() => {
+                  onClick={() =>
                     setFormData({
                       ...formData,
                       condiciones: [
                         ...formData.condiciones,
-                        {
-                          id: Math.random().toString(36),
-                          tipo: 'card',
-                          campo: '',
-                          operador: 'eq',
-                          valor: '',
-                        },
+                        { id: Math.random().toString(), tipo: 'card', campo: '', operador: 'eq', valor: '' },
                       ],
                     })
-                  }}
-                  className="gap-2"
+                  }
+                  className="text-indigo-600 hover:bg-indigo-50"
                 >
-                  <Plus className="w-4 h-4" />
-                  Adicionar
+                  <Plus className="w-4 h-4 mr-1" />
+                  Adicionar condição
                 </Button>
               </>
             )}
           </div>
 
-          {/* Section 4: Mensagem */}
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900">Mensagem</h2>
+            <h2 className="text-sm font-semibold text-slate-900">O que enviar?</h2>
 
-            <div>
-              <Label htmlFor="template" className="text-slate-700 font-medium text-sm">
-                Template Existente
-              </Label>
-              <Select
-                value={formData.template_id || ''}
-                onChange={(value: string) => setFormData({ ...formData, template_id: value || null })}
-                options={[
-                  { value: '', label: 'Selecione um template' },
-                  ...templates.map((t: MensagemTemplate) => ({ value: t.id, label: t.nome })),
-                ]}
-                className="mt-2"
-              />
-            </div>
+            <Select
+              value={formData.template_id || ''}
+              onChange={(value: string) => setFormData({ ...formData, template_id: value || null })}
+              options={[
+                { value: '', label: 'Selecione um template' },
+                ...templates.map((t) => ({ value: t.id, label: t.nome })),
+              ]}
+            />
 
             {selectedTemplate && (
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm">
-                <div className="font-medium text-slate-700 mb-2">Preview</div>
-                <div className="text-slate-600 whitespace-pre-wrap text-xs">
-                  {selectedTemplate.corpo || selectedTemplate.ia_prompt}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{selectedTemplate.nome}</div>
+                    <div className="text-xs text-slate-500 mt-1">Categoria: {selectedTemplate.categoria}</div>
+                  </div>
+                  <span className="text-xs font-medium text-slate-600 bg-white px-2 py-1 rounded">
+                    {selectedTemplate.modo === 'template_fixo' ? 'Fixo' : selectedTemplate.modo === 'template_ia' ? 'IA Assistida' : 'IA Generativa'}
+                  </span>
                 </div>
+                <p className="text-sm text-slate-700">{selectedTemplate.corpo}</p>
               </div>
             )}
 
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
+            {!selectedTemplate && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                Selecione um template ou crie um na página de Templates
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-2 bg-white text-slate-500">ou</span>
-              </div>
-            </div>
-
-            <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <div>
-                <Label htmlFor="inline_nome" className="text-slate-700 font-medium text-sm">
-                  Nome do Template (inline)
-                </Label>
-                <Input
-                  id="inline_nome"
-                  value={formData.template_inline.nome}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      template_inline: { ...formData.template_inline, nome: e.target.value },
-                    })
-                  }
-                  placeholder="Ex: Lembrete viagem"
-                  className="mt-2"
-                />
-              </div>
-
-              <div>
-                <Label className="text-slate-700 font-medium text-sm mb-2 block">Modo</Label>
-                <div className="flex gap-2">
-                  {[
-                    { value: 'template', label: 'Template' },
-                    { value: 'ia', label: 'IA' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          template_inline: {
-                            ...formData.template_inline,
-                            modo: option.value as 'template' | 'ia',
-                          },
-                        })
-                      }
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        formData.template_inline.modo === option.value
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="inline_corpo" className="text-slate-700 font-medium text-sm">
-                  {formData.template_inline.modo === 'template' ? 'Corpo da Mensagem' : 'Prompt IA'}
-                </Label>
-                <Textarea
-                  id="inline_corpo"
-                  value={formData.template_inline.corpo}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      template_inline: { ...formData.template_inline, corpo: e.target.value },
-                    })
-                  }
-                  placeholder={
-                    formData.template_inline.modo === 'template'
-                      ? 'Escreva o corpo da mensagem...'
-                      : 'Descreva o que a IA deve gerar...'
-                  }
-                  rows={3}
-                  className="mt-2"
-                />
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Section 5: Controle */}
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900">Controle</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Como enviar?</h2>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="max_envios" className="text-slate-700 font-medium text-sm">
-                  Max envios por card
+                  Max envios/card
                 </Label>
                 <Input
                   id="max_envios"
                   type="number"
                   min="1"
                   value={formData.max_envios_por_card}
-                  onChange={(e) =>
-                    setFormData({ ...formData, max_envios_por_card: parseInt(e.target.value) || 1 })
-                  }
+                  onChange={(e) => setFormData({ ...formData, max_envios_por_card: parseInt(e.target.value) || 1 })}
                   className="mt-2"
                 />
               </div>
-
               <div>
-                <Label htmlFor="dedup" className="text-slate-700 font-medium text-sm">
-                  Dedup (horas)
+                <Label htmlFor="janela_dedup" className="text-slate-700 font-medium text-sm">
+                  Janela dedup (horas)
                 </Label>
                 <Input
-                  id="dedup"
+                  id="janela_dedup"
                   type="number"
-                  min="0"
+                  min="1"
                   value={formData.janela_dedup_horas}
-                  onChange={(e) =>
-                    setFormData({ ...formData, janela_dedup_horas: parseInt(e.target.value) || 24 })
-                  }
+                  onChange={(e) => setFormData({ ...formData, janela_dedup_horas: parseInt(e.target.value) || 24 })}
                   className="mt-2"
                 />
               </div>
-
               <div>
-                <Label htmlFor="max_msg_dia" className="text-slate-700 font-medium text-sm">
-                  Max mensagens/dia
+                <Label htmlFor="max_msgs_dia" className="text-slate-700 font-medium text-sm">
+                  Max msgs/contato/dia
                 </Label>
                 <Input
-                  id="max_msg_dia"
+                  id="max_msgs_dia"
                   type="number"
                   min="1"
                   value={formData.max_mensagens_por_dia}
-                  onChange={(e) =>
-                    setFormData({ ...formData, max_mensagens_por_dia: parseInt(e.target.value) || 3 })
-                  }
-                  className="mt-2"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="phone_line" className="text-slate-700 font-medium text-sm">
-                  Linha WhatsApp
-                </Label>
-                <Select
-                  value={formData.phone_number_id}
-                  onChange={(v: string) => setFormData({ ...formData, phone_number_id: v })}
-                  options={[
-                    { value: '', label: 'Automático' },
-                    ...phoneLines.map((l) => ({
-                      value: l.phone_number_id,
-                      label: `${l.phone_number_label}${l.produto ? ` (${l.produto})` : ''}`,
-                    })),
-                  ]}
+                  onChange={(e) => setFormData({ ...formData, max_mensagens_por_dia: parseInt(e.target.value) || 3 })}
                   className="mt-2"
                 />
               </div>
             </div>
 
-            <div className="space-y-3 pt-2 border-t border-slate-200">
-              <label className="flex items-center gap-3 cursor-pointer">
+            <div className="border-t border-slate-200 pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-medium text-sm">Pausa se o cliente responder</Label>
                 <Switch
                   checked={formData.response_aware}
                   onCheckedChange={(checked) => setFormData({ ...formData, response_aware: checked })}
                 />
-                <span className="text-sm text-slate-700">Responder apenas se receber resposta</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-medium text-sm">Não envia se agente mandou msg (4h)</Label>
+                <Switch
+                  checked={formData.agent_aware}
+                  onCheckedChange={(checked) => setFormData({ ...formData, agent_aware: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-medium text-sm">Só enviar em horário comercial (9-18h)</Label>
+                <Switch
+                  checked={formData.business_hours}
+                  onCheckedChange={(checked) => setFormData({ ...formData, business_hours: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-medium text-sm">Requer aprovação antes de enviar</Label>
                 <Switch
                   checked={formData.requer_aprovacao}
                   onCheckedChange={(checked) => setFormData({ ...formData, requer_aprovacao: checked })}
                 />
-                <span className="text-sm text-slate-700">Requer aprovação antes de enviar</span>
-              </label>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-4">
+              <Label htmlFor="phone_number" className="text-slate-700 font-medium text-sm">
+                Linha WhatsApp
+              </Label>
+              <Select
+                value={formData.phone_number_id}
+                onChange={(value: string) => setFormData({ ...formData, phone_number_id: value })}
+                options={[
+                  { value: '', label: 'Automático (resolver pela fase)' },
+                  ...phoneLines.map((line) => ({
+                    value: line.phone_number_id,
+                    label: `${line.phone_number_label}${line.produto ? ` (${line.produto})` : ''}`,
+                  })),
+                ]}
+                className="mt-2"
+              />
             </div>
           </div>
 
-          {/* Section 6: Passos da Jornada */}
           {formData.tipo === 'jornada' && (
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-              <h2 className="text-base font-semibold text-slate-900">Passos da Jornada</h2>
+              <h2 className="text-sm font-semibold text-slate-900">Passos da Jornada</h2>
               <JornadaStepEditor
                 steps={formData.jornada_passos}
                 onChange={(steps: JornadaStep[]) => setFormData({ ...formData, jornada_passos: steps })}
