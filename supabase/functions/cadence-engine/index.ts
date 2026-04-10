@@ -639,18 +639,24 @@ function calculateDayOffset(
     template: any
 ): Date {
     const localTime = utcToZonedTime(fromDate, TIMEZONE);
-    let result = addDays(localTime, dayOffset);
+    const allowedWeekdays = template.allowed_weekdays || [1, 2, 3, 4, 5];
+    const businessStart = template.business_hours_start || BUSINESS_HOURS_START;
 
-    // Ajustar para horário comercial se configurado
-    if (template.respect_business_hours) {
-        const businessStart = template.business_hours_start || BUSINESS_HOURS_START;
-        result = setHours(setMinutes(result, 0), businessStart);
+    let result = new Date(localTime);
+    let remaining = dayOffset;
 
-        // Pular fins de semana se necessário
-        const allowedWeekdays = template.allowed_weekdays || [1, 2, 3, 4, 5];
-        while (!allowedWeekdays.includes(result.getDay() === 0 ? 7 : result.getDay())) {
-            result = addDays(result, 1);
+    // Avançar dia a dia, contando apenas dias úteis
+    while (remaining > 0) {
+        result = addDays(result, 1);
+        const dow = result.getDay() === 0 ? 7 : result.getDay();
+        if (allowedWeekdays.includes(dow)) {
+            remaining--;
         }
+    }
+
+    // Ajustar horário para início do expediente
+    if (template.respect_business_hours) {
+        result = setHours(setMinutes(result, 0), businessStart);
     }
 
     return zonedTimeToUtc(result, TIMEZONE);
