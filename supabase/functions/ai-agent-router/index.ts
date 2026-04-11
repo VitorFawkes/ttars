@@ -280,24 +280,28 @@ async function findOrCreateContact(
 
   if (existing) return existing.id;
 
+  const nameParts = (name || "WhatsApp").split(" ");
   const insertData: Record<string, unknown> = {
-    nome: name || "WhatsApp",
-    sobrenome: name ? null : normalized.slice(-4),
+    nome: nameParts[0],
+    sobrenome: nameParts.slice(1).join(" ") || null,
     telefone: normalized,
     origem: "whatsapp_ai_agent",
   };
   if (orgId) insertData.org_id = orgId;
 
+  console.log("[findOrCreateContact] Creating contact:", JSON.stringify(insertData));
+
   const { data: created, error } = await supabase
     .from("contatos")
-    .insert(insertData)
+    .insert(insertData as any)
     .select("id")
     .single();
 
   if (error) {
-    console.error("Error creating contact:", error);
+    console.error("[findOrCreateContact] Error:", JSON.stringify(error));
     return null;
   }
+  console.log("[findOrCreateContact] Created:", created?.id);
   return created?.id || null;
 }
 

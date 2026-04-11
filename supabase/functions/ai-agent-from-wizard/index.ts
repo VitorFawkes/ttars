@@ -108,11 +108,15 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { template_id, wizard_data, draft_id } = await req.json() as {
+    const { template_id, wizard_data, draft_id, org_id } = await req.json() as {
       template_id: string;
       wizard_data: WizardData;
       draft_id?: string;
+      org_id?: string;
     };
+
+    // Resolve org_id: explicit > JWT > fallback
+    const resolvedOrgId = org_id || "b0000000-0000-0000-0000-000000000001";
 
     const s1 = wizard_data.step1;
     const s3 = wizard_data.step3;
@@ -150,6 +154,7 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
     const { data: agent, error: agentErr } = await supabase
       .from("ai_agents")
       .insert({
+        org_id: resolvedOrgId,
         nome: s1.agent_name,
         descricao: s1.company_description,
         persona: s1.agent_persona,
@@ -239,6 +244,7 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
       const { data: kb } = await supabase
         .from("ai_knowledge_bases")
         .insert({
+          org_id: resolvedOrgId,
           nome: s4.kb_name || `KB - ${s1.agent_name}`,
           tipo: "faq",
           descricao: `Base de conhecimento do agente ${s1.agent_name}`,

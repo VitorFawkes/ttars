@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useAgentWizard } from '@/hooks/useAgentWizard'
+import { useOrg } from '@/contexts/OrgContext'
 import { Bot, Building2, LayoutTemplate, GitBranch, BookOpen, DollarSign, PhoneForwarded, Rocket } from 'lucide-react'
 import Step1BusinessIdentity from './wizard/Step1_BusinessIdentity'
 import Step2TemplateSelection from './wizard/Step2_TemplateSelection'
@@ -21,7 +22,8 @@ const STEPS = [
 
 export default function AiAgentBuilderWizard() {
   const { draftId } = useParams<{ draftId?: string }>()
-  const wizard = useAgentWizard(draftId)
+  const { org } = useOrg()
+  const wizard = useAgentWizard(draftId, org?.id)
 
   const progress = Math.round((wizard.currentStep / 7) * 100)
 

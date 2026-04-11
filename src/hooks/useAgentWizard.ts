@@ -112,7 +112,7 @@ const EMPTY_WIZARD: WizardData = {
   step7: { go_live: false },
 }
 
-export function useAgentWizard(draftId?: string) {
+export function useAgentWizard(draftId?: string, orgId?: string) {
   const [currentStep, setCurrentStep] = useState(1)
   const [wizardData, setWizardData] = useState<WizardData>(EMPTY_WIZARD)
   const [draftSavedId, setDraftSavedId] = useState<string | undefined>(draftId)
@@ -125,15 +125,16 @@ export function useAgentWizard(draftId?: string) {
     queryFn: async () => {
       if (!draftId) return null
       const { data } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('ai_agent_wizard_drafts' as any)
         .select('*')
         .eq('id', draftId)
         .single()
 
-      const row = data as any
+      const row = data as Record<string, unknown> | null
       if (row) {
         setWizardData(row.step_data as WizardData || EMPTY_WIZARD)
-        setCurrentStep(row.current_step || 1)
+        setCurrentStep((row.current_step as number) || 1)
       }
       return data
     },
@@ -156,7 +157,8 @@ export function useAgentWizard(draftId?: string) {
     mutationFn: async () => {
       if (draftSavedId) {
         await supabase
-          .from('ai_agent_wizard_drafts' as any)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('ai_agent_wizard_drafts' as any)
           .update({
             current_step: currentStep,
             step_data: wizardData as unknown as Record<string, unknown>,
@@ -166,7 +168,8 @@ export function useAgentWizard(draftId?: string) {
           .eq('id', draftSavedId)
       } else {
         const { data } = await supabase
-          .from('ai_agent_wizard_drafts' as any)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('ai_agent_wizard_drafts' as any)
           .insert({
             current_step: currentStep,
             step_data: wizardData as unknown as Record<string, unknown>,
@@ -175,7 +178,7 @@ export function useAgentWizard(draftId?: string) {
           .select('id')
           .single()
 
-        if (data) setDraftSavedId((data as any).id)
+        if (data) setDraftSavedId((data as unknown as Record<string, unknown>).id as string)
       }
     },
   })
@@ -196,6 +199,7 @@ export function useAgentWizard(draftId?: string) {
           template_id: wizardData.step2?.template_id,
           wizard_data: wizardData,
           draft_id: draftSavedId,
+          org_id: orgId,
         }),
       })
 
