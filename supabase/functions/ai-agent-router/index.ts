@@ -37,6 +37,7 @@ interface IncomingMessage {
 
 interface AgentConfig {
   id: string;
+  org_id: string;
   nome: string;
   tipo: string;
   modelo: string;
@@ -205,7 +206,7 @@ async function findAgentForLine(
     .select(`
       priority,
       ai_agents(
-        id, nome, tipo, modelo, temperature, max_tokens,
+        id, org_id, nome, tipo, modelo, temperature, max_tokens,
         system_prompt, persona, routing_criteria, escalation_rules,
         memory_config, fallback_message, fallback_agent_id,
         n8n_webhook_url, template_id, is_template_based
@@ -266,27 +267,30 @@ async function findOrCreateContact(
   supabase: SupabaseClient,
   phone: string,
   name?: string,
+  orgId?: string,
 ): Promise<string | null> {
   const normalized = normalizePhone(phone);
 
   const { data: existing } = await supabase
     .from("contatos")
     .select("id")
-    .or(`telefone.eq.${normalized},telefone_normalizado.eq.${normalized}`)
+    .eq("telefone", normalized)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (existing) return existing.id;
 
+  const insertData: Record<string, unknown> = {
+    nome: name || "WhatsApp",
+    sobrenome: name ? null : normalized.slice(-4),
+    telefone: normalized,
+    origem: "whatsapp_ai_agent",
+  };
+  if (orgId) insertData.org_id = orgId;
+
   const { data: created, error } = await supabase
     .from("contatos")
-    .insert({
-      nome: name || "WhatsApp",
-      sobrenome: name ? null : normalized.slice(-4),
-      telefone: normalized,
-      telefone_normalizado: normalized,
-      origem: "whatsapp_ai_agent",
-    })
+    .insert(insertData)
     .select("id")
     .single();
 
@@ -306,6 +310,7 @@ async function getOrCreateConversation(
   contactId: string,
   agentId: string,
   phoneNumberId?: string,
+  orgId?: string,
 ): Promise<string> {
   const { data: existing } = await supabase
     .from("ai_conversations")
@@ -333,15 +338,18 @@ async function getOrCreateConversation(
     }
   }
 
+  const insertConv: Record<string, unknown> = {
+    contact_id: contactId,
+    primary_agent_id: agentId,
+    current_agent_id: agentId,
+    status: "active",
+    phone_number_id: phoneNumberId,
+  };
+  if (orgId) insertConv.org_id = orgId;
+
   const { data: created, error } = await supabase
     .from("ai_conversations")
-    .insert({
-      contact_id: contactId,
-      primary_agent_id: agentId,
-      current_agent_id: agentId,
-      status: "active",
-      phone_number_id: phoneNumberId,
-    })
+    .insert(insertConv)
     .select("id")
     .single();
 
@@ -508,7 +516,7 @@ async function callLLM(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, max_tokens: maxTokens, temperature, messages }),
+    body: JSON.stringify({ model, max_completion_tokens: maxTokens, temperature, messages }),
   });
 
   if (!res.ok) {
@@ -1011,7 +1019,7 @@ serve(async (req) => {
     const agentConfig = await loadAgentConfig(supabase, agent.id);
 
     // ── 3. Encontrar/criar contato ──
-    const contactId = await findOrCreateContact(supabase, input.contact_phone, input.contact_name);
+    const contactId = await findOrCreateContact(supabase, input.contact_phone, input.contact_name, agent.org_id);
     if (!contactId) {
       return new Response(
         JSON.stringify({ error: "Failed to resolve contact" }),
@@ -1021,7 +1029,7 @@ serve(async (req) => {
 
     // ── 4. Gerenciar conversa ──
     const conversationId = await getOrCreateConversation(
-      supabase, contactId, agent.id, input.phone_number_id,
+      supabase, contactId, agent.id, input.phone_number_id, agent.org_id,
     );
 
     // ── 5. Salvar mensagem do usuario ──
