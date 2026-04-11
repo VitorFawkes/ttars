@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 167 tabelas | 69 paginas | 129 hooks | 17 views | 495 components
+> **Stats:** 167 tabelas | 77 paginas | 131 hooks | 17 views | 495 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **129 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **131 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -222,6 +222,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Other
 | Hook | File |
 |------|------|
+| `useAgentTemplates()` | `useAgentTemplates.ts` |
+| `useAgentWizard()` | `useAgentWizard.ts` |
 | `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
 | `useApiKeys()` | `useApiKeys.ts` |
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
@@ -373,7 +375,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **69 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **77 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -401,6 +403,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `AiAgentAnalyticsPage` | `src/pages/admin/AiAgentAnalyticsPage.tsx` |
+| `AiAgentBuilderWizard` | `src/pages/admin/AiAgentBuilderWizard.tsx` |
 | `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
 | `AiAgentDetailPage` | `src/pages/admin/AiAgentDetailPage.tsx` |
 | `AiAgentListPage` | `src/pages/admin/AiAgentListPage.tsx` |
@@ -432,6 +435,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
 | `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
+| `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
+| `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |
+| `Step3_FunnelConfiguration` | `src/pages/admin/wizard/Step3_FunnelConfiguration.tsx` |
+| `Step4_KnowledgeBase` | `src/pages/admin/wizard/Step4_KnowledgeBase.tsx` |
+| `Step5_BusinessRules` | `src/pages/admin/wizard/Step5_BusinessRules.tsx` |
+| `Step6_Escalation` | `src/pages/admin/wizard/Step6_Escalation.tsx` |
+| `Step7_PreviewDeploy` | `src/pages/admin/wizard/Step7_PreviewDeploy.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
 | `HelpCenter` | `src/pages/help/HelpCenter.tsx` |

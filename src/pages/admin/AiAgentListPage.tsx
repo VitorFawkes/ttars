@@ -96,10 +96,16 @@ export default function AiAgentListPage() {
         icon={<Bot className="w-5 h-5" />}
         stats={stats}
         actions={
-          <Button onClick={() => navigate('/settings/ai-agents/new')} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo Agente
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate('/settings/ai-agents/builder')} className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Criar com Wizard
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/settings/ai-agents/new')} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Modo Avançado
+            </Button>
+          </div>
         }
       />
 

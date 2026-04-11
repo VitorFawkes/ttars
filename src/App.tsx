@@ -88,6 +88,7 @@ import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
 import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
 import AiAgentConversationsPage from './pages/admin/AiAgentConversationsPage'
 import AiAgentAnalyticsPage from './pages/admin/AiAgentAnalyticsPage'
+import AiAgentBuilderWizard from './pages/admin/AiAgentBuilderWizard'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
@@ -264,6 +265,8 @@ function App() {
 
                     {/* Agentes IA WhatsApp */}
                     <Route path="ai-agents" element={<AiAgentListPage />} />
+                    <Route path="ai-agents/builder" element={<AiAgentBuilderWizard />} />
+                    <Route path="ai-agents/builder/:draftId" element={<AiAgentBuilderWizard />} />
                     <Route path="ai-agents/new" element={<AiAgentDetailPage />} />
                     <Route path="ai-agents/:id" element={<AiAgentDetailPage />} />
                     <Route path="ai-skills" element={<AiSkillManagerPage />} />
