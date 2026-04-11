@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
                     const messageText = data.text || data.body || singlePayload.text || "";
                     if (!messageText) continue;
 
-                    const contactPhone = data.from || data.remote_phone || singlePayload.from || "";
+                    const contactPhone = data.from || data.remote_phone || data.contact_phone || data.contact?.phone || singlePayload.from || singlePayload.contact_phone || "";
                     if (!contactPhone) continue;
 
                     try {
@@ -237,12 +237,12 @@ Deno.serve(async (req) => {
                             body: JSON.stringify({
                                 contact_phone: contactPhone,
                                 message_text: messageText,
-                                message_type: data.type || "text",
+                                message_type: data.type || data.message_type || "text",
                                 phone_number_label: singlePayload.phone_number || data.phone_number,
                                 phone_number_id: data.phone_number_id || singlePayload.phone_number_id,
-                                contact_name: data.contact_name || data.pushname || singlePayload.contact_name,
-                                whatsapp_message_id: data.whatsapp_message_id,
-                                echo_conversation_id: data.conversation_id,
+                                contact_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name,
+                                whatsapp_message_id: data.whatsapp_message_id || data.message_id,
+                                echo_conversation_id: data.conversation_id || data.conversation?.id,
                             }),
                         });
                         const routerResult = await routerRes.json();
