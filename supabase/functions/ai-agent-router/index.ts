@@ -342,82 +342,42 @@ async function callLLM(
   history: ConversationTurn[],
   userMessage: string,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("OPENAI_API_KEY");
-  if (!apiKey) throw new Error("No LLM API key configured");
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
-  const isAnthropic = agent.modelo.startsWith("claude");
+  // OpenAI Chat Completions API
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...history.map((t) => ({ role: t.role, content: t.content })),
+    { role: "user" as const, content: userMessage },
+  ];
 
-  if (isAnthropic) {
-    // Anthropic Messages API
-    const messages = [
-      ...history.map((t) => ({ role: t.role === "system" ? "user" as const : t.role, content: t.content })),
-      { role: "user" as const, content: userMessage },
-    ];
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: agent.modelo,
+      max_tokens: agent.max_tokens,
+      temperature: agent.temperature,
+      messages,
+    }),
+  });
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: agent.modelo,
-        max_tokens: agent.max_tokens,
-        temperature: agent.temperature,
-        system: systemPrompt,
-        messages,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Anthropic API error ${res.status}: ${err}`);
-    }
-
-    const data = await res.json();
-    const textContent = data.content?.find((c: Record<string, unknown>) => c.type === "text");
-
-    return {
-      response: textContent?.text || agent.fallback_message || "Desculpe, houve um erro.",
-      inputTokens: data.usage?.input_tokens || 0,
-      outputTokens: data.usage?.output_tokens || 0,
-    };
-  } else {
-    // OpenAI Chat Completions API
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...history.map((t) => ({ role: t.role, content: t.content })),
-      { role: "user" as const, content: userMessage },
-    ];
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY") || ""}`,
-      },
-      body: JSON.stringify({
-        model: agent.modelo,
-        max_tokens: agent.max_tokens,
-        temperature: agent.temperature,
-        messages,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`OpenAI API error ${res.status}: ${err}`);
-    }
-
-    const data = await res.json();
-
-    return {
-      response: data.choices?.[0]?.message?.content || agent.fallback_message || "Desculpe, houve um erro.",
-      inputTokens: data.usage?.prompt_tokens || 0,
-      outputTokens: data.usage?.completion_tokens || 0,
-    };
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI API error ${res.status}: ${err}`);
   }
+
+  const data = await res.json();
+
+  return {
+    response: data.choices?.[0]?.message?.content || agent.fallback_message || "Desculpe, houve um erro.",
+    inputTokens: data.usage?.prompt_tokens || 0,
+    outputTokens: data.usage?.completion_tokens || 0,
+  };
 }
 
 // ---------------------------------------------------------------------------

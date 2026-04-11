@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS ai_agents (
   ativa BOOLEAN DEFAULT false,
 
   -- Modelo & Config
-  modelo TEXT NOT NULL DEFAULT 'claude-sonnet-4-6',
+  modelo TEXT NOT NULL DEFAULT 'gpt-5.1',
   temperature NUMERIC DEFAULT 0.7,
   max_tokens INT DEFAULT 1024,
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Save, Bot, Plus,
+  ArrowLeft, Save, Bot, Plus, Upload, Loader2,
   Brain, Sparkles, HeadphonesIcon, ShieldCheck, ArrowRightLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -28,11 +28,11 @@ const TIPO_OPTIONS: { value: AgentTipo; label: string; icon: React.ComponentType
 ]
 
 const MODELO_OPTIONS = [
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-  { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-  { value: 'gpt-5.1', label: 'GPT-5.1' },
-  { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
+  { value: 'gpt-5.1', label: 'GPT-5.1 (Recomendado)' },
+  { value: 'gpt-5-nano', label: 'GPT-5 Nano (Rápido/Barato)' },
+  { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+  { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
 ]
 
 interface FormData {
@@ -81,6 +81,7 @@ export default function AiAgentDetailPage() {
   const [form, setForm] = useState<FormData>(DEFAULT_FORM)
   const [assignedSkillIds, setAssignedSkillIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [deploying, setDeploying] = useState<number | null>(null)
 
   useEffect(() => {
     if (existingAgent) {
@@ -349,9 +350,86 @@ export default function AiAgentDetailPage() {
         />
 
         <p className="text-xs text-slate-400">
-          Variáveis disponíveis: {'{{contact.nome}}'}, {'{{card.titulo}}'}, {'{{card.destino}}'}, {'{{agent.nome}}'}
+          Variáveis n8n: {'{{ $(\'Historico Texto\').item.json.XXX }}'} |
+          Variáveis template: {'{{contact.nome}}'}, {'{{card.titulo}}'}
         </p>
       </section>
+
+      {/* Prompts Versionados (para agentes com n8n) */}
+      {!isNew && existingAgent?.ai_agent_prompts && existingAgent.ai_agent_prompts.length > 0 && (
+        <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Brain className="w-5 h-5 text-violet-500" />
+            Prompts Versionados ({existingAgent.ai_agent_prompts.length})
+          </h2>
+          <p className="text-xs text-slate-500">
+            Edite os prompts aqui e clique &quot;Deploy para n8n&quot; para atualizar o workflow.
+          </p>
+
+          <div className="space-y-3">
+            {existingAgent.ai_agent_prompts
+              .sort((a, b) => a.version - b.version)
+              .map((prompt) => (
+                <div key={prompt.id} className="border border-slate-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">v{prompt.version}</Badge>
+                      <span className="text-sm font-medium text-slate-700">
+                        {prompt.variant_name || `Prompt v${prompt.version}`}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={deploying === prompt.version}
+                      onClick={async () => {
+                        setDeploying(prompt.version)
+                        try {
+                          const res = await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent-deploy-prompt`,
+                            {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                              },
+                              body: JSON.stringify({
+                                agent_id: id,
+                                prompt_version: prompt.version,
+                              }),
+                            }
+                          )
+                          const data = await res.json()
+                          if (data.success) {
+                            toast.success(`Prompt v${prompt.version} deployado no n8n`)
+                          } else {
+                            toast.error(data.error || 'Erro no deploy')
+                          }
+                        } catch {
+                          toast.error('Erro ao deployar prompt')
+                        } finally {
+                          setDeploying(null)
+                        }
+                      }}
+                    >
+                      {deploying === prompt.version ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Upload className="w-3 h-3" />
+                      )}
+                      Deploy para n8n
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {prompt.total_conversations || 0} conversas |
+                    Resolução: {prompt.avg_resolution_rate != null ? `${Math.round(prompt.avg_resolution_rate * 100)}%` : 'N/A'}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
 
       {/* Roteamento */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
