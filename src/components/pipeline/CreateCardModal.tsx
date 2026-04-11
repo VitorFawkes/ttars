@@ -17,6 +17,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
+import { useOrg } from '../../contexts/OrgContext'
+import { ORG_PRODUCT_MAP } from '../../hooks/useOrgSwitch'
 
 interface CreateCardModalProps {
     isOpen: boolean
@@ -200,6 +202,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const [showMoreOwners, setShowMoreOwners] = useState(false)
     const [showObservacoes, setShowObservacoes] = useState(false)
     const { currentProduct } = useProductContext()
+    const { org } = useOrg()
+    // Produto derivado da org ativa (fonte de verdade), fallback para Zustand
+    const effectiveProduct = (org?.slug ? ORG_PRODUCT_MAP[org.slug] : null) ?? currentProduct
 
     // Scroll to top when modal opens or when returning from ContactSelector
     useEffect(() => {
@@ -235,7 +240,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Core form data
     const [formData, setFormData] = useState({
         titulo: '',
-        produto: currentProduct,
+        produto: effectiveProduct,
         pessoa_principal_id: null as string | null,
         pessoa_principal_nome: null as string | null,
         sdr_owner_id: null as string | null,
@@ -330,7 +335,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             // Modal just opened - reset with initial owners based on user's role
             setFormData({
                 titulo: '',
-                produto: currentProduct,
+                produto: effectiveProduct,
                 pessoa_principal_id: null,
                 pessoa_principal_nome: null,
                 ...initialOwners,
@@ -352,7 +357,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             setShowMoreStages(false)
         }
         wasOpenRef.current = isOpen
-    }, [isOpen, initialOwners, currentProduct])
+    }, [isOpen, initialOwners, effectiveProduct])
 
 
     // Get pipeline ID for the selected product
@@ -382,7 +387,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const resetForm = () => {
         setFormData({
             titulo: '',
-            produto: currentProduct,
+            produto: effectiveProduct,
             pessoa_principal_id: null,
             pessoa_principal_nome: null,
             ...initialOwners,
@@ -692,7 +697,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             {/* Product - compact inline */}
                             <div className="flex items-center gap-2 text-xs text-slate-500">
                                 <span>Produto:</span>
-                                <span className="px-2 py-0.5 bg-slate-100 rounded font-medium text-slate-700">{currentProduct}</span>
+                                <span className="px-2 py-0.5 bg-slate-100 rounded font-medium text-slate-700">{effectiveProduct}</span>
                             </div>
                         </section>
 

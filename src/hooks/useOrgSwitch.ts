@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useProductContext } from './useProductContext'
 
 // Org slug → default product slug
-const ORG_PRODUCT_MAP: Record<string, string> = {
+export const ORG_PRODUCT_MAP: Record<string, string> = {
     'welcome-trips': 'TRIPS',
     'welcome-weddings': 'WEDDING',
 }

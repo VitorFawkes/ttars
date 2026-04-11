@@ -36,6 +36,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useProductContext } from '../../hooks/useProductContext'
 import { supabase } from '../../lib/supabase'
+import { useOrg } from '../../contexts/OrgContext'
 import { cn } from '../../lib/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabelas fora dos types gerados
@@ -82,6 +83,7 @@ const TRIGGER_LABELS: Record<TriggerMode, string> = {
 
 export default function CardAlertRulesPage() {
     const { profile } = useAuth()
+    const { org } = useOrg()
     const isAdmin = profile?.is_admin === true
 
     const {
@@ -147,9 +149,11 @@ export default function CardAlertRulesPage() {
     })
 
     const { data: products } = useQuery({
-        queryKey: ['products-for-alert-rules'],
+        queryKey: ['products-for-alert-rules', org?.id],
         queryFn: async () => {
-            const { data, error } = await db.from('products').select('slug, name').order('name')
+            let q = db.from('products').select('slug, name').order('name')
+            if (org?.id) q = q.eq('org_id', org.id)
+            const { data, error } = await q
             if (error) return []
             return data as { slug: string; name: string }[]
         },
