@@ -31,6 +31,7 @@ import { findConflicts, type MeetingTimeSlot } from '@/utils/meetingConflicts';
 import { sendMeetingInvite } from '@/hooks/calendar/useMeetingMutation';
 import { MultiSelectEmail } from '@/components/ui/MultiSelectEmail';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrg } from '@/contexts/OrgContext';
 import { cn } from '@/lib/utils';
 import { processAIExtraction } from '@/hooks/useAIExtraction';
 import { useTaskOutcomes } from '@/hooks/useTaskOutcomes';
@@ -98,6 +99,7 @@ const TEMPLATES: Record<TaskType, string> = {
 
 export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'create', defaultType, defaultDate, defaultTime, defaultDuration, onSuccess, existingMeetings }: SmartTaskModalProps) {
     const { user } = useAuth();
+    const { org } = useOrg();
     // Step 1: Type Selection, Step 2: Form
     const [step, setStep] = useState<1 | 2>(1);
 
@@ -576,7 +578,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 break;
         }
 
-        const parts = ['Welcome Trips', context];
+        const parts = [org?.name ?? 'WelcomeCRM', context];
         if (firstName) parts.push(firstName);
         return parts.join(' — ');
     };

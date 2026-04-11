@@ -350,3 +350,9 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-10T19:37:40Z | supabase/migrations/20260410_automacao_controles_expandidos.sql | applied_to_prod
 2026-04-10T20:30:12Z | supabase/migrations/20260411_org_split_01_create_orgs.sql | applied_to_prod
 2026-04-10T20:30:22Z | supabase/migrations/20260411_org_split_02_jwt_hook.sql | applied_to_prod
+2026-04-10T21:22:19Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_03_migrate_data.sql | applied_to_prod
+2026-04-10T21:25:58Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_04_fix_rls.sql | applied_to_prod
+2026-04-10T21:26:54Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_05_fix_profiles_rls.sql | applied_to_prod
+2026-04-10T21:31:26Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_06_fix_org_rls.sql | applied_to_prod
+2026-04-10T22:12:47Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_07_migrate_card_orgs.sql | applied_to_prod
+2026-04-11T14:38:35Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_org_split_08_fix_shared_rls.sql | applied_to_prod
