@@ -5,19 +5,18 @@ import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
-import { useProductContext } from '../../hooks/useProductContext'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
-const navigation: { name: string; href: string; icon: LucideIcon; productsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
+const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
     { name: 'Propostas', href: '/proposals', icon: FileText },
-    { name: 'Grupos', href: '/groups', icon: Users, productsOnly: ['TRIPS'] },
+    { name: 'Grupos', href: '/groups', icon: Users, orgsOnly: ['welcome-trips'] },
     { name: 'Contatos', href: '/people', icon: User },
     { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
-    { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true },
+    { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true, orgsOnly: ['welcome-trips'] },
     { name: 'Import. Pós-Venda', href: '/importacao-pos-venda', icon: Upload, phases: ['pos_venda'] },
     { name: 'Presentes', href: '/presentes', icon: Gift, phases: ['pos_venda'] },
     { name: 'Reativacao', href: '/reactivation', icon: Sparkles },
@@ -29,7 +28,6 @@ export default function Sidebar() {
     const location = useLocation()
     const { session, signOut, profile } = useAuth()
     const { org } = useOrg()
-    const { currentProduct } = useProductContext()
     const [isExpanded, setIsExpanded] = useState(false)
     // Set de URLs de logo que falharam ao carregar — derivado por URL, não precisa reset
     const [failedLogoUrls, setFailedLogoUrls] = useState<Set<string>>(new Set())
@@ -54,10 +52,10 @@ export default function Sidebar() {
                 const hasPhaseAccess = phaseSlug && item.phases.includes(phaseSlug)
                 if (!isAdminOrGestor && !hasPhaseAccess) return false
             }
-            if (item.productsOnly && !item.productsOnly.includes(currentProduct)) return false
+            if (item.orgsOnly && org?.slug && !item.orgsOnly.includes(org.slug)) return false
             return true
         })
-    }, [currentProduct, profile])
+    }, [org?.slug, profile])
 
     const userInitials = session?.user?.email?.substring(0, 2).toUpperCase() || 'U'
     const userName = session?.user?.email?.split('@')[0] || 'Usuário'
