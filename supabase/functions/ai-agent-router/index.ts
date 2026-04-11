@@ -877,35 +877,75 @@ function formatWhatsAppMessages(text: string): string[] {
 // ---------------------------------------------------------------------------
 
 async function sendResponse(
+  supabase: SupabaseClient,
   contactId: string,
+  contactPhone: string,
   cardId: string | null,
   messages: string[],
   phoneNumberId?: string,
 ): Promise<void> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const echoApiUrl = Deno.env.get("ECHO_API_URL");
+  const echoApiKey = Deno.env.get("ECHO_API_KEY");
+  const defaultPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID");
 
-  for (const msg of messages) {
+  if (!echoApiUrl || !echoApiKey) {
+    console.error("[sendResponse] ECHO_API_URL ou ECHO_API_KEY não configurado");
+    return;
+  }
+
+  const resolvedPhoneId = phoneNumberId || defaultPhoneId;
+  const normalizedPhone = contactPhone.replace(/\D/g, "");
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
     if (!msg.trim()) continue;
-    const body: Record<string, unknown> = {
-      contact_id: contactId,
-      corpo: msg,
-      source: "ai_agent",
-    };
-    if (cardId) body.card_id = cardId;
-    if (phoneNumberId) body.phone_number_id = phoneNumberId;
 
     try {
-      await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+      // Enviar direto via Echo API (sem intermediar send-whatsapp-message)
+      console.log(`[sendResponse] Sending msg ${i + 1}/${messages.length} to ${normalizedPhone} via Echo, phone_id=${resolvedPhoneId}`);
+
+      const echoRes = await fetch(echoApiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
+          "x-api-key": echoApiKey,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          to: normalizedPhone,
+          message: msg,
+          phone_number_id: resolvedPhoneId,
+        }),
       });
+
+      const echoResult = await echoRes.json().catch(() => ({}));
+      const success = echoRes.ok || !!echoResult?.whatsapp_message_id;
+
+      console.log(`[sendResponse] Echo result: status=${echoRes.status}, success=${success}, wamid=${echoResult?.whatsapp_message_id || 'none'}`);
+
+      // Salvar em whatsapp_messages
+      await supabase.from("whatsapp_messages").insert({
+        contact_id: contactId,
+        card_id: cardId || null,
+        body: msg,
+        direction: "outbound",
+        is_from_me: true,
+        type: "text",
+        status: success ? "sent" : "failed",
+        sender_phone: normalizedPhone,
+        sent_by_user_name: "Luna IA",
+        phone_number_label: "SDR Trips",
+        metadata: {
+          source: "ai_agent",
+          echo_response: echoResult,
+        },
+      });
+
+      // Pequeno delay entre mensagens para naturalidade
+      if (i < messages.length - 1) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
     } catch (err) {
-      console.error("send-whatsapp-message error:", err);
+      console.error(`[sendResponse] Error sending msg ${i + 1}:`, err);
     }
   }
 }
@@ -1050,7 +1090,7 @@ serve(async (req) => {
     );
     if (escalated) {
       const msgs = formatWhatsAppMessages(escalationMsg);
-      await sendResponse(contactId, ctx.card_id, msgs, input.phone_number_id);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1110,7 +1150,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(contactId, ctx.card_id, messages, input.phone_number_id);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id);
 
     return new Response(
       JSON.stringify({
