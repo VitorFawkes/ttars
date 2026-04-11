@@ -86,6 +86,8 @@ import AiAgentListPage from './pages/admin/AiAgentListPage'
 import AiAgentDetailPage from './pages/admin/AiAgentDetailPage'
 import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
 import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
+import AiAgentConversationsPage from './pages/admin/AiAgentConversationsPage'
+import AiAgentAnalyticsPage from './pages/admin/AiAgentAnalyticsPage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
@@ -266,6 +268,8 @@ function App() {
                     <Route path="ai-agents/:id" element={<AiAgentDetailPage />} />
                     <Route path="ai-skills" element={<AiSkillManagerPage />} />
                     <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />
+                    <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
+                    <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />

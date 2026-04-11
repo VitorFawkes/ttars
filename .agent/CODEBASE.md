@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 155 tabelas | 67 paginas | 129 hooks | 17 views | 495 components
+> **Stats:** 167 tabelas | 69 paginas | 129 hooks | 17 views | 495 components
 
 ---
 
@@ -373,7 +373,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **67 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **69 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -400,6 +400,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResetPassword` | `src/pages/ResetPassword.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
+| `AiAgentAnalyticsPage` | `src/pages/admin/AiAgentAnalyticsPage.tsx` |
+| `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
 | `AiAgentDetailPage` | `src/pages/admin/AiAgentDetailPage.tsx` |
 | `AiAgentListPage` | `src/pages/admin/AiAgentListPage.tsx` |
 | `AiKnowledgeBasePage` | `src/pages/admin/AiKnowledgeBasePage.tsx` |
