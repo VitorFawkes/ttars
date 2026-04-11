@@ -81,6 +81,11 @@ import AutomacaoMensagemListPage from './pages/admin/AutomacaoListPage'
 import AutomacaoMensagemBuilderPage from './pages/admin/AutomacaoBuilderPage'
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 import AutomacaoLogsPage from './pages/admin/AutomacaoLogsPage'
+// Agentes IA WhatsApp
+import AiAgentListPage from './pages/admin/AiAgentListPage'
+import AiAgentDetailPage from './pages/admin/AiAgentDetailPage'
+import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
+import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
 import { ToastProvider } from './contexts/ToastContext'
@@ -254,6 +259,13 @@ function App() {
                     <Route path="automacoes/builder/:id" element={<AutomacaoMensagemBuilderPage />} />
                     <Route path="automacoes/templates" element={<MensagemTemplatePage />} />
                     <Route path="automacoes/:id/logs" element={<AutomacaoLogsPage />} />
+
+                    {/* Agentes IA WhatsApp */}
+                    <Route path="ai-agents" element={<AiAgentListPage />} />
+                    <Route path="ai-agents/new" element={<AiAgentDetailPage />} />
+                    <Route path="ai-agents/:id" element={<AiAgentDetailPage />} />
+                    <Route path="ai-skills" element={<AiSkillManagerPage />} />
+                    <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />
 
                     {/* Cadências de Vendas (replaces Workflow Engine v2) */}
                     <Route path="cadence" element={<CadenceListPage />} />

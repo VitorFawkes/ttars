@@ -24,6 +24,8 @@ import {
     Bell,
     AlertTriangle,
     Send,
+    Bot,
+    BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -137,6 +139,9 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/cadence" icon={Zap} label="Cadências" />
                             <NavItem to="/settings/automacoes" icon={Send} label="Automação de Mensagens" />
                             <NavItem to="/settings/automacoes/templates" icon={MessageSquare} label="Templates de Mensagem" />
+                            <NavItem to="/settings/ai-agents" icon={Bot} label="Agentes IA" />
+                            <NavItem to="/settings/ai-skills" icon={Wrench} label="Skills de Agentes" />
+                            <NavItem to="/settings/ai-knowledge-bases" icon={BookOpen} label="Bases de Conhecimento" />
                             <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações" />
                             <NavItem to="/settings/customization/alert-rules" icon={AlertTriangle} label="Alertas de Cards" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />

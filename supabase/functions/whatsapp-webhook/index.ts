@@ -209,6 +209,51 @@ Deno.serve(async (req) => {
             }
         }
 
+        // 6.7 Forward to AI Agent Router (modular agents)
+        if (provider === "echo" && insertedIds.length > 0) {
+            const agentRouterEnabled = Deno.env.get("AI_AGENT_ROUTER_ENABLED");
+            if (agentRouterEnabled === "true") {
+                const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+                const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+                for (const singlePayload of payloads) {
+                    // Só processar mensagens inbound (não status updates)
+                    const data = singlePayload.data || singlePayload;
+                    const direction = data.direction || singlePayload.direction;
+                    if (direction === "outbound") continue;
+
+                    const messageText = data.text || data.body || singlePayload.text || "";
+                    if (!messageText) continue;
+
+                    const contactPhone = data.from || data.remote_phone || singlePayload.from || "";
+                    if (!contactPhone) continue;
+
+                    try {
+                        const routerRes = await fetch(`${supabaseUrl}/functions/v1/ai-agent-router`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${serviceKey}`,
+                            },
+                            body: JSON.stringify({
+                                contact_phone: contactPhone,
+                                message_text: messageText,
+                                message_type: data.type || "text",
+                                phone_number_label: singlePayload.phone_number || data.phone_number,
+                                phone_number_id: data.phone_number_id || singlePayload.phone_number_id,
+                                contact_name: data.contact_name || data.pushname || singlePayload.contact_name,
+                                whatsapp_message_id: data.whatsapp_message_id,
+                                echo_conversation_id: data.conversation_id,
+                            }),
+                        });
+                        const routerResult = await routerRes.json();
+                        console.log("AI agent router:", routerResult.handled ? `handled by ${routerResult.agent}` : "no agent");
+                    } catch (err) {
+                        console.error("AI agent router error:", err);
+                    }
+                }
+            }
+        }
+
         // 7. Return response
         if (errors.length > 0 && insertedIds.length === 0) {
             return new Response(

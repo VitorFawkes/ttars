@@ -83,7 +83,7 @@ const TRIGGER_LABELS: Record<TriggerMode, string> = {
 
 export default function CardAlertRulesPage() {
     const { profile } = useAuth()
-    const { org } = useOrg()
+    const { org: currentOrg } = useOrg()
     const isAdmin = profile?.is_admin === true
 
     const {
@@ -149,10 +149,10 @@ export default function CardAlertRulesPage() {
     })
 
     const { data: products } = useQuery({
-        queryKey: ['products-for-alert-rules', org?.id],
+        queryKey: ['products-for-alert-rules', currentOrg?.id],
         queryFn: async () => {
             let q = db.from('products').select('slug, name').order('name')
-            if (org?.id) q = q.eq('org_id', org.id)
+            if (currentOrg?.id) q = q.eq('org_id', currentOrg.id)
             const { data, error } = await q
             if (error) return []
             return data as { slug: string; name: string }[]

@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-10
+> **Last Updated:** 2026-04-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 155 tabelas | 63 paginas | 125 hooks | 17 views | 496 components
+> **Stats:** 155 tabelas | 67 paginas | 129 hooks | 17 views | 495 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **125 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **129 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -177,6 +177,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtract()` | `useAIExtract.ts` |
 | `useAIExtraction()` | `useAIExtraction.ts` |
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
+| `useAiAgents()` | `useAiAgents.ts` |
+| `useAiConversations()` | `useAiConversations.ts` |
+| `useAiKnowledgeBases()` | `useAiKnowledgeBases.ts` |
+| `useAiSkills()` | `useAiSkills.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
@@ -369,7 +373,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **63 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **67 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -396,6 +400,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResetPassword` | `src/pages/ResetPassword.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
+| `AiAgentDetailPage` | `src/pages/admin/AiAgentDetailPage.tsx` |
+| `AiAgentListPage` | `src/pages/admin/AiAgentListPage.tsx` |
+| `AiKnowledgeBasePage` | `src/pages/admin/AiKnowledgeBasePage.tsx` |
+| `AiSkillManagerPage` | `src/pages/admin/AiSkillManagerPage.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/AutomacaoBuilderPage.tsx` |
 | `AutomacaoListPage` | `src/pages/admin/AutomacaoListPage.tsx` |
