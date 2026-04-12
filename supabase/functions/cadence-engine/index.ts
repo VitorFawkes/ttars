@@ -811,8 +811,15 @@ async function executeSendMessageAction(
         return { skipped: true, reason: 'no_contact' };
     }
     if (!contato.telefone) {
+        // Precisa buscar org_id antes do log (cadence_event_log.org_id NOT NULL)
+        const { data: cardForOrg } = await supabaseClient
+            .from("cards")
+            .select("org_id")
+            .eq("id", cardId)
+            .single();
         await supabaseClient.from("cadence_event_log").insert({
             card_id: cardId,
+            org_id: cardForOrg?.org_id || null,
             event_type: 'entry_rule_message_skipped',
             event_source: 'entry_trigger',
             event_data: { trigger_id: trigger.id, trigger_name: trigger.name, reason: 'no_phone' },
@@ -843,12 +850,13 @@ async function executeSendMessageAction(
     const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
     const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
-    // Card pra variáveis
+    // Card pra variáveis (e org_id — necessário pra inserts em tabelas com RLS/NOT NULL)
     const { data: card } = await supabaseClient
         .from("cards")
-        .select("titulo")
+        .select("titulo, org_id")
         .eq("id", cardId)
         .single();
+    const cardOrgId: string | null = card?.org_id || null;
 
     const firstName = (contato.nome || '').split(' ')[0] || '';
     const renderVars = (s: string) => s
@@ -876,15 +884,85 @@ async function executeSendMessageAction(
     let respData: any;
     let messageBody: string;
     let sendMode: 'hsm' | 'text';
+    let sendSuccess = false;
+
+    const automationMetadata: Record<string, unknown> = {
+        source: 'automation',
+        trigger_id: trigger.id,
+        trigger_name: trigger.name,
+        hsm_template_name: hsmTemplateName || null,
+    };
 
     if (hsmTemplateName) {
-        // HSM: template aprovado Meta. Formato nativo WhatsApp Cloud API
+        // ─── HSM: template aprovado Meta ────────────────────────────────
         //   POST /send-template { to, phone_number_id, template_name, language, components: [...] }
+        //
+        // Estratégia de gravação:
+        //   1. Buscar template body do Meta via /templates pra renderizar o corpo humano-legível
+        //   2. INSERT nossa row em whatsapp_messages ANTES do envio (status='pending')
+        //      com card_id + contact_id corretos e metadata de automação rica
+        //   3. Chamar Echo /send-template
+        //   4. UPDATE nossa row com status final + wamid
+        //
+        // Se o Echo (ou algum webhook dele) inserir row paralela, ela terá
+        // card_id=NULL → invisível na timeline do card filtrada por card_id.
         const renderedParams = hsmParams.map(renderVars);
         const components = renderedParams.length > 0
             ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
             : [];
 
+        // Renderizar corpo humano-legível substituindo {{1}}, {{2}} no body do template
+        let humanReadableBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
+        try {
+            const tplRes = await fetch(`${echoBase}/templates?phone_number_id=${resolvedPhoneId}`, {
+                headers: { 'x-api-key': echoApiKey },
+            });
+            if (tplRes.ok) {
+                const tplPayload = await tplRes.json().catch(() => ({}));
+                const tplList: any[] = tplPayload?.templates || tplPayload?.data || (Array.isArray(tplPayload) ? tplPayload : []);
+                const tpl = tplList.find((t) => t?.name === hsmTemplateName && t?.language === hsmLanguage) || tplList.find((t) => t?.name === hsmTemplateName);
+                const bodyComp = tpl?.components?.find?.((c: any) => c?.type === 'BODY');
+                if (bodyComp?.text) {
+                    let rendered = bodyComp.text as string;
+                    renderedParams.forEach((p, i) => {
+                        rendered = rendered.replace(new RegExp(`\\{\\{\\s*${i + 1}\\s*\\}\\}`, 'g'), p);
+                    });
+                    humanReadableBody = rendered;
+                }
+            }
+        } catch (e) {
+            // Não-fatal: mantém humanReadableBody de fallback
+            console.warn('[cadence-engine] Failed to resolve HSM template body:', e);
+        }
+        messageBody = humanReadableBody;
+        sendMode = 'hsm';
+
+        // Passo 2: INSERT pending (org_id via trigger auto_set_org_id_from_card)
+        const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
+            contact_id: contato.id,
+            card_id: cardId,
+            org_id: cardOrgId,
+            body: messageBody,
+            direction: 'outbound',
+            is_from_me: true,
+            type: 'template',
+            status: 'pending',
+            sender_phone: normalizedPhone,
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: {
+                ...automationMetadata,
+                send_mode: 'hsm',
+                hsm_params: renderedParams,
+            },
+        }).select('id').single();
+
+        if (insErr) {
+            throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
+        }
+        const ownRowId = ownRow?.id;
+
+        // Passo 3: chamar Echo
         const echoRes = await fetch(`${echoBase}/send-template`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
@@ -897,15 +975,35 @@ async function executeSendMessageAction(
             }),
         });
         respData = await echoRes.json().catch(() => ({}));
-        if (!echoRes.ok) {
+        sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
+
+        // Passo 4: UPDATE status + wamid
+        const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
+        if (ownRowId) {
+            await supabaseClient.from('whatsapp_messages').update({
+                status: sendSuccess ? 'sent' : 'failed',
+                metadata: {
+                    ...automationMetadata,
+                    send_mode: 'hsm',
+                    hsm_params: renderedParams,
+                    whatsapp_message_id: wamid,
+                    echo_response: respData,
+                },
+            }).eq('id', ownRowId);
+        }
+
+        if (!sendSuccess) {
             throw new Error(`Echo send-template failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 300)}`);
         }
-        messageBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
-        sendMode = 'hsm';
     } else {
-        // Texto livre: precisa janela 24h aberta (WhatsApp dropa se não)
+        // ─── TEXTO LIVRE ────────────────────────────────────────────────
+        // Mesma estratégia do HSM: INSERT pending + Echo /send-message + UPDATE
+        // Não usamos send-whatsapp-message pra evitar overhead edge→edge invoke
+        // (que falha em alguns contextos de auth interno).
         let rawBody = corpo || '';
+        let resolvedTemplateId: string | null = null;
         if (templateId) {
+            resolvedTemplateId = templateId;
             const { data: template } = await supabaseClient
                 .from('mensagem_templates')
                 .select('corpo, ia_prompt')
@@ -917,55 +1015,64 @@ async function executeSendMessageAction(
             return { skipped: true, reason: 'empty_body' };
         }
         messageBody = renderVars(rawBody);
+        sendMode = 'text';
 
+        // INSERT pending
+        const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
+            contact_id: contato.id,
+            card_id: cardId,
+            org_id: cardOrgId,
+            body: messageBody,
+            direction: 'outbound',
+            is_from_me: true,
+            type: 'text',
+            status: 'pending',
+            sender_phone: normalizedPhone,
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: {
+                ...automationMetadata,
+                send_mode: 'text',
+                template_id: resolvedTemplateId,
+            },
+        }).select('id').single();
+        if (insErr) {
+            throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
+        }
+        const ownRowId = ownRow?.id;
+
+        // Echo /send-message
         const echoRes = await fetch(echoApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
             body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
         });
         respData = await echoRes.json().catch(() => ({}));
-        if (!echoRes.ok) {
-            throw new Error(`Echo API failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+        sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
+
+        // UPDATE status + wamid
+        const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
+        if (ownRowId) {
+            await supabaseClient.from('whatsapp_messages').update({
+                status: sendSuccess ? 'sent' : 'failed',
+                metadata: {
+                    ...automationMetadata,
+                    send_mode: 'text',
+                    template_id: resolvedTemplateId,
+                    whatsapp_message_id: wamid,
+                    echo_response: respData,
+                },
+            }).eq('id', ownRowId);
         }
-        sendMode = 'text';
-    }
 
-    // Echo já insere em whatsapp_messages quando aceita /send-message e /send-template.
-    // Evitamos duplicação: se veio message.id no response, ATUALIZAMOS essa linha com
-    // metadata de automação. Se não veio, inserimos nós mesmos (fallback).
-    const echoMessageId = respData?.message?.id || respData?.echo_response?.message?.id;
-    const automationMetadata = {
-        source: 'automation',
-        trigger_id: trigger.id,
-        trigger_name: trigger.name,
-        send_mode: sendMode,
-        hsm_template_name: hsmTemplateName || null,
-    };
-
-    if (echoMessageId) {
-        await supabaseClient.from('whatsapp_messages').update({
-            sent_by_user_name: 'Automação',
-            phone_number_label: `automation:${trigger.name || trigger.id}`,
-            metadata: automationMetadata,
-        }).eq('id', echoMessageId);
-    } else {
-        await supabaseClient.from('whatsapp_messages').insert({
-            contact_id: contato.id,
-            card_id: cardId,
-            body: messageBody,
-            direction: 'outbound',
-            is_from_me: true,
-            type: sendMode === 'hsm' ? 'template' : 'text',
-            status: 'sent',
-            sender_phone: normalizedPhone,
-            sent_by_user_name: 'Automação',
-            phone_number_label: `automation:${trigger.name || trigger.id}`,
-            metadata: { ...automationMetadata, echo_response: respData },
-        });
+        if (!sendSuccess) {
+            throw new Error(`Echo send-message failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+        }
     }
 
     await supabaseClient.from("cadence_event_log").insert({
         card_id: cardId,
+        org_id: cardOrgId,
         event_type: 'entry_rule_message_sent',
         event_source: 'entry_trigger',
         event_data: {
