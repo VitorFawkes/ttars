@@ -78,6 +78,23 @@ serve(async (req) => {
             case 'process_entry_queue':
                 return await processEntryQueue(supabaseClient);
 
+            case 'list_wa_templates': {
+                const echoApiUrl2 = Deno.env.get("ECHO_API_URL") ?? "";
+                const echoApiKey2 = Deno.env.get("ECHO_API_KEY") ?? "";
+                const echoBase2 = echoApiUrl2.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
+                const phoneId2 = body.phone_number_id || Deno.env.get("ECHO_PHONE_NUMBER_ID") || "";
+                const r2 = await fetch(`${echoBase2}/templates?phone_number_id=${phoneId2}`, {
+                    method: 'GET',
+                    headers: { 'x-api-key': echoApiKey2 },
+                });
+                const data2 = await r2.json().catch(() => ({}));
+                return new Response(JSON.stringify(data2), {
+                    status: r2.status,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+
             default:
                 // Default: Process both queues
                 const [queueResult, entryResult] = await Promise.all([
@@ -304,6 +321,10 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger);
             } else if (trigger.action_type === 'start_cadence') {
                 result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger);
+            } else if (trigger.action_type === 'send_message') {
+                result = await executeSendMessageAction(supabaseClient, item.card_id, trigger);
+            } else if (trigger.action_type === 'change_stage') {
+                result = await executeChangeStageAction(supabaseClient, item.card_id, trigger);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -627,6 +648,284 @@ async function executeStartCadenceAction(
     });
 
     return { instance_id: instance.id };
+}
+
+// ----------------------------------------------------------------------------
+// send_message: dispara WhatsApp via Echo API (mesmo padrão do ai-agent-router)
+// ----------------------------------------------------------------------------
+// trigger.action_config:
+//   { template_id?, corpo?, phone_number_id?, dedup_hours?,
+//     hsm_template_name?, hsm_language?, hsm_params?: string[] }
+//
+// Prioridade de envio (importante para janela 24h do WhatsApp):
+//   1) hsm_template_name → /send-template (HSM aprovado Meta, funciona FORA da janela)
+//   2) template_id       → lookup em mensagem_templates → /send-message (texto livre)
+//   3) corpo             → /send-message (texto livre, precisa janela aberta)
+async function executeSendMessageAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any
+) {
+    const config = trigger.action_config || {};
+    const templateId: string | undefined = config.template_id;
+    const corpo: string | undefined = config.corpo;
+    const phoneNumberId: string | undefined = config.phone_number_id;
+    const dedupHours: number = typeof config.dedup_hours === 'number' ? config.dedup_hours : 24;
+    const hsmTemplateName: string | undefined = config.hsm_template_name;
+    const hsmLanguage: string = config.hsm_language || 'pt_BR';
+    const hsmParams: string[] = Array.isArray(config.hsm_params) ? config.hsm_params : [];
+
+    if (!hsmTemplateName && !templateId && !corpo) {
+        return { skipped: true, reason: 'no_body_or_template' };
+    }
+
+    // Buscar contato principal do card (cards_contatos — plural, ordenado por "ordem")
+    const { data: cardContatos } = await supabaseClient
+        .from("cards_contatos")
+        .select("contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )")
+        .eq("card_id", cardId)
+        .order("ordem", { ascending: true });
+
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
+    const contato: any = principalRow?.contatos;
+
+    if (!contato?.id) {
+        return { skipped: true, reason: 'no_contact' };
+    }
+    if (!contato.telefone) {
+        await supabaseClient.from("cadence_event_log").insert({
+            card_id: cardId,
+            event_type: 'entry_rule_message_skipped',
+            event_source: 'entry_trigger',
+            event_data: { trigger_id: trigger.id, trigger_name: trigger.name, reason: 'no_phone' },
+            action_taken: 'skip_duplicate'
+        });
+        return { skipped: true, reason: 'no_phone', contact_id: contato.id };
+    }
+
+    // Dedup: já enviamos mensagem deste trigger para este card dentro da janela?
+    if (dedupHours > 0) {
+        const since = new Date(Date.now() - dedupHours * 3600 * 1000).toISOString();
+        const { data: recentLog } = await supabaseClient
+            .from("cadence_event_log")
+            .select("id")
+            .eq("card_id", cardId)
+            .eq("event_type", 'entry_rule_message_sent')
+            .gte("created_at", since)
+            .contains("event_data", { trigger_id: trigger.id })
+            .limit(1);
+        if (recentLog && recentLog.length > 0) {
+            return { skipped: true, reason: 'deduped', within_hours: dedupHours };
+        }
+    }
+
+    // Config Echo
+    const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
+    const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
+    const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
+    const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
+
+    // Card pra variáveis
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("titulo")
+        .eq("id", cardId)
+        .single();
+
+    const firstName = (contato.nome || '').split(' ')[0] || '';
+    const renderVars = (s: string) => s
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
+
+    // Resolver phone_number_id (default = primeira linha ativa)
+    let resolvedPhoneId = phoneNumberId || defaultEchoPhoneId;
+    if (!resolvedPhoneId) {
+        const { data: linha } = await supabaseClient
+            .from("whatsapp_linha_config")
+            .select("phone_number_id")
+            .eq("ativo", true)
+            .limit(1)
+            .single();
+        resolvedPhoneId = linha?.phone_number_id || "";
+    }
+    if (!resolvedPhoneId) {
+        throw new Error("phone_number_id não pôde ser resolvido");
+    }
+
+    const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
+
+    let respData: any;
+    let messageBody: string;
+    let sendMode: 'hsm' | 'text';
+
+    if (hsmTemplateName) {
+        // HSM: template aprovado Meta. Formato nativo WhatsApp Cloud API
+        //   POST /send-template { to, phone_number_id, template_name, language, components: [...] }
+        const renderedParams = hsmParams.map(renderVars);
+        const components = renderedParams.length > 0
+            ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
+            : [];
+
+        const echoRes = await fetch(`${echoBase}/send-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+            body: JSON.stringify({
+                to: normalizedPhone,
+                phone_number_id: resolvedPhoneId,
+                template_name: hsmTemplateName,
+                language: hsmLanguage,
+                components,
+            }),
+        });
+        respData = await echoRes.json().catch(() => ({}));
+        if (!echoRes.ok) {
+            throw new Error(`Echo send-template failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 300)}`);
+        }
+        messageBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
+        sendMode = 'hsm';
+    } else {
+        // Texto livre: precisa janela 24h aberta (WhatsApp dropa se não)
+        let rawBody = corpo || '';
+        if (templateId) {
+            const { data: template } = await supabaseClient
+                .from('mensagem_templates')
+                .select('corpo, ia_prompt')
+                .eq('id', templateId)
+                .single();
+            rawBody = template?.corpo || template?.ia_prompt || '';
+        }
+        if (!rawBody) {
+            return { skipped: true, reason: 'empty_body' };
+        }
+        messageBody = renderVars(rawBody);
+
+        const echoRes = await fetch(echoApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+            body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
+        });
+        respData = await echoRes.json().catch(() => ({}));
+        if (!echoRes.ok) {
+            throw new Error(`Echo API failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+        }
+        sendMode = 'text';
+    }
+
+    // Echo já insere em whatsapp_messages quando aceita /send-message e /send-template.
+    // Evitamos duplicação: se veio message.id no response, ATUALIZAMOS essa linha com
+    // metadata de automação. Se não veio, inserimos nós mesmos (fallback).
+    const echoMessageId = respData?.message?.id || respData?.echo_response?.message?.id;
+    const automationMetadata = {
+        source: 'automation',
+        trigger_id: trigger.id,
+        trigger_name: trigger.name,
+        send_mode: sendMode,
+        hsm_template_name: hsmTemplateName || null,
+    };
+
+    if (echoMessageId) {
+        await supabaseClient.from('whatsapp_messages').update({
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: automationMetadata,
+        }).eq('id', echoMessageId);
+    } else {
+        await supabaseClient.from('whatsapp_messages').insert({
+            contact_id: contato.id,
+            card_id: cardId,
+            body: messageBody,
+            direction: 'outbound',
+            is_from_me: true,
+            type: sendMode === 'hsm' ? 'template' : 'text',
+            status: 'sent',
+            sender_phone: normalizedPhone,
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: { ...automationMetadata, echo_response: respData },
+        });
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        event_type: 'entry_rule_message_sent',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            template_id: templateId || null,
+            hsm_template_name: hsmTemplateName || null,
+            send_mode: sendMode,
+            contact_id: contato.id
+        },
+        action_taken: 'send_message',
+        action_result: respData
+    });
+
+    return { sent: true, contact_id: contato.id, response: respData };
+}
+
+// ----------------------------------------------------------------------------
+// change_stage: move card para outra etapa do pipeline
+// ----------------------------------------------------------------------------
+// trigger.action_config: { target_stage_id, motivo_perda_id? }
+async function executeChangeStageAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any
+) {
+    const config = trigger.action_config || {};
+    const targetStageId: string | undefined = config.target_stage_id;
+    const motivoPerdaId: string | null = config.motivo_perda_id || null;
+
+    if (!targetStageId) {
+        return { skipped: true, reason: 'no_target_stage' };
+    }
+
+    // Evitar no-op
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("id, pipeline_stage_id")
+        .eq("id", cardId)
+        .single();
+
+    if (!card) {
+        throw new Error(`Card not found: ${cardId}`);
+    }
+    if (card.pipeline_stage_id === targetStageId) {
+        return { skipped: true, reason: 'already_at_target_stage' };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+        pipeline_stage_id: targetStageId,
+        updated_at: new Date().toISOString(),
+    };
+    if (motivoPerdaId) updatePayload.motivo_perda_id = motivoPerdaId;
+
+    const { error: updErr } = await supabaseClient
+        .from("cards")
+        .update(updatePayload)
+        .eq("id", cardId);
+
+    if (updErr) {
+        throw new Error(`change_stage failed: ${updErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        event_type: 'entry_rule_stage_changed',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            from_stage_id: card.pipeline_stage_id,
+            to_stage_id: targetStageId
+        },
+        action_taken: 'change_stage',
+        action_result: { to_stage_id: targetStageId }
+    });
+
+    return { moved: true, from_stage_id: card.pipeline_stage_id, to_stage_id: targetStageId };
 }
 
 // ============================================================================

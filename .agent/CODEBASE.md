@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-12
 > **Trigger:** ALWAYS ON
-> **Stats:** 173 tabelas | 77 paginas | 133 hooks | 17 views | 507 components
+> **Stats:** 173 tabelas | 76 paginas | 134 hooks | 17 views | 505 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **133 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **134 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -197,6 +197,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
+| `useWhatsAppTemplates()` | `useWhatsAppTemplates.ts` |
 
 #### Calendar
 | Hook | File |
@@ -231,9 +232,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoCalcTripDate()` | `useAutoCalcTripDate.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
-| `useAutomacaoAprovacoes()` | `useAutomacaoAprovacoes.ts` |
 | `useAutomacaoLogs()` | `useAutomacaoLogs.ts` |
 | `useAutomacaoRegras()` | `useAutomacaoRegras.ts` |
+| `useAutomations()` | `useAutomations.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
@@ -377,7 +378,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **77 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **76 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -412,9 +413,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AiKnowledgeBasePage` | `src/pages/admin/AiKnowledgeBasePage.tsx` |
 | `AiSkillManagerPage` | `src/pages/admin/AiSkillManagerPage.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
-| `AutomacaoBuilderPage` | `src/pages/admin/AutomacaoBuilderPage.tsx` |
-| `AutomacaoListPage` | `src/pages/admin/AutomacaoListPage.tsx` |
-| `AutomacaoLogsPage` | `src/pages/admin/AutomacaoLogsPage.tsx` |
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
 | `CardAlertRulesPage` | `src/pages/admin/CardAlertRulesPage.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
@@ -432,6 +430,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |
 | `VendasMondePage` | `src/pages/admin/VendasMondePage.tsx` |
 | `WorkspaceGeneral` | `src/pages/admin/WorkspaceGeneral.tsx` |
+| `AutomationBuilderPage` | `src/pages/admin/automations/AutomationBuilderPage.tsx` |
+| `AutomationsListPage` | `src/pages/admin/automations/AutomationsListPage.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
