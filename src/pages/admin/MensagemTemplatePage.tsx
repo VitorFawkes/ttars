@@ -1,8 +1,36 @@
-import { useState } from 'react'
-import { useMensagemTemplates, type MensagemTemplate, type TemplateModo, type TemplateCategoria } from '@/hooks/useMensagemTemplates'
-import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
+/**
+ * MensagemTemplatePage — biblioteca de templates de mensagem (texto livre).
+ *
+ * Consumidos pelo builder de Automações quando o gestor escolhe o modo
+ * "Template salvo" (em oposição a HSM aprovado Meta). Também usado ad-hoc
+ * em chat/respostas.
+ *
+ * Versão simplificada pós-redesign (2026-04):
+ *   - Só modo 'template_fixo' (corpo + variáveis). Modos 'template_ia' e
+ *     'ia_generativa' foram deprecated (0 uso em produção). Se templates
+ *     legados ainda existirem com esses modos, a página os exibe em
+ *     readonly e sugere migração.
+ *   - Flag HSM opcional (para templates aprovados pela Meta). Marca-los
+ *     aqui serve só de referência — quem efetivamente envia HSM é o
+ *     builder de Automações via Echo API.
+ *   - Categorias: só as com uso real (boas_vindas, lembrete, follow_up,
+ *     pos_venda, aniversario, outro). Removidas: nurturing, reativacao,
+ *     aviso, confirmacao.
+ */
+
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import {
+  MessageSquare, Plus, Pencil, Trash2, Copy, ShieldCheck, Search,
+} from 'lucide-react'
+
+import {
+  useMensagemTemplates,
+  type MensagemTemplate,
+  type TemplateCategoria,
+} from '@/hooks/useMensagemTemplates'
+import AdminPageHeader from '@/components/admin/ui/AdminPageHeader'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,76 +39,27 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/utils'
-import { MessageSquare, Plus, Pencil, Trash2, Copy, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
-import { toast } from 'sonner'
 
-const CATEGORIAS = [
-  { value: 'follow_up', label: 'Follow-up' },
-  { value: 'nurturing', label: 'Nurturing' },
-  { value: 'lembrete', label: 'Lembrete' },
-  { value: 'reativacao', label: 'Reativação' },
-  { value: 'pos_venda', label: 'Pós-venda' },
-  { value: 'aviso', label: 'Aviso' },
+const CATEGORIAS: Array<{ value: TemplateCategoria; label: string }> = [
   { value: 'boas_vindas', label: 'Boas-vindas' },
-  { value: 'confirmacao', label: 'Confirmação' },
+  { value: 'lembrete', label: 'Lembrete' },
+  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'pos_venda', label: 'Pós-venda' },
   { value: 'aniversario', label: 'Aniversário' },
   { value: 'outro', label: 'Outro' },
 ]
 
-const CATEGORIA_MAP: Record<TemplateCategoria, string> = {
-  follow_up: 'Follow-up',
-  nurturing: 'Nurturing',
-  lembrete: 'Lembrete',
-  reativacao: 'Reativação',
-  pos_venda: 'Pós-venda',
-  aviso: 'Aviso',
-  boas_vindas: 'Boas-vindas',
-  confirmacao: 'Confirmação',
-  aniversario: 'Aniversário',
-  outro: 'Outro',
-}
+const CATEGORIA_LABEL: Record<string, string> = Object.fromEntries(
+  CATEGORIAS.map((c) => [c.value, c.label])
+)
 
-const MODO_MAP: Record<TemplateModo, string> = {
-  template_fixo: 'Fixo',
-  template_ia: 'IA Assistida',
-  ia_generativa: 'IA Generativa',
-}
-
-const MODO_BADGES: Record<TemplateModo, 'outline' | 'default' | 'secondary'> = {
-  template_fixo: 'outline',
-  template_ia: 'default',
-  ia_generativa: 'secondary',
-}
-
-const VARIABLES_REFERENCE: Record<string, string[]> = {
-  Contato: ['{{contact.nome}}', '{{contact.sobrenome}}', '{{contact.email}}'],
-  Card: ['{{card.titulo}}', '{{card.destino}}', '{{card.valor}}', '{{card.data_viagem}}'],
-  Agente: ['{{agent.nome}}', '{{agent.primeiro_nome}}', '{{agent.telefone}}'],
-  Sistema: ['{{hoje}}', '{{dia_semana}}'],
-  Proposta: ['{{proposta.link}}', '{{proposta.valor_total}}'],
-}
+const VARIABLES_HINT = ['{{contact.nome}}', '{{contact.primeiro_nome}}', '{{card.titulo}}', '{{card.destino}}']
 
 interface FormState {
   id?: string
   nome: string
   categoria: TemplateCategoria
-  modo: TemplateModo
   corpo: string
-  ia_prompt: string
-  ia_contexto_config: {
-    conversa: boolean
-    conversa_limite: number
-    briefing: boolean
-    observacoes: boolean
-    proposta: boolean
-    voos: boolean
-    historico_viagens: boolean
-  }
-  ia_restricoes: {
-    tom: 'informal_caloroso' | 'profissional' | 'urgente' | ''
-    max_caracteres: number
-    proibido: string
-  }
   is_hsm: boolean
   hsm_template_name: string
   hsm_namespace: string
@@ -89,678 +68,351 @@ interface FormState {
 const DEFAULT_FORM: FormState = {
   nome: '',
   categoria: 'outro',
-  modo: 'template_fixo',
   corpo: '',
-  ia_prompt: '',
-  ia_contexto_config: {
-    conversa: false,
-    conversa_limite: 30,
-    briefing: false,
-    observacoes: false,
-    proposta: false,
-    voos: false,
-    historico_viagens: false,
-  },
-  ia_restricoes: {
-    tom: '',
-    max_caracteres: 1000,
-    proibido: '',
-  },
   is_hsm: false,
   hsm_template_name: '',
   hsm_namespace: '',
 }
 
+function TemplateCard({
+  template,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  template: MensagemTemplate
+  onEdit: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+}) {
+  const categoriaLabel = CATEGORIA_LABEL[template.categoria] || template.categoria
+  const isLegacyIA = template.modo !== 'template_fixo'
+
+  return (
+    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-slate-900 truncate">{template.nome}</h3>
+            {template.is_hsm && (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs gap-1">
+                <ShieldCheck className="w-3 h-3" />
+                HSM
+              </Badge>
+            )}
+            {isLegacyIA && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+                Legado IA
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">{categoriaLabel}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Button variant="ghost" size="sm" onClick={onEdit} title="Editar">
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDuplicate} title="Duplicar">
+            <Copy className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete} title="Excluir" className="text-red-600">
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {template.corpo ? (
+        <p className="text-sm text-slate-600 line-clamp-3 whitespace-pre-wrap">{template.corpo}</p>
+      ) : (
+        <p className="text-sm text-slate-400 italic">Sem corpo configurado</p>
+      )}
+
+      {template.is_hsm && template.hsm_template_name && (
+        <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+          <code className="bg-slate-100 px-1.5 py-0.5 rounded">{template.hsm_template_name}</code>
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function MensagemTemplatePage() {
-  const { templates, isLoading, error, create, update, remove } = useMensagemTemplates()
+  const { templates, isLoading, create, update, remove } = useMensagemTemplates()
+  const [search, setSearch] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<TemplateCategoria | 'todos'>('todos')
-  const [filterModo, setFilterModo] = useState<TemplateModo | 'todos'>('todos')
   const [isEditing, setIsEditing] = useState(false)
   const [form, setForm] = useState<FormState>(DEFAULT_FORM)
-  const [expandedIA, setExpandedIA] = useState(false)
-  const [expandedRestricts, setExpandedRestricts] = useState(false)
 
-  const filteredTemplates = templates.filter((t: MensagemTemplate) => {
-    if (filterCategoria !== 'todos' && t.categoria !== filterCategoria) return false
-    if (filterModo !== 'todos' && t.modo !== filterModo) return false
-    return true
-  })
+  const filtered = useMemo(() => {
+    return templates.filter((t) => {
+      if (filterCategoria !== 'todos' && t.categoria !== filterCategoria) return false
+      if (search && !t.nome.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+  }, [templates, search, filterCategoria])
 
-  const fixoCount = templates.filter((t: MensagemTemplate) => t.modo === 'template_fixo').length
-  const iaCount = templates.filter((t: MensagemTemplate) => t.modo === 'template_ia' || t.modo === 'ia_generativa').length
+  const stats = useMemo(
+    () => [
+      { label: 'Total', value: templates.length, color: 'blue' as const },
+      { label: 'HSM', value: templates.filter((t) => t.is_hsm).length, color: 'green' as const },
+    ],
+    [templates]
+  )
 
-  const handleOpenCreate = (): void => {
+  const handleOpenCreate = () => {
     setForm(DEFAULT_FORM)
-    setExpandedIA(false)
-    setExpandedRestricts(false)
     setIsEditing(true)
   }
 
-  const handleOpenEdit = (template: MensagemTemplate): void => {
+  const handleOpenEdit = (template: MensagemTemplate) => {
     setForm({
       id: template.id,
       nome: template.nome,
       categoria: template.categoria,
-      modo: template.modo,
-      corpo: template.corpo || '',
-      ia_prompt: template.ia_prompt || '',
-      ia_contexto_config: {
-        conversa: (template.ia_contexto_config?.conversa as boolean) || false,
-        conversa_limite: (template.ia_contexto_config?.conversa_limite as number) || 30,
-        briefing: (template.ia_contexto_config?.briefing as boolean) || false,
-        observacoes: (template.ia_contexto_config?.observacoes as boolean) || false,
-        proposta: (template.ia_contexto_config?.proposta as boolean) || false,
-        voos: (template.ia_contexto_config?.voos as boolean) || false,
-        historico_viagens: (template.ia_contexto_config?.historico_viagens as boolean) || false,
-      },
-      ia_restricoes: {
-        tom: (template.ia_restricoes?.tom as 'informal_caloroso' | 'profissional' | 'urgente' | '') || '',
-        max_caracteres: (template.ia_restricoes?.max_caracteres as number) || 1000,
-        proibido: (template.ia_restricoes?.proibido as string) || '',
-      },
+      corpo: template.corpo || template.ia_prompt || '',
       is_hsm: template.is_hsm || false,
       hsm_template_name: template.hsm_template_name || '',
       hsm_namespace: template.hsm_namespace || '',
     })
-    setExpandedIA(template.modo !== 'template_fixo')
     setIsEditing(true)
   }
 
-  const handleSave = async (): Promise<void> => {
+  const handleDuplicate = (template: MensagemTemplate) => {
+    setForm({
+      nome: `${template.nome} (cópia)`,
+      categoria: template.categoria,
+      corpo: template.corpo || '',
+      is_hsm: template.is_hsm || false,
+      hsm_template_name: template.hsm_template_name || '',
+      hsm_namespace: template.hsm_namespace || '',
+    })
+    setIsEditing(true)
+  }
+
+  const handleDelete = async (template: MensagemTemplate) => {
+    if (!window.confirm(`Excluir o template "${template.nome}"?`)) return
+    try {
+      await remove.mutateAsync(template.id)
+      toast.success('Template excluído')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir')
+    }
+  }
+
+  const handleSave = async () => {
     if (!form.nome.trim()) {
-      toast.error('Nome é obrigatório')
+      toast.error('Dê um nome ao template')
+      return
+    }
+    if (!form.corpo.trim()) {
+      toast.error('Escreva o conteúdo do template')
+      return
+    }
+    if (form.is_hsm && !form.hsm_template_name.trim()) {
+      toast.error('Template HSM exige nome do template aprovado Meta')
       return
     }
 
-    const payload: any = {
-      nome: form.nome,
+    const payload = {
+      nome: form.nome.trim(),
       categoria: form.categoria,
-      modo: form.modo,
+      modo: 'template_fixo' as const,
+      corpo: form.corpo,
       is_hsm: form.is_hsm,
-      hsm_language: 'pt_BR',
-    }
-
-    if (form.modo === 'template_fixo') {
-      if (!form.corpo.trim()) {
-        toast.error('Conteúdo da mensagem é obrigatório para templates fixos')
-        return
-      }
-      payload.corpo = form.corpo
-    } else if (form.modo === 'template_ia') {
-      payload.corpo = form.corpo
-      payload.ia_prompt = form.ia_prompt
-      payload.ia_contexto_config = form.ia_contexto_config
-      payload.ia_restricoes = form.ia_restricoes
-    } else if (form.modo === 'ia_generativa') {
-      if (!form.ia_prompt.trim()) {
-        toast.error('Prompt da IA é obrigatório para templates generativos')
-        return
-      }
-      payload.ia_prompt = form.ia_prompt
-      payload.ia_contexto_config = form.ia_contexto_config
-      payload.ia_restricoes = form.ia_restricoes
-    }
-
-    if (form.is_hsm) {
-      if (!form.hsm_template_name.trim()) {
-        toast.error('Nome do template HSM é obrigatório')
-        return
-      }
-      payload.hsm_template_name = form.hsm_template_name
-      payload.hsm_namespace = form.hsm_namespace
+      hsm_template_name: form.is_hsm ? form.hsm_template_name : null,
+      hsm_namespace: form.is_hsm ? form.hsm_namespace : null,
     }
 
     try {
       if (form.id) {
         await update.mutateAsync({ id: form.id, ...payload })
-        toast.success('Template atualizado com sucesso')
+        toast.success('Template atualizado')
       } else {
         await create.mutateAsync(payload)
-        toast.success('Template criado com sucesso')
+        toast.success('Template criado')
       }
       setIsEditing(false)
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar template')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
     }
-  }
-
-  const handleDelete = async (id: string, nome: string): Promise<void> => {
-    if (window.confirm(`Tem certeza que deseja deletar "${nome}"?`)) {
-      try {
-        await remove.mutateAsync(id)
-        toast.success('Template deletado com sucesso')
-      } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao deletar template')
-      }
-    }
-  }
-
-  const handleDuplicate = (template: MensagemTemplate): void => {
-    setForm({
-      nome: `${template.nome} (cópia)`,
-      categoria: template.categoria,
-      modo: template.modo,
-      corpo: template.corpo || '',
-      ia_prompt: template.ia_prompt || '',
-      ia_contexto_config: {
-        conversa: (template.ia_contexto_config?.conversa as boolean) ?? false,
-        conversa_limite: (template.ia_contexto_config?.conversa_limite as number) ?? 30,
-        briefing: (template.ia_contexto_config?.briefing as boolean) ?? false,
-        observacoes: (template.ia_contexto_config?.observacoes as boolean) ?? false,
-        proposta: (template.ia_contexto_config?.proposta as boolean) ?? false,
-        voos: (template.ia_contexto_config?.voos as boolean) ?? false,
-        historico_viagens: (template.ia_contexto_config?.historico_viagens as boolean) ?? false,
-      },
-      ia_restricoes: {
-        tom: (template.ia_restricoes?.tom as 'informal_caloroso' | 'profissional' | 'urgente' | '') || '',
-        max_caracteres: (template.ia_restricoes?.max_caracteres as number) || 1000,
-        proibido: (template.ia_restricoes?.proibido as string) || '',
-      },
-      is_hsm: template.is_hsm || false,
-      hsm_template_name: template.hsm_template_name || '',
-      hsm_namespace: template.hsm_namespace || '',
-    })
-    setExpandedIA(template.modo !== 'template_fixo')
-    setIsEditing(true)
-  }
-
-  const getPreview = (template: MensagemTemplate): string => {
-    const text = template.modo === 'template_fixo' ? template.corpo : template.ia_prompt
-    return text ? text.substring(0, 100) + (text.length > 100 ? '...' : '') : '(vazio)'
-  }
-
-  const formatDate = (date: string): string => {
-    return new Date(date).toLocaleDateString('pt-BR')
   }
 
   return (
     <>
       <AdminPageHeader
         title="Templates de Mensagem"
-        subtitle="Gerencie templates de WhatsApp para automações"
+        subtitle="Biblioteca de textos prontos usados nas automações e nas respostas manuais"
         icon={<MessageSquare className="w-5 h-5" />}
-        stats={[
-          { label: 'Total', value: templates.length, color: 'blue' },
-          { label: 'Fixos', value: fixoCount, color: 'gray' },
-          { label: 'IA', value: iaCount, color: 'purple' },
-        ]}
+        stats={stats}
         actions={
           <Button onClick={handleOpenCreate} className="gap-2">
             <Plus className="w-4 h-4" />
-            Novo Template
+            Novo template
           </Button>
         }
       />
 
-      {/* Filters */}
-      <div className="flex gap-3 mb-6">
-        <Select
-          value={filterCategoria}
-          onChange={(value: string) => setFilterCategoria(value as TemplateCategoria | 'todos')}
-          options={[
-            { value: 'todos', label: 'Todas as categorias' },
-            ...CATEGORIAS,
-          ]}
-        />
-        <Select
-          value={filterModo}
-          onChange={(value: string) => setFilterModo(value as TemplateModo | 'todos')}
-          options={[
-            { value: 'todos', label: 'Todos os modos' },
-            { value: 'template_fixo', label: 'Fixo' },
-            { value: 'template_ia', label: 'IA Assistida' },
-            { value: 'ia_generativa', label: 'IA Generativa' },
-          ]}
-        />
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            placeholder="Buscar template..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <button
+            onClick={() => setFilterCategoria('todos')}
+            className={cn(
+              'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors whitespace-nowrap',
+              filterCategoria === 'todos'
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            )}
+          >
+            Todas
+          </button>
+          {CATEGORIAS.map((c) => (
+            <button
+              key={c.value}
+              onClick={() => setFilterCategoria(c.value)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors whitespace-nowrap',
+                filterCategoria === c.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Loading state */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-slate-500">Carregando templates...</div>
+      {/* Lista */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />
+          ))}
         </div>
-      )}
-
-      {/* Error state */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 text-red-700">
-          Erro ao carregar templates. Tente novamente.
+      ) : filtered.length === 0 ? (
+        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+          <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-600 font-medium">
+            {templates.length === 0 ? 'Nenhum template criado' : 'Nenhum resultado'}
+          </p>
+          <p className="text-sm text-slate-500 mt-1">
+            {templates.length === 0
+              ? 'Crie o primeiro template pra usar em automações'
+              : 'Ajuste a busca ou a categoria'}
+          </p>
+          {templates.length === 0 && (
+            <Button onClick={handleOpenCreate} className="mt-6 gap-2">
+              <Plus className="w-4 h-4" />
+              Novo template
+            </Button>
+          )}
         </div>
-      )}
-
-      {/* Empty state */}
-      {!isLoading && filteredTemplates.length === 0 && (
-        <Card className="text-center py-16">
-          <CardContent className="flex flex-col items-center gap-4">
-            <MessageSquare className="w-12 h-12 text-slate-300" />
-            <p className="text-slate-500">Nenhum template encontrado</p>
-            <Button onClick={handleOpenCreate}>Criar primeiro template</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Grid */}
-      {!isLoading && filteredTemplates.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredTemplates.map((template: MensagemTemplate) => (
-            <Card key={template.id} className="flex flex-col">
-              <CardContent className="p-4 flex-1 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900">{template.nome}</h3>
-                  <Badge variant={MODO_BADGES[template.modo]}>
-                    {MODO_MAP[template.modo]}
-                  </Badge>
-                </div>
-
-                <Badge variant="outline">{CATEGORIA_MAP[template.categoria]}</Badge>
-
-                <p className="text-sm text-slate-600 line-clamp-2 flex-1">
-                  {getPreview(template)}
-                </p>
-
-                {template.is_hsm && (
-                  <div className="text-xs text-indigo-600 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    HSM Template
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <p className="text-xs text-slate-500">{formatDate(template.created_at)}</p>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleDuplicate(template)}
-                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                      title="Duplicar"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenEdit(template)}
-                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(template.id, template.nome)}
-                      className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
-                      title="Deletar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map((t) => (
+            <TemplateCard
+              key={t.id}
+              template={t}
+              onEdit={() => handleOpenEdit(t)}
+              onDuplicate={() => handleDuplicate(t)}
+              onDelete={() => handleDelete(t)}
+            />
           ))}
         </div>
       )}
 
-      {/* Dialog */}
+      {/* Modal de edit/create */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>
-              {form.id ? 'Editar Template' : 'Novo Template'}
-            </DialogTitle>
+            <DialogTitle>{form.id ? 'Editar template' : 'Novo template'}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Nome */}
+          <div className="space-y-4 py-2">
             <div>
-              <Label htmlFor="nome" className="mb-2">Nome *</Label>
+              <Label>Nome</Label>
               <Input
-                id="nome"
                 value={form.nome}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, nome: e.target.value })}
-                placeholder="Ex: Follow-up após proposta"
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                placeholder="Ex: Boas-vindas lead novo"
               />
             </div>
 
-            {/* Categoria */}
             <div>
-              <Label htmlFor="categoria" className="mb-2">Categoria</Label>
+              <Label>Categoria</Label>
               <Select
                 value={form.categoria}
-                onChange={(value: string) => setForm({ ...form, categoria: value as TemplateCategoria })}
+                onChange={(v) => setForm((f) => ({ ...f, categoria: v as TemplateCategoria }))}
                 options={CATEGORIAS}
               />
             </div>
 
-            {/* Modo */}
             <div>
-              <Label className="mb-3 block">Modo de Template *</Label>
-              <div className="flex gap-2">
-                {(['template_fixo', 'template_ia', 'ia_generativa'] as TemplateModo[]).map((modo: TemplateModo) => (
-                  <button
-                    key={modo}
-                    onClick={() => {
-                      setForm({ ...form, modo })
-                      if (modo === 'template_fixo') setExpandedIA(false)
-                    }}
-                    className={cn(
-                      'flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-colors border-2',
-                      form.modo === modo
-                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                    )}
-                  >
-                    {MODO_MAP[modo]}
-                  </button>
+              <Label>Conteúdo</Label>
+              <Textarea
+                value={form.corpo}
+                onChange={(e) => setForm((f) => ({ ...f, corpo: e.target.value }))}
+                rows={6}
+                placeholder="Oi {{contact.primeiro_nome}}! ..."
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Variáveis disponíveis:{' '}
+                {VARIABLES_HINT.map((v, i) => (
+                  <span key={v}>
+                    <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">{v}</code>
+                    {i < VARIABLES_HINT.length - 1 && ' '}
+                  </span>
                 ))}
-              </div>
+              </p>
             </div>
 
-            {/* Template fixo */}
-            {form.modo === 'template_fixo' && (
-              <div>
-                <Label htmlFor="corpo" className="mb-2">Conteúdo da Mensagem *</Label>
-                <Textarea
-                  id="corpo"
-                  value={form.corpo}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, corpo: e.target.value })}
-                  placeholder="Use {{contact.nome}}, {{card.titulo}}, {{agent.nome}} etc."
-                  rows={8}
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-slate-500 mt-2">Use variáveis com {'{{ }}'} — veja referência abaixo</p>
-              </div>
-            )}
-
-            {/* Template IA */}
-            {form.modo === 'template_ia' && (
-              <div className="space-y-4">
+            <div className="pt-4 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="corpo_ia" className="mb-2">Esqueleto da Mensagem</Label>
-                  <Textarea
-                    id="corpo_ia"
-                    value={form.corpo}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, corpo: e.target.value })}
-                    placeholder="Estrutura base que a IA preencherá"
-                    rows={6}
-                    className="font-mono text-sm"
-                  />
+                  <Label className="flex items-center gap-1 mb-0">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                    É template HSM aprovado pela Meta?
+                  </Label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Marque se esse template foi aprovado no WABA e pode ser usado fora da janela 24h.
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="ia_prompt" className="mb-2">Prompt da IA</Label>
-                  <Textarea
-                    id="ia_prompt"
-                    value={form.ia_prompt}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, ia_prompt: e.target.value })}
-                    placeholder="Instruções para a IA completar a mensagem"
-                    rows={6}
-                    className="font-mono text-sm"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* IA Generativa */}
-            {form.modo === 'ia_generativa' && (
-              <div>
-                <Label htmlFor="ia_prompt_gen" className="mb-2">Prompt da IA *</Label>
-                <Textarea
-                  id="ia_prompt_gen"
-                  value={form.ia_prompt}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, ia_prompt: e.target.value })}
-                  placeholder="Instruções completas para gerar a mensagem"
-                  rows={10}
-                  className="font-mono text-sm"
-                />
-              </div>
-            )}
-
-            {/* IA Sections */}
-            {form.modo !== 'template_fixo' && (
-              <div className="space-y-3">
-                {/* Contexto */}
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setExpandedIA(!expandedIA)}
-                    className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between font-medium text-slate-900 transition-colors"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-indigo-600" />
-                      Contexto da IA
-                    </span>
-                    {expandedIA ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {expandedIA && (
-                    <div className="p-4 space-y-4 border-t border-slate-200 bg-slate-50">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="conversa" className="text-sm">Histórico de Conversa</Label>
-                        <Switch
-                          id="conversa"
-                          checked={form.ia_contexto_config.conversa}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, conversa: checked },
-                            })
-                          }
-                        />
-                      </div>
-                      {form.ia_contexto_config.conversa && (
-                        <div>
-                          <Label htmlFor="conversa_limite" className="text-sm">Últimas N mensagens</Label>
-                          <Input
-                            id="conversa_limite"
-                            type="number"
-                            value={form.ia_contexto_config.conversa_limite}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                              setForm({
-                                ...form,
-                                ia_contexto_config: {
-                                  ...form.ia_contexto_config,
-                                  conversa_limite: parseInt(e.target.value) || 30,
-                                },
-                              })
-                            }
-                            min="1"
-                            max="100"
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between pt-2">
-                        <Label htmlFor="briefing" className="text-sm">Briefing da Proposta</Label>
-                        <Switch
-                          id="briefing"
-                          checked={form.ia_contexto_config.briefing}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, briefing: checked },
-                            })
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="observacoes" className="text-sm">Observações do Card</Label>
-                        <Switch
-                          id="observacoes"
-                          checked={form.ia_contexto_config.observacoes}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, observacoes: checked },
-                            })
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="proposta" className="text-sm">Detalhes da Proposta</Label>
-                        <Switch
-                          id="proposta"
-                          checked={form.ia_contexto_config.proposta}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, proposta: checked },
-                            })
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="voos" className="text-sm">Detalhes de Voos</Label>
-                        <Switch
-                          id="voos"
-                          checked={form.ia_contexto_config.voos}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, voos: checked },
-                            })
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="historico_viagens" className="text-sm">Histórico de Viagens</Label>
-                        <Switch
-                          id="historico_viagens"
-                          checked={form.ia_contexto_config.historico_viagens}
-                          onCheckedChange={(checked: boolean) =>
-                            setForm({
-                              ...form,
-                              ia_contexto_config: { ...form.ia_contexto_config, historico_viagens: checked },
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Restrições */}
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setExpandedRestricts(!expandedRestricts)}
-                    className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between font-medium text-slate-900 transition-colors"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-indigo-600" />
-                      Restrições
-                    </span>
-                    {expandedRestricts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {expandedRestricts && (
-                    <div className="p-4 space-y-4 border-t border-slate-200 bg-slate-50">
-                      <div>
-                        <Label htmlFor="tom" className="mb-2 block">Tom da Mensagem</Label>
-                        <Select
-                          value={form.ia_restricoes.tom}
-                          onChange={(value: string) =>
-                            setForm({
-                              ...form,
-                              ia_restricoes: { ...form.ia_restricoes, tom: value as any },
-                            })
-                          }
-                          options={[
-                            { value: '', label: 'Padrão' },
-                            { value: 'informal_caloroso', label: 'Informal e Caloroso' },
-                            { value: 'profissional', label: 'Profissional' },
-                            { value: 'urgente', label: 'Urgente' },
-                          ]}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="max_caracteres" className="mb-2">Máximo de Caracteres</Label>
-                        <Input
-                          id="max_caracteres"
-                          type="number"
-                          value={form.ia_restricoes.max_caracteres}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            setForm({
-                              ...form,
-                              ia_restricoes: {
-                                ...form.ia_restricoes,
-                                max_caracteres: parseInt(e.target.value) || 1000,
-                              },
-                            })
-                          }
-                          min="50"
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="proibido" className="mb-2">Palavras Proibidas (separadas por vírgula)</Label>
-                        <Input
-                          id="proibido"
-                          value={form.ia_restricoes.proibido}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            setForm({
-                              ...form,
-                              ia_restricoes: { ...form.ia_restricoes, proibido: e.target.value },
-                            })
-                          }
-                          placeholder="Ex: urgente, rápido, agora"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* HSM */}
-            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <div className="flex items-center justify-between mb-4">
-                <Label htmlFor="is_hsm" className="text-sm">Ativar como Template HSM (WhatsApp Verificado)</Label>
                 <Switch
-                  id="is_hsm"
                   checked={form.is_hsm}
-                  onCheckedChange={(checked: boolean) => setForm({ ...form, is_hsm: checked })}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, is_hsm: v }))}
                 />
               </div>
 
               {form.is_hsm && (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="hsm_template_name" className="mb-2 block text-sm">Nome do Template HSM *</Label>
+                    <Label>Nome do template HSM</Label>
                     <Input
-                      id="hsm_template_name"
                       value={form.hsm_template_name}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, hsm_template_name: e.target.value })}
-                      placeholder="Ex: welcome_template"
+                      onChange={(e) => setForm((f) => ({ ...f, hsm_template_name: e.target.value }))}
+                      placeholder="wt_primeiro_contato001"
                     />
                   </div>
-
                   <div>
-                    <Label htmlFor="hsm_namespace" className="mb-2 block text-sm">Namespace</Label>
+                    <Label>Namespace (opcional)</Label>
                     <Input
-                      id="hsm_namespace"
                       value={form.hsm_namespace}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, hsm_namespace: e.target.value })}
-                      placeholder="Ex: default"
+                      onChange={(e) => setForm((f) => ({ ...f, hsm_namespace: e.target.value }))}
+                      placeholder="(em branco se não souber)"
                     />
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Variables Reference */}
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-              <h4 className="font-semibold text-indigo-900 text-sm mb-3">Variáveis Disponíveis</h4>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(VARIABLES_REFERENCE).map(([category, vars]: [string, string[]]) => (
-                  <div key={category}>
-                    <p className="text-xs font-medium text-indigo-700 mb-2">{category}</p>
-                    <ul className="space-y-1">
-                      {vars.map((v: string) => (
-                        <li key={v} className="text-xs text-indigo-600 font-mono bg-white px-2 py-1 rounded border border-indigo-100">
-                          {v}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -768,11 +420,8 @@ export default function MensagemTemplatePage() {
             <Button variant="outline" onClick={() => setIsEditing(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={create.isPending || update.isPending}
-            >
-              {form.id ? 'Atualizar' : 'Criar'} Template
+            <Button onClick={handleSave}>
+              {form.id ? 'Salvar' : 'Criar template'}
             </Button>
           </DialogFooter>
         </DialogContent>

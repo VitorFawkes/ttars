@@ -191,10 +191,16 @@ export default function AutomationsListPage() {
         icon={<Zap className="w-5 h-5" />}
         stats={stats}
         actions={
-          <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Nova automação
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate('/settings/automations/monitor')} className="gap-2">
+              <Activity className="w-4 h-4" />
+              Monitor
+            </Button>
+            <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nova automação
+            </Button>
+          </div>
         }
       />
 

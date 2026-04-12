@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Zap, MessageSquare, CheckSquare, ArrowRightLeft, Layers,
-  Sparkles, Check, ShieldCheck, AlertTriangle,
+  Sparkles, Check, ShieldCheck, AlertTriangle, PlayCircle,
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
@@ -580,6 +580,215 @@ function StartCadenceEditor({
   )
 }
 
+interface SimulateResult {
+  action_type: string
+  card?: { id: string; titulo: string } | null
+  contact?: { id: string; nome: string; telefone: string | null } | null
+  warnings?: string[]
+  send_mode?: 'hsm' | 'text'
+  hsm_template_name?: string
+  rendered_params?: string[]
+  rendered_body?: string
+  target_stage?: { id: string; nome: string }
+  tasks?: Array<{ titulo: string; tipo: string; assign_to: string }>
+  cadence?: { id: string; name: string; description: string | null }
+}
+
+function SimulatePanel({
+  form,
+  currentProduct,
+}: {
+  form: FormState
+  currentProduct: string | null | undefined
+}) {
+  const [recentCards, setRecentCards] = useState<Array<{ id: string; titulo: string; stage?: string }>>([])
+  const [selectedCardId, setSelectedCardId] = useState<string>('')
+  const [result, setResult] = useState<SimulateResult | null>(null)
+  const [running, setRunning] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from('cards')
+        .select('id, titulo, pipeline_stages:pipeline_stage_id(nome)')
+        .order('created_at', { ascending: false })
+        .limit(10)
+      if (currentProduct) q = q.eq('produto', currentProduct)
+      const { data } = await q
+      setRecentCards(
+        (data || []).map((c: { id: string; titulo: string; pipeline_stages?: { nome: string } | null }) => ({
+          id: c.id,
+          titulo: c.titulo,
+          stage: c.pipeline_stages?.nome,
+        }))
+      )
+    }
+    load()
+  }, [currentProduct])
+
+  const runSimulation = async () => {
+    if (!selectedCardId) {
+      toast.error('Escolha um card pra simular')
+      return
+    }
+    setRunning(true)
+    setResult(null)
+    try {
+      const taskConfigs = form.action_type === 'create_task' ? [{
+        titulo: form.task_title,
+        tipo: form.task_tipo,
+        assign_to: form.task_assign_to,
+        assign_to_user_id: form.task_assign_to_user_id,
+      }] : []
+      const actionConfig: Record<string, unknown> = {}
+      if (form.action_type === 'send_message') {
+        if (form.message_mode === 'hsm' && form.hsm_template_name) {
+          actionConfig.hsm_template_name = form.hsm_template_name
+          actionConfig.hsm_language = form.hsm_language
+          actionConfig.hsm_params = form.hsm_params
+        } else if (form.message_mode === 'template' && form.template_id) {
+          actionConfig.template_id = form.template_id
+        } else if (form.message_mode === 'custom' && form.message_body.trim()) {
+          actionConfig.corpo = form.message_body.trim()
+        }
+      }
+      if (form.action_type === 'change_stage') actionConfig.target_stage_id = form.target_stage_id
+
+      const { data, error } = await supabase.functions.invoke('cadence-engine', {
+        body: {
+          action: 'simulate_automation',
+          card_id: selectedCardId,
+          trigger: {
+            name: form.name,
+            action_type: form.action_type,
+            action_config: actionConfig,
+            task_configs: taskConfigs,
+            target_template_id: form.target_cadence_template_id,
+          },
+        },
+      })
+      if (error) throw error
+      setResult(data as SimulateResult)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro na simulação')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+            <PlayCircle className="w-4 h-4 text-indigo-600" />
+            Simular antes de ativar
+          </h3>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Escolha um card e veja o que a automação faria. <strong>Nada é enviado ou alterado.</strong>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Select
+          value={selectedCardId}
+          onChange={setSelectedCardId}
+          options={[
+            { value: '', label: 'Selecione um card...' },
+            ...recentCards.map((c) => ({ value: c.id, label: c.stage ? `${c.titulo} — ${c.stage}` : c.titulo })),
+          ]}
+        />
+        <Button onClick={runSimulation} disabled={running || !selectedCardId}>
+          {running ? 'Simulando...' : 'Simular'}
+        </Button>
+      </div>
+
+      {result && (
+        <div className="pt-4 border-t border-slate-200 space-y-3">
+          {(result.warnings?.length ?? 0) > 0 && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <ul className="text-sm text-amber-900 space-y-0.5 list-disc list-inside">
+                {result.warnings!.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <div className="text-sm space-y-1">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Destinatário</p>
+            {result.contact ? (
+              <p className="text-slate-700">
+                {result.contact.nome}
+                {result.contact.telefone && <span className="text-slate-500 ml-2">({result.contact.telefone})</span>}
+              </p>
+            ) : (
+              <p className="text-slate-400 italic">Sem contato</p>
+            )}
+          </div>
+
+          {result.action_type === 'send_message' && result.send_mode === 'hsm' && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Template HSM</p>
+              <p className="text-sm text-slate-700">
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded">{result.hsm_template_name}</code>
+              </p>
+              {(result.rendered_params?.length ?? 0) > 0 && (
+                <ul className="text-xs text-slate-600 mt-2 space-y-0.5">
+                  {result.rendered_params!.map((p, i) => (
+                    <li key={i}>
+                      <code className="bg-slate-100 px-1 py-0.5 rounded">{`{{${i + 1}}}`}</code>
+                      <span className="ml-2">→ "{p}"</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {result.action_type === 'send_message' && result.send_mode === 'text' && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Mensagem renderizada</p>
+              <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded p-3 whitespace-pre-wrap">
+                {result.rendered_body || <span className="text-slate-400 italic">(vazia)</span>}
+              </div>
+            </div>
+          )}
+
+          {result.action_type === 'change_stage' && result.target_stage && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Etapa alvo</p>
+              <p className="text-sm text-slate-700">{result.target_stage.nome}</p>
+            </div>
+          )}
+
+          {result.action_type === 'create_task' && (result.tasks?.length ?? 0) > 0 && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Tarefa(s) que seria(m) criada(s)</p>
+              <ul className="text-sm text-slate-700 space-y-1">
+                {result.tasks!.map((t, i) => (
+                  <li key={i}>
+                    <strong>{t.titulo}</strong> <span className="text-slate-500">({t.tipo} → {t.assign_to})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.action_type === 'start_cadence' && result.cadence && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Cadência</p>
+              <p className="text-sm text-slate-700">{result.cadence.name}</p>
+              {result.cadence.description && <p className="text-xs text-slate-500 mt-1">{result.cadence.description}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventConfigEditor({
   form, setForm, stages,
 }: {
@@ -981,6 +1190,8 @@ export default function AutomationBuilderPage() {
             </div>
           </div>
         </div>
+
+        <SimulatePanel form={form} currentProduct={currentProduct} />
 
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={() => setStep('editor')}>
