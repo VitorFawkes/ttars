@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input'
 import { Users, Loader2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useProducts } from '@/hooks/useProducts'
 interface CreateGroupModalProps {
     isOpen: boolean
     onClose: () => void
@@ -13,6 +14,7 @@ interface CreateGroupModalProps {
 
 export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateGroupModalProps) {
     const queryClient = useQueryClient()
+    const { products } = useProducts()
     const [formData, setFormData] = useState({
         titulo: '',
         produto: 'TRIPS' as string,
@@ -23,13 +25,16 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
     })
     const [errors, setErrors] = useState<{ titulo?: string }>({})
 
+    // Default ao produto da org ativa (1 org = 1 produto pós-Fase 5 Org Split)
+    const defaultProduto = products[0]?.slug ?? 'TRIPS'
+
     // Reset form when modal opens
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (isOpen) {
             setFormData({
                 titulo: '',
-                produto: 'TRIPS',
+                produto: defaultProduto,
                 group_capacity: '',
                 data_viagem_inicio: '',
                 data_viagem_fim: '',
@@ -37,19 +42,14 @@ export default function CreateGroupModal({ isOpen, onClose, onSuccess }: CreateG
             })
             setErrors({})
         }
-    }, [isOpen])
+    }, [isOpen, defaultProduto])
     /* eslint-enable react-hooks/set-state-in-effect */
 
     const createGroupMutation = useMutation({
         mutationFn: async () => {
-            // Get pipeline for product
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: pipeline } = await (supabase.from('pipelines') as any)
-                .select('id')
-                .eq('produto', formData.produto)
-                .single()
-
-            if (!pipeline) throw new Error('Pipeline não encontrado para este produto')
+            const pipelineId = products.find(p => p.slug === formData.produto)?.pipeline_id
+            if (!pipelineId) throw new Error('Pipeline não encontrado para este produto')
+            const pipeline = { id: pipelineId }
 
             // Get first stage (sorted by phase order then stage order)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

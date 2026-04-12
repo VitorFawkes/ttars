@@ -221,6 +221,16 @@ FIX: DROP CONSTRAINT roles_name_key; ADD CONSTRAINT roles_org_name_key UNIQUE(or
 app_product ENUM = ('TRIPS','WEDDING','CORP'). provision_organization usa p_product_slug='MAIN' como DEFAULT.
 INSERT pipelines com produto='MAIN' falha em runtime. FIX: adicionar 'MAIN' ao enum, ou mudar pipelines.produto para TEXT, ou exigir que o caller passe slug valido.
 
+### 92. Fase 5 Org Split — useProductContext fallback usa products[0] antes org carrega, causa flash errado — ALTO
+`useProductContext.ts` L39-41: `ORG_SLUG_PRODUCT_FALLBACK[org.slug] ?? products[0]?.slug ?? 'TRIPS'`.
+Se org esta carregando (null) e products retorna FALLBACK_PRODUCTS=[TRIPS,WEDDING,...], currentProduct flash como TRIPS.
+Usuario Weddings ve Trips stages por ~500ms antes org.slug ficar disponivel.
+FIX: Adicionar `isLoading` flag — quando org ou products carregando, manter produto anterior (via useRef) ou retornar null.
+
+### 93. useOrgSwitch mutationFn ainda recebe orgSlug mas nunca usa — BAIXO
+`useOrgSwitch.ts` L8 destructura `orgSlug` mas nunca referencia. Remove-o do parametro ou adiciona no comentario "unused".
+OrgSwitcher.tsx L98 passa `orgSlug` mas nao sera mais usado. FIX: Remover `orgSlug` da destructuring em useOrgSwitch.ts L8.
+
 ---
 
 ## Padroes do Projeto Confirmados
