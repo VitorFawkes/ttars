@@ -95,7 +95,7 @@ export function OrgSwitcher({ isCollapsed = false }: OrgSwitcherProps) {
                         key={o.org_id}
                         onSelect={() => {
                             if (o.org_id !== org?.id) {
-                                switchOrg.mutate({ orgId: o.org_id, orgSlug: o.org_slug })
+                                switchOrg.mutate({ orgId: o.org_id })
                             }
                             setOpen(false)
                         }}
