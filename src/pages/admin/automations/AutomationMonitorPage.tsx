@@ -12,7 +12,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity, AlertTriangle, Clock, RefreshCw, ExternalLink, CheckCircle2, MessageSquare,
@@ -129,18 +129,20 @@ function relativeTime(iso: string): string {
 
 export default function AutomationMonitorPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const triggerFilter = searchParams.get('trigger_id')
   const [activeTab, setActiveTab] = useState<'activity' | 'queue' | 'failures'>('activity')
 
   const activity = useQuery({
-    queryKey: ['automations-monitor', 'activity'],
+    queryKey: ['automations-monitor', 'activity', triggerFilter],
     queryFn: async (): Promise<EventLogRow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('cadence_event_log')
         .select('id, card_id, event_type, event_source, event_data, action_taken, action_result, created_at, cards:card_id ( id, titulo )')
         .in('action_taken', ['send_message', 'create_task', 'change_stage', 'start_cadence'])
-        .order('created_at', { ascending: false })
-        .limit(100)
+      if (triggerFilter) q = q.contains('event_data', { trigger_id: triggerFilter })
+      const { data, error } = await q.order('created_at', { ascending: false }).limit(100)
       if (error) throw error
       return data || []
     },
@@ -148,17 +150,29 @@ export default function AutomationMonitorPage() {
   })
 
   const queue = useQuery({
-    queryKey: ['automations-monitor', 'queue'],
+    queryKey: ['automations-monitor', 'queue', triggerFilter],
     queryFn: async (): Promise<QueueRow[]> => {
+      const selectCols = 'id, card_id, trigger_id, event_type, status, attempts, max_attempts, last_error, created_at, execute_at, cards:card_id ( id, titulo ), trigger:cadence_event_triggers!trigger_id ( id, name, action_type )'
+      const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('cadence_entry_queue')
-        .select('id, card_id, trigger_id, event_type, status, attempts, max_attempts, last_error, created_at, execute_at, cards:card_id ( id, titulo ), trigger:cadence_event_triggers!trigger_id ( id, name, action_type )')
-        .in('status', ['pending', 'processing', 'failed'])
-        .order('created_at', { ascending: false })
-        .limit(100)
-      if (error) throw error
-      return data || []
+      const sb = supabase as any
+      // Pendentes/processando/falhas (sempre visíveis) + completed nos últimos 10min
+      // (pra o gestor não achar que "sumiu" quando o engine processa rápido)
+      let liveQ = sb.from('cadence_entry_queue').select(selectCols).in('status', ['pending', 'processing', 'failed'])
+      let doneQ = sb.from('cadence_entry_queue').select(selectCols).eq('status', 'completed').gte('created_at', tenMinAgo)
+      if (triggerFilter) {
+        liveQ = liveQ.eq('trigger_id', triggerFilter)
+        doneQ = doneQ.eq('trigger_id', triggerFilter)
+      }
+      const [liveRes, doneRes] = await Promise.all([
+        liveQ.order('created_at', { ascending: false }).limit(100),
+        doneQ.order('created_at', { ascending: false }).limit(50),
+      ])
+      if (liveRes.error) throw liveRes.error
+      if (doneRes.error) throw doneRes.error
+      const merged = [...(liveRes.data || []), ...(doneRes.data || [])]
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      return merged
     },
     refetchInterval: 15_000,
   })
@@ -216,6 +230,25 @@ export default function AutomationMonitorPage() {
           </div>
         }
       />
+
+      {triggerFilter && (
+        <div className="flex items-center justify-between gap-2 mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-md text-sm">
+          <span className="text-indigo-900">
+            Filtrando execuções de uma automação específica. Limpe o filtro para ver tudo.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('trigger_id')
+              setSearchParams(next, { replace: true })
+            }}
+          >
+            Limpar filtro
+          </Button>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
         <TabsList>
