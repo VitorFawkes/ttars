@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Plus, Upload, Loader2,
   Brain, Sparkles, HeadphonesIcon, ShieldCheck, ArrowRightLeft,
+  MessageSquare, BarChart3,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -15,6 +16,8 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useAiAgentHubStats } from '@/hooks/useAiAgentHubStats'
+import { useAiAgentMetrics } from '@/hooks/useAiConversations'
 import { useAiSkills, type AiSkill } from '@/hooks/useAiSkills'
 import type { AgentTipo } from '@/hooks/useAiAgents'
 import { cn } from '@/lib/utils'
@@ -203,6 +206,25 @@ export default function AiAgentDetailPage() {
     )
   }
 
+  // Hub stats for this specific agent (conversations 7d + resolution rate)
+  const agentIds = isNew || !id ? [] : [id]
+  const { data: hubStats } = useAiAgentHubStats(agentIds)
+  const stat = !isNew && id ? hubStats?.[id] : undefined
+
+  // 30d metrics for escalation + avg turns
+  const { data: metrics = [] } = useAiAgentMetrics(isNew ? undefined : id, 30)
+  const escalationRate = (() => {
+    if (metrics.length === 0) return null
+    const started = metrics.reduce((s, m) => s + m.conversations_started, 0)
+    const escalated = metrics.reduce((s, m) => s + m.conversations_escalated, 0)
+    return started > 0 ? escalated / started : null
+  })()
+  const avgTurns = (() => {
+    const withTurns = metrics.filter((m) => m.avg_turns_per_conversation != null)
+    if (withTurns.length === 0) return null
+    return withTurns.reduce((s, m) => s + (m.avg_turns_per_conversation ?? 0), 0) / withTurns.length
+  })()
+
   if (!isNew && loadingAgent) {
     return (
       <div className="p-6 space-y-6">
@@ -224,7 +246,7 @@ export default function AiAgentDetailPage() {
               {isNew ? 'Novo Agente IA' : form.nome || 'Editar Agente'}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {isNew ? 'Configure um novo agente WhatsApp inteligente' : 'Edite as configurações do agente'}
+              {isNew ? 'Configure um novo agente WhatsApp inteligente' : 'Modo avançado — controle técnico completo'}
             </p>
           </div>
         </div>
@@ -233,6 +255,68 @@ export default function AiAgentDetailPage() {
           {saving ? 'Salvando...' : 'Salvar'}
         </Button>
       </div>
+
+      {/* Overview card (only for existing agents) */}
+      {!isNew && id && (
+        <section className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                'w-2.5 h-2.5 rounded-full',
+                form.ativa ? 'bg-green-500 animate-pulse' : 'bg-slate-300'
+              )} />
+              <p className="text-sm font-medium text-slate-700">
+                {form.ativa ? 'Agente ativo — respondendo clientes' : 'Agente pausado'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/settings/ai-agents/conversations?agent=${id}`)}
+                className="gap-1.5"
+              >
+                <MessageSquare className="w-3.5 h-3.5" /> Conversas
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/settings/ai-agents/analytics?agent=${id}`)}
+                className="gap-1.5"
+              >
+                <BarChart3 className="w-3.5 h-3.5" /> Analytics
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white rounded-lg p-3 border border-slate-100">
+              <p className="text-xs text-slate-500 font-medium">Conversas (7d)</p>
+              <p className="text-xl font-semibold text-slate-900 tracking-tight mt-0.5">
+                {stat?.conversations_count ?? <span className="text-slate-300">—</span>}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-slate-100">
+              <p className="text-xs text-slate-500 font-medium">Taxa resolução</p>
+              <p className="text-xl font-semibold text-slate-900 tracking-tight mt-0.5">
+                {stat?.resolution_rate != null ? `${Math.round(stat.resolution_rate * 100)}%` : <span className="text-slate-300">—</span>}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-slate-100">
+              <p className="text-xs text-slate-500 font-medium">Escalação (30d)</p>
+              <p className="text-xl font-semibold text-slate-900 tracking-tight mt-0.5">
+                {escalationRate != null ? `${Math.round(escalationRate * 100)}%` : <span className="text-slate-300">—</span>}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-slate-100">
+              <p className="text-xs text-slate-500 font-medium">Média de turnos</p>
+              <p className="text-xl font-semibold text-slate-900 tracking-tight mt-0.5">
+                {avgTurns != null ? avgTurns.toFixed(1) : <span className="text-slate-300">—</span>}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Identidade */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">

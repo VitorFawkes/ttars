@@ -1,202 +1,148 @@
-import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Trash2, Plus } from 'lucide-react'
-import type { WizardStep5 } from '@/hooks/useAgentWizard'
-import type { useAgentWizard } from '@/hooks/useAgentWizard'
+import { Badge } from '@/components/ui/Badge'
+import { DollarSign, Workflow, Zap, Users, Calendar, Plus, Trash2, Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { SpecialScenarioBuilder } from '@/components/ai-agent/SpecialScenarioBuilder'
+import type { WizardStep5, SpecialScenario, useAgentWizard } from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
 
-const PRICING_MODELS = ['flat', 'percentage', 'free'] as const
+const PRICING_MODELS = [
+  { value: 'flat', label: 'Taxa fixa', description: 'Valor fixo cobrado ao cliente (ex: R$ 500)' },
+  { value: 'percentage', label: 'Percentual', description: 'Porcentagem sobre o valor da venda' },
+  { value: 'free', label: 'Gratuito', description: 'Não cobra taxa de planejamento' },
+] as const
+
 const FEE_TIMING_OPTIONS = [
-  { value: 'immediately', label: 'Imediatamente' },
-  { value: 'after_discovery', label: 'Após descoberta' },
-  { value: 'after_qualification', label: 'Após qualificação' },
-  { value: 'at_commitment', label: 'No compromisso' },
-  { value: 'never', label: 'Nunca' },
+  { value: 'immediately', label: 'Imediatamente', description: 'Já nas primeiras mensagens' },
+  { value: 'after_discovery', label: 'Após descoberta', description: 'Depois de entender a necessidade' },
+  { value: 'after_qualification', label: 'Após qualificação', description: 'Depois de qualificar o lead' },
+  { value: 'at_commitment', label: 'No fechamento', description: 'Só quando cliente confirmar interesse' },
+  { value: 'never', label: 'Nunca', description: 'Agente nunca menciona taxa' },
 ]
-const CALENDAR_SYSTEMS = ['none', 'supabase_rpc', 'calendly', 'google'] as const
+
+const CALENDAR_SYSTEMS = [
+  { value: 'none', label: 'Não agendar', description: 'Agente não agenda reuniões' },
+  { value: 'supabase_rpc', label: 'Calendário interno', description: 'Usa a agenda do CRM' },
+  { value: 'calendly', label: 'Calendly', description: 'Envia link do Calendly' },
+  { value: 'google', label: 'Google Calendar', description: 'Integração via Google' },
+] as const
+
 const SECONDARY_CONTACT_FIELDS = [
   { value: 'passaporte', label: 'Passaporte' },
   { value: 'cpf', label: 'CPF' },
   { value: 'data_nascimento', label: 'Data de nascimento' },
-  { value: 'preferencias', label: 'Preferências' },
+  { value: 'preferencias', label: 'Preferências alimentares / restrições' },
 ]
 
 export default function Step5_BusinessRules({ wizard }: WizardProps) {
   const step5 = (wizard.wizardData.step5 || {}) as Partial<WizardStep5>
 
-  const [formData, setFormData] = useState<Partial<WizardStep5>>({
-    pricing_model: step5.pricing_model || 'flat',
-    pricing_json: step5.pricing_json || {},
-    fee_presentation_timing: step5.fee_presentation_timing || 'after_qualification',
-    process_steps: step5.process_steps || [],
-    methodology_text: step5.methodology_text || '',
-    has_secondary_contacts: step5.has_secondary_contacts || false,
-    secondary_contact_fields: step5.secondary_contact_fields || [],
-    form_data_fields: step5.form_data_fields || [],
-    calendar_system: step5.calendar_system || 'none',
-  })
-
-  const handlePricingModelChange = (model: typeof PRICING_MODELS[number]) => {
-    setFormData((prev) => ({
-      ...prev,
-      pricing_model: model,
-      pricing_json: model === 'free' ? {} : prev.pricing_json || {},
-    }))
+  const updateStep5 = (patch: Partial<WizardStep5>) => {
+    wizard.updateStep('step5', patch)
   }
 
-  const handleFeeAmountChange = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      pricing_json: {
-        ...prev.pricing_json,
-        amount: value ? parseFloat(value) : undefined,
-      },
-    }))
+  const updatePricingAmount = (value: string) => {
+    const amount = value ? parseFloat(value) : undefined
+    updateStep5({ pricing_json: { ...step5.pricing_json, amount } })
   }
 
-  const handleCurrencyChange = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      pricing_json: {
-        ...prev.pricing_json,
-        currency: value,
-      },
-    }))
-  }
-
-  const handleProcessStepChange = (index: number, value: string) => {
-    const updatedSteps = [...(formData.process_steps || [])]
-    updatedSteps[index] = value
-    setFormData((prev) => ({
-      ...prev,
-      process_steps: updatedSteps,
-    }))
+  const updatePricingCurrency = (value: string) => {
+    updateStep5({ pricing_json: { ...step5.pricing_json, currency: value } })
   }
 
   const addProcessStep = () => {
-    setFormData((prev) => ({
-      ...prev,
-      process_steps: [...(prev.process_steps || []), ''],
-    }))
+    updateStep5({ process_steps: [...(step5.process_steps || []), ''] })
   }
 
-  const removeProcessStep = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      process_steps: (prev.process_steps || []).filter((_, i) => i !== index),
-    }))
+  const updateProcessStep = (idx: number, value: string) => {
+    const next = [...(step5.process_steps || [])]
+    next[idx] = value
+    updateStep5({ process_steps: next })
   }
 
-  const handleFormFieldChange = (index: number, value: string) => {
-    const updatedFields = [...(formData.form_data_fields || [])]
-    updatedFields[index] = value
-    setFormData((prev) => ({
-      ...prev,
-      form_data_fields: updatedFields,
-    }))
+  const removeProcessStep = (idx: number) => {
+    updateStep5({ process_steps: (step5.process_steps || []).filter((_, i) => i !== idx) })
   }
 
-  const addFormField = () => {
-    setFormData((prev) => ({
-      ...prev,
-      form_data_fields: [...(prev.form_data_fields || []), ''],
-    }))
+  const toggleSecondaryField = (field: string) => {
+    const current = step5.secondary_contact_fields || []
+    const next = current.includes(field) ? current.filter((f) => f !== field) : [...current, field]
+    updateStep5({ secondary_contact_fields: next })
   }
 
-  const removeFormField = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      form_data_fields: (prev.form_data_fields || []).filter((_, i) => i !== index),
-    }))
+  const updateScenarios = (scenarios: SpecialScenario[]) => {
+    updateStep5({ special_scenarios: scenarios })
   }
 
-  const toggleSecondaryContactField = (field: string) => {
-    setFormData((prev) => {
-      const currentFields = prev.secondary_contact_fields || []
-      const updated = currentFields.includes(field)
-        ? currentFields.filter((f) => f !== field)
-        : [...currentFields, field]
-      return {
-        ...prev,
-        secondary_contact_fields: updated,
-      }
-    })
-  }
-
-  const handleNext = () => {
-    wizard.updateStep('step5', formData)
-    wizard.goNext()
-  }
-
-  const handleBack = () => {
-    wizard.updateStep('step5', formData)
-    wizard.goBack()
-  }
+  const scenarios = step5.special_scenarios || []
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Regras de Negócio</h2>
-        <p className="text-slate-500 mt-2">
-          Configure a precificação, metodologia e dados do seu processo de vendas.
+        <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Regras de negócio</h2>
+        <p className="text-slate-500 mt-1 text-sm">
+          Configure como o agente cobra, atende e lida com casos especiais.
         </p>
       </div>
 
-      <div className="space-y-6">
-        {/* Pricing Section */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div>
-            <h3 className="font-semibold text-slate-900">Precificação</h3>
-            <p className="text-sm text-slate-500 mt-1">Defina como seu agente vai apresentar a cobrança</p>
+      {/* Card 1: Pricing */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
+            <DollarSign className="w-4 h-4 text-green-600" />
           </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Taxa e cobrança</h3>
+            <p className="text-xs text-slate-500">Como o agente apresenta o valor do serviço</p>
+          </div>
+        </div>
 
-          <div className="space-y-3">
-            <Label>Modelo de cobrança</Label>
-            <div className="space-y-2">
-              {PRICING_MODELS.map((model) => (
-                <label key={model} className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="pricing_model"
-                    value={model}
-                    checked={formData.pricing_model === model}
-                    onChange={() => handlePricingModelChange(model)}
-                    className="mr-3 rounded border-slate-300"
-                  />
-                  <span className="text-slate-900 capitalize">
-                    {model === 'flat' && 'Valor fixo'}
-                    {model === 'percentage' && 'Percentual'}
-                    {model === 'free' && 'Gratuito'}
-                  </span>
-                </label>
-              ))}
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs mb-2 block">Modelo de cobrança</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {PRICING_MODELS.map((opt) => {
+                const active = step5.pricing_model === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateStep5({ pricing_model: opt.value })}
+                    className={cn(
+                      'text-left p-3 rounded-lg border-2 transition-all',
+                      active ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 bg-white hover:border-slate-300'
+                    )}
+                  >
+                    <p className="font-medium text-sm text-slate-900">{opt.label}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{opt.description}</p>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          {formData.pricing_model === 'flat' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fee_amount">Valor da taxa</Label>
+          {step5.pricing_model === 'flat' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Valor da taxa</Label>
                 <Input
-                  id="fee_amount"
                   type="number"
-                  placeholder="Ex: 199.00"
-                  value={(formData.pricing_json?.amount as number) || ''}
-                  onChange={(e) => handleFeeAmountChange(e.target.value)}
+                  placeholder="500.00"
+                  value={(step5.pricing_json?.amount as number) || ''}
+                  onChange={(e) => updatePricingAmount(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="currency">Moeda</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Moeda</Label>
                 <select
-                  id="currency"
-                  value={(formData.pricing_json?.currency as string) || 'BRL'}
-                  onChange={(e) => handleCurrencyChange(e.target.value)}
-                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  value={(step5.pricing_json?.currency as string) || 'BRL'}
+                  onChange={(e) => updatePricingCurrency(e.target.value)}
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="BRL">BRL (R$)</option>
                   <option value="USD">USD ($)</option>
@@ -206,208 +152,191 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
             </div>
           )}
 
-          <div className="space-y-3">
-            <Label>Quando apresentar a taxa</Label>
-            <div className="space-y-2">
-              {FEE_TIMING_OPTIONS.map((option) => (
-                <label key={option.value} className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fee_timing"
-                    value={option.value}
-                    checked={formData.fee_presentation_timing === option.value}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        fee_presentation_timing: e.target.value,
-                      }))
-                    }
-                    className="mr-3 rounded border-slate-300"
-                  />
-                  <span className="text-slate-900">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Process Steps */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          {step5.pricing_model !== 'free' && (
             <div>
-              <h3 className="font-semibold text-slate-900">Etapas do processo</h3>
-              <p className="text-sm text-slate-500 mt-1">Descreva os passos do seu processo de venda</p>
-            </div>
-            <Button
-              onClick={addProcessStep}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-              size="sm"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar etapa
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {(formData.process_steps || []).map((step, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  placeholder={`Etapa ${index + 1}`}
-                  value={step}
-                  onChange={(e) => handleProcessStepChange(index, e.target.value)}
-                />
-                <Button
-                  onClick={() => removeProcessStep(index)}
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-500 hover:text-red-600"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Methodology */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div>
-            <h3 className="font-semibold text-slate-900">Descrição da metodologia</h3>
-            <p className="text-sm text-slate-500 mt-1">Como você aborda o trabalho com clientes</p>
-          </div>
-          <Textarea
-            placeholder="Descreva sua metodologia de atendimento e venda..."
-            value={formData.methodology_text || ''}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                methodology_text: e.target.value,
-              }))
-            }
-            className="min-h-[100px]"
-          />
-        </div>
-
-        {/* Secondary Contacts */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-900">Acompanhantes/dependentes</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                Seu negócio trabalha com acompanhantes (cônjuge, filhos, etc)?
-              </p>
-            </div>
-            <Switch
-              checked={formData.has_secondary_contacts || false}
-              onCheckedChange={(checked) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  has_secondary_contacts: checked,
-                }))
-              }
-            />
-          </div>
-
-          {formData.has_secondary_contacts && (
-            <div className="space-y-3">
-              <Label>Campos para acompanhantes</Label>
-              <div className="space-y-2">
-                {SECONDARY_CONTACT_FIELDS.map((field) => (
-                  <label key={field.value} className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={(formData.secondary_contact_fields || []).includes(field.value)}
-                      onChange={() => toggleSecondaryContactField(field.value)}
-                      className="mr-3 rounded border-slate-300"
-                    />
-                    <span className="text-slate-900">{field.label}</span>
-                  </label>
-                ))}
+              <Label className="text-xs mb-2 block">Quando apresentar</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {FEE_TIMING_OPTIONS.map((opt) => {
+                  const active = step5.fee_presentation_timing === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => updateStep5({ fee_presentation_timing: opt.value })}
+                      className={cn(
+                        'text-left px-3 py-2 rounded-lg border-2 transition-all',
+                        active ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 bg-white hover:border-slate-300'
+                      )}
+                    >
+                      <p className="font-medium text-sm text-slate-900">{opt.label}</p>
+                      <p className="text-[11px] text-slate-500">{opt.description}</p>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Form Fields */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-900">Campos de formulário</h3>
-              <p className="text-sm text-slate-500 mt-1">Campos preenchidos automaticamente do marketing</p>
-            </div>
-            <Button
-              onClick={addFormField}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-              size="sm"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar campo
-            </Button>
+      {/* Card 2: Process steps */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Workflow className="w-4 h-4 text-blue-600" />
           </div>
-
-          <div className="space-y-3">
-            {(formData.form_data_fields || []).map((field, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  placeholder="Nome do campo"
-                  value={field}
-                  onChange={(e) => handleFormFieldChange(index, e.target.value)}
-                />
-                <Button
-                  onClick={() => removeFormField(index)}
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-500 hover:text-red-600"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-900">Processo de atendimento</h3>
+            <p className="text-xs text-slate-500">Etapas que o agente apresenta ao cliente</p>
           </div>
+          <Button onClick={addProcessStep} size="sm" variant="outline" className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Etapa
+          </Button>
         </div>
 
-        {/* Calendar System */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div>
-            <h3 className="font-semibold text-slate-900">Sistema de calendário</h3>
-            <p className="text-sm text-slate-500 mt-1">Como agendar reuniões com clientes</p>
-          </div>
+        <div className="space-y-2">
+          {(step5.process_steps || []).length === 0 && (
+            <p className="text-xs text-slate-400 italic">Nenhuma etapa. Adicione passos como "Entender necessidade", "Montar roteiro", etc.</p>
+          )}
+          {(step5.process_steps || []).map((step, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold flex-shrink-0">
+                {idx + 1}
+              </span>
+              <Input
+                placeholder={`Etapa ${idx + 1}: ex: Entender a necessidade`}
+                value={step}
+                onChange={(e) => updateProcessStep(idx, e.target.value)}
+              />
+              <button
+                onClick={() => removeProcessStep(idx)}
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
 
-          <div className="space-y-2">
-            {CALENDAR_SYSTEMS.map((system) => (
-              <label key={system} className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="calendar_system"
-                  value={system}
-                  checked={formData.calendar_system === system}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      calendar_system: e.target.value,
-                    }))
-                  }
-                  className="mr-3 rounded border-slate-300"
-                />
-                <span className="text-slate-900">
-                  {system === 'none' && 'Nenhum'}
-                  {system === 'supabase_rpc' && 'RPC Supabase'}
-                  {system === 'calendly' && 'Calendly'}
-                  {system === 'google' && 'Google Calendar'}
-                </span>
-              </label>
-            ))}
-          </div>
+        <div className="mt-4 space-y-1.5">
+          <Label className="text-xs flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-slate-400" />
+            Metodologia (opcional)
+          </Label>
+          <Textarea
+            placeholder="Ex: Trabalhamos com consultoria personalizada. Uma consultora exclusiva monta o roteiro, faz cotações e apresenta uma proposta completa."
+            value={step5.methodology_text || ''}
+            onChange={(e) => updateStep5({ methodology_text: e.target.value })}
+            className="min-h-[80px]"
+          />
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
-        <Button onClick={handleBack} variant="outline" className="text-slate-900 border-slate-300">
-          Voltar
+      {/* Card 3: Special scenarios */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
+            <Zap className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-900">Cenários especiais</h3>
+            <p className="text-xs text-slate-500">Comportamento diferente em situações específicas (ex: Club Med, VIP)</p>
+          </div>
+          {scenarios.length > 0 && (
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+              {scenarios.length}
+            </Badge>
+          )}
+        </div>
+
+        <SpecialScenarioBuilder scenarios={scenarios} onChange={updateScenarios} />
+      </div>
+
+      {/* Card 4: Secondary contacts */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Users className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-900">Contatos secundários</h3>
+            <p className="text-xs text-slate-500">Agente atende viajantes/acompanhantes separadamente?</p>
+          </div>
+          <Switch
+            checked={step5.has_secondary_contacts || false}
+            onCheckedChange={(v) => updateStep5({ has_secondary_contacts: v })}
+          />
+        </div>
+
+        {step5.has_secondary_contacts && (
+          <div className="space-y-2 pt-3 border-t border-slate-100">
+            <Label className="text-xs">Dados que o agente pode coletar de acompanhantes</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {SECONDARY_CONTACT_FIELDS.map((field) => {
+                const active = (step5.secondary_contact_fields || []).includes(field.value)
+                return (
+                  <button
+                    key={field.value}
+                    type="button"
+                    onClick={() => toggleSecondaryField(field.value)}
+                    className={cn(
+                      'flex items-center gap-2 p-2.5 rounded-lg border-2 transition-all text-left',
+                      active ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 bg-white hover:border-slate-300'
+                    )}
+                  >
+                    <div className={cn(
+                      'w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center',
+                      active ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
+                    )}>
+                      {active && <div className="w-2 h-2 bg-white rounded-sm" />}
+                    </div>
+                    <span className="text-sm text-slate-900">{field.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Card 5: Calendar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 bg-pink-100 rounded-lg flex items-center justify-center">
+            <Calendar className="w-4 h-4 text-pink-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Agendamento</h3>
+            <p className="text-xs text-slate-500">Como o agente agenda reuniões com clientes qualificados</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {CALENDAR_SYSTEMS.map((opt) => {
+            const active = step5.calendar_system === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => updateStep5({ calendar_system: opt.value })}
+                className={cn(
+                  'text-left p-3 rounded-lg border-2 transition-all',
+                  active ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-200 bg-white hover:border-slate-300'
+                )}
+              >
+                <p className="font-medium text-sm text-slate-900">{opt.label}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{opt.description}</p>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="flex justify-between">
+        <Button onClick={() => wizard.goBack()} variant="outline">
+          ← Voltar
         </Button>
-        <Button onClick={handleNext} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-          Próximo
-        </Button>
+        <Button onClick={() => wizard.goNext()}>Próximo passo →</Button>
       </div>
     </div>
   )

@@ -1,36 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  Bot, Plus, Copy, Trash2, BarChart3, Brain, HeadphonesIcon,
-  Sparkles, ArrowRightLeft, ShieldCheck,
-} from 'lucide-react'
+import { Bot, Plus, Sparkles, Wrench } from 'lucide-react'
 
 import { useAiAgents, type AiAgent, type AgentTipo } from '@/hooks/useAiAgents'
+import { useAiAgentHubStats } from '@/hooks/useAiAgentHubStats'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
 import { Button } from '@/components/ui/Button'
-import { Switch } from '@/components/ui/switch'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/Table'
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/lib/utils'
-
-const TIPO_CONFIG: Record<AgentTipo, {
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-}> = {
-  sales: { label: 'Vendas', icon: Sparkles, color: 'bg-green-100 text-green-700' },
-  support: { label: 'Suporte', icon: HeadphonesIcon, color: 'bg-blue-100 text-blue-700' },
-  success: { label: 'Sucesso', icon: ShieldCheck, color: 'bg-purple-100 text-purple-700' },
-  specialist: { label: 'Especialista', icon: Brain, color: 'bg-amber-100 text-amber-700' },
-  router: { label: 'Roteador', icon: ArrowRightLeft, color: 'bg-slate-100 text-slate-700' },
-}
+import { AgentCard } from '@/components/ai-agent/AgentCard'
+import { AgentHubFilters, type StatusFilter } from '@/components/ai-agent/AgentHubFilters'
 
 export default function AiAgentListPage() {
   const navigate = useNavigate()
@@ -38,23 +17,47 @@ export default function AiAgentListPage() {
 
   const { agents = [], isLoading, toggleAtiva, duplicate, remove } = useAiAgents(currentProduct)
 
+  const agentIds = useMemo(() => agents.map((a) => a.id), [agents])
+  const { data: statsByAgent = {} } = useAiAgentHubStats(agentIds)
+
+  // Filters state
+  const [search, setSearch] = useState('')
+  const [tipo, setTipo] = useState<AgentTipo | 'all'>('all')
+  const [status, setStatus] = useState<StatusFilter>('all')
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase()
+    return agents.filter((a) => {
+      if (tipo !== 'all' && a.tipo !== tipo) return false
+      if (status === 'active' && !a.ativa) return false
+      if (status === 'paused' && a.ativa) return false
+      if (s) {
+        const hay = `${a.nome} ${a.persona ?? ''} ${a.descricao ?? ''}`.toLowerCase()
+        if (!hay.includes(s)) return false
+      }
+      return true
+    })
+  }, [agents, search, tipo, status])
+
   const ativosCount = agents.filter((a) => a.ativa).length
-  const totalSkills = agents.reduce((sum: number, a: AiAgent) =>
-    sum + (a.ai_agent_skills?.filter(s => s.enabled)?.length ?? 0), 0)
+  const totalConversations = useMemo(
+    () => Object.values(statsByAgent).reduce((sum, s) => sum + s.conversations_count, 0),
+    [statsByAgent]
+  )
 
   const stats = useMemo(
     () => [
       { label: 'Agentes ativos', value: ativosCount, color: 'green' as const },
       { label: 'Total', value: agents.length, color: 'blue' as const },
-      { label: 'Skills atribuídas', value: totalSkills, color: 'purple' as const },
+      { label: 'Conversas (7d)', value: totalConversations, color: 'purple' as const },
     ],
-    [ativosCount, agents.length, totalSkills]
+    [ativosCount, agents.length, totalConversations]
   )
 
   const handleToggleAtiva = async (id: string, currentAtiva: boolean) => {
     try {
       await toggleAtiva.mutateAsync({ id, ativa: !currentAtiva })
-      toast.success(!currentAtiva ? 'Agente ativado' : 'Agente desativado')
+      toast.success(!currentAtiva ? 'Agente ativado' : 'Agente pausado')
     } catch {
       toast.error('Erro ao atualizar agente')
     }
@@ -64,14 +67,14 @@ export default function AiAgentListPage() {
     try {
       const result = await duplicate.mutateAsync(id)
       toast.success('Agente duplicado')
-      navigate(`/settings/ai-agents/${result.id}`)
+      navigate(`/settings/ai-agents/${(result as AiAgent).id}`)
     } catch {
       toast.error('Erro ao duplicar agente')
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este agente?')) return
+    if (!window.confirm('Tem certeza que deseja excluir este agente? Esta ação não pode ser desfeita.')) return
     try {
       await remove.mutateAsync(id)
       toast.success('Agente excluído')
@@ -82,166 +85,115 @@ export default function AiAgentListPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="h-12 bg-slate-200 rounded-lg w-64 animate-pulse" />
+      <div className="space-y-6">
+        <div className="h-16 bg-slate-100 rounded-xl animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-64 bg-slate-100 rounded-xl animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }
+
+  const noAgents = agents.length === 0
+  const noResults = !noAgents && filtered.length === 0
 
   return (
     <>
       <AdminPageHeader
         title="Agentes IA"
-        subtitle="Configure agentes inteligentes de WhatsApp para vendas e pós-venda"
+        subtitle="Configure agentes inteligentes de WhatsApp para vendas, suporte e pós-venda"
         icon={<Bot className="w-5 h-5" />}
         stats={stats}
         actions={
           <div className="flex gap-2">
             <Button onClick={() => navigate('/settings/ai-agents/builder')} className="gap-2">
               <Sparkles className="w-4 h-4" />
-              Criar com Wizard
+              Criar agente
             </Button>
             <Button variant="outline" onClick={() => navigate('/settings/ai-agents/new')} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Modo Avançado
+              <Wrench className="w-4 h-4" />
+              Modo avançado
             </Button>
           </div>
         }
       />
 
-      {agents.length === 0 ? (
-        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-          <Bot className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">Nenhum agente IA criado</p>
-          <p className="text-sm text-slate-500 mt-1">
-            Crie seu primeiro agente para automatizar conversas no WhatsApp
+      {noAgents ? (
+        <div className="p-16 text-center bg-white border border-dashed border-slate-300 rounded-2xl">
+          <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Bot className="w-8 h-8 text-indigo-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 tracking-tight">Crie seu primeiro agente</h3>
+          <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+            Agentes IA qualificam leads, respondem clientes, agendam reuniões e muito mais — automaticamente pelo WhatsApp.
           </p>
-          <Button onClick={() => navigate('/settings/ai-agents/new')} className="mt-6 gap-2">
-            <Plus className="w-4 h-4" />
-            Criar Agente
+          <Button onClick={() => navigate('/settings/ai-agents/builder')} className="mt-6 gap-2">
+            <Sparkles className="w-4 h-4" />
+            Criar com assistente guiado
           </Button>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-left">Agente</TableHead>
-                <TableHead className="text-left">Tipo</TableHead>
-                <TableHead className="text-left">Modelo</TableHead>
-                <TableHead className="text-left">Skills</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {agents.map((agent: AiAgent) => {
-                const tipoConfig = TIPO_CONFIG[agent.tipo]
-                const TipoIcon = tipoConfig.icon
-                const skillCount = agent.ai_agent_skills?.filter(s => s.enabled)?.length ?? 0
-                const lineCount = agent.ai_agent_phone_line_config?.filter(l => l.ativa)?.length ?? 0
+        <>
+          <AgentHubFilters
+            search={search}
+            onSearchChange={setSearch}
+            tipo={tipo}
+            onTipoChange={setTipo}
+            status={status}
+            onStatusChange={setStatus}
+          />
 
+          {noResults ? (
+            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              <p className="text-slate-600 font-medium">Nenhum agente encontrado</p>
+              <p className="text-sm text-slate-500 mt-1">Tente ajustar a busca ou filtros.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setSearch(''); setTipo('all'); setStatus('all') }}
+                className="mt-4"
+              >
+                Limpar filtros
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((agent) => {
+                const stat = statsByAgent[agent.id]
                 return (
-                  <TableRow
+                  <AgentCard
                     key={agent.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate(`/settings/ai-agents/${agent.id}`)}
-                  >
-                    {/* Agente */}
-                    <TableCell className="font-medium">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{agent.nome}</p>
-                        {agent.persona && (
-                          <p className="text-xs text-slate-500 line-clamp-1">{agent.persona}</p>
-                        )}
-                        {lineCount > 0 && (
-                          <p className="text-xs text-slate-400">
-                            {lineCount} linha{lineCount > 1 ? 's' : ''} WhatsApp
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Tipo */}
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <TipoIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <Badge variant="outline" className={cn('text-xs', tipoConfig.color)}>
-                          {tipoConfig.label}
-                        </Badge>
-                      </div>
-                    </TableCell>
-
-                    {/* Modelo */}
-                    <TableCell>
-                      <p className="text-sm text-slate-700 font-mono">{agent.modelo}</p>
-                      <p className="text-xs text-slate-400">temp: {agent.temperature}</p>
-                    </TableCell>
-
-                    {/* Skills */}
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {skillCount > 0 ? (
-                          agent.ai_agent_skills?.filter(s => s.enabled).slice(0, 3).map((as) => (
-                            <Badge key={as.id} variant="outline" className="text-xs">
-                              {as.ai_skills?.nome || 'Skill'}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-400">Nenhuma</span>
-                        )}
-                        {skillCount > 3 && (
-                          <Badge variant="outline" className="text-xs text-slate-400">
-                            +{skillCount - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                      <Switch
-                        checked={agent.ativa}
-                        onCheckedChange={() => handleToggleAtiva(agent.id, agent.ativa)}
-                        disabled={toggleAtiva.isPending}
-                      />
-                    </TableCell>
-
-                    {/* Ações */}
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="ghost">
-                            <BarChart3 className="w-4 h-4 text-slate-500" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/settings/ai-agents/${agent.id}`)}>
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDuplicate(agent.id)}>
-                            <Copy className="w-3 h-3 mr-2" />
-                            Duplicar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => navigate(`/settings/ai-agents/conversations?agent=${agent.id}`)}
-                          >
-                            <BarChart3 className="w-3 h-3 mr-2" />
-                            Ver Conversas
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(agent.id)} className="text-red-600">
-                            <Trash2 className="w-3 h-3 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                    agent={agent}
+                    conversationsCount={stat?.conversations_count}
+                    resolutionRate={stat?.resolution_rate}
+                    onToggleActive={handleToggleAtiva}
+                    onEdit={(id) => navigate(`/settings/ai-agents/${id}`)}
+                    onDuplicate={handleDuplicate}
+                    onDelete={handleDelete}
+                    onViewConversations={(id) => navigate(`/settings/ai-agents/conversations?agent=${id}`)}
+                    onViewAnalytics={(id) => navigate(`/settings/ai-agents/analytics?agent=${id}`)}
+                    onClick={(id) => navigate(`/settings/ai-agents/${id}`)}
+                    isTogglePending={toggleAtiva.isPending}
+                  />
                 )
               })}
-            </TableBody>
-          </Table>
-        </div>
+
+              {/* Add card */}
+              <button
+                onClick={() => navigate('/settings/ai-agents/builder')}
+                className="bg-white border-2 border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center min-h-[240px] hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors"
+              >
+                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
+                  <Plus className="w-6 h-6 text-slate-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-700">Criar novo agente</p>
+                <p className="text-xs text-slate-500 mt-1">Assistente guiado em 8 passos</p>
+              </button>
+            </div>
+          )}
+        </>
       )}
     </>
   )

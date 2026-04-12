@@ -1,342 +1,282 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { AlertCircle, Frown, Target, UserCheck, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import type { WizardStep6 } from '@/hooks/useAgentWizard'
-import type { useAgentWizard } from '@/hooks/useAgentWizard'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/Input'
+import { cn } from '@/lib/utils'
+import type { WizardStep6, useAgentWizard } from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
 
 interface EscalationTrigger extends Record<string, unknown> {
   id: string
-  type: 'unanswered_messages' | 'negative_sentiment' | 'human_request' | 'agent_confidence' | 'custom'
+  type: 'unanswered_messages' | 'negative_sentiment' | 'human_request' | 'agent_confidence'
   enabled: boolean
   threshold?: number
   keywords?: string
-  customRule?: string
+}
+
+const DEFAULT_TRIGGERS: EscalationTrigger[] = [
+  { id: 'unanswered', type: 'unanswered_messages', enabled: true, threshold: 15 },
+  { id: 'sentiment', type: 'negative_sentiment', enabled: true },
+  { id: 'human', type: 'human_request', enabled: true, keywords: 'humano\natendente\nsupervisor\ngerente' },
+  { id: 'confidence', type: 'agent_confidence', enabled: false, threshold: 40 },
+]
+
+function getToleranceLabel(turns: number): { text: string; color: string } {
+  if (turns <= 5) return { text: 'Tolerância baixa — escala rápido', color: 'text-red-600' }
+  if (turns <= 15) return { text: 'Equilibrado', color: 'text-green-600' }
+  return { text: 'Alta autonomia — agente tenta muito', color: 'text-amber-600' }
 }
 
 export default function Step6_Escalation({ wizard }: WizardProps) {
   const step6 = (wizard.wizardData.step6 || {}) as Partial<WizardStep6>
 
-  const initializeTriggers = (): EscalationTrigger[] => {
-    if (step6.escalation_triggers && Array.isArray(step6.escalation_triggers)) {
-      return step6.escalation_triggers.map((trigger: any) => ({
-        id: trigger.id || Math.random().toString(36).substr(2, 9),
-        type: trigger.type || 'unanswered_messages',
-        enabled: trigger.enabled !== false,
-        threshold: trigger.threshold,
-        keywords: trigger.keywords,
-        customRule: trigger.customRule,
+  const [triggers, setTriggers] = useState<EscalationTrigger[]>(() => {
+    if (step6.escalation_triggers && Array.isArray(step6.escalation_triggers) && step6.escalation_triggers.length > 0) {
+      return step6.escalation_triggers.map((t: Record<string, unknown>, i) => ({
+        id: (t.id as string) || `trig_${i}`,
+        type: (t.type as EscalationTrigger['type']) || 'unanswered_messages',
+        enabled: t.enabled !== false,
+        threshold: t.threshold as number | undefined,
+        keywords: t.keywords as string | undefined,
       }))
     }
+    return DEFAULT_TRIGGERS
+  })
 
-    return [
-      {
-        id: 'unanswered',
-        type: 'unanswered_messages',
-        enabled: false,
-        threshold: 15,
-      },
-      {
-        id: 'sentiment',
-        type: 'negative_sentiment',
-        enabled: false,
-      },
-      {
-        id: 'human',
-        type: 'human_request',
-        enabled: false,
-        keywords: '',
-      },
-      {
-        id: 'confidence',
-        type: 'agent_confidence',
-        enabled: false,
-        threshold: 40,
-      },
-    ]
-  }
-
-  const [triggers, setTriggers] = useState<EscalationTrigger[]>(initializeTriggers())
   const [fallbackMessage, setFallbackMessage] = useState(step6.fallback_message || '')
-  const [customRule, setCustomRule] = useState('')
+  const [escalationMessage, setEscalationMessage] = useState(
+    ((step6.escalation_rules?.[0] as Record<string, unknown> | undefined)?.message as string) || ''
+  )
 
-  const toggleTrigger = (triggerId: string) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === triggerId ? { ...t, enabled: !t.enabled } : t))
-    )
+  const updateTrigger = (id: string, patch: Partial<EscalationTrigger>) => {
+    setTriggers((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }
 
-  const updateTriggerThreshold = (triggerId: string, value: number) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === triggerId ? { ...t, threshold: value } : t))
-    )
-  }
+  const unansweredTrigger = triggers.find((t) => t.type === 'unanswered_messages')
+  const confidenceTrigger = triggers.find((t) => t.type === 'agent_confidence')
 
-  const updateTriggerKeywords = (triggerId: string, value: string) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === triggerId ? { ...t, keywords: value } : t))
-    )
-  }
+  const toleranceLabel = useMemo(
+    () => getToleranceLabel(unansweredTrigger?.threshold ?? 15),
+    [unansweredTrigger]
+  )
 
-  const addCustomTrigger = () => {
-    if (customRule.trim()) {
-      setTriggers((prev) => [
-        ...prev,
+  const persist = () => {
+    wizard.updateStep('step6', {
+      escalation_triggers: triggers,
+      fallback_message: fallbackMessage,
+      escalation_rules: [
         {
-          id: Math.random().toString(36).substr(2, 9),
-          type: 'custom',
-          enabled: true,
-          customRule,
+          message: escalationMessage,
+          turn_limit: unansweredTrigger?.enabled ? unansweredTrigger.threshold : undefined,
         },
-      ])
-      setCustomRule('')
-    }
-  }
-
-  const removeTrigger = (triggerId: string) => {
-    setTriggers((prev) => prev.filter((t) => t.id !== triggerId))
-  }
-
-  const handleNext = () => {
-    wizard.updateStep('step6', {
-      escalation_triggers: triggers,
-      fallback_message: fallbackMessage,
-      escalation_rules: triggers.map((t) => ({
-        id: t.id,
-        type: t.type,
-        enabled: t.enabled,
-      })),
+      ],
     })
-    wizard.goNext()
   }
 
-  const handleBack = () => {
-    wizard.updateStep('step6', {
-      escalation_triggers: triggers,
-      fallback_message: fallbackMessage,
-    })
-    wizard.goBack()
-  }
+  const handleNext = () => { persist(); wizard.goNext() }
+  const handleBack = () => { persist(); wizard.goBack() }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Escalação para humano</h2>
-        <p className="text-slate-500 mt-2">
-          Configure quando o agente deve passar a conversa para um atendente humano.
+        <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Passagem para humano</h2>
+        <p className="text-slate-500 mt-1 text-sm">
+          Defina quando o agente deve entregar a conversa para um atendente de verdade.
         </p>
       </div>
 
-      <div className="space-y-6">
-        {/* Escalation Triggers */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-6">
-          <div>
-            <h3 className="font-semibold text-slate-900">Regras de escalação</h3>
-            <p className="text-sm text-slate-500 mt-1">Selecione quando deve escalar para um humano</p>
+      {/* Turn limit slider */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Target className="w-4 h-4 text-blue-600" />
           </div>
-
-          {/* Unanswered Messages Trigger */}
-          <div className="border border-slate-200 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="unanswered"
-                checked={triggers.find((t) => t.type === 'unanswered_messages')?.enabled || false}
-                onChange={() =>
-                  toggleTrigger(triggers.find((t) => t.type === 'unanswered_messages')?.id || '')
-                }
-                className="rounded border-slate-300"
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold text-slate-900">Limite de tentativas</h3>
+              <Switch
+                checked={unansweredTrigger?.enabled || false}
+                onCheckedChange={(v) => unansweredTrigger && updateTrigger(unansweredTrigger.id, { enabled: v })}
               />
-              <label htmlFor="unanswered" className="cursor-pointer">
-                <span className="font-medium text-slate-900">Após N mensagens sem resposta</span>
-              </label>
             </div>
-
-            {triggers.find((t) => t.type === 'unanswered_messages')?.enabled && (
-              <div className="ml-6 space-y-2">
-                <Label htmlFor="messages_threshold">Número de mensagens</Label>
-                <Input
-                  id="messages_threshold"
-                  type="number"
-                  min="1"
-                  value={
-                    triggers.find((t) => t.type === 'unanswered_messages')?.threshold || 15
-                  }
-                  onChange={(e) =>
-                    updateTriggerThreshold(
-                      triggers.find((t) => t.type === 'unanswered_messages')?.id || '',
-                      parseInt(e.target.value, 10)
-                    )
-                  }
-                  className="max-w-xs"
-                />
-                <p className="text-xs text-slate-500">Padrão: 15 mensagens</p>
-              </div>
-            )}
-          </div>
-
-          {/* Negative Sentiment Trigger */}
-          <div className="border border-slate-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="sentiment"
-                checked={triggers.find((t) => t.type === 'negative_sentiment')?.enabled || false}
-                onChange={() =>
-                  toggleTrigger(triggers.find((t) => t.type === 'negative_sentiment')?.id || '')
-                }
-                className="rounded border-slate-300"
-              />
-              <label htmlFor="sentiment" className="cursor-pointer flex-1">
-                <span className="font-medium text-slate-900">Se cliente frustrado (sentimento negativo)</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Human Request Trigger */}
-          <div className="border border-slate-200 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="human_request"
-                checked={triggers.find((t) => t.type === 'human_request')?.enabled || false}
-                onChange={() =>
-                  toggleTrigger(triggers.find((t) => t.type === 'human_request')?.id || '')
-                }
-                className="rounded border-slate-300"
-              />
-              <label htmlFor="human_request" className="cursor-pointer">
-                <span className="font-medium text-slate-900">Se cliente pedir atendente (palavras-chave)</span>
-              </label>
-            </div>
-
-            {triggers.find((t) => t.type === 'human_request')?.enabled && (
-              <div className="ml-6 space-y-2">
-                <Label htmlFor="keywords">Palavras-chave para detectar</Label>
-                <Textarea
-                  id="keywords"
-                  placeholder="Ex: falar com humano, atendente, supervisor, gerente (uma por linha)"
-                  value={triggers.find((t) => t.type === 'human_request')?.keywords || ''}
-                  onChange={(e) =>
-                    updateTriggerKeywords(
-                      triggers.find((t) => t.type === 'human_request')?.id || '',
-                      e.target.value
-                    )
-                  }
-                  className="min-h-[80px] text-sm"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Agent Confidence Trigger */}
-          <div className="border border-slate-200 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="confidence"
-                checked={triggers.find((t) => t.type === 'agent_confidence')?.enabled || false}
-                onChange={() =>
-                  toggleTrigger(triggers.find((t) => t.type === 'agent_confidence')?.id || '')
-                }
-                className="rounded border-slate-300"
-              />
-              <label htmlFor="confidence" className="cursor-pointer">
-                <span className="font-medium text-slate-900">Se confiança do agente cair abaixo de X%</span>
-              </label>
-            </div>
-
-            {triggers.find((t) => t.type === 'agent_confidence')?.enabled && (
-              <div className="ml-6 space-y-2">
-                <Label htmlFor="confidence_threshold">Percentual mínimo (%)</Label>
-                <Input
-                  id="confidence_threshold"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={
-                    triggers.find((t) => t.type === 'agent_confidence')?.threshold || 40
-                  }
-                  onChange={(e) =>
-                    updateTriggerThreshold(
-                      triggers.find((t) => t.type === 'agent_confidence')?.id || '',
-                      parseInt(e.target.value, 10)
-                    )
-                  }
-                  className="max-w-xs"
-                />
-                <p className="text-xs text-slate-500">Padrão: 40%</p>
-              </div>
-            )}
-          </div>
-
-          {/* Custom Rule */}
-          {triggers.filter((t) => t.type === 'custom').length > 0 && (
-            <div className="space-y-3 bg-slate-50 rounded-lg p-4">
-              <div className="font-medium text-slate-900">Regras personalizadas</div>
-              {triggers.filter((t) => t.type === 'custom').map((trigger) => (
-                <div
-                  key={trigger.id}
-                  className="flex items-center justify-between gap-2 bg-white p-3 rounded border border-slate-200"
-                >
-                  <span className="text-sm text-slate-900">{trigger.customRule}</span>
-                  <button
-                    onClick={() => removeTrigger(trigger.id)}
-                    className="text-slate-400 hover:text-red-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add Custom Rule */}
-          <div className="border border-slate-200 rounded-lg p-4 space-y-4 bg-slate-50">
-            <Label htmlFor="custom_rule">Adicionar regra personalizada</Label>
-            <div className="flex gap-2">
-              <Input
-                id="custom_rule"
-                placeholder="Ex: Se cliente menciona legal ou contrato"
-                value={customRule}
-                onChange={(e) => setCustomRule(e.target.value)}
-              />
-              <Button
-                onClick={addCustomTrigger}
-                disabled={!customRule.trim()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"
-              >
-                Adicionar
-              </Button>
-            </div>
+            <p className="text-xs text-slate-500">Após quantas trocas de mensagens sem progresso o agente escala</p>
           </div>
         </div>
 
-        {/* Fallback Message */}
-        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-          <div>
-            <h3 className="font-semibold text-slate-900">Mensagem quando ninguém está disponível</h3>
-            <p className="text-sm text-slate-500 mt-1">Mensagem enviada se não houver atendente disponível</p>
+        {unansweredTrigger?.enabled && (
+          <div className="pt-3 border-t border-slate-100 space-y-3">
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex-1">
+                <input
+                  type="range"
+                  min="3"
+                  max="50"
+                  value={unansweredTrigger.threshold ?? 15}
+                  onChange={(e) => updateTrigger(unansweredTrigger.id, { threshold: Number(e.target.value) })}
+                  className="w-full accent-indigo-600"
+                />
+                <div className="flex justify-between mt-1 text-[11px] text-slate-400">
+                  <span>3 msgs</span>
+                  <span>25 msgs</span>
+                  <span>50 msgs</span>
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-2xl font-semibold text-indigo-600 tracking-tight">
+                  {unansweredTrigger.threshold ?? 15}
+                </p>
+                <p className="text-[11px] text-slate-500">mensagens</p>
+              </div>
+            </div>
+            <p className={cn('text-xs font-medium', toleranceLabel.color)}>{toleranceLabel.text}</p>
           </div>
-          <Textarea
-            placeholder="Ex: Desculpe, nenhum atendente está disponível agora. Tentaremos atender sua solicitação em breve."
-            value={fallbackMessage}
-            onChange={(e) => setFallbackMessage(e.target.value)}
-            className="min-h-[100px]"
-          />
+        )}
+      </div>
+
+      {/* Other triggers as toggle cards */}
+      <div className="space-y-3">
+        <Label className="text-xs uppercase tracking-wide text-slate-500">Gatilhos adicionais</Label>
+
+        {/* Negative sentiment */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-start gap-3">
+          <div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Frown className="w-4 h-4 text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium text-slate-900">Cliente frustrado</p>
+              <Switch
+                checked={triggers.find((t) => t.type === 'negative_sentiment')?.enabled || false}
+                onCheckedChange={(v) => {
+                  const t = triggers.find((x) => x.type === 'negative_sentiment')
+                  if (t) updateTrigger(t.id, { enabled: v })
+                }}
+              />
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">Escalar quando detectar sentimento negativo ou reclamação</p>
+          </div>
+        </div>
+
+        {/* Human request */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <UserCheck className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-slate-900">Cliente pede humano</p>
+                <Switch
+                  checked={triggers.find((t) => t.type === 'human_request')?.enabled || false}
+                  onCheckedChange={(v) => {
+                    const t = triggers.find((x) => x.type === 'human_request')
+                    if (t) updateTrigger(t.id, { enabled: v })
+                  }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">Escalar quando cliente usar certas palavras-chave</p>
+            </div>
+          </div>
+
+          {triggers.find((t) => t.type === 'human_request')?.enabled && (
+            <div className="mt-3 pt-3 border-t border-slate-100 ml-12 space-y-1.5">
+              <Label className="text-xs">Palavras-chave (uma por linha)</Label>
+              <Textarea
+                placeholder={'humano\natendente\nsupervisor\ngerente'}
+                value={triggers.find((t) => t.type === 'human_request')?.keywords || ''}
+                onChange={(e) => {
+                  const t = triggers.find((x) => x.type === 'human_request')
+                  if (t) updateTrigger(t.id, { keywords: e.target.value })
+                }}
+                className="min-h-[80px] text-sm"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Agent confidence */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-slate-900">Confiança baixa do agente</p>
+                <Switch
+                  checked={confidenceTrigger?.enabled || false}
+                  onCheckedChange={(v) => confidenceTrigger && updateTrigger(confidenceTrigger.id, { enabled: v })}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">Escalar quando o agente não se sentir seguro para responder</p>
+            </div>
+          </div>
+
+          {confidenceTrigger?.enabled && (
+            <div className="mt-3 pt-3 border-t border-slate-100 ml-12 space-y-2">
+              <Label className="text-xs">Limiar mínimo de confiança</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="10"
+                  max="90"
+                  value={confidenceTrigger.threshold ?? 40}
+                  onChange={(e) => updateTrigger(confidenceTrigger.id, { threshold: Number(e.target.value) })}
+                  className="flex-1 accent-indigo-600"
+                />
+                <span className="text-sm font-semibold text-indigo-600 min-w-[3rem] text-right">
+                  {confidenceTrigger.threshold ?? 40}%
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
-        <Button onClick={handleBack} variant="outline" className="text-slate-900 border-slate-300">
-          Voltar
-        </Button>
-        <Button onClick={handleNext} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-          Próximo
-        </Button>
+      {/* Messages */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <MessageCircle className="w-4 h-4 text-green-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-900">Mensagens de transição</h3>
+            <p className="text-xs text-slate-500">O que o agente fala quando passa a conversa adiante</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Mensagem ao escalar (opcional)</Label>
+            <Input
+              placeholder="Ex: Vou verificar aqui e te retorno em breve!"
+              value={escalationMessage}
+              onChange={(e) => setEscalationMessage(e.target.value)}
+            />
+            <p className="text-[11px] text-slate-400">
+              Dica: soar natural, sem mencionar "transferência" ou "outro atendente"
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Mensagem de fallback (fora do horário)</Label>
+            <Textarea
+              placeholder="Ex: Nosso time de atendimento está offline no momento. Assim que alguém estiver disponível, vamos te retornar por aqui mesmo!"
+              value={fallbackMessage}
+              onChange={(e) => setFallbackMessage(e.target.value)}
+              className="min-h-[80px]"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-between">
+        <Button onClick={handleBack} variant="outline">← Voltar</Button>
+        <Button onClick={handleNext}>Próximo passo →</Button>
       </div>
     </div>
   )

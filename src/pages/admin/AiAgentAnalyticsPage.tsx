@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   BarChart3, Bot, TrendingUp, TrendingDown, Users, MessageSquare,
   ArrowUpRight, Zap, DollarSign, Brain,
@@ -78,8 +79,18 @@ function MiniBarChart({ data, maxVal }: { data: number[]; maxVal: number }) {
 export default function AiAgentAnalyticsPage() {
   const { slug: currentProduct } = useCurrentProductMeta()
   const { agents } = useAiAgents(currentProduct)
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('')
+  const [searchParams] = useSearchParams()
+  const agentFromUrl = searchParams.get('agent') || ''
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(agentFromUrl)
   const [period, setPeriod] = useState<string>('30')
+
+  // Sync URL changes into state
+  useEffect(() => {
+    if (agentFromUrl && agentFromUrl !== selectedAgentId) {
+      setSelectedAgentId(agentFromUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentFromUrl])
 
   const { data: metrics = [] } = useAiAgentMetrics(
     selectedAgentId || agents[0]?.id,

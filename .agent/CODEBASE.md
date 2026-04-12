@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-11
+> **Last Updated:** 2026-04-12
 > **Trigger:** ALWAYS ON
-> **Stats:** 167 tabelas | 77 paginas | 131 hooks | 17 views | 495 components
+> **Stats:** 173 tabelas | 77 paginas | 133 hooks | 17 views | 507 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **131 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **133 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -177,6 +177,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtract()` | `useAIExtract.ts` |
 | `useAIExtraction()` | `useAIExtraction.ts` |
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
+| `useAiAgentHubStats()` | `useAiAgentHubStats.ts` |
 | `useAiAgents()` | `useAiAgents.ts` |
 | `useAiConversations()` | `useAiConversations.ts` |
 | `useAiKnowledgeBases()` | `useAiKnowledgeBases.ts` |
@@ -222,6 +223,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Other
 | Hook | File |
 |------|------|
+| `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentTemplates()` | `useAgentTemplates.ts` |
 | `useAgentWizard()` | `useAgentWizard.ts` |
 | `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
