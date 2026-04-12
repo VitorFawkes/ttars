@@ -1,7 +1,21 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import StudioStructure from '../../components/admin/studio/StudioStructure'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function PipelineStudio() {
+    const { profile } = useAuth()
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        if (profile && profile.is_admin !== true) {
+            navigate('/', { replace: true })
+        }
+    }, [profile, navigate])
+
+    if (!profile || profile.is_admin !== true) return null
+
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-8">
