@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAllowedStages } from '../../hooks/useCardCreationRules'
 import { useProductContext } from '../../hooks/useProductContext'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { processBriefingIA } from '../../hooks/useBriefingIA'
 import { ORIGEM_OPTIONS } from '../../lib/constants/origem'
 import AudioRecorder from '../../components/card/AudioRecorder'
@@ -78,20 +79,9 @@ export default function MobileCardCreate() {
 
   const selectedStageName = allowedStages.find(s => s.id === effectiveStageId)?.nome
 
-  // Pipeline query
-  const { data: pipeline } = useQuery({
-    queryKey: ['pipeline-for-product', currentProduct],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('pipelines')
-        .select('id')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .eq('produto', currentProduct as any)
-        .eq('ativo', true)
-        .single()
-      return data
-    }
-  })
+  // Pipeline ID vem direto do produto da org ativa (1 org = 1 produto pós-Fase 5 Org Split)
+  const { pipelineId } = useCurrentProductMeta()
+  const pipeline = pipelineId ? { id: pipelineId } : null
 
   // Owner auto-assignment
   const owners = useMemo(() => {

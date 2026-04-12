@@ -7,6 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import ContactSelector from '@/components/card/ContactSelector'
 import { formatContactName } from '@/lib/contactUtils'
+import { useProductBySlug } from '@/hooks/useCurrentProductMeta'
 
 interface CreateChildCardModalProps {
     isOpen: boolean
@@ -18,6 +19,7 @@ interface CreateChildCardModalProps {
 
 export default function CreateChildCardModal({ isOpen, onClose, parentCardId, parentProduct, parentTitle }: CreateChildCardModalProps) {
     const queryClient = useQueryClient()
+    const parentProductMeta = useProductBySlug(parentProduct)
     const [showContactSelector, setShowContactSelector] = useState(false)
     const [formData, setFormData] = useState({
         titulo: '',
@@ -28,14 +30,9 @@ export default function CreateChildCardModal({ isOpen, onClose, parentCardId, pa
 
     const createCardMutation = useMutation({
         mutationFn: async () => {
-            // Get the first stage for the parent's product pipeline
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase query builder
-            const { data: pipeline } = await (supabase.from('pipelines') as any)
-                .select('id')
-                .eq('produto', parentProduct)
-                .single()
-
-            if (!pipeline) throw new Error('Pipeline not found')
+            const pipelineId = parentProductMeta?.pipeline_id
+            if (!pipelineId) throw new Error('Pipeline not found')
+            const pipeline = { id: pipelineId }
 
             // Get first stage (sorted by phase order then stage order)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- supabase query builder
