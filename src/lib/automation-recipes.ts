@@ -33,6 +33,25 @@ export type EventType =
   | 'dias_no_stage'
   | 'card_won'
 
+/**
+ * Gatilhos "proativos" disparam SEM o cliente ter mandado mensagem recente.
+ * Nesses casos, texto livre cai fora da janela 24h do WhatsApp e é dropado
+ * silenciosamente (erro Meta 131047 "Re-engagement"). Só HSM aprovado entrega.
+ * O builder obriga HSM nesses gatilhos.
+ */
+export const PROACTIVE_EVENTS: Set<EventType> = new Set([
+  'card_created',
+  'dias_antes_viagem',
+  'dias_apos_viagem',
+  'aniversario_contato',
+  'proposta_expirada',
+  'dias_no_stage',
+])
+
+export function isProactiveEvent(event: EventType): boolean {
+  return PROACTIVE_EVENTS.has(event)
+}
+
 export interface RecipePreset {
   id: string
   /** Label curta do cartão */
@@ -52,8 +71,14 @@ export interface RecipePreset {
     event_config?: Record<string, unknown>
     action_type: ActionType
     action_config?: Record<string, unknown>
-    /** Texto sugerido se action_type=send_message */
+    /** Texto sugerido se action_type=send_message (usado apenas se não houver HSM) */
     suggested_message?: string
+    /**
+     * Sugestão de HSM Template para gatilhos proativos. Se presente, o builder
+     * abre com "modo HSM" selecionado e esse template default. Nome deve bater
+     * com algum template aprovado no WABA (ver useWhatsAppTemplates).
+     */
+    suggested_hsm_template?: string
     /** Sugestão de título pra create_task */
     suggested_task_title?: string
   }
@@ -70,8 +95,7 @@ export const RECIPES: RecipePreset[] = [
     preset: {
       event_type: 'card_created',
       action_type: 'send_message',
-      suggested_message:
-        'Oi {{contact.nome}}! Aqui é {{agent.primeiro_nome}} da nossa equipe. Recebemos seu interesse — em breve entramos em contato com uma proposta personalizada.',
+      suggested_hsm_template: 'wt_primeiro_contato001',
     },
   },
   {

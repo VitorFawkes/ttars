@@ -812,19 +812,39 @@ async function executeSendMessageAction(
         sendMode = 'text';
     }
 
-    await supabaseClient.from('whatsapp_messages').insert({
-        contact_id: contato.id,
-        card_id: cardId,
-        body: messageBody,
-        direction: 'outbound',
-        is_from_me: true,
-        type: sendMode === 'hsm' ? 'template' : 'text',
-        status: 'sent',
-        sender_phone: normalizedPhone,
-        sent_by_user_name: 'Automação',
-        phone_number_label: `automation:${trigger.name || trigger.id}`,
-        metadata: { source: 'automation', trigger_id: trigger.id, send_mode: sendMode, echo_response: respData },
-    });
+    // Echo já insere em whatsapp_messages quando aceita /send-message e /send-template.
+    // Evitamos duplicação: se veio message.id no response, ATUALIZAMOS essa linha com
+    // metadata de automação. Se não veio, inserimos nós mesmos (fallback).
+    const echoMessageId = respData?.message?.id || respData?.echo_response?.message?.id;
+    const automationMetadata = {
+        source: 'automation',
+        trigger_id: trigger.id,
+        trigger_name: trigger.name,
+        send_mode: sendMode,
+        hsm_template_name: hsmTemplateName || null,
+    };
+
+    if (echoMessageId) {
+        await supabaseClient.from('whatsapp_messages').update({
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: automationMetadata,
+        }).eq('id', echoMessageId);
+    } else {
+        await supabaseClient.from('whatsapp_messages').insert({
+            contact_id: contato.id,
+            card_id: cardId,
+            body: messageBody,
+            direction: 'outbound',
+            is_from_me: true,
+            type: sendMode === 'hsm' ? 'template' : 'text',
+            status: 'sent',
+            sender_phone: normalizedPhone,
+            sent_by_user_name: 'Automação',
+            phone_number_label: `automation:${trigger.name || trigger.id}`,
+            metadata: { ...automationMetadata, echo_response: respData },
+        });
+    }
 
     await supabaseClient.from("cadence_event_log").insert({
         card_id: cardId,

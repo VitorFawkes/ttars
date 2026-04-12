@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Zap, MessageSquare, CheckSquare, ArrowRightLeft, Layers,
-  Sparkles, Check,
+  Sparkles, Check, ShieldCheck, AlertTriangle,
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
@@ -20,8 +20,9 @@ import { useMensagemTemplates } from '@/hooks/useMensagemTemplates'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useUsers } from '@/hooks/useUsers'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '@/hooks/useWhatsAppTemplates'
 import {
-  RECIPES, RECIPE_CATEGORIES,
+  RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
   ACTION_TYPE_LABELS, EVENT_TYPE_LABELS,
   type ActionType, type EventType, type RecipePreset,
 } from '@/lib/automation-recipes'
@@ -37,7 +38,13 @@ interface FormState {
   // send_message
   template_id: string | null
   message_body: string
-  message_mode: 'template' | 'custom'
+  /** 'hsm' = template aprovado Meta (recomendado p/ gatilho proativo, funciona fora da janela 24h)
+   *  'template' = template salvo em mensagem_templates (texto livre)
+   *  'custom' = texto livre inline */
+  message_mode: 'hsm' | 'template' | 'custom'
+  hsm_template_name: string | null
+  hsm_language: string
+  hsm_params: string[]
   phone_number_id: string | null
   dedup_hours: number
   // create_task
@@ -63,7 +70,10 @@ const DEFAULT_FORM: FormState = {
   action_type: 'send_message',
   template_id: null,
   message_body: '',
-  message_mode: 'template',
+  message_mode: 'hsm',
+  hsm_template_name: null,
+  hsm_language: 'pt_BR',
+  hsm_params: [],
   phone_number_id: null,
   dedup_hours: 24,
   task_title: '',
@@ -228,35 +238,166 @@ function ActionTypeTabs({
   )
 }
 
+function HsmTemplatePicker({
+  form, setForm, waTemplates, loading,
+}: {
+  form: FormState
+  setForm: (next: Partial<FormState>) => void
+  waTemplates: WhatsAppTemplate[]
+  loading: boolean
+}) {
+  const selected = useMemo(
+    () => waTemplates.find((t) => t.name === form.hsm_template_name) || null,
+    [waTemplates, form.hsm_template_name]
+  )
+  const parsed = useMemo(() => (selected ? parseTemplateBody(selected) : null), [selected])
+
+  // Ao trocar template, reajusta o array de params para o tamanho certo, preservando
+  // os valores já digitados nas posições que existem.
+  const handleSelectTemplate = (name: string) => {
+    const next = waTemplates.find((t) => t.name === name)
+    const paramCount = next ? parseTemplateBody(next).paramCount : 0
+    const prev = form.hsm_params
+    const padded: string[] = Array.from({ length: paramCount }, (_, i) => prev[i] || '')
+    setForm({
+      hsm_template_name: name || null,
+      hsm_language: next?.language || 'pt_BR',
+      hsm_params: padded,
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="flex items-center gap-1">
+          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+          Template aprovado (HSM)
+        </Label>
+        <Select
+          value={form.hsm_template_name || ''}
+          onChange={handleSelectTemplate}
+          options={[
+            { value: '', label: loading ? 'Carregando templates...' : 'Selecione um template aprovado' },
+            ...waTemplates.map((t) => ({
+              value: t.name,
+              label: `${t.name} [${t.language}] — ${t.category}`,
+            })),
+          ]}
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          Templates HSM aprovados pela Meta. Funcionam fora da janela 24h (sem HSM, mensagens proativas são dropadas silenciosamente).
+        </p>
+      </div>
+
+      {selected && parsed && (
+        <>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 whitespace-pre-wrap">
+            {parsed.bodyText}
+            {parsed.hasButtons && (
+              <p className="text-xs text-slate-500 mt-2 italic">+ botões do template (fixos)</p>
+            )}
+          </div>
+
+          {parsed.paramCount > 0 && (
+            <div className="space-y-2">
+              <Label>Parâmetros do template</Label>
+              {Array.from({ length: parsed.paramCount }).map((_, i) => (
+                <div key={i}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{`{{${i + 1}}}`}</code>
+                    <span className="text-xs text-slate-500">{parsed.paramLabels[i]}</span>
+                  </div>
+                  <Input
+                    value={form.hsm_params[i] || ''}
+                    onChange={(e) => {
+                      const next = [...form.hsm_params]
+                      next[i] = e.target.value
+                      setForm({ hsm_params: next })
+                    }}
+                    placeholder="Ex: {{contact.primeiro_nome}} ou texto fixo"
+                  />
+                </div>
+              ))}
+              <p className="text-xs text-slate-500">
+                Variáveis dinâmicas: <code>{'{{contact.primeiro_nome}}'}</code>, <code>{'{{contact.nome}}'}</code>, <code>{'{{card.titulo}}'}</code>. Ou digite texto fixo.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function SendMessageEditor({
-  form, setForm, templates,
+  form, setForm, templates, waTemplates, waTemplatesLoading,
 }: {
   form: FormState
   setForm: (next: Partial<FormState>) => void
   templates: Array<{ id: string; nome: string; categoria: string; corpo: string | null }>
+  waTemplates: WhatsAppTemplate[]
+  waTemplatesLoading: boolean
 }) {
+  const proactive = isProactiveEvent(form.event_type)
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        {(['template', 'custom'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setForm({ message_mode: mode })}
-            className={cn(
-              'px-3 py-1.5 text-sm rounded-md border',
-              form.message_mode === mode
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-slate-600 border-slate-200'
-            )}
-          >
-            {mode === 'template' ? 'Usar template' : 'Texto direto'}
-          </button>
-        ))}
+      {proactive && form.message_mode !== 'hsm' && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-amber-900">
+            <strong>Atenção:</strong> gatilho proativo ({EVENT_TYPE_LABELS[form.event_type]}) dispara sem conversa recente.
+            O WhatsApp <strong>drops mensagem de texto livre</strong> se estiver fora da janela de 24h.
+            Use um <strong>template HSM aprovado</strong> para garantir entrega.
+            <button
+              className="ml-1 underline"
+              onClick={() => setForm({ message_mode: 'hsm' })}
+            >
+              Trocar para HSM
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { key: 'hsm', label: 'Template HSM', icon: ShieldCheck, hint: 'Funciona sempre' },
+          { key: 'template', label: 'Template salvo', icon: MessageSquare, hint: 'Texto livre' },
+          { key: 'custom', label: 'Texto direto', icon: Sparkles, hint: 'Texto livre' },
+        ] as const).map((opt) => {
+          const Icon = opt.icon
+          const active = form.message_mode === opt.key
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setForm({ message_mode: opt.key })}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border',
+                active
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              )}
+              title={opt.hint}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {opt.label}
+            </button>
+          )
+        })}
       </div>
 
-      {form.message_mode === 'template' ? (
+      {form.message_mode === 'hsm' && (
+        <HsmTemplatePicker
+          form={form}
+          setForm={setForm}
+          waTemplates={waTemplates}
+          loading={waTemplatesLoading}
+        />
+      )}
+
+      {form.message_mode === 'template' && (
         <div className="space-y-2">
-          <Label>Template de mensagem</Label>
+          <Label>Template salvo (texto livre)</Label>
           <Select
             value={form.template_id || ''}
             onChange={(v) => setForm({ template_id: v || null })}
@@ -271,10 +412,15 @@ function SendMessageEditor({
             </div>
           )}
           <p className="text-xs text-slate-500">
-            Não tem template? <a href="/settings/automacoes/templates" target="_blank" className="text-indigo-600 hover:underline">Criar em nova aba</a>
+            Não tem template?{' '}
+            <a href="/settings/automacoes/templates" target="_blank" className="text-indigo-600 hover:underline">
+              Criar em nova aba
+            </a>
           </p>
         </div>
-      ) : (
+      )}
+
+      {form.message_mode === 'custom' && (
         <div className="space-y-2">
           <Label>Texto da mensagem</Label>
           <Textarea
@@ -284,7 +430,9 @@ function SendMessageEditor({
             placeholder="Oi {{contact.nome}}, ..."
           />
           <p className="text-xs text-slate-500">
-            Variáveis: <code className="text-xs">{'{{contact.nome}}'}</code>, <code className="text-xs">{'{{card.destino}}'}</code>, <code className="text-xs">{'{{card.valor}}'}</code>
+            Variáveis: <code className="text-xs">{'{{contact.nome}}'}</code>,{' '}
+            <code className="text-xs">{'{{contact.primeiro_nome}}'}</code>,{' '}
+            <code className="text-xs">{'{{card.titulo}}'}</code>
           </p>
         </div>
       )}
@@ -519,6 +667,7 @@ export default function AutomationBuilderPage() {
   const { users } = useUsers()
   const userOptions: Array<{ id: string; nome_completo: string }> = (users || []).map((u: { id: string; nome: string }) => ({ id: u.id, nome_completo: u.nome }))
   const { templates: messageTemplates } = useMensagemTemplates(currentProduct || undefined)
+  const { data: waTemplates = [], isLoading: waTemplatesLoading } = useWhatsAppTemplates(null)
 
   const [step, setStep] = useState<Step>(isNew ? 'gallery' : 'editor')
   const [form, setFormState] = useState<FormState>(DEFAULT_FORM)
@@ -561,6 +710,11 @@ export default function AutomationBuilderPage() {
 
       const cfg = data.action_config || {}
       const evCfg = data.event_config || {}
+      const loadedMode: FormState['message_mode'] = cfg.hsm_template_name
+        ? 'hsm'
+        : cfg.corpo && !cfg.template_id
+          ? 'custom'
+          : 'template'
       setFormState({
         ...DEFAULT_FORM,
         name: data.name || '',
@@ -570,7 +724,10 @@ export default function AutomationBuilderPage() {
         action_type: data.action_type,
         template_id: cfg.template_id || null,
         message_body: cfg.corpo || '',
-        message_mode: cfg.corpo && !cfg.template_id ? 'custom' : 'template',
+        message_mode: loadedMode,
+        hsm_template_name: cfg.hsm_template_name || null,
+        hsm_language: cfg.hsm_language || 'pt_BR',
+        hsm_params: Array.isArray(cfg.hsm_params) ? cfg.hsm_params : [],
         phone_number_id: cfg.phone_number_id || null,
         dedup_hours: typeof cfg.dedup_hours === 'number' ? cfg.dedup_hours : 24,
         task_title: (data.task_configs?.[0]?.titulo) || '',
@@ -589,6 +746,14 @@ export default function AutomationBuilderPage() {
   }, [id, isNew, navigate])
 
   const pickRecipe = (recipe: RecipePreset) => {
+    const suggestedHsm = recipe.preset.suggested_hsm_template
+    // HSM default: se a receita sugere um, pre-seleciona e prepara 1 param {{contact.primeiro_nome}}
+    //   (o usuário pode trocar depois; número correto de params é recalculado no picker)
+    const initialMode: FormState['message_mode'] = suggestedHsm
+      ? 'hsm'
+      : recipe.preset.suggested_message
+        ? 'custom'
+        : 'template'
     setFormState({
       ...DEFAULT_FORM,
       name: recipe.name,
@@ -597,7 +762,9 @@ export default function AutomationBuilderPage() {
       action_type: recipe.preset.action_type,
       template_id: (recipe.preset.action_config?.template_id as string) || null,
       message_body: recipe.preset.suggested_message || '',
-      message_mode: recipe.preset.suggested_message ? 'custom' : 'template',
+      message_mode: initialMode,
+      hsm_template_name: suggestedHsm || null,
+      hsm_params: suggestedHsm ? ['{{contact.primeiro_nome}}'] : [],
       task_title: recipe.preset.suggested_task_title || '',
       target_stage_id: (recipe.preset.action_config?.target_stage_id as string) || null,
       target_cadence_template_id: (recipe.preset.action_config?.target_template_id as string) || null,
@@ -608,6 +775,7 @@ export default function AutomationBuilderPage() {
   const validate = (): string | null => {
     if (!form.name.trim()) return 'Dê um nome à automação'
     if (form.action_type === 'send_message') {
+      if (form.message_mode === 'hsm' && !form.hsm_template_name) return 'Selecione um template HSM aprovado'
       if (form.message_mode === 'template' && !form.template_id) return 'Selecione um template'
       if (form.message_mode === 'custom' && !form.message_body.trim()) return 'Escreva o texto da mensagem'
     }
@@ -634,6 +802,11 @@ export default function AutomationBuilderPage() {
       const taskConfigs: Array<Record<string, unknown>> = []
 
       if (form.action_type === 'send_message') {
+        if (form.message_mode === 'hsm' && form.hsm_template_name) {
+          actionConfig.hsm_template_name = form.hsm_template_name
+          actionConfig.hsm_language = form.hsm_language
+          actionConfig.hsm_params = form.hsm_params
+        }
         if (form.message_mode === 'template' && form.template_id) {
           actionConfig.template_id = form.template_id
         }
@@ -761,10 +934,19 @@ export default function AutomationBuilderPage() {
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Faz o quê</p>
               <p className="text-slate-700">{actionLabel}</p>
+              {form.action_type === 'send_message' && form.message_mode === 'hsm' && (
+                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  HSM: <code className="text-xs">{form.hsm_template_name}</code> ({form.hsm_params.length} params)
+                </p>
+              )}
               {form.action_type === 'send_message' && form.message_mode === 'template' && (
                 <p className="text-xs text-slate-500 mt-1">
                   Template: {messageTemplates.find((t) => t.id === form.template_id)?.nome || '—'}
                 </p>
+              )}
+              {form.action_type === 'send_message' && form.message_mode === 'custom' && (
+                <p className="text-xs text-slate-500 mt-1">Texto livre ({form.message_body.length} caracteres)</p>
               )}
               {form.action_type === 'create_task' && (
                 <p className="text-xs text-slate-500 mt-1">Tarefa: {form.task_title}</p>
@@ -870,7 +1052,13 @@ export default function AutomationBuilderPage() {
 
         <div className="pt-4 border-t border-slate-200">
           {form.action_type === 'send_message' && (
-            <SendMessageEditor form={form} setForm={setForm} templates={messageTemplates} />
+            <SendMessageEditor
+              form={form}
+              setForm={setForm}
+              templates={messageTemplates}
+              waTemplates={waTemplates}
+              waTemplatesLoading={waTemplatesLoading}
+            />
           )}
           {form.action_type === 'create_task' && (
             <CreateTaskEditor form={form} setForm={setForm} users={userOptions} />
