@@ -8,6 +8,7 @@ import { parseBRNumber } from '../../lib/parseBRNumber'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
 interface DealImportModalProps {
     isOpen: boolean
     onClose: () => void
@@ -70,21 +71,9 @@ export default function DealImportModal({ isOpen, onClose, onSuccess, currentPro
     const effectiveProduct = currentProduct
     const currentUserId = session?.user?.id
 
-    // Fetch Pipeline ID
-    const { data: pipeline } = useQuery({
-        queryKey: ['pipeline-for-product', effectiveProduct],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('pipelines')
-                .select('id')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .eq('produto', effectiveProduct as any)
-                .eq('ativo', true)
-                .single()
-            return data
-        },
-        enabled: isOpen
-    })
+    // Pipeline ID vem direto do produto da org ativa (1 org = 1 produto pós-Fase 5 Org Split)
+    const productMeta = useProductBySlug(effectiveProduct)
+    const pipeline = productMeta?.pipeline_id ? { id: productMeta.pipeline_id } : null
 
     // Fetch Stages - prioritize "Ganho" stage for won deals
     const { data: stages } = useQuery({

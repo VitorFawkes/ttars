@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import ContactSelector from '@/components/card/ContactSelector'
 import { cn } from '@/lib/utils'
+import { useProductBySlug } from '@/hooks/useCurrentProductMeta'
 
 interface BulkAddTravelersModalProps {
     isOpen: boolean
@@ -39,6 +40,7 @@ export default function BulkAddTravelersModal({
     // parentDestination // Unused for now
 }: BulkAddTravelersModalProps) {
     const queryClient = useQueryClient()
+    const parentProductMeta = useProductBySlug(parentProduct)
     const [showContactSelector, setShowContactSelector] = useState(false)
     const [selectedContacts, setSelectedContacts] = useState<SelectedContact[]>([])
     const [isChecking, setIsChecking] = useState(false)
@@ -78,14 +80,9 @@ export default function BulkAddTravelersModal({
             const validContacts = selectedContacts.filter(c => !c.existsInGroup)
             if (validContacts.length === 0) return
 
-            // Get the first stage for the parent's product pipeline
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: pipeline } = await (supabase.from('pipelines') as any)
-                .select('id')
-                .eq('produto', parentProduct)
-                .single()
-
-            if (!pipeline) throw new Error('Pipeline not found')
+            const pipelineId = parentProductMeta?.pipeline_id
+            if (!pipelineId) throw new Error('Pipeline not found')
+            const pipeline = { id: pipelineId }
 
             // Get first stage (sorted by phase order then stage order)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -17,6 +17,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
+import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
 
 interface CreateCardModalProps {
     isOpen: boolean
@@ -355,21 +356,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     }, [isOpen, initialOwners, currentProduct])
 
 
-    // Get pipeline ID for the selected product
-    const { data: pipeline } = useQuery({
-        queryKey: ['pipeline-for-product', formData.produto],
-        enabled: isOpen && !!formData.produto,
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('pipelines')
-                .select('id')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .eq('produto', formData.produto as any)
-                .eq('ativo', true)
-                .single()
-            return data
-        }
-    })
+    // Pipeline ID vem direto do produto da org ativa (1 org = 1 produto pós-Fase 5 Org Split)
+    const productMeta = useProductBySlug(formData.produto)
+    const pipeline = productMeta?.pipeline_id ? { id: productMeta.pipeline_id } : null
 
     // NOTE: No required fields are enforced at card creation time.
     // Governance rules (required fields per stage) apply only AFTER creation.

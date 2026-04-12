@@ -79,29 +79,37 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 - Frontend: `useOrg()` do OrgContext para acessar org atual
 - Edge Functions: `getOrgId(req)` de `_shared/org-context.ts`
 
-## Isolamento de Produto (OBRIGATÓRIO)
+## Isolamento de Produto / Org (OBRIGATÓRIO)
 
-Cada produto (TRIPS, WEDDING) tem seu próprio pipeline. Se um produto está selecionado, **NADA** de outro produto deve aparecer. Sem exceção, nem para admin. Produtos definidos na tabela `products` (não mais em constantes hardcoded). Usar `useCurrentProductMeta()` para obter `pipelineId`.
+**Pós-Fase 5 Org Split:** TRIPS e WEDDING são **organizações separadas** (não mais produtos dentro da mesma org). Cada org filha tem exatamente 1 produto e 1 pipeline. O isolamento primário é por `org_id` via RLS — `.eq('produto', ...)` é defesa em profundidade, não mais a fronteira principal.
 
-### Constantes
-- **`PRODUCT_PIPELINE_MAP`** centralizado em `src/lib/constants.ts` — NUNCA duplicar
-- Cada produto → 1 pipeline UUID. Usar para filtrar `pipeline_stages`, `pipeline_phases`, etc.
+- Welcome Trips → produto TRIPS → 1 pipeline
+- Welcome Weddings → produto WEDDING → 1 pipeline
+- Usuário troca via **OrgSwitcher** (não existe mais ProductSwitcher)
+
+### Fontes de verdade (frontend)
+- **Org ativa:** `useOrg()` do OrgContext
+- **Produto ativo:** `useProductContext().currentProduct` (derivado da org)
+- **Metadados do produto atual (incluindo `pipeline_id`):** `useCurrentProductMeta()` → `{ product, pipelineId, slug }`
+- **Pipeline de um produto arbitrário (ex: produto do card pai):** `useProductBySlug(slug)?.pipeline_id`
+- **Lista de produtos da org (normalmente 1):** `useProducts()` — query à tabela `products` filtrada por `org_id`
 
 ### Frontend — Checklist para código novo
 1. Ler `useProductContext().currentProduct` (ou `useAnalyticsFilters().product` no Analytics)
-2. Passar `currentProduct` como filtro para queries Supabase (`.eq('produto', currentProduct)`)
-3. Se a query envolve `pipeline_stages`, filtrar por `pipeline_id` via `PRODUCT_PIPELINE_MAP[currentProduct]`
-4. Hooks de analytics: `p_product: product` (nunca `null` — opção "ALL" foi removida)
-5. Widgets de dashboard: aceitar prop `productFilter` e filtrar por `card.produto`
-6. Reuniões/atividades sem `card_id`: manter visíveis (não filtrar)
-7. `usePipelineStages(pipelineId?)` — passar `pipelineId` quando produto importa
+2. Passar `currentProduct` como filtro defensivo em queries a `cards` (`.eq('produto', currentProduct)`) — RLS já isola por org, mas o filtro de produto mantém a UI coerente se a org tiver múltiplos produtos
+3. Se a query envolve `pipeline_stages` / `pipeline_phases`, filtrar por `pipeline_id` obtido via `useCurrentProductMeta().pipelineId`
+4. **NUNCA** fazer `.from('pipelines').eq('produto', X).single()` só para descobrir `pipeline_id` — use `useCurrentProductMeta()` ou `useProductBySlug()` (o `pipeline_id` já está em `products`)
+5. Hooks de analytics: `p_product: product` (nunca `null` — opção "ALL" foi removida)
+6. Widgets de dashboard: aceitar prop `productFilter` e filtrar por `card.produto`
+7. Reuniões/atividades sem `card_id`: manter visíveis (não filtrar)
+8. `usePipelineStages(pipelineId?)` — passar `pipelineId` quando produto importa
 
 ### Backend (SQL/RPCs) — Checklist para código novo
 1. Toda RPC que toca `cards` DEVE ter: `AND (p_product IS NULL OR c.produto::TEXT = p_product)`
 2. Toda RPC que toca `pipeline_stages` DEVE ter:
    ```sql
    JOIN pipelines pip ON pip.id = s.pipeline_id
-   WHERE (p_product IS NULL OR pip.produto = p_product)
+   WHERE (p_product IS NULL OR pip.produto::TEXT = p_product)
    ```
 3. JOIN correto: `pipeline_stages.pipeline_id → pipelines.id` (NÃO via `pipeline_phases` — phases não tem `pipeline_id`)
 4. Milestone lookups: filtrar por `s.pipeline_id` para evitar conflito entre `taxa_paga` (TRIPS) e `ww_taxa_paga` (WEDDING)
