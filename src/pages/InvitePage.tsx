@@ -27,6 +27,10 @@ export default function InvitePage() {
     const [valid, setValid] = useState(false);
     const [inviteData, setInviteData] = useState<{ email: string; role: string; team_id?: string; team_name?: string; org_id?: string } | null>(null);
 
+    const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+    const [emailMismatch, setEmailMismatch] = useState(false);
+    const [accepting, setAccepting] = useState(false);
+
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -39,6 +43,18 @@ export default function InvitePage() {
             validateToken(token);
         }
     }, [token]);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data }) => {
+            setSessionEmail(data.session?.user?.email ?? null);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (sessionEmail && inviteData?.email) {
+            setEmailMismatch(sessionEmail.toLowerCase() !== inviteData.email.toLowerCase());
+        }
+    }, [sessionEmail, inviteData]);
 
     const validateToken = async (t: string) => {
         try {
@@ -90,7 +106,7 @@ export default function InvitePage() {
 
         setSubmitting(true);
         try {
-            // 1. Sign Up (trigger handle_new_user valida invite e injeta profile/org_id)
+            // 1. Sign Up (trigger handle_new_user usa invite_token para casar a org certa)
             const { data: signUpData, error } = await supabase.auth.signUp({
                 email: inviteData!.email,
                 password: password,
@@ -99,6 +115,7 @@ export default function InvitePage() {
                         full_name: name,
                         role: inviteData!.role,
                         team_id: inviteData!.team_id,
+                        invite_token: token,
                     }
                 }
             });
@@ -144,6 +161,30 @@ export default function InvitePage() {
         }
     };
 
+    const handleAcceptAsExistingUser = async () => {
+        if (!token) return;
+        setAccepting(true);
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await supabase.rpc('accept_invite_for_existing_user' as any, { p_token: token });
+            if (error) throw error;
+            const result = data as { success?: boolean; org_id?: string } | null;
+            if (!result?.success) throw new Error('Resposta inesperada do servidor');
+            toast({
+                title: 'Convite aceito!',
+                description: 'Você agora faz parte desta organização. Use o seletor de workspace para alternar.',
+                type: 'success',
+            });
+            navigate('/dashboard');
+        } catch (error) {
+            console.error('Accept invite error:', error);
+            const message = error instanceof Error ? error.message : 'Falha ao aceitar convite.';
+            toast({ title: 'Erro ao aceitar convite', description: message, type: 'error' });
+        } finally {
+            setAccepting(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -165,6 +206,61 @@ export default function InvitePage() {
                     </p>
                     <Button onClick={() => navigate('/login')} variant="outline" className="w-full">
                         Voltar para Login
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    // Usuário já logado — fluxo de aceite direto (2ª+ org)
+    if (sessionEmail && !emailMismatch) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900">Aceitar convite</h2>
+                    <p className="text-slate-500 mt-2">
+                        Você já tem uma conta como <strong>{sessionEmail}</strong>. Este convite será adicionado como um novo workspace.
+                    </p>
+                    <div className="mt-4 p-3 bg-indigo-50 rounded-lg inline-block">
+                        {inviteData?.team_name && (
+                            <p className="text-xs text-indigo-600">Time: {inviteData.team_name}</p>
+                        )}
+                    </div>
+                    <Button
+                        onClick={handleAcceptAsExistingUser}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white mt-6"
+                        disabled={accepting}
+                    >
+                        {accepting ? (
+                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Aceitando...</>
+                        ) : (
+                            <>Aceitar convite<ArrowRight className="w-4 h-4 ml-2" /></>
+                        )}
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (sessionEmail && emailMismatch) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+                    <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <XCircle className="w-8 h-8 text-amber-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Email não confere</h2>
+                    <p className="text-slate-500 mb-2">
+                        Você está logado como <strong>{sessionEmail}</strong>, mas este convite foi enviado para <strong>{inviteData?.email}</strong>.
+                    </p>
+                    <p className="text-slate-500 mb-6 text-sm">
+                        Faça logout e abra o link novamente.
+                    </p>
+                    <Button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} variant="outline" className="w-full">
+                        Fazer logout
                     </Button>
                 </div>
             </div>
