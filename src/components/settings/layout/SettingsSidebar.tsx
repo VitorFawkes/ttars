@@ -23,7 +23,6 @@ import {
     Eye,
     Bell,
     AlertTriangle,
-    Send,
     Bot,
     BookOpen,
     BarChart3,
@@ -137,8 +136,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/customization/data-rules" icon={Database} label="Regras de Dados" />
                             <NavItem to="/settings/customization/sections" icon={Layers} label="Seções" />
                             <NavItem to="/settings/customization/action-requirements" icon={FileCheck} label="Requisitos de Ação" />
-                            <NavItem to="/settings/cadence" icon={Zap} label="Cadências" />
-                            <NavItem to="/settings/automacoes" icon={Send} label="Automação de Mensagens" />
+                            <NavItem to="/settings/automations" icon={Zap} label="Automações" />
                             <NavItem to="/settings/automacoes/templates" icon={MessageSquare} label="Templates de Mensagem" />
                             <NavItem to="/settings/ai-agents" icon={Bot} label="Agentes IA" />
                             <NavItem to="/settings/ai-skills" icon={Wrench} label="Skills de Agentes" />

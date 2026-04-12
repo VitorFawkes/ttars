@@ -71,16 +71,15 @@ import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
 import KanbanCardSettings from './components/admin/KanbanCardSettings'
 import ActionRequirementsTab from './components/admin/studio/ActionRequirementsTab'
 import NotificationConfigPage from './components/settings/customization/NotificationConfigPage'
-// Cadence Engine v3 (replaces Workflow Engine v2)
-import CadenceListPage from './pages/admin/cadence/CadenceListPage'
+// Automações unificadas (hub novo)
+import AutomationsListPage from './pages/admin/automations/AutomationsListPage'
+import AutomationBuilderPage from './pages/admin/automations/AutomationBuilderPage'
+// Cadence Engine v3 (complex cadence details — acessado via /settings/cadence, mantido)
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
-// Automação de Mensagens WhatsApp
-import AutomacaoMensagemListPage from './pages/admin/AutomacaoListPage'
-import AutomacaoMensagemBuilderPage from './pages/admin/AutomacaoBuilderPage'
+// Templates de Mensagem (biblioteca unificada usada por automações)
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
-import AutomacaoLogsPage from './pages/admin/AutomacaoLogsPage'
 // Agentes IA WhatsApp
 import AiAgentListPage from './pages/admin/AiAgentListPage'
 import AiAgentDetailPage from './pages/admin/AiAgentDetailPage'
@@ -217,8 +216,12 @@ function App() {
                   {/* Super-Admin: Organizações */}
                   <Route path="/admin/organizations" element={<OrganizationsPage />} />
 
-                  {/* Cadências de Vendas */}
-                  <Route path="/admin/cadence" element={<CadenceListPage />} />
+                  {/* Automações (hub unificado) */}
+                  <Route path="/admin/automations" element={<AutomationsListPage />} />
+                  <Route path="/admin/automations/new" element={<AutomationBuilderPage />} />
+                  <Route path="/admin/automations/:id" element={<AutomationBuilderPage />} />
+                  {/* Cadence builders complexos continuam acessíveis por URL antiga (para edição dos 24 templates existentes) */}
+                  <Route path="/admin/cadence" element={<Navigate to="/admin/automations" replace />} />
                   <Route path="/admin/cadence/automacao/new" element={<AutomacaoBuilderPage />} />
                   <Route path="/admin/cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                   <Route path="/admin/cadence/new" element={<CadenceBuilderPage />} />
@@ -256,12 +259,12 @@ function App() {
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />
 
-                    {/* Automação de Mensagens WhatsApp */}
-                    <Route path="automacoes" element={<AutomacaoMensagemListPage />} />
-                    <Route path="automacoes/builder/new" element={<AutomacaoMensagemBuilderPage />} />
-                    <Route path="automacoes/builder/:id" element={<AutomacaoMensagemBuilderPage />} />
+                    {/* Templates de Mensagem (consumidos por automações) */}
                     <Route path="automacoes/templates" element={<MensagemTemplatePage />} />
-                    <Route path="automacoes/:id/logs" element={<AutomacaoLogsPage />} />
+                    {/* Rotas legadas da Automação de Mensagens (morta) → redirect para Cadence/Automations */}
+                    <Route path="automacoes" element={<Navigate to="/settings/cadence" replace />} />
+                    <Route path="automacoes/builder/*" element={<Navigate to="/settings/cadence" replace />} />
+                    <Route path="automacoes/:id/logs" element={<Navigate to="/settings/cadence" replace />} />
 
                     {/* Agentes IA WhatsApp */}
                     <Route path="ai-agents" element={<AiAgentListPage />} />
@@ -274,8 +277,13 @@ function App() {
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
                     <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
 
-                    {/* Cadências de Vendas (replaces Workflow Engine v2) */}
-                    <Route path="cadence" element={<CadenceListPage />} />
+                    {/* Automações (hub unificado — substitui Cadence list) */}
+                    <Route path="automations" element={<AutomationsListPage />} />
+                    <Route path="automations/new" element={<AutomationBuilderPage />} />
+                    <Route path="automations/:id" element={<AutomationBuilderPage />} />
+
+                    {/* URLs antigas de Cadence — redireciona lista, mantém editores complexos acessíveis por ID */}
+                    <Route path="cadence" element={<Navigate to="/settings/automations" replace />} />
                     <Route path="cadence/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                     <Route path="cadence/new" element={<CadenceBuilderPage />} />

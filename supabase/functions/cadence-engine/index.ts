@@ -304,6 +304,10 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger);
             } else if (trigger.action_type === 'start_cadence') {
                 result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger);
+            } else if (trigger.action_type === 'send_message') {
+                result = await executeSendMessageAction(supabaseClient, item.card_id, trigger);
+            } else if (trigger.action_type === 'change_stage') {
+                result = await executeChangeStageAction(supabaseClient, item.card_id, trigger);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -627,6 +631,171 @@ async function executeStartCadenceAction(
     });
 
     return { instance_id: instance.id };
+}
+
+// ----------------------------------------------------------------------------
+// send_message: dispara WhatsApp via send-whatsapp-message
+// ----------------------------------------------------------------------------
+// trigger.action_config: { template_id?, corpo?, phone_number_id?, dedup_hours? }
+async function executeSendMessageAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any
+) {
+    const config = trigger.action_config || {};
+    const templateId: string | undefined = config.template_id;
+    const corpo: string | undefined = config.corpo;
+    const phoneNumberId: string | undefined = config.phone_number_id;
+    const dedupHours: number = typeof config.dedup_hours === 'number' ? config.dedup_hours : 24;
+
+    if (!templateId && !corpo) {
+        return { skipped: true, reason: 'no_template_or_corpo' };
+    }
+
+    // Buscar contato principal do card
+    const { data: cardContatos } = await supabaseClient
+        .from("card_contatos")
+        .select("contato_id, tipo_contato, contatos:contato_id ( id, nome, telefone )")
+        .eq("card_id", cardId)
+        .order("created_at", { ascending: true });
+
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_contato === 'principal') || (cardContatos || [])[0];
+    const contato: any = principalRow?.contatos;
+
+    if (!contato?.id) {
+        return { skipped: true, reason: 'no_contact' };
+    }
+    if (!contato.telefone) {
+        await supabaseClient.from("cadence_event_log").insert({
+            card_id: cardId,
+            event_type: 'entry_rule_message_skipped',
+            event_source: 'entry_trigger',
+            event_data: { trigger_id: trigger.id, trigger_name: trigger.name, reason: 'no_phone' },
+            action_taken: 'skip_duplicate'
+        });
+        return { skipped: true, reason: 'no_phone', contact_id: contato.id };
+    }
+
+    // Dedup: já enviamos mensagem deste trigger para este card dentro da janela?
+    if (dedupHours > 0) {
+        const since = new Date(Date.now() - dedupHours * 3600 * 1000).toISOString();
+        const { data: recentLog } = await supabaseClient
+            .from("cadence_event_log")
+            .select("id")
+            .eq("card_id", cardId)
+            .eq("event_type", 'entry_rule_message_sent')
+            .gte("created_at", since)
+            .contains("event_data", { trigger_id: trigger.id })
+            .limit(1);
+        if (recentLog && recentLog.length > 0) {
+            return { skipped: true, reason: 'deduped', within_hours: dedupHours };
+        }
+    }
+
+    // Chamar send-whatsapp-message
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const payload: Record<string, unknown> = {
+        contact_id: contato.id,
+        card_id: cardId,
+        source: `automation:${trigger.id}`,
+    };
+    if (templateId) payload.template_id = templateId;
+    if (corpo) payload.corpo = corpo;
+    if (phoneNumberId) payload.phone_number_id = phoneNumberId;
+
+    const resp = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    const respData = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+        throw new Error(`send-whatsapp-message failed: ${resp.status} ${JSON.stringify(respData)}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        event_type: 'entry_rule_message_sent',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            template_id: templateId || null,
+            contact_id: contato.id
+        },
+        action_taken: 'send_message',
+        action_result: respData
+    });
+
+    return { sent: true, contact_id: contato.id, response: respData };
+}
+
+// ----------------------------------------------------------------------------
+// change_stage: move card para outra etapa do pipeline
+// ----------------------------------------------------------------------------
+// trigger.action_config: { target_stage_id, motivo_perda_id? }
+async function executeChangeStageAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any
+) {
+    const config = trigger.action_config || {};
+    const targetStageId: string | undefined = config.target_stage_id;
+    const motivoPerdaId: string | null = config.motivo_perda_id || null;
+
+    if (!targetStageId) {
+        return { skipped: true, reason: 'no_target_stage' };
+    }
+
+    // Evitar no-op
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("id, pipeline_stage_id")
+        .eq("id", cardId)
+        .single();
+
+    if (!card) {
+        throw new Error(`Card not found: ${cardId}`);
+    }
+    if (card.pipeline_stage_id === targetStageId) {
+        return { skipped: true, reason: 'already_at_target_stage' };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+        pipeline_stage_id: targetStageId,
+        updated_at: new Date().toISOString(),
+    };
+    if (motivoPerdaId) updatePayload.motivo_perda_id = motivoPerdaId;
+
+    const { error: updErr } = await supabaseClient
+        .from("cards")
+        .update(updatePayload)
+        .eq("id", cardId);
+
+    if (updErr) {
+        throw new Error(`change_stage failed: ${updErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        event_type: 'entry_rule_stage_changed',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            from_stage_id: card.pipeline_stage_id,
+            to_stage_id: targetStageId
+        },
+        action_taken: 'change_stage',
+        action_result: { to_stage_id: targetStageId }
+    });
+
+    return { moved: true, from_stage_id: card.pipeline_stage_id, to_stage_id: targetStageId };
 }
 
 // ============================================================================
