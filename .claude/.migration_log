@@ -369,3 +369,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-12T19:53:26Z | supabase/migrations/20260412_platform_admin_03_rls_bypass.sql | applied_to_prod
 2026-04-12T19:53:34Z | supabase/migrations/20260412_platform_admin_04_rpcs.sql | applied_to_prod
 2026-04-12T19:53:42Z | supabase/migrations/20260412_platform_admin_05_impersonate.sql | applied_to_prod
+2026-04-12T20:00:00Z | supabase/migrations/20260412_automations_unified_actions.sql | applied_to_prod_out_of_band
