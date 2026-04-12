@@ -78,6 +78,124 @@ serve(async (req) => {
             case 'process_entry_queue':
                 return await processEntryQueue(supabaseClient);
 
+            case 'simulate_automation': {
+                // Dry-run: mostra o que ACONTECERIA se a automação disparasse pra um card.
+                // NÃO envia mensagem, NÃO cria tarefa, NÃO muda stage, NÃO insere nada.
+                // Body: { card_id, trigger: { action_type, action_config, task_configs? } }
+                const cardId = body.card_id as string
+                const trigger = body.trigger as {
+                    action_type: string
+                    action_config?: Record<string, unknown>
+                    task_configs?: Array<Record<string, unknown>>
+                    name?: string
+                    id?: string
+                }
+                if (!cardId || !trigger?.action_type) {
+                    return new Response(JSON.stringify({ error: 'card_id e trigger.action_type são obrigatórios' }), {
+                        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    })
+                }
+
+                // Resolver card + contato
+                const { data: card } = await supabaseClient
+                    .from('cards').select('id, titulo, pipeline_stage_id, produto, dono_atual_id')
+                    .eq('id', cardId).single()
+                if (!card) {
+                    return new Response(JSON.stringify({ error: 'Card não encontrado' }), {
+                        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    })
+                }
+                const { data: cc } = await supabaseClient
+                    .from('cards_contatos')
+                    .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+                    .eq('card_id', cardId)
+                    .order('ordem', { ascending: true })
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const principalRow: any = (cc || []).find((r: any) => r.tipo_viajante === 'titular') || (cc || [])[0]
+                const contato = principalRow?.contatos
+
+                const firstName = (contato?.nome || '').split(' ')[0] || ''
+                const renderVars = (s: string) => s
+                    .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
+                    .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+                    .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+
+                const warnings: string[] = []
+                if (!contato?.id) warnings.push('Card não tem contato vinculado — automação vai ser pulada')
+                if (!contato?.telefone && trigger.action_type === 'send_message') {
+                    warnings.push('Contato não tem telefone — mensagem não vai ser enviada')
+                }
+
+                const result: Record<string, unknown> = {
+                    action_type: trigger.action_type,
+                    card: { id: card.id, titulo: card.titulo },
+                    contact: contato ? { id: contato.id, nome: contato.nome, telefone: contato.telefone } : null,
+                    warnings,
+                }
+
+                const cfg = trigger.action_config || {}
+                if (trigger.action_type === 'send_message') {
+                    const hsmName = cfg.hsm_template_name as string | undefined
+                    if (hsmName) {
+                        const hsmParams = Array.isArray(cfg.hsm_params) ? (cfg.hsm_params as string[]) : []
+                        result.send_mode = 'hsm'
+                        result.hsm_template_name = hsmName
+                        result.rendered_params = hsmParams.map(renderVars)
+                    } else {
+                        let rawBody = (cfg.corpo as string) || ''
+                        if (cfg.template_id) {
+                            const { data: tpl } = await supabaseClient
+                                .from('mensagem_templates')
+                                .select('corpo')
+                                .eq('id', cfg.template_id)
+                                .single()
+                            rawBody = tpl?.corpo || ''
+                        }
+                        result.send_mode = 'text'
+                        result.rendered_body = renderVars(rawBody)
+                        if (!rawBody) warnings.push('Template/corpo vazio — nada seria enviado')
+                    }
+                } else if (trigger.action_type === 'change_stage') {
+                    const targetStageId = cfg.target_stage_id as string | undefined
+                    if (!targetStageId) {
+                        warnings.push('target_stage_id não definido')
+                    } else {
+                        const { data: stg } = await supabaseClient
+                            .from('pipeline_stages').select('nome').eq('id', targetStageId).single()
+                        result.target_stage = { id: targetStageId, nome: stg?.nome || '—' }
+                        if (card.pipeline_stage_id === targetStageId) {
+                            warnings.push('Card já está na etapa alvo — automação seria pulada (no-op)')
+                        }
+                    }
+                } else if (trigger.action_type === 'create_task') {
+                    const tasks = trigger.task_configs || []
+                    result.tasks = tasks.map((t) => ({
+                        titulo: renderVars((t.titulo as string) || ''),
+                        tipo: t.tipo,
+                        assign_to: t.assign_to,
+                    }))
+                    if (tasks.length === 0) warnings.push('Nenhuma configuração de tarefa')
+                } else if (trigger.action_type === 'start_cadence') {
+                    // Se passou target_template_id, buscar info da cadência
+                    // (action_config.target_template_id OU trigger.target_template_id externo)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const tplId = (trigger as any).target_template_id || cfg.target_template_id
+                    if (tplId) {
+                        const { data: tpl } = await supabaseClient
+                            .from('cadence_templates')
+                            .select('name, description')
+                            .eq('id', tplId).single()
+                        result.cadence = { id: tplId, name: tpl?.name || '—', description: tpl?.description }
+                    } else {
+                        warnings.push('Nenhuma cadência selecionada')
+                    }
+                }
+
+                return new Response(JSON.stringify(result, null, 2), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                })
+            }
+
             case 'list_wa_templates': {
                 const echoApiUrl2 = Deno.env.get("ECHO_API_URL") ?? "";
                 const echoApiKey2 = Deno.env.get("ECHO_API_KEY") ?? "";
