@@ -78,6 +78,23 @@ serve(async (req) => {
             case 'process_entry_queue':
                 return await processEntryQueue(supabaseClient);
 
+            case 'list_wa_templates': {
+                const echoApiUrl2 = Deno.env.get("ECHO_API_URL") ?? "";
+                const echoApiKey2 = Deno.env.get("ECHO_API_KEY") ?? "";
+                const echoBase2 = echoApiUrl2.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
+                const phoneId2 = body.phone_number_id || Deno.env.get("ECHO_PHONE_NUMBER_ID") || "";
+                const r2 = await fetch(`${echoBase2}/templates?phone_number_id=${phoneId2}`, {
+                    method: 'GET',
+                    headers: { 'x-api-key': echoApiKey2 },
+                });
+                const data2 = await r2.json().catch(() => ({}));
+                return new Response(JSON.stringify(data2), {
+                    status: r2.status,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+
             default:
                 // Default: Process both queues
                 const [queueResult, entryResult] = await Promise.all([
@@ -634,9 +651,16 @@ async function executeStartCadenceAction(
 }
 
 // ----------------------------------------------------------------------------
-// send_message: dispara WhatsApp via send-whatsapp-message
+// send_message: dispara WhatsApp via Echo API (mesmo padrão do ai-agent-router)
 // ----------------------------------------------------------------------------
-// trigger.action_config: { template_id?, corpo?, phone_number_id?, dedup_hours? }
+// trigger.action_config:
+//   { template_id?, corpo?, phone_number_id?, dedup_hours?,
+//     hsm_template_name?, hsm_language?, hsm_params?: string[] }
+//
+// Prioridade de envio (importante para janela 24h do WhatsApp):
+//   1) hsm_template_name → /send-template (HSM aprovado Meta, funciona FORA da janela)
+//   2) template_id       → lookup em mensagem_templates → /send-message (texto livre)
+//   3) corpo             → /send-message (texto livre, precisa janela aberta)
 async function executeSendMessageAction(
     supabaseClient: SupabaseClient,
     cardId: string,
@@ -647,9 +671,12 @@ async function executeSendMessageAction(
     const corpo: string | undefined = config.corpo;
     const phoneNumberId: string | undefined = config.phone_number_id;
     const dedupHours: number = typeof config.dedup_hours === 'number' ? config.dedup_hours : 24;
+    const hsmTemplateName: string | undefined = config.hsm_template_name;
+    const hsmLanguage: string = config.hsm_language || 'pt_BR';
+    const hsmParams: string[] = Array.isArray(config.hsm_params) ? config.hsm_params : [];
 
-    if (!templateId && !corpo) {
-        return { skipped: true, reason: 'no_template_or_corpo' };
+    if (!hsmTemplateName && !templateId && !corpo) {
+        return { skipped: true, reason: 'no_body_or_template' };
     }
 
     // Buscar contato principal do card (cards_contatos — plural, ordenado por "ordem")
@@ -692,24 +719,11 @@ async function executeSendMessageAction(
         }
     }
 
-    // Enviar direto via Echo API (mesmo padrão do ai-agent-router — evita JWT issue entre edge functions)
+    // Config Echo
     const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
     const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
     const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
-
-    // Resolver corpo: template ou custom
-    let messageBody = corpo || "";
-    if (templateId) {
-        const { data: template } = await supabaseClient
-            .from("mensagem_templates")
-            .select("corpo, ia_prompt, modo")
-            .eq("id", templateId)
-            .single();
-        messageBody = template?.corpo || template?.ia_prompt || "";
-    }
-    if (!messageBody) {
-        return { skipped: true, reason: 'empty_body' };
-    }
+    const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
     // Card pra variáveis
     const { data: card } = await supabaseClient
@@ -718,9 +732,8 @@ async function executeSendMessageAction(
         .eq("id", cardId)
         .single();
 
-    // Render simples de variáveis (sem IA — padrão do sistema)
     const firstName = (contato.nome || '').split(' ')[0] || '';
-    messageBody = messageBody
+    const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
         .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
@@ -741,29 +754,76 @@ async function executeSendMessageAction(
     }
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
-    const echoRes = await fetch(echoApiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": echoApiKey },
-        body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
-    });
-    const respData = await echoRes.json().catch(() => ({}));
-    if (!echoRes.ok) {
-        throw new Error(`Echo API failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+
+    let respData: any;
+    let messageBody: string;
+    let sendMode: 'hsm' | 'text';
+
+    if (hsmTemplateName) {
+        // HSM: template aprovado Meta. Formato nativo WhatsApp Cloud API
+        //   POST /send-template { to, phone_number_id, template_name, language, components: [...] }
+        const renderedParams = hsmParams.map(renderVars);
+        const components = renderedParams.length > 0
+            ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
+            : [];
+
+        const echoRes = await fetch(`${echoBase}/send-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+            body: JSON.stringify({
+                to: normalizedPhone,
+                phone_number_id: resolvedPhoneId,
+                template_name: hsmTemplateName,
+                language: hsmLanguage,
+                components,
+            }),
+        });
+        respData = await echoRes.json().catch(() => ({}));
+        if (!echoRes.ok) {
+            throw new Error(`Echo send-template failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 300)}`);
+        }
+        messageBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
+        sendMode = 'hsm';
+    } else {
+        // Texto livre: precisa janela 24h aberta (WhatsApp dropa se não)
+        let rawBody = corpo || '';
+        if (templateId) {
+            const { data: template } = await supabaseClient
+                .from('mensagem_templates')
+                .select('corpo, ia_prompt')
+                .eq('id', templateId)
+                .single();
+            rawBody = template?.corpo || template?.ia_prompt || '';
+        }
+        if (!rawBody) {
+            return { skipped: true, reason: 'empty_body' };
+        }
+        messageBody = renderVars(rawBody);
+
+        const echoRes = await fetch(echoApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+            body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
+        });
+        respData = await echoRes.json().catch(() => ({}));
+        if (!echoRes.ok) {
+            throw new Error(`Echo API failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+        }
+        sendMode = 'text';
     }
 
-    // Salvar em whatsapp_messages para tracking
-    await supabaseClient.from("whatsapp_messages").insert({
+    await supabaseClient.from('whatsapp_messages').insert({
         contact_id: contato.id,
         card_id: cardId,
         body: messageBody,
-        direction: "outbound",
+        direction: 'outbound',
         is_from_me: true,
-        type: "text",
-        status: "sent",
+        type: sendMode === 'hsm' ? 'template' : 'text',
+        status: 'sent',
         sender_phone: normalizedPhone,
-        sent_by_user_name: "Automação",
+        sent_by_user_name: 'Automação',
         phone_number_label: `automation:${trigger.name || trigger.id}`,
-        metadata: { source: 'automation', trigger_id: trigger.id, echo_response: respData },
+        metadata: { source: 'automation', trigger_id: trigger.id, send_mode: sendMode, echo_response: respData },
     });
 
     await supabaseClient.from("cadence_event_log").insert({
@@ -774,6 +834,8 @@ async function executeSendMessageAction(
             trigger_id: trigger.id,
             trigger_name: trigger.name,
             template_id: templateId || null,
+            hsm_template_name: hsmTemplateName || null,
+            send_mode: sendMode,
             contact_id: contato.id
         },
         action_taken: 'send_message',
