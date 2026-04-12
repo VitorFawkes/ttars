@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, Shield, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
+import { usePlatformAdmin } from '../../hooks/usePlatformAdmin'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
 const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
@@ -28,6 +29,7 @@ export default function Sidebar() {
     const location = useLocation()
     const { session, signOut, profile } = useAuth()
     const { org } = useOrg()
+    const isPlatformAdmin = usePlatformAdmin()
     const [isExpanded, setIsExpanded] = useState(false)
     // Set de URLs de logo que falharam ao carregar — derivado por URL, não precisa reset
     const [failedLogoUrls, setFailedLogoUrls] = useState<Set<string>>(new Set())
@@ -55,7 +57,7 @@ export default function Sidebar() {
             if (item.orgsOnly && org?.slug && !item.orgsOnly.includes(org.slug)) return false
             return true
         })
-    }, [org?.slug, profile])
+    }, [org, profile])
 
     const userInitials = session?.user?.email?.substring(0, 2).toUpperCase() || 'U'
     const userName = session?.user?.email?.split('@')[0] || 'Usuário'
@@ -164,6 +166,24 @@ export default function Sidebar() {
                     )
                 })}
             </nav>
+
+            {/* Platform Admin — só aparece para donos do SaaS */}
+            {isPlatformAdmin && (
+                <div className="border-t border-primary/20 p-2">
+                    <Link
+                        to="/platform"
+                        className={cn(
+                            "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+                            "text-indigo-300 hover:bg-indigo-500/10 hover:text-indigo-200",
+                            isExpanded ? "" : "justify-center"
+                        )}
+                        title={isExpanded ? undefined : "Platform Admin"}
+                    >
+                        <Shield className="h-4 w-4 flex-shrink-0" />
+                        {isExpanded && <span className="truncate">Platform Admin</span>}
+                    </Link>
+                </div>
+            )}
 
             {/* User section */}
             <div className="border-t border-primary/20 p-2">

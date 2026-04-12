@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-12
 > **Trigger:** ALWAYS ON
-> **Stats:** 173 tabelas | 77 paginas | 134 hooks | 17 views | 505 components
+> **Stats:** 173 tabelas | 83 paginas | 136 hooks | 17 views | 506 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **134 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **136 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -266,6 +266,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePlatformAdmin()` | `usePlatformAdmin.ts` |
+| `usePlatformData()` | `usePlatformData.ts` |
 | `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
@@ -378,7 +380,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **77 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **83 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -422,7 +424,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
 | `MensagemTemplatePage` | `src/pages/admin/MensagemTemplatePage.tsx` |
-| `OrganizationsPage` | `src/pages/admin/OrganizationsPage.tsx` |
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `ProductsManagement` | `src/pages/admin/ProductsManagement.tsx` |
@@ -454,6 +455,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
+| `AuditPage` | `src/pages/platform/AuditPage.tsx` |
+| `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
+| `OrganizationDetailPage` | `src/pages/platform/OrganizationDetailPage.tsx` |
+| `OrganizationsPage` | `src/pages/platform/OrganizationsPage.tsx` |
+| `PlatformLayout` | `src/pages/platform/PlatformLayout.tsx` |
+| `SettingsPage` | `src/pages/platform/SettingsPage.tsx` |
+| `UsersPage` | `src/pages/platform/UsersPage.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |

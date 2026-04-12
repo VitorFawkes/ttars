@@ -363,3 +363,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-11T22:42:06Z | supabase/migrations/20260411_org_split_09_config_per_workspace.sql | applied_to_prod
 2026-04-11T23:24:46Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260411_fix_cross_org_stage_refs.sql | applied_to_prod
 2026-04-12T18:51:14Z | supabase/migrations/20260412_fix_multi_org_onboarding.sql | applied_to_prod
+2026-04-12T19:44:11Z | supabase/migrations/20260412_multi_org_onboarding_followups.sql | applied_to_prod

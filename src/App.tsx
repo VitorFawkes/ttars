@@ -47,7 +47,13 @@ import StudioUnified from './components/admin/studio/StudioUnified'
 import SectionManager from './components/admin/studio/SectionManager'
 // FieldManager removed - replaced by StudioUnified
 import PipelineStudio from './pages/admin/PipelineStudio'
-import OrganizationsPage from './pages/admin/OrganizationsPage'
+import PlatformLayout from './pages/platform/PlatformLayout'
+import PlatformDashboard from './pages/platform/DashboardPage'
+import PlatformOrganizations from './pages/platform/OrganizationsPage'
+import PlatformOrganizationDetail from './pages/platform/OrganizationDetailPage'
+import PlatformUsers from './pages/platform/UsersPage'
+import PlatformAudit from './pages/platform/AuditPage'
+import PlatformSettings from './pages/platform/SettingsPage'
 import ProductsManagement from './pages/admin/ProductsManagement'
 import WorkspaceGeneral from './pages/admin/WorkspaceGeneral'
 import DepartmentsManagement from './pages/admin/DepartmentsManagement'
@@ -214,8 +220,8 @@ function App() {
                   {/* Help Center */}
                   <Route path="/help" element={<HelpCenter />} />
 
-                  {/* Super-Admin: Organizações */}
-                  <Route path="/admin/organizations" element={<OrganizationsPage />} />
+                  {/* Super-Admin movido para /platform — redireciona legado */}
+                  <Route path="/admin/organizations" element={<Navigate to="/platform/organizations" replace />} />
 
                   {/* Automações (hub unificado) */}
                   <Route path="/admin/automations" element={<AutomationsListPage />} />
@@ -337,6 +343,18 @@ function App() {
                     <Route path="system/trash" element={<Navigate to="/settings/operations/trash" replace />} />
                     <Route path="workspace/members" element={<Navigate to="/settings/team/members" replace />} />
                   </Route>
+                </Route>
+
+                {/* ═══════════════════════════════════════════════════════════
+                    Platform Admin Console (dono do SaaS — fora do contexto de org)
+                ═══════════════════════════════════════════════════════════ */}
+                <Route path="/platform" element={<PlatformLayout />}>
+                  <Route index element={<PlatformDashboard />} />
+                  <Route path="organizations" element={<PlatformOrganizations />} />
+                  <Route path="organizations/:id" element={<PlatformOrganizationDetail />} />
+                  <Route path="users" element={<PlatformUsers />} />
+                  <Route path="audit" element={<PlatformAudit />} />
+                  <Route path="settings" element={<PlatformSettings />} />
                 </Route>
               </Routes>
             </BrowserRouter>

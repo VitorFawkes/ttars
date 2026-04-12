@@ -21,8 +21,8 @@ export function OrgSwitcher({ isCollapsed = false }: OrgSwitcherProps) {
     const switchOrg = useOrgSwitch()
     const [open, setOpen] = useState(false)
 
-    // Filter to only child orgs (not the holding/Welcome Group)
-    const childOrgs = orgs.filter((o) => o.org_slug !== 'welcome-group')
+    // Welcome Group agora é tenant como qualquer outra — sem filtro especial.
+    const childOrgs = orgs
 
     // If user has only 1 org, show name without dropdown
     if (childOrgs.length <= 1) {
