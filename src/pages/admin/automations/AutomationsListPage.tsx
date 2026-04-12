@@ -179,7 +179,7 @@ export default function AutomationsListPage() {
     if (item.source === 'cadence_template') {
       navigate(`/settings/cadence/${item.id}/monitor`)
     } else {
-      navigate(`/settings/automations/${item.id}`)
+      navigate(`/settings/automations/monitor?trigger_id=${item.id}`)
     }
   }
 
