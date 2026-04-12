@@ -652,14 +652,14 @@ async function executeSendMessageAction(
         return { skipped: true, reason: 'no_template_or_corpo' };
     }
 
-    // Buscar contato principal do card
+    // Buscar contato principal do card (cards_contatos — plural, ordenado por "ordem")
     const { data: cardContatos } = await supabaseClient
-        .from("card_contatos")
-        .select("contato_id, tipo_contato, contatos:contato_id ( id, nome, telefone )")
+        .from("cards_contatos")
+        .select("contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )")
         .eq("card_id", cardId)
-        .order("created_at", { ascending: true });
+        .order("ordem", { ascending: true });
 
-    const principalRow = (cardContatos || []).find((r: any) => r.tipo_contato === 'principal') || (cardContatos || [])[0];
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
     const contato: any = principalRow?.contatos;
 
     if (!contato?.id) {
@@ -692,31 +692,79 @@ async function executeSendMessageAction(
         }
     }
 
-    // Chamar send-whatsapp-message
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const payload: Record<string, unknown> = {
+    // Enviar direto via Echo API (mesmo padrão do ai-agent-router — evita JWT issue entre edge functions)
+    const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
+    const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
+    const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
+
+    // Resolver corpo: template ou custom
+    let messageBody = corpo || "";
+    if (templateId) {
+        const { data: template } = await supabaseClient
+            .from("mensagem_templates")
+            .select("corpo, ia_prompt, modo")
+            .eq("id", templateId)
+            .single();
+        messageBody = template?.corpo || template?.ia_prompt || "";
+    }
+    if (!messageBody) {
+        return { skipped: true, reason: 'empty_body' };
+    }
+
+    // Card pra variáveis
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("titulo")
+        .eq("id", cardId)
+        .single();
+
+    // Render simples de variáveis (sem IA — padrão do sistema)
+    const firstName = (contato.nome || '').split(' ')[0] || '';
+    messageBody = messageBody
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
+
+    // Resolver phone_number_id (default = primeira linha ativa)
+    let resolvedPhoneId = phoneNumberId || defaultEchoPhoneId;
+    if (!resolvedPhoneId) {
+        const { data: linha } = await supabaseClient
+            .from("whatsapp_linha_config")
+            .select("phone_number_id")
+            .eq("ativo", true)
+            .limit(1)
+            .single();
+        resolvedPhoneId = linha?.phone_number_id || "";
+    }
+    if (!resolvedPhoneId) {
+        throw new Error("phone_number_id não pôde ser resolvido");
+    }
+
+    const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
+    const echoRes = await fetch(echoApiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": echoApiKey },
+        body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
+    });
+    const respData = await echoRes.json().catch(() => ({}));
+    if (!echoRes.ok) {
+        throw new Error(`Echo API failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+    }
+
+    // Salvar em whatsapp_messages para tracking
+    await supabaseClient.from("whatsapp_messages").insert({
         contact_id: contato.id,
         card_id: cardId,
-        source: `automation:${trigger.id}`,
-    };
-    if (templateId) payload.template_id = templateId;
-    if (corpo) payload.corpo = corpo;
-    if (phoneNumberId) payload.phone_number_id = phoneNumberId;
-
-    const resp = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${serviceKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        body: messageBody,
+        direction: "outbound",
+        is_from_me: true,
+        type: "text",
+        status: "sent",
+        sender_phone: normalizedPhone,
+        sent_by_user_name: "Automação",
+        phone_number_label: `automation:${trigger.name || trigger.id}`,
+        metadata: { source: 'automation', trigger_id: trigger.id, echo_response: respData },
     });
-
-    const respData = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-        throw new Error(`send-whatsapp-message failed: ${resp.status} ${JSON.stringify(respData)}`);
-    }
 
     await supabaseClient.from("cadence_event_log").insert({
         card_id: cardId,
