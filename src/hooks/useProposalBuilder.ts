@@ -306,6 +306,9 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             is_default_selected: true,
             created_at: new Date().toISOString(),
             supplier: null,
+            external_id: null,
+            external_provider: null,
+            enrichment_last_sync: null,
             options: [],
         }
 
@@ -395,6 +398,9 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             is_default_selected: true,
             created_at: new Date().toISOString(),
             supplier: null,
+            external_id: null,
+            external_provider: null,
+            enrichment_last_sync: null,
             options: [],
         }
 
