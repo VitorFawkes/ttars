@@ -51,7 +51,19 @@ export default function OrganizationDetailPage() {
       toast({ title: 'Erro ao impersonar', description: rpcError.message, type: 'error' })
       return
     }
-    await supabase.auth.refreshSession()
+    // refreshSession para pegar novo JWT com impersonating_org_id como active org.
+    // Se refresh falha (sessão inválida), forçar logout/login manual.
+    const { error: refreshErr } = await supabase.auth.refreshSession()
+    if (refreshErr) {
+      toast({
+        title: 'Impersonate ativado — faça login novamente',
+        description: 'Sessão precisa ser renovada',
+        type: 'info',
+      })
+      await supabase.auth.signOut()
+      window.location.href = '/login'
+      return
+    }
     toast({ title: `Impersonando ${orgName}`, type: 'success' })
     window.location.href = '/'
   }

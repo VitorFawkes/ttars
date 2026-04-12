@@ -21,22 +21,43 @@ serve(async (req: Request) => {
       });
     }
 
-    // 2. Criar cliente com o JWT do usuário para verificar permissões
+    // 2. Decodar JWT localmente (evita roundtrip /auth/v1/user que pode falhar
+    //    com session_not_found quando a sessão foi invalidada via admin API).
+    let userId: string | null = null;
+    let claimIsPlatformAdmin = false;
+    try {
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      userId = payload.sub ?? null;
+      claimIsPlatformAdmin = payload?.app_metadata?.is_platform_admin === true;
+    } catch (_) {
+      // JWT malformado
+    }
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "JWT inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3. Criar cliente com o JWT do usuário (para queries que precisam de RLS)
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // 3. Verificar que o usuário é platform admin (dono do SaaS)
+    // 4. Double-check: confirmar is_platform_admin no banco (claim do JWT
+    //    pode estar stale se o usuário foi revogado após emissão do token).
     const { data: profile, error: profileError } = await supabaseUser
       .from("profiles")
       .select("id, is_platform_admin")
-      .eq("id", (await supabaseUser.auth.getUser()).data.user?.id ?? "")
+      .eq("id", userId)
       .single();
 
     if (profileError || !profile) {
-      return new Response(JSON.stringify({ error: "Perfil não encontrado" }), {
+      return new Response(JSON.stringify({ error: "Perfil não encontrado", details: profileError?.message }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
