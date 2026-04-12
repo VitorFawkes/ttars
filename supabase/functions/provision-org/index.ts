@@ -6,8 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const WELCOME_GROUP_ORG_ID = "a0000000-0000-0000-0000-000000000001";
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -30,10 +28,10 @@ serve(async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // 3. Verificar que o usuário é admin da Welcome Group
+    // 3. Verificar que o usuário é platform admin (dono do SaaS)
     const { data: profile, error: profileError } = await supabaseUser
       .from("profiles")
-      .select("id, is_admin, org_id")
+      .select("id, is_platform_admin")
       .eq("id", (await supabaseUser.auth.getUser()).data.user?.id ?? "")
       .single();
 
@@ -44,9 +42,9 @@ serve(async (req: Request) => {
       });
     }
 
-    if (!profile.is_admin || profile.org_id !== WELCOME_GROUP_ORG_ID) {
+    if (!profile.is_platform_admin) {
       return new Response(
-        JSON.stringify({ error: "Acesso restrito a administradores da Welcome Group" }),
+        JSON.stringify({ error: "Acesso restrito a platform admins" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -156,6 +154,21 @@ serve(async (req: Request) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // Audit log: org provisionada
+      await supabase.from("platform_audit_log").insert({
+        actor_id: profile.id,
+        action: "org.create",
+        target_type: "organization",
+        target_id: orgId,
+        metadata: {
+          name,
+          slug,
+          admin_email: adminEmail,
+          template: template ?? "generic_3phase",
+          product_slug: productSlug ?? "TRIPS",
+        },
+      });
 
       // Buscar token do convite gerado pela provision_organization
       const { data: invite } = await supabase

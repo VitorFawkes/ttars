@@ -1,12 +1,22 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Building2, Plus, Users, LayoutGrid, Loader2, Copy, Check, RefreshCw } from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Building2,
+  Plus,
+  RefreshCw,
+  Loader2,
+  Copy,
+  Check,
+  Pause,
+  Play,
+  MoreVertical,
+  Search,
+} from 'lucide-react'
 import { useToast } from '../../contexts/ToastContext'
+import { usePlatformOrgs } from '../../hooks/usePlatformData'
 import { useOrganizations, type ProvisionOrgInput, type ProvisionOrgResult } from '../../hooks/useOrganizations'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
-import { Badge } from '../../components/ui/Badge'
 import {
   Dialog,
   DialogContent,
@@ -15,6 +25,13 @@ import {
   DialogFooter,
 } from '../../components/ui/dialog'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '../../components/ui/dropdown-menu'
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,8 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../components/ui/Table'
-
-const WELCOME_GROUP_ORG_ID = 'a0000000-0000-0000-0000-000000000001'
+import { StatusBadge } from './DashboardPage'
 
 function slugify(text: string): string {
   return text
@@ -50,38 +66,36 @@ const defaultForm: NewOrgForm = {
   slug: '',
   adminEmail: '',
   template: 'generic_3phase',
-  // productSlug precisa estar no enum app_product (TRIPS | WEDDING | CORP).
-  // Para criar orgs com produtos novos, o admin precisa chamar
-  // ensure_app_product_value() primeiro via SQL (até termos UI para isso).
   productName: 'Viagens',
   productSlug: 'TRIPS',
 }
 
 export default function OrganizationsPage() {
-  const { profile } = useAuth()
-  const navigate = useNavigate()
   const { toast } = useToast()
-  const { organizations, isLoading, isProvisioning, error, fetchOrganizations, provisionOrganization } = useOrganizations()
+  const { orgs, loading, error, refetch, suspend, resume } = usePlatformOrgs()
+  const { isProvisioning, provisionOrganization } = useOrganizations()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form, setForm] = useState<NewOrgForm>(defaultForm)
   const [slugEdited, setSlugEdited] = useState(false)
   const [result, setResult] = useState<ProvisionOrgResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'archived'>('all')
 
-  // Guard: apenas admin da Welcome Group
-  const isSuperAdmin = profile?.is_admin === true && profile?.org_id === WELCOME_GROUP_ORG_ID
-  useEffect(() => {
-    if (profile && !isSuperAdmin) {
-      navigate('/', { replace: true })
+  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [suspending, setSuspending] = useState(false)
+
+  const filtered = orgs.filter((o) => {
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false
+    if (search.trim()) {
+      const s = search.toLowerCase()
+      if (!o.name.toLowerCase().includes(s) && !o.slug.toLowerCase().includes(s)) return false
     }
-  }, [profile, isSuperAdmin, navigate])
+    return true
+  })
 
-  useEffect(() => {
-    if (isSuperAdmin) fetchOrganizations()
-  }, [isSuperAdmin, fetchOrganizations])
-
-  // Auto-gerar slug a partir do nome
   const handleNameChange = (value: string) => {
     setForm((f) => ({
       ...f,
@@ -111,6 +125,7 @@ export default function OrganizationsPage() {
       const res = await provisionOrganization(form as ProvisionOrgInput)
       setResult(res)
       toast({ title: 'Organização criada com sucesso!', type: 'success' })
+      await refetch()
     } catch (err) {
       toast({
         title: 'Erro ao criar organização',
@@ -127,29 +142,53 @@ export default function OrganizationsPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (!isSuperAdmin) return null
+  const handleConfirmSuspend = async () => {
+    if (!suspendTarget) return
+    setSuspending(true)
+    try {
+      await suspend(suspendTarget.id, suspendReason.trim() || null)
+      toast({ title: `${suspendTarget.name} suspensa`, type: 'success' })
+      setSuspendTarget(null)
+      setSuspendReason('')
+    } catch (err) {
+      toast({
+        title: 'Erro ao suspender',
+        description: err instanceof Error ? err.message : 'Tente novamente',
+        type: 'error',
+      })
+    } finally {
+      setSuspending(false)
+    }
+  }
+
+  const handleResume = async (orgId: string, orgName: string) => {
+    try {
+      await resume(orgId)
+      toast({ title: `${orgName} reativada`, type: 'success' })
+    } catch (err) {
+      toast({
+        title: 'Erro ao reativar',
+        description: err instanceof Error ? err.message : 'Tente novamente',
+        type: 'error',
+      })
+    }
+  }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-8 max-w-7xl mx-auto">
+      <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-100 rounded-lg">
             <Building2 className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Organizações</h1>
-            <p className="text-sm text-slate-500">Gerenciar tenants do WelcomeCRM</p>
+            <p className="text-sm text-slate-500">Todos os tenants do SaaS.</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchOrganizations}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
           <Button size="sm" onClick={handleOpenModal}>
@@ -157,16 +196,42 @@ export default function OrganizationsPage() {
             Nova Organização
           </Button>
         </div>
+      </header>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por nome ou slug…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
+          {(['all', 'active', 'suspended', 'archived'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                statusFilter === s
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {s === 'all' ? 'Todas' : s === 'active' ? 'Ativas' : s === 'suspended' ? 'Suspensas' : 'Arquivadas'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Error state */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
@@ -174,63 +239,89 @@ export default function OrganizationsPage() {
               <TableHead>Organização</TableHead>
               <TableHead>Slug</TableHead>
               <TableHead className="text-center">Usuários</TableHead>
-              <TableHead className="text-center">Cards Ativos</TableHead>
+              <TableHead className="text-center">Cards</TableHead>
+              <TableHead>Última atividade</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Criada em</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
                 </TableCell>
               </TableRow>
-            ) : organizations.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-slate-400 text-sm">
-                  Nenhuma organização encontrada
+                <TableCell colSpan={8} className="text-center py-12 text-slate-400 text-sm">
+                  {orgs.length === 0 ? 'Nenhuma organização ainda.' : 'Nenhuma encontrada com esses filtros.'}
                 </TableCell>
               </TableRow>
             ) : (
-              organizations.map((org) => (
+              filtered.map((org) => (
                 <TableRow key={org.id}>
                   <TableCell>
-                    <div className="font-medium text-slate-900">{org.name}</div>
-                    {org.id === WELCOME_GROUP_ORG_ID && (
-                      <span className="text-xs text-indigo-600 font-medium">Welcome Group (master)</span>
-                    )}
+                    <Link
+                      to={`/platform/organizations/${org.id}`}
+                      className="font-medium text-slate-900 hover:text-indigo-600"
+                    >
+                      {org.name}
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
                       {org.slug}
                     </code>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-sm text-slate-700">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      {org.user_count}
-                    </div>
+                  <TableCell className="text-center text-sm text-slate-700">{org.user_count}</TableCell>
+                  <TableCell className="text-center text-sm text-slate-700">
+                    {org.open_card_count}
+                    <span className="text-slate-400"> / {org.card_count}</span>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-sm text-slate-700">
-                      <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
-                      {org.active_card_count}
-                    </div>
+                  <TableCell className="text-sm text-slate-500">
+                    {org.last_activity
+                      ? new Date(org.last_activity).toLocaleDateString('pt-BR')
+                      : '—'}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      className={
-                        org.active
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-slate-100 text-slate-500 border border-slate-200'
-                      }
-                    >
-                      {org.active ? 'Ativa' : 'Inativa'}
-                    </Badge>
+                    <StatusBadge status={org.status} />
                   </TableCell>
                   <TableCell className="text-sm text-slate-500">
                     {new Date(org.created_at).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem asChild>
+                          <Link to={`/platform/organizations/${org.id}`}>Ver detalhes</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {org.status === 'active' ? (
+                          <DropdownMenuItem
+                            onSelect={() => setSuspendTarget({ id: org.id, name: org.name })}
+                            className="text-amber-700"
+                          >
+                            <Pause className="w-3.5 h-3.5 mr-2" />
+                            Suspender
+                          </DropdownMenuItem>
+                        ) : org.status === 'suspended' ? (
+                          <DropdownMenuItem
+                            onSelect={() => handleResume(org.id, org.name)}
+                            className="text-emerald-700"
+                          >
+                            <Play className="w-3.5 h-3.5 mr-2" />
+                            Reativar
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
@@ -239,16 +330,21 @@ export default function OrganizationsPage() {
         </Table>
       </div>
 
-      {/* Modal de criação */}
-      <Dialog open={isModalOpen} onOpenChange={(open) => { if (!open && !isProvisioning) { setIsModalOpen(false); setResult(null) } }}>
+      {/* Modal de criação (reusa provisioning existente) */}
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !isProvisioning) {
+            setIsModalOpen(false)
+            setResult(null)
+          }
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {result ? 'Organização Criada!' : 'Nova Organização'}
-            </DialogTitle>
+            <DialogTitle>{result ? 'Organização Criada!' : 'Nova Organização'}</DialogTitle>
           </DialogHeader>
 
-          {/* Resultado do provisionamento */}
           {result ? (
             <div className="space-y-4 py-2">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -262,29 +358,29 @@ export default function OrganizationsPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-700 mb-2">Token de convite do admin</p>
                   <div className="flex gap-2">
-                    <Input
-                      value={result.inviteToken}
-                      readOnly
-                      className="font-mono text-xs"
-                    />
+                    <Input value={result.inviteToken} readOnly className="font-mono text-xs" />
                     <Button variant="outline" size="sm" onClick={handleCopyInvite}>
                       {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                     </Button>
                   </div>
                   <p className="text-xs text-slate-500 mt-1.5">
-                    Envie este token para o admin. Válido por 7 dias.
+                    Email de convite foi enviado automaticamente. Token válido por 7 dias.
                   </p>
                 </div>
               )}
 
               <DialogFooter>
-                <Button onClick={() => { setIsModalOpen(false); setResult(null) }}>
+                <Button
+                  onClick={() => {
+                    setIsModalOpen(false)
+                    setResult(null)
+                  }}
+                >
                   Fechar
                 </Button>
               </DialogFooter>
             </div>
           ) : (
-            /* Formulário */
             <div className="space-y-4 py-2">
               <div>
                 <label className="text-sm font-medium text-slate-700 block mb-1.5">
@@ -307,7 +403,6 @@ export default function OrganizationsPage() {
                   onChange={(e) => handleSlugChange(e.target.value)}
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-slate-400 mt-1">Apenas letras minúsculas, números e hífens</p>
               </div>
 
               <div>
@@ -352,8 +447,8 @@ export default function OrganizationsPage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { value: 'generic_3phase', label: '3 Fases', desc: 'Pré-Venda → Vendas → Pós-Venda (9 estágios)' },
-                    { value: 'simple_2phase', label: '2 Fases', desc: 'Vendas → Entrega (5 estágios)' },
+                    { value: 'generic_3phase', label: '3 Fases', desc: 'Pré-Venda → Vendas → Pós-Venda' },
+                    { value: 'simple_2phase', label: '2 Fases', desc: 'Vendas → Entrega' },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -373,18 +468,14 @@ export default function OrganizationsPage() {
               </div>
 
               <DialogFooter className="pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={isProvisioning}
-                >
+                <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isProvisioning}>
                   Cancelar
                 </Button>
                 <Button onClick={handleSubmit} disabled={isProvisioning}>
                   {isProvisioning ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Criando...
+                      Criando…
                     </>
                   ) : (
                     <>
@@ -396,6 +487,48 @@ export default function OrganizationsPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de suspensão */}
+      <Dialog open={!!suspendTarget} onOpenChange={(open) => !open && setSuspendTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspender {suspendTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-slate-600">
+              Usuários desta org perderão acesso até a reativação. Dados ficam preservados.
+            </p>
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1.5">
+                Motivo (opcional)
+              </label>
+              <Input
+                placeholder="Ex: inadimplência, solicitação do cliente…"
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuspendTarget(null)} disabled={suspending}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmSuspend} disabled={suspending} className="bg-amber-600 hover:bg-amber-700">
+              {suspending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Suspendendo…
+                </>
+              ) : (
+                <>
+                  <Pause className="w-4 h-4 mr-2" />
+                  Suspender
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

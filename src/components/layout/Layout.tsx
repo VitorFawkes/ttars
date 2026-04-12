@@ -13,6 +13,7 @@ import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
 import { FeedbackPopup } from '@/components/feedback/FeedbackPopup';
 import NotificationCenter from './NotificationCenter';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
+import { ImpersonateBanner } from '@/components/platform/ImpersonateBanner';
 
 
 export default function Layout() {
@@ -70,6 +71,7 @@ export default function Layout() {
                 </ThemeBoundary>
 
                 <ThemeBoundary mode="light" className="flex flex-1 flex-col overflow-hidden relative">
+                    <ImpersonateBanner />
                     <NetworkStatusBanner />
                     <main className="flex-1 relative flex flex-col overflow-hidden bg-surface-secondary">
                         <Outlet />
