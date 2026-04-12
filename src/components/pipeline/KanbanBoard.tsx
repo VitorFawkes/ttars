@@ -129,23 +129,14 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
 
     const { data: stages } = useQuery({
-        queryKey: ['stages', productFilter],
+        queryKey: ['stages', pipelineId],
+        enabled: !!pipelineId,
         queryFn: async () => {
-            let query = supabase.from('pipeline_stages')
+            const query = supabase.from('pipeline_stages')
                 .select('*, pipeline_phases!pipeline_stages_phase_id_fkey(order_index, slug)')
                 .eq('ativo', true)
+                .eq('pipeline_id', pipelineId!)
                 .order('ordem')
-
-            // Filtrar stages pelo pipeline do produto
-            const { data: pipeline } = await supabase.from('pipelines')
-                .select('id')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .eq('produto', productFilter as any)
-                .single()
-
-            if (pipeline) {
-                query = query.eq('pipeline_id', pipeline.id)
-            }
 
             const { data, error } = await query
             if (error) throw error
