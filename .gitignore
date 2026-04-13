@@ -85,3 +85,26 @@ skills-lock.json
 .agents/
 supabase/functions/monde-api-test/
 scripts/capture-gif.sh
+
+# Conflitos de sync iCloud (nunca versionar duplicatas)
+* 2.*
+* 3.*
+
+# Screenshots soltos na raiz (Playwright/debug ad-hoc)
+/*.png
+/*.jpg
+/*.jpeg
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Docs/snapshots temporários ad-hoc na raiz
+/builder-*-snapshot.md
+/wizard-snapshot.md
+/ITERPEC_API_*.md
+/Iterpec Api/
+/exemplovoo/
+
+# Plans locais do Claude Code (por sessão)
+.claude/plans/
+.claude/agent-memory/
