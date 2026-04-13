@@ -35,7 +35,7 @@ export default defineConfig({
     navigationTimeout: 20_000,
   },
 
-  globalSetup: require.resolve('./tests/e2e/global-setup.ts'),
+  globalSetup: './tests/e2e/global-setup.ts',
 
   projects: [
     {
