@@ -348,8 +348,17 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     });
 
     // Build grouped responsible options: card team first, then others grouped by team name
+    type ResponsibleProfile = {
+        id: string;
+        nome: string | null;
+        email: string | null;
+        team_id: string | null;
+        is_admin: boolean;
+        team: { name: string } | null;
+    };
     const { teamProfiles, otherTeamGroups } = useMemo(() => {
-        if (!profiles) return { teamProfiles: [], otherTeamGroups: [] as Array<{ label: string; profiles: typeof profiles }> };
+        const empty = { teamProfiles: [] as ResponsibleProfile[], otherTeamGroups: [] as Array<{ label: string; profiles: ResponsibleProfile[] }> };
+        if (!profiles) return empty;
 
         const cardTeamIds = new Set([
             cardOwners?.sdr_owner_id,
@@ -359,14 +368,14 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             ...(teamMemberIds || []),
         ].filter(Boolean) as string[]);
 
-        const sortByName = (a: typeof profiles[0], b: typeof profiles[0]) =>
+        const sortByName = (a: ResponsibleProfile, b: ResponsibleProfile) =>
             (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt-BR');
 
         const team = profiles.filter(p => cardTeamIds.has(p.id)).sort(sortByName);
         const others = profiles.filter(p => !cardTeamIds.has(p.id));
 
         // Group "others" by team name; admins without team fall into "Administradores"
-        const groupsMap = new Map<string, typeof profiles>();
+        const groupsMap = new Map<string, ResponsibleProfile[]>();
         for (const p of others) {
             const label = p.team?.name || (p.is_admin ? 'Administradores' : 'Sem time');
             const bucket = groupsMap.get(label);
