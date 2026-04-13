@@ -394,3 +394,8 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T16:57:25Z | supabase/migrations/20260414_h3_028_cadence_steps_cross_org_backfill.sql | applied_to_prod
 2026-04-13T16:58:24Z | supabase/migrations/20260414_gifts_inventory_role_restriction.sql | applied_to_prod
 2026-04-13T17:10:39Z | supabase/migrations/20260414_h3_029_cadence_steps_strict_template_org.sql | applied_to_prod
+2026-04-13T17:22:42Z | supabase/migrations/20260413_h3_029_fix_whatsapp_rls_open_policy.sql | applied_to_prod
+2026-04-13T17:22:51Z | supabase/migrations/20260413_h3_030_fix_check_upcoming_meetings_push.sql | applied_to_prod
+2026-04-13T17:22:58Z | supabase/migrations/20260413_h3_031_fix_automacao_crons_vault.sql | applied_to_prod
+2026-04-13T17:23:08Z | supabase/migrations/20260413_h3_032_purge_net_response_history.sql | applied_to_prod
+2026-04-13T17:23:13Z | supabase/migrations/20260413_h3_033_add_integrations_org_id.sql | applied_to_prod

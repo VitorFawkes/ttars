@@ -214,6 +214,14 @@ Deno.serve(async (req) => {
         }
 
         // 2. Load Metadata (Pipelines, Stages, Maps)
+        // H3-033: integrations.org_id carrega a org destino para inserts de contatos (pós-Org-Split)
+        const { data: integrationsMeta } = await supabase
+            .from('integrations')
+            .select('id, org_id, provider');
+        const getIntegrationOrgId = (integrationId: string | null | undefined): string | null => {
+            if (!integrationId) return null;
+            return integrationsMeta?.find(i => i.id === integrationId)?.org_id ?? null;
+        };
         const { data: stageMappings } = await supabase.from('integration_stage_map').select('*');
         const { data: userMappings } = await supabase.from('integration_user_map').select('*');
         // Load field mappings WITH storage configuration (enterprise architecture)
@@ -525,9 +533,14 @@ Deno.serve(async (req) => {
                             log = `Updated Contact ${existingContact.id} (AC ID: ${acContactId})`;
                         } else {
                             // Create new contact with AC external_id
+                            const orgIdForContact = getIntegrationOrgId(event.integration_id);
+                            if (!orgIdForContact) {
+                                throw new Error(`Integration Config Error: integrations.org_id não configurado para ${event.integration_id} — contato não pode ser criado sem org destino`);
+                            }
                             const { data: newContact, error: cErr } = await supabase
                                 .from('contatos')
                                 .insert({
+                                    org_id: orgIdForContact,
                                     nome: nome,
                                     sobrenome: sobrenome,
                                     email: email,
@@ -1112,9 +1125,14 @@ Deno.serve(async (req) => {
 
                     // Se não encontrou em nenhum tier → criar novo
                     if (!contactId) {
+                        const orgIdForContact = getIntegrationOrgId(event.integration_id);
+                        if (!orgIdForContact) {
+                            throw new Error(`Integration Config Error: integrations.org_id não configurado para ${event.integration_id} — contato não pode ser criado sem org destino`);
+                        }
                         const { data: newContact, error: cErr } = await supabase
                             .from('contatos')
                             .insert({
+                                org_id: orgIdForContact,
                                 nome: contactNome,
                                 sobrenome: contactSobrenome,
                                 email: contactEmail,
