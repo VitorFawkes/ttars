@@ -15,6 +15,9 @@ interface Profile {
     is_admin: boolean | null
     teams: { name: string } | null
     teamPhaseSlug: string | null
+    // Todas as phases que o usuário pertence via team_members na org ativa
+    phaseSlugs: string[]
+    teamIds: string[]
 }
 
 interface OwnerSelectorProps {
@@ -69,11 +72,13 @@ export default function OwnerSelector({
     // Fetch roles from database for badge display
     const { roles } = useRoles()
 
-    // Fetch eligible users (all active users) with team phase info
+    // Fetch eligible users (all active users) + team_members cross-org.
+    // RLS nas pipeline_phases restringe ao escopo da org ativa; então se o usuário
+    // tem um team_members apontando para uma team cuja phase é visível na org ativa,
+    // ele é considerado "daquela fase na org ativa".
     const { data: allUsers = [], isLoading, error: usersError } = useQuery({
         queryKey: ['eligible-owners'],
         queryFn: async () => {
-            // Query profiles with is_admin for phase filtering
             const { data: profiles, error } = await supabase
                 .from('profiles')
                 .select('id, nome, email, role, role_id, produtos, team_id, is_admin')
@@ -81,59 +86,95 @@ export default function OwnerSelector({
                 .order('nome')
 
             if (error) throw error
+            const profileIds = (profiles || []).map(p => p.id)
 
-            // Fetch team names and phase slugs separately
-            const teamIds = [...new Set(profiles?.filter(p => p.team_id).map(p => p.team_id as string) ?? [])]
-            const teamsMap: Record<string, { name: string; phaseSlug: string | null }> = {}
-
-            if (teamIds.length > 0) {
+            // Preload parent team (para label "teams.name" do display)
+            const parentTeamIds = [...new Set(profiles?.filter(p => p.team_id).map(p => p.team_id as string) ?? [])]
+            const teamsMap: Record<string, { name: string }> = {}
+            if (parentTeamIds.length > 0) {
                 const { data: teams } = await supabase
                     .from('teams')
-                    .select('id, name, phase:pipeline_phases(slug)')
-                    .in('id', teamIds)
+                    .select('id, name')
+                    .in('id', parentTeamIds)
+                teams?.forEach(t => { teamsMap[t.id] = { name: t.name } })
+            }
 
-                teams?.forEach(t => {
+            // Busca team_members cross-org. A join com pipeline_phases só traz phase visível
+            // na org ativa (RLS). Assim, user é "daquele phaseSlug" só se for membro de uma
+            // team DA ORG ATIVA que aponta para aquela phase.
+            let membershipRows: Array<{ user_id: string; team_id: string; phase_slug: string | null }> = []
+            if (profileIds.length > 0) {
+                const { data: tms } = await supabase
+                    .from('team_members')
+                    .select('user_id, team_id, team:teams!inner(id, phase:pipeline_phases(slug))')
+                    .in('user_id', profileIds)
+                membershipRows = (tms || []).map(r => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const phase = t.phase as any
-                    teamsMap[t.id] = {
-                        name: t.name,
-                        phaseSlug: phase?.slug ?? null
+                    const team = (r as any).team
+                    return {
+                        user_id: r.user_id as string,
+                        team_id: r.team_id as string,
+                        phase_slug: team?.phase?.slug ?? null,
                     }
                 })
             }
 
-            // Combine profiles with team info
-            return profiles?.map(p => ({
-                ...p,
-                teams: p.team_id && teamsMap[p.team_id] ? { name: teamsMap[p.team_id].name } : null,
-                teamPhaseSlug: p.team_id && teamsMap[p.team_id] ? teamsMap[p.team_id].phaseSlug : null
-            })) as Profile[] ?? []
+            // Index por user
+            const phaseByUser: Record<string, Set<string>> = {}
+            const teamsByUser: Record<string, Set<string>> = {}
+            membershipRows.forEach(row => {
+                if (!teamsByUser[row.user_id]) teamsByUser[row.user_id] = new Set()
+                teamsByUser[row.user_id].add(row.team_id)
+                if (row.phase_slug) {
+                    if (!phaseByUser[row.user_id]) phaseByUser[row.user_id] = new Set()
+                    phaseByUser[row.user_id].add(row.phase_slug)
+                }
+            })
+
+            return (profiles || []).map(p => {
+                const phaseSlugs = phaseByUser[p.id] ? Array.from(phaseByUser[p.id]) : []
+                const teamIds = teamsByUser[p.id] ? Array.from(teamsByUser[p.id]) : []
+                return {
+                    ...p,
+                    teams: p.team_id && teamsMap[p.team_id] ? { name: teamsMap[p.team_id].name } : null,
+                    // Compat: primeiro slug (para consumidores antigos)
+                    teamPhaseSlug: phaseSlugs[0] ?? null,
+                    phaseSlugs,
+                    teamIds,
+                }
+            }) as Profile[]
         }
     })
 
     // Filter users by product, phase, role, and team
     const users = useMemo(() => {
-        // Check if any team is configured for the target phase (fail-open)
+        // Fail-open: só ativa o filtro de phase se houver ALGUÉM com aquela phase na org ativa.
+        // Caso contrário (time da fase não configurado), permite todos — não quebra UX.
         const hasTeamsForPhase = phaseSlug
-            ? allUsers.some(u => u.teamPhaseSlug === phaseSlug)
+            ? allUsers.some(u => u.phaseSlugs?.includes(phaseSlug))
             : false
 
         return allUsers.filter(user => {
-            // Admin bypass: admins pass all filters (product, phase, role, team)
-            if (user.is_admin === true) return true
+            const isAdminUser = user.is_admin === true
 
-            // Product filter (only when product is provided)
-            if (product && user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) return false
+            // Product filter (admin ignora; outros dependem de produtos[])
+            if (product && !isAdminUser && user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) {
+                return false
+            }
 
-            // Role filter: only show users with the specified role_id
+            // Role filter: só usuários com o role_id especificado (sem bypass de admin)
             if (roleId && user.role_id !== roleId) return false
 
-            // Team filter: only show users from the specified team
-            if (teamId && user.team_id !== teamId) return false
+            // Team filter: membro do time via team_members (cross-org) ou team_id legacy
+            if (teamId) {
+                const belongs = (user.teamIds && user.teamIds.includes(teamId)) || user.team_id === teamId
+                if (!belongs) return false
+            }
 
-            // Phase filter
+            // Phase filter: membro de alguma team cuja phase tem o slug (na org ativa)
             if (phaseSlug && hasTeamsForPhase) {
-                if (user.teamPhaseSlug !== phaseSlug) return false
+                const belongsToPhase = user.phaseSlugs?.includes(phaseSlug) ?? false
+                if (!belongsToPhase) return false
             }
 
             return true
