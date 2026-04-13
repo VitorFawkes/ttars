@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, PackageCheck, Truck, DollarSign, Search, Filter, Loader2, CheckSquare } from 'lucide-react'
+import { Clock, PackageCheck, Truck, DollarSign, Search, Filter, Loader2, CheckSquare, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAllGiftAssignments, type GiftFilters } from '@/hooks/useAllGiftAssignments'
 import { useBulkGiftStatus } from '@/hooks/useBulkGiftStatus'
@@ -9,11 +9,11 @@ const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
 const statusOptions = [
-    { value: 'pendente', label: 'Pendente', color: 'bg-slate-100 text-slate-600' },
-    { value: 'preparando', label: 'Preparando', color: 'bg-amber-100 text-amber-700' },
-    { value: 'enviado', label: 'Enviado', color: 'bg-blue-100 text-blue-700' },
-    { value: 'entregue', label: 'Entregue', color: 'bg-emerald-100 text-emerald-700' },
-    { value: 'cancelado', label: 'Cancelado', color: 'bg-red-100 text-red-600' },
+    { value: 'pendente', label: 'Pendente', activeClass: 'bg-slate-600 text-white border-slate-600 hover:bg-slate-700', dotClass: 'bg-slate-500' },
+    { value: 'preparando', label: 'Preparando', activeClass: 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600', dotClass: 'bg-amber-500' },
+    { value: 'enviado', label: 'Enviado', activeClass: 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700', dotClass: 'bg-blue-500' },
+    { value: 'entregue', label: 'Entregue', activeClass: 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700', dotClass: 'bg-emerald-500' },
+    { value: 'cancelado', label: 'Cancelado', activeClass: 'bg-red-600 text-white border-red-600 hover:bg-red-700', dotClass: 'bg-red-500' },
 ]
 
 export default function CentralEnvios() {
@@ -138,46 +138,72 @@ export default function CentralEnvios() {
                             className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                         <Filter className="h-4 w-4 text-slate-400" />
                         <span className="text-xs text-slate-500">Tipo:</span>
                         <button
                             onClick={() => toggleType('trip')}
+                            aria-pressed={filters.giftType === 'trip'}
                             className={cn(
-                                'px-2.5 py-1 text-xs font-medium rounded-full transition-colors',
-                                filters.giftType === 'trip' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors',
+                                filters.giftType === 'trip'
+                                    ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                             )}
                         >
+                            {filters.giftType === 'trip' && <Check className="h-3 w-3" strokeWidth={3} />}
                             Viagem
                         </button>
                         <button
                             onClick={() => toggleType('premium')}
+                            aria-pressed={filters.giftType === 'premium'}
                             className={cn(
-                                'px-2.5 py-1 text-xs font-medium rounded-full transition-colors',
-                                filters.giftType === 'premium' ? 'bg-pink-100 text-pink-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors',
+                                filters.giftType === 'premium'
+                                    ? 'bg-pink-600 text-white border-pink-600 hover:bg-pink-700'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                             )}
                         >
+                            {filters.giftType === 'premium' && <Check className="h-3 w-3" strokeWidth={3} />}
                             Premium
                         </button>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Status:</span>
-                    {statusOptions.map(opt => (
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-slate-500">Mostrando:</span>
+                    {statusOptions.map(opt => {
+                        const active = filters.status?.includes(opt.value) ?? false
+                        return (
+                            <button
+                                key={opt.value}
+                                onClick={() => toggleStatus(opt.value)}
+                                aria-pressed={active}
+                                title={active ? `Ocultar ${opt.label.toLowerCase()}` : `Mostrar ${opt.label.toLowerCase()}`}
+                                className={cn(
+                                    'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors',
+                                    active
+                                        ? opt.activeClass
+                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                )}
+                            >
+                                {active ? (
+                                    <Check className="h-3 w-3" strokeWidth={3} />
+                                ) : (
+                                    <span className={cn('h-1.5 w-1.5 rounded-full', opt.dotClass, 'opacity-60')} />
+                                )}
+                                {opt.label}
+                            </button>
+                        )
+                    })}
+                    {(filters.status?.length ?? 0) > 0 && (
                         <button
-                            key={opt.value}
-                            onClick={() => toggleStatus(opt.value)}
-                            className={cn(
-                                'px-2.5 py-1 text-xs font-medium rounded-full transition-colors',
-                                filters.status?.includes(opt.value)
-                                    ? opt.color
-                                    : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                            )}
+                            onClick={() => setFilters(f => ({ ...f, status: [] }))}
+                            className="ml-1 text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
                         >
-                            {opt.label}
+                            Limpar
                         </button>
-                    ))}
+                    )}
                 </div>
             </div>
 
