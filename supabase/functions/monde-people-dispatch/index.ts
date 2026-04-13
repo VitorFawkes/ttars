@@ -183,6 +183,30 @@ Deno.serve(async (req) => {
         }
 
         const isUpdate = !!contato.monde_person_id;
+
+        // GUARDA ANTI-DUPLICAÇÃO: se o evento é 'updated' e o contato não
+        // tem monde_person_id, NÃO criar via POST (ia duplicar pessoas no
+        // Monde). Marca como done com error_message — vínculo manual ou
+        // import-by-search é necessário antes de sincronizar mudanças.
+        if (!isUpdate && queueEntry.event_type === "updated") {
+          await supabase
+            .from("monde_people_queue")
+            .update({
+              status: "done",
+              error_message:
+                "skipped: updated event without monde_person_id (would duplicate in Monde)",
+              processed_at: new Date().toISOString(),
+            })
+            .in("id", queueEntry.ids);
+
+          results.push({
+            contato_id: contato.id,
+            status: "skipped",
+            error: "no monde_person_id; would duplicate",
+          });
+          continue;
+        }
+
         const url = isUpdate
           ? `${auth.apiUrl}/people/${contato.monde_person_id}`
           : `${auth.apiUrl}/people`;
