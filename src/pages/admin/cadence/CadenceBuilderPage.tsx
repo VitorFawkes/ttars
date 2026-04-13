@@ -238,7 +238,7 @@ const CadenceBuilderPage: React.FC = () => {
             } catch (error) {
                 console.error('Error fetching cadence:', error);
                 toast.error('Erro ao carregar cadência.');
-                navigate('/settings/cadence');
+                navigate('/settings/automations');
             } finally {
                 setLoading(false);
             }
@@ -323,7 +323,7 @@ const CadenceBuilderPage: React.FC = () => {
             if (stepsError) throw stepsError;
 
             toast.success('Cadência salva com sucesso!');
-            navigate('/settings/cadence');
+            navigate('/settings/automations');
 
         } catch (error) {
             console.error('Error saving cadence:', error);
@@ -435,7 +435,7 @@ const CadenceBuilderPage: React.FC = () => {
             {/* Header */}
             <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/cadence')}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automations')}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <div>
