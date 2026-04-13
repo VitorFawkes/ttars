@@ -156,6 +156,16 @@ export default function OrganizationDetailPage() {
         </div>
       </header>
 
+      {detail.parent && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-2 text-sm mb-6">
+          Esta é uma <strong>workspace</strong> de{' '}
+          <Link to={`/platform/organizations/${detail.parent.id}`} className="underline font-medium">
+            {(detail.parent as { name: string }).name}
+          </Link>
+          . Ações platform-wide (suspender, impersonar) devem ser feitas no tenant.
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatTile label="Usuários" value={detail.stats.users} icon={Users} />
         <StatTile label="Cards abertos" value={detail.stats.cards_open} icon={CreditCard} />
@@ -163,8 +173,31 @@ export default function OrganizationDetailPage() {
         <StatTile label="Perdidos" value={detail.stats.cards_lost} icon={CreditCard} />
       </div>
 
+      {detail.workspaces.length > 0 && (
+        <Section title={`Workspaces (${detail.workspaces.length})`} className="mb-6">
+          {detail.workspaces.map((w) => (
+            <div key={w.id} className="px-5 py-3 flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <Link
+                  to={`/platform/organizations/${w.id}`}
+                  className="text-sm font-medium text-slate-900 hover:text-indigo-600"
+                >
+                  {w.name}
+                </Link>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  <code className="bg-slate-100 px-1 rounded">{w.slug}</code>
+                  <span className="mx-2">·</span>
+                  {w.user_count} usuários · {w.open_card_count}/{w.card_count} cards
+                </div>
+              </div>
+              <StatusBadge status={w.status} />
+            </div>
+          ))}
+        </Section>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Admins desta org">
+        <Section title="Admins">
           {detail.admins.length === 0 ? (
             <EmptyRow>Nenhum admin.</EmptyRow>
           ) : (

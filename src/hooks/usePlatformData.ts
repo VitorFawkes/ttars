@@ -13,6 +13,7 @@ export interface PlatformStats {
   orgs_suspended: number
   orgs_archived: number
   orgs_new_30d: number
+  workspaces_total: number
   users_total: number
   users_active_30d: number
   cards_total: number
@@ -30,14 +31,28 @@ export interface PlatformOrg {
   suspended_at: string | null
   suspended_reason: string | null
   logo_url: string | null
+  workspace_count: number
   user_count: number
   card_count: number
   open_card_count: number
   last_activity: string | null
 }
 
+export interface PlatformWorkspace {
+  id: string
+  name: string
+  slug: string
+  status: 'active' | 'suspended' | 'archived'
+  created_at: string
+  user_count: number
+  card_count: number
+  open_card_count: number
+}
+
 export interface PlatformOrgDetail {
   organization: PlatformOrg & Record<string, unknown>
+  parent: (PlatformOrg & Record<string, unknown>) | null
+  workspaces: PlatformWorkspace[]
   stats: {
     users: number
     cards_total: number
@@ -50,6 +65,7 @@ export interface PlatformOrgDetail {
     id: string
     email: string
     nome: string | null
+    org_id: string
     is_platform_admin: boolean
   }>
   products: Array<{
@@ -57,6 +73,7 @@ export interface PlatformOrgDetail {
     name: string
     slug: string
     pipeline_id: string | null
+    org_id: string
   }>
   recent_audit: PlatformAuditEntry[]
 }

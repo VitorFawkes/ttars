@@ -182,8 +182,8 @@ export default function OrganizationsPage() {
             <Building2 className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Organizações</h1>
-            <p className="text-sm text-slate-500">Todos os tenants do SaaS.</p>
+            <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Tenants</h1>
+            <p className="text-sm text-slate-500">Clientes do SaaS. Cada tenant pode ter múltiplos workspaces internos.</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -193,7 +193,7 @@ export default function OrganizationsPage() {
           </Button>
           <Button size="sm" onClick={handleOpenModal}>
             <Plus className="w-4 h-4 mr-1.5" />
-            Nova Organização
+            Novo Tenant
           </Button>
         </div>
       </header>
@@ -236,8 +236,9 @@ export default function OrganizationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Organização</TableHead>
+              <TableHead>Tenant</TableHead>
               <TableHead>Slug</TableHead>
+              <TableHead className="text-center">Workspaces</TableHead>
               <TableHead className="text-center">Usuários</TableHead>
               <TableHead className="text-center">Cards</TableHead>
               <TableHead>Última atividade</TableHead>
@@ -249,14 +250,14 @@ export default function OrganizationsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-slate-400 text-sm">
-                  {orgs.length === 0 ? 'Nenhuma organização ainda.' : 'Nenhuma encontrada com esses filtros.'}
+                <TableCell colSpan={9} className="text-center py-12 text-slate-400 text-sm">
+                  {orgs.length === 0 ? 'Nenhum tenant ainda.' : 'Nenhum encontrado com esses filtros.'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -274,6 +275,9 @@ export default function OrganizationsPage() {
                     <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
                       {org.slug}
                     </code>
+                  </TableCell>
+                  <TableCell className="text-center text-sm text-slate-700">
+                    {org.workspace_count > 0 ? org.workspace_count : <span className="text-slate-400">—</span>}
                   </TableCell>
                   <TableCell className="text-center text-sm text-slate-700">{org.user_count}</TableCell>
                   <TableCell className="text-center text-sm text-slate-700">

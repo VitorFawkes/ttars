@@ -47,7 +47,7 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-1">Visão geral do SaaS — todas as organizações.</p>
+        <p className="text-sm text-slate-500 mt-1">Visão geral do SaaS — todos os tenants e workspaces.</p>
       </header>
 
       {loadingStats ? (
@@ -58,9 +58,9 @@ export default function DashboardPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard
-              label="Organizações"
+              label="Tenants"
               value={stats.orgs_total}
-              sub={`${stats.orgs_active} ativas • ${stats.orgs_suspended} suspensas`}
+              sub={`${stats.orgs_active} ativos • ${stats.workspaces_total} workspaces`}
               icon={Building2}
             />
             <StatCard
@@ -111,14 +111,14 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         <section className="bg-white border border-slate-200 rounded-xl shadow-sm">
           <header className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-            <h2 className="text-sm font-semibold text-slate-900">Organizações recentes</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Tenants recentes</h2>
             <Link to="/platform/organizations" className="text-xs text-indigo-600 hover:underline">
-              Ver todas →
+              Ver todos →
             </Link>
           </header>
           <ul className="divide-y divide-slate-100">
             {recentOrgs.length === 0 ? (
-              <li className="px-5 py-6 text-sm text-slate-500">Nenhuma organização ainda.</li>
+              <li className="px-5 py-6 text-sm text-slate-500">Nenhum tenant ainda.</li>
             ) : (
               recentOrgs.map((o) => (
                 <li key={o.id} className="px-5 py-3 flex items-center justify-between">
