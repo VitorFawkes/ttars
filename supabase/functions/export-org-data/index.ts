@@ -60,7 +60,6 @@ const EXPORTABLE_TABLES = [
   "departments",
   "teams",
   "roles",
-  "automation_rules",
   "cadence_templates",
   "cadence_instances",
   "integration_settings",
