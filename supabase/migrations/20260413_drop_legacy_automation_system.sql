@@ -97,7 +97,7 @@ DROP FUNCTION IF EXISTS public.process_task_queue() CASCADE;
 DROP FUNCTION IF EXISTS public.queue_automacao_event() CASCADE;
 DROP FUNCTION IF EXISTS public.queue_automacao_documento_event() CASCADE;
 DROP FUNCTION IF EXISTS public.queue_automacao_proposta_event() CASCADE;
-DROP FUNCTION IF EXISTS public.count_automacao_metrics() CASCADE;
+DROP FUNCTION IF EXISTS public.count_automacao_metrics(uuid) CASCADE;
 
 -- ---------------------------------------------------------------------
 -- 4. Drop tabelas do scheduler legacy (ordem: filhas → pais)
