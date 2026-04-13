@@ -105,7 +105,7 @@ export function useStageRequirements(card: Card) {
             if (!card.pessoa_principal_id) return null
             const { data } = await supabase
                 .from('contatos')
-                .select('nome, sobrenome, email, cpf')
+                .select('nome, sobrenome, telefone, cpf')
                 .eq('id', card.pessoa_principal_id)
                 .single()
             return data
@@ -324,7 +324,7 @@ export function useStageRequirements(card: Card) {
                     return !!(
                         contatoPrincipal.nome &&
                         contatoPrincipal.sobrenome &&
-                        contatoPrincipal.email &&
+                        contatoPrincipal.telefone &&
                         contatoPrincipal.cpf
                     )
                 }
