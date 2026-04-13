@@ -30,6 +30,60 @@ interface KanbanCardProps {
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
 
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+function parseDateParts(input: unknown): { y: number; m: number; d: number } | null {
+    if (typeof input !== 'string') return null
+    const match = input.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!match) return null
+    const y = Number(match[1]), m = Number(match[2]), d = Number(match[3])
+    if (!y || !m || !d || m > 12 || d > 31) return null
+    return { y, m, d }
+}
+
+function renderTripDate(ev: any, fallbackStart?: string | null): string | null {
+    let startStr: string | null = null
+    let endStr: string | null = null
+    let preformatted: string | null = null
+
+    if (ev && typeof ev === 'object') {
+        if (typeof ev.display === 'string' && ev.display.trim()) preformatted = ev.display.trim()
+        startStr = ev.data_inicio || ev.start || ev.inicio || null
+        endStr = ev.data_fim || ev.end || ev.fim || null
+    } else if (typeof ev === 'string') {
+        const range = ev.match(/(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})/)
+        if (range) { startStr = range[1]; endStr = range[2] }
+        else {
+            const single = ev.match(/\d{4}-\d{2}-\d{2}/)
+            if (single) startStr = single[0]
+        }
+    }
+
+    if (!startStr && fallbackStart) startStr = fallbackStart
+
+    const start = parseDateParts(startStr)
+    const end = parseDateParts(endStr)
+
+    if (!start) return preformatted
+
+    const currentYear = new Date().getFullYear()
+    const showYear = (y: number) => y !== currentYear
+
+    if (!end || (end.y === start.y && end.m === start.m && end.d === start.d)) {
+        return `${start.d} ${MONTHS_PT[start.m - 1]}${showYear(start.y) ? ` ${start.y}` : ''}`
+    }
+
+    if (start.y === end.y && start.m === end.m) {
+        return `${start.d}–${end.d} ${MONTHS_PT[start.m - 1]}${showYear(start.y) ? ` ${start.y}` : ''}`
+    }
+
+    if (start.y === end.y) {
+        return `${start.d} ${MONTHS_PT[start.m - 1]} – ${end.d} ${MONTHS_PT[end.m - 1]}${showYear(start.y) ? ` ${start.y}` : ''}`
+    }
+
+    return `${start.d} ${MONTHS_PT[start.m - 1]} ${start.y} – ${end.d} ${MONTHS_PT[end.m - 1]} ${end.y}`
+}
+
 export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
@@ -355,76 +409,19 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
             value = briefingData?.[fieldId]
         }
 
-        // Handle nested objects (like epoca_viagem or orcamento) if they match the key
-        if (fieldId === 'epoca_viagem') {
-            // Prioridade 1: data_viagem_inicio (coluna sincronizada)
-            const dvInicio = (card as any).data_viagem_inicio as string | null
-            const dvFim = (card as any).data_viagem_fim as string | null
-            if (dvInicio) {
-                return (
-                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1">
-                            {new Date(dvInicio + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            {dvFim && dvFim !== dvInicio && ` - ${new Date(dvFim + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-                        </span>
-                    </div>
-                )
-            }
+        // Data Viagem Completa (epoca_viagem) — fonte única para data da viagem no Kanban.
+        // Também usada quando o campo configurado é data_exata_da_viagem.
+        if (fieldId === 'epoca_viagem' || fieldId === 'data_exata_da_viagem') {
+            const produtoData = card.produto_data as any
+            const ev = produtoData?.epoca_viagem ?? (card as any).epoca_viagem
 
-            if (!value) return null
-
-            // Prioridade 2: display pré-formatado (novo formato)
-            if (typeof value === 'object' && value.display) {
-                return (
-                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1">{value.display}</span>
-                    </div>
-                )
-            }
-
-            // Prioridade 3: data_inicio do novo formato
-            if (typeof value === 'object' && value.data_inicio) {
-                return (
-                    <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                        <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1">
-                            {new Date(value.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            {value.data_fim && value.data_fim !== value.data_inicio && ` - ${new Date(value.data_fim + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-                        </span>
-                    </div>
-                )
-            }
-
-            // Prioridade 4: formato legado (start/inicio/fim)
-            let startStr = ''
-            let endStr = ''
-
-            if (typeof value === 'object') {
-                startStr = value.start || value.inicio
-                endStr = value.end || value.fim
-            } else if (typeof value === 'string') {
-                const rangeMatch = value.match(/^(\d{4}-\d{2}-\d{2}).*?até\s+(\d{4}-\d{2}-\d{2})/)
-                const singleMatch = value.match(/^(\d{4}-\d{2}-\d{2})/)
-
-                if (rangeMatch) {
-                    startStr = rangeMatch[1]
-                    endStr = rangeMatch[2]
-                } else if (singleMatch) {
-                    startStr = singleMatch[1]
-                }
-            }
-
-            if (!startStr) return null
+            const label = renderTripDate(ev, (card as any).data_viagem_inicio)
+            if (!label) return null
 
             return (
                 <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                    <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                    <span className="truncate block flex-1">
-                        {new Date(startStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        {endStr && ` - ${new Date(endStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-                    </span>
+                    <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0 text-blue-600" />
+                    <span className="truncate block flex-1 text-gray-700">{label}</span>
                 </div>
             )
         }
