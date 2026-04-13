@@ -28,13 +28,15 @@ export function useMyVisiblePhases() {
             let myPhaseId: string | null = null
 
             if (activeOrgId) {
+                // Filtrar diretamente por team.org_id na query (não no client)
                 const { data: tmRows } = await supabase
                     .from('team_members')
                     .select('team:teams!inner(id, phase_id, org_id)')
                     .eq('user_id', profile.id)
+                    .eq('team.org_id', activeOrgId)
                 if (tmRows && tmRows.length > 0) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const match = tmRows.find((r: any) => r.team?.org_id === activeOrgId && r.team?.phase_id)
+                    const match = tmRows.find((r: any) => r.team?.phase_id)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     myPhaseId = (match as any)?.team?.phase_id || null
                 }
