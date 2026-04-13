@@ -10,6 +10,12 @@ on:
         required: false
         default: 'https://welcomecrm.vercel.app'
 
+permissions:
+  contents: read
+  issues: write
+  actions: read
+  deployments: read
+
 concurrency:
   group: smoke-prod
   cancel-in-progress: false
