@@ -15,6 +15,51 @@
 - IMPORTANT: NUNCA pedir credenciais ao usuário. `.env` tem tudo (Supabase, n8n, Vercel). ActiveCampaign em `integration_settings` no banco.
 - Commits em português. Co-author: `Co-Authored-By: Claude <noreply@anthropic.com>`
 
+## Fluxo Autônomo com o Usuário (OBRIGATÓRIO — override de comportamento padrão)
+
+O Vitor (dono do projeto) **não é programador**. Todo agente trabalhando neste repositório segue estas regras:
+
+### Nunca perguntar sobre decisões técnicas
+Decidir sozinho, seguindo as convenções do projeto, sobre:
+- Branches, merges, push, commits, nomes de commit
+- Quais migrations aplicar, quando, em qual ordem
+- Deploy de edge functions, config do Vercel
+- Formato de código, refatoração, organização de arquivos
+- Arquivos modificados/untracked de **outras tarefas** — **ignorar em silêncio, nunca mencionar**
+
+### Só perguntar quando
+- **Objetivo de negócio ambíguo** (ex: "esse campo aparece pra admin ou pra todos os usuários?")
+- **Ação irreversível de alto impacto** (apagar dados reais de clientes, cobrar de verdade, mandar email em massa pra lista real de produção, deletar tabelas com dados)
+
+### Gatilhos de aprovação → executar pipeline completa até produção
+Qualquer uma destas frases significa "sobe tudo pra produção, sem perguntar":
+- "pode subir" / "sobe isso" / "pode mandar"
+- "tá aprovado" / "está aprovado"
+- "manda ver" / "bora" / "coloca no ar"
+
+**Ao detectar gatilho, executar `/subir completo` sem pausas intermediárias.**
+
+### Estilo da resposta final (OBRIGATÓRIO)
+
+**Palavras PROIBIDAS no corpo principal da resposta ao Vitor** (traduzir para linguagem humana):
+- `merge`, `branch`, `commit`, `push`, `pull request`, `PR`
+- `migration`, `RLS`, `trigger`, `RPC`
+- `edge function`, `deploy`, `CI`, `build`
+- `staging`, `rollback`, `hash`
+
+**Formato padrão do resumo final:**
+```
+Pronto! <o que foi feito em 1 frase, sem jargão>.
+Você consegue testar em <tela ou link direto>.
+Se algo parecer errado, me avisa.
+```
+
+**Exceção:** se der erro real que precise da decisão do Vitor, explicar o problema em português claro e sugerir 2–3 caminhos. Nunca jogar stack trace no usuário.
+
+### Rede de segurança em produção
+- **Sentry** está ativo (`VITE_SENTRY_DSN` configurado em `.env` e Vercel). Qualquer erro em produção vai pra lá automaticamente.
+- Antes de dizer "pronto, tá no ar", confirmar que o build passou (`npm run build`).
+
 ## Ambientes (OBRIGATÓRIO ENTENDER)
 
 | Ambiente | Banco | Quando |

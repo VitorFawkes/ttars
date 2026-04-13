@@ -62,8 +62,15 @@ Tipos: feat, fix, perf, refactor, chore, docs
 git push origin main
 ```
 
-### 3. Confirmar
-Reportar: o que foi commitado, hash do commit, "Vercel deployando".
+### 3. Confirmar (formato PT simples)
+Responder no formato obrigatório (sem jargão técnico):
+```
+Pronto! <o que foi feito em 1 frase>.
+Você consegue testar em <tela ou link direto>.
+Se algo parecer errado, me avisa.
+```
+Palavras PROIBIDAS na resposta ao usuário: commit, push, branch, merge, hash, deploy, Vercel, CI, staging.
+Nunca mencionar arquivos pendentes de outras tarefas.
 
 ---
 
@@ -79,10 +86,11 @@ git ls-files --others --exclude-standard | grep '\.sql$'
 
 **Se houver migrations NÃO aplicadas no staging:**
 1. Aplicar no staging: `bash .claude/hooks/apply-to-staging.sh <arquivo>`
-2. PERGUNTAR ao usuário: "Migration aplicada no staging. Quer testar antes de promover para produção?"
-3. Se OK → promover: `bash .claude/hooks/promote-to-prod.sh <arquivo>`
-4. Marcar: `touch .claude/.migration_applied`
-5. Deletar migrations intermediárias/rascunho se houver
+2. Se staging passou sem erro → promover direto: `bash .claude/hooks/promote-to-prod.sh <arquivo>`
+   - **NÃO pausar pedindo confirmação** (regra "Fluxo Autônomo com o Usuário" no CLAUDE.md)
+   - Só pausar se a migration envolver DROP de tabela com dados, apagar registros, ou reset irreversível — aí sim pedir confirmação
+3. Marcar: `touch .claude/.migration_applied`
+4. Deletar migrations intermediárias/rascunho se houver
 
 **Se migrations já foram aplicadas em produção** (já passou pelo promote):
 - Pular para Etapa 2
@@ -166,13 +174,20 @@ fi
 git push origin main
 ```
 
-### Etapa 6 — Confirmação
+### Etapa 6 — Confirmação (formato PT simples — OBRIGATÓRIO)
 
-Reportar ao usuário:
-- Migrations aplicadas (se houver)
-- Arquivos commitados
-- Hash do commit na main
-- "Push feito. Vercel deployando para produção."
+Responder ao Vitor no formato (sem jargão técnico):
+```
+Pronto! <o que foi feito em 1 frase humana>.
+Você consegue testar em <tela ou link direto>.
+Se algo parecer errado, me avisa.
+```
+
+**Palavras PROIBIDAS na resposta:** commit, push, branch, merge, hash, deploy, Vercel, CI, staging, migration, RLS, edge function.
+
+**Nunca mencionar** arquivos modificados de outras tarefas, nem arquivos untracked fora do escopo. Ignorar em silêncio.
+
+Se houver erro real que impeça a subida: explicar o problema em português humano e oferecer 2–3 caminhos. Nunca mostrar stack trace ao usuário.
 
 ---
 
