@@ -540,8 +540,15 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
     // Default fields if no settings found (fallback)
     const defaultFields = ['destinos', 'epoca_viagem', 'orcamento']
     const settingsAny = settings as any
-    const fieldsToShow = (settingsAny?.campos_kanban as string[]) || defaultFields
-    const orderedFields = (settingsAny?.ordem_kanban as string[]) || fieldsToShow
+    const rawFieldsToShow = (settingsAny?.campos_kanban as string[]) || defaultFields
+    const rawOrderedFields = (settingsAny?.ordem_kanban as string[]) || rawFieldsToShow
+
+    // epoca_viagem e data_exata_da_viagem renderizam a mesma Data Viagem Completa — desduplica
+    const dedupeTripDate = (arr: string[]) =>
+        arr.includes('epoca_viagem') ? arr.filter(f => f !== 'data_exata_da_viagem') : arr
+
+    const fieldsToShow = dedupeTripDate(rawFieldsToShow)
+    const orderedFields = dedupeTripDate(rawOrderedFields)
 
     return (
         <div
