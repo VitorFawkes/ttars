@@ -228,50 +228,98 @@ export default function AutomacaoBuilderPage() {
                 });
                 setTriggerId(triggerRow?.id || null);
 
-                // Agrupar steps por block_index em blocks[]
-                const byBlock = new Map<number, BlockTask[]>();
-                const blockMeta = new Map<number, { dependsOn: number | null; requiresPrev: boolean }>();
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (stepsData || []).forEach((s: any) => {
-                    if (s.step_type !== 'task') return;
-                    const bi = s.block_index ?? 0;
-                    const arr = byBlock.get(bi) || [];
-                    const cfg = s.task_config || {};
-                    arr.push({
-                        id: s.id,
-                        tipo: cfg.tipo || 'contato',
-                        titulo: cfg.titulo || '',
-                        descricao: cfg.descricao || '',
-                        prioridade: cfg.prioridade || 'high',
-                        assign_to: cfg.assign_to || 'card_owner',
-                        assign_to_user_id: cfg.assign_to_user_id || null,
-                        due_offset: s.due_offset || decodeNaturalDue({
-                            day_offset: s.day_offset,
-                            wait_config: s.wait_config,
-                            requires_previous_completed: s.requires_previous_completed,
-                        }),
-                    });
-                    byBlock.set(bi, arr);
-                    if (!blockMeta.has(bi)) {
-                        blockMeta.set(bi, {
-                            dependsOn: s.wait_config?.depends_on_block ?? null,
-                            requiresPrev: !!s.requires_previous_completed,
-                        });
-                    }
-                });
-                const loadedBlocks: Block[] = Array.from(byBlock.entries())
-                    .sort(([a], [b]) => a - b)
-                    .map(([bi, tasks], idx) => {
-                        const meta = blockMeta.get(bi);
-                        const isParallel = idx > 0 && !meta?.requiresPrev;
-                        return {
-                            id: `block_${bi}`,
-                            tasks,
-                            startsFromTrigger: isParallel,
-                            dependsOnBlock: meta?.dependsOn ?? null,
+                const allSteps: any[] = stepsData || [];
+                const isLinear = tpl.execution_mode !== 'blocks';
+
+                // Para templates lineares: converter task+wait intercalados em blocos
+                // Cada task vira um bloco; o wait ANTERIOR define o due_offset
+                if (isLinear) {
+                    const blocks: Block[] = [];
+                    let prevWait: { duration_minutes: number; duration_type: string } | null = null;
+                    let blockIdx = 0;
+                    for (const s of allSteps) {
+                        if (s.step_type === 'wait') {
+                            prevWait = s.wait_config || null;
+                            continue;
+                        }
+                        if (s.step_type === 'end') continue;
+                        const cfg = s.task_config || {};
+                        const dueFromWait = prevWait ? {
+                            unit: prevWait.duration_minutes >= 1440 ? 'business_days' as const : 'hours' as const,
+                            value: prevWait.duration_minutes >= 1440
+                                ? Math.round(prevWait.duration_minutes / 1440)
+                                : Math.round(prevWait.duration_minutes / 60),
+                            anchor: 'previous_block_completed' as const,
+                        } : {
+                            unit: 'business_days' as const,
+                            value: 0,
+                            anchor: blockIdx === 0 ? 'cadence_start' as const : 'previous_block_completed' as const,
                         };
-                    });
-                setBlocks(loadedBlocks.length > 0 ? loadedBlocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
+                        blocks.push({
+                            id: `block_${blockIdx}`,
+                            tasks: [{
+                                id: s.id,
+                                tipo: cfg.tipo || 'contato',
+                                titulo: cfg.titulo || '',
+                                descricao: cfg.descricao || '',
+                                prioridade: cfg.prioridade || 'high',
+                                assign_to: cfg.assign_to || 'card_owner',
+                                assign_to_user_id: cfg.assign_to_user_id || null,
+                                due_offset: s.due_offset || dueFromWait,
+                            }],
+                            startsFromTrigger: false,
+                            dependsOnBlock: blockIdx > 0 ? blockIdx - 1 : null,
+                        });
+                        prevWait = null;
+                        blockIdx++;
+                    }
+                    setBlocks(blocks.length > 0 ? blocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
+                } else {
+                    // Blocks mode: agrupar steps por block_index
+                    const byBlock = new Map<number, BlockTask[]>();
+                    const blockMeta = new Map<number, { dependsOn: number | null; requiresPrev: boolean }>();
+                    for (const s of allSteps) {
+                        if (s.step_type !== 'task') continue;
+                        const bi = s.block_index ?? 0;
+                        const arr = byBlock.get(bi) || [];
+                        const cfg = s.task_config || {};
+                        arr.push({
+                            id: s.id,
+                            tipo: cfg.tipo || 'contato',
+                            titulo: cfg.titulo || '',
+                            descricao: cfg.descricao || '',
+                            prioridade: cfg.prioridade || 'high',
+                            assign_to: cfg.assign_to || 'card_owner',
+                            assign_to_user_id: cfg.assign_to_user_id || null,
+                            due_offset: s.due_offset || decodeNaturalDue({
+                                day_offset: s.day_offset,
+                                wait_config: s.wait_config,
+                                requires_previous_completed: s.requires_previous_completed,
+                            }),
+                        });
+                        byBlock.set(bi, arr);
+                        if (!blockMeta.has(bi)) {
+                            blockMeta.set(bi, {
+                                dependsOn: s.wait_config?.depends_on_block ?? null,
+                                requiresPrev: !!s.requires_previous_completed,
+                            });
+                        }
+                    }
+                    const loadedBlocks: Block[] = Array.from(byBlock.entries())
+                        .sort(([a], [b]) => a - b)
+                        .map(([bi, tasks], idx) => {
+                            const meta = blockMeta.get(bi);
+                            const isParallel = idx > 0 && !meta?.requiresPrev;
+                            return {
+                                id: `block_${bi}`,
+                                tasks,
+                                startsFromTrigger: isParallel,
+                                dependsOnBlock: meta?.dependsOn ?? null,
+                            };
+                        });
+                    setBlocks(loadedBlocks.length > 0 ? loadedBlocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
+                }
             } catch (err) {
                 console.error(err);
                 toast.error('Erro ao carregar automação.');

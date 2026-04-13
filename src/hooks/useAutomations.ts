@@ -29,6 +29,8 @@ export interface AutomationItem {
   steps_count?: number
   /** Apenas se source=cadence_template: modo de execução (decide qual builder abrir) */
   execution_mode?: 'linear' | 'blocks'
+  /** Se source=trigger e action_type=start_cadence: id do template vinculado */
+  target_template_id?: string | null
   /** Instâncias ativas ou contagem de disparos */
   stats: {
     active_instances?: number
@@ -52,6 +54,7 @@ export function useAutomations() {
         sb
           .from('cadence_event_triggers')
           .select('id, name, event_type, action_type, is_active, created_at, updated_at, target_template_id, action_config')
+          .in('action_type', ['send_message', 'create_task', 'change_stage', 'start_cadence'])
           .order('created_at', { ascending: false }),
         sb
           .from('cadence_templates')
@@ -93,9 +96,17 @@ export function useAutomations() {
           .map((t: { target_template_id: string }) => t.target_template_id)
       )
 
+      // Mapa de execution_mode por template (para start_cadence triggers)
+      const templateModeMap = new Map<string, 'linear' | 'blocks'>(
+        (templatesRes.data || []).map((tpl: { id: string; execution_mode: string | null }) =>
+          [tpl.id, (tpl.execution_mode || 'blocks') as 'linear' | 'blocks'] as const
+        )
+      )
+
       const triggers: AutomationItem[] = (triggersRes.data || []).map((t: {
         id: string; name: string | null; event_type: string; action_type: string;
         is_active: boolean; created_at: string; updated_at: string | null;
+        target_template_id: string | null;
       }) => ({
         uid: `trigger:${t.id}`,
         id: t.id,
@@ -105,6 +116,8 @@ export function useAutomations() {
         is_active: t.is_active,
         event_type: t.event_type,
         action_type: t.action_type as ActionType,
+        target_template_id: t.target_template_id,
+        execution_mode: t.target_template_id ? templateModeMap.get(t.target_template_id) : undefined,
         stats: { triggered_count: firedByTrigger.get(t.id) || 0 },
         created_at: t.created_at,
         updated_at: t.updated_at,

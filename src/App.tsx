@@ -80,6 +80,7 @@ import NotificationConfigPage from './components/settings/customization/Notifica
 // Automações unificadas (hub novo)
 import AutomationsListPage from './pages/admin/automations/AutomationsListPage'
 import NewAutomationPage from './pages/admin/automations/NewAutomationPage'
+import AutomationBuilderPage from './pages/admin/automations/AutomationBuilderPage'
 // Cadence Engine builders (acessados via /settings/automations, list page foi unificada na Fase 2)
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
@@ -275,6 +276,7 @@ function App() {
                     <Route path="automations/new" element={<NewAutomationPage />} />
                     <Route path="automations/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="automations/automacao/:id" element={<AutomacaoBuilderPage />} />
+                    <Route path="automations/trigger/:id" element={<AutomationBuilderPage />} />
                     <Route path="automations/:id" element={<CadenceBuilderPage />} />
                     <Route path="automations/:id/monitor" element={<CadenceMonitorPage />} />
 

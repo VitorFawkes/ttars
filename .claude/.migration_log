@@ -411,3 +411,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T17:44:07Z | /tmp/disable_cron4.sql | applied_to_prod
 2026-04-13T19:33:04Z | /tmp/restart_pgnet_worker.sql | applied_to_prod
 2026-04-13T19:33:16Z | /tmp/reactivate_cron4.sql | applied_to_prod
+2026-04-13T19:36:22Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260413_h3_034_add_org_id_cadence_event_triggers.sql | applied_to_prod

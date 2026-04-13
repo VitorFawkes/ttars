@@ -178,12 +178,14 @@ export default function AutomationsListPage() {
 
   const handleEdit = (item: AutomationItem) => {
     if (item.source === 'cadence_template') {
-      const path = item.execution_mode === 'blocks'
-        ? `/settings/automations/automacao/${item.id}`
-        : `/settings/automations/${item.id}`
-      navigate(path)
+      // Templates sempre abrem no builder de blocos (AutomacaoBuilderPage)
+      navigate(`/settings/automations/automacao/${item.id}`)
+    } else if (item.action_type === 'start_cadence' && item.target_template_id) {
+      // Trigger start_cadence → abre o editor da cadência vinculada
+      navigate(`/settings/automations/automacao/${item.target_template_id}`)
     } else {
-      navigate(`/settings/automations/${item.id}`)
+      // Triggers simples (create_task, send_message, change_stage)
+      navigate(`/settings/automations/trigger/${item.id}`)
     }
   }
 
