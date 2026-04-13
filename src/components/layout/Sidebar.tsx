@@ -8,7 +8,7 @@ import { useOrg } from '../../contexts/OrgContext'
 import { usePlatformAdmin } from '../../hooks/usePlatformAdmin'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
-const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[] }[] = [
+const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[]; roles?: string[] }[] = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
@@ -19,7 +19,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: str
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true, orgsOnly: ['welcome-trips'] },
     { name: 'Import. Pós-Venda', href: '/importacao-pos-venda', icon: Upload, phases: ['pos_venda'] },
-    { name: 'Presentes', href: '/presentes', icon: Gift, phases: ['pos_venda'] },
+    { name: 'Presentes', href: '/presentes', icon: Gift, roles: ['pos_venda'] },
     { name: 'Reativacao', href: '/reactivation', icon: Sparkles },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Configurações', href: '/settings', icon: Settings },
@@ -48,11 +48,16 @@ export default function Sidebar() {
         const isAdminOrGestor = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor'
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
+        const profileRole = profile?.role as string | undefined
         return navigation.filter(item => {
             if (item.adminOnly && !isAdminOrGestor) return false
             if (item.phases) {
                 const hasPhaseAccess = phaseSlug && item.phases.includes(phaseSlug)
                 if (!isAdminOrGestor && !hasPhaseAccess) return false
+            }
+            if (item.roles) {
+                const hasRoleAccess = profileRole && item.roles.includes(profileRole)
+                if (!isAdminOrGestor && !hasRoleAccess) return false
             }
             if (item.orgsOnly && org?.slug && !item.orgsOnly.includes(org.slug)) return false
             return true

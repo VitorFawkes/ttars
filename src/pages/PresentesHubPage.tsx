@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Send, Crown, Package, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 import CentralEnvios from '@/components/presentes/CentralEnvios'
 import PresentesPremium from '@/components/presentes/PresentesPremium'
 import EstoqueTab from '@/components/presentes/EstoqueTab'
@@ -16,7 +18,13 @@ const tabs = [
 type TabKey = typeof tabs[number]['key']
 
 export default function PresentesHubPage() {
+    const { profile, loading } = useAuth()
     const [activeTab, setActiveTab] = useState<TabKey>('envios')
+
+    if (loading) return null
+    const canAccess = profile?.is_admin === true || profile?.role === 'pos_venda'
+    if (!canAccess) return <Navigate to="/dashboard" replace />
+
 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50">
