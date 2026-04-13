@@ -1,7 +1,7 @@
 # WelcomeCRM - Instruções
 
 **Supabase Produção:** `szyrzxvlptqqheizyrxu` | **Org:** `zyxcqlnmbfkkwurykfuf` | **Region:** `us-east-2`
-**Supabase Staging:** `ivmebyvjarcvrkrbemam`
+**Supabase Staging:** `ivmebyvjarcvrkrbemam` (defasado — Supabase Branching substitui staging por PR)
 **Stack:** React + Vite + TailwindCSS + Supabase (PostgreSQL + Edge Functions) + TypeScript Strict
 
 ## Regras Invioláveis
@@ -252,9 +252,37 @@ npx supabase gen types typescript --project-id szyrzxvlptqqheizyrxu > src/databa
 # Qualidade
 npm run build          # build completo (inclui typecheck)
 npm run sync:fix       # atualizar CODEBASE.md automaticamente
+
+# Testes E2E (Playwright)
+npm run test:e2e              # todos os testes
+npm run test:e2e:smoke        # só smoke tests (*.smoke.spec.ts)
+npm run test:e2e:install      # instalar navegador Chromium
 ```
 
 ## Automação e Ferramentas (SABER QUE EXISTEM)
+
+### Rede de Segurança Automática (GitHub Actions + Playwright)
+Roda automaticamente — NÃO precisa executar manualmente:
+
+| Workflow | Quando roda | O que faz |
+|---|---|---|
+| `CI` | A cada PR contra main | TypeScript check + build |
+| `E2E Preview` | A cada PR contra main | Aguarda preview Vercel → roda 7 testes Playwright contra preview |
+| `Smoke Prod + Auto-Rollback` | A cada push na main | Aguarda deploy produção → roda smoke tests → se falhar, faz rollback automático via API Vercel + cria issue de alerta |
+
+**Testes E2E disponíveis** (em `tests/e2e/`):
+- `01-login.smoke.spec.ts` — login válido e inválido
+- `02-dashboard.smoke.spec.ts` — dashboard carrega pós-login
+- `03-pipeline.smoke.spec.ts` — pipeline/kanban renderiza + botão "novo card"
+- `04-people.spec.ts` — página de contatos carrega
+- `05-proposals.spec.ts` — página de propostas carrega
+- `06-health.smoke.spec.ts` — app responde HTML + tela de login renderiza
+
+**Usuário de teste:** `test@welcomecrm.test` / `Test123!@#` (org: Welcome Trips, admin). O global-setup do Playwright loga com ele automaticamente.
+
+**Supabase Branching:** Ativado via GitHub integration. PRs que modificam `supabase/` criam banco descartável automaticamente. Seed em `supabase/seed.sql`.
+
+**Ao criar testes novos:** adicionar em `tests/e2e/`. Se é smoke (deve rodar em produção), usar sufixo `.smoke.spec.ts`. Config em `playwright.config.ts`.
 
 ### Hooks automáticos (Claude Code)
 Estes hooks rodam automaticamente — não precisam ser chamados:
