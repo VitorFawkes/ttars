@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 174 tabelas | 83 paginas | 135 hooks | 17 views | 508 components
+> **Stats:** 167 tabelas | 82 paginas | 135 hooks | 17 views | 508 components
 
 ---
 
@@ -379,7 +379,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **83 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **82 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -436,7 +436,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
-| `CadenceListPage` | `src/pages/admin/cadence/CadenceListPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |

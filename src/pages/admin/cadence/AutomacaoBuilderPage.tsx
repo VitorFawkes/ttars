@@ -238,7 +238,7 @@ export default function AutomacaoBuilderPage() {
             } catch (err) {
                 console.error(err);
                 toast.error('Erro ao carregar automação.');
-                navigate('/settings/cadence');
+                navigate('/settings/automations');
             } finally {
                 setLoading(false);
             }
@@ -273,7 +273,6 @@ export default function AutomacaoBuilderPage() {
 
                 const blockIndices = [...new Set(stepToBlock.values())].sort((a, b) => a - b);
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const perBlock: BlockStats[] = blockIndices.map((bi: number) => {
                     const stepsInBlock = new Set(
                         [...stepToBlock.entries()].filter(([, b]) => b === bi).map(([sid]) => sid)
@@ -454,7 +453,7 @@ export default function AutomacaoBuilderPage() {
 
             if (!isNew) {
                 // RPC atômica: limpa FKs + deleta steps antigos + insere novos
-                const cleanPayload = stepsPayload.map(({ id: _stepId, ...rest }) => rest);
+                const cleanPayload = stepsPayload.map(({ id: _unused, ...rest }) => { void _unused; return rest; });
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error: rpcErr } = await (supabase as any)
                     .rpc('replace_cadence_steps', {
@@ -501,7 +500,7 @@ export default function AutomacaoBuilderPage() {
             }
 
             toast.success('Automação salva!');
-            navigate('/settings/cadence');
+            navigate('/settings/automations');
         } catch (err) {
             console.error(err);
             toast.error('Erro ao salvar automação.');
@@ -523,7 +522,7 @@ export default function AutomacaoBuilderPage() {
             {/* Header */}
             <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/cadence')}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automations')}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <div>

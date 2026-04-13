@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Tables cadence_* não estão em database.types.ts — casts 'as any' mantêm
+// consistência com outras pages (AutomacaoBuilderPage etc).
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Play, XCircle, CheckCircle2, Clock, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -91,7 +94,7 @@ const CadenceMonitorPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('instances');
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -173,7 +176,7 @@ const CadenceMonitorPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
 
     useEffect(() => {
         fetchData();
@@ -181,7 +184,7 @@ const CadenceMonitorPage: React.FC = () => {
         // Auto-refresh a cada 30 segundos
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, [id]);
+    }, [fetchData]);
 
     const handleCancelInstance = async (instanceId: string) => {
         if (!confirm('Tem certeza que deseja cancelar esta cadência?')) return;
@@ -257,7 +260,7 @@ const CadenceMonitorPage: React.FC = () => {
             {/* Header */}
             <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/cadence')}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automations')}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <div>
