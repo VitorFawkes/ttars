@@ -376,3 +376,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T00:24:26Z | supabase/migrations/20260413_platform_admin_08_cascade_suspend.sql | applied_to_prod
 2026-04-13T00:24:33Z | supabase/migrations/20260413_platform_admin_09_provision_workspace.sql | applied_to_prod
 2026-04-13T00:24:41Z | supabase/migrations/20260413_platform_admin_10_invite_admin.sql | applied_to_prod
+2026-04-13T00:36:03Z | supabase/migrations/20260413_platform_admin_11_fix_invite_admin_search_path.sql | applied_to_prod
