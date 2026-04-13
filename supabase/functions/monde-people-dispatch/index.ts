@@ -36,6 +36,64 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+/**
+ * Busca uma pessoa no Monde por identificadores fortes (CPF → email → telefone).
+ * Retorna monde_person_id do primeiro match exato encontrado, ou null.
+ * Usado antes de POST para evitar criar duplicado quando a pessoa já existe no Monde.
+ */
+async function findExistingMondePerson(
+  apiUrl: string,
+  token: string,
+  contato: ContatoRecord
+): Promise<string | null> {
+  const candidates: Array<{ field: string; value: string }> = [];
+
+  if (contato.cpf_normalizado) {
+    candidates.push({ field: "cpf", value: contato.cpf_normalizado });
+  }
+  if (contato.email && contato.email.includes("@")) {
+    candidates.push({ field: "email", value: contato.email.toLowerCase().trim() });
+  }
+  if (contato.telefone_normalizado && contato.telefone_normalizado.length >= 10) {
+    candidates.push({ field: "phone", value: contato.telefone_normalizado });
+  }
+
+  for (const { field, value } of candidates) {
+    try {
+      const url = `${apiUrl}/people?filter[search]=${encodeURIComponent(value)}&page[number]=1&page[size]=10`;
+      const response = await fetch(url, { headers: mondeV2Headers(token) });
+      if (!response.ok) continue;
+
+      const json = await response.json();
+      const people = json.data || [];
+
+      for (const p of people) {
+        const attrs = p.attributes || {};
+        if (field === "cpf" && attrs.cpf && String(attrs.cpf).replace(/\D/g, "") === value) {
+          return p.id;
+        }
+        if (field === "email" && attrs.email && String(attrs.email).toLowerCase().trim() === value) {
+          return p.id;
+        }
+        if (field === "phone") {
+          const phoneFields = [
+            attrs["mobile-phone"],
+            attrs.phone,
+            attrs["business-phone"],
+          ].filter(Boolean).map((p: string) => String(p).replace(/\D/g, ""));
+          if (phoneFields.includes(value)) {
+            return p.id;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[monde-people-dispatch] search by ${field} failed:`, err);
+    }
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -182,13 +240,28 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const isUpdate = !!contato.monde_person_id;
+        let mondePersonIdToUse: string | null = contato.monde_person_id ?? null;
 
-        // GUARDA ANTI-DUPLICAÇÃO: se o evento é 'updated' e o contato não
-        // tem monde_person_id, NÃO criar via POST (ia duplicar pessoas no
-        // Monde). Marca como done com error_message — vínculo manual ou
-        // import-by-search é necessário antes de sincronizar mudanças.
-        if (!isUpdate && queueEntry.event_type === "updated") {
+        // ANTI-DUPLICAÇÃO: se o contato não tem monde_person_id, busca no
+        // Monde por CPF/email/telefone antes de criar. Se existir match,
+        // vincula e faz PATCH. Senão, faz POST normal.
+        if (!mondePersonIdToUse) {
+          const existing = await findExistingMondePerson(
+            auth.apiUrl,
+            token,
+            contato
+          );
+          if (existing) {
+            mondePersonIdToUse = existing;
+            console.log(
+              `[monde-people-dispatch] linked existing Monde person ${existing} for contato ${contato.id}`
+            );
+          }
+        }
+
+        // GUARDA: se ainda sem vínculo E evento é 'updated', NÃO criar
+        // (evento de update não deve gerar pessoa nova no Monde).
+        if (!mondePersonIdToUse && queueEntry.event_type === "updated") {
           await supabase
             .from("monde_people_queue")
             .update({
@@ -207,14 +280,14 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        const isUpdate = !!mondePersonIdToUse;
         const url = isUpdate
-          ? `${auth.apiUrl}/people/${contato.monde_person_id}`
+          ? `${auth.apiUrl}/people/${mondePersonIdToUse}`
           : `${auth.apiUrl}/people`;
         const method = isUpdate ? "PATCH" : "POST";
 
         if (isUpdate) {
-          (payload.data as Record<string, unknown>).id =
-            contato.monde_person_id;
+          (payload.data as Record<string, unknown>).id = mondePersonIdToUse;
         }
 
         let response = await fetch(url, {
