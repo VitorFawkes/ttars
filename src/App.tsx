@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
 import { OrgProvider } from './contexts/OrgContext'
@@ -79,13 +79,11 @@ import ActionRequirementsTab from './components/admin/studio/ActionRequirementsT
 import NotificationConfigPage from './components/settings/customization/NotificationConfigPage'
 // Automações unificadas (hub novo)
 import AutomationsListPage from './pages/admin/automations/AutomationsListPage'
-import AutomationBuilderPage from './pages/admin/automations/AutomationBuilderPage'
-import AutomationMonitorPage from './pages/admin/automations/AutomationMonitorPage'
-// Cadence Engine v3 (complex cadence details — acessado via /settings/cadence, mantido)
+import NewAutomationPage from './pages/admin/automations/NewAutomationPage'
+// Cadence Engine builders (acessados via /settings/automations, list page foi unificada na Fase 2)
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
-import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 // Templates de Mensagem (biblioteca unificada usada por automações)
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 // Agentes IA WhatsApp
@@ -158,6 +156,20 @@ function DefaultRedirect() {
     return <Navigate to={target} replace />
 }
 
+// Redirects legacy /settings/cadence/* → /settings/automations/* (Fase 2)
+function RedirectToAutomacao() {
+    const { id } = useParams()
+    return <Navigate to={`/settings/automations/automacao/${id}`} replace />
+}
+function RedirectToCadenceBuilder() {
+    const { id } = useParams()
+    return <Navigate to={`/settings/automations/${id}`} replace />
+}
+function RedirectToCadenceMonitor() {
+    const { id } = useParams()
+    return <Navigate to={`/settings/automations/${id}/monitor`} replace />
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -224,18 +236,17 @@ function App() {
                   {/* Super-Admin movido para /platform — redireciona legado */}
                   <Route path="/admin/organizations" element={<Navigate to="/platform/organizations" replace />} />
 
-                  {/* Automações (hub unificado) */}
-                  <Route path="/admin/automations" element={<AutomationsListPage />} />
-                  <Route path="/admin/automations/monitor" element={<AutomationMonitorPage />} />
-                  <Route path="/admin/automations/new" element={<AutomationBuilderPage />} />
-                  <Route path="/admin/automations/:id" element={<AutomationBuilderPage />} />
-                  {/* Cadência (modelo linear restaurado — Automações hub temporariamente desligado) */}
-                  <Route path="/admin/cadence" element={<CadenceListPage />} />
-                  <Route path="/admin/cadence/automacao/new" element={<AutomacaoBuilderPage />} />
-                  <Route path="/admin/cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
-                  <Route path="/admin/cadence/new" element={<CadenceBuilderPage />} />
-                  <Route path="/admin/cadence/:id" element={<CadenceBuilderPage />} />
-                  <Route path="/admin/cadence/:id/monitor" element={<CadenceMonitorPage />} />
+                  {/* Redirects legacy: /admin/automations e /admin/cadence movidos para /settings/automations */}
+                  <Route path="/admin/automations" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/automations/monitor" element={<Navigate to="/settings/automations?tab=monitor" replace />} />
+                  <Route path="/admin/automations/new" element={<Navigate to="/settings/automations/new" replace />} />
+                  <Route path="/admin/automations/:id" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/cadence" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/cadence/automacao/new" element={<Navigate to="/settings/automations/automacao/new" replace />} />
+                  <Route path="/admin/cadence/automacao/:id" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/cadence/new" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/cadence/:id" element={<Navigate to="/settings/automations" replace />} />
+                  <Route path="/admin/cadence/:id/monitor" element={<Navigate to="/settings/automations" replace />} />
 
                   <Route path="/admin" element={<Navigate to="/settings/system/governance" replace />} />
 
@@ -259,11 +270,13 @@ function App() {
                     <Route path="customization/data-rules" element={<StudioUnified />} />
                     <Route path="customization/action-requirements" element={<ActionRequirementsTab />} />
 
-                    {/* Hub Automações (desligado temporariamente — redireciona pra Cadência) */}
-                    <Route path="automations" element={<Navigate to="/settings/cadence" replace />} />
-                    <Route path="automations/monitor" element={<Navigate to="/settings/cadence?tab=monitor" replace />} />
-                    <Route path="automations/new" element={<Navigate to="/settings/cadence" replace />} />
-                    <Route path="automations/:id" element={<Navigate to="/settings/cadence" replace />} />
+                    {/* Automações — hub unificado (Fase 2 + 3) */}
+                    <Route path="automations" element={<AutomationsListPage />} />
+                    <Route path="automations/new" element={<NewAutomationPage />} />
+                    <Route path="automations/automacao/new" element={<AutomacaoBuilderPage />} />
+                    <Route path="automations/automacao/:id" element={<AutomacaoBuilderPage />} />
+                    <Route path="automations/:id" element={<CadenceBuilderPage />} />
+                    <Route path="automations/:id/monitor" element={<CadenceMonitorPage />} />
 
                     <Route path="customization/notifications" element={<NotificationConfigPage />} />
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
@@ -285,13 +298,13 @@ function App() {
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
                     <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
 
-                    {/* Cadência (modelo linear restaurado) */}
-                    <Route path="cadence" element={<CadenceListPage />} />
-                    <Route path="cadence/automacao/new" element={<AutomacaoBuilderPage />} />
-                    <Route path="cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
-                    <Route path="cadence/new" element={<CadenceBuilderPage />} />
-                    <Route path="cadence/:id" element={<CadenceBuilderPage />} />
-                    <Route path="cadence/:id/monitor" element={<CadenceMonitorPage />} />
+                    {/* Redirects legacy /settings/cadence → /settings/automations (Fase 2) */}
+                    <Route path="cadence" element={<Navigate to="/settings/automations" replace />} />
+                    <Route path="cadence/automacao/new" element={<Navigate to="/settings/automations/automacao/new" replace />} />
+                    <Route path="cadence/automacao/:id" element={<RedirectToAutomacao />} />
+                    <Route path="cadence/new" element={<Navigate to="/settings/automations/new" replace />} />
+                    <Route path="cadence/:id" element={<RedirectToCadenceBuilder />} />
+                    <Route path="cadence/:id/monitor" element={<RedirectToCadenceMonitor />} />
 
                     {/* ═══════════════════════════════════════════════════════════
                         PIPELINE: Funnel Structure

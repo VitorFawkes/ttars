@@ -27,6 +27,8 @@ export interface AutomationItem {
   action_type: ActionType | 'cadence_steps'
   /** Apenas se source=cadence_template: quantidade de steps */
   steps_count?: number
+  /** Apenas se source=cadence_template: modo de execução (decide qual builder abrir) */
+  execution_mode?: 'linear' | 'blocks'
   /** Instâncias ativas ou contagem de disparos */
   stats: {
     active_instances?: number
@@ -53,7 +55,7 @@ export function useAutomations() {
           .order('created_at', { ascending: false }),
         sb
           .from('cadence_templates')
-          .select('id, name, description, is_active, created_at, updated_at')
+          .select('id, name, description, is_active, execution_mode, created_at, updated_at')
           .order('created_at', { ascending: false }),
         sb.from('cadence_instances').select('template_id, status'),
         sb
@@ -112,6 +114,7 @@ export function useAutomations() {
         .filter((tpl: { id: string }) => !consumedTemplateIds.has(tpl.id))
         .map((tpl: {
           id: string; name: string; description: string | null; is_active: boolean;
+          execution_mode: 'linear' | 'blocks' | null;
           created_at: string; updated_at: string | null;
         }) => {
           const counts = instByTemplate.get(tpl.id) || { active: 0, completed: 0 }
@@ -124,6 +127,7 @@ export function useAutomations() {
             is_active: tpl.is_active,
             event_type: null,
             action_type: 'cadence_steps' as const,
+            execution_mode: tpl.execution_mode || 'blocks',
             stats: {
               active_instances: counts.active,
               completed_instances: counts.completed,

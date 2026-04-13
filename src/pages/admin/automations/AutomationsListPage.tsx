@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Zap, Plus, MoreHorizontal, MessageSquare, CheckSquare, ArrowRightLeft,
-  Layers, Search, Activity, Trash2, Pencil, BarChart3,
+  Layers, Search, Activity, Trash2, Pencil, BarChart3, LayoutList,
 } from 'lucide-react'
 
 import { useAutomations, type AutomationItem } from '@/hooks/useAutomations'
@@ -18,8 +18,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { EVENT_TYPE_LABELS } from '@/lib/automation-recipes'
+import { GlobalMonitor } from './components/GlobalMonitor'
 
 type ActionFilter = 'all' | 'send_message' | 'create_task' | 'change_stage' | 'start_cadence' | 'cadence_steps'
 
@@ -125,9 +127,16 @@ function AutomationCard({
 
 export default function AutomationsListPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { items, isLoading, toggleActive, remove } = useAutomations()
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all')
+
+  const activeTab = searchParams.get('tab') === 'monitor' ? 'monitor' : 'list'
+  const setActiveTab = (tab: string) => {
+    if (tab === 'list') setSearchParams({})
+    else setSearchParams({ tab })
+  }
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -169,7 +178,10 @@ export default function AutomationsListPage() {
 
   const handleEdit = (item: AutomationItem) => {
     if (item.source === 'cadence_template') {
-      navigate(`/settings/cadence/${item.id}`)
+      const path = item.execution_mode === 'blocks'
+        ? `/settings/automations/automacao/${item.id}`
+        : `/settings/automations/${item.id}`
+      navigate(path)
     } else {
       navigate(`/settings/automations/${item.id}`)
     }
@@ -177,9 +189,9 @@ export default function AutomationsListPage() {
 
   const handleMonitor = (item: AutomationItem) => {
     if (item.source === 'cadence_template') {
-      navigate(`/settings/cadence/${item.id}/monitor`)
+      navigate(`/settings/automations/${item.id}/monitor`)
     } else {
-      navigate(`/settings/automations/monitor?trigger_id=${item.id}`)
+      navigate(`/settings/automations?tab=monitor`)
     }
   }
 
@@ -191,89 +203,104 @@ export default function AutomationsListPage() {
         icon={<Zap className="w-5 h-5" />}
         stats={stats}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate('/settings/automations/monitor')} className="gap-2">
-              <Activity className="w-4 h-4" />
-              Monitor
-            </Button>
+          activeTab === 'list' ? (
             <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
               <Plus className="w-4 h-4" />
               Nova automação
             </Button>
-          </div>
+          ) : null
         }
       />
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Buscar automação..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {(['all', 'send_message', 'create_task', 'change_stage', 'start_cadence', 'cadence_steps'] as ActionFilter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setActionFilter(f)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors whitespace-nowrap',
-                actionFilter === f
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              )}
-            >
-              {f === 'all' ? 'Tudo' : ACTION_STYLE[f]?.label || f}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-white border border-slate-200 p-1">
+          <TabsTrigger value="list" className="gap-2">
+            <LayoutList className="w-4 h-4" />
+            Lista
+          </TabsTrigger>
+          <TabsTrigger value="monitor" className="gap-2">
+            <Activity className="w-4 h-4" />
+            Monitor
+          </TabsTrigger>
+        </TabsList>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-          <Zap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">
-            {items.length === 0 ? 'Nenhuma automação criada' : 'Nenhum resultado para os filtros'}
-          </p>
-          <p className="text-sm text-slate-500 mt-1">
-            {items.length === 0
-              ? 'Comece escolhendo uma receita pronta ou criando do zero'
-              : 'Tente ajustar a busca ou limpar o filtro'}
-          </p>
-          {items.length === 0 && (
-            <Button
-              onClick={() => navigate('/settings/automations/new')}
-              className="mt-6 gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Nova automação
-            </Button>
+        <TabsContent value="list" className="mt-6">
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Buscar automação..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {(['all', 'send_message', 'create_task', 'change_stage', 'start_cadence', 'cadence_steps'] as ActionFilter[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setActionFilter(f)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors whitespace-nowrap',
+                    actionFilter === f
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  )}
+                >
+                  {f === 'all' ? 'Tudo' : ACTION_STYLE[f]?.label || f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              <Zap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-600 font-medium">
+                {items.length === 0 ? 'Nenhuma automação criada' : 'Nenhum resultado para os filtros'}
+              </p>
+              <p className="text-sm text-slate-500 mt-1">
+                {items.length === 0
+                  ? 'Comece escolhendo uma receita pronta ou criando do zero'
+                  : 'Tente ajustar a busca ou limpar o filtro'}
+              </p>
+              {items.length === 0 && (
+                <Button
+                  onClick={() => navigate('/settings/automations/new')}
+                  className="mt-6 gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova automação
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((item) => (
+                <AutomationCard
+                  key={item.uid}
+                  item={item}
+                  onToggle={(next) => handleToggle(item, next)}
+                  onEdit={() => handleEdit(item)}
+                  onMonitor={() => handleMonitor(item)}
+                  onDelete={() => handleDelete(item)}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((item) => (
-            <AutomationCard
-              key={item.uid}
-              item={item}
-              onToggle={(next) => handleToggle(item, next)}
-              onEdit={() => handleEdit(item)}
-              onMonitor={() => handleMonitor(item)}
-              onDelete={() => handleDelete(item)}
-            />
-          ))}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="monitor" className="mt-6">
+          <GlobalMonitor />
+        </TabsContent>
+      </Tabs>
     </>
   )
 }
