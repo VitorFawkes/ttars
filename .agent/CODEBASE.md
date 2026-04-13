@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-12
+> **Last Updated:** 2026-04-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 174 tabelas | 83 paginas | 136 hooks | 17 views | 508 components
+> **Stats:** 174 tabelas | 83 paginas | 137 hooks | 17 views | 508 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **136 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **137 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -288,6 +288,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useArchiveCard()` | `useArchiveCard.ts` |
+| `useAssistedCardIds()` | `useAssistedCardIds.ts` |
 | `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
 | `useCardAttachments()` | `useCardAttachments.ts` |

@@ -6,6 +6,7 @@ import type { Database } from '../database.types'
 import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
 import { useMyAssistCardIds } from './useMyAssistCardIds'
+import { useAssistedCardIds, cardsAssistedByAny } from './useAssistedCardIds'
 
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -39,6 +40,21 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
 
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
+
+    // União de todos os user IDs usados em filtros de pessoa + Team View.
+    // Busca card_ids onde essas pessoas participam via card_team_members
+    // (apoio/assistente) — expande o filtro para "tudo que a pessoa vê".
+    const personFilterUserIds = [
+        ...(filters.ownerIds || []),
+        ...(filters.sdrIds || []),
+        ...(filters.plannerIds || []),
+        ...(filters.posIds || []),
+        ...((filters.teamIds?.length ?? 0) > 0 ? (filteredTeamMembers || []) : []),
+        // Team View: inclui colegas de time para apoio/assistência expand
+        ...(viewMode === 'MANAGER' && subView === 'TEAM_VIEW' ? (myTeamMembers || []) : []),
+        // MY_QUEUE: próprio usuário (já coberto via useMyAssistCardIds, mas mantém consistência)
+    ]
+    const { data: assistedMembership } = useAssistedCardIds(personFilterUserIds)
 
     // Fetch card IDs where user is a team member (assistências sempre visíveis em MY_QUEUE)
     const needsAssists = viewMode === 'AGENT' && subView === 'MY_QUEUE'
@@ -75,10 +91,14 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const needsPhaseStages = !!myPhaseId && viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
     const isPhaseStagesReady = !needsPhaseStages || myPhaseStageIds !== undefined
 
+    // Aguardar assistencias resolverem quando há filtros de pessoa ou team view
+    const needsAssistedMembership = personFilterUserIds.length > 0
+    const isAssistedMembershipReady = !needsAssistedMembership || assistedMembership !== undefined
+
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, showClosedCards, showWonDirect],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, showClosedCards, showWonDirect, assistedMembership?.allCardIds.length ?? 0],
         placeholderData: keepPreviousData,
-        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady && isPhaseStagesReady,
+        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady && isPhaseStagesReady && isAssistedMembershipReady,
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico
             let query = (supabase.from('view_cards_acoes') as any)
@@ -107,7 +127,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 // 'ATTENTION' logic would go here (e.g. overdue)
             } else if (viewMode === 'MANAGER') {
                 if (subView === 'TEAM_VIEW') {
-                    // Filter by team members + cards na fase do time
+                    // Filter by team members + cards na fase do time + assistências do time
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
                         const memberList = myTeamMembers.join(',')
                         const teamConditions = [
@@ -117,9 +137,14 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                             `pos_owner_id.in.(${memberList})`,
                             `concierge_owner_id.in.(${memberList})`,
                         ]
-                        // Incluir cards na fase do time
+                        // Cards na fase do time (visibilidade automática por área)
                         if (myPhaseStageIds && myPhaseStageIds.length > 0) {
                             teamConditions.push(`pipeline_stage_id.in.(${myPhaseStageIds.join(',')})`)
+                        }
+                        // Cards onde colegas de time são apoio/assistente
+                        const teamAssisted = cardsAssistedByAny(assistedMembership, myTeamMembers)
+                        if (teamAssisted.length > 0) {
+                            teamConditions.push(`id.in.(${teamAssisted.join(',')})`)
                         }
                         query = query.or(teamConditions.join(','))
                     }
@@ -166,32 +191,42 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 }
             }
 
+            // Filtros por pessoa: cada filtro matcha owner-column OU apoio (card_team_members).
+            // "Tudo que a pessoa vê" = dona/responsável + cards onde ela é apoio/assistente.
+            const applyPersonFilter = (userIds: string[], ownerCol: string) => {
+                const conds = [`${ownerCol}.in.(${userIds.join(',')})`]
+                const assisted = cardsAssistedByAny(assistedMembership, userIds)
+                if (assisted.length > 0) conds.push(`id.in.(${assisted.join(',')})`)
+                query = query.or(conds.join(','))
+            }
+
             if ((filters.ownerIds?.length ?? 0) > 0) {
-                query = query.in('dono_atual_id', filters.ownerIds)
+                applyPersonFilter(filters.ownerIds!, 'dono_atual_id')
             }
-
-            // NEW: SDR Filter
             if ((filters.sdrIds?.length ?? 0) > 0) {
-                query = query.in('sdr_owner_id', filters.sdrIds)
+                applyPersonFilter(filters.sdrIds!, 'sdr_owner_id')
             }
-
-            // NEW: Planner Filter (vendas_owner_id)
             if ((filters.plannerIds?.length ?? 0) > 0) {
-                query = query.in('vendas_owner_id', filters.plannerIds)
+                applyPersonFilter(filters.plannerIds!, 'vendas_owner_id')
             }
-
-            // NEW: Pós-Venda Filter (pos_owner_id)
             if ((filters.posIds?.length ?? 0) > 0) {
-                query = query.in('pos_owner_id', filters.posIds)
+                applyPersonFilter(filters.posIds!, 'pos_owner_id')
             }
 
             // Team Filter — resolve teamIds para member IDs via RPC server-side
             if ((filters.teamIds?.length ?? 0) > 0 && filteredTeamMembers !== undefined) {
                 if (filteredTeamMembers.length > 0) {
                     const memberList = filteredTeamMembers.join(',')
-                    query = query.or(
-                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
-                    )
+                    const assisted = cardsAssistedByAny(assistedMembership, filteredTeamMembers)
+                    const conds = [
+                        `dono_atual_id.in.(${memberList})`,
+                        `sdr_owner_id.in.(${memberList})`,
+                        `vendas_owner_id.in.(${memberList})`,
+                        `pos_owner_id.in.(${memberList})`,
+                        `concierge_owner_id.in.(${memberList})`,
+                    ]
+                    if (assisted.length > 0) conds.push(`id.in.(${assisted.join(',')})`)
+                    query = query.or(conds.join(','))
                 } else {
                     // Time sem membros ativos — forçar zero resultados
                     query = query.in('dono_atual_id', ['00000000-0000-0000-0000-000000000000'])

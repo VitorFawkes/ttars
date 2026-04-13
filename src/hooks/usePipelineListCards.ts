@@ -6,6 +6,7 @@ import type { Database } from '../database.types'
 import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
 import { useMyAssistCardIds } from './useMyAssistCardIds'
+import { useAssistedCardIds, cardsAssistedByAny } from './useAssistedCardIds'
 
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -62,6 +63,17 @@ export function usePipelineListCards({
     // Fetch members for Team Filter (FilterDrawer teamIds)
     const { data: filteredTeamMembers } = useTeamFilterMembers(filters.teamIds)
 
+    // Assistências dos user_ids presentes nos filtros + Team View
+    const personFilterUserIds = [
+        ...(filters.ownerIds || []),
+        ...(filters.sdrIds || []),
+        ...(filters.plannerIds || []),
+        ...(filters.posIds || []),
+        ...((filters.teamIds?.length ?? 0) > 0 ? (filteredTeamMembers || []) : []),
+        ...(viewMode === 'MANAGER' && subView === 'TEAM_VIEW' ? (myTeamMembers || []) : []),
+    ]
+    const { data: assistedMembership } = useAssistedCardIds(personFilterUserIds)
+
     // Fetch card IDs where user is a team member (assistências sempre visíveis em MY_QUEUE)
     const needsAssists = viewMode === 'AGENT' && subView === 'MY_QUEUE'
     const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists)
@@ -73,11 +85,13 @@ export function usePipelineListCards({
     const isAssistsReady = !needsAssists || myAssistCardIds !== undefined
     // Aguardar RPC retornar (undefined = loading, [] = sem membros, [ids] = com membros)
     const isTeamFilterReady = !(filters.teamIds?.length) || filteredTeamMembers !== undefined
+    const needsAssistedMembership = personFilterUserIds.length > 0
+    const isAssistedMembershipReady = !needsAssistedMembership || assistedMembership !== undefined
 
     return useQuery({
-        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, showWonDirect, phaseStageIds, page, pageSize],
+        queryKey: ['pipeline-list', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, showClosedCards, showWonDirect, phaseStageIds, page, pageSize, assistedMembership?.allCardIds.length ?? 0],
         placeholderData: keepPreviousData,
-        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady,
+        enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady && isAssistedMembershipReady,
         queryFn: async (): Promise<PipelineListResult> => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico
             let query = (supabase.from('view_cards_acoes') as any)
@@ -103,12 +117,19 @@ export function usePipelineListCards({
                 }
             } else if (viewMode === 'MANAGER') {
                 if (subView === 'TEAM_VIEW') {
-                    // Filter by team members if user has a team; no team = belongs to all teams
+                    // Filter by team members (owner OR apoio) se usuário tem time
                     if (hasTeam && myTeamMembers && myTeamMembers.length > 0) {
                         const memberList = myTeamMembers.join(',')
-                        query = query.or(
-                            `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
-                        )
+                        const conds = [
+                            `dono_atual_id.in.(${memberList})`,
+                            `sdr_owner_id.in.(${memberList})`,
+                            `vendas_owner_id.in.(${memberList})`,
+                            `pos_owner_id.in.(${memberList})`,
+                            `concierge_owner_id.in.(${memberList})`,
+                        ]
+                        const teamAssisted = cardsAssistedByAny(assistedMembership, myTeamMembers)
+                        if (teamAssisted.length > 0) conds.push(`id.in.(${teamAssisted.join(',')})`)
+                        query = query.or(conds.join(','))
                     }
                     // !hasTeam → no filter applied (show all)
                 }
@@ -150,29 +171,33 @@ export function usePipelineListCards({
                 }
             }
 
-            if ((filters.ownerIds?.length ?? 0) > 0) {
-                query = query.in('dono_atual_id', filters.ownerIds)
+            // Filtros por pessoa: owner-column OU apoio (card_team_members)
+            const applyPersonFilter = (userIds: string[], ownerCol: string) => {
+                const conds = [`${ownerCol}.in.(${userIds.join(',')})`]
+                const assisted = cardsAssistedByAny(assistedMembership, userIds)
+                if (assisted.length > 0) conds.push(`id.in.(${assisted.join(',')})`)
+                query = query.or(conds.join(','))
             }
 
-            if ((filters.sdrIds?.length ?? 0) > 0) {
-                query = query.in('sdr_owner_id', filters.sdrIds)
-            }
+            if ((filters.ownerIds?.length ?? 0) > 0) applyPersonFilter(filters.ownerIds!, 'dono_atual_id')
+            if ((filters.sdrIds?.length ?? 0) > 0) applyPersonFilter(filters.sdrIds!, 'sdr_owner_id')
+            if ((filters.plannerIds?.length ?? 0) > 0) applyPersonFilter(filters.plannerIds!, 'vendas_owner_id')
+            if ((filters.posIds?.length ?? 0) > 0) applyPersonFilter(filters.posIds!, 'pos_owner_id')
 
-            if ((filters.plannerIds?.length ?? 0) > 0) {
-                query = query.in('vendas_owner_id', filters.plannerIds)
-            }
-
-            if ((filters.posIds?.length ?? 0) > 0) {
-                query = query.in('pos_owner_id', filters.posIds)
-            }
-
-            // Team Filter — resolve teamIds para member IDs via RPC server-side
+            // Team Filter — resolve teamIds para member IDs via RPC + apoio
             if ((filters.teamIds?.length ?? 0) > 0 && filteredTeamMembers !== undefined) {
                 if (filteredTeamMembers.length > 0) {
                     const memberList = filteredTeamMembers.join(',')
-                    query = query.or(
-                        `dono_atual_id.in.(${memberList}),sdr_owner_id.in.(${memberList}),vendas_owner_id.in.(${memberList}),pos_owner_id.in.(${memberList}),concierge_owner_id.in.(${memberList})`
-                    )
+                    const conds = [
+                        `dono_atual_id.in.(${memberList})`,
+                        `sdr_owner_id.in.(${memberList})`,
+                        `vendas_owner_id.in.(${memberList})`,
+                        `pos_owner_id.in.(${memberList})`,
+                        `concierge_owner_id.in.(${memberList})`,
+                    ]
+                    const assisted = cardsAssistedByAny(assistedMembership, filteredTeamMembers)
+                    if (assisted.length > 0) conds.push(`id.in.(${assisted.join(',')})`)
+                    query = query.or(conds.join(','))
                 } else {
                     // Time sem membros ativos — forçar zero resultados
                     query = query.in('dono_atual_id', ['00000000-0000-0000-0000-000000000000'])
