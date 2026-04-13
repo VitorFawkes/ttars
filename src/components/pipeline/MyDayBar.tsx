@@ -45,17 +45,14 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
     const hasTeam = !!profile?.team_id
     const needsTeam = hasTeam && viewMode === 'MANAGER' && subView === 'TEAM_VIEW' && !hasPersonFilter
     const { data: teamMemberIds } = useQuery({
-        queryKey: ['my-team-members', profile?.team_id],
+        queryKey: ['my-team-members-peers', profile?.id],
         enabled: needsTeam,
         queryFn: async () => {
-            if (!profile?.team_id) return []
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('team_id', profile.team_id)
-                .eq('active', true)
+            // RPC resolve "meu time" na org ativa + retorna todos os membros (inclui eu)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC types pendentes
+            const { data, error } = await (supabase.rpc as any)('get_my_team_peer_ids')
             if (error) throw error
-            return data.map(p => p.id)
+            return (data ?? []) as string[]
         },
     })
 

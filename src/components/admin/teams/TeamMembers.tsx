@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUsers } from '../../../hooks/useUsers';
 import { useTeams, type Team } from '../../../hooks/useTeams';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
@@ -21,14 +22,32 @@ export function TeamMembers({ isOpen, onClose, team }: TeamMembersProps) {
     const { users, refetch: refetchUsers } = useUsers();
     const { refetch: refetchTeams } = useTeams();
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUserId, setSelectedUserId] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
+    // Resolve member IDs via team_members (cross-org) + fallback profile.team_id
+    const { data: memberIds = [] } = useQuery({
+        queryKey: ['team-member-ids', team?.id],
+        enabled: !!team?.id && isOpen,
+        queryFn: async () => {
+            if (!team?.id) return [] as string[];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC types pendentes
+            const { data, error } = await (supabase.rpc as any)('get_team_member_ids', {
+                p_team_ids: [team.id],
+            });
+            if (error) throw error;
+            return (data ?? []) as string[];
+        },
+    });
+
     if (!team) return null;
 
-    const teamMembers = users.filter(u => u.team_id === team.id);
-    const availableUsers = users.filter(u => !u.team_id);
+    const memberIdSet = new Set(memberIds);
+    const teamMembers = users.filter(u => memberIdSet.has(u.id));
+    // Candidatos: ativos e ainda não no time (qualquer time legacy)
+    const availableUsers = users.filter(u => !memberIdSet.has(u.id));
 
     const filteredMembers = teamMembers.filter(member =>
         member.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -37,19 +56,28 @@ export function TeamMembers({ isOpen, onClose, team }: TeamMembersProps) {
 
     const handleAddMember = async () => {
         if (!selectedUserId) return;
-
         setIsAdding(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ team_id: team.id })
-                .eq('id', selectedUserId);
+            // Insere em team_members (source of truth cross-org)
+            const { error: tmError } = await supabase
+                .from('team_members')
+                .upsert({ user_id: selectedUserId, team_id: team.id, role: 'member' }, { onConflict: 'user_id,team_id' });
+            if (tmError) throw tmError;
 
-            if (error) throw error;
+            // Também atualiza profile.team_id se o usuário não tiver nenhum (legacy + role sync trigger)
+            const user = users.find(u => u.id === selectedUserId);
+            if (user && !user.team_id) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({ team_id: team.id })
+                    .eq('id', selectedUserId);
+                if (profileError) throw profileError;
+            }
 
             toast({ title: 'Sucesso', description: 'Membro adicionado ao time.', type: 'success' });
             await refetchUsers();
             await refetchTeams();
+            queryClient.invalidateQueries({ queryKey: ['team-member-ids', team.id] });
             setSelectedUserId('');
         } catch (error) {
             console.error('Error adding member:', error);
@@ -61,16 +89,28 @@ export function TeamMembers({ isOpen, onClose, team }: TeamMembersProps) {
 
     const handleRemoveMember = async (userId: string) => {
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ team_id: null })
-                .eq('id', userId);
+            // Remove de team_members
+            const { error: tmError } = await supabase
+                .from('team_members')
+                .delete()
+                .eq('user_id', userId)
+                .eq('team_id', team.id);
+            if (tmError) throw tmError;
 
-            if (error) throw error;
+            // Se profile.team_id apontava para este time, limpa
+            const user = users.find(u => u.id === userId);
+            if (user?.team_id === team.id) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({ team_id: null })
+                    .eq('id', userId);
+                if (profileError) throw profileError;
+            }
 
             toast({ title: 'Sucesso', description: 'Membro removido do time.', type: 'success' });
             await refetchUsers();
             await refetchTeams();
+            queryClient.invalidateQueries({ queryKey: ['team-member-ids', team.id] });
         } catch (error) {
             console.error('Error removing member:', error);
             toast({ title: 'Erro', description: 'Erro ao remover membro.', type: 'error' });

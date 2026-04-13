@@ -741,15 +741,30 @@ export default function ImportacaoPosVendaPage() {
         },
     })
 
-    // Planner profiles for vendedor matching
+    // Planner profiles for vendedor matching — cross-org via team_members
     const { data: plannerProfiles = [] } = useQuery({
         queryKey: ['planner-profiles'],
         queryFn: async () => {
+            // Todos os teams com name='Planner' (parent + children visíveis)
+            const { data: plannerTeams } = await supabase
+                .from('teams')
+                .select('id')
+                .eq('name', 'Planner')
+            const teamIds = (plannerTeams || []).map(t => t.id as string)
+            if (teamIds.length === 0) return []
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC types pendentes
+            const { data: memberIds } = await (supabase.rpc as any)('get_team_member_ids', {
+                p_team_ids: teamIds,
+            })
+            const ids = (memberIds ?? []) as string[]
+            if (ids.length === 0) return []
+
             const { data } = await supabase
                 .from('profiles')
                 .select('id, nome')
                 .eq('active', true)
-                .eq('team_id', TEAM_PLANNER_ID)
+                .in('id', ids)
             return (data || []) as { id: string; nome: string }[]
         },
         staleTime: 1000 * 60 * 10,

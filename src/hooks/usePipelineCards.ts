@@ -26,18 +26,14 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     // Users without team_id belong to ALL teams → skip query, show all
     const hasTeam = !!profile?.team_id
     const { data: myTeamMembers } = useQuery({
-        queryKey: ['my-team-members', profile?.team_id],
+        queryKey: ['my-team-members-peers', profile?.id],
         enabled: hasTeam && viewMode === 'MANAGER' && subView === 'TEAM_VIEW',
         queryFn: async () => {
-            if (!profile?.team_id) return []
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('team_id', profile.team_id)
-                .eq('active', true)
-
+            // RPC resolve "meu time" na org ativa + colegas (cross-org via team_members)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC types pendentes
+            const { data, error } = await (supabase.rpc as any)('get_my_team_peer_ids')
             if (error) throw error
-            return data.map(p => p.id)
+            return (data ?? []) as string[]
         }
     })
 
