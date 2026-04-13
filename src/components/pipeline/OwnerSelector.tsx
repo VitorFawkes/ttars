@@ -171,8 +171,10 @@ export default function OwnerSelector({
                 if (!belongs) return false
             }
 
-            // Phase filter: membro de alguma team cuja phase tem o slug (na org ativa)
-            if (phaseSlug && hasTeamsForPhase) {
+            // Phase filter: membro de alguma team cuja phase tem o slug (na org ativa).
+            // Admins sempre passam (consistente com CardTeamSection) — admin global pode
+            // ser atribuído como responsável mesmo sem team_members explícito.
+            if (phaseSlug && hasTeamsForPhase && !isAdminUser) {
                 const belongsToPhase = user.phaseSlugs?.includes(phaseSlug) ?? false
                 if (!belongsToPhase) return false
             }
