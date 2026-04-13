@@ -79,6 +79,7 @@ import ActionRequirementsTab from './components/admin/studio/ActionRequirementsT
 import NotificationConfigPage from './components/settings/customization/NotificationConfigPage'
 // Automações unificadas (hub novo)
 import AutomationsListPage from './pages/admin/automations/AutomationsListPage'
+import NewAutomationPage from './pages/admin/automations/NewAutomationPage'
 // Cadence Engine builders (acessados via /settings/automations, list page foi unificada na Fase 2)
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
@@ -238,7 +239,7 @@ function App() {
                   {/* Redirects legacy: /admin/automations e /admin/cadence movidos para /settings/automations */}
                   <Route path="/admin/automations" element={<Navigate to="/settings/automations" replace />} />
                   <Route path="/admin/automations/monitor" element={<Navigate to="/settings/automations?tab=monitor" replace />} />
-                  <Route path="/admin/automations/new" element={<Navigate to="/settings/automations/automacao/new" replace />} />
+                  <Route path="/admin/automations/new" element={<Navigate to="/settings/automations/new" replace />} />
                   <Route path="/admin/automations/:id" element={<Navigate to="/settings/automations" replace />} />
                   <Route path="/admin/cadence" element={<Navigate to="/settings/automations" replace />} />
                   <Route path="/admin/cadence/automacao/new" element={<Navigate to="/settings/automations/automacao/new" replace />} />
@@ -269,11 +270,11 @@ function App() {
                     <Route path="customization/data-rules" element={<StudioUnified />} />
                     <Route path="customization/action-requirements" element={<ActionRequirementsTab />} />
 
-                    {/* Automações — hub unificado (Fase 2) */}
+                    {/* Automações — hub unificado (Fase 2 + 3) */}
                     <Route path="automations" element={<AutomationsListPage />} />
+                    <Route path="automations/new" element={<NewAutomationPage />} />
                     <Route path="automations/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="automations/automacao/:id" element={<AutomacaoBuilderPage />} />
-                    <Route path="automations/new" element={<CadenceBuilderPage />} />
                     <Route path="automations/:id" element={<CadenceBuilderPage />} />
                     <Route path="automations/:id/monitor" element={<CadenceMonitorPage />} />
 

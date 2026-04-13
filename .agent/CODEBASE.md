@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 167 tabelas | 82 paginas | 135 hooks | 17 views | 508 components
+> **Stats:** 168 tabelas | 82 paginas | 135 hooks | 17 views | 510 components
 
 ---
 
@@ -433,9 +433,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomationBuilderPage` | `src/pages/admin/automations/AutomationBuilderPage.tsx` |
 | `AutomationMonitorPage` | `src/pages/admin/automations/AutomationMonitorPage.tsx` |
 | `AutomationsListPage` | `src/pages/admin/automations/AutomationsListPage.tsx` |
+| `NewAutomationPage` | `src/pages/admin/automations/NewAutomationPage.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
-| `CadenceEntryRulesTab` | `src/pages/admin/cadence/CadenceEntryRulesTab.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |

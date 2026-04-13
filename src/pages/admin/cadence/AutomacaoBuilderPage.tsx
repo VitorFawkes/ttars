@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle, GripVertical } from 'lucide-react';
+import { getBlockRecipe, type BlockRecipe } from '@/components/automations/blockRecipes';
+import { SimulateBlocksPanel } from '@/components/automations/SimulateBlocksPanel';
 import {
     DndContext,
     closestCenter,
@@ -58,6 +60,30 @@ const eventOptions: { value: EventType; label: string }[] = [
  * de tarefas encadeados. Salva como cadence_template (execution_mode='blocks')
  * + cadence_event_trigger (action_type='start_cadence').
  */
+
+function recipeToBlocks(recipe: BlockRecipe): Block[] {
+    return recipe.blocks.map((block, idx) => ({
+        id: `block_${idx}_${Date.now()}`,
+        startsFromTrigger: idx === 0 ? undefined : block.startsFromTrigger,
+        dependsOnBlock: idx === 0 ? null : (block.startsFromTrigger ? null : idx - 1),
+        tasks: block.tasks.map((task, tIdx) => ({
+            id: `temp_${idx}_${tIdx}_${Date.now()}`,
+            tipo: task.tipo,
+            titulo: task.titulo,
+            descricao: task.descricao || '',
+            prioridade: task.prioridade,
+            assign_to: 'card_owner' as const,
+            assign_to_user_id: null,
+            due_offset: {
+                unit: 'business_days' as const,
+                value: task.due_days,
+                anchor: idx === 0
+                    ? ('cadence_start' as const)
+                    : ('previous_block_completed' as const),
+            },
+        })),
+    }));
+}
 function SortableBlock({ block, children }: {
     block: Block;
     index: number;
@@ -101,24 +127,29 @@ function SortableBlock({ block, children }: {
 export default function AutomacaoBuilderPage() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
+    const [searchParams] = useSearchParams();
     const isNew = !id || id === 'new';
+    const recipeId = isNew ? searchParams.get('recipe') : null;
+    const initialRecipe = useMemo(
+        () => (recipeId ? getBlockRecipe(recipeId) : null),
+        [recipeId],
+    );
     const { users } = useUsers();
-    const { pipelineId } = useCurrentProductMeta();
+    const { slug: currentProduct, pipelineId } = useCurrentProductMeta();
 
     const [form, setForm] = useState<AutomationForm>({
-        name: '',
-        description: '',
+        name: initialRecipe?.suggested_name || '',
+        description: initialRecipe?.summary || '',
         is_active: false,
-        event_type: 'stage_enter',
+        event_type: initialRecipe?.event_type || 'stage_enter',
         stage_ids: [],
         respect_business_hours: true,
     });
-    const [blocks, setBlocks] = useState<Block[]>([
-        {
-            id: `block_${Date.now()}`,
-            tasks: [],
-        },
-    ]);
+    const [blocks, setBlocks] = useState<Block[]>(
+        initialRecipe
+            ? recipeToBlocks(initialRecipe)
+            : [{ id: `block_${Date.now()}`, tasks: [] }],
+    );
     const { data: allStages } = usePipelineStages();
     const [triggerId, setTriggerId] = useState<string | null>(null);
     const [loading, setLoading] = useState(!isNew);
@@ -145,6 +176,12 @@ export default function AutomacaoBuilderPage() {
             .filter(u => u.active)
             .map(u => ({ value: u.id, label: u.nome || u.email }));
         return [{ value: '', label: 'Selecionar pessoa…' }, ...list];
+    }, [users]);
+
+    const userNameById = useMemo(() => {
+        const m = new Map<string, string>();
+        (users || []).forEach(u => m.set(u.id, u.nome || u.email));
+        return m;
     }, [users]);
 
     const stageOptions = useMemo(
@@ -527,7 +564,7 @@ export default function AutomacaoBuilderPage() {
                     </Button>
                     <div>
                         <h1 className="text-lg font-semibold text-slate-900 tracking-tight">
-                            {isNew ? 'Nova Cadência' : 'Editar Cadência'}
+                            {isNew ? 'Nova Automação' : 'Editar Automação'}
                         </h1>
                         <p className="text-xs text-slate-500">
                             {totalTasks} {totalTasks === 1 ? 'tarefa' : 'tarefas'} em {blocks.length}{' '}
@@ -562,7 +599,7 @@ export default function AutomacaoBuilderPage() {
                     {/* Nome + descrição */}
                     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
                         <div>
-                            <Label>Nome da Cadência</Label>
+                            <Label>Nome da Automação</Label>
                             <Input
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -575,7 +612,7 @@ export default function AutomacaoBuilderPage() {
                             <Textarea
                                 value={form.description}
                                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                placeholder="O que esta cadência faz e por quê…"
+                                placeholder="O que esta automação faz e por quê…"
                                 rows={2}
                                 className="mt-1"
                             />
@@ -736,6 +773,15 @@ export default function AutomacaoBuilderPage() {
                             Adicionar bloco que aguarda a conclusão do anterior
                         </Button>
                     </div>
+
+                    {/* Simulador */}
+                    {totalTasks > 0 && (
+                        <SimulateBlocksPanel
+                            blocks={blocks}
+                            currentProduct={currentProduct}
+                            userNameById={userNameById}
+                        />
+                    )}
 
                     {/* Resumo */}
                     {totalTasks > 0 && (

@@ -204,7 +204,7 @@ export default function AutomationsListPage() {
         stats={stats}
         actions={
           activeTab === 'list' ? (
-            <Button onClick={() => navigate('/settings/automations/automacao/new')} className="gap-2">
+            <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
               <Plus className="w-4 h-4" />
               Nova automação
             </Button>
@@ -273,7 +273,7 @@ export default function AutomationsListPage() {
               </p>
               {items.length === 0 && (
                 <Button
-                  onClick={() => navigate('/settings/automations/automacao/new')}
+                  onClick={() => navigate('/settings/automations/new')}
                   className="mt-6 gap-2"
                 >
                   <Plus className="w-4 h-4" />
