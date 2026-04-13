@@ -385,3 +385,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T14:37:39Z | supabase/migrations/20260413_drop_legacy_automation_system.sql | applied_to_staging
 2026-04-13T14:56:22Z | supabase/migrations/20260413_drop_legacy_automation_system.sql | applied_to_prod
 2026-04-13T15:09:29Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260413_fix_data_viagem_sync_priority.sql | applied_to_prod
+2026-04-13T15:12:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260413_fix_profiles_org_select_cross_user.sql | applied_to_prod
