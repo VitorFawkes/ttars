@@ -381,3 +381,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T12:21:37Z | supabase/migrations/20260413_team_member_lookup_rpcs.sql | applied_to_prod
 2026-04-13T12:27:33Z | supabase/migrations/20260413_send_card_alert_rpc.sql | applied_to_prod
 2026-04-13T14:02:31Z | supabase/migrations/20260413_fix_cross_tenant_invite_escalation.sql | applied_to_prod
+2026-04-13T14:33:52Z | supabase/migrations/20260413_contato_principal_completo_telefone_sem_email.sql | applied_to_prod
+2026-04-13T14:37:39Z | supabase/migrations/20260413_drop_legacy_automation_system.sql | applied_to_staging
