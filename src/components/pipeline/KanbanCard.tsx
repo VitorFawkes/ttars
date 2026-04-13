@@ -709,11 +709,9 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 return null;
             })()}
 
-            {(card as any).card_type !== 'sub_card' && (
-                <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
-                    {card.titulo}
-                </span>
-            )}
+            <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
+                {card.titulo}
+            </span>
 
             {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
