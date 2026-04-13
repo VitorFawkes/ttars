@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
-import { Package, RefreshCw, AlertCircle } from 'lucide-react'
+import { Package, RefreshCw } from 'lucide-react'
 import { useSubCards, type SubCardCategory } from '@/hooks/useSubCards'
 import { cn } from '@/lib/utils'
 
@@ -26,25 +26,12 @@ export default function CreateSubCardModal({
     const { createSubCard, isCreating } = useSubCards()
 
     const [formData, setFormData] = useState({
-        titulo: '',
         descricao: '',
         category: 'addition' as SubCardCategory,
         valorEstimado: ''
     })
 
-    const [errors, setErrors] = useState<{ titulo?: string }>({})
-
     const handleSubmit = () => {
-        const newErrors: typeof errors = {}
-        if (!formData.titulo.trim()) {
-            newErrors.titulo = 'Título é obrigatório'
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors)
-            return
-        }
-
         const parsedValor = formData.valorEstimado
             ? parseFloat(formData.valorEstimado.replace(/[^\d,.-]/g, '').replace(',', '.'))
             : 0
@@ -52,7 +39,7 @@ export default function CreateSubCardModal({
         createSubCard(
             {
                 parentId: parentCardId,
-                titulo: formData.titulo.trim(),
+                titulo: parentTitle,
                 descricao: formData.descricao.trim(),
                 category: formData.category,
                 valorEstimado: isNaN(parsedValor) ? 0 : parsedValor
@@ -67,8 +54,7 @@ export default function CreateSubCardModal({
     }
 
     const handleClose = () => {
-        setFormData({ titulo: '', descricao: '', category: 'addition', valorEstimado: '' })
-        setErrors({})
+        setFormData({ descricao: '', category: 'addition', valorEstimado: '' })
         onClose()
     }
 
@@ -145,31 +131,6 @@ export default function CreateSubCardModal({
                                 : 'Um novo card será criado no Planner para replanejar a mudança. O Pós-venda será notificado automaticamente.'
                             }
                         </p>
-                    </div>
-
-                    {/* Title */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Título <span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                            type="text"
-                            value={formData.titulo}
-                            onChange={(e) => {
-                                setFormData({ ...formData, titulo: e.target.value })
-                                if (errors.titulo) setErrors(prev => ({ ...prev, titulo: undefined }))
-                            }}
-                            placeholder={isAddition
-                                ? 'Ex: Venda adicional experiências, Novo pacote mergulho'
-                                : 'Ex: Replanning destino, Trocar pacote hotel'
-                            }
-                            className={cn(errors.titulo && 'border-red-500')}
-                        />
-                        {errors.titulo && (
-                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" /> {errors.titulo}
-                            </p>
-                        )}
                     </div>
 
                     {/* Description */}

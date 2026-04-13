@@ -679,20 +679,13 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 </div>
             )}
 
-            {/* Sub-Card: show parent name + badge */}
+            {/* Sub-Card: show only badge (title is same as parent) */}
             {(card as any).card_type === 'sub_card' && (
-                <div className="flex items-center gap-1.5 text-[10px] text-purple-600 bg-purple-50/50 px-2 py-1 rounded border border-purple-200/50 w-fit">
-                    <SubCardBadge
-                        status={(card as any).sub_card_status}
-                        category={(card as any).sub_card_category}
-                        variant="small"
-                    />
-                    {(card as any).parent_card_title && (
-                        <span className="truncate max-w-[140px] font-medium">
-                            de: {(card as any).parent_card_title}
-                        </span>
-                    )}
-                </div>
+                <SubCardBadge
+                    status={(card as any).sub_card_status}
+                    category={(card as any).sub_card_category}
+                    variant="small"
+                />
             )}
 
             {/* Active Sub-Cards Count (for parent cards) */}
@@ -716,9 +709,11 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 return null;
             })()}
 
-            <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
-                {card.titulo}
-            </span>
+            {(card as any).card_type !== 'sub_card' && (
+                <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
+                    {card.titulo}
+                </span>
+            )}
 
             {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
