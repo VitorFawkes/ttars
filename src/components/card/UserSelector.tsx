@@ -31,22 +31,37 @@ export default function UserSelector({ currentUserId, onSelect, label, disabled 
 
             setLoading(true)
             try {
-                let query = supabase
-                    .from('profiles')
-                    .select('id, nome, email, team_id')
-                    .eq('active', true)
-                    .not('team_id', 'is', null)
-                    .order('nome')
-
-                // Filtro server-side por time quando possível
                 if (teamIds && teamIds.length > 0) {
-                    query = query.in('team_id', teamIds)
+                    // Filtro por time via team_members (many-to-many, funciona cross-org)
+                    const { data: memberRows, error: memberErr } = await supabase
+                        .from('team_members')
+                        .select('user_id')
+                        .in('team_id', teamIds)
+                    if (memberErr) throw memberErr
+                    const userIds = Array.from(new Set((memberRows || []).map(r => r.user_id as string)))
+                    if (userIds.length === 0) {
+                        setProfiles([])
+                        return
+                    }
+                    const { data, error } = await supabase
+                        .from('profiles')
+                        .select('id, nome, email')
+                        .eq('active', true)
+                        .in('id', userIds)
+                        .order('nome')
+                    if (error) throw error
+                    setProfiles((data || []) as Profile[])
+                } else {
+                    // Sem filtro: todos os profiles ativos com vínculo a algum time
+                    const { data, error } = await supabase
+                        .from('profiles')
+                        .select('id, nome, email, team_id')
+                        .eq('active', true)
+                        .not('team_id', 'is', null)
+                        .order('nome')
+                    if (error) throw error
+                    setProfiles((data || []) as Profile[])
                 }
-
-                const { data, error } = await query
-                if (error) throw error
-
-                setProfiles((data || []) as Profile[])
             } catch (error) {
                 console.error('Error fetching profiles:', error)
             } finally {
