@@ -3,7 +3,7 @@
 # sem o flag --no-verify-jwt
 
 # Functions que DEVEM ser públicas (recebem webhooks externos sem JWT)
-PUBLIC_FUNCTIONS="webhook-ingest webhook-receiver webhook-whatsapp whatsapp-webhook active-campaign-webhook integration-sync-deals"
+PUBLIC_FUNCTIONS="webhook-ingest webhook-whatsapp whatsapp-webhook active-campaign-webhook integration-sync-deals"
 
 # Extrair o input do hook (JSON via stdin)
 INPUT=$(cat)

@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 168 tabelas | 82 paginas | 135 hooks | 17 views | 510 components
+> **Stats:** 168 tabelas | 82 paginas | 134 hooks | 17 views | 510 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **135 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **134 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -321,7 +321,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useContactProposals()` | `useContactProposals.ts` |
-| `useGeneratePDF()` | `useGeneratePDF.ts` |
 | `useLibrary()` | `useLibrary.ts` |
 | `useProposal()` | `useProposal.ts` |
 | `useProposalBuilder()` | `useProposalBuilder.ts` |
