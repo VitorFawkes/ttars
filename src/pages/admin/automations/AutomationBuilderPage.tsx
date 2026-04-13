@@ -917,6 +917,12 @@ export default function AutomationBuilderPage() {
         return
       }
 
+      // Automações cron_roteamento têm página dedicada
+      if (data.event_type === 'cron_roteamento') {
+        navigate(`/settings/automations/roteamento/${id}`, { replace: true })
+        return
+      }
+
       const cfg = data.action_config || {}
       const evCfg = data.event_config || {}
       const loadedMode: FormState['message_mode'] = cfg.hsm_template_name

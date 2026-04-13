@@ -412,3 +412,11 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T19:33:04Z | /tmp/restart_pgnet_worker.sql | applied_to_prod
 2026-04-13T19:33:16Z | /tmp/reactivate_cron4.sql | applied_to_prod
 2026-04-13T19:36:22Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260413_h3_034_add_org_id_cadence_event_triggers.sql | applied_to_prod
+2026-04-13T19:55:09Z | /tmp/fix_dispatch_real.sql | applied_to_prod
+2026-04-13T19:56:14Z | /tmp/test_dispatch.sql | applied_to_prod
+2026-04-13T19:56:25Z | /tmp/test_dispatch2.sql | applied_to_prod
+2026-04-13T19:56:42Z | /tmp/check_url.sql | applied_to_prod
+2026-04-13T19:57:08Z | /tmp/fix_webhook_url.sql | applied_to_prod
+2026-04-13T19:57:57Z | /tmp/kill_pgnet.sql | applied_to_prod
+2026-04-13T19:58:46Z | /tmp/pgnet_maintenance.sql | applied_to_prod
+2026-04-13T20:36:38Z | supabase/migrations/20260413_roteamento_pos_venda_trips.sql | applied_to_prod

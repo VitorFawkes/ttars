@@ -32,6 +32,7 @@ export type EventType =
   | 'proposta_expirada'
   | 'dias_no_stage'
   | 'card_won'
+  | 'cron_roteamento'
 
 /**
  * Gatilhos "proativos" disparam SEM o cliente ter mandado mensagem recente.
@@ -284,4 +285,5 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   proposta_expirada: 'Proposta expirou',
   dias_no_stage: 'Card parado X dias em etapa',
   card_won: 'Card ganho',
+  cron_roteamento: 'Roteamento automático diário',
 }

@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle, GripVertical } from 'lucide-react';
 import { getBlockRecipe, type BlockRecipe } from '@/components/automations/blockRecipes';
-import { SimulateBlocksPanel } from '@/components/automations/SimulateBlocksPanel';
 import {
     DndContext,
     closestCenter,
@@ -135,7 +134,7 @@ export default function AutomacaoBuilderPage() {
         [recipeId],
     );
     const { users } = useUsers();
-    const { slug: currentProduct, pipelineId } = useCurrentProductMeta();
+    const { pipelineId } = useCurrentProductMeta();
 
     const [form, setForm] = useState<AutomationForm>({
         name: initialRecipe?.suggested_name || '',
@@ -176,12 +175,6 @@ export default function AutomacaoBuilderPage() {
             .filter(u => u.active)
             .map(u => ({ value: u.id, label: u.nome || u.email }));
         return [{ value: '', label: 'Selecionar pessoa…' }, ...list];
-    }, [users]);
-
-    const userNameById = useMemo(() => {
-        const m = new Map<string, string>();
-        (users || []).forEach(u => m.set(u.id, u.nome || u.email));
-        return m;
     }, [users]);
 
     const stageOptions = useMemo(
@@ -821,15 +814,6 @@ export default function AutomacaoBuilderPage() {
                             Adicionar bloco que aguarda a conclusão do anterior
                         </Button>
                     </div>
-
-                    {/* Simulador */}
-                    {totalTasks > 0 && (
-                        <SimulateBlocksPanel
-                            blocks={blocks}
-                            currentProduct={currentProduct}
-                            userNameById={userNameById}
-                        />
-                    )}
 
                     {/* Resumo */}
                     {totalTasks > 0 && (

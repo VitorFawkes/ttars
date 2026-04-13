@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Zap, Plus, MoreHorizontal, MessageSquare, CheckSquare, ArrowRightLeft,
-  Layers, Search, Activity, Trash2, Pencil, BarChart3, LayoutList,
+  Layers, Search, Activity, Trash2, Pencil, BarChart3, LayoutList, Timer,
 } from 'lucide-react'
 
 import { useAutomations, type AutomationItem } from '@/hooks/useAutomations'
@@ -51,6 +51,10 @@ function ActionBadge({ actionType }: { actionType: string }) {
 
 function describeEvent(item: AutomationItem): string {
   if (!item.event_type) return 'Gatilho: cadência (manual ou por regra)'
+  if (item.event_type === 'cron_roteamento') {
+    const desc = (item as { action_config?: { description?: string } }).action_config?.description
+    return desc || 'Roteamento automático diário baseado em datas'
+  }
   const base = EVENT_TYPE_LABELS[item.event_type as keyof typeof EVENT_TYPE_LABELS] || item.event_type
   return `Quando: ${base}`
 }
@@ -81,6 +85,12 @@ function AutomationCard({
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-semibold text-slate-900 truncate">{item.name}</h3>
             <ActionBadge actionType={item.action_type} />
+            {item.event_type === 'cron_roteamento' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border bg-sky-50 text-sky-700 border-sky-200">
+                <Timer className="w-3 h-3" />
+                Diária
+              </span>
+            )}
             {!item.is_active && (
               <Badge variant="outline" className="text-xs text-slate-500">Pausada</Badge>
             )}
@@ -177,6 +187,10 @@ export default function AutomationsListPage() {
   }
 
   const handleEdit = (item: AutomationItem) => {
+    if (item.event_type === 'cron_roteamento') {
+      navigate(`/settings/automations/roteamento/${item.id}`)
+      return
+    }
     if (item.source === 'cadence_template') {
       // Templates sempre abrem no builder de blocos (AutomacaoBuilderPage)
       navigate(`/settings/automations/automacao/${item.id}`)

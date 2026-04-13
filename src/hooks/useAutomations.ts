@@ -31,6 +31,8 @@ export interface AutomationItem {
   execution_mode?: 'linear' | 'blocks'
   /** Se source=trigger e action_type=start_cadence: id do template vinculado */
   target_template_id?: string | null
+  /** Config da ação (usado para descrição em cron_roteamento) */
+  action_config?: Record<string, unknown> | null
   /** Instâncias ativas ou contagem de disparos */
   stats: {
     active_instances?: number
@@ -107,6 +109,7 @@ export function useAutomations() {
         id: string; name: string | null; event_type: string; action_type: string;
         is_active: boolean; created_at: string; updated_at: string | null;
         target_template_id: string | null;
+        action_config: Record<string, unknown> | null;
       }) => ({
         uid: `trigger:${t.id}`,
         id: t.id,
@@ -117,6 +120,7 @@ export function useAutomations() {
         event_type: t.event_type,
         action_type: t.action_type as ActionType,
         target_template_id: t.target_template_id,
+        action_config: t.action_config,
         execution_mode: t.target_template_id ? templateModeMap.get(t.target_template_id) : undefined,
         stats: { triggered_count: firedByTrigger.get(t.id) || 0 },
         created_at: t.created_at,
@@ -173,8 +177,13 @@ export function useAutomations() {
     mutationFn: async (item: AutomationItem) => {
       const table = item.source === 'trigger' ? 'cadence_event_triggers' : 'cadence_templates'
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from(table).delete().eq('id', item.id)
+      const { error, data } = await (supabase as any)
+        .from(table)
+        .delete()
+        .eq('id', item.id)
+        .select('id')
       if (error) throw error
+      if (!data || data.length === 0) throw new Error('Não foi possível excluir — permissão negada')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['automations-hub'] }),
   })
