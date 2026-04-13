@@ -1,0 +1,117 @@
+name: Smoke Prod + Auto-Rollback
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      production_url:
+        description: 'URL de produção para smoke test'
+        required: false
+        default: 'https://welcomecrm.vercel.app'
+
+concurrency:
+  group: smoke-prod
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke test contra produção
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Instalar deps do sistema (se cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Aguardar deploy da Vercel (produção)
+        id: wait-prod
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: Production
+          max_timeout: 900
+          check_interval: 15
+
+      - name: Rodar smoke tests (só *.smoke.spec.ts)
+        id: smoke
+        env:
+          CI: 'true'
+          SMOKE_ONLY: 'true'
+          BASE_URL: ${{ steps.wait-prod.outputs.url || inputs.production_url || 'https://welcomecrm.vercel.app' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run test:e2e:smoke
+
+      - name: Upload relatório (sempre)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report-${{ github.sha }}
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Rollback automático (Vercel)
+        if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+        run: bash scripts/vercel-rollback.sh
+
+      - name: Criar issue de alerta após rollback
+        if: failure() && steps.smoke.conclusion == 'failure'
+        uses: actions/github-script@v7
+        env:
+          SHA_SHORT: ${{ github.sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = (process.env.SHA_SHORT || '').substring(0, 7);
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '## Rollback automático executado',
+              '',
+              'Um smoke test falhou em produção após o último deploy (' + sha + ').',
+              'O site foi revertido automaticamente para a versão anterior que estava funcionando.',
+              '',
+              '**Detalhes técnicos:** ' + runUrl,
+              '',
+              '### O que fazer agora',
+              '',
+              '1. Abrir o relatório anexo ao workflow (aba Actions → este run → Artifacts → smoke-report-*).',
+              '2. Identificar qual teste falhou e por quê.',
+              '3. Corrigir o problema em uma nova mudança.',
+              '4. Quando a nova mudança entrar em produção e os smoke tests passarem, o site volta automaticamente pra última versão.',
+              '',
+              '_Esta issue foi criada automaticamente._',
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Rollback automático após deploy falho (' + sha + ')',
+              body,
+              labels: ['rollback', 'production-incident'],
+            });

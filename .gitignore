@@ -98,6 +98,12 @@ scripts/capture-gif.sh
 # Playwright MCP artifacts
 .playwright-mcp/
 
+# Playwright E2E artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/tests/e2e/.auth/
+
 # Docs/snapshots temporários ad-hoc na raiz
 /builder-*-snapshot.md
 /wizard-snapshot.md
