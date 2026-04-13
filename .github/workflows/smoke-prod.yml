@@ -46,21 +46,44 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Aguardar deploy da Vercel (produção)
+      - name: Aguardar deploy produção Vercel (via API)
         id: wait-prod
-        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          environment: Production
-          max_timeout: 900
-          check_interval: 15
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          echo "Aguardando deploy produção para sha=$COMMIT_SHA..."
+          for i in $(seq 1 90); do
+            RESULT=$(curl -sf \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&limit=5&target=production" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              | python3 -c "
+          import json, sys
+          deps = json.load(sys.stdin).get('deployments', [])
+          sha = '${COMMIT_SHA}'
+          for d in deps:
+              meta = d.get('meta', {})
+              if meta.get('githubCommitSha','') == sha and d.get('state') == 'READY':
+                  print(d.get('url',''))
+                  sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null) && break
+            echo "  tentativa $i/90 — deploy não pronto ainda..."
+            sleep 10
+          done
+          PROD_URL="${RESULT:+https://$RESULT}"
+          PROD_URL="${PROD_URL:-https://welcomecrm.vercel.app}"
+          echo "Produção: ${PROD_URL}"
+          echo "url=${PROD_URL}" >> $GITHUB_OUTPUT
 
       - name: Rodar smoke tests (só *.smoke.spec.ts)
         id: smoke
         env:
           CI: 'true'
           SMOKE_ONLY: 'true'
-          BASE_URL: ${{ steps.wait-prod.outputs.url || inputs.production_url || 'https://welcomecrm.vercel.app' }}
+          BASE_URL: ${{ steps.wait-prod.outputs.url }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run test:e2e:smoke
