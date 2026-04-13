@@ -16049,6 +16049,7 @@ export type Database = {
       is_gestor: { Args: never; Returns: boolean }
       is_manager_or_admin: { Args: never; Returns: boolean }
       is_operational: { Args: never; Returns: boolean }
+      is_org_active: { Args: { p_org_id: string }; Returns: boolean }
       is_org_admin: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: boolean
@@ -16144,6 +16145,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: undefined
       }
+      platform_invite_admin: {
+        Args: { p_email: string; p_org_id: string; p_role?: string }
+        Returns: string
+      }
       platform_list_organizations: {
         Args: never
         Returns: {
@@ -16160,6 +16165,7 @@ export type Database = {
           suspended_at: string
           suspended_reason: string
           user_count: number
+          workspace_count: number
         }[]
       }
       platform_log_action: {
@@ -16211,6 +16217,18 @@ export type Database = {
           p_product_slug?: string
           p_slug: string
           p_template?: string
+        }
+        Returns: string
+      }
+      provision_workspace: {
+        Args: {
+          p_admin_email: string
+          p_name: string
+          p_product_name?: string
+          p_product_slug?: string
+          p_slug: string
+          p_template?: string
+          p_tenant_id: string
         }
         Returns: string
       }

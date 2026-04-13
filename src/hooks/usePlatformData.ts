@@ -158,37 +158,6 @@ export function usePlatformOrgs() {
   return { orgs, loading, error, refetch: fetch, suspend, resume }
 }
 
-export function usePlatformOrgDetail(orgId: string | null) {
-  const [detail, setDetail] = useState<PlatformOrgDetail | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetch = useCallback(async () => {
-    if (!orgId) {
-      setDetail(null)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const { data, error: rpcError } = await db.rpc('platform_get_organization', {
-        p_org_id: orgId,
-      })
-      if (rpcError) throw rpcError
-      setDetail(data as PlatformOrgDetail)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhe da org')
-    } finally {
-      setLoading(false)
-    }
-  }, [orgId])
-
-  useEffect(() => {
-    fetch()
-  }, [fetch])
-
-  return { detail, loading, error, refetch: fetch }
-}
 
 export function usePlatformAuditLog(limit = 50) {
   const [entries, setEntries] = useState<PlatformAuditEntry[]>([])
@@ -246,6 +215,8 @@ export interface PlatformUser {
   nome: string | null
   org_id: string
   org_name?: string
+  active_org_id?: string
+  active_org_name?: string
   is_admin: boolean
   is_platform_admin: boolean
   created_at: string
@@ -263,7 +234,7 @@ export function usePlatformUsers(search: string) {
     try {
       let query = db
         .from('profiles')
-        .select('id, email, nome, org_id, is_admin, is_platform_admin, created_at, updated_at')
+        .select('id, email, nome, org_id, active_org_id, is_admin, is_platform_admin, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -276,7 +247,12 @@ export function usePlatformUsers(search: string) {
       if (qError) throw qError
 
       const rawUsers = (data ?? []) as Array<PlatformUser>
-      const orgIds = Array.from(new Set(rawUsers.map((u) => u.org_id)))
+      const orgIds = Array.from(
+        new Set([
+          ...rawUsers.map((u) => u.org_id),
+          ...rawUsers.map((u) => u.active_org_id).filter((id) => id),
+        ])
+      )
       const { data: orgs } = await db
         .from('organizations')
         .select('id, name')
@@ -291,6 +267,7 @@ export function usePlatformUsers(search: string) {
         rawUsers.map((u) => ({
           ...u,
           org_name: nameByOrg.get(u.org_id) ?? '—',
+          active_org_name: u.active_org_id ? nameByOrg.get(u.active_org_id) : undefined,
         }))
       )
     } catch (err) {
@@ -314,4 +291,86 @@ export function usePlatformUsers(search: string) {
   }, [fetch])
 
   return { users, loading, error, refetch: fetch, setPlatformAdmin }
+}
+
+export interface AddWorkspaceInput {
+  name: string
+  slug: string
+  adminEmail: string
+  template: 'generic_3phase' | 'simple_2phase'
+  productName: string
+  productSlug: string
+}
+
+export interface InviteAdminInput {
+  email: string
+  role: 'admin' | 'sales' | 'support'
+}
+
+export function usePlatformOrgDetail(orgId: string | null) {
+  const [detail, setDetail] = useState<PlatformOrgDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetch = useCallback(async () => {
+    if (!orgId) {
+      setDetail(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const { data, error: rpcError } = await db.rpc('platform_get_organization', {
+        p_org_id: orgId,
+      })
+      if (rpcError) throw rpcError
+      setDetail(data as PlatformOrgDetail)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhe da org')
+    } finally {
+      setLoading(false)
+    }
+  }, [orgId])
+
+  const addWorkspace = useCallback(
+    async (input: AddWorkspaceInput) => {
+      if (!orgId) throw new Error('Organization ID not set')
+
+      const { error: rpcError } = await db.rpc('provision_workspace', {
+        p_tenant_id: orgId,
+        p_name: input.name,
+        p_slug: input.slug,
+        p_admin_email: input.adminEmail,
+        p_template: input.template,
+        p_product_name: input.productName,
+        p_product_slug: input.productSlug,
+      })
+
+      if (rpcError) throw rpcError
+      await fetch()
+    },
+    [orgId, fetch]
+  )
+
+  const inviteAdmin = useCallback(
+    async (input: InviteAdminInput) => {
+      if (!orgId) throw new Error('Organization ID not set')
+
+      const { error: rpcError } = await db.rpc('platform_invite_admin', {
+        p_org_id: orgId,
+        p_email: input.email,
+        p_role: input.role,
+      })
+
+      if (rpcError) throw rpcError
+      await fetch()
+    },
+    [orgId, fetch]
+  )
+
+  useEffect(() => {
+    fetch()
+  }, [fetch])
+
+  return { detail, loading, error, refetch: fetch, addWorkspace, inviteAdmin }
 }

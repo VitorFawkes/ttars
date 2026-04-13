@@ -1,10 +1,24 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, Users, CreditCard, Building2, Pause, Play, Shield, LogIn } from 'lucide-react'
+import { useState } from 'react'
+import {
+  ArrowLeft,
+  Loader2,
+  Users,
+  CreditCard,
+  Building2,
+  Pause,
+  Play,
+  Shield,
+  LogIn,
+  Plus,
+} from 'lucide-react'
 import { usePlatformOrgDetail } from '../../hooks/usePlatformData'
 import { StatusBadge } from './DashboardPage'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../contexts/ToastContext'
 import { supabase } from '../../lib/supabase'
+import { AddWorkspaceDialog } from '../../components/platform/AddWorkspaceDialog'
+import { InviteAdminDialog } from '../../components/platform/InviteAdminDialog'
 
 // Cast até types regenerados pós-promoção. Ver usePlatformData.ts para contexto.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,10 +28,23 @@ export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { detail, loading, error, refetch } = usePlatformOrgDetail(id ?? null)
+  const { detail, loading, error, refetch, addWorkspace, inviteAdmin } = usePlatformOrgDetail(
+    id ?? null
+  )
+  const [showAddWorkspace, setShowAddWorkspace] = useState(false)
+  const [showInviteAdmin, setShowInviteAdmin] = useState(false)
 
   const handleSuspend = async () => {
-    if (!id) return
+    if (!id || !detail) return
+    const isWorkspace = !!(detail.parent as unknown as { id: string } | null)
+    const suspendMessage = isWorkspace
+      ? 'Suspender apenas este workspace (o tenant continuará ativo)'
+      : 'Suspender o tenant E todas as workspaces filhas'
+    const confirmed = window.confirm(
+      `${suspendMessage}?\n\nMotivo (será salvo no audit log):`
+    )
+    if (!confirmed) return
+
     const reason = window.prompt('Motivo (opcional):') ?? ''
     const { error: rpcError } = await db.rpc('platform_suspend_organization', {
       p_org_id: id,
@@ -27,7 +54,11 @@ export default function OrganizationDetailPage() {
       toast({ title: 'Erro ao suspender', description: rpcError.message, type: 'error' })
       return
     }
-    toast({ title: 'Organização suspensa', type: 'success' })
+    toast({
+      title: 'Organização suspensa',
+      description: suspendMessage,
+      type: 'success',
+    })
     await refetch()
   }
 
@@ -173,31 +204,68 @@ export default function OrganizationDetailPage() {
         <StatTile label="Perdidos" value={detail.stats.cards_lost} icon={CreditCard} />
       </div>
 
-      {detail.workspaces.length > 0 && (
-        <Section title={`Workspaces (${detail.workspaces.length})`} className="mb-6">
-          {detail.workspaces.map((w) => (
-            <div key={w.id} className="px-5 py-3 flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <Link
-                  to={`/platform/organizations/${w.id}`}
-                  className="text-sm font-medium text-slate-900 hover:text-indigo-600"
-                >
-                  {w.name}
-                </Link>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  <code className="bg-slate-100 px-1 rounded">{w.slug}</code>
-                  <span className="mx-2">·</span>
-                  {w.user_count} usuários · {w.open_card_count}/{w.card_count} cards
-                </div>
-              </div>
-              <StatusBadge status={w.status} />
+      {!detail.parent && (
+        <Section
+          title={`Workspaces (${detail.workspaces.length})`}
+          className="mb-6"
+          header={
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Workspaces ({detail.workspaces.length})
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAddWorkspace(true)}
+                className="gap-1"
+              >
+                <Plus className="w-4 h-4" /> Novo Workspace
+              </Button>
             </div>
-          ))}
+          }
+        >
+          {detail.workspaces.length === 0 ? (
+            <EmptyRow>Nenhum workspace criado ainda.</EmptyRow>
+          ) : (
+            detail.workspaces.map((w) => (
+              <div key={w.id} className="px-5 py-3 flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <Link
+                    to={`/platform/organizations/${w.id}`}
+                    className="text-sm font-medium text-slate-900 hover:text-indigo-600"
+                  >
+                    {w.name}
+                  </Link>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    <code className="bg-slate-100 px-1 rounded">{w.slug}</code>
+                    <span className="mx-2">·</span>
+                    {w.user_count} usuários · {w.open_card_count}/{w.card_count} cards
+                  </div>
+                </div>
+                <StatusBadge status={w.status} />
+              </div>
+            ))
+          )}
         </Section>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Admins">
+        <Section
+          title="Admins"
+          header={
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+              <h2 className="text-sm font-semibold text-slate-900">Admins</h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowInviteAdmin(true)}
+                className="gap-1"
+              >
+                <Plus className="w-4 h-4" /> Convidar
+              </Button>
+            </div>
+          }
+        >
           {detail.admins.length === 0 ? (
             <EmptyRow>Nenhum admin.</EmptyRow>
           ) : (
@@ -252,6 +320,18 @@ export default function OrganizationDetailPage() {
           ))
         )}
       </Section>
+
+      <AddWorkspaceDialog
+        isOpen={showAddWorkspace}
+        onClose={() => setShowAddWorkspace(false)}
+        onSubmit={addWorkspace}
+      />
+
+      <InviteAdminDialog
+        isOpen={showInviteAdmin}
+        onClose={() => setShowInviteAdmin(false)}
+        onSubmit={inviteAdmin}
+      />
     </div>
   )
 }
@@ -279,17 +359,23 @@ function StatTile({
 function Section({
   title,
   className = '',
+  header,
   children,
 }: {
   title: string
   className?: string
+  header?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <section className={`bg-white border border-slate-200 rounded-xl shadow-sm ${className}`}>
-      <header className="px-5 py-3 border-b border-slate-200">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-      </header>
+      {header ? (
+        header
+      ) : (
+        <header className="px-5 py-3 border-b border-slate-200">
+          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        </header>
+      )}
       <div className="divide-y divide-slate-100">{children}</div>
     </section>
   )

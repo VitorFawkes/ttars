@@ -373,3 +373,6 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-12T20:34:40Z | supabase/migrations/20260412_platform_admin_06_fix_status_column.sql | applied_to_prod
 2026-04-13T00:04:23Z | supabase/migrations/20260412_platform_admin_07_tenant_vs_workspace.sql | applied_to_prod
 2026-04-13T00:04:49Z | supabase/migrations/20260412_platform_admin_07_tenant_vs_workspace.sql | applied_to_prod
+2026-04-13T00:24:26Z | supabase/migrations/20260413_platform_admin_08_cascade_suspend.sql | applied_to_prod
+2026-04-13T00:24:33Z | supabase/migrations/20260413_platform_admin_09_provision_workspace.sql | applied_to_prod
+2026-04-13T00:24:41Z | supabase/migrations/20260413_platform_admin_10_invite_admin.sql | applied_to_prod

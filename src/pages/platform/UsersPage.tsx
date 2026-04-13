@@ -78,6 +78,7 @@ export default function UsersPage() {
               <TableHead>Email</TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>Organização</TableHead>
+              <TableHead>Workspace Ativo</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead className="text-right">Ação</TableHead>
             </TableRow>
@@ -85,13 +86,13 @@ export default function UsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12">
+                <TableCell colSpan={6} className="text-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-sm text-slate-400">
+                <TableCell colSpan={6} className="text-center py-12 text-sm text-slate-400">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -101,6 +102,13 @@ export default function UsersPage() {
                   <TableCell className="font-medium text-slate-900">{u.email}</TableCell>
                   <TableCell className="text-sm text-slate-700">{u.nome ?? '—'}</TableCell>
                   <TableCell className="text-sm text-slate-600">{u.org_name}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {u.active_org_id && u.active_org_id !== u.org_id ? (
+                      <span className="text-slate-600">{u.active_org_name}</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       {u.is_platform_admin && (
