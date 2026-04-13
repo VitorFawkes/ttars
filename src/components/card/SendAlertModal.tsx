@@ -19,12 +19,12 @@ interface SendAlertModalProps {
     cardTitle: string | null
 }
 
-export default function SendAlertModal({ isOpen, onClose, cardId, cardTitle }: SendAlertModalProps) {
+export default function SendAlertModal({ isOpen, onClose, cardId }: SendAlertModalProps) {
     return (
         <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose() }}>
             <DialogContent className="sm:max-w-md">
                 {isOpen && (
-                    <SendAlertForm cardId={cardId} cardTitle={cardTitle} onClose={onClose} />
+                    <SendAlertForm cardId={cardId} onClose={onClose} />
                 )}
             </DialogContent>
         </Dialog>
@@ -66,7 +66,7 @@ const MEMBER_ROLE_LABELS: Record<string, string> = {
 
 // ─── Form ───────────────────────────────────────────────────────────────────
 
-function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTitle: string | null; onClose: () => void }) {
+function SendAlertForm({ cardId, onClose }: { cardId: string; onClose: () => void }) {
     const { user } = useAuth()
     const queryClient = useQueryClient()
     const [selectedUserId, setSelectedUserId] = useState('')
@@ -297,52 +297,12 @@ function SendAlertForm({ cardId, cardTitle, onClose }: { cardId: string; cardTit
                 throw new Error('Alertas no card estão desativados pelo admin')
             }
 
-            const senderName = enrichedProfiles?.find(p => p.id === user?.id)?.nome || 'Alguém'
-            const recipientName = enrichedProfiles?.find(p => p.id === selectedUserId)?.nome || 'alguém'
-
-            // Notificação para o destinatário
-            const { error: notifError } = await db
-                .from('notifications')
-                .insert({
-                    user_id: selectedUserId,
-                    type: 'card_alert',
-                    title: `${senderName} em "${cardTitle || 'Card'}": "${message || '(sem mensagem)'}"`,
-                    body: message || null,
-                    url: `/cards/${cardId}`,
-                    card_id: cardId,
-                    org_id: cardData?.org_id,
-                })
-            if (notifError) throw notifError
-
-            // Notificação espelho para o remetente (auto-lida, aparece no widget do card)
-            if (user?.id && user.id !== selectedUserId) {
-                await db
-                    .from('notifications')
-                    .insert({
-                        user_id: user.id,
-                        type: 'card_alert',
-                        title: `Você alertou ${recipientName}`,
-                        body: message || null,
-                        url: `/cards/${cardId}`,
-                        card_id: cardId,
-                        read: true,
-                        org_id: cardData?.org_id,
-                    })
-            }
-            const { error: actError } = await supabase
-                .from('activities')
-                .insert({
-                    card_id: cardId,
-                    tipo: 'note_added',
-                    descricao: `${senderName} enviou alerta para ${recipientName}: "${message || '(sem mensagem)'}"`,
-                    metadata: {
-                        alert_type: 'card_alert',
-                        recipient_id: selectedUserId,
-                        recipient_name: recipientName,
-                    },
-                    created_by: user?.id,
-                })
-            if (actError) console.error('Activity log failed:', actError)
+            const { error } = await db.rpc('send_card_alert', {
+                p_recipient_id: selectedUserId,
+                p_card_id: cardId,
+                p_message: message || null,
+            })
+            if (error) throw error
         },
         onSuccess: () => {
             toast.success('Alerta enviado')
