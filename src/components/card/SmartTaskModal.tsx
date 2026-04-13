@@ -215,12 +215,19 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email, team_id, is_admin')
+                .select('id, nome, email, team_id, is_admin, team:teams(name)')
                 .eq('active', true)
                 .or('team_id.not.is.null,is_admin.eq.true')
                 .order('nome');
             if (error) throw error;
-            return data;
+            return data as unknown as Array<{
+                id: string;
+                nome: string | null;
+                email: string | null;
+                team_id: string | null;
+                is_admin: boolean;
+                team: { name: string } | null;
+            }>;
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     });
@@ -340,9 +347,9 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         enabled: !!effectiveCardId,
     });
 
-    // Build grouped responsible options: card team first, then others — alphabetically sorted
-    const { teamProfiles, otherProfiles } = useMemo(() => {
-        if (!profiles) return { teamProfiles: [], otherProfiles: [] };
+    // Build grouped responsible options: card team first, then others grouped by team name
+    const { teamProfiles, otherTeamGroups } = useMemo(() => {
+        if (!profiles) return { teamProfiles: [], otherTeamGroups: [] as Array<{ label: string; profiles: typeof profiles }> };
 
         const cardTeamIds = new Set([
             cardOwners?.sdr_owner_id,
@@ -356,9 +363,28 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt-BR');
 
         const team = profiles.filter(p => cardTeamIds.has(p.id)).sort(sortByName);
-        const others = profiles.filter(p => !cardTeamIds.has(p.id)).sort(sortByName);
+        const others = profiles.filter(p => !cardTeamIds.has(p.id));
 
-        return { teamProfiles: team, otherProfiles: others };
+        // Group "others" by team name; admins without team fall into "Administradores"
+        const groupsMap = new Map<string, typeof profiles>();
+        for (const p of others) {
+            const label = p.team?.name || (p.is_admin ? 'Administradores' : 'Sem time');
+            const bucket = groupsMap.get(label);
+            if (bucket) bucket.push(p);
+            else groupsMap.set(label, [p]);
+        }
+
+        const groups = Array.from(groupsMap.entries())
+            .map(([label, ps]) => ({ label, profiles: ps.sort(sortByName) }))
+            .sort((a, b) => {
+                // "Administradores" e "Sem time" ao fim, resto alfabético
+                const aFooter = a.label === 'Administradores' || a.label === 'Sem time';
+                const bFooter = b.label === 'Administradores' || b.label === 'Sem time';
+                if (aFooter !== bFooter) return aFooter ? 1 : -1;
+                return a.label.localeCompare(b.label, 'pt-BR');
+            });
+
+        return { teamProfiles: team, otherTeamGroups: groups };
     }, [profiles, cardOwners, teamMemberIds]);
 
     // State for responsible searchable dropdown
@@ -392,11 +418,16 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return teamProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
     }, [teamProfiles, responsibleSearch]);
 
-    const filteredOtherProfiles = useMemo(() => {
-        if (!responsibleSearch) return otherProfiles;
+    const filteredOtherTeamGroups = useMemo(() => {
+        if (!responsibleSearch) return otherTeamGroups;
         const q = responsibleSearch.toLowerCase();
-        return otherProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
-    }, [otherProfiles, responsibleSearch]);
+        return otherTeamGroups
+            .map(g => ({
+                label: g.label,
+                profiles: g.profiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q)),
+            }))
+            .filter(g => g.profiles.length > 0);
+    }, [otherTeamGroups, responsibleSearch]);
 
     // Conflict detection for meetings
     const meetingConflicts = useMemo(() => {
@@ -1203,7 +1234,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                             />
                                         </div>
                                         <div className="max-h-[220px] overflow-y-auto p-1">
-                                            {filteredTeamProfiles.length === 0 && filteredOtherProfiles.length === 0 && (
+                                            {filteredTeamProfiles.length === 0 && filteredOtherTeamGroups.length === 0 && (
                                                 <p className="py-4 text-center text-sm text-muted-foreground">Nenhum usuário encontrado.</p>
                                             )}
                                             {filteredTeamProfiles.length > 0 && (
@@ -1226,13 +1257,13 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                                     ))}
                                                 </>
                                             )}
-                                            {filteredTeamProfiles.length > 0 && filteredOtherProfiles.length > 0 && (
-                                                <div className="-mx-1 my-1 h-px bg-border" />
-                                            )}
-                                            {filteredOtherProfiles.length > 0 && (
-                                                <>
-                                                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Outros</p>
-                                                    {filteredOtherProfiles.map(p => (
+                                            {filteredOtherTeamGroups.map((group, idx) => (
+                                                <div key={group.label}>
+                                                    {(idx > 0 || filteredTeamProfiles.length > 0) && (
+                                                        <div className="-mx-1 my-1 h-px bg-border" />
+                                                    )}
+                                                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{group.label}</p>
+                                                    {group.profiles.map(p => (
                                                         <button
                                                             key={p.id}
                                                             type="button"
@@ -1246,8 +1277,8 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                                             {p.id === responsibleId && <Check className="h-4 w-4 text-primary ml-auto shrink-0" />}
                                                         </button>
                                                     ))}
-                                                </>
-                                            )}
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
