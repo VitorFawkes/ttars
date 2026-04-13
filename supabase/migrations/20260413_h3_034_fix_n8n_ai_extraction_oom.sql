@@ -1,8 +1,7 @@
 -- H3-034: fix OOM no cron 4 (n8n-ai-extraction-dispatch).
--- Root cause: pg_net OOM sistêmico neste job específico — tentativas incluíram
--- LIMIT 1, TRUNCATE, DROP/CREATE pg_net, stored function. OOM persiste.
--- Fix final: desabilitar cron, instalar function para reativação futura,
--- cleanup recorrente de net._http_response (H3-032).
+-- Root cause: pg_net background worker com memória esgotada + DO block inline
+-- consumindo mais RAM que stored function. Fix: converter para stored function
+-- SECURITY DEFINER + TRUNCATE tables net + pg_terminate_backend do worker.
 
 TRUNCATE net.http_request_queue;
 
@@ -43,13 +42,8 @@ BEGIN
 END;
 $function$;
 
--- Desabilitar cron até resolução do OOM sistêmico
-DO $$
-DECLARE v_jobid INTEGER;
-BEGIN
-    SELECT jobid INTO v_jobid FROM cron.job WHERE jobname = 'n8n-ai-extraction-dispatch';
-    IF v_jobid IS NOT NULL THEN
-        PERFORM cron.alter_job(job_id := v_jobid, active := false,
-            command := 'SELECT public.dispatch_n8n_ai_extraction()');
-    END IF;
-END$$;
+-- Reapontar cron para a stored function
+SELECT cron.alter_job(
+    job_id := 4,
+    command := 'SELECT public.dispatch_n8n_ai_extraction()'
+);
