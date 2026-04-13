@@ -214,7 +214,7 @@ export function useQualityGate() {
         if (needsContatoFetch && card.pessoa_principal_id) {
             const { data } = await supabase
                 .from('contatos')
-                .select('nome, sobrenome, email, cpf')
+                .select('nome, sobrenome, telefone, cpf')
                 .eq('id', card.pessoa_principal_id as string)
                 .single()
             contatoPrincipal = data
@@ -240,7 +240,7 @@ export function useQualityGate() {
                     isValid = !!(
                         contatoPrincipal.nome &&
                         contatoPrincipal.sobrenome &&
-                        contatoPrincipal.email &&
+                        contatoPrincipal.telefone &&
                         contatoPrincipal.cpf
                     )
                 }
@@ -258,7 +258,29 @@ export function useQualityGate() {
             }
 
             if (!isValid) {
-                missing.push({ type: 'rule', label: rule.label })
+                let detail: string | undefined
+                if (rule.field_key === 'contato_principal_completo') {
+                    if (!card.pessoa_principal_id) {
+                        detail = 'faltam: nome, sobrenome, telefone, CPF'
+                    } else {
+                        const faltando: string[] = []
+                        if (!contatoPrincipal?.nome) faltando.push('nome')
+                        if (!contatoPrincipal?.sobrenome) faltando.push('sobrenome')
+                        if (!contatoPrincipal?.telefone) faltando.push('telefone')
+                        if (!contatoPrincipal?.cpf) faltando.push('CPF')
+                        detail = faltando.length > 0 ? `faltam: ${faltando.join(', ')}` : undefined
+                    }
+                } else if (rule.field_key === 'contato_principal_basico') {
+                    if (!card.pessoa_principal_id) {
+                        detail = 'faltam: nome, sobrenome'
+                    } else {
+                        const faltando: string[] = []
+                        if (!contatoPrincipal?.nome) faltando.push('nome')
+                        if (!contatoPrincipal?.sobrenome) faltando.push('sobrenome')
+                        detail = faltando.length > 0 ? `faltam: ${faltando.join(', ')}` : undefined
+                    }
+                }
+                missing.push({ type: 'rule', label: rule.label, detail })
             }
         }
 
