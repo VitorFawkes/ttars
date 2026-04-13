@@ -259,9 +259,6 @@ function App() {
                     <Route path="customization/data-rules" element={<StudioUnified />} />
                     <Route path="customization/action-requirements" element={<ActionRequirementsTab />} />
 
-                    {/* AutomationRulesPage legacy redirect */}
-                    <Route path="customization/automations" element={<Navigate to="/settings/cadence" replace />} />
-
                     {/* Hub Automações (desligado temporariamente — redireciona pra Cadência) */}
                     <Route path="automations" element={<Navigate to="/settings/cadence" replace />} />
                     <Route path="automations/monitor" element={<Navigate to="/settings/cadence?tab=monitor" replace />} />
@@ -276,10 +273,6 @@ function App() {
 
                     {/* Templates de Mensagem (consumidos por automações) */}
                     <Route path="automacoes/templates" element={<MensagemTemplatePage />} />
-                    {/* Rotas legadas da Automação de Mensagens (morta) → redirect para Cadence/Automations */}
-                    <Route path="automacoes" element={<Navigate to="/settings/cadence" replace />} />
-                    <Route path="automacoes/builder/*" element={<Navigate to="/settings/cadence" replace />} />
-                    <Route path="automacoes/:id/logs" element={<Navigate to="/settings/cadence" replace />} />
 
                     {/* Agentes IA WhatsApp */}
                     <Route path="ai-agents" element={<AiAgentListPage />} />
