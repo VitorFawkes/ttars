@@ -7,12 +7,41 @@ import {
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Select } from '@/components/ui/Select'
 import { cn } from '@/lib/utils'
 
+interface ActionConfig {
+  description: string
+  dias_threshold: number
+  source_stage_id: string
+  cadence_template_id: string | null
+  check_products_ready: boolean
+  check_cadence_completed: boolean
+  check_travel_dates: boolean
+  stages: {
+    pre_30_plus: string
+    pre_30_minus: string
+    em_viagem: string
+    pos_viagem: string
+  }
+}
+
+const DEFAULT_CONFIG: ActionConfig = {
+  description: '',
+  dias_threshold: 30,
+  source_stage_id: '',
+  cadence_template_id: null,
+  check_products_ready: true,
+  check_cadence_completed: true,
+  check_travel_dates: true,
+  stages: { pre_30_plus: '', pre_30_minus: '', em_viagem: '', pos_viagem: '' },
+}
 
 interface RoteamentoStats {
   moved: number
@@ -22,102 +51,95 @@ interface RoteamentoStats {
 }
 
 interface RecentLog {
-  card_id: string
   from_stage: string
   to_stage: string
-  travel_start: string
-  travel_end: string
-  days_to_start: number
   created_at: string
-  card_titulo?: string
 }
 
-const RULES = [
-  {
-    icon: CalendarRange,
-    color: 'text-blue-600 bg-blue-50 border-blue-200',
-    label: 'Mais de 30 dias para a viagem',
-    target: 'Pré-embarque — >>> 30 dias',
-  },
-  {
-    icon: Clock,
-    color: 'text-amber-600 bg-amber-50 border-amber-200',
-    label: 'Menos de 30 dias para a viagem',
-    target: 'Pré-Embarque — <<< 30 dias',
-  },
-  {
-    icon: Plane,
-    color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-    label: 'Viagem em andamento',
-    target: 'Em Viagem',
-  },
-  {
-    icon: CheckCircle2,
-    color: 'text-purple-600 bg-purple-50 border-purple-200',
-    label: 'Viagem encerrada',
-    target: 'Pós-viagem & Reativação',
-  },
-]
+interface CadenceTemplate {
+  id: string
+  name: string
+}
 
 export default function CronRoteamentoDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const { pipelineId } = useCurrentProductMeta()
+  const { data: stagesRaw } = usePipelineStages(pipelineId || undefined)
+  const stages = (stagesRaw || []).map((s) => ({ id: s.id, nome: s.nome }))
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [name, setName] = useState('')
   const [isActive, setIsActive] = useState(false)
-  const [description, setDescription] = useState('')
+  const [config, setConfig] = useState<ActionConfig>(DEFAULT_CONFIG)
   const [lastRun, setLastRun] = useState<RoteamentoStats | null>(null)
   const [recentLogs, setRecentLogs] = useState<RecentLog[]>([])
+  const [cadenceTemplates, setCadenceTemplates] = useState<CadenceTemplate[]>([])
 
-  // Carregar dados do trigger
+  const updateConfig = (patch: Partial<ActionConfig>) =>
+    setConfig((prev) => ({ ...prev, ...patch }))
+  const updateStage = (key: keyof ActionConfig['stages'], value: string) =>
+    setConfig((prev) => ({ ...prev, stages: { ...prev.stages, [key]: value } }))
+
+  // Carregar dados
   useEffect(() => {
     if (!id) return
     const load = async () => {
       setLoading(true)
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any
-      const { data, error } = await sb
-        .from('cadence_event_triggers')
-        .select('id, name, is_active, action_config, event_type')
-        .eq('id', id)
-        .single()
 
-      if (error || !data) {
+      const [triggerRes, cadRes, logsRes] = await Promise.all([
+        sb.from('cadence_event_triggers').select('*').eq('id', id).single(),
+        sb.from('cadence_templates').select('id, name').order('name'),
+        sb.from('cadence_event_log')
+          .select('card_id, event_data, created_at')
+          .eq('event_source', 'cron_roteamento_pos_venda')
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ])
+
+      if (triggerRes.error || !triggerRes.data) {
         toast.error('Automação não encontrada')
         navigate('/settings/automations')
         return
       }
 
+      const data = triggerRes.data
       if (data.event_type !== 'cron_roteamento') {
-        navigate(`/settings/automations/trigger/${id}`)
+        navigate(`/settings/automations/trigger/${id}`, { replace: true })
         return
       }
 
       setName(data.name || '')
       setIsActive(data.is_active)
-      setDescription(data.action_config?.description || '')
 
-      // Buscar últimos logs de execução
-      const { data: logs } = await sb
-        .from('cadence_event_log')
-        .select('card_id, event_data, created_at')
-        .eq('event_source', 'cron_roteamento_pos_venda')
-        .order('created_at', { ascending: false })
-        .limit(10)
+      const ac = data.action_config || {}
+      setConfig({
+        description: ac.description || '',
+        dias_threshold: ac.dias_threshold ?? 30,
+        source_stage_id: ac.source_stage_id || '',
+        cadence_template_id: ac.cadence_template_id || null,
+        check_products_ready: ac.check_products_ready ?? true,
+        check_cadence_completed: ac.check_cadence_completed ?? true,
+        check_travel_dates: ac.check_travel_dates ?? true,
+        stages: {
+          pre_30_plus: ac.stages?.pre_30_plus || '',
+          pre_30_minus: ac.stages?.pre_30_minus || '',
+          em_viagem: ac.stages?.em_viagem || '',
+          pos_viagem: ac.stages?.pos_viagem || '',
+        },
+      })
 
-      if (logs && logs.length > 0) {
+      setCadenceTemplates(cadRes.data || [])
+
+      if (logsRes.data) {
         setRecentLogs(
-          logs.map((l: { card_id: string; event_data: Record<string, unknown>; created_at: string }) => ({
-            card_id: l.card_id,
+          logsRes.data.map((l: { event_data: Record<string, unknown>; created_at: string }) => ({
             from_stage: (l.event_data?.from_stage as string) || '?',
             to_stage: (l.event_data?.to_stage as string) || '?',
-            travel_start: (l.event_data?.travel_start as string) || '?',
-            travel_end: (l.event_data?.travel_end as string) || '?',
-            days_to_start: (l.event_data?.days_to_start as number) ?? 0,
             created_at: l.created_at,
           }))
         )
@@ -137,6 +159,7 @@ export default function CronRoteamentoDetailPage() {
       .update({
         name,
         is_active: isActive,
+        action_config: config,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -158,7 +181,6 @@ export default function CronRoteamentoDetailPage() {
       setLastRun(data as RoteamentoStats)
       toast.success(`Roteamento executado: ${data?.moved || 0} caso(s) movido(s)`)
 
-      // Recarregar logs
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: logs } = await (supabase as any)
         .from('cadence_event_log')
@@ -169,13 +191,9 @@ export default function CronRoteamentoDetailPage() {
 
       if (logs) {
         setRecentLogs(
-          logs.map((l: { card_id: string; event_data: Record<string, unknown>; created_at: string }) => ({
-            card_id: l.card_id,
+          logs.map((l: { event_data: Record<string, unknown>; created_at: string }) => ({
             from_stage: (l.event_data?.from_stage as string) || '?',
             to_stage: (l.event_data?.to_stage as string) || '?',
-            travel_start: (l.event_data?.travel_start as string) || '?',
-            travel_end: (l.event_data?.travel_end as string) || '?',
-            days_to_start: (l.event_data?.days_to_start as number) ?? 0,
             created_at: l.created_at,
           }))
         )
@@ -185,6 +203,15 @@ export default function CronRoteamentoDetailPage() {
     }
     setRunning(false)
   }
+
+  const stageOptions = stages.map((s) => ({ value: s.id, label: s.nome }))
+  const cadenceOptions = [
+    { value: '', label: 'Nenhuma (não verificar)' },
+    ...cadenceTemplates.map((t) => ({ value: t.id, label: t.name })),
+  ]
+
+  const stageName = (stageId: string) =>
+    stages.find((s) => s.id === stageId)?.nome || '(selecione)'
 
   if (loading) {
     return (
@@ -213,12 +240,7 @@ export default function CronRoteamentoDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRunNow}
-            disabled={running}
-            className="gap-2"
-          >
+          <Button variant="outline" onClick={handleRunNow} disabled={running} className="gap-2">
             {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plane className="w-4 h-4" />}
             Executar agora
           </Button>
@@ -238,15 +260,10 @@ export default function CronRoteamentoDetailPage() {
             <Switch checked={isActive} onCheckedChange={setIsActive} />
           </div>
         </div>
-
         <div className="space-y-3">
           <div>
             <Label>Nome da automação</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label>Descrição</Label>
-            <p className="text-sm text-slate-600 mt-1">{description}</p>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
             <Timer className="w-4 h-4" />
@@ -255,67 +272,152 @@ export default function CronRoteamentoDetailPage() {
         </div>
       </div>
 
+      {/* Etapa de origem */}
+      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
+        <h2 className="font-semibold text-slate-900">Etapa de origem</h2>
+        <p className="text-sm text-slate-500">
+          A automação avalia cards que estão nesta etapa (e nas etapas de destino abaixo):
+        </p>
+        <Select
+          value={config.source_stage_id}
+          onChange={(v) => updateConfig({ source_stage_id: v })}
+          options={stageOptions}
+          placeholder="Selecione a etapa de origem..."
+        />
+      </div>
+
       {/* Pré-requisitos */}
       <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-        <h2 className="font-semibold text-slate-900">Pré-requisitos para sair de "App & Conteúdo"</h2>
+        <h2 className="font-semibold text-slate-900">
+          Pré-requisitos para sair de "{stageName(config.source_stage_id)}"
+        </h2>
         <p className="text-sm text-slate-500">
-          O caso só avança quando TODAS as condições abaixo forem verdadeiras:
+          O caso só avança quando as condições ativas abaixo forem verdadeiras:
         </p>
-        <div className="space-y-2">
-          <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3">
-            <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-200">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="space-y-3">
+          {/* Produtos concluídos */}
+          <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <span className="text-sm text-slate-700">Todos os produtos marcados como concluídos</span>
             </div>
-            <span className="text-sm text-slate-700">Todos os produtos marcados como concluídos</span>
+            <Switch
+              checked={config.check_products_ready}
+              onCheckedChange={(v) => updateConfig({ check_products_ready: v })}
+            />
           </div>
-          <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3">
-            <div className="p-1.5 rounded-md bg-amber-50 border border-amber-200">
-              <ListChecks className="w-4 h-4 text-amber-600" />
+
+          {/* Cadência finalizada */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-md bg-amber-50 border border-amber-200">
+                  <ListChecks className="w-4 h-4 text-amber-600" />
+                </div>
+                <span className="text-sm text-slate-700">Cadência finalizada</span>
+              </div>
+              <Switch
+                checked={config.check_cadence_completed}
+                onCheckedChange={(v) => updateConfig({ check_cadence_completed: v })}
+              />
             </div>
-            <span className="text-sm text-slate-700">Nenhuma tarefa da cadência "App & Conteúdo" em aberto</span>
+            {config.check_cadence_completed && (
+              <div className="ml-10">
+                <Label className="text-xs text-slate-500">Qual cadência verificar?</Label>
+                <Select
+                  value={config.cadence_template_id || ''}
+                  onChange={(v) => updateConfig({ cadence_template_id: v || null })}
+                  options={cadenceOptions}
+                  placeholder="Selecione a cadência..."
+                />
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3">
-            <div className="p-1.5 rounded-md bg-blue-50 border border-blue-200">
-              <CalendarRange className="w-4 h-4 text-blue-600" />
+
+          {/* Data preenchida */}
+          <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-md bg-blue-50 border border-blue-200">
+                <CalendarRange className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="text-sm text-slate-700">Data da viagem preenchida (início e fim)</span>
             </div>
-            <span className="text-sm text-slate-700">Data da viagem preenchida (início e fim)</span>
+            <Switch
+              checked={config.check_travel_dates}
+              onCheckedChange={(v) => updateConfig({ check_travel_dates: v })}
+            />
           </div>
         </div>
       </div>
 
       {/* Regras de roteamento */}
-      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
-        <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-          <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
-          Regras de roteamento
-        </h2>
-        <p className="text-sm text-slate-500">
-          Baseado na data da viagem, o caso é movido automaticamente para a etapa correta:
-        </p>
-        <div className="space-y-2">
-          {RULES.map((rule, i) => {
-            const Icon = rule.icon
-            return (
-              <div
-                key={i}
-                className="flex items-center gap-4 bg-slate-50 rounded-lg px-4 py-3"
-              >
-                <div className={cn('p-1.5 rounded-md border', rule.color)}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{rule.label}</p>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <ArrowRightLeft className="w-3 h-3" />
-                  <span className="font-medium text-slate-700">{rule.target}</span>
-                </div>
-              </div>
-            )
-          })}
+      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-5">
+        <div>
+          <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
+            Regras de roteamento
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Baseado na data da viagem, o caso é movido para a etapa correspondente:
+          </p>
         </div>
+
+        {/* Dias de corte */}
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3">
+          <Label className="text-sm font-medium text-indigo-700">Dias de corte para pré-embarque</Label>
+          <div className="flex items-center gap-2 mt-1.5">
+            <Input
+              type="number"
+              min={1}
+              max={365}
+              value={config.dias_threshold}
+              onChange={(e) => updateConfig({ dias_threshold: parseInt(e.target.value) || 30 })}
+              className="w-24 bg-white"
+            />
+            <span className="text-sm text-indigo-600">dias antes do início da viagem</span>
+          </div>
+        </div>
+
+        {/* 4 regras com dropdowns */}
+        <div className="space-y-3">
+          <RuleRow
+            icon={CalendarRange}
+            color="text-blue-600 bg-blue-50 border-blue-200"
+            label={`Mais de ${config.dias_threshold} dias para a viagem`}
+            stageId={config.stages.pre_30_plus}
+            stageOptions={stageOptions}
+            onChange={(v) => updateStage('pre_30_plus', v)}
+          />
+          <RuleRow
+            icon={Clock}
+            color="text-amber-600 bg-amber-50 border-amber-200"
+            label={`Menos de ${config.dias_threshold} dias para a viagem`}
+            stageId={config.stages.pre_30_minus}
+            stageOptions={stageOptions}
+            onChange={(v) => updateStage('pre_30_minus', v)}
+          />
+          <RuleRow
+            icon={Plane}
+            color="text-emerald-600 bg-emerald-50 border-emerald-200"
+            label="Viagem em andamento"
+            stageId={config.stages.em_viagem}
+            stageOptions={stageOptions}
+            onChange={(v) => updateStage('em_viagem', v)}
+          />
+          <RuleRow
+            icon={CheckCircle2}
+            color="text-purple-600 bg-purple-50 border-purple-200"
+            label="Viagem encerrada"
+            stageId={config.stages.pos_viagem}
+            stageOptions={stageOptions}
+            onChange={(v) => updateStage('pos_viagem', v)}
+          />
+        </div>
+
         <p className="text-xs text-slate-400">
-          Casos que já estão em Pré-embarque ou Em Viagem também são reavaliados diariamente.
+          Casos que já estão nas etapas de destino acima também são reavaliados diariamente.
         </p>
       </div>
 
@@ -366,6 +468,43 @@ export default function CronRoteamentoDetailPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Linha de regra com dropdown de etapa editável */
+function RuleRow({
+  icon: Icon,
+  color,
+  label,
+  stageId,
+  stageOptions,
+  onChange,
+}: {
+  icon: typeof CalendarRange
+  color: string
+  label: string
+  stageId: string
+  stageOptions: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3">
+      <div className={cn('p-1.5 rounded-md border flex-shrink-0', color)}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-700">{label}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <ArrowRightLeft className="w-3 h-3 text-slate-400" />
+        <Select
+          value={stageId}
+          onChange={onChange}
+          options={stageOptions}
+          placeholder="Etapa..."
+        />
+      </div>
     </div>
   )
 }

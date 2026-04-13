@@ -420,3 +420,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T19:57:57Z | /tmp/kill_pgnet.sql | applied_to_prod
 2026-04-13T19:58:46Z | /tmp/pgnet_maintenance.sql | applied_to_prod
 2026-04-13T20:36:38Z | supabase/migrations/20260413_roteamento_pos_venda_trips.sql | applied_to_prod
+2026-04-13T21:00:04Z | supabase/migrations/20260413_roteamento_pos_venda_configurable.sql | applied_to_prod
