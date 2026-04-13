@@ -393,3 +393,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T16:57:11Z | supabase/migrations/20260414_drop_orphan_workflow_engine_trigger_fn.sql | applied_to_prod
 2026-04-13T16:57:25Z | supabase/migrations/20260414_h3_028_cadence_steps_cross_org_backfill.sql | applied_to_prod
 2026-04-13T16:58:24Z | supabase/migrations/20260414_gifts_inventory_role_restriction.sql | applied_to_prod
+2026-04-13T17:10:39Z | supabase/migrations/20260414_h3_029_cadence_steps_strict_template_org.sql | applied_to_prod
