@@ -436,13 +436,13 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
 
             let result;
             if (trigger.action_type === 'create_task') {
-                result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger);
+                result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'start_cadence') {
-                result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger);
+                result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'send_message') {
                 result = await executeSendMessageAction(supabaseClient, item.card_id, trigger);
             } else if (trigger.action_type === 'change_stage') {
-                result = await executeChangeStageAction(supabaseClient, item.card_id, trigger);
+                result = await executeChangeStageAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -504,7 +504,8 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
 async function executeCreateTaskAction(
     supabaseClient: SupabaseClient,
     cardId: string,
-    trigger: any
+    trigger: any,
+    orgId: string
 ) {
     // task_configs = array de configs. Fallback para task_config (legacy, objeto único).
     const rawConfigs: any[] = Array.isArray(trigger.task_configs) && trigger.task_configs.length > 0
@@ -562,6 +563,7 @@ async function executeCreateTaskAction(
 
             await supabaseClient.from("cadence_event_log").insert({
                 card_id: cardId,
+                org_id: orgId,
                 event_type: 'entry_rule_task_skipped',
                 event_source: 'entry_trigger',
                 event_data: {
@@ -586,6 +588,7 @@ async function executeCreateTaskAction(
             .from("tarefas")
             .insert({
                 card_id: cardId,
+                org_id: orgId,
                 tipo: taskTipo,
                 titulo: taskConfig.titulo || 'Tarefa Automática',
                 descricao: taskConfig.descricao || '',
@@ -608,6 +611,7 @@ async function executeCreateTaskAction(
 
         await supabaseClient.from("cadence_event_log").insert({
             card_id: cardId,
+            org_id: orgId,
             event_type: 'entry_rule_task_created',
             event_source: 'entry_trigger',
             event_data: {
@@ -631,7 +635,8 @@ async function executeCreateTaskAction(
 async function executeStartCadenceAction(
     supabaseClient: SupabaseClient,
     cardId: string,
-    trigger: any
+    trigger: any,
+    orgId: string
 ) {
     const templateId = trigger.target_template_id;
 
@@ -723,6 +728,7 @@ async function executeStartCadenceAction(
         .from("cadence_instances")
         .insert({
             card_id: cardId,
+            org_id: orgId,
             template_id: templateId,
             current_step_id: initialSteps[0].id,
             status: 'active'
@@ -754,6 +760,7 @@ async function executeStartCadenceAction(
     await supabaseClient.from("cadence_event_log").insert({
         instance_id: instance.id,
         card_id: cardId,
+        org_id: orgId,
         event_type: 'cadence_started_by_trigger',
         event_source: 'entry_trigger',
         event_data: {
@@ -1097,7 +1104,8 @@ async function executeSendMessageAction(
 async function executeChangeStageAction(
     supabaseClient: SupabaseClient,
     cardId: string,
-    trigger: any
+    trigger: any,
+    orgId: string
 ) {
     const config = trigger.action_config || {};
     const targetStageId: string | undefined = config.target_stage_id;
@@ -1138,6 +1146,7 @@ async function executeChangeStageAction(
 
     await supabaseClient.from("cadence_event_log").insert({
         card_id: cardId,
+        org_id: orgId,
         event_type: 'entry_rule_stage_changed',
         event_source: 'entry_trigger',
         event_data: {

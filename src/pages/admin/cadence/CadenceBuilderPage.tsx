@@ -277,6 +277,7 @@ const CadenceBuilderPage: React.FC = () => {
                 business_hours_start: template.business_hours_start,
                 business_hours_end: template.business_hours_end,
                 allowed_weekdays: template.allowed_weekdays,
+                execution_mode: 'linear',
             };
 
             if (isNew) {

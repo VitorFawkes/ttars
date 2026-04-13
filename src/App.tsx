@@ -85,6 +85,7 @@ import AutomationMonitorPage from './pages/admin/automations/AutomationMonitorPa
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
+import CadenceListPage from './pages/admin/cadence/CadenceListPage'
 // Templates de Mensagem (biblioteca unificada usada por automações)
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 // Agentes IA WhatsApp
@@ -228,8 +229,8 @@ function App() {
                   <Route path="/admin/automations/monitor" element={<AutomationMonitorPage />} />
                   <Route path="/admin/automations/new" element={<AutomationBuilderPage />} />
                   <Route path="/admin/automations/:id" element={<AutomationBuilderPage />} />
-                  {/* Cadence builders complexos continuam acessíveis por URL antiga (para edição dos 24 templates existentes) */}
-                  <Route path="/admin/cadence" element={<Navigate to="/admin/automations" replace />} />
+                  {/* Cadência (modelo linear restaurado — Automações hub temporariamente desligado) */}
+                  <Route path="/admin/cadence" element={<CadenceListPage />} />
                   <Route path="/admin/cadence/automacao/new" element={<AutomacaoBuilderPage />} />
                   <Route path="/admin/cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                   <Route path="/admin/cadence/new" element={<CadenceBuilderPage />} />
@@ -258,8 +259,14 @@ function App() {
                     <Route path="customization/data-rules" element={<StudioUnified />} />
                     <Route path="customization/action-requirements" element={<ActionRequirementsTab />} />
 
-                    {/* AutomationRulesPage replaced by Cadências */}
+                    {/* AutomationRulesPage legacy redirect */}
                     <Route path="customization/automations" element={<Navigate to="/settings/cadence" replace />} />
+
+                    {/* Hub Automações (desligado temporariamente — redireciona pra Cadência) */}
+                    <Route path="automations" element={<Navigate to="/settings/cadence" replace />} />
+                    <Route path="automations/monitor" element={<Navigate to="/settings/cadence?tab=monitor" replace />} />
+                    <Route path="automations/new" element={<Navigate to="/settings/cadence" replace />} />
+                    <Route path="automations/:id" element={<Navigate to="/settings/cadence" replace />} />
 
                     <Route path="customization/notifications" element={<NotificationConfigPage />} />
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
@@ -285,14 +292,8 @@ function App() {
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
                     <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
 
-                    {/* Automações (hub unificado — substitui Cadence list) */}
-                    <Route path="automations" element={<AutomationsListPage />} />
-                    <Route path="automations/monitor" element={<AutomationMonitorPage />} />
-                    <Route path="automations/new" element={<AutomationBuilderPage />} />
-                    <Route path="automations/:id" element={<AutomationBuilderPage />} />
-
-                    {/* URLs antigas de Cadence — redireciona lista, mantém editores complexos acessíveis por ID */}
-                    <Route path="cadence" element={<Navigate to="/settings/automations" replace />} />
+                    {/* Cadência (modelo linear restaurado) */}
+                    <Route path="cadence" element={<CadenceListPage />} />
                     <Route path="cadence/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="cadence/automacao/:id" element={<AutomacaoBuilderPage />} />
                     <Route path="cadence/new" element={<CadenceBuilderPage />} />
