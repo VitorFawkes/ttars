@@ -323,7 +323,11 @@ const CadenceListPage: React.FC = () => {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => navigate(`/settings/cadence/${template.id}`)}>
+                                                <DropdownMenuItem onClick={() => navigate(
+                                                    template.execution_mode === 'blocks'
+                                                        ? `/settings/cadence/automacao/${template.id}`
+                                                        : `/settings/cadence/${template.id}`
+                                                )}>
                                                     <Edit className="w-4 h-4 mr-2" />
                                                     Editar
                                                 </DropdownMenuItem>
@@ -360,7 +364,7 @@ const CadenceListPage: React.FC = () => {
                 </div>
                 {activeTab === 'templates' && (
                     <Button
-                        onClick={() => navigate('/settings/cadence/new')}
+                        onClick={() => navigate('/settings/cadence/automacao/new')}
                         className="bg-indigo-600 hover:bg-indigo-700"
                     >
                         <Plus className="w-4 h-4 mr-2" />

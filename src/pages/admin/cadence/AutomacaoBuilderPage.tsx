@@ -528,7 +528,7 @@ export default function AutomacaoBuilderPage() {
                     </Button>
                     <div>
                         <h1 className="text-lg font-semibold text-slate-900 tracking-tight">
-                            {isNew ? 'Nova Automação' : 'Editar Automação'}
+                            {isNew ? 'Nova Cadência' : 'Editar Cadência'}
                         </h1>
                         <p className="text-xs text-slate-500">
                             {totalTasks} {totalTasks === 1 ? 'tarefa' : 'tarefas'} em {blocks.length}{' '}
@@ -563,7 +563,7 @@ export default function AutomacaoBuilderPage() {
                     {/* Nome + descrição */}
                     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
                         <div>
-                            <Label>Nome da Automação</Label>
+                            <Label>Nome da Cadência</Label>
                             <Input
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -576,7 +576,7 @@ export default function AutomacaoBuilderPage() {
                             <Textarea
                                 value={form.description}
                                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                placeholder="O que esta automação faz e por quê…"
+                                placeholder="O que esta cadência faz e por quê…"
                                 rows={2}
                                 className="mt-1"
                             />
