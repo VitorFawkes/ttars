@@ -69,6 +69,16 @@ export function parseSupabaseContactError(error: unknown): ParsedSupabaseError {
         }
     }
 
+    // PostgREST PGRST116 = "Cannot coerce the result to a single JSON object"
+    // Acontece quando UPDATE/SELECT com .single() retorna 0 linhas.
+    // Causa típica: RLS bloqueia a operação silenciosamente (contato pertence a outra org).
+    if (code === 'PGRST116' || message.includes('Cannot coerce the result to a single JSON object')) {
+        return {
+            message: 'Não foi possível salvar este contato. Ele pode pertencer a outra organização ou ter sido removido. Atualize a página e tente novamente.',
+            isDuplicate: false,
+        }
+    }
+
     // Fallback
     return {
         message: message || 'Erro desconhecido ao salvar contato.',

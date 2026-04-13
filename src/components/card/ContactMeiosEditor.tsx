@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { parseSupabaseContactError } from '@/lib/supabaseErrorParser';
 
 interface ContatoMeio {
     id: string;
@@ -74,12 +75,9 @@ export function ContactMeiosEditor({ contactId, readOnly = false }: ContactMeios
             setIsAddingPhone(false);
             setIsAddingEmail(false);
         },
-        onError: (error: any) => {
-            if (error.message?.includes('unique') || error.code === '23505') {
-                toast.error('Este valor já está cadastrado');
-            } else {
-                toast.error('Erro ao adicionar: ' + error.message);
-            }
+        onError: (error: unknown) => {
+            const parsed = parseSupabaseContactError(error);
+            toast.error(parsed.message);
         }
     });
 
@@ -97,8 +95,9 @@ export function ContactMeiosEditor({ contactId, readOnly = false }: ContactMeios
             toast.success('Removido com sucesso!');
             queryClient.invalidateQueries({ queryKey: ['contato_meios', contactId] });
         },
-        onError: (error: any) => {
-            toast.error('Erro ao remover: ' + error.message);
+        onError: (error: unknown) => {
+            const parsed = parseSupabaseContactError(error);
+            toast.error(parsed.message);
         }
     });
 
