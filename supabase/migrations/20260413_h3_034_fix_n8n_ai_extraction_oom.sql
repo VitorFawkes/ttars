@@ -5,15 +5,10 @@
 
 TRUNCATE net.http_request_queue;
 
-DO $$
-DECLARE
-    v_jobid INTEGER;
-BEGIN
-    SELECT jobid INTO v_jobid FROM cron.job WHERE jobname = 'n8n-ai-extraction-dispatch';
-    IF v_jobid IS NOT NULL THEN
-        PERFORM cron.alter_job(
-            job_id := v_jobid,
-            command := $cmd$
+-- Atualiza cron job 4 para LIMIT 1 (reduz pressão de memória no pg_net worker)
+SELECT cron.alter_job(
+    job_id := 4,
+    command := $cmd$
     DO $job$
     DECLARE
         rec RECORD;
@@ -52,6 +47,4 @@ BEGIN
     END;
     $job$;
     $cmd$
-        );
-    END IF;
-END$$;
+);
