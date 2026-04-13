@@ -33,6 +33,7 @@ interface IncomingMessage {
   contact_name?: string;
   whatsapp_message_id?: string;
   echo_conversation_id?: string;
+  media_url?: string;
 }
 
 interface AgentConfig {
@@ -171,6 +172,152 @@ function messageTypeToPlaceholder(type: string | undefined, text: string): strin
     sticker: "[Sticker recebido]",
   };
   return map[type] || text || "[Tipo de mensagem não suportada]";
+}
+
+// ---------------------------------------------------------------------------
+// 1a. Inline Media Processing (paridade com process-whatsapp-media)
+// ---------------------------------------------------------------------------
+
+const MEDIA_IMAGE_PROMPT = `Descreva esta imagem enviada por um cliente de agência de viagens.
+Se for um documento (passaporte, itinerário, reserva de hotel, passagem aérea, comprovante):
+- Extraia dados: nomes, datas, destinos, valores, códigos de reserva
+Se for uma foto de destino: descreva brevemente o local.
+Responda em português, máximo 300 palavras. Seja direto e factual.`;
+
+const MEDIA_DOCUMENT_PROMPT = `Extraia texto e dados relevantes deste documento.
+Se for itinerário, reserva, passagem ou comprovante:
+- Extraia: datas, destinos, nomes, valores, códigos, companhias
+Responda em português, formato estruturado. Máximo 500 palavras.`;
+
+async function downloadMedia(url: string): Promise<{ base64: string; mimeType: string }> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Media download failed ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  // Manual base64 encode for Deno
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+  const mimeType = response.headers.get("content-type") || "application/octet-stream";
+  return { base64, mimeType };
+}
+
+async function transcribeAudio(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "ogg";
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: mimeType }), `audio.${ext}`);
+  formData.append("model", "whisper-1");
+  formData.append("language", "pt");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Whisper API error ${res.status}: ${await res.text()}`);
+  const result = await res.json();
+  return result.text || "";
+}
+
+async function analyzeImage(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      messages: [{ role: "user", content: [
+        { type: "text", text: MEDIA_IMAGE_PROMPT },
+        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
+      ] }],
+      max_completion_tokens: 1000,
+      temperature: 0.1,
+    }),
+  });
+  if (!res.ok) throw new Error(`Vision API error ${res.status}: ${await res.text()}`);
+  const result = await res.json();
+  return result.choices?.[0]?.message?.content || "";
+}
+
+async function analyzeDocument(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const ext = mimeType.includes("pdf") ? "pdf" : "bin";
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: mimeType }), `document.${ext}`);
+  formData.append("purpose", "assistants");
+
+  const uploadRes = await fetch("https://api.openai.com/v1/files", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+  if (!uploadRes.ok) throw new Error(`File upload error ${uploadRes.status}`);
+  const fileObj = await uploadRes.json();
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [{ role: "user", content: [
+          { type: "text", text: MEDIA_DOCUMENT_PROMPT },
+          { type: "file", file: { file_id: fileObj.id } },
+        ] }],
+        max_completion_tokens: 1500,
+        temperature: 0.1,
+      }),
+    });
+    if (!res.ok) throw new Error(`Chat API error ${res.status}`);
+    const result = await res.json();
+    return result.choices?.[0]?.message?.content || "";
+  } finally {
+    fetch(`https://api.openai.com/v1/files/${fileObj.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }).catch(() => {});
+  }
+}
+
+async function processMediaInline(
+  messageType: string,
+  mediaUrl: string,
+  originalText: string,
+): Promise<string> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) {
+    console.warn("[processMediaInline] No OPENAI_API_KEY, using placeholder");
+    return originalText;
+  }
+
+  try {
+    console.log(`[processMediaInline] Processing ${messageType} from ${mediaUrl.substring(0, 60)}...`);
+    const { base64, mimeType } = await downloadMedia(mediaUrl);
+    console.log(`[processMediaInline] Downloaded (${Math.round(base64.length / 1024)}KB, ${mimeType})`);
+
+    let content = "";
+    if (messageType === "audio") {
+      content = await transcribeAudio(base64, mimeType, apiKey);
+      return `[Transcrição do áudio]: ${content}`;
+    } else if (messageType === "image") {
+      content = await analyzeImage(base64, mimeType, apiKey);
+      return originalText
+        ? `${originalText}\n[Análise da imagem]: ${content}`
+        : `[Análise da imagem]: ${content}`;
+    } else if (messageType === "document") {
+      content = await analyzeDocument(base64, mimeType, apiKey);
+      return `[Conteúdo do documento]: ${content}`;
+    }
+  } catch (err) {
+    console.error(`[processMediaInline] Error processing ${messageType}:`, err);
+  }
+  return originalText;
 }
 
 // ---------------------------------------------------------------------------
@@ -537,6 +684,398 @@ async function callLLM(
 }
 
 // ---------------------------------------------------------------------------
+// 6b. Tool Calling Infrastructure (paridade com 7 tools da Julia)
+// ---------------------------------------------------------------------------
+
+interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+const BUILT_IN_TOOLS: ToolDefinition[] = [
+  {
+    type: "function",
+    function: {
+      name: "search_knowledge_base",
+      description: "Busca informações na base de conhecimento da empresa (FAQ, serviços, preços, processo). Use ANTES de responder sobre serviços, taxas ou processo.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Pergunta ou tema para buscar" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_calendar",
+      description: "Verifica agenda do consultor para encontrar horários disponíveis para reunião.",
+      parameters: {
+        type: "object",
+        properties: {
+          date_from: { type: "string", description: "Data início (YYYY-MM-DD)" },
+          date_to: { type: "string", description: "Data fim (YYYY-MM-DD)" },
+        },
+        required: ["date_from", "date_to"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Cria tarefa ou reunião no CRM. Use quando o cliente confirmar horário de reunião.",
+      parameters: {
+        type: "object",
+        properties: {
+          titulo: { type: "string", description: "Título da tarefa" },
+          descricao: { type: "string", description: "Descrição" },
+          tipo: { type: "string", enum: ["reuniao", "tarefa", "follow_up"], description: "Tipo" },
+          data_vencimento: { type: "string", description: "Data/hora ISO (YYYY-MM-DDTHH:MM:SS)" },
+        },
+        required: ["titulo", "tipo", "data_vencimento"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "assign_tag",
+      description: "Atribui tag ao lead (ex: 'Club Med', 'Disney', produto específico).",
+      parameters: {
+        type: "object",
+        properties: {
+          tag_name: { type: "string", description: "Nome da tag" },
+          tag_color: { type: "string", description: "Cor hex (ex: #3B82F6)", default: "#3B82F6" },
+        },
+        required: ["tag_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "request_handoff",
+      description: "Transfere conversa para humano. Use quando cliente pede explicitamente ou reclamação séria.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", enum: ["cliente_pede_humano", "reclamacao", "situacao_complexa"], description: "Motivo" },
+          context_summary: { type: "string", description: "Resumo do contexto para o humano" },
+        },
+        required: ["reason", "context_summary"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_contact",
+      description: "Atualiza dados do contato quando o cliente fornece info pessoal.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string", description: "Primeiro nome" },
+          sobrenome: { type: "string", description: "Sobrenome" },
+          email: { type: "string", description: "Email" },
+          cpf: { type: "string", description: "CPF (apenas números)" },
+          passaporte: { type: "string", description: "Número do passaporte" },
+          data_nascimento: { type: "string", description: "Data nascimento (YYYY-MM-DD)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "think",
+      description: "Raciocínio interno antes de responder. Não visível para o cliente. Use para planejar sua resposta.",
+      parameters: {
+        type: "object",
+        properties: { thought: { type: "string", description: "Seu raciocínio interno" } },
+        required: ["thought"],
+      },
+    },
+  },
+];
+
+async function executeToolCall(
+  supabase: SupabaseClient,
+  toolName: string,
+  args: Record<string, unknown>,
+  ctx: ConversationContext,
+  agent: AgentConfig,
+): Promise<string> {
+  const startTime = Date.now();
+  let result = "";
+
+  try {
+    switch (toolName) {
+      case "search_knowledge_base": {
+        const query = args.query as string;
+        // Generate embedding for the query
+        const apiKey = Deno.env.get("OPENAI_API_KEY")!;
+        const embRes = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "text-embedding-3-small", input: query }),
+        });
+        if (!embRes.ok) throw new Error(`Embedding error: ${embRes.status}`);
+        const embData = await embRes.json();
+        const embedding = embData.data?.[0]?.embedding;
+
+        if (!embedding) return JSON.stringify({ error: "Failed to generate embedding" });
+
+        // Find KB for this agent
+        const { data: kb } = await supabase
+          .from("ai_knowledge_bases")
+          .select("id")
+          .eq("agent_id", agent.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!kb) {
+          // Fallback: search integration_settings FAQ (like Julia does)
+          const { data: faq } = await supabase
+            .from("integration_settings")
+            .select("value")
+            .eq("key", "JULIA_FAQ")
+            .maybeSingle();
+          return faq?.value || JSON.stringify({ info: "Nenhuma base de conhecimento configurada" });
+        }
+
+        const { data: items } = await supabase.rpc("search_knowledge_base", {
+          p_kb_id: kb.id,
+          p_query_embedding: `[${embedding.join(",")}]`,
+          p_match_threshold: 0.7,
+          p_match_count: 3,
+        });
+        result = items?.length
+          ? items.map((i: { titulo: string; conteudo: string }) => `${i.titulo}: ${i.conteudo}`).join("\n\n")
+          : "Nenhum resultado relevante encontrado na base de conhecimento.";
+        break;
+      }
+
+      case "check_calendar": {
+        const { data: calResult } = await supabase.rpc("agent_check_calendar", {
+          p_owner_id: ctx.sdr_owner_id,
+          p_date_from: args.date_from as string,
+          p_date_to: args.date_to as string,
+        });
+        result = JSON.stringify(calResult || { error: "Sem dados de agenda" });
+        break;
+      }
+
+      case "create_task": {
+        if (!ctx.card_id) {
+          result = JSON.stringify({ error: "Sem card associado para criar tarefa" });
+          break;
+        }
+        const { error: taskErr } = await supabase.from("tarefas").insert({
+          card_id: ctx.card_id,
+          titulo: args.titulo as string,
+          descricao: args.descricao as string || null,
+          tipo: args.tipo as string || "reuniao",
+          data_vencimento: args.data_vencimento as string,
+          status: args.tipo === "reuniao" ? "agendada" : "pendente",
+          concluida: false,
+          responsavel_id: ctx.sdr_owner_id,
+          org_id: agent.org_id,
+        });
+        result = taskErr
+          ? JSON.stringify({ error: taskErr.message })
+          : JSON.stringify({ success: true, tipo: args.tipo, data: args.data_vencimento });
+        break;
+      }
+
+      case "assign_tag": {
+        if (!ctx.card_id) {
+          result = JSON.stringify({ error: "Sem card associado" });
+          break;
+        }
+        const { data: tagResult } = await supabase.rpc("agent_assign_tag", {
+          p_card_id: ctx.card_id,
+          p_tag_name: args.tag_name as string,
+          p_tag_color: (args.tag_color as string) || "#3B82F6",
+        });
+        result = JSON.stringify(tagResult || { success: true });
+        break;
+      }
+
+      case "request_handoff": {
+        if (!ctx.card_id) {
+          result = JSON.stringify({ error: "Sem card associado" });
+          break;
+        }
+        const { data: handoffResult } = await supabase.rpc("agent_request_handoff", {
+          p_card_id: ctx.card_id,
+          p_reason: args.reason as string,
+          p_context_summary: args.context_summary as string,
+        });
+        result = JSON.stringify(handoffResult || { success: true });
+        break;
+      }
+
+      case "update_contact": {
+        const updates: Record<string, unknown> = {};
+        const allowedFields = ["nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento"];
+        for (const field of allowedFields) {
+          if (args[field]) {
+            let val = args[field] as string;
+            if (field === "nome" || field === "sobrenome") {
+              val = val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+            }
+            if (field === "cpf") val = val.replace(/\D/g, "").slice(0, 11);
+            if (field === "passaporte") val = val.toUpperCase();
+            updates[field] = val;
+          }
+        }
+        if (Object.keys(updates).length === 0) {
+          result = JSON.stringify({ error: "Nenhum campo válido para atualizar" });
+          break;
+        }
+        const { error: upErr } = await supabase
+          .from("contatos")
+          .update(updates)
+          .eq("id", ctx.contato_id);
+        result = upErr
+          ? JSON.stringify({ error: upErr.message })
+          : JSON.stringify({ success: true, updated: Object.keys(updates) });
+        break;
+      }
+
+      case "think": {
+        result = JSON.stringify({ thought_recorded: true });
+        break;
+      }
+
+      default:
+        result = JSON.stringify({ error: `Tool desconhecida: ${toolName}` });
+    }
+  } catch (err) {
+    console.error(`[executeToolCall] Error in ${toolName}:`, err);
+    result = JSON.stringify({ error: String(err) });
+  }
+
+  // Log skill usage
+  const duration = Date.now() - startTime;
+  console.log(`[executeToolCall] ${toolName} completed in ${duration}ms`);
+
+  supabase.from("ai_skill_usage_logs").insert({
+    agent_id: agent.id,
+    skill_name: toolName,
+    input_data: args,
+    output_data: { result: result.substring(0, 500) },
+    execution_time_ms: duration,
+    success: !result.includes('"error"'),
+    org_id: agent.org_id,
+  }).then(() => {}).catch(() => {});
+
+  return result;
+}
+
+async function callLLMWithTools(
+  supabase: SupabaseClient,
+  model: string,
+  temperature: number,
+  maxTokens: number,
+  systemPrompt: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string }>,
+  tools: ToolDefinition[],
+  ctx: ConversationContext,
+  agent: AgentConfig,
+): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+  const messages: Array<Record<string, unknown>> = [
+    { role: "system", content: systemPrompt },
+    ...history,
+    { role: "user", content: userMessage },
+  ];
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  const MAX_ITERATIONS = 5;
+
+  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    const body: Record<string, unknown> = {
+      model,
+      max_completion_tokens: maxTokens,
+      temperature,
+      messages,
+    };
+    if (tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI API error ${res.status}: ${err}`);
+    }
+
+    const data = await res.json();
+    totalInputTokens += data.usage?.prompt_tokens || 0;
+    totalOutputTokens += data.usage?.completion_tokens || 0;
+
+    const choice = data.choices?.[0];
+    if (!choice) throw new Error("No response from OpenAI");
+
+    const assistantMsg = choice.message;
+
+    // If no tool calls, return the text response
+    if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
+      return {
+        response: assistantMsg.content || "",
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+      };
+    }
+
+    // Process tool calls
+    messages.push(assistantMsg);
+
+    for (const toolCall of assistantMsg.tool_calls) {
+      const fnName = toolCall.function.name;
+      let fnArgs: Record<string, unknown> = {};
+      try {
+        fnArgs = JSON.parse(toolCall.function.arguments || "{}");
+      } catch { /* empty args */ }
+
+      console.log(`[callLLMWithTools] Tool call: ${fnName}(${JSON.stringify(fnArgs).substring(0, 200)})`);
+
+      const toolResult = await executeToolCall(supabase, fnName, fnArgs, ctx, agent);
+
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: toolResult,
+      });
+    }
+  }
+
+  // If we exhausted iterations, return the last content we got
+  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
+  return {
+    response: (lastAssistant?.content as string) || "",
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 7. Pipeline Step: Backoffice Agent
 // ---------------------------------------------------------------------------
 
@@ -666,6 +1205,7 @@ async function runDataAgent(
 // ---------------------------------------------------------------------------
 
 async function runPersonaAgent(
+  supabase: SupabaseClient,
   agent: AgentConfig,
   ctx: ConversationContext,
   backoffice: BackofficeOutput,
@@ -673,8 +1213,8 @@ async function runPersonaAgent(
   qualification: QualificationStage[],
   scenarios: SpecialScenario[],
   userMessage: string,
-): Promise<string> {
-  // Para agentes nao-template, usar o system_prompt original (v1 behavior)
+): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
+  // Para agentes nao-template, usar o system_prompt original (v1 behavior — sem tools)
   if (!agent.is_template_based) {
     let enrichedPrompt = agent.system_prompt;
     if (ctx.contact_name) enrichedPrompt += `\n\n--- CLIENTE ---\n${ctx.contact_name}`;
@@ -690,14 +1230,13 @@ async function runPersonaAgent(
         };
       });
 
-    const { response } = await callLLM(
+    return callLLM(
       agent.modelo, agent.temperature, agent.max_tokens,
       enrichedPrompt, userMessage, history,
     );
-    return response;
   }
 
-  // Template-based: montar prompt completo
+  // Template-based: montar prompt completo + tool calling
   const qualStages = qualification
     .map((s) => `${s.stage_order}) ${s.question}${s.response_options ? ` [Opções: ${s.response_options.join(", ")}]` : ""}`)
     .join("\n");
@@ -713,8 +1252,8 @@ async function runPersonaAgent(
       let text = `Se detectar "${keywords}": ${s.response_adjustment || ""}`;
       if (s.skip_fee_presentation) text += " NAO apresente taxa.";
       if (s.skip_meeting_scheduling) text += " NAO agende reuniao.";
-      if (s.auto_assign_tag) text += ` Atribua tag "${s.auto_assign_tag}".`;
-      if (s.handoff_message) text += ` Handoff: "${s.handoff_message}"`;
+      if (s.auto_assign_tag) text += ` Use assign_tag("${s.auto_assign_tag}").`;
+      if (s.handoff_message) text += ` Use request_handoff se necessário.`;
       return text;
     })
     .join("\n");
@@ -736,6 +1275,8 @@ Contexto:
 - Nome: ${ctx.contact_name}
 - Primeiro contato: ${ctx.is_primeiro_contato}
 - Role: ${backoffice.detected_role}
+- Card ID: ${ctx.card_id || "(sem card)"}
+- Contato ID: ${ctx.contato_id}
 ${ctx.pessoa_principal_nome ? `- Nome principal: ${ctx.pessoa_principal_nome}` : ""}
 
 ${formDataText ? `DADOS JA PREENCHIDOS (NAO RE-PERGUNTE):\n${formDataText}\nSe ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
@@ -757,15 +1298,23 @@ ${disqualRules ? `DESQUALIFICACAO (APENAS estes cenarios):\n${disqualRules}\nGru
 
 ${scenarioText ? `CENARIOS ESPECIAIS:\n${scenarioText}` : ""}
 
-HANDOFF: Use quando cliente insiste em humano ou reclamacao seria.
-Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
+TOOLS DISPONIVEIS:
+- search_knowledge_base: Use ANTES de responder sobre servicos, taxas ou processo
+- check_calendar: Use quando cliente perguntar sobre horarios disponiveis
+- create_task: Use quando cliente CONFIRMAR horario de reuniao
+- assign_tag: Use para classificar o lead (ex: destino mencionado)
+- request_handoff: Use SOMENTE quando cliente insiste em humano ou reclamacao seria
+- update_contact: Use quando cliente fornecer dados pessoais (nome, email, CPF, passaporte, nascimento)
+- think: Use para planejar sua resposta antes de enviar (invisivel ao cliente)
+
+HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
 PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avance direto.
 
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
 
-SAIDA: APENAS texto WhatsApp pronto para enviar.`;
+SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
 
   const history = ctx.historico_compacto.split("\n")
     .filter(Boolean)
@@ -777,11 +1326,14 @@ SAIDA: APENAS texto WhatsApp pronto para enviar.`;
       };
     });
 
-  const { response } = await callLLM(
+  // Use tool calling for template-based agents
+  return callLLMWithTools(
+    supabase,
     agent.modelo, agent.temperature, agent.max_tokens,
     personaPrompt, userMessage, history,
+    BUILT_IN_TOOLS,
+    ctx, agent,
   );
-  return response;
 }
 
 // ---------------------------------------------------------------------------
@@ -1023,8 +1575,13 @@ serve(async (req) => {
       );
     }
 
-    // Converter message_type para placeholder
-    const processedText = messageTypeToPlaceholder(input.message_type, input.message_text);
+    // Processar mídia (áudio/imagem/documento) se aplicável
+    let processedText = messageTypeToPlaceholder(input.message_type, input.message_text);
+
+    if (input.media_url && input.message_type && input.message_type !== "text") {
+      processedText = await processMediaInline(input.message_type, input.media_url, input.message_text);
+      console.log(`[main] Media processed: ${input.message_type} → ${processedText.substring(0, 100)}...`);
+    }
 
     // ── 1. Encontrar agente ──
     const agent = await findAgentForLine(
@@ -1076,7 +1633,52 @@ serve(async (req) => {
       supabase, contactId, agent.id, input.phone_number_id, agent.org_id,
     );
 
-    // ── 5. Salvar mensagem do usuario ──
+    // ── 5. Debounce check (20s buffer — paridade com Julia) ──
+    const normalizedForBuffer = normalizePhone(input.contact_phone);
+    const { data: buffered } = await supabase
+      .from("ai_message_buffer")
+      .select("id, message_text, message_type, media_url, created_at")
+      .eq("contact_phone", normalizedForBuffer)
+      .is("processed_at", null)
+      .order("created_at", { ascending: true });
+
+    if (buffered && buffered.length > 0) {
+      const newest = buffered[buffered.length - 1];
+      const ageMs = Date.now() - new Date(newest.created_at).getTime();
+
+      if (ageMs < 20_000) {
+        // Still within debounce window — don't process yet
+        console.log(`[debounce] ${buffered.length} msgs buffered, newest ${Math.round(ageMs / 1000)}s ago — waiting`);
+        return new Response(
+          JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Debounce window passed — combine all buffered messages
+      if (buffered.length > 1) {
+        const combined = buffered.map((b) => b.message_text).filter(Boolean).join("\n");
+        if (combined) {
+          processedText = combined;
+          console.log(`[debounce] Combined ${buffered.length} messages into one (${combined.length} chars)`);
+        }
+        // Process media from the last media message in buffer
+        const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
+        if (lastMedia) {
+          const mediaContent = await processMediaInline(lastMedia.message_type, lastMedia.media_url, lastMedia.message_text);
+          processedText = processedText + "\n" + mediaContent;
+        }
+      }
+
+      // Mark all buffered messages as processed
+      await supabase
+        .from("ai_message_buffer")
+        .update({ processed_at: new Date().toISOString() })
+        .eq("contact_phone", normalizedForBuffer)
+        .is("processed_at", null);
+    }
+
+    // ── 5b. Salvar mensagem do usuario ──
     await supabase.from("ai_conversation_turns").insert({
       conversation_id: conversationId,
       role: "user",
@@ -1117,12 +1719,15 @@ serve(async (req) => {
       agentConfig.business, agentConfig.qualification,
     );
 
-    // ── Step 3: Persona Agent ──
-    const rawResponse = await runPersonaAgent(
-      agent, ctx, backoffice,
+    // ── Step 3: Persona Agent (com tool calling) ──
+    const personaResult = await runPersonaAgent(
+      supabase, agent, ctx, backoffice,
       agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
       processedText,
     );
+    const rawResponse = personaResult.response;
+    totalInputTokens += personaResult.inputTokens;
+    totalOutputTokens += personaResult.outputTokens;
 
     // ── Step 4: Validator ──
     const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);

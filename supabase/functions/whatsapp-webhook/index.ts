@@ -227,6 +227,20 @@ Deno.serve(async (req) => {
                     const contactPhone = data.from || data.remote_phone || data.contact_phone || data.contact?.phone || singlePayload.from || singlePayload.contact_phone || "";
                     if (!contactPhone) continue;
 
+                    // Insert into debounce buffer before calling router
+                    const msgType = data.type || data.message_type || "text";
+                    const mediaUrl = data.media_url || data.media?.url || null;
+                    await supabaseClient.from("ai_message_buffer").insert({
+                        contact_phone: contactPhone.replace(/\D/g, ""),
+                        phone_number_id: data.phone_number_id || singlePayload.phone_number_id || null,
+                        contact_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || null,
+                        message_text: messageText,
+                        message_type: msgType,
+                        media_url: mediaUrl,
+                        metadata: { phone_number_label: singlePayload.phone_number || data.phone_number },
+                    }).then(() => console.log("[webhook] Buffered message for debounce"))
+                      .catch((err: Error) => console.error("[webhook] Buffer insert error:", err));
+
                     try {
                         const routerRes = await fetch(`${supabaseUrl}/functions/v1/ai-agent-router`, {
                             method: "POST",
@@ -243,6 +257,7 @@ Deno.serve(async (req) => {
                                 contact_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name,
                                 whatsapp_message_id: data.whatsapp_message_id || data.message_id,
                                 echo_conversation_id: data.conversation_id || data.conversation?.id,
+                                media_url: data.media_url || data.media?.url || null,
                             }),
                         });
                         const routerResult = await routerRes.json();
