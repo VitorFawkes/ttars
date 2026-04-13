@@ -1,50 +1,55 @@
 -- H3-034: fix OOM no cron 4 (n8n-ai-extraction-dispatch).
--- Root cause: net.http_request_queue com 36MB de bloat + 70 items pendentes
--- processados em batch de 10 causando OOM na extensão pg_net.
--- Fix: reduzir LIMIT para 1 (processar 1 por ciclo de 2min), purgar bloat.
+-- Root cause: pg_net OOM sistêmico neste job específico — tentativas incluíram
+-- LIMIT 1, TRUNCATE, DROP/CREATE pg_net, stored function. OOM persiste.
+-- Fix final: desabilitar cron, instalar function para reativação futura,
+-- cleanup recorrente de net._http_response (H3-032).
 
 TRUNCATE net.http_request_queue;
 
--- Atualiza cron job 4 para LIMIT 1 (reduz pressão de memória no pg_net worker)
-SELECT cron.alter_job(
-    job_id := 4,
-    command := $cmd$
-    DO $job$
-    DECLARE
-        rec RECORD;
-        v_url TEXT;
-    BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM integration_settings
-            WHERE key = 'N8N_AI_WEBHOOK_ENABLED' AND value = 'true'
-        ) THEN RETURN; END IF;
+CREATE OR REPLACE FUNCTION public.dispatch_n8n_ai_extraction()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+    v_service_key TEXT;
+    v_pending BIGINT;
+BEGIN
+    SELECT COUNT(*) INTO v_pending
+    FROM n8n_ai_extraction_queue
+    WHERE status = 'pending' AND scheduled_for <= now();
+    IF v_pending = 0 THEN RETURN; END IF;
 
-        SELECT value INTO v_url FROM integration_settings
-        WHERE key = 'N8N_AI_WEBHOOK_URL';
-        IF v_url IS NULL OR v_url = '' THEN RETURN; END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM integration_settings
+        WHERE key = 'N8N_AI_WEBHOOK_ENABLED' AND value = 'true'
+    ) THEN RETURN; END IF;
 
-        FOR rec IN
-            SELECT id, card_id, message_count
-            FROM n8n_ai_extraction_queue
-            WHERE status = 'pending' AND scheduled_for <= now()
-            ORDER BY scheduled_for ASC
-            LIMIT 1
-        LOOP
-            UPDATE n8n_ai_extraction_queue
-            SET status = 'sent', sent_at = now()
-            WHERE id = rec.id;
+    SELECT decrypted_secret INTO v_service_key
+    FROM vault.decrypted_secrets
+    WHERE name = 'service_role_key'
+    LIMIT 1;
+    IF v_service_key IS NULL THEN RETURN; END IF;
 
-            PERFORM net.http_post(
-                url := v_url,
-                headers := '{"Content-Type": "application/json"}'::jsonb,
-                body := jsonb_build_object(
-                    'card_id', rec.card_id,
-                    'message_count', rec.message_count,
-                    'queue_id', rec.id
-                )
-            );
-        END LOOP;
-    END;
-    $job$;
-    $cmd$
-);
+    PERFORM net.http_post(
+        url := 'https://szyrzxvlptqqheizyrxu.supabase.co/functions/v1/cadence-engine',
+        headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer ' || v_service_key
+        ),
+        body := jsonb_build_object('source', 'n8n-ai-extraction-dispatch')
+    );
+END;
+$function$;
+
+-- Desabilitar cron até resolução do OOM sistêmico
+DO $$
+DECLARE v_jobid INTEGER;
+BEGIN
+    SELECT jobid INTO v_jobid FROM cron.job WHERE jobname = 'n8n-ai-extraction-dispatch';
+    IF v_jobid IS NOT NULL THEN
+        PERFORM cron.alter_job(job_id := v_jobid, active := false,
+            command := 'SELECT public.dispatch_n8n_ai_extraction()');
+    END IF;
+END$$;

@@ -403,3 +403,9 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-13T17:31:19Z | supabase/migrations/20260413_h3_034_fix_n8n_ai_extraction_oom.sql | applied_to_prod
 2026-04-13T17:33:42Z | /tmp/fix_cron4.sql | applied_to_prod
 2026-04-13T17:34:53Z | /tmp/disable_cron4.sql | applied_to_prod
+2026-04-13T17:38:04Z | /tmp/restart_pgnet.sql | applied_to_prod
+2026-04-13T17:38:17Z | /tmp/enable_cron4.sql | applied_to_prod
+2026-04-13T17:38:59Z | supabase/migrations/20260414_h3_030_cadence_rls_org_isolation.sql | applied_to_prod
+2026-04-13T17:40:47Z | /tmp/fix_cron4_function.sql | applied_to_prod
+2026-04-13T17:42:33Z | /tmp/fix_cron4_v3.sql | applied_to_prod
+2026-04-13T17:44:07Z | /tmp/disable_cron4.sql | applied_to_prod
