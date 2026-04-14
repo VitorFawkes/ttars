@@ -429,3 +429,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T13:48:51Z | supabase/migrations/20260414b_gifts_allow_planner_phase.sql | applied_to_prod
 2026-04-14T14:05:59Z | supabase/migrations/20260414c_ai_agent_ativa_audit_cascade.sql | applied_to_prod
 2026-04-14T16:00:34Z | supabase/migrations/20260414c_fase_a1_drop_leaking_rls_policies.sql | applied_to_prod
+2026-04-14T16:06:54Z | supabase/migrations/20260414d_fase_b_add_org_id_leaking_tables.sql | applied_to_prod
+2026-04-14T16:07:56Z | supabase/migrations/20260414d_fase_b_add_org_id_leaking_tables.sql | applied_to_prod
