@@ -15,10 +15,20 @@ export default function ForgotPassword() {
         setError(null)
 
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`,
+            // Fluxo custom (template bonito via Resend). Se a edge function
+            // falhar, cai no reset nativo do Supabase Auth (fallback transparente).
+            const { data, error } = await supabase.functions.invoke('send-password-reset', {
+                body: {
+                    email,
+                    redirect_to: `${window.location.origin}/reset-password`,
+                },
             })
-            if (error) throw error
+            if (error || (data as { error?: string } | null)?.error) {
+                const { error: nativeErr } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                })
+                if (nativeErr) throw nativeErr
+            }
             setSent(true)
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Erro ao enviar email'

@@ -20,30 +20,47 @@ function getAppUrl(): string {
   return Deno.env.get("APP_URL") ?? "https://crm.welcomegroup.com.br";
 }
 
+const BRAND_NAME = Deno.env.get("BRAND_NAME") ?? "WelcomeCRM";
+const BRAND_LOGO = Deno.env.get("BRAND_LOGO_URL") ?? "";
+
 const EMAIL_WRAPPER = (content: string, footerText?: string): string => `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WelcomeCRM</title>
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>${BRAND_NAME}</title>
 </head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#0f172a;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#0f172a;line-height:1.5;">
+  <!-- preheader escondido -->
+  <div style="display:none;max-height:0;overflow:hidden;color:transparent;">${BRAND_NAME}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="580" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.04);">
           <tr>
-            <td style="padding:32px 32px 24px 32px;">
+            <td style="padding:28px 32px 8px 32px;border-bottom:1px solid #f1f5f9;">
+              ${BRAND_LOGO
+                ? `<img src="${BRAND_LOGO}" alt="${BRAND_NAME}" height="32" style="height:32px;display:block;">`
+                : `<div style="font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#4f46e5;">${BRAND_NAME}</div>`}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 32px 32px;">
               ${content}
             </td>
           </tr>
           <tr>
-            <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;">
-              ${footerText ?? "Este é um email automático do WelcomeCRM. Não responda a esta mensagem."}
+            <td style="padding:20px 32px 24px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;line-height:1.6;">
+              ${footerText ?? `Email automático de ${BRAND_NAME}. Não é necessário responder.`}
             </td>
           </tr>
         </table>
+        <div style="font-size:11px;color:#94a3b8;margin-top:12px;">
+          © ${new Date().getFullYear()} ${BRAND_NAME}
+        </div>
       </td>
     </tr>
   </table>
@@ -52,10 +69,10 @@ const EMAIL_WRAPPER = (content: string, footerText?: string): string => `
 `;
 
 const BUTTON = (href: string, label: string): string => `
-<table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0;">
   <tr>
-    <td style="background:#4f46e5;border-radius:8px;">
-      <a href="${href}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${label}</a>
+    <td style="background:#4f46e5;border-radius:10px;box-shadow:0 1px 2px rgba(79,70,229,0.2);">
+      <a href="${href}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:-0.01em;">${label}</a>
     </td>
   </tr>
 </table>

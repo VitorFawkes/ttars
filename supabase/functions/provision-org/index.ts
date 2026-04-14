@@ -191,7 +191,28 @@ serve(async (req: Request) => {
 
       if (invite?.token) {
         try {
-          const emailRes = await fetch(
+          // Dispara DOIS emails em paralelo: org_welcome (bem-vindo) + invite (token)
+          const [welcomeRes, emailRes] = await Promise.all([
+            fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  to: adminEmail,
+                  org_id: orgId,
+                  template_key: "org_welcome",
+                  variables: {
+                    org_name: name,
+                    admin_name: adminEmail.split("@")[0],
+                  },
+                }),
+              }
+            ).catch((e) => { console.error("[provision-org] welcome email error:", e); return null; }),
+            fetch(
             `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
             {
               method: "POST",
@@ -211,7 +232,9 @@ serve(async (req: Request) => {
                 },
               }),
             }
-          );
+          )]);
+          // welcomeRes is best-effort; we only track the invite result.
+          void welcomeRes;
 
           const emailData = await emailRes.json();
           if (emailRes.ok) {
