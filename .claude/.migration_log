@@ -468,3 +468,10 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T18:38:23Z | supabase/migrations/20260414r_ai_agent_kb_links.sql | applied_to_prod
 2026-04-14T18:38:27Z | supabase/migrations/20260414s_seed_julia_knobs.sql | applied_to_prod
 2026-04-14T18:38:33Z | supabase/migrations/20260414t_align_agent_rpcs.sql | applied_to_prod
+2026-04-14T19:12:16Z | supabase/migrations/20260414x_ai_agents_prompts_extra.sql | applied_to_prod
+2026-04-14T21:00:58Z | supabase/migrations/20260414y_tarefas_external_source_fix_default.sql | applied_to_prod
+2026-04-14T21:01:38Z | supabase/migrations/20260414x_reactivation_suppressions.sql | applied_to_prod
+2026-04-14T21:02:10Z | supabase/migrations/20260414x_reactivation_suppressions.sql | applied_to_prod
+2026-04-14T21:02:18Z | supabase/migrations/20260414y_reactivation_patterns_v4.sql | applied_to_prod
+2026-04-14T21:02:26Z | supabase/migrations/20260414z_reactivation_rpc_v4.sql | applied_to_prod
+2026-04-14T21:02:34Z | supabase/migrations/20260414za_reactivation_bulk_rpcs.sql | applied_to_prod
