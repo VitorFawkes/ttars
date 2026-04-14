@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-14
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 171 tabelas | 87 paginas | 137 hooks | 17 views | 530 components
+> **Stats:** 172 tabelas | 87 paginas | 138 hooks | 17 views | 532 components
 =======
-> **Stats:** 171 tabelas | 87 paginas | 137 hooks | 17 views | 530 components
+> **Stats:** 172 tabelas | 87 paginas | 138 hooks | 17 views | 532 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **137 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **138 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -228,6 +228,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Other
 | Hook | File |
 |------|------|
+| `useAgentKBLinks()` | `useAgentKBLinks.ts` |
 | `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentTemplates()` | `useAgentTemplates.ts` |
 | `useAgentWizard()` | `useAgentWizard.ts` |
