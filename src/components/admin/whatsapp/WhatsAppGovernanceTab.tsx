@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { usePipelinePhases } from '@/hooks/usePipelinePhases';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { LineKindBadge } from '@/components/admin/whatsapp/LineKindBadge';
 
 // Line config from whatsapp_linha_config
 interface LinhaConfig {
@@ -322,7 +323,10 @@ export function WhatsAppGovernanceTab() {
                                     <div className="flex items-center gap-3">
                                         <Phone className="w-5 h-5 text-green-600" />
                                         <div>
-                                            <h4 className="font-medium">{linha.phone_number_label}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-medium">{linha.phone_number_label}</h4>
+                                                <LineKindBadge phoneNumberId={linha.phone_number_id} />
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 ID: {linha.phone_number_id || 'N/A'}
                                             </p>

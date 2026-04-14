@@ -803,6 +803,40 @@ const BUILT_IN_TOOLS: ToolDefinition[] = [
   },
 ];
 
+async function loadAgentTools(
+  supabase: SupabaseClient,
+  agentId: string,
+): Promise<ToolDefinition[]> {
+  const { data, error } = await supabase
+    .from("ai_agent_skills")
+    .select("enabled, priority, ai_skills!inner(nome, ativa)")
+    .eq("agent_id", agentId)
+    .eq("enabled", true)
+    .order("priority", { ascending: true });
+
+  if (error) {
+    console.warn(`[loadAgentTools] fallback (erro ai_agent_skills):`, error.message);
+    return BUILT_IN_TOOLS;
+  }
+
+  const enabledNames = new Set<string>();
+  for (const row of data ?? []) {
+    const skill = Array.isArray(row.ai_skills) ? row.ai_skills[0] : row.ai_skills;
+    if (skill?.ativa && skill.nome) enabledNames.add(skill.nome);
+  }
+
+  if (enabledNames.size === 0) {
+    console.log(`[loadAgentTools] agente ${agentId} sem skills configuradas — fallback BUILT_IN_TOOLS`);
+    return BUILT_IN_TOOLS;
+  }
+
+  const filtered = BUILT_IN_TOOLS.filter((t) =>
+    t.function.name === "think" || enabledNames.has(t.function.name)
+  );
+  console.log(`[loadAgentTools] agente ${agentId}: ${filtered.length} tools ativas (${[...enabledNames].join(",")})`);
+  return filtered;
+}
+
 async function executeToolCall(
   supabase: SupabaseClient,
   toolName: string,
@@ -1327,11 +1361,12 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
     });
 
   // Use tool calling for template-based agents
+  const tools = await loadAgentTools(supabase, agent.id);
   return callLLMWithTools(
     supabase,
     agent.modelo, agent.temperature, agent.max_tokens,
     personaPrompt, userMessage, history,
-    BUILT_IN_TOOLS,
+    tools,
     ctx, agent,
   );
 }

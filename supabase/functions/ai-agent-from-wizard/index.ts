@@ -275,6 +275,42 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
       });
     }
 
+    // ── 8.5. Seedar skills built-in e vincular ao agente ──
+    const BUILT_IN_SKILLS = [
+      { nome: "search_knowledge_base", descricao: "Busca informações na base de conhecimento", categoria: "data_retrieval" },
+      { nome: "check_calendar", descricao: "Verifica agenda do consultor", categoria: "data_retrieval" },
+      { nome: "create_task", descricao: "Cria tarefa ou reunião no CRM", categoria: "action" },
+      { nome: "assign_tag", descricao: "Atribui tag ao lead", categoria: "action" },
+      { nome: "request_handoff", descricao: "Solicita transferência para humano", categoria: "action" },
+      { nome: "update_contact", descricao: "Atualiza dados do contato", categoria: "action" },
+    ];
+
+    for (let i = 0; i < BUILT_IN_SKILLS.length; i++) {
+      const s = BUILT_IN_SKILLS[i];
+      const { data: skill } = await supabase
+        .from("ai_skills")
+        .upsert({
+          org_id: resolvedOrgId,
+          nome: s.nome,
+          descricao: s.descricao,
+          categoria: s.categoria,
+          tipo: "edge_function",
+          config: { handler: "ai-agent-router/built-in" },
+          ativa: true,
+        }, { onConflict: "org_id,nome" })
+        .select("id")
+        .single();
+
+      if (skill) {
+        await supabase.from("ai_agent_skills").insert({
+          agent_id: agent.id,
+          skill_id: skill.id,
+          enabled: true,
+          priority: i + 1,
+        });
+      }
+    }
+
     // ── 9. Marcar draft como completed (se existia) ──
     if (draft_id) {
       await supabase

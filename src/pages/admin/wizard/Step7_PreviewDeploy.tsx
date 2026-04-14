@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { AgentPlayground } from '@/components/agent-simulator/AgentPlayground'
 import { cn } from '@/lib/utils'
+import { LineKindBadge } from '@/components/admin/whatsapp/LineKindBadge'
+import { detectLineKind } from '@/lib/whatsappLines'
 import type { WizardStep7, useAgentWizard } from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
@@ -16,6 +18,7 @@ type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
 interface WhatsAppLine {
   id: string
   phone_number_label: string
+  phone_number_id: string | null
 }
 
 interface ChecklistItem {
@@ -35,7 +38,7 @@ export default function Step7_PreviewDeploy({ wizard }: WizardProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('whatsapp_linha_config')
-        .select('id, phone_number_label')
+        .select('id, phone_number_label, phone_number_id')
       if (error) throw error
       return ((data || []) as unknown as WhatsAppLine[])
     },
@@ -154,16 +157,46 @@ export default function Step7_PreviewDeploy({ wizard }: WizardProps) {
                 Nenhuma linha configurada. Configure uma antes.
               </div>
             ) : (
-              <select
-                value={phoneLineId}
-                onChange={(e) => setPhoneLineId(e.target.value)}
-                className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Selecione uma linha...</option>
-                {phoneLines.map((line) => (
-                  <option key={line.id} value={line.id}>{line.phone_number_label}</option>
-                ))}
-              </select>
+              <>
+                <select
+                  value={phoneLineId}
+                  onChange={(e) => setPhoneLineId(e.target.value)}
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Selecione uma linha...</option>
+                  {phoneLines.map((line) => {
+                    const kindLabel = detectLineKind(line.phone_number_id) === 'oficial_meta'
+                      ? ' — Oficial Meta'
+                      : ' — Não-oficial'
+                    return (
+                      <option key={line.id} value={line.id}>
+                        {line.phone_number_label}{kindLabel}
+                      </option>
+                    )
+                  })}
+                </select>
+                {(() => {
+                  const selected = phoneLines.find((l) => l.id === phoneLineId)
+                  if (!selected) return null
+                  const kind = detectLineKind(selected.phone_number_id)
+                  return (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <LineKindBadge phoneNumberId={selected.phone_number_id} />
+                      {kind === 'oficial_meta' && (
+                        <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>
+                            Essa linha é oficial do WhatsApp (Meta Cloud API). Para iniciar
+                            conversas com clientes que ainda não responderam, é obrigatório
+                            usar um template aprovado. Mensagens de texto livre só funcionam
+                            dentro de 24h após o cliente enviar mensagem.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </>
             )}
           </div>
 
