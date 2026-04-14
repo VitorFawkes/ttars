@@ -352,22 +352,35 @@ async function findAgentForLine(
     .from("ai_agent_phone_line_config")
     .select(`
       priority,
-      ai_agents(
+      ai_agents!inner(
         id, org_id, nome, tipo, modelo, temperature, max_tokens,
         system_prompt, persona, routing_criteria, escalation_rules,
         memory_config, fallback_message, fallback_agent_id,
-        n8n_webhook_url, template_id, is_template_based
+        n8n_webhook_url, template_id, is_template_based, ativa
       )
     `)
     .in("phone_line_id", lineIds)
     .eq("ativa", true)
+    .eq("ai_agents.ativa", true)
     .order("priority", { ascending: false });
 
-  if (!configs || configs.length === 0) return null;
+  if (!configs || configs.length === 0) {
+    console.log(
+      `[ai-agent-router] no active agent for line (checked ai_agents.ativa + ai_agent_phone_line_config.ativa): lineIds=${JSON.stringify(lineIds)}`,
+    );
+    return null;
+  }
 
   for (const config of configs) {
-    const agent = config.ai_agents as unknown as AgentConfig;
+    const agent = config.ai_agents as unknown as AgentConfig & { ativa?: boolean };
     if (!agent) continue;
+    // Double-check in code: if an agent is not active, block regardless of filter.
+    if (agent.ativa === false) {
+      console.log(
+        `[ai-agent-router] blocked: ai_agents.ativa=false for agent ${agent.id} (${agent.nome})`,
+      );
+      continue;
+    }
     if (matchesRoutingCriteria(agent.routing_criteria, messageText)) {
       return agent;
     }

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Plus, Upload, Loader2,
   Brain, Sparkles, HeadphonesIcon, ShieldCheck, ArrowRightLeft,
-  MessageSquare, BarChart3,
+  MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
-import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useAiAgentDetail, useTogglePhoneLineConfig } from '@/hooks/useAiAgents'
 import { useAiAgentHubStats } from '@/hooks/useAiAgentHubStats'
 import { useAiAgentMetrics } from '@/hooks/useAiConversations'
 import { useAiSkills, type AiSkill } from '@/hooks/useAiSkills'
@@ -55,6 +55,17 @@ interface FormData {
   ativa: boolean
 }
 
+function formatRelative(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'agora mesmo'
+  if (mins < 60) return `há ${mins} min`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `há ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `há ${days}d`
+}
+
 const DEFAULT_FORM: FormData = {
   nome: '',
   descricao: '',
@@ -80,6 +91,7 @@ export default function AiAgentDetailPage() {
 
   const { data: existingAgent, isLoading: loadingAgent } = useAiAgentDetail(isNew ? undefined : id)
   const { skills: allSkills } = useAiSkills()
+  const togglePhoneLine = useTogglePhoneLineConfig(isNew ? undefined : id)
 
   const [form, setForm] = useState<FormData>(DEFAULT_FORM)
   const [assignedSkillIds, setAssignedSkillIds] = useState<string[]>([])
@@ -370,8 +382,101 @@ export default function AiAgentDetailPage() {
             onCheckedChange={v => setForm(f => ({ ...f, ativa: v }))}
           />
           <Label className="cursor-pointer">Agente ativo</Label>
+          {!isNew && existingAgent && !existingAgent.ativa && existingAgent.ativa_changed_at && (
+            <span className="text-xs text-slate-500 ml-2">
+              Desligado {formatRelative(existingAgent.ativa_changed_at)}
+              {existingAgent.ativa_changed_by_profile?.nome && ` por ${existingAgent.ativa_changed_by_profile.nome}`}
+            </span>
+          )}
         </div>
       </section>
+
+      {/* Estado real de atendimento — fonte única de verdade */}
+      {!isNew && existingAgent && (
+        <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Phone className="w-5 h-5 text-teal-500" />
+            Linhas WhatsApp que este agente atende
+          </h2>
+
+          {/* Banner: agente desligado */}
+          {!existingAgent.ativa && (
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <PowerOff className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-red-900">Agente desligado</p>
+                <p className="text-red-700 mt-0.5">
+                  Nenhuma mensagem será respondida automaticamente, mesmo que haja linhas ativas abaixo.
+                  Para reativar, ligue o switch &quot;Agente ativo&quot; e clique em Salvar.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Banner: agente ligado mas sem linhas ativas */}
+          {existingAgent.ativa &&
+            existingAgent.ai_agent_phone_line_config &&
+            existingAgent.ai_agent_phone_line_config.length > 0 &&
+            existingAgent.ai_agent_phone_line_config.every(l => !l.ativa) && (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-900">Agente ligado, mas não está atendendo nenhuma linha</p>
+                <p className="text-amber-700 mt-0.5">
+                  Todas as linhas vinculadas estão desativadas. Ative pelo menos uma linha abaixo para que o agente responda.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Lista de linhas vinculadas */}
+          {!existingAgent.ai_agent_phone_line_config || existingAgent.ai_agent_phone_line_config.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Nenhuma linha WhatsApp vinculada ainda. Vincule este agente a uma linha em Configurações &gt; WhatsApp.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {existingAgent.ai_agent_phone_line_config.map(line => (
+                <div
+                  key={line.id}
+                  className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      'w-2 h-2 rounded-full flex-shrink-0',
+                      line.ativa && existingAgent.ativa ? 'bg-green-500' : 'bg-slate-300'
+                    )} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {line.whatsapp_linha_config?.phone_number_label || 'Linha sem nome'}
+                      </p>
+                      {line.whatsapp_linha_config?.phone_number_id && (
+                        <p className="text-xs text-slate-500 truncate">
+                          ID: {line.whatsapp_linha_config.phone_number_id}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={line.ativa}
+                    disabled={togglePhoneLine.isPending}
+                    onCheckedChange={(v) => {
+                      togglePhoneLine.mutate(
+                        { configId: line.id, ativa: v },
+                        {
+                          onSuccess: () =>
+                            toast.success(v ? 'Linha ativada' : 'Linha desativada'),
+                          onError: () => toast.error('Erro ao atualizar linha'),
+                        }
+                      )
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Modelo */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">

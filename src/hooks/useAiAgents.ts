@@ -26,6 +26,8 @@ export interface AiAgent {
   created_by: string | null
   created_at: string
   updated_at: string
+  ativa_changed_at: string | null
+  ativa_changed_by: string | null
   // Joins
   ai_agent_skills?: Array<{
     id: string
@@ -39,7 +41,15 @@ export interface AiAgent {
     phone_line_id: string
     ativa: boolean
     priority: number
+    whatsapp_linha_config?: {
+      phone_number_label: string | null
+      phone_number_id: string | null
+    } | null
   }>
+  ativa_changed_by_profile?: {
+    id: string
+    nome: string | null
+  } | null
   // Computed (via RPC ou count)
   _conversations_count?: number
 }
@@ -154,6 +164,7 @@ export function useAiAgents(produto?: string) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { id: _id, created_at: _ca, updated_at: _ua, org_id: _oid, ...rest } = original as any
+      void _id; void _ca; void _ua; void _oid;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('ai_agents')
@@ -178,6 +189,26 @@ export function useAiAgents(produto?: string) {
   }
 }
 
+export function useTogglePhoneLineConfig(agentId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ configId, ativa }: { configId: string; ativa: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('ai_agent_phone_line_config')
+        .update({ ativa })
+        .eq('id', configId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      if (agentId) {
+        queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, 'detail', agentId] })
+      }
+    },
+  })
+}
+
 export function useAiAgentDetail(agentId: string | undefined) {
   return useQuery({
     queryKey: [...QUERY_KEY, 'detail', agentId],
@@ -190,7 +221,8 @@ export function useAiAgentDetail(agentId: string | undefined) {
           *,
           ai_agent_skills(id, skill_id, enabled, priority, config_override, ai_skills(*)),
           ai_agent_phone_line_config(id, phone_line_id, ativa, priority, whatsapp_linha_config(phone_number_label, phone_number_id)),
-          ai_agent_prompts(id, version, is_active, variant_name, is_variant, total_conversations, avg_resolution_rate, created_at)
+          ai_agent_prompts(id, version, is_active, variant_name, is_variant, total_conversations, avg_resolution_rate, created_at),
+          ativa_changed_by_profile:profiles!ai_agents_ativa_changed_by_fkey(id, nome)
         `)
         .eq('id', agentId)
         .single()
