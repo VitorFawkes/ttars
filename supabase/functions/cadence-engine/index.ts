@@ -434,6 +434,22 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 throw new Error("Trigger not found for entry item");
             }
 
+            // Re-checar is_active na hora da execução (pode ter sido desligado
+            // após enfileiramento). UI = fonte de verdade.
+            if (trigger.is_active === false) {
+                console.log(`[CadenceEngine] Skipping entry item ${item.id}: trigger ${trigger.id} is inactive`);
+                await supabaseClient
+                    .from("cadence_entry_queue")
+                    .update({
+                        status: "cancelled",
+                        processed_at: new Date().toISOString(),
+                        error_message: "Trigger desativado antes da execução"
+                    })
+                    .eq("id", item.id);
+                results.push({ id: item.id, success: true, skipped: true, reason: "trigger_inactive" });
+                continue;
+            }
+
             let result;
             if (trigger.action_type === 'create_task') {
                 result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger, item.org_id);
@@ -667,6 +683,12 @@ async function executeStartCadenceAction(
 
     if (templateError || !template) {
         throw new Error(`Template not found: ${templateId}`);
+    }
+
+    // Bloqueia iniciar cadência se template foi desligado.
+    if (template.is_active === false) {
+        console.log(`[CadenceEngine] Skipping start_cadence: template ${templateId} is inactive`);
+        return { skipped: true, reason: 'template_inactive', template_id: templateId };
     }
 
     const executionMode = template.execution_mode || 'linear';
@@ -1210,6 +1232,13 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
     if (instance.status !== 'active' && instance.status !== 'waiting_task') {
         console.log(`[CadenceEngine] Instance ${instance.id} is ${instance.status}, skipping`);
         return { skipped: true, reason: `instance_${instance.status}` };
+    }
+
+    // Verificar se o template da cadência foi desligado na UI.
+    // UI = fonte de verdade: se admin pausou o template, paramos de executar steps.
+    if (instance.template?.is_active === false) {
+        console.log(`[CadenceEngine] Template of instance ${instance.id} is inactive, skipping step`);
+        return { skipped: true, reason: 'template_inactive' };
     }
 
     // Buscar card
