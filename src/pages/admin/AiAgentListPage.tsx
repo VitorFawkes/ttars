@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Bot, Plus, Sparkles, Wrench } from 'lucide-react'
+import { Bot, Plus, Sparkles } from 'lucide-react'
 
 import { useAiAgents, type AiAgent, type AgentTipo } from '@/hooks/useAiAgents'
 import { useAiAgentHubStats } from '@/hooks/useAiAgentHubStats'
@@ -111,10 +111,6 @@ export default function AiAgentListPage() {
             <Button onClick={() => navigate('/settings/ai-agents/builder')} className="gap-2">
               <Sparkles className="w-4 h-4" />
               Criar agente
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/settings/ai-agents/new')} className="gap-2">
-              <Wrench className="w-4 h-4" />
-              Modo avançado
             </Button>
           </div>
         }

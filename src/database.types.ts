@@ -810,6 +810,8 @@ export type Database = {
           created_by: string | null
           descricao: string | null
           escalation_rules: Json | null
+          execution_backend: string
+          external_config: Json | null
           fallback_agent_id: string | null
           fallback_message: string | null
           id: string
@@ -838,6 +840,8 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           escalation_rules?: Json | null
+          execution_backend?: string
+          external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
           id?: string
@@ -866,6 +870,8 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           escalation_rules?: Json | null
+          execution_backend?: string
+          external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
           id?: string
