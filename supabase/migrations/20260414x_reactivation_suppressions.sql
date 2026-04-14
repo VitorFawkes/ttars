@@ -18,8 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_suppressions_lookup
   ON reactivation_suppressions(contact_id, org_id, suppressed_until);
 
 CREATE INDEX IF NOT EXISTS idx_suppressions_org_active
-  ON reactivation_suppressions(org_id)
-  WHERE suppressed_until IS NULL OR suppressed_until > now();
+  ON reactivation_suppressions(org_id, suppressed_until);
 
 ALTER TABLE reactivation_suppressions ENABLE ROW LEVEL SECURITY;
 
