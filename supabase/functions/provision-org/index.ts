@@ -152,16 +152,17 @@ serve(async (req: Request) => {
         );
       }
 
-      // Chamar provision_organization()
-      // p_product_slug precisa estar no enum app_product (TRIPS/WEDDING/CORP).
-      // Default é TRIPS para white-label de viagens. Para produtos customizados,
-      // chamar ensure_app_product_value() em outra RPC primeiro.
-      const { data: orgId, error: provisionError } = await supabase.rpc(
-        "provision_organization",
+      // Chamar provision_account_with_workspace — cria account (parent) +
+      // primeiro workspace (filho) atomicamente + invite admin pro workspace.
+      // A RPC grava audit log "account.create" e retorna IDs + token do invite.
+      const { data: provisionResult, error: provisionError } = await supabase.rpc(
+        "provision_account_with_workspace",
         {
-          p_name: name,
-          p_slug: slug,
+          p_account_name: name,
+          p_account_slug: slug,
           p_admin_email: adminEmail,
+          p_workspace_name: name,
+          p_workspace_slug: `${slug}-main`,
           p_template: template ?? "generic_3phase",
           p_product_name: productName ?? "Principal",
           p_product_slug: productSlug ?? "TRIPS",
@@ -176,33 +177,13 @@ serve(async (req: Request) => {
         );
       }
 
-      // Audit log: org provisionada
-      await supabase.from("platform_audit_log").insert({
-        actor_id: profile.id,
-        action: "org.create",
-        target_type: "organization",
-        target_id: orgId,
-        metadata: {
-          name,
-          slug,
-          admin_email: adminEmail,
-          template: template ?? "generic_3phase",
-          product_slug: productSlug ?? "TRIPS",
-        },
-      });
-
-      // Buscar token do convite gerado pela provision_organization
-      const { data: invite } = await supabase
-        .from("invitations")
-        .select("token, email")
-        .eq("org_id", orgId)
-        .eq("email", adminEmail)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      const orgId = provisionResult?.account_id as string;
+      const workspaceId = provisionResult?.workspace_id as string | undefined;
+      const inviteToken = provisionResult?.invite_token as string | null | undefined;
 
       const appUrl = Deno.env.get("APP_URL") ?? "https://crm.welcomegroup.com.br";
-      const inviteUrl = invite?.token ? `${appUrl}/invite/${invite.token}` : null;
+      const inviteUrl = inviteToken ? `${appUrl}/invite/${inviteToken}` : null;
+      const invite = inviteToken ? { token: inviteToken, email: adminEmail } : null;
 
       // Enviar email de convite + boas-vindas automaticamente (best-effort)
       let emailStatus: "sent" | "failed" | "dry_run" | "skipped" = "skipped";
@@ -250,6 +231,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           success: true,
           orgId,
+          workspaceId,
           inviteToken: invite?.token ?? null,
           inviteUrl,
           email: {
