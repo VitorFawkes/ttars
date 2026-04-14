@@ -79,6 +79,7 @@ interface RawTaskRow {
     responsavel_id: string | null
     created_by: string | null
     concluido_por: string | null
+    external_id: string | null
     card?: {
         id: string
         titulo: string
@@ -92,7 +93,10 @@ interface RawTaskRow {
 }
 
 function deriveOrigem(row: RawTaskRow): TaskOrigemFilter {
-    if (row.external_source) return 'integracao'
+    // external_source sozinho é lixo: a coluna tem DEFAULT 'activecampaign' no banco,
+    // então tarefas manuais também nascem com ela setada. Só classificamos como
+    // integração quando external_id TAMBÉM está preenchido (aí veio de verdade da AC).
+    if (row.external_source && row.external_id) return 'integracao'
     const meta = row.metadata
     if (meta && typeof meta === 'object') {
         const origin = (meta as Record<string, unknown>).origin
@@ -127,7 +131,7 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     id, titulo, descricao, tipo, categoria_outro, data_vencimento,
                     concluida, concluida_em, started_at, status, prioridade, outcome,
                     resultado, feedback, metadata, rescheduled_from_id, rescheduled_to_id,
-                    participantes_externos, external_source, card_id, responsavel_id,
+                    participantes_externos, external_source, external_id, card_id, responsavel_id,
                     created_by, concluido_por,
                     card:cards!tarefas_card_id_fkey!inner(
                         id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id,
