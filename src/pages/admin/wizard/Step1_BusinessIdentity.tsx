@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Building2, Bot, Globe } from 'lucide-react'
+import { Building2, Bot, Globe, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
@@ -56,6 +56,25 @@ export default function Step1_BusinessIdentity({ wizard }: WizardProps) {
             Defina como seu agente vai se apresentar e conversar com os clientes.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setFormData({
+            agent_name: 'Julia',
+            company_name: formData.company_name || '',
+            company_description: 'Consultoria de viagens personalizadas com foco em experiências completas.',
+            agent_persona: 'Consultora de viagens experiente, calorosa e atenta a detalhes. Pergunta uma coisa de cada vez. Nunca menciona que é IA.',
+            tone: 'friendly',
+            language: 'pt-BR',
+          })}
+          className="w-full flex items-center gap-3 p-3 border border-indigo-200 bg-indigo-50/40 rounded-lg text-left hover:bg-indigo-50 transition-colors"
+        >
+          <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-indigo-900">Usar a Julia como ponto de partida</p>
+            <p className="text-xs text-indigo-700">Pré-preenche persona, tom e descrição com os valores da Julia (referência da Welcome). Você ajusta nos passos seguintes.</p>
+          </div>
+        </button>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
