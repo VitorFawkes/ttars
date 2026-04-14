@@ -239,7 +239,7 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
       await supabase.from("ai_agent_special_scenarios").insert(scenarioRows);
     }
 
-    // ── 7. Criar knowledge base (se items fornecidos) ──
+    // ── 7. Criar knowledge base + embeddings + vincular ao agente ──
     if (s4?.kb_items?.length) {
       const { data: kb } = await supabase
         .from("ai_knowledge_bases")
@@ -253,15 +253,62 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
         .single();
 
       if (kb) {
-        const kbItems = s4.kb_items.map((item, i) => ({
-          kb_id: kb.id,
-          titulo: item.titulo,
-          conteudo: item.conteudo,
-          tags: item.tags || [],
-          ordem: i,
-        }));
+        const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-        await supabase.from("ai_knowledge_base_items").insert(kbItems);
+        // Gerar embeddings em batch (OpenAI aceita array em input)
+        const itemsWithEmbeddings: Array<Record<string, unknown>> = [];
+        if (openaiKey && s4.kb_items.length > 0) {
+          const inputs = s4.kb_items.map((it) => `${it.titulo}\n${it.conteudo}`);
+          try {
+            const embRes = await fetch("https://api.openai.com/v1/embeddings", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "text-embedding-3-small", input: inputs }),
+            });
+            if (embRes.ok) {
+              const embData = await embRes.json();
+              const vectors: number[][] = (embData.data || []).map((d: { embedding: number[] }) => d.embedding);
+              s4.kb_items.forEach((item, i) => {
+                itemsWithEmbeddings.push({
+                  kb_id: kb.id,
+                  titulo: item.titulo,
+                  conteudo: item.conteudo,
+                  tags: item.tags || [],
+                  ordem: i,
+                  embedding: vectors[i] ? `[${vectors[i].join(",")}]` : null,
+                });
+              });
+            } else {
+              console.warn(`[kb] embedding API error ${embRes.status} — inserting without embeddings`);
+            }
+          } catch (err) {
+            console.warn(`[kb] embedding fetch failed:`, err);
+          }
+        }
+
+        // Fallback: insert without embeddings if OpenAI indisponivel
+        if (itemsWithEmbeddings.length === 0) {
+          s4.kb_items.forEach((item, i) => {
+            itemsWithEmbeddings.push({
+              kb_id: kb.id,
+              titulo: item.titulo,
+              conteudo: item.conteudo,
+              tags: item.tags || [],
+              ordem: i,
+            });
+          });
+        }
+
+        await supabase.from("ai_knowledge_base_items").insert(itemsWithEmbeddings);
+
+        // Vincular KB ao agente (sem este link, search_knowledge_base não encontra nada)
+        await supabase.from("ai_agent_knowledge_bases").insert({
+          org_id: resolvedOrgId,
+          agent_id: agent.id,
+          kb_id: kb.id,
+          priority: 10,
+          enabled: true,
+        });
       }
     }
 

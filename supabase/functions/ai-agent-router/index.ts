@@ -864,33 +864,32 @@ async function executeToolCall(
 
         if (!embedding) return JSON.stringify({ error: "Failed to generate embedding" });
 
-        // Find KB for this agent
-        const { data: kb } = await supabase
-          .from("ai_knowledge_bases")
-          .select("id")
-          .eq("agent_id", agent.id)
-          .limit(1)
-          .maybeSingle();
+        // Busca em TODAS as KBs vinculadas ao agente via tabela associativa.
+        // Threshold 0.4: text-embedding-3-small em textos longos gera similaridades modestas;
+        // 0.7 era alto demais (rejeitava tudo). 0.4 balanceia recall vs precisão.
+        const { data: items, error: kbErr } = await supabase.rpc("search_agent_knowledge_bases", {
+          p_agent_id: agent.id,
+          p_query_embedding: `[${embedding.join(",")}]`,
+          p_match_threshold: 0.25,
+          p_match_count: 5,
+        });
 
-        if (!kb) {
-          // Fallback: search integration_settings FAQ (like Julia does)
+        if (kbErr) {
+          console.warn("[search_knowledge_base] RPC error:", kbErr.message);
+        }
+
+        if (items?.length) {
+          result = items.map((i: { titulo: string; conteudo: string }) => `${i.titulo}: ${i.conteudo}`).join("\n\n");
+        } else {
+          // Fallback defensivo: FAQ antigo em integration_settings (deve estar desabilitado com Luna tendo KB)
           const { data: faq } = await supabase
             .from("integration_settings")
             .select("value")
             .eq("key", "JULIA_FAQ")
+            .eq("org_id", agent.org_id)
             .maybeSingle();
-          return faq?.value || JSON.stringify({ info: "Nenhuma base de conhecimento configurada" });
+          result = faq?.value || "Nenhum resultado relevante encontrado na base de conhecimento.";
         }
-
-        const { data: items } = await supabase.rpc("search_knowledge_base", {
-          p_kb_id: kb.id,
-          p_query_embedding: `[${embedding.join(",")}]`,
-          p_match_threshold: 0.7,
-          p_match_count: 3,
-        });
-        result = items?.length
-          ? items.map((i: { titulo: string; conteudo: string }) => `${i.titulo}: ${i.conteudo}`).join("\n\n")
-          : "Nenhum resultado relevante encontrado na base de conhecimento.";
         break;
       }
 
@@ -999,15 +998,20 @@ async function executeToolCall(
   const duration = Date.now() - startTime;
   console.log(`[executeToolCall] ${toolName} completed in ${duration}ms`);
 
-  supabase.from("ai_skill_usage_logs").insert({
-    agent_id: agent.id,
-    skill_name: toolName,
-    input_data: args,
-    output_data: { result: result.substring(0, 500) },
-    execution_time_ms: duration,
-    success: !result.includes('"error"'),
-    org_id: agent.org_id,
-  }).then(() => {}).catch(() => {});
+  // Schema real: skill_id, input, output, duration_ms (sem skill_name, input_data, output_data, org_id).
+  // Buscar skill_id por nome (pode ser null — não-fatal).
+  supabase.from("ai_skills").select("id").eq("nome", toolName).eq("org_id", agent.org_id).maybeSingle()
+    .then(({ data: skillRow }) => {
+      return supabase.from("ai_skill_usage_logs").insert({
+        agent_id: agent.id,
+        skill_id: skillRow?.id || null,
+        input: args,
+        output: { result: result.substring(0, 500), tool_name: toolName },
+        duration_ms: duration,
+        success: !result.includes('"error"'),
+      });
+    })
+    .then(() => {}).catch(() => {});
 
   return result;
 }
@@ -1190,47 +1194,162 @@ async function runDataAgent(
 ): Promise<void> {
   if (!agent.is_template_based || !ctx.card_id) return;
 
-  // Aplicar mudancas do backoffice
+  // 1. Sempre aplicar mudanças de resumo/contexto do backoffice (determinístico)
   if (backoffice.mudancas.ai_resumo || backoffice.mudancas.ai_contexto) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (backoffice.mudancas.ai_resumo) patch.ai_resumo = backoffice.ai_resumo;
     if (backoffice.mudancas.ai_contexto) patch.ai_contexto = backoffice.ai_contexto;
-
     await supabase.from("cards").update(patch).eq("id", ctx.card_id);
   }
 
-  // Avancar pipeline (regras deterministicas como Julia)
+  // 2. Sinais determinísticos para advance de stage (mantidos como fallback)
   if (backoffice.detected_role !== "traveler") {
     let newStageId: string | null = null;
-
-    // Usar stage_signal se presente
     if (ctx.stage_signal) {
       newStageId = ctx.stage_signal;
-    }
-    // Usar qualification flow para determinar avancos
-    else if (qualification.length > 0) {
+    } else if (qualification.length > 0) {
       for (const stage of qualification) {
-        if (stage.advance_to_stage_id && stage.advance_condition) {
-          // Avanco baseado nos sinais deterministicos
-          if (stage.advance_condition === "first_lead_message" && ctx.first_lead_message_only) {
-            newStageId = stage.advance_to_stage_id;
-          }
-          if (stage.advance_condition === "lead_replied" && ctx.lead_replied_now) {
-            newStageId = stage.advance_to_stage_id;
-          }
-          if (stage.advance_condition === "meeting_confirmed" && ctx.meeting_created_or_confirmed) {
-            newStageId = stage.advance_to_stage_id;
-          }
-        }
+        if (!stage.advance_to_stage_id) continue;
+        if (stage.advance_condition === "first_lead_message" && ctx.first_lead_message_only) newStageId = stage.advance_to_stage_id;
+        if (stage.advance_condition === "lead_replied" && ctx.lead_replied_now) newStageId = stage.advance_to_stage_id;
+        if (stage.advance_condition === "meeting_confirmed" && ctx.meeting_created_or_confirmed) newStageId = stage.advance_to_stage_id;
       }
     }
-
     if (newStageId && newStageId !== ctx.pipeline_stage_id) {
-      await supabase
-        .from("cards")
-        .update({ pipeline_stage_id: newStageId, updated_at: new Date().toISOString() })
-        .eq("id", ctx.card_id);
+      await supabase.from("cards").update({ pipeline_stage_id: newStageId, updated_at: new Date().toISOString() }).eq("id", ctx.card_id);
     }
+  }
+
+  // 3. Data Agent LLM — extrai dados estruturados da conversa (paridade com "Atualiza dados" da Julia).
+  // Se viajante, só atualiza dados pessoais do próprio viajante (não avança stage, não edita titulo).
+  try {
+    await runDataAgentLLM(supabase, agent, ctx, backoffice, business, qualification);
+  } catch (err) {
+    console.error("[runDataAgentLLM] error (non-fatal):", err);
+  }
+}
+
+async function runDataAgentLLM(
+  supabase: SupabaseClient,
+  agent: AgentConfig,
+  ctx: ConversationContext,
+  backoffice: BackofficeOutput,
+  business: BusinessConfig | null,
+  qualification: QualificationStage[],
+): Promise<void> {
+  if (!ctx.card_id) return;
+
+  const isTraveler = backoffice.detected_role === "traveler";
+  const protectedFields = business?.protected_fields || ["pessoa_principal_id", "produto_data", "valor_estimado", "created_at", "created_by"];
+
+  const stagesOpts = qualification
+    .filter((s) => s.advance_to_stage_id)
+    .map((s) => `  - "${s.advance_to_stage_id}" (${s.stage_name}${s.advance_condition ? `, condicao: ${s.advance_condition}` : ""})`)
+    .join("\n");
+
+  const allowedCardFields = isTraveler
+    ? ["ai_resumo", "ai_contexto"]
+    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "destino", "data_ida", "data_volta", "numero_viajantes", "orcamento_estimado", "ocasiao_especial", "observacoes_ia"];
+
+  const allowedContactFields = isTraveler
+    ? ["cpf", "passaporte", "data_nascimento", "email", "observacoes"]
+    : ["nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento", "observacoes"];
+
+  const prompt = `Voce e o Agente de Dados. Sua tarefa: ler a conversa e decidir se ha dados novos e COMPROVAVEIS pra gravar no CRM. Nao conversa, so decide.
+
+## Contexto
+- Card ID: ${ctx.card_id}
+- Contato ID: ${ctx.contato_id}
+- Role: ${isTraveler ? "traveler (viajante — NAO avance stage, NAO edite titulo, so dados pessoais do viajante)" : "primary"}
+- Stage atual: ${ctx.pipeline_stage_id || "(nao definido)"}
+- ai_resumo atual: ${backoffice.ai_resumo || "(vazio)"}
+- ai_contexto atual: ${backoffice.ai_contexto || "(vazio)"}
+- Historico recente:
+${ctx.historico_compacto}
+
+## Sinais determinísticos (ja aplicados)
+- first_lead_message_only: ${ctx.first_lead_message_only}
+- lead_replied_now: ${ctx.lead_replied_now}
+- meeting_created_or_confirmed: ${ctx.meeting_created_or_confirmed}
+
+## Stages disponiveis para avanco (use advance_to_stage_id em card_patch se a condicao for INEQUIVOCA)
+${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
+
+## Regras
+- Grave APENAS dados que o cliente disse EXPLICITAMENTE, nao invente, nao infira.
+- Em conflito, prevalece o dado MAIS RECENTE do cliente.
+- Nunca gravar null/vazio. Nunca sobrescrever dado existente com valor igual.
+- Campos PROTEGIDOS (nao tocar): ${protectedFields.join(", ")}.
+- Campos permitidos no card: ${allowedCardFields.join(", ")}.
+- Campos permitidos no contato: ${allowedContactFields.join(", ")}.
+
+### Normalizacoes
+- titulo (so se primary): "Viagem [Destino] - [Nome]". Ex: "Viagem Italia - Joao". Nao atualizar se ja tem titulo compativel.
+- cpf: so digitos, 11 caracteres.
+- passaporte: alfanumerico uppercase.
+- data_nascimento / data_ida / data_volta: YYYY-MM-DD.
+- numero_viajantes: inteiro.
+- orcamento_estimado: inteiro em BRL (aceitar "k" = mil).
+- nome/sobrenome: primeira letra maiuscula.
+
+### Avanco de stage (so se NAO for traveler)
+- Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
+- Se ja ha sinal deterministico que avançou, NAO tente avançar de novo.
+
+## Saida (JSON exato)
+{
+  "card_patch": { "<campo>": <valor> } ou {},
+  "contact_patch": { "<campo>": <valor> } ou {},
+  "reasoning": "<1 frase explicando por que atualizou ou por que nao>"
+}
+
+Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios.`;
+
+  let parsed: { card_patch?: Record<string, unknown>; contact_patch?: Record<string, unknown>; reasoning?: string };
+  try {
+    const { response } = await callLLM(agent.modelo, 0.1, 800, prompt, ctx.historico_compacto || "(sem historico)");
+    parsed = JSON.parse(response.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
+  } catch (err) {
+    console.warn("[runDataAgentLLM] parse failed:", err);
+    return;
+  }
+
+  const cardPatch = parsed.card_patch || {};
+  const contactPatch = parsed.contact_patch || {};
+
+  if (Object.keys(cardPatch).length > 0) {
+    // Filtrar campos bloqueados localmente antes do RPC
+    if (isTraveler) {
+      delete (cardPatch as Record<string, unknown>).pipeline_stage_id;
+      delete (cardPatch as Record<string, unknown>).titulo;
+    }
+    const { data: updateResult, error: updateErr } = await supabase.rpc("agent_update_card_data", {
+      p_card_id: ctx.card_id,
+      p_patch: cardPatch,
+      p_protected_fields: protectedFields,
+    });
+    if (updateErr) {
+      console.warn("[runDataAgentLLM] card update rpc error:", updateErr.message);
+    } else {
+      console.log(`[runDataAgentLLM] card updated:`, JSON.stringify(updateResult));
+    }
+  }
+
+  if (Object.keys(contactPatch).length > 0) {
+    const safeContactPatch: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(contactPatch)) {
+      if (allowedContactFields.includes(k) && v !== null && v !== "") safeContactPatch[k] = v;
+    }
+    if (Object.keys(safeContactPatch).length > 0) {
+      safeContactPatch.updated_at = new Date().toISOString();
+      const { error: contactErr } = await supabase.from("contatos").update(safeContactPatch).eq("id", ctx.contato_id);
+      if (contactErr) console.warn("[runDataAgentLLM] contact update error:", contactErr.message);
+      else console.log(`[runDataAgentLLM] contact updated:`, Object.keys(safeContactPatch));
+    }
+  }
+
+  if (parsed.reasoning) {
+    console.log(`[runDataAgentLLM] reasoning: ${parsed.reasoning}`);
   }
 }
 
@@ -1301,6 +1420,38 @@ async function runPersonaAgent(
     ? `Taxa: ${(business.pricing_json as Record<string, unknown>).fee || "a combinar"} ${(business.pricing_json as Record<string, unknown>).currency || "BRL"}`
     : "";
 
+  // Biblioteca de técnicas de vendas e antipadrões — destilada do prompt da Julia (Responde Lead)
+  // Aplicável a qualquer agente de pré-venda SPIN/qualificação.
+  const SALES_PLAYBOOK = `
+## Biblioteca de técnicas (aplicar sempre que couber)
+
+### SPIN (uma pergunta por vez)
+- Se ainda não conhece o processo/contexto do cliente: pergunta de **Situação** ("como vocês se organizam hoje pra X?").
+- Se já tem situação mas sem dor declarada: pergunta de **Problema** ("o que mais te incomoda nisso hoje?").
+- Se há dor declarada: peça **Implicação concreta** ("e isso acaba afetando o que?") e costure dor + impacto em 1 linha.
+- Se há impacto: peça número/prioridade. Se cliente relutar, ofereça faixas específicas em vez de números exatos.
+
+### Antipadrões (EVITE sempre)
+- **Justificar pergunta.** Em vez de "Pra te ajudar melhor, como vocês...", faça "Como vocês..." direto.
+- **Inferir causa não dita.** Em vez de "Imagino que isso te atrapalhe muito", pergunte "Onde isso mais aperta?".
+- **Empilhar perguntas.** Uma pergunta única e clara por mensagem.
+- **Prometer solução antes da dor.** Não diga "podemos resolver isso" antes de entender problema e impacto.
+- **Fechamento frouxo.** Não pergunte "qual horário prefere?". Use slots reais via check_calendar.
+- **Pressão.** Se o lead não quiser seguir, agradeça e encerre sem insistir.
+
+### Regra de ouro sobre preço
+- NÃO apresente preço/taxa antes de qualificar (a menos que configuração permita).
+- Se cliente pede preço cedo e insiste: dê âncora curta e volte ao SPIN.
+- Faturamento/orçamento: pergunte antes de convidar pra reunião. Se recusar, ofereça faixas. Se recusar de novo, siga sem travar.
+
+### Escrita WhatsApp
+- 1 a 3 frases por mensagem. 1 objetivo por mensagem.
+- Sem travessões/hífens como separadores. Sem metalinguagem.
+- 0 ou 1 emoji apenas se o lead usar primeiro.
+- Nome do cliente com parcimônia — no máximo 1 uso a cada 3 mensagens. Varie aberturas ("Entendi", "Perfeito", "Show", sem muleta repetitiva).
+- Se lead indicar desinteresse ou quiser encerrar: agradeça, reconheça e encerre com respeito.
+`;
+
   const personaPrompt = `Voce e ${agent.nome}, ${agent.persona || "assistente"} da ${business?.company_name || "empresa"}.
 
 Contexto:
@@ -1348,6 +1499,10 @@ PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avanc
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
 
+${SALES_PLAYBOOK}
+
+CONSULTA OBRIGATÓRIA: antes de falar sobre serviços, taxa, prazos, destinos, pagamento ou tratar objeções, chame search_knowledge_base ANTES e responda em 1-2 frases sem copiar literal.
+
 SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
 
   const history = ctx.historico_compacto.split("\n")
@@ -1385,24 +1540,31 @@ async function runValidator(
 
   const activeScenarioChecks = scenarios
     .map((s) => {
+      const keywords = (s.trigger_config?.keywords as string[] | undefined)?.join(", ") || s.scenario_name;
       const checks: string[] = [];
-      if (s.skip_fee_presentation) checks.push(`Se cenario "${s.scenario_name}" ativo: NÃO pode ter menção a taxa/fee`);
-      if (s.skip_meeting_scheduling) checks.push(`Se cenario "${s.scenario_name}" ativo: NÃO pode agendar reunião`);
+      if (s.skip_fee_presentation) checks.push(`Se detectar ${keywords}: NÃO pode ter menção a taxa/valor/fee`);
+      if (s.skip_meeting_scheduling) checks.push(`Se detectar ${keywords}: NÃO pode agendar reunião`);
+      if (s.response_adjustment) checks.push(`Se detectar ${keywords}: ${s.response_adjustment}`);
+      if (s.auto_assign_tag) checks.push(`Se detectar ${keywords}: Deve ter chamado assign_tag("${s.auto_assign_tag}")`);
       return checks.join("\n");
     })
     .filter(Boolean)
     .join("\n");
 
-  const validatorPrompt = `Voce e um validador de qualidade de mensagens WhatsApp.
+  const validatorPrompt = `Voce e um validador de qualidade de mensagens WhatsApp. A maioria das mensagens esta OK — so intervenha quando algo realmente precisa de ajuste.
+
 Analise a resposta abaixo e verifique:
 
-1. Menciona IA, robo, modelo, prompt, sistema, agente, chatbot? → BLOQUEIA
-2. Inventa fatos nao presentes no contexto? → BLOQUEIA
+1. Menciona IA, robo, modelo, prompt, sistema, agente, chatbot, bastidores? → BLOQUEIA
+2. Inventa fatos nao presentes no contexto (preços, prazos, features nao mencionadas)? → BLOQUEIA
 3. Tom frio, robotico ou agressivo? → CORRIJA para tom natural
-4. Repete introducao quando NAO e primeiro contato (is_primeiro_contato=${ctx.is_primeiro_contato})? → CORRIJA
-5. Menciona "formulario", "dados do sistema", "cadastro"? → BLOQUEIA
-6. Rejeita lead sem investigar (primeira msg ou sem confirmar)? → BLOQUEIA
-${activeScenarioChecks ? `7. Cenarios especiais:\n${activeScenarioChecks}` : ""}
+4. Repete introducao/apresentacao quando NAO e primeiro contato (is_primeiro_contato=${ctx.is_primeiro_contato})? → CORRIJA
+5. Menciona "formulario", "dados do sistema", "cadastro", "ActiveCampaign"? → BLOQUEIA
+6. Rejeita/desqualifica lead na primeira mensagem ou sem investigar? → BLOQUEIA (na duvida, avançar)
+7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer só isso? → CORRIJA
+8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
+9. Empilha 2+ perguntas na mesma mensagem? → CORRIJA pra UMA pergunta só
+${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
 
 RESPOSTA a validar:
 """
