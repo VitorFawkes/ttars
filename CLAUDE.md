@@ -120,9 +120,45 @@ Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 - Novas tabelas DEVEM ter `org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)`
 - Novas RLS policies DEVEM usar `USING (org_id = requesting_org_id())`
 - `requesting_org_id()` extrai org_id do JWT `app_metadata` (fallback: Welcome Group)
-- 70 tabelas já têm org_id. 134 RLS policies já usam `requesting_org_id()`
 - Frontend: `useOrg()` do OrgContext para acessar org atual
 - Edge Functions: `getOrgId(req)` de `_shared/org-context.ts`
+
+### Tabelas globais (EXCEÇÃO — NUNCA adicionar org_id)
+
+O CRM tem **duas categorias** de tabela:
+
+1. **Por-org (default):** dados de negócio (cards, contatos, propostas, agentes IA, mensagens, etc). Toda tabela nova é por-org, SEM EXCEÇÃO, a menos que se encaixe exatamente em um dos casos abaixo.
+
+2. **Global (lista fechada):** catálogos compartilhados ou tabelas técnicas da plataforma. A decisão já foi tomada e registrada em `COMMENT ON TABLE` (rode `\d+ tabela` no psql ou consulte pg_description). A lista atual:
+
+   - `activity_categories` — catálogo de categorias de atividade
+   - `integration_field_catalog` — catálogo de campos padronizados de integração
+   - `integration_provider_catalog` — catálogo de providers (AC, Monde, etc)
+   - `integration_health_rules` — definições de regras de health check
+   - `integration_health_pulse` — agregados por canal para dashboard platform
+   - `integration_outbox` — fila técnica polimórfica (service_role only)
+   - `webhook_logs` — log cru de webhooks para debug de plataforma
+   - `ai_extraction_field_config` — config de campos de extração IA
+   - `system_fields` — definição dos campos de sistema (PK=key)
+   - `destinations` — híbrido: catálogo base compartilhado + destinos custom por org
+   - `organizations`, `org_members`, `platform_audit_log` — infra de tenancy
+
+   **REGRA:** se a tabela está nessa lista, **NÃO** adicionar org_id. RLS acessa via `service_role` ou policy pública de leitura. Se precisa expor para o frontend, criar RPC `SECURITY DEFINER` que filtra conforme necessário.
+
+### Policy RLS — regra de ouro
+
+**NUNCA** criar policy `USING (true)` para role `authenticated` ou `public` em tabela por-org. PostgreSQL faz OR entre policies permissivas — uma `USING (true)` neutraliza qualquer `USING (org_id = requesting_org_id())` ao lado, e vaza dados entre workspaces.
+
+Padrão correto para tabela por-org:
+```sql
+CREATE POLICY tabela_org_all ON tabela TO authenticated
+  USING (org_id = requesting_org_id())
+  WITH CHECK (org_id = requesting_org_id());
+CREATE POLICY tabela_service_all ON tabela TO service_role
+  USING (true) WITH CHECK (true);
+```
+
+O hook `.claude/hooks/audit-rls-leaks.sh` roda no Stop e BLOQUEIA se detectar `USING (true)` para authenticated/public em tabela fora da GLOBAL_ALLOWLIST. Se você acabou de adicionar uma tabela genuinamente global, ADICIONE ela na allowlist do script ao mesmo tempo.
 
 ## Isolamento de Produto / Org (OBRIGATÓRIO)
 
