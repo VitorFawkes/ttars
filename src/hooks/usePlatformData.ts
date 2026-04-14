@@ -31,6 +31,7 @@ export interface PlatformOrg {
   suspended_at: string | null
   suspended_reason: string | null
   logo_url: string | null
+  shares_contacts_with_children: boolean
   workspace_count: number
   user_count: number
   card_count: number
@@ -368,9 +369,22 @@ export function usePlatformOrgDetail(orgId: string | null) {
     [orgId, fetch]
   )
 
+  const setSharingFlag = useCallback(
+    async (enable: boolean) => {
+      if (!orgId) throw new Error('Organization ID not set')
+      const { error: rpcError } = await db.rpc('platform_set_sharing_flag', {
+        p_org_id: orgId,
+        p_enable: enable,
+      })
+      if (rpcError) throw rpcError
+      await fetch()
+    },
+    [orgId, fetch]
+  )
+
   useEffect(() => {
     fetch()
   }, [fetch])
 
-  return { detail, loading, error, refetch: fetch, addWorkspace, inviteAdmin }
+  return { detail, loading, error, refetch: fetch, addWorkspace, inviteAdmin, setSharingFlag }
 }

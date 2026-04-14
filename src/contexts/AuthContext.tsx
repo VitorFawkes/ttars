@@ -127,6 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const signOut = async () => {
+        // Limpa modo impersonate antes de sair — evita próximo login voltar
+        // com impersonating_org_id ainda setado no profile.
+        if (user?.id) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase.rpc as any)('platform_end_impersonation')
+            } catch {
+                // Sem sessão ou sem permissão — segue o logout normal.
+            }
+        }
         await supabase.auth.signOut()
         setUser(null)
         setSession(null)

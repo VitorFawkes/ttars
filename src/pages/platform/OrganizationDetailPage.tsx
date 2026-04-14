@@ -11,6 +11,7 @@ import {
   Shield,
   LogIn,
   Plus,
+  Users2,
 } from 'lucide-react'
 import { usePlatformOrgDetail } from '../../hooks/usePlatformData'
 import { StatusBadge } from './DashboardPage'
@@ -28,11 +29,12 @@ export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { detail, loading, error, refetch, addWorkspace, inviteAdmin } = usePlatformOrgDetail(
+  const { detail, loading, error, refetch, addWorkspace, inviteAdmin, setSharingFlag } = usePlatformOrgDetail(
     id ?? null
   )
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
   const [showInviteAdmin, setShowInviteAdmin] = useState(false)
+  const [togglingSharing, setTogglingSharing] = useState(false)
 
   const handleSuspend = async () => {
     if (!id || !detail) return
@@ -132,6 +134,35 @@ export default function OrganizationDetailPage() {
     created_at: string
     suspended_at?: string | null
     suspended_reason?: string | null
+    shares_contacts_with_children?: boolean | null
+    parent_org_id?: string | null
+  }
+
+  const isAccount = !detail.parent
+  const sharingEnabled = !!org.shares_contacts_with_children
+
+  const handleToggleSharing = async () => {
+    const willEnable = !sharingEnabled
+    const msg = willEnable
+      ? `Ligar compartilhamento de contatos, destinos e catálogos entre os workspaces de ${org.name}?\n\nTodos os contatos migrados passarão a ser visíveis nos ${detail.workspaces.length} workspaces. Reversível.`
+      : `Desligar compartilhamento? Cada workspace de ${org.name} passará a enxergar apenas os próprios contatos (os já cadastrados na account pai ficam inacessíveis aos workspaces).`
+    if (!window.confirm(msg)) return
+    setTogglingSharing(true)
+    try {
+      await setSharingFlag(willEnable)
+      toast({
+        title: willEnable ? 'Compartilhamento ligado' : 'Compartilhamento desligado',
+        type: 'success',
+      })
+    } catch (err) {
+      toast({
+        title: 'Erro ao alterar flag',
+        description: err instanceof Error ? err.message : 'Tente novamente',
+        type: 'error',
+      })
+    } finally {
+      setTogglingSharing(false)
+    }
   }
 
   return (
@@ -203,6 +234,47 @@ export default function OrganizationDetailPage() {
         <StatTile label="Ganhos" value={detail.stats.cards_won} icon={CreditCard} />
         <StatTile label="Perdidos" value={detail.stats.cards_lost} icon={CreditCard} />
       </div>
+
+      {isAccount && (
+        <Section title="Compartilhamento entre workspaces" className="mb-6">
+          <div className="px-5 py-4 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="p-2 bg-indigo-50 rounded-lg mt-0.5">
+                <Users2 className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-900">
+                  Contatos, destinos e catálogos compartilhados
+                </div>
+                <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  {sharingEnabled ? (
+                    <>
+                      <strong>Ligado.</strong> Os {detail.workspaces.length} workspaces desta conta
+                      enxergam os mesmos contatos e catálogos (um lead do mesmo cliente não duplica
+                      entre workspaces).
+                    </>
+                  ) : (
+                    <>
+                      <strong>Desligado.</strong> Cada workspace tem contatos e catálogos isolados.
+                      Recomendado para contas com 1 workspace, ou quando cada produto atende públicos
+                      diferentes.
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button
+              variant={sharingEnabled ? 'outline' : 'default'}
+              size="sm"
+              onClick={handleToggleSharing}
+              disabled={togglingSharing}
+              className="flex-shrink-0"
+            >
+              {togglingSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : (sharingEnabled ? 'Desligar' : 'Ligar')}
+            </Button>
+          </div>
+        </Section>
+      )}
 
       {!detail.parent && (
         <Section

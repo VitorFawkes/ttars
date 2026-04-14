@@ -23,11 +23,22 @@ export function ImpersonateBanner() {
   useEffect(() => {
     if (!impersonating) { setImpersonatedOrgName(null); return }
     let cancelled = false
-    db.from('organizations').select('name').eq('id', impersonating).single().then((r: { data: { name: string } | null }) => {
-      if (!cancelled) setImpersonatedOrgName(r.data?.name ?? null)
-    })
+    db.from('organizations').select('name').eq('id', impersonating).single()
+      .then((r: { data: { name: string } | null; error: { message: string } | null }) => {
+        if (cancelled) return
+        if (r.error) {
+          toast({
+            title: 'Não consegui ler o nome da org impersonada',
+            description: r.error.message,
+            type: 'error',
+          })
+          setImpersonatedOrgName(null)
+          return
+        }
+        setImpersonatedOrgName(r.data?.name ?? null)
+      })
     return () => { cancelled = true }
-  }, [impersonating])
+  }, [impersonating, toast])
 
   if (!impersonating) return null
 
