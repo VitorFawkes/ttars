@@ -433,3 +433,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T16:07:56Z | supabase/migrations/20260414d_fase_b_add_org_id_leaking_tables.sql | applied_to_prod
 2026-04-14T16:11:30Z | supabase/migrations/20260414d_scheduled_job_kill_switch.sql | applied_to_prod
 2026-04-14T16:12:22Z | supabase/migrations/20260414e_fase_b2_tail_leaks_and_globals.sql | applied_to_prod
+2026-04-14T16:23:43Z | supabase/migrations/20260414f_scheduled_jobs_rpc_perf.sql | applied_to_prod
