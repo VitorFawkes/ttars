@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
-  Database, Radio, ImageIcon, Power, Handshake, Lightbulb,
+  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/switch'
@@ -25,6 +25,7 @@ import { TabMultimodal } from '@/components/ai-agent/editor/TabMultimodal'
 import { TabAtivacao } from '@/components/ai-agent/editor/TabAtivacao'
 import { TabHandoff } from '@/components/ai-agent/editor/TabHandoff'
 import { TabDecisoes } from '@/components/ai-agent/editor/TabDecisoes'
+import { TabConhecimento } from '@/components/ai-agent/editor/TabConhecimento'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -250,6 +251,7 @@ export default function AiAgentDetailPage() {
     { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
     { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
     { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
+    { id: 'conhecimento', label: 'Conhecimento', icon: BookOpen },
     { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
     { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
     { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
@@ -404,6 +406,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}
+        {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
