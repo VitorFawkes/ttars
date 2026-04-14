@@ -36,6 +36,35 @@ interface IncomingMessage {
   media_url?: string;
 }
 
+// C3 — blocos dinâmicos injetados no prompt a partir da config do agente
+function buildHandoffBlock(agent: AgentConfig): string {
+  const signals = agent.handoff_signals?.filter(s => s.enabled) ?? [];
+  if (signals.length === 0) return "";
+  const items = signals.map(s => `- ${s.description}`).join("\n");
+  return `\nSINAIS DE HANDOFF (passar para humano se detectar algum):\n${items}\nUse request_handoff() quando qualquer um se aplicar, com judgment — não por palavra-chave.`;
+}
+
+function buildDecisionsBlock(agent: AgentConfig): string {
+  const decisions = agent.intelligent_decisions ?? {};
+  const active = Object.entries(decisions).filter(([_, d]) => d.enabled);
+  if (active.length === 0) return "";
+  const items = active.map(([key, d]) => {
+    const instr = (d.config?.instructions as string) || "";
+    return `- ${key}${instr ? `: ${instr}` : ""}`;
+  }).join("\n");
+  return `\nDECISÕES INTELIGENTES HABILITADAS:\n${items}`;
+}
+
+function buildExtraPromptsBlock(agent: AgentConfig): string {
+  const extra = agent.prompts_extra ?? {};
+  const parts: string[] = [];
+  if (extra.context) parts.push(`CONTEXTO:\n${extra.context}`);
+  if (extra.data_update) parts.push(`ATUALIZAÇÃO DE DADOS:\n${extra.data_update}`);
+  if (extra.formatting) parts.push(`FORMATAÇÃO:\n${extra.formatting}`);
+  if (extra.validator) parts.push(`VALIDAÇÃO (auto-check):\n${extra.validator}`);
+  return parts.length > 0 ? `\n${parts.join("\n\n")}` : "";
+}
+
 interface AgentConfig {
   id: string;
   org_id: string;
@@ -54,6 +83,9 @@ interface AgentConfig {
   template_id: string | null;
   is_template_based: boolean;
   persona: string | null;
+  handoff_signals?: Array<{ slug: string; enabled: boolean; description: string }> | null;
+  intelligent_decisions?: Record<string, { enabled: boolean; config: Record<string, unknown> }> | null;
+  prompts_extra?: { context?: string; data_update?: string; formatting?: string; validator?: string } | null;
 }
 
 interface BusinessConfig {
@@ -356,7 +388,8 @@ async function findAgentForLine(
         id, org_id, nome, tipo, modelo, temperature, max_tokens,
         system_prompt, persona, routing_criteria, escalation_rules,
         memory_config, fallback_message, fallback_agent_id,
-        n8n_webhook_url, template_id, is_template_based, ativa
+        n8n_webhook_url, template_id, is_template_based, ativa,
+        handoff_signals, intelligent_decisions, prompts_extra
       )
     `)
     .in("phone_line_id", lineIds)
@@ -1465,6 +1498,11 @@ async function runPersonaAgent(
 - Se lead indicar desinteresse ou quiser encerrar: agradeça, reconheça e encerre com respeito.
 `;
 
+  // C3 — sinais de handoff e decisões inteligentes (configuráveis por agente)
+  const handoffBlock = buildHandoffBlock(agent);
+  const decisionsBlock = buildDecisionsBlock(agent);
+  const extraPromptsBlock = buildExtraPromptsBlock(agent);
+
   const personaPrompt = `Voce e ${agent.nome}, ${agent.persona || "assistente"} da ${business?.company_name || "empresa"}.
 
 Contexto:
@@ -1512,6 +1550,9 @@ PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avanc
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
 
+${handoffBlock}
+${decisionsBlock}
+${extraPromptsBlock}
 ${SALES_PLAYBOOK}
 
 CONSULTA OBRIGATÓRIA: antes de falar sobre serviços, taxa, prazos, destinos, pagamento ou tratar objeções, chame search_knowledge_base ANTES e responda em 1-2 frases sem copiar literal.

@@ -1,4 +1,4 @@
-import { Users, AlertTriangle, Clock, DollarSign } from 'lucide-react'
+import { Users, AlertTriangle, Clock, DollarSign, Cake, UserX } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 
 interface Props {
@@ -7,9 +7,12 @@ interface Props {
         totalOverdue: number
         totalSoon: number
         estimatedRevenue: number
+        totalBirthdayMonth: number
+        totalSuppressed: number
     }
     loading: boolean
     onFilterUrgency: (urgency: 'all' | 'overdue' | 'soon' | 'planned') => void
+    onFilterBirthday?: () => void
 }
 
 function formatCurrency(value: number): string {
@@ -18,9 +21,9 @@ function formatCurrency(value: number): string {
     return `R$ ${value.toFixed(0)}`
 }
 
-export default function ReactivationKPICards({ kpis, loading, onFilterUrgency }: Props) {
+export default function ReactivationKPICards({ kpis, loading, onFilterUrgency, onFilterBirthday }: Props) {
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <KpiCard
                 title="Prioritários"
                 value={kpis.totalPriority}
@@ -55,12 +58,32 @@ export default function ReactivationKPICards({ kpis, loading, onFilterUrgency }:
                 clickHint="Filtrar próximos"
             />
             <KpiCard
+                title="Aniversariantes"
+                value={kpis.totalBirthdayMonth}
+                icon={Cake}
+                color="text-pink-600"
+                bgColor="bg-pink-50"
+                subtitle="Próximos 30 dias"
+                isLoading={loading}
+                onClick={onFilterBirthday}
+                clickHint={onFilterBirthday ? 'Filtrar aniversariantes' : undefined}
+            />
+            <KpiCard
                 title="Receita potencial"
                 value={formatCurrency(kpis.estimatedRevenue)}
                 icon={DollarSign}
                 color="text-emerald-600"
                 bgColor="bg-emerald-50"
                 subtitle="Score ≥ 50"
+                isLoading={loading}
+            />
+            <KpiCard
+                title="Suprimidos"
+                value={kpis.totalSuppressed}
+                icon={UserX}
+                color="text-slate-500"
+                bgColor="bg-slate-100"
+                subtitle="Marcados como 'não contactar'"
                 isLoading={loading}
             />
         </div>
