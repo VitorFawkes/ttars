@@ -54,6 +54,7 @@ import PlatformOrganizationDetail from './pages/platform/OrganizationDetailPage'
 import PlatformUsers from './pages/platform/UsersPage'
 import PlatformAudit from './pages/platform/AuditPage'
 import PlatformSettings from './pages/platform/SettingsPage'
+import PlatformLogs from './pages/platform/LogsPage'
 import ProductsManagement from './pages/admin/ProductsManagement'
 import WorkspaceGeneral from './pages/admin/WorkspaceGeneral'
 import DepartmentsManagement from './pages/admin/DepartmentsManagement'
@@ -368,6 +369,7 @@ function App() {
                   <Route path="organizations" element={<PlatformOrganizations />} />
                   <Route path="organizations/:id" element={<PlatformOrganizationDetail />} />
                   <Route path="users" element={<PlatformUsers />} />
+                  <Route path="logs" element={<PlatformLogs />} />
                   <Route path="audit" element={<PlatformAudit />} />
                   <Route path="settings" element={<PlatformSettings />} />
                 </Route>
