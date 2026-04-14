@@ -20,6 +20,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { supabase } from '../../lib/supabase'
 import { AddWorkspaceDialog } from '../../components/platform/AddWorkspaceDialog'
 import { InviteAdminDialog } from '../../components/platform/InviteAdminDialog'
+import { OrgUsersSection } from '../../components/platform/OrgUsersSection'
 
 // Cast até types regenerados pós-promoção. Ver usePlatformData.ts para contexto.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -373,6 +374,8 @@ export default function OrganizationDetailPage() {
           )}
         </Section>
       </div>
+
+      <OrgUsersSection orgId={id!} className="mt-6" />
 
       <Section title="Atividade platform recente" className="mt-6">
         {detail.recent_audit.length === 0 ? (

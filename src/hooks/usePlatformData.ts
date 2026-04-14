@@ -294,6 +294,69 @@ export function usePlatformUsers(search: string) {
   return { users, loading, error, refetch: fetch, setPlatformAdmin }
 }
 
+export interface PlatformOrgUser {
+  id: string
+  email: string
+  nome: string | null
+  org_id: string
+  org_name: string
+  role: string | null
+  is_admin: boolean
+  is_platform_admin: boolean
+  active: boolean
+  banned_until: string | null
+  last_sign_in_at: string | null
+  created_at: string
+}
+
+export function usePlatformOrgUsers(orgId: string | null) {
+  const [users, setUsers] = useState<PlatformOrgUser[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetch = useCallback(async () => {
+    if (!orgId) { setUsers([]); return }
+    setLoading(true)
+    setError(null)
+    try {
+      const { data, error: rpcError } = await db.rpc('platform_list_org_users', { p_org_id: orgId })
+      if (rpcError) throw rpcError
+      setUsers((data ?? []) as PlatformOrgUser[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar usuários')
+    } finally {
+      setLoading(false)
+    }
+  }, [orgId])
+
+  const setActive = useCallback(async (userId: string, active: boolean, reason?: string) => {
+    const { error: rpcError } = await db.rpc('platform_set_user_active', {
+      p_user_id: userId, p_active: active, p_reason: reason ?? null,
+    })
+    if (rpcError) throw rpcError
+    await fetch()
+  }, [fetch])
+
+  const removeFromOrg = useCallback(async (userId: string, reason?: string) => {
+    const { error: rpcError } = await db.rpc('platform_remove_user_from_org', {
+      p_user_id: userId, p_reason: reason ?? null,
+    })
+    if (rpcError) throw rpcError
+    await fetch()
+  }, [fetch])
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    })
+    if (authError) throw authError
+  }, [])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  return { users, loading, error, refetch: fetch, setActive, removeFromOrg, sendPasswordReset }
+}
+
 export interface AddWorkspaceInput {
   name: string
   slug: string
