@@ -20,9 +20,11 @@
 
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 import {
-  MessageSquare, Plus, Pencil, Trash2, Copy, ShieldCheck, Search,
+  MessageSquare, Plus, Pencil, Trash2, Copy, ShieldCheck, Search, Link as LinkIcon,
 } from 'lucide-react'
+import { useTemplateUsagesMap, type TemplateUsage } from '@/hooks/useTemplateUsages'
 
 import {
   useMensagemTemplates,
@@ -79,11 +81,15 @@ function TemplateCard({
   onEdit,
   onDuplicate,
   onDelete,
+  usages = [],
+  onOpenUsage,
 }: {
   template: MensagemTemplate
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
+  usages?: TemplateUsage[]
+  onOpenUsage?: (u: TemplateUsage) => void
 }) {
   const categoriaLabel = CATEGORIA_LABEL[template.categoria] || template.categoria
   const isLegacyIA = template.modo !== 'template_fixo'
@@ -132,12 +138,44 @@ function TemplateCard({
           <code className="bg-slate-100 px-1.5 py-0.5 rounded">{template.hsm_template_name}</code>
         </p>
       )}
+
+      {usages.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+          <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1">
+            <LinkIcon className="w-3 h-3" /> Usado em {usages.length} {usages.length === 1 ? 'automação' : 'automações'}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {usages.slice(0, 4).map(u => (
+              <button
+                key={u.trigger_id}
+                type="button"
+                onClick={() => onOpenUsage?.(u)}
+                title={u.cadence_template_nome ? `Cadência: ${u.cadence_template_nome}` : 'Trigger global'}
+                className={cn(
+                  'text-[11px] px-2 py-0.5 rounded border transition-colors',
+                  u.is_active
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                )}
+              >
+                {u.trigger_name || u.cadence_template_nome || 'Automação'}
+                {!u.is_active && ' (off)'}
+              </button>
+            ))}
+            {usages.length > 4 && (
+              <span className="text-[11px] text-slate-400 px-1">+{usages.length - 4}</span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default function MensagemTemplatePage() {
+  const navigate = useNavigate()
   const { templates, isLoading, create, update, remove } = useMensagemTemplates()
+  const { data: usagesMap } = useTemplateUsagesMap()
   const [search, setSearch] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<TemplateCategoria | 'todos'>('todos')
   const [isEditing, setIsEditing] = useState(false)
@@ -326,6 +364,14 @@ export default function MensagemTemplatePage() {
               onEdit={() => handleOpenEdit(t)}
               onDuplicate={() => handleDuplicate(t)}
               onDelete={() => handleDelete(t)}
+              usages={usagesMap?.get(t.id) || []}
+              onOpenUsage={(u) => {
+                if (u.cadence_template_id) {
+                  navigate(`/settings/automations/${u.cadence_template_id}`)
+                } else {
+                  navigate(`/settings/automations`)
+                }
+              }}
             />
           ))}
         </div>
