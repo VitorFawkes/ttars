@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
-  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen,
+  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/switch'
@@ -26,6 +26,7 @@ import { TabAtivacao } from '@/components/ai-agent/editor/TabAtivacao'
 import { TabHandoff } from '@/components/ai-agent/editor/TabHandoff'
 import { TabDecisoes } from '@/components/ai-agent/editor/TabDecisoes'
 import { TabConhecimento } from '@/components/ai-agent/editor/TabConhecimento'
+import { TabTeste } from '@/components/ai-agent/editor/TabTeste'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -258,6 +259,7 @@ export default function AiAgentDetailPage() {
     { id: 'handoff', label: 'Handoff', icon: Handshake },
     { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
     { id: 'ativacao', label: 'Ativação', icon: Power },
+    { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
   ], [isN8n])
 
   if (!isNew && loadingAgent) {
@@ -407,6 +409,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}
         {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
+        {activeTab === 'teste' && !isN8n && <TabTeste agentId={isNew ? undefined : id} />}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
