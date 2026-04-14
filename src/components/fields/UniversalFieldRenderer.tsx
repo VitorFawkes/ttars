@@ -162,11 +162,19 @@ function DestinosChipInput({ destinos, onChange }: { destinos: string[], onChang
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab') {
+                            if (inputValue.trim()) {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                addDestino(inputValue)
+                            }
+                        } else if (e.key === 'Backspace' && !inputValue && destinos.length) {
                             e.preventDefault()
-                            e.stopPropagation()
-                            addDestino(inputValue)
+                            removeDestino(destinos.length - 1)
                         }
+                    }}
+                    onBlur={() => {
+                        if (inputValue.trim()) addDestino(inputValue)
                     }}
                     className="flex-1 min-w-[120px] border-none shadow-none focus:outline-none focus:ring-0 p-1 text-xs bg-transparent h-auto"
                     placeholder={destinos.length ? '' : 'Digite um destino e pressione Enter...'}
@@ -174,7 +182,7 @@ function DestinosChipInput({ destinos, onChange }: { destinos: string[], onChang
                 />
             </div>
             <p className="text-xs text-gray-500">
-                Pressione Enter ou vírgula para adicionar cada destino.
+                Pressione Enter, Tab ou vírgula para adicionar cada destino.
             </p>
         </div>
     )
