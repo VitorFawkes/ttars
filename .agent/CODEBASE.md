@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-14
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 171 tabelas | 87 paginas | 135 hooks | 17 views | 522 components
+> **Stats:** 171 tabelas | 87 paginas | 137 hooks | 17 views | 528 components
 =======
-> **Stats:** 171 tabelas | 87 paginas | 135 hooks | 17 views | 522 components
+> **Stats:** 171 tabelas | 87 paginas | 137 hooks | 17 views | 528 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **135 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **137 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -276,6 +276,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useProductScopedSettings()` | `useProductScopedSettings.ts` |
 | `useProducts()` | `useProducts.ts` |
 | `usePushNotifications()` | `usePushNotifications.ts` |
+| `useReactivationActions()` | `useReactivationActions.ts` |
+| `useReactivationFacets()` | `useReactivationFacets.ts` |
 | `useReactivationPatterns()` | `useReactivationPatterns.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
