@@ -8,6 +8,7 @@ import {
   LogOut,
   Loader2,
   Activity,
+  Library,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../contexts/AuthContext'
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/platform/organizations', label: 'Organizações', icon: Building2 },
   { to: '/platform/users', label: 'Usuários', icon: Users },
   { to: '/platform/logs', label: 'Logs & Saúde', icon: Activity },
+  { to: '/platform/catalogs', label: 'Catálogos globais', icon: Library },
   { to: '/platform/audit', label: 'Audit Log', icon: FileClock },
   { to: '/platform/settings', label: 'Platform Admins', icon: Shield },
 ]
