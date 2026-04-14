@@ -178,6 +178,19 @@ CREATE POLICY tabela_service_all ON tabela TO service_role
 
 O hook `.claude/hooks/audit-rls-leaks.sh` roda no Stop e BLOQUEIA se detectar `USING (true)` para authenticated/public em tabela fora da GLOBAL_ALLOWLIST. Se você acabou de adicionar uma tabela genuinamente global, ADICIONE ela na allowlist do script ao mesmo tempo.
 
+### FK cross-org = bomba (enforcement no banco)
+
+RLS isola leitura/escrita por org_id. **Mas RLS não impede que uma linha aponte para outra linha em outra org** — isso vira 406 na UI quando o usuário tenta carregar a linha referenciada (ex: receita de cadência em Welcome Group, gatilho em Welcome Trips; usuário em Trips não lê o template e a tela quebra).
+
+Regra para toda tabela por-org cujo `org_id` é populado via `DEFAULT requesting_org_id()` e que tem FK para **outra tabela por-org**: instalar trigger `BEFORE INSERT OR UPDATE` que força `NEW.org_id = pai.org_id` (ou lança `check_violation`). Modelos canônicos:
+
+- `cadence_steps` → `cadence_templates` — migration `20260414_h3_029_cadence_steps_strict_template_org.sql`
+- `cadence_event_triggers` → `cadence_templates` — migration `20260414l_cadence_event_triggers_strict_template_org.sql`
+
+Ao adicionar uma nova FK `*_id UUID REFERENCES outra_tabela_por_org(id)` numa tabela por-org, escreva o trigger junto na mesma migration. Se a referência é opcional (nullable), o trigger pula quando a coluna é NULL. Adicione também uma query de auditoria em `.claude/hooks/schema-smoke-test.sh` que conte divergências — se retornar > 0, o smoke test falha e bloqueia promoção.
+
+Famílias atuais para auditar ao mexer: cadence (templates/triggers/steps/instances), automation flows e qualquer automação futura que tenha gatilho apontando para recurso por-org.
+
 ## Isolamento de Produto / Org (OBRIGATÓRIO)
 
 **Pós-Fase 5 Org Split:** TRIPS e WEDDING são **organizações separadas** (não mais produtos dentro da mesma org). Cada org filha tem exatamente 1 produto e 1 pipeline. O isolamento primário é por `org_id` via RLS — `.eq('produto', ...)` é defesa em profundidade, não mais a fronteira principal.

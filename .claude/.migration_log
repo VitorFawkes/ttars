@@ -446,3 +446,4 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T16:45:42Z | supabase/migrations/20260414j_platform_user_mgmt_rpcs.sql | applied_to_prod
 2026-04-14T16:48:39Z | supabase/migrations/20260414k_platform_logs_rpcs.sql | applied_to_prod
 2026-04-14T16:52:27Z | supabase/migrations/20260414l_platform_global_catalogs_rpcs.sql | applied_to_prod
+2026-04-14T17:43:06Z | supabase/migrations/20260414l_cadence_event_triggers_strict_template_org.sql | applied_to_prod
