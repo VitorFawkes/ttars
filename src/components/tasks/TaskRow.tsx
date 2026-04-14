@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
+import { useAuth } from '../../contexts/AuthContext'
 import type { TaskListItem } from '../../hooks/useTasksList'
 import { TaskQuickActions } from './TaskQuickActions'
 import {
@@ -30,9 +31,14 @@ export function TaskRow({
     task, onComplete, onUncomplete, onReschedule,
     isCompleting, selected, onToggleSelect, showSelector,
 }: Props) {
+    const { profile } = useAuth()
+    const isManager = !!profile?.is_admin || profile?.role_info?.name === 'manager'
     const config = getTaskTypeConfig(task.tipo)
     const Icon = config.icon
     const prioridadeCfg = task.prioridade ? PRIORIDADE_CONFIG[task.prioridade] : null
+    // "integracao" é ubíqua (quase toda tarefa veio de sync) — não poluir a linha.
+    // Mostrar badge só para cadencia/automacao que são informativas.
+    const showOrigemBadge = task.origem === 'cadencia' || task.origem === 'automacao'
     const origemCfg = ORIGEM_CONFIG[task.origem]
 
     // Deadline badge
@@ -131,7 +137,7 @@ export function TaskRow({
                             {prioridadeCfg.label}
                         </span>
                     )}
-                    {task.origem !== 'manual' && origemCfg && (
+                    {showOrigemBadge && origemCfg && (
                         <span
                             className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium border", origemCfg.chip)}
                             title={task.cadencia_nome || origemCfg.label}
@@ -206,6 +212,25 @@ export function TaskRow({
                         </button>
                     )}
                 </div>
+
+                {/* Linha de auditoria (admin/gestor): criado por / concluído por */}
+                {isManager && (task.created_by_nome || task.concluido_por_nome) && (
+                    <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-slate-400">
+                        {task.created_by_nome && (
+                            <span title={`Criado por ${task.created_by_nome}`}>
+                                Criado por <span className="text-slate-600 font-medium">{task.created_by_nome.split(' ')[0]}</span>
+                            </span>
+                        )}
+                        {task.concluido_por_nome && task.concluida && (
+                            <>
+                                <span>·</span>
+                                <span title={`Concluído por ${task.concluido_por_nome}`}>
+                                    Concluído por <span className="text-slate-600 font-medium">{task.concluido_por_nome.split(' ')[0]}</span>
+                                </span>
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Responsável */}

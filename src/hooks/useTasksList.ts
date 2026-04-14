@@ -40,6 +40,10 @@ export interface TaskListItem {
     responsavel_fase_slug: string | null
     responsavel_fase_nome: string | null
     responsavel_team_id: string | null
+    created_by: string | null
+    created_by_nome: string | null
+    concluido_por: string | null
+    concluido_por_nome: string | null
     /** Origem derivada: manual / cadencia / automacao / integracao */
     origem: TaskOrigemFilter
     cadencia_nome: string | null
@@ -73,6 +77,8 @@ interface RawTaskRow {
     external_source: string | null
     card_id: string
     responsavel_id: string | null
+    created_by: string | null
+    concluido_por: string | null
     card?: {
         id: string
         titulo: string
@@ -122,6 +128,7 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     concluida, concluida_em, started_at, status, prioridade, outcome,
                     resultado, feedback, metadata, rescheduled_from_id, rescheduled_to_id,
                     participantes_externos, external_source, card_id, responsavel_id,
+                    created_by, concluido_por,
                     card:cards!tarefas_card_id_fkey!inner(
                         id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id,
                         stage:pipeline_stages(nome),
@@ -215,7 +222,10 @@ export function useTasksList({ filters }: UseTasksListOptions) {
 
             const result = (data || []) as unknown as RawTaskRow[]
 
-            const uniqueIds = [...new Set(result.map(t => t.responsavel_id).filter((v): v is string => !!v))]
+            const uniqueIds = [...new Set(
+                result.flatMap(t => [t.responsavel_id, t.created_by, t.concluido_por])
+                    .filter((v): v is string => !!v)
+            )]
             let profileMap: Record<string, { nome: string; team_id: string | null; fase_slug: string | null; fase_nome: string | null }> = {}
             if (uniqueIds.length > 0) {
                 const { data: profiles } = await supabase
@@ -246,6 +256,8 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     diff_days = differenceInDays(due, todayStart)
                 }
                 const respInfo = t.responsavel_id ? profileMap[t.responsavel_id] : null
+                const createdByNome = t.created_by ? (profileMap[t.created_by]?.nome || null) : null
+                const concluidoPorNome = t.concluido_por ? (profileMap[t.concluido_por]?.nome || null) : null
 
                 return {
                     id: t.id,
@@ -282,6 +294,10 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     responsavel_fase_slug: respInfo?.fase_slug || null,
                     responsavel_fase_nome: respInfo?.fase_nome || null,
                     responsavel_team_id: respInfo?.team_id || null,
+                    created_by: t.created_by || null,
+                    created_by_nome: createdByNome,
+                    concluido_por: t.concluido_por || null,
+                    concluido_por_nome: concluidoPorNome,
                     origem: deriveOrigem(t),
                     cadencia_nome: deriveCadenciaNome(t),
                     diff_days,
