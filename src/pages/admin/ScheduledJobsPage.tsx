@@ -163,8 +163,11 @@ export default function ScheduledJobsPage() {
 
               <div className="divide-y divide-slate-100">
                 {list.map(job => (
-                  <div key={job.job_name} className="flex items-start justify-between p-4 gap-4">
-                    <div className="flex-1 min-w-0">
+                  <div key={job.job_name} className="flex items-start justify-between p-4 gap-4 hover:bg-slate-50 transition-colors">
+                    <Link
+                      to={`/settings/operations/scheduled-jobs/${job.job_name}`}
+                      className="flex-1 min-w-0"
+                    >
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-slate-900">{job.label}</p>
                         {job.frequency_label && (
@@ -218,7 +221,7 @@ export default function ScheduledJobsPage() {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </Link>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {job.is_enabled ? (

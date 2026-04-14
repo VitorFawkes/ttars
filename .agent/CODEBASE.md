@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-14
 > **Trigger:** ALWAYS ON
-> **Stats:** 170 tabelas | 84 paginas | 135 hooks | 17 views | 510 components
+> **Stats:** 170 tabelas | 85 paginas | 135 hooks | 17 views | 510 components
 
 ---
 
@@ -379,7 +379,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **84 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **85 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -426,6 +426,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `ProductsManagement` | `src/pages/admin/ProductsManagement.tsx` |
+| `ScheduledJobDetailPage` | `src/pages/admin/ScheduledJobDetailPage.tsx` |
 | `ScheduledJobsPage` | `src/pages/admin/ScheduledJobsPage.tsx` |
 | `TagManagement` | `src/pages/admin/TagManagement.tsx` |
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |

@@ -62,3 +62,60 @@ export function useScheduledJobs() {
     stopAll,
   }
 }
+
+export interface JobRun {
+  start_time: string
+  end_time: string | null
+  status: string
+  return_message: string | null
+  duration_ms: number | null
+}
+
+export interface JobTarget {
+  target_kind: string
+  target_id: string
+  target_label: string
+  target_sublabel: string | null
+  is_active: boolean
+  status_label: string | null
+  link_path: string | null
+  last_activity_at: string | null
+  extras: Record<string, unknown> | null
+}
+
+export function useScheduledJobDetail(jobName: string | undefined) {
+  const runsQuery = useQuery({
+    queryKey: ['scheduled-job-runs', jobName],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_scheduled_job_recent_runs', {
+        p_job_name: jobName,
+        p_limit: 20,
+      })
+      if (error) throw error
+      return (data || []) as JobRun[]
+    },
+    enabled: !!jobName,
+    refetchInterval: 30000,
+  })
+
+  const targetsQuery = useQuery({
+    queryKey: ['scheduled-job-targets', jobName],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('get_scheduled_job_targets', {
+        p_job_name: jobName,
+      })
+      if (error) throw error
+      return (data || []) as JobTarget[]
+    },
+    enabled: !!jobName,
+    refetchInterval: 60000,
+  })
+
+  return {
+    runs: runsQuery.data || [],
+    targets: targetsQuery.data || [],
+    isLoading: runsQuery.isLoading || targetsQuery.isLoading,
+  }
+}

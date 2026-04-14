@@ -66,6 +66,7 @@ import TagManagement from './pages/admin/TagManagement'
 import PhaseVisibilitySettings from './pages/admin/PhaseVisibilitySettings'
 import CRMHealth from './pages/admin/CRMHealth'
 import ScheduledJobsPage from './pages/admin/ScheduledJobsPage'
+import ScheduledJobDetailPage from './pages/admin/ScheduledJobDetailPage'
 import CardCreationRulesPage from './pages/admin/CardCreationRulesPage'
 import Lixeira from './pages/admin/Lixeira'
 import Arquivados from './pages/admin/Arquivados'
@@ -337,6 +338,7 @@ function App() {
                     <Route path="operations/vendas-monde" element={<Navigate to="/vendas-monde" replace />} />
                     <Route path="operations/health" element={<CRMHealth />} />
                     <Route path="operations/scheduled-jobs" element={<ScheduledJobsPage />} />
+                    <Route path="operations/scheduled-jobs/:jobName" element={<ScheduledJobDetailPage />} />
                     <Route path="operations/trash" element={<Lixeira />} />
                     <Route path="operations/archive" element={<Arquivados />} />
 
