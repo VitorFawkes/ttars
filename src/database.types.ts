@@ -227,6 +227,58 @@ export type Database = {
           },
         ]
       }
+      ai_agent_kb_links: {
+        Row: {
+          agent_id: string
+          created_at: string | null
+          id: string
+          kb_id: string
+          org_id: string
+          shared_with_account: boolean
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string | null
+          id?: string
+          kb_id: string
+          org_id?: string
+          shared_with_account?: boolean
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string | null
+          id?: string
+          kb_id?: string
+          org_id?: string
+          shared_with_account?: boolean
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_kb_links_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_kb_links_kb_id_fkey"
+            columns: ["kb_id"]
+            isOneToOne: false
+            referencedRelation: "ai_knowledge_bases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_kb_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_knowledge_bases: {
         Row: {
           agent_id: string
@@ -806,6 +858,7 @@ export type Database = {
           ativa: boolean | null
           ativa_changed_at: string | null
           ativa_changed_by: string | null
+          context_fields_config: Json | null
           created_at: string | null
           created_by: string | null
           descricao: string | null
@@ -814,28 +867,36 @@ export type Database = {
           external_config: Json | null
           fallback_agent_id: string | null
           fallback_message: string | null
+          handoff_actions: Json | null
+          handoff_signals: Json | null
           id: string
+          intelligent_decisions: Json | null
           is_template_based: boolean | null
           max_tokens: number | null
           memory_config: Json | null
           modelo: string
+          multimodal_config: Json | null
           n8n_webhook_url: string | null
           nome: string
           org_id: string
           persona: string | null
+          pipeline_models: Json | null
           produto: Database["public"]["Enums"]["app_product"]
           routing_criteria: Json | null
           system_prompt: string
           system_prompt_version: number | null
           temperature: number | null
           template_id: string | null
+          timings: Json | null
           tipo: string
           updated_at: string | null
+          validator_rules: Json | null
         }
         Insert: {
           ativa?: boolean | null
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
+          context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
           descricao?: string | null
@@ -844,28 +905,36 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          handoff_actions?: Json | null
+          handoff_signals?: Json | null
           id?: string
+          intelligent_decisions?: Json | null
           is_template_based?: boolean | null
           max_tokens?: number | null
           memory_config?: Json | null
           modelo?: string
+          multimodal_config?: Json | null
           n8n_webhook_url?: string | null
           nome: string
           org_id?: string
           persona?: string | null
+          pipeline_models?: Json | null
           produto: Database["public"]["Enums"]["app_product"]
           routing_criteria?: Json | null
           system_prompt: string
           system_prompt_version?: number | null
           temperature?: number | null
           template_id?: string | null
+          timings?: Json | null
           tipo: string
           updated_at?: string | null
+          validator_rules?: Json | null
         }
         Update: {
           ativa?: boolean | null
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
+          context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
           descricao?: string | null
@@ -874,23 +943,30 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          handoff_actions?: Json | null
+          handoff_signals?: Json | null
           id?: string
+          intelligent_decisions?: Json | null
           is_template_based?: boolean | null
           max_tokens?: number | null
           memory_config?: Json | null
           modelo?: string
+          multimodal_config?: Json | null
           n8n_webhook_url?: string | null
           nome?: string
           org_id?: string
           persona?: string | null
+          pipeline_models?: Json | null
           produto?: Database["public"]["Enums"]["app_product"]
           routing_criteria?: Json | null
           system_prompt?: string
           system_prompt_version?: number | null
           temperature?: number | null
           template_id?: string | null
+          timings?: Json | null
           tipo?: string
           updated_at?: string | null
+          validator_rules?: Json | null
         }
         Relationships: [
           {
@@ -15056,6 +15132,16 @@ export type Database = {
       _a_tag_ok: {
         Args: { card_id: string; tag_ids: string[] }
         Returns: boolean
+      }
+      _audit_org_id_risky_triggers: {
+        Args: never
+        Returns: {
+          function_name: string
+          insert_has_org_id: boolean
+          is_security_definer: boolean
+          table_has_before_trigger: boolean
+          target_table: string
+        }[]
       }
       _consolidate_merge_one: { Args: { p_audit_id: number }; Returns: Json }
       _consolidate_move_one: {
