@@ -116,6 +116,24 @@ touch .claude/.migration_applied
 Toda entidade orbita 3 entidades centrais: `cards`, `contatos`, `profiles`.
 Novas tabelas DEVEM ter FK para pelo menos uma dessas. Sem exceção.
 
+### Modelo de tenancy — Account + Workspace (LER ANTES DE QUALQUER DECISÃO DE DADOS)
+
+O SaaS tem **2 níveis** na tabela `organizations`, distinguidos por `parent_org_id`:
+
+- **Account** (`parent_org_id IS NULL`) — a "conta" do cliente na plataforma. Mora billing, admins, audit, configuração comercial. Uma por empresa-cliente. Ex: Welcome Group, Canva, Acme Inc.
+- **Workspace** (`parent_org_id` aponta para uma account) — o "produto operacional" dentro da conta. Mora todo o trabalho: cards, pipelines, mensagens, agentes IA, propostas. Uma account pode ter 1 ou N workspaces.
+
+Exemplos reais:
+- Welcome Group (account) → Trips, Weddings, Courses (3 workspaces, contatos compartilhados)
+- Canva hipotético (account) → Canva (1 workspace)
+
+**Regras para agentes:**
+1. Quando um usuário faz qualquer ação no CRM, ele está dentro de **um workspace** (a org filha no JWT). Toda inserção cai em `requesting_org_id()` = workspace atual.
+2. Funções `requesting_parent_org_id()` e `contatos_default_org_id()` retornam a account pai **apenas quando** `organizations.shares_contacts_with_children = TRUE` na account.
+3. Contatos, destinations, catálogos Monde vivem **na account** quando o flag de sharing está ligado (padrão para Welcome Group). Em contas com 1 workspace ou sharing desligado, contatos vivem no próprio workspace.
+4. Novas contas **nascem com `shares_contacts_with_children = FALSE`**. Só ativam se o admin decidir no onboarding ("meus workspaces compartilham contatos? sim/não").
+5. Todo o resto (cards, propostas, mensagens, agentes IA, automações) vive **sempre no workspace** — nunca na account.
+
 **Multi-Tenant (SaaS):** O sistema é multi-tenant com isolamento por `org_id`.
 - Novas tabelas DEVEM ter `org_id UUID NOT NULL DEFAULT requesting_org_id() REFERENCES organizations(id)`
 - Novas RLS policies DEVEM usar `USING (org_id = requesting_org_id())`
