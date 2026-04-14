@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Timer, Plane, ArrowRightLeft, CheckCircle2, Clock,
-  ListChecks, CalendarRange, Save, Loader2,
+  ListChecks, CalendarRange, Save, Loader2, AlertCircle, Package,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
@@ -45,9 +46,29 @@ const DEFAULT_CONFIG: ActionConfig = {
 
 interface RoteamentoStats {
   moved: number
-  skipped: number
+  already_correct: number
+  blocked_by_products: number
+  blocked_by_cadence: number
+  blocked_by_dates: number
   errors: number
   run_at: string
+}
+
+interface BlockedCard {
+  c_card_id: string
+  c_titulo: string
+  c_stage_atual: string
+  c_motivo: string
+  c_detalhe: string
+  c_viagem_inicio: string | null
+  c_viagem_fim: string | null
+}
+
+const MOTIVO_LABELS: Record<string, { label: string; color: string }> = {
+  sem_data: { label: 'Sem data de viagem', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  sem_produtos: { label: 'Sem produtos cadastrados', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  produtos_pendentes: { label: 'Produtos não concluídos', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  cadencia_aberta: { label: 'Cadência em aberto', color: 'bg-purple-50 text-purple-700 border-purple-200' },
 }
 
 interface RecentLog {
@@ -77,6 +98,9 @@ export default function CronRoteamentoDetailPage() {
   const [lastRun, setLastRun] = useState<RoteamentoStats | null>(null)
   const [recentLogs, setRecentLogs] = useState<RecentLog[]>([])
   const [cadenceTemplates, setCadenceTemplates] = useState<CadenceTemplate[]>([])
+  const [blockedCards, setBlockedCards] = useState<BlockedCard[]>([])
+  const [loadingBlocked, setLoadingBlocked] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(false)
 
   const updateConfig = (patch: Partial<ActionConfig>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -202,6 +226,20 @@ export default function CronRoteamentoDetailPage() {
       toast.error('Erro ao executar roteamento')
     }
     setRunning(false)
+  }
+
+  const loadBlocked = async () => {
+    setLoadingBlocked(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('fn_roteamento_pos_venda_trips_diagnose')
+      if (error) throw error
+      setBlockedCards((data as BlockedCard[]) || [])
+      setShowBlocked(true)
+    } catch {
+      toast.error('Erro ao carregar casos bloqueados')
+    }
+    setLoadingBlocked(false)
   }
 
   const stageOptions = stages.map((s) => ({ value: s.id, label: s.nome }))
@@ -423,24 +461,96 @@ export default function CronRoteamentoDetailPage() {
 
       {/* Última execução */}
       {lastRun && (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
+        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
           <h2 className="font-semibold text-slate-900">Resultado da última execução</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-emerald-50 rounded-lg px-4 py-3 text-center">
-              <p className="text-2xl font-bold text-emerald-700">{lastRun.moved}</p>
-              <p className="text-xs text-emerald-600">Movidos</p>
-            </div>
-            <div className="bg-slate-50 rounded-lg px-4 py-3 text-center">
-              <p className="text-2xl font-bold text-slate-700">{lastRun.skipped}</p>
-              <p className="text-xs text-slate-500">Sem ação necessária</p>
-            </div>
-            <div className="bg-red-50 rounded-lg px-4 py-3 text-center">
-              <p className="text-2xl font-bold text-red-700">{lastRun.errors}</p>
-              <p className="text-xs text-red-600">Erros</p>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <StatBox value={lastRun.moved} label="Movidos" tone="emerald" icon={ArrowRightLeft} />
+            <StatBox value={lastRun.already_correct} label="Já na etapa certa" tone="slate" icon={CheckCircle2} />
+            <StatBox value={lastRun.blocked_by_products} label="Produtos pendentes" tone="amber" icon={Package} />
+            <StatBox value={lastRun.blocked_by_cadence} label="Cadência aberta" tone="purple" icon={ListChecks} />
+            <StatBox value={lastRun.blocked_by_dates} label="Sem data viagem" tone="blue" icon={CalendarRange} />
           </div>
+          {lastRun.errors > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {lastRun.errors} erro(s) durante a execução
+            </div>
+          )}
         </div>
       )}
+
+      {/* Casos bloqueados (diagnóstico) */}
+      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+              Casos bloqueados
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Lista de casos que não foram movidos e o motivo de cada um
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => (showBlocked ? setShowBlocked(false) : loadBlocked())}
+            disabled={loadingBlocked}
+            className="gap-2"
+          >
+            {loadingBlocked ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : showBlocked ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            {showBlocked ? 'Ocultar' : 'Ver casos bloqueados'}
+          </Button>
+        </div>
+
+        {showBlocked && blockedCards.length === 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            Nenhum caso bloqueado — tudo fluindo
+          </div>
+        )}
+
+        {showBlocked && blockedCards.length > 0 && (
+          <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+            {blockedCards.map((b) => {
+              const m = MOTIVO_LABELS[b.c_motivo] || { label: b.c_motivo, color: 'bg-slate-50 text-slate-700 border-slate-200' }
+              return (
+                <div key={b.c_card_id} className="py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{b.c_titulo}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {b.c_stage_atual}
+                      {b.c_viagem_inicio && ` · viagem ${b.c_viagem_inicio} → ${b.c_viagem_fim}`}
+                      {` · ${b.c_detalhe}`}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border flex-shrink-0',
+                      m.color
+                    )}
+                  >
+                    {m.label}
+                  </span>
+                  <a
+                    href={`/cards/${b.c_card_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-600 hover:underline flex-shrink-0"
+                  >
+                    Abrir
+                  </a>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Histórico recente */}
       {recentLogs.length > 0 && (
@@ -468,6 +578,36 @@ export default function CronRoteamentoDetailPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Caixa de estatística colorida */
+function StatBox({
+  value,
+  label,
+  tone,
+  icon: Icon,
+}: {
+  value: number
+  label: string
+  tone: 'emerald' | 'slate' | 'amber' | 'purple' | 'blue'
+  icon: typeof CheckCircle2
+}) {
+  const toneMap = {
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', sub: 'text-emerald-600' },
+    slate: { bg: 'bg-slate-50', text: 'text-slate-700', sub: 'text-slate-500' },
+    amber: { bg: 'bg-amber-50', text: 'text-amber-700', sub: 'text-amber-600' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-700', sub: 'text-purple-600' },
+    blue: { bg: 'bg-blue-50', text: 'text-blue-700', sub: 'text-blue-600' },
+  }[tone]
+  return (
+    <div className={cn('rounded-lg px-3 py-3 text-center', toneMap.bg)}>
+      <div className={cn('flex items-center justify-center gap-1 mb-1', toneMap.sub)}>
+        <Icon className="w-3.5 h-3.5" />
+      </div>
+      <p className={cn('text-2xl font-bold', toneMap.text)}>{value}</p>
+      <p className={cn('text-xs', toneMap.sub)}>{label}</p>
     </div>
   )
 }
