@@ -8,6 +8,7 @@ export interface ScheduledJob {
   category: string
   is_enabled: boolean
   frequency_label: string | null
+  impact_tags: string[] | null
   last_toggled_at: string | null
   last_toggled_by: string | null
   cron_registered: boolean

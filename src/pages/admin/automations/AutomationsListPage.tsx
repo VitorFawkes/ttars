@@ -220,10 +220,20 @@ export default function AutomationsListPage() {
         stats={stats}
         actions={
           activeTab === 'list' ? (
-            <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Nova automação
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/settings/operations/scheduled-jobs')}
+                className="gap-2"
+              >
+                <Timer className="w-4 h-4" />
+                Processos que executam
+              </Button>
+              <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Nova automação
+              </Button>
+            </div>
           ) : null
         }
       />
