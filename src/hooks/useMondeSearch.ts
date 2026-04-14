@@ -81,12 +81,18 @@ export function useMondeImportPerson() {
     mutationFn: async ({
       mondePersonId,
       forceUpdate = false,
+      forceCreateSeparate = false,
     }: {
       mondePersonId: string
       forceUpdate?: boolean
+      forceCreateSeparate?: boolean
     }): Promise<ImportedContact> => {
       const { data, error } = await supabase.functions.invoke('monde-people-import', {
-        body: { monde_person_id: mondePersonId, force_update: forceUpdate },
+        body: {
+          monde_person_id: mondePersonId,
+          force_update: forceUpdate,
+          force_create_separate: forceCreateSeparate,
+        },
       })
 
       if (error) throw new Error(error.message || 'Erro ao importar do Monde')

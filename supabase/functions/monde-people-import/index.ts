@@ -122,11 +122,39 @@ async function setSetting(
 
 // --- Process a single page of Monde people ---
 
+function normalizeName(s: string | null | undefined): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length >= 2)
+    .join(" ");
+}
+
+// True quando os tokens do nome batem o suficiente para tratar como mesma pessoa.
+// Conservador: exige que o primeiro nome bata e que pelo menos 1 outro token seja compartilhado
+// (ou que um nome seja prefixo/subconjunto do outro). Casa "Ricardo Abu" com "Ricardo Miguel Abu-jamra"
+// mas não casa "Solange Daher Abu-jamra" com "Ricardo Miguel Abu-jamra".
+function namesAreSameLikely(a: string, b: string): boolean {
+  const ta = normalizeName(a).split(" ").filter(Boolean);
+  const tb = normalizeName(b).split(" ").filter(Boolean);
+  if (ta.length === 0 || tb.length === 0) return false;
+  if (ta[0] !== tb[0]) return false;
+  if (ta.length === 1 || tb.length === 1) return true;
+  const setB = new Set(tb);
+  const shared = ta.filter((t) => setB.has(t)).length;
+  return shared >= 2;
+}
+
 async function processPage(
   supabase: ReturnType<typeof createClient>,
   people: MondePersonResponse["data"][],
   forceUpdate: boolean,
-  orgId: string
+  orgId: string,
+  forceCreateSeparate = false
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
@@ -181,47 +209,70 @@ async function processPage(
         continue;
       }
 
-      // Slow path: dedup via RPC (only for unlinked contacts)
+      // Slow path: dedup via RPC (only for unlinked contacts).
+      // Pulado quando forceCreateSeparate=true (frontend confirmou que é pessoa distinta).
       let existingContato: Record<string, unknown> | null = null;
       let matchType: ImportResult["match_type"] = "new";
       let matchConfidence: ImportResult["match_confidence"] = "new";
 
-      const { data: duplicates } = await supabase.rpc(
-        "check_contact_duplicates",
-        {
-          p_cpf: mapped.cpf || null,
-          p_email: mapped.email || null,
-          p_telefone: mapped.telefone || null,
-          p_nome: mapped.nome || null,
-          p_sobrenome: mapped.sobrenome || null,
-        }
-      );
+      if (!forceCreateSeparate) {
+        const { data: duplicates } = await supabase.rpc(
+          "check_contact_duplicates",
+          {
+            p_cpf: mapped.cpf || null,
+            p_email: mapped.email || null,
+            p_telefone: mapped.telefone || null,
+            p_nome: mapped.nome || null,
+            p_sobrenome: mapped.sobrenome || null,
+          }
+        );
 
-      if (duplicates && duplicates.length > 0) {
-        const bestMatch = duplicates[0];
-        matchType = bestMatch.match_type as ImportResult["match_type"];
+        if (duplicates && duplicates.length > 0) {
+          const bestMatch = duplicates[0];
+          matchType = bestMatch.match_type as ImportResult["match_type"];
 
-        const highConfidenceTypes = ["cpf", "email", "telefone", "telefone_meios"];
-        matchConfidence = highConfidenceTypes.includes(bestMatch.match_type)
-          ? "high"
-          : "low";
+          const highConfidenceTypes = ["cpf", "email", "telefone", "telefone_meios"];
+          matchConfidence = highConfidenceTypes.includes(bestMatch.match_type)
+            ? "high"
+            : "low";
 
-        const { data: fullContato } = await supabase
-          .from("contatos")
-          .select("*")
-          .eq("id", bestMatch.contact_id)
-          .maybeSingle();
+          const { data: fullContato } = await supabase
+            .from("contatos")
+            .select("*")
+            .eq("id", bestMatch.contact_id)
+            .maybeSingle();
 
-        if (fullContato) {
-          existingContato = fullContato;
+          if (fullContato) {
+            existingContato = fullContato;
+          }
         }
       }
 
       // UPDATE or CREATE
       if (existingContato) {
-        // Guard: don't overwrite monde_person_id of contact already linked to different Monde person
+        const existingMondeId = existingContato.monde_person_id as string | null;
+        const existingFullName = `${existingContato.nome ?? ""} ${existingContato.sobrenome ?? ""}`.trim();
+        const newFullName = `${mapped.nome ?? ""} ${mapped.sobrenome ?? ""}`.trim();
+
+        // Casal/família compartilha email/telefone no Monde — quando match foi por contato (não por CPF/nome)
+        // e os nomes não batem, são pessoas distintas. Cair pro INSERT em vez de sobrescrever.
+        const matchedByContactInfo =
+          matchType === "email" || matchType === "telefone" || matchType === "telefone_meios";
+        const namesDiverge = !namesAreSameLikely(existingFullName, newFullName);
+
+        const isDifferentPerson =
+          (existingMondeId && existingMondeId !== mondePersonId) ||
+          (matchedByContactInfo && namesDiverge);
+
+        if (isDifferentPerson) {
+          existingContato = null; // Cai pro caminho de INSERT abaixo
+        }
+      }
+
+      if (existingContato) {
         const existingMondeId = existingContato.monde_person_id as string | null;
         if (existingMondeId && existingMondeId !== mondePersonId) {
+          // Defensivo: nunca deveria chegar aqui após o filtro acima
           results.push({
             monde_person_id: mondePersonId,
             contato_id: existingContato.id as string,
@@ -326,6 +377,7 @@ Deno.serve(async (req) => {
     const searchCode = body.code || null;
     const debugMode = body.debug === true;
     const forceUpdate = body.force_update === true;
+    const forceCreateSeparate = body.force_create_separate === true;
     const requestedMode = body.mode || "auto";
     const pageLimit = body.page_limit || BATCH_SIZE;
 
@@ -378,7 +430,7 @@ Deno.serve(async (req) => {
       }
 
       const json = await response.json();
-      const results = await processPage(supabase, [json.data], forceUpdate, orgId);
+      const results = await processPage(supabase, [json.data], forceUpdate, orgId, forceCreateSeparate);
 
       return jsonResponse({
         total_fetched: 1,
