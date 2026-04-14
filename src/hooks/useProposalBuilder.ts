@@ -527,6 +527,7 @@ export const useProposalBuilder = create<ProposalBuilderState>((set, get) => ({
             price_delta: 0,
             details: {},
             ordem: 0,
+            org_id: '',
             created_at: new Date().toISOString(),
         }
 

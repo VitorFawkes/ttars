@@ -43,6 +43,29 @@ const BATCH_SIZE = 50; // Páginas por execução de bulk
 const PAGE_SIZE = 50; // Contatos por página
 const MAINTENANCE_STOP_THRESHOLD = 50; // Parar maintenance após N seguidos já importados
 
+// Fallback org_id quando chamado sem JWT (cron/bulk). Welcome Group (account).
+const FALLBACK_ORG_ID = "a0000000-0000-0000-0000-000000000001";
+
+/**
+ * Resolve o org_id onde o contato deve ser criado.
+ * - Se há JWT de usuário: usa RPC contatos_default_org_id() (respeita shares_contacts_with_children)
+ * - Senão (cron/bulk): fallback para Welcome Group
+ */
+async function resolveOrgId(authHeader: string | null): Promise<string> {
+  if (!authHeader) return FALLBACK_ORG_ID;
+  try {
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data } = await userClient.rpc("contatos_default_org_id");
+    return (data as string | null) || FALLBACK_ORG_ID;
+  } catch (_) {
+    return FALLBACK_ORG_ID;
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -102,7 +125,8 @@ async function setSetting(
 async function processPage(
   supabase: ReturnType<typeof createClient>,
   people: MondePersonResponse["data"][],
-  forceUpdate: boolean
+  forceUpdate: boolean,
+  orgId: string
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
@@ -249,6 +273,7 @@ async function processPage(
           .from("contatos")
           .insert({
             ...insertFields,
+            org_id: orgId,
             monde_person_id: mondePersonId,
             monde_last_sync: now,
             origem: "monde",
@@ -291,6 +316,8 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+
+  const orgId = await resolveOrgId(req.headers.get("Authorization"));
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -351,7 +378,7 @@ Deno.serve(async (req) => {
       }
 
       const json = await response.json();
-      const results = await processPage(supabase, [json.data], forceUpdate);
+      const results = await processPage(supabase, [json.data], forceUpdate, orgId);
 
       return jsonResponse({
         total_fetched: 1,
@@ -416,7 +443,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const results = await processPage(supabase, allPeople, forceUpdate);
+      const results = await processPage(supabase, allPeople, forceUpdate, orgId);
 
       return jsonResponse({
         total_fetched: allPeople.length,
@@ -505,7 +532,7 @@ Deno.serve(async (req) => {
 
         totalFetched += people.length;
         pagesProcessed++;
-        const pageResults = await processPage(supabase, people, false);
+        const pageResults = await processPage(supabase, people, false, orgId);
         allResults.push(...pageResults);
 
         // Save cursor after each page
@@ -569,7 +596,7 @@ Deno.serve(async (req) => {
         if (people.length === 0) break;
 
         totalFetched += people.length;
-        const pageResults = await processPage(supabase, people, false);
+        const pageResults = await processPage(supabase, people, false, orgId);
         allResults.push(...pageResults);
 
         // Count consecutive already-linked contacts

@@ -517,8 +517,8 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                 )}
                             </div>
 
-                            {/* Monde search — when few CRM results */}
-                            {debouncedSearch.length >= 2 && !isLoading && (contacts?.length || 0) > 0 && (contacts?.length || 0) < 3 && (
+                            {/* Monde search — always available when há resultados no CRM (botão permite buscar no Monde mesmo assim) */}
+                            {debouncedSearch.length >= 2 && !isLoading && (contacts?.length || 0) > 0 && (
                                 <MondeSearchSection
                                     searchTerm={debouncedSearch}
                                     onPersonImported={(contatoId) => {
