@@ -111,6 +111,11 @@ export function AgentCard({
         <Badge variant="outline" className={cn('text-xs font-medium border', tipoConfig.color)}>
           {tipoConfig.label}
         </Badge>
+        {agent.execution_backend === 'n8n' && (
+          <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+            n8n
+          </Badge>
+        )}
         {lineCount > 0 && (
           <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">
             {lineCount} linha{lineCount > 1 ? 's' : ''} WhatsApp

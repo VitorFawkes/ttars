@@ -299,7 +299,6 @@ function App() {
                     <Route path="ai-agents" element={<AiAgentListPage />} />
                     <Route path="ai-agents/builder" element={<AiAgentBuilderWizard />} />
                     <Route path="ai-agents/builder/:draftId" element={<AiAgentBuilderWizard />} />
-                    <Route path="ai-agents/new" element={<AiAgentDetailPage />} />
                     <Route path="ai-agents/:id" element={<AiAgentDetailPage />} />
                     <Route path="ai-skills" element={<AiSkillManagerPage />} />
                     <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />

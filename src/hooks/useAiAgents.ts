@@ -23,6 +23,8 @@ export interface AiAgent {
   fallback_message: string | null
   fallback_agent_id: string | null
   n8n_webhook_url: string | null
+  execution_backend: 'edge_function' | 'n8n' | 'external_webhook'
+  external_config: Record<string, unknown> | null
   created_by: string | null
   created_at: string
   updated_at: string

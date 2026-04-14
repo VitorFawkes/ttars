@@ -53,6 +53,7 @@ interface FormData {
   escalation_message: string
   escalation_turn_limit: number
   ativa: boolean
+  execution_backend?: string
 }
 
 function formatRelative(iso: string): string {
@@ -117,6 +118,7 @@ export default function AiAgentDetailPage() {
         escalation_message: escalationRules?.[0]?.message as string || '',
         escalation_turn_limit: (escalationRules?.[0]?.turn_limit as number) || 10,
         ativa: existingAgent.ativa,
+        execution_backend: (existingAgent as { execution_backend?: string }).execution_backend || 'edge_function',
       })
       setAssignedSkillIds(
         existingAgent.ai_agent_skills
@@ -267,6 +269,34 @@ export default function AiAgentDetailPage() {
           {saving ? 'Salvando...' : 'Salvar'}
         </Button>
       </div>
+
+      {/* n8n banner (for n8n agents) */}
+      {!isNew && form.execution_backend === 'n8n' && (
+        <section className="bg-gradient-to-br from-orange-50/50 to-white border border-orange-200 rounded-xl p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-sm font-semibold text-orange-600">n8n</span>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-orange-900">Julia executa no n8n</p>
+              <p className="text-sm text-orange-700 mt-1">
+                Este agente usa um workflow no n8n. Edite a configuração da Julia lá, não aqui. Este painel permite apenas ativar/desativar e gerenciar as linhas WhatsApp.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-2"
+                onClick={() => window.open('https://n8n-n8n.ymnmx7.easypanel.host/workflow/tvh1SN7VDgy8V3VI', '_blank')}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                </svg>
+                Editar no n8n
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Overview card (only for existing agents) */}
       {!isNew && id && (
@@ -479,70 +509,74 @@ export default function AiAgentDetailPage() {
       )}
 
       {/* Modelo */}
-      <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-          <Brain className="w-5 h-5 text-purple-500" />
-          Modelo & Configuração
-        </h2>
+      {form.execution_backend !== 'n8n' && (
+        <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-500" />
+            Modelo & Configuração
+          </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Modelo LLM</Label>
-            <Select
-              value={form.modelo}
-              onChange={(v: string) => setForm(f => ({ ...f, modelo: v }))}
-              options={MODELO_OPTIONS}
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Modelo LLM</Label>
+              <Select
+                value={form.modelo}
+                onChange={(v: string) => setForm(f => ({ ...f, modelo: v }))}
+                options={MODELO_OPTIONS}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label>Temperature ({form.temperature})</Label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={form.temperature}
-              onChange={e => setForm(f => ({ ...f, temperature: parseFloat(e.target.value) }))}
-              className="w-full accent-indigo-600"
-            />
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Preciso</span>
-              <span>Criativo</span>
+            <div className="space-y-2">
+              <Label>Temperature ({form.temperature})</Label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={form.temperature}
+                onChange={e => setForm(f => ({ ...f, temperature: parseFloat(e.target.value) }))}
+                className="w-full accent-indigo-600"
+              />
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Preciso</span>
+                <span>Criativo</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Max Tokens</Label>
+              <Input
+                type="number"
+                value={form.max_tokens}
+                onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) || 1024 }))}
+              />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label>Max Tokens</Label>
-            <Input
-              type="number"
-              value={form.max_tokens}
-              onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) || 1024 }))}
-            />
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* System Prompt */}
-      <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-amber-500" />
-          System Prompt *
-        </h2>
+      {form.execution_backend !== 'n8n' && (
+        <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" />
+            System Prompt *
+          </h2>
 
-        <Textarea
-          value={form.system_prompt}
-          onChange={e => setForm(f => ({ ...f, system_prompt: e.target.value }))}
-          placeholder="Você é Julia, consultora de viagens da Welcome Viagens..."
-          rows={12}
-          className="font-mono text-sm"
-        />
+          <Textarea
+            value={form.system_prompt}
+            onChange={e => setForm(f => ({ ...f, system_prompt: e.target.value }))}
+            placeholder="Você é Julia, consultora de viagens da Welcome Viagens..."
+            rows={12}
+            className="font-mono text-sm"
+          />
 
-        <p className="text-xs text-slate-400">
-          Variáveis n8n: {'{{ $(\'Historico Texto\').item.json.XXX }}'} |
-          Variáveis template: {'{{contact.nome}}'}, {'{{card.titulo}}'}
-        </p>
-      </section>
+          <p className="text-xs text-slate-400">
+            Variáveis n8n: {'{{ $(\'Historico Texto\').item.json.XXX }}'} |
+            Variáveis template: {'{{contact.nome}}'}, {'{{card.titulo}}'}
+          </p>
+        </section>
+      )}
 
       {/* Prompts Versionados (para agentes com n8n) */}
       {!isNew && existingAgent?.ai_agent_prompts && existingAgent.ai_agent_prompts.length > 0 && (
