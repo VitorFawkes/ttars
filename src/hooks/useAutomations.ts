@@ -89,15 +89,6 @@ export function useAutomations() {
         if (tid) firedByTrigger.set(tid, (firedByTrigger.get(tid) || 0) + 1)
       }
 
-      // Cadência que foi consumida por um trigger (action=start_cadence) NÃO deve
-      // aparecer como item separado — ela vira "detalhe" do trigger. Pra isso,
-      // coletamos os target_template_id dos triggers.
-      const consumedTemplateIds = new Set<string>(
-        (triggersRes.data || [])
-          .filter((t: { action_type: string; target_template_id: string | null }) => t.action_type === 'start_cadence' && t.target_template_id)
-          .map((t: { target_template_id: string }) => t.target_template_id)
-      )
-
       // Mapa de execution_mode por template (para start_cadence triggers)
       const templateModeMap = new Map<string, 'linear' | 'blocks'>(
         (templatesRes.data || []).map((tpl: { id: string; execution_mode: string | null }) =>
@@ -105,27 +96,59 @@ export function useAutomations() {
         )
       )
 
+      // Mapa auxiliar: nome → template_id (para casar triggers órfãos por nome)
+      const templateIdByName = new Map<string, string>()
+      for (const tpl of templatesRes.data || []) {
+        if (tpl.name && !templateIdByName.has(tpl.name)) {
+          templateIdByName.set(tpl.name, tpl.id)
+        }
+      }
+
+      // Resolve target_template_id efetivo: usa o campo se preenchido,
+      // senão tenta casar pelo nome (defesa contra triggers órfãos que,
+      // de outra forma, apareceriam como item duplicado e abririam o
+      // builder simples em vez do builder de blocos).
+      const resolveTargetTemplateId = (t: {
+        action_type: string; target_template_id: string | null; name: string | null
+      }): string | null => {
+        if (t.action_type !== 'start_cadence') return t.target_template_id
+        if (t.target_template_id) return t.target_template_id
+        if (t.name && templateIdByName.has(t.name)) return templateIdByName.get(t.name)!
+        return null
+      }
+
+      // Cadência que foi consumida por um trigger (action=start_cadence) NÃO deve
+      // aparecer como item separado — ela vira "detalhe" do trigger.
+      const consumedTemplateIds = new Set<string>(
+        (triggersRes.data || [])
+          .map(resolveTargetTemplateId)
+          .filter((id: string | null): id is string => Boolean(id))
+      )
+
       const triggers: AutomationItem[] = (triggersRes.data || []).map((t: {
         id: string; name: string | null; event_type: string; action_type: string;
         is_active: boolean; created_at: string; updated_at: string | null;
         target_template_id: string | null;
         action_config: Record<string, unknown> | null;
-      }) => ({
-        uid: `trigger:${t.id}`,
-        id: t.id,
-        source: 'trigger' as const,
-        name: t.name || '(sem nome)',
-        description: null,
-        is_active: t.is_active,
-        event_type: t.event_type,
-        action_type: t.action_type as ActionType,
-        target_template_id: t.target_template_id,
-        action_config: t.action_config,
-        execution_mode: t.target_template_id ? templateModeMap.get(t.target_template_id) : undefined,
-        stats: { triggered_count: firedByTrigger.get(t.id) || 0 },
-        created_at: t.created_at,
-        updated_at: t.updated_at,
-      }))
+      }) => {
+        const effectiveTargetId = resolveTargetTemplateId(t)
+        return {
+          uid: `trigger:${t.id}`,
+          id: t.id,
+          source: 'trigger' as const,
+          name: t.name || '(sem nome)',
+          description: null,
+          is_active: t.is_active,
+          event_type: t.event_type,
+          action_type: t.action_type as ActionType,
+          target_template_id: effectiveTargetId,
+          action_config: t.action_config,
+          execution_mode: effectiveTargetId ? templateModeMap.get(effectiveTargetId) : undefined,
+          stats: { triggered_count: firedByTrigger.get(t.id) || 0 },
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+        }
+      })
 
       const templates: AutomationItem[] = (templatesRes.data || [])
         .filter((tpl: { id: string }) => !consumedTemplateIds.has(tpl.id))

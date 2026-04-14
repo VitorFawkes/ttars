@@ -436,3 +436,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T16:23:43Z | supabase/migrations/20260414f_scheduled_jobs_rpc_perf.sql | applied_to_prod
 2026-04-14T16:29:57Z | supabase/migrations/20260414f_account_workspace_sharing_flag.sql | applied_to_prod
 2026-04-14T16:30:39Z | supabase/migrations/20260414g_scheduled_jobs_impact_tags.sql | applied_to_prod
+2026-04-14T16:30:52Z | supabase/migrations/20260414_fix_orphan_posvenda_trigger.sql | applied_to_prod
+2026-04-14T16:31:08Z | supabase/migrations/20260414g_scheduled_jobs_impact_tags.sql | applied_to_prod
