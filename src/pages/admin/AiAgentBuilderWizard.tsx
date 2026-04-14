@@ -14,13 +14,13 @@ import Step6Escalation from './wizard/Step6_Escalation'
 import Step7PreviewDeploy from './wizard/Step7_PreviewDeploy'
 
 const STEPS = [
-  { id: 1, label: 'Identidade', icon: Building2 },
-  { id: 2, label: 'Template', icon: LayoutTemplate },
-  { id: 3, label: 'Funil', icon: GitBranch },
-  { id: 4, label: 'Conhecimento', icon: BookOpen },
-  { id: 5, label: 'Regras', icon: Settings },
-  { id: 6, label: 'Escalação', icon: PhoneForwarded },
-  { id: 7, label: 'Testar & ativar', icon: Rocket },
+  { id: 1, label: 'Identidade', icon: Building2, hint: 'Nome do negócio, persona, idioma. Define como o agente se apresenta.' },
+  { id: 2, label: 'Template', icon: LayoutTemplate, hint: 'Escolha um template pronto (vendas, suporte, agendamento) ou comece do zero.' },
+  { id: 3, label: 'Funil', icon: GitBranch, hint: 'Etapas de qualificação que o agente persegue (SPIN, perguntas chave).' },
+  { id: 4, label: 'Conhecimento', icon: BookOpen, hint: 'Bases de conhecimento que o agente consulta antes de responder.' },
+  { id: 5, label: 'Regras', icon: Settings, hint: 'Regras de negócio (preço, taxa, política) e cenários especiais.' },
+  { id: 6, label: 'Escalação', icon: PhoneForwarded, hint: 'Quando passar pra humano e o que dizer ao cliente.' },
+  { id: 7, label: 'Testar & ativar', icon: Rocket, hint: 'Pré-visualize, simule e ative o agente nas linhas WhatsApp.' },
 ]
 
 export default function AiAgentBuilderWizard() {
@@ -73,17 +73,17 @@ export default function AiAgentBuilderWizard() {
               const Icon = step.icon
               const isActive = wizard.currentStep === step.id
               const isComplete = wizard.currentStep > step.id
-              const clickable = step.id <= wizard.currentStep
 
               return (
                 <button
                   key={step.id}
-                  onClick={() => clickable && wizard.goToStep(step.id)}
+                  onClick={() => wizard.goToStep(step.id)}
+                  title={step.hint}
                   className={cn(
-                    'flex items-center gap-1.5 text-xs font-medium transition-colors flex-shrink-0 px-1.5',
+                    'flex items-center gap-1.5 text-xs font-medium transition-colors flex-shrink-0 px-1.5 cursor-pointer',
                     isActive ? 'text-indigo-600' :
-                      isComplete ? 'text-slate-700 cursor-pointer hover:text-indigo-600' :
-                      'text-slate-400 cursor-default'
+                      isComplete ? 'text-slate-700 hover:text-indigo-600' :
+                      'text-slate-500 hover:text-indigo-600'
                   )}
                 >
                   <div
@@ -91,7 +91,7 @@ export default function AiAgentBuilderWizard() {
                       'w-7 h-7 rounded-full flex items-center justify-center transition-all',
                       isActive ? 'bg-indigo-600 text-white scale-110' :
                         isComplete ? 'bg-indigo-100 text-indigo-600' :
-                        'bg-slate-100 text-slate-400'
+                        'bg-slate-100 text-slate-500'
                     )}
                   >
                     <Icon className="w-3.5 h-3.5" />
