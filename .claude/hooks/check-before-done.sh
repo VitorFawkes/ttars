@@ -127,4 +127,15 @@ if [ -n "$ALL_SQL" ]; then
   fi
 fi
 
+# Guardião de isolamento por workspace — sempre roda (independente de .sql)
+AUDIT_RLS="$CWD/.claude/hooks/audit-rls-leaks.sh"
+if [ -x "$AUDIT_RLS" ]; then
+  AUDIT_OUTPUT=$("$AUDIT_RLS" 2>&1)
+  AUDIT_EXIT=$?
+  if [ $AUDIT_EXIT -ne 0 ]; then
+    echo "$AUDIT_OUTPUT" >&2
+    exit 2
+  fi
+fi
+
 exit 0

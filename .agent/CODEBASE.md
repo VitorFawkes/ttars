@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-13
+> **Last Updated:** 2026-04-14
 > **Trigger:** ALWAYS ON
-> **Stats:** 168 tabelas | 83 paginas | 134 hooks | 17 views | 510 components
+> **Stats:** 170 tabelas | 84 paginas | 135 hooks | 17 views | 510 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **134 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **135 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -274,6 +274,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePushNotifications()` | `usePushNotifications.ts` |
 | `useReactivationPatterns()` | `useReactivationPatterns.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
+| `useScheduledJobs()` | `useScheduledJobs.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -378,7 +379,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **83 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **84 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -425,6 +426,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `ProductsManagement` | `src/pages/admin/ProductsManagement.tsx` |
+| `ScheduledJobsPage` | `src/pages/admin/ScheduledJobsPage.tsx` |
 | `TagManagement` | `src/pages/admin/TagManagement.tsx` |
 | `UserManagement` | `src/pages/admin/UserManagement.tsx` |
 | `VendasMondePage` | `src/pages/admin/VendasMondePage.tsx` |
