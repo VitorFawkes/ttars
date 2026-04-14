@@ -7,7 +7,11 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-14
 > **Trigger:** ALWAYS ON
-> **Stats:** 171 tabelas | 87 paginas | 135 hooks | 17 views | 516 components
+<<<<<<< HEAD
+> **Stats:** 171 tabelas | 87 paginas | 135 hooks | 17 views | 522 components
+=======
+> **Stats:** 171 tabelas | 87 paginas | 135 hooks | 17 views | 522 components
+>>>>>>> feat/c2-editor-abas
 
 ---
 
