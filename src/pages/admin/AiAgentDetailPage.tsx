@@ -19,6 +19,10 @@ import { TabIdentidade } from '@/components/ai-agent/editor/TabIdentidade'
 import { TabPrompts } from '@/components/ai-agent/editor/TabPrompts'
 import { TabModelosComportamento } from '@/components/ai-agent/editor/TabModelosComportamento'
 import { TabFerramentas } from '@/components/ai-agent/editor/TabFerramentas'
+import { TabMemoria } from '@/components/ai-agent/editor/TabMemoria'
+import { TabContextoCampos } from '@/components/ai-agent/editor/TabContextoCampos'
+import { TabMultimodal } from '@/components/ai-agent/editor/TabMultimodal'
+import { TabAtivacao } from '@/components/ai-agent/editor/TabAtivacao'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -244,10 +248,10 @@ export default function AiAgentDetailPage() {
     { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
     { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
     { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
-    { id: 'memoria', label: 'Memória', icon: Database, disabled: true, disabledHint: 'Disponível em C2b' },
-    { id: 'contexto', label: 'Contexto & Campos', icon: Radio, disabled: true, disabledHint: 'Disponível em C2b' },
-    { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: true, disabledHint: 'Disponível em C2b' },
-    { id: 'ativacao', label: 'Ativação', icon: Power, disabled: true, disabledHint: 'Disponível em C2b' },
+    { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
+    { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
+    { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
+    { id: 'ativacao', label: 'Ativação', icon: Power },
   ], [isN8n])
 
   if (!isNew && loadingAgent) {
@@ -396,6 +400,17 @@ export default function AiAgentDetailPage() {
         {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}
+        {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
+        {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} />}
+        {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
+        {activeTab === 'ativacao' && (
+          <TabAtivacao
+            form={form}
+            setForm={setFormWrapper}
+            agentId={isNew ? undefined : id}
+            phoneLines={existingAgent?.ai_agent_phone_line_config}
+          />
+        )}
       </AgentEditorLayout>
     </div>
   )
