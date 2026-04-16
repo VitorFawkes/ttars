@@ -426,7 +426,7 @@ export default function FieldCompletenessView() {
         setPage(0)
     }, [])
 
-    const { selectableFields, rows, isLoading } = useFieldCompleteness({
+    const { selectableFields, rows, fieldTypeMap, isLoading } = useFieldCompleteness({
         stageIds: selectedStageIds,
         selectedFieldKeys,
         selectedExtraKeys: selectedExtras,
@@ -477,13 +477,23 @@ export default function FieldCompletenessView() {
                 const vb = b.card.dono_atual_nome || ''
                 return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
             }
-            // Field column: sort by filled (true first when asc)
+            // Date column: sort by actual date value
+            const fieldType = fieldTypeMap.get(sortCol)
+            if (fieldType && ['date', 'date_range', 'flexible_date'].includes(fieldType)) {
+                const da = a.values[sortCol] || ''
+                const db = b.values[sortCol] || ''
+                if (!da && !db) return 0
+                if (!da) return sortAsc ? -1 : 1
+                if (!db) return sortAsc ? 1 : -1
+                return sortAsc ? da.localeCompare(db) : db.localeCompare(da)
+            }
+            // Boolean column: sort by filled (true first when asc)
             const fa = a.filled[sortCol] ? 1 : 0
             const fb = b.filled[sortCol] ? 1 : 0
             return sortAsc ? fa - fb : fb - fa
         })
         return sorted
-    }, [filteredRows, sortCol, sortAsc])
+    }, [filteredRows, sortCol, sortAsc, fieldTypeMap])
 
     // Paginate
     const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE))
@@ -598,6 +608,7 @@ export default function FieldCompletenessView() {
                                         row={row}
                                         fieldKeys={selectedFieldKeys}
                                         extraKeys={selectedExtras}
+                                        fieldTypeMap={fieldTypeMap}
                                         onNavigate={() => navigate(`/cards/${row.card.id}`)}
                                     />
                                 ))}
@@ -658,18 +669,29 @@ function SortableHeader({
     )
 }
 
+const DATE_TYPES = new Set(['date', 'date_range', 'flexible_date'])
+
+function formatDateBR(iso: string | null): string {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    if (!y || !m || !d) return iso
+    return `${d}/${m}/${y}`
+}
+
 function CardRow({
     row,
     fieldKeys,
     extraKeys,
+    fieldTypeMap,
     onNavigate,
 }: {
     row: CardCompleteness
     fieldKeys: string[]
     extraKeys: ExtraColumnKey[]
+    fieldTypeMap: Map<string, string>
     onNavigate: () => void
 }) {
-    const { card, filled } = row
+    const { card, filled, values } = row
 
     return (
         <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
@@ -687,11 +709,28 @@ function CardRow({
             </td>
             <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{card.etapa_nome || '—'}</td>
             <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{card.dono_atual_nome || '—'}</td>
-            {fieldKeys.map(fk => (
-                <td key={fk} className="px-3 py-2.5 text-center">
-                    <FillIndicator filled={filled[fk] ?? false} />
-                </td>
-            ))}
+            {fieldKeys.map(fk => {
+                const fieldType = fieldTypeMap.get(fk)
+                const isDate = fieldType && DATE_TYPES.has(fieldType)
+
+                if (isDate) {
+                    const dateVal = values[fk]
+                    return (
+                        <td key={fk} className="px-3 py-2.5 text-center whitespace-nowrap">
+                            {dateVal
+                                ? <span className="text-xs text-slate-700">{formatDateBR(dateVal)}</span>
+                                : <X className="w-4 h-4 text-slate-300 mx-auto" />
+                            }
+                        </td>
+                    )
+                }
+
+                return (
+                    <td key={fk} className="px-3 py-2.5 text-center">
+                        <FillIndicator filled={filled[fk] ?? false} />
+                    </td>
+                )
+            })}
             {extraKeys.map(ek => (
                 <td key={ek} className="px-3 py-2.5 text-center">
                     <FillIndicator filled={filled[ek] ?? false} />
