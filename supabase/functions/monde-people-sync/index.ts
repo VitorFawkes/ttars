@@ -30,6 +30,84 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+interface MondeSearchHit {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  mobilePhone: string | null;
+  cpf: string | null;
+}
+
+/**
+ * Busca pessoa no Monde por nome e retorna matches.
+ * Usado para dedup antes de criar pessoa nova.
+ */
+async function searchMondeByName(
+  apiUrl: string,
+  token: string,
+  name: string
+): Promise<MondeSearchHit[]> {
+  const url = `${apiUrl}/people?filter[search]=${encodeURIComponent(name)}&page[number]=1&page[size]=20`;
+  const response = await fetch(url, { headers: mondeV2Headers(token) });
+  if (!response.ok) return [];
+  const json = await response.json();
+  const people = json.data || [];
+  return people.map(
+    (p: { id: string; attributes: Record<string, unknown> }) => ({
+      id: p.id,
+      name: ((p.attributes.name as string) || "").trim(),
+      email: ((p.attributes.email as string) || "").trim().toLowerCase() || null,
+      phone: (p.attributes.phone as string) || null,
+      mobilePhone: (p.attributes["mobile-phone"] as string) || null,
+      cpf: (p.attributes.cpf as string) || null,
+    })
+  );
+}
+
+function normalizeDigits(s: string | null): string {
+  return (s || "").replace(/\D/g, "");
+}
+
+/**
+ * Encontra a melhor pessoa no Monde que bate com o contato do CRM.
+ * Prioridade: CPF > email > telefone. Retorna monde_person_id ou null.
+ */
+function findBestMondeMatch(
+  hits: MondeSearchHit[],
+  contato: ContatoRecord
+): string | null {
+  if (hits.length === 0) return null;
+
+  const contatoCpf = normalizeDigits(contato.cpf_normalizado || contato.cpf);
+  const contatoEmail = (contato.email || "").trim().toLowerCase();
+  const contatoPhone = normalizeDigits(contato.telefone);
+
+  // 1. CPF match (mais confiável)
+  if (contatoCpf.length === 11) {
+    const match = hits.find((h) => normalizeDigits(h.cpf) === contatoCpf);
+    if (match) return match.id;
+  }
+
+  // 2. Email match
+  if (contatoEmail) {
+    const match = hits.find((h) => h.email === contatoEmail);
+    if (match) return match.id;
+  }
+
+  // 3. Telefone match (qualquer campo de phone no Monde)
+  if (contatoPhone.length >= 10) {
+    const match = hits.find(
+      (h) =>
+        normalizeDigits(h.phone) === contatoPhone ||
+        normalizeDigits(h.mobilePhone) === contatoPhone
+    );
+    if (match) return match.id;
+  }
+
+  return null;
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -157,16 +235,43 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const isUpdate = !!contato.monde_person_id;
+        let mondeId = contato.monde_person_id;
+
+        // Dedup: se não tem monde_person_id, buscar no Monde antes de criar
+        if (!mondeId) {
+          const fullName = [contato.nome, contato.sobrenome]
+            .filter(Boolean)
+            .join(" ");
+          try {
+            let hits = await searchMondeByName(auth.apiUrl, token, fullName);
+            if (hits.length === 0 && contato.email) {
+              // Fallback: buscar por email se nome não achou nada
+              hits = await searchMondeByName(auth.apiUrl, token, contato.email);
+            }
+            const matchId = findBestMondeMatch(hits, contato);
+            if (matchId) {
+              mondeId = matchId;
+              console.log(
+                `[monde-people-sync] Dedup: encontrou ${matchId} no Monde para contato ${contato.id} (${fullName})`
+              );
+            }
+          } catch (err) {
+            console.warn(
+              `[monde-people-sync] Dedup search failed for ${contato.id}, will create new:`,
+              err
+            );
+          }
+        }
+
+        const isUpdate = !!mondeId;
         const url = isUpdate
-          ? `${auth.apiUrl}/people/${contato.monde_person_id}`
+          ? `${auth.apiUrl}/people/${mondeId}`
           : `${auth.apiUrl}/people`;
         const method = isUpdate ? "PATCH" : "POST";
 
         // If updating, include id in payload
         if (isUpdate) {
-          (payload.data as Record<string, unknown>).id =
-            contato.monde_person_id;
+          (payload.data as Record<string, unknown>).id = mondeId;
         }
 
         let response = await fetch(url, {
