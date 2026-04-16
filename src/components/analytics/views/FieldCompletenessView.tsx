@@ -562,7 +562,6 @@ export default function FieldCompletenessView() {
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
-    const [, setShowAlertModal] = useState(false)
 
     const handleSetFieldKeys = useCallback((keys: string[]) => {
         setSelectedFieldKeys(keys)
@@ -581,7 +580,6 @@ export default function FieldCompletenessView() {
         selectedFieldKeys,
         selectedExtraKeys: selectedExtras,
         productFilter: currentProduct,
-        pipelineId: pipelineId ?? undefined,
     })
 
     const allColumns = useMemo(() => {

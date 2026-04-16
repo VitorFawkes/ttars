@@ -7,7 +7,10 @@ import { Label } from '@/components/ui/label'
 import { ToneSelector } from '@/components/ai-agent/ToneSelector'
 import { TONE_OPTIONS, type Tone } from '@/components/ai-agent/agent-constants'
 import { AgentChatPreview, type PreviewMessage } from '@/components/ai-agent/AgentChatPreview'
-import type { WizardStep1, useAgentWizard } from '@/hooks/useAgentWizard'
+import { InteractionModeSelector } from '@/components/ai-agent/InteractionModeSelector'
+import type {
+  WizardStep1, InteractionMode, useAgentWizard,
+} from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
 
@@ -20,6 +23,9 @@ export default function Step1_BusinessIdentity({ wizard }: WizardProps) {
     agent_persona: step1.agent_persona || '',
     tone: step1.tone || 'professional',
     language: step1.language || 'pt-BR',
+    interaction_mode: step1.interaction_mode || 'inbound',
+    first_message_config: step1.first_message_config,
+    outbound_trigger_config: step1.outbound_trigger_config,
   })
 
   const handleChange = (field: keyof WizardStep1, value: string) => {
@@ -154,6 +160,17 @@ export default function Step1_BusinessIdentity({ wizard }: WizardProps) {
             <option value="en">🇺🇸 English</option>
             <option value="es">🇪🇸 Español</option>
           </select>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <InteractionModeSelector
+            mode={(formData.interaction_mode as InteractionMode) || 'inbound'}
+            firstMessageConfig={formData.first_message_config}
+            outboundTriggerConfig={formData.outbound_trigger_config}
+            onModeChange={(mode) => setFormData(prev => ({ ...prev, interaction_mode: mode }))}
+            onFirstMessageConfigChange={(config) => setFormData(prev => ({ ...prev, first_message_config: config }))}
+            onOutboundTriggerConfigChange={(config) => setFormData(prev => ({ ...prev, outbound_trigger_config: config }))}
+          />
         </div>
 
         <div className="flex justify-end">

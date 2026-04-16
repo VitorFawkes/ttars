@@ -29,7 +29,13 @@ interface SectionFieldConfigRow {
     is_required: boolean
 }
 
-export function useFieldConfig() {
+/**
+ * Hook para configs de campos por etapa.
+ * @param pipelineId — quando informado, filtra configs para stages desse pipeline apenas.
+ *   Obter via `useCurrentProductMeta().pipelineId`. Sem ele, retorna configs de TODOS os pipelines
+ *   (necessário no Pipeline Studio admin). Em telas de produto, SEMPRE passe pipelineId.
+ */
+export function useFieldConfig(pipelineId?: string) {
     // Fetch System Fields (The Dictionary)
     const { data: systemFields, isLoading: loadingFields } = useQuery({
         queryKey: ['system-fields-config'],
@@ -47,7 +53,7 @@ export function useFieldConfig() {
     })
 
     // Fetch Stage Configs (The Rules — per stage)
-    const { data: stageConfigs, isLoading: loadingConfigs } = useQuery({
+    const { data: allStageConfigs, isLoading: loadingConfigs } = useQuery({
         queryKey: ['stage-field-configs-all'],
         queryFn: async () => {
             const { data } = await supabase
@@ -70,17 +76,29 @@ export function useFieldConfig() {
     })
 
     // Fetch pipeline stages for phase-aware fallback
-    // When a stage has no field config, we fall back to sibling stages in the same phase
+    // When pipelineId is provided, only fetch stages for that pipeline
     const { data: pipelineStages, isLoading: loadingStages } = useQuery({
-        queryKey: ['pipeline-stages-phase-map'],
+        queryKey: ['pipeline-stages-phase-map', pipelineId ?? 'all'],
         queryFn: async () => {
-            const { data } = await supabase
+            let query = supabase
                 .from('pipeline_stages')
                 .select('id, phase_id, pipeline_id')
+            if (pipelineId) {
+                query = query.eq('pipeline_id', pipelineId)
+            }
+            const { data } = await query
             return data as { id: string; phase_id: string | null; pipeline_id: string | null }[] | null
         },
         staleTime: 1000 * 60 * 5
     })
+
+    // Filter stage configs by pipeline when pipelineId is provided
+    const stageConfigs = useMemo(() => {
+        if (!allStageConfigs) return null
+        if (!pipelineId || !pipelineStages) return allStageConfigs
+        const validStageIds = new Set(pipelineStages.map(s => s.id))
+        return allStageConfigs.filter(c => c.stage_id && validStageIds.has(c.stage_id))
+    }, [allStageConfigs, pipelineId, pipelineStages])
 
     // Build phase → stages mapping for fallback lookups
     // Agrupa por phase_id+pipeline_id para não herdar configs cross-pipeline
