@@ -46,6 +46,8 @@ export default function Step2_TemplateSelection({ wizard }: WizardProps) {
           advance_to_stage_id: '',
           advance_condition: '',
           response_options: stage.response_options || [],
+          maps_to_field: (stage as Record<string, unknown>).maps_to_field as string || '',
+          skip_if_filled: ((stage as Record<string, unknown>).skip_if_filled as boolean) ?? true,
         })),
       })
     }

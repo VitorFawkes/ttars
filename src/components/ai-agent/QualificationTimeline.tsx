@@ -10,12 +10,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronDown, ChevronRight, GripVertical, Plus, Trash2, X, AlertTriangle,
-  HelpCircle,
+  HelpCircle, Database,
 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { QualificationStage } from '@/hooks/useAgentWizard'
 
@@ -34,6 +35,8 @@ const EMPTY_STAGE: QualificationStage = {
   advance_to_stage_id: '',
   advance_condition: '',
   response_options: [],
+  maps_to_field: '',
+  skip_if_filled: true,
 }
 
 interface SortableStageProps {
@@ -278,6 +281,35 @@ function SortableStage({ id, stage, index, expanded, onToggle, onUpdate, onDelet
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* CRM field mapping */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <Label className="text-xs flex items-center gap-1">
+                <Database className="w-3 h-3 text-slate-400" />
+                Mapeamento CRM (opcional)
+              </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-slate-500">Campo do CRM que esta resposta preenche</Label>
+                  <Input
+                    placeholder="Ex: mkt_destino, email, cpf"
+                    value={stage.maps_to_field || ''}
+                    onChange={(e) => onUpdate({ maps_to_field: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pb-0.5">
+                  <Switch
+                    checked={stage.skip_if_filled ?? true}
+                    onCheckedChange={(checked) => onUpdate({ skip_if_filled: checked })}
+                  />
+                  <Label className="text-xs text-slate-600">Pular se ja preenchido</Label>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Se o campo ja tiver valor no card, o agente pula essa pergunta automaticamente.
+              </p>
             </div>
           </div>
         )}

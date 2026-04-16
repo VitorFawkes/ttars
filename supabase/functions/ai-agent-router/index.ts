@@ -120,6 +120,8 @@ interface QualificationStage {
   advance_to_stage_id: string | null;
   advance_condition: string | null;
   response_options: string[] | null;
+  maps_to_field: string | null;
+  skip_if_filled: boolean;
 }
 
 interface SpecialScenario {
@@ -1436,11 +1438,18 @@ async function runPersonaAgent(
   }
 
   // Template-based: montar prompt completo + tool calling
-  const qualStages = qualification
+  // Smart qualification: skip stages whose mapped field already has data
+  const activeQualification = qualification.filter((stage) => {
+    if (!stage.maps_to_field || !stage.skip_if_filled) return true;
+    const fieldValue = ctx.form_data[stage.maps_to_field];
+    return !fieldValue || fieldValue.trim() === "";
+  });
+
+  const qualStages = activeQualification
     .map((s) => `${s.stage_order}) ${s.question}${s.response_options ? ` [Opções: ${s.response_options.join(", ")}]` : ""}`)
     .join("\n");
 
-  const disqualRules = qualification
+  const disqualRules = activeQualification
     .flatMap((s) => s.disqualification_triggers)
     .map((d) => `- ${d.trigger}: "${d.message}"`)
     .join("\n");

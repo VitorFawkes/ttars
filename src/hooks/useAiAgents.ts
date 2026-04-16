@@ -25,6 +25,9 @@ export interface AiAgent {
   n8n_webhook_url: string | null
   execution_backend: 'edge_function' | 'n8n' | 'external_webhook'
   external_config: Record<string, unknown> | null
+  interaction_mode: 'inbound' | 'outbound' | 'hybrid'
+  first_message_config: Record<string, unknown> | null
+  outbound_trigger_config: Record<string, unknown> | null
   // C1 — configurações avançadas do agente (JSONB, populadas pelo editor C2)
   handoff_signals?: Array<{ slug: string; enabled: boolean; description: string }> | null
   intelligent_decisions?: Record<string, { enabled: boolean; config: Record<string, unknown> }> | null

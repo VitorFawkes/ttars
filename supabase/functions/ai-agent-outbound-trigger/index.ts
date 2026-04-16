@@ -1,0 +1,351 @@
+/**
+ * ai-agent-outbound-trigger — Processa fila outbound e envia primeira mensagem.
+ *
+ * POST /functions/v1/ai-agent-outbound-trigger
+ * Invocada via cron (pg_cron ou n8n) a cada 30-60 segundos.
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface QueueItem {
+  queue_id: string;
+  agent_id: string;
+  card_id: string;
+  contato_id: string;
+  contact_phone: string;
+  contact_name: string;
+  form_data: Record<string, unknown>;
+  trigger_type: string;
+  trigger_metadata: Record<string, unknown>;
+  org_id: string;
+  first_message_config: {
+    type: "fixed" | "ai_generated";
+    fixed_template?: string;
+    ai_instructions?: string;
+    delay_seconds?: number;
+  } | null;
+  interaction_mode: string;
+}
+
+interface BusinessHoursConfig {
+  start: string;
+  end: string;
+  timezone: string;
+  days: string[];
+}
+
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("55")) return digits;
+  if (digits.length >= 10) return `55${digits}`;
+  return digits;
+}
+
+function isValidBRPhone(phone: string): boolean {
+  const digits = normalizePhone(phone).replace(/^55/, "");
+  return digits.length >= 10 && digits.length <= 11;
+}
+
+function isWithinBusinessHours(config: BusinessHoursConfig | undefined): boolean {
+  if (!config) return true;
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: config.timezone || "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short",
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find((p) => p.type === "hour")?.value || "00";
+  const minute = parts.find((p) => p.type === "minute")?.value || "00";
+  const dayName = (parts.find((p) => p.type === "weekday")?.value || "").toLowerCase();
+  const currentTime = `${hour}:${minute}`;
+  if (!config.days.includes(dayName)) return false;
+  return currentTime >= config.start && currentTime <= config.end;
+}
+
+function resolveTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+(?::\w+)?)\}\}/g, (_, key: string) => {
+    if (key === "contact_name") return vars.contact_name || "Cliente";
+    if (key.startsWith("form_field:")) {
+      const field = key.split(":")[1];
+      return vars[`form_${field}`] || "";
+    }
+    return vars[key] || "";
+  });
+}
+
+async function callLLM(
+  systemPrompt: string,
+  userMessage: string,
+): Promise<string> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      max_completion_tokens: 300,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    // 1. Claim items from queue
+    const { data: items, error: queueErr } = await supabase.rpc(
+      "process_outbound_queue",
+      { p_limit: 10 },
+    );
+
+    if (queueErr) {
+      console.error("[ai-agent-outbound-trigger] Queue RPC error:", queueErr.message);
+      return new Response(
+        JSON.stringify({ error: "Queue processing failed", details: queueErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!items || items.length === 0) {
+      return new Response(
+        JSON.stringify({ processed: 0, message: "No items in queue" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    console.log(`[ai-agent-outbound-trigger] Processing ${items.length} items`);
+    const results: Array<{ queue_id: string; status: string; error?: string }> = [];
+
+    for (const item of items as QueueItem[]) {
+      try {
+        // 2. Validate phone
+        if (!isValidBRPhone(item.contact_phone)) {
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "skipped",
+            p_error: "Invalid phone number",
+          });
+          results.push({ queue_id: item.queue_id, status: "skipped", error: "invalid_phone" });
+          continue;
+        }
+
+        // 3. Check business hours
+        const { data: agentRow } = await supabase
+          .from("ai_agents")
+          .select("outbound_trigger_config")
+          .eq("id", item.agent_id)
+          .single();
+
+        const bizHours = (agentRow?.outbound_trigger_config as Record<string, unknown>)
+          ?.business_hours as BusinessHoursConfig | undefined;
+
+        if (!isWithinBusinessHours(bizHours)) {
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "scheduled",
+            p_error: null,
+          });
+          results.push({ queue_id: item.queue_id, status: "rescheduled" });
+          continue;
+        }
+
+        // 4. Generate first message
+        let messageText = "";
+        const fmc = item.first_message_config;
+
+        if (!fmc) {
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "skipped",
+            p_error: "No first_message_config",
+          });
+          results.push({ queue_id: item.queue_id, status: "skipped", error: "no_config" });
+          continue;
+        }
+
+        const templateVars: Record<string, string> = {
+          contact_name: item.contact_name || "Cliente",
+        };
+        if (item.form_data) {
+          for (const [k, v] of Object.entries(item.form_data)) {
+            if (v) templateVars[`form_${k}`] = String(v);
+          }
+        }
+
+        if (fmc.type === "fixed" && fmc.fixed_template) {
+          messageText = resolveTemplate(fmc.fixed_template, templateVars);
+        } else if (fmc.type === "ai_generated" && fmc.ai_instructions) {
+          const formContext = Object.entries(item.form_data || {})
+            .filter(([, v]) => v)
+            .map(([k, v]) => `- ${k}: ${v}`)
+            .join("\n");
+
+          const systemPrompt = `Voce e um assistente de vendas. Gere UMA mensagem WhatsApp de primeiro contato.
+Instrucoes: ${fmc.ai_instructions}
+
+Dados do lead:
+- Nome: ${item.contact_name || "Cliente"}
+${formContext ? `\nDados do formulario:\n${formContext}` : ""}
+
+REGRAS:
+- Maximo 2 frases. Tom natural, sem ser robotico.
+- NUNCA mencione IA, sistema, formulario.
+- NUNCA use emojis em excesso (0-1 no maximo).
+- Personalize com os dados disponiveis.
+
+SAIDA: APENAS o texto da mensagem, pronto pra enviar.`;
+
+          messageText = await callLLM(systemPrompt, "Gere a primeira mensagem de abordagem.");
+        }
+
+        if (!messageText.trim()) {
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "failed",
+            p_error: "Empty message generated",
+          });
+          results.push({ queue_id: item.queue_id, status: "failed", error: "empty_message" });
+          continue;
+        }
+
+        // 5. Create conversation + first turn
+        const { data: conv, error: convErr } = await supabase
+          .from("ai_conversations")
+          .insert({
+            org_id: item.org_id,
+            contact_id: item.contato_id,
+            card_id: item.card_id,
+            primary_agent_id: item.agent_id,
+            current_agent_id: item.agent_id,
+            status: "active",
+            intent: "outbound_first_contact",
+          })
+          .select("id")
+          .single();
+
+        if (convErr || !conv) {
+          throw new Error(`Failed to create conversation: ${convErr?.message}`);
+        }
+
+        await supabase.from("ai_conversation_state").insert({
+          conversation_id: conv.id,
+        });
+
+        await supabase.from("ai_conversation_turns").insert({
+          conversation_id: conv.id,
+          role: "assistant",
+          content: messageText,
+          agent_id: item.agent_id,
+        });
+
+        // 6. Send via Echo API
+        const echoApiUrl = Deno.env.get("ECHO_API_URL");
+        const echoApiKey = Deno.env.get("ECHO_API_KEY");
+        const defaultPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID");
+
+        if (echoApiUrl && echoApiKey) {
+          const normalizedPhone = normalizePhone(item.contact_phone);
+          console.log(`[ai-agent-outbound-trigger] Sending to ${normalizedPhone}`);
+
+          const echoRes = await fetch(echoApiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": echoApiKey,
+            },
+            body: JSON.stringify({
+              to: normalizedPhone,
+              message: messageText,
+              phone_number_id: defaultPhoneId,
+            }),
+          });
+
+          const echoResult = await echoRes.json().catch(() => ({}));
+          const success = echoRes.ok || !!echoResult?.whatsapp_message_id;
+
+          // Save to whatsapp_messages
+          await supabase.from("whatsapp_messages").insert({
+            contact_id: item.contato_id,
+            card_id: item.card_id,
+            body: messageText,
+            direction: "outbound",
+            is_from_me: true,
+            type: "text",
+            status: success ? "sent" : "failed",
+            sender_phone: normalizedPhone,
+            sent_by_user_name: "Luna IA (outbound)",
+            metadata: { source: "ai_outbound_trigger", echo_response: echoResult },
+          });
+
+          if (!success) {
+            throw new Error(`Echo API error: ${JSON.stringify(echoResult)}`);
+          }
+        } else {
+          console.warn("[ai-agent-outbound-trigger] ECHO_API_URL or ECHO_API_KEY not configured");
+        }
+
+        // 7. Mark as sent
+        await supabase.rpc("complete_outbound_queue_item", {
+          p_queue_id: item.queue_id,
+          p_status: "sent",
+          p_error: null,
+        });
+        results.push({ queue_id: item.queue_id, status: "sent" });
+        console.log(`[ai-agent-outbound-trigger] Sent to ${item.contact_name} (${item.contact_phone})`);
+      } catch (err) {
+        console.error(`[ai-agent-outbound-trigger] Error processing ${item.queue_id}:`, err);
+        await supabase.rpc("complete_outbound_queue_item", {
+          p_queue_id: item.queue_id,
+          p_status: "failed",
+          p_error: String(err),
+        });
+        results.push({ queue_id: item.queue_id, status: "failed", error: String(err) });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ processed: items.length, results }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error) {
+    console.error("[ai-agent-outbound-trigger] Fatal error:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error", details: String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+});

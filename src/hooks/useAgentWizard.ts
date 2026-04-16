@@ -3,6 +3,34 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useNavigate } from 'react-router-dom'
 
+export type InteractionMode = 'inbound' | 'outbound' | 'hybrid'
+
+export interface FirstMessageConfig {
+  type: 'fixed' | 'ai_generated'
+  fixed_template: string
+  ai_instructions: string
+  delay_seconds: number
+}
+
+export interface OutboundTrigger {
+  type: 'card_created' | 'stage_changed' | 'idle_days'
+  conditions: Record<string, unknown>
+  enabled: boolean
+}
+
+export interface BusinessHoursConfig {
+  start: string
+  end: string
+  timezone: string
+  days: string[]
+}
+
+export interface OutboundTriggerConfig {
+  triggers: OutboundTrigger[]
+  business_hours: BusinessHoursConfig
+  max_daily_outbound: number
+}
+
 export interface WizardStep1 {
   company_name: string
   company_description: string
@@ -11,6 +39,9 @@ export interface WizardStep1 {
   tone: string
   language: string
   produto: string
+  interaction_mode: InteractionMode
+  first_message_config?: FirstMessageConfig
+  outbound_trigger_config?: OutboundTriggerConfig
 }
 
 export interface WizardStep2 {
@@ -26,6 +57,8 @@ export interface QualificationStage {
   advance_to_stage_id: string
   advance_condition: string
   response_options: string[]
+  maps_to_field: string
+  skip_if_filled: boolean
 }
 
 export interface WizardStep3 {
@@ -92,7 +125,7 @@ export interface WizardData {
 }
 
 const EMPTY_WIZARD: WizardData = {
-  step1: { tone: 'professional', language: 'pt-BR', produto: 'trips' },
+  step1: { tone: 'professional', language: 'pt-BR', produto: 'trips', interaction_mode: 'inbound' as const },
   step2: {},
   step3: { stages: [] },
   step4: { kb_items: [], kb_name: '' },

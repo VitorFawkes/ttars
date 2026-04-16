@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/Badge'
-import { DollarSign, Workflow, Zap, Users, Calendar, Plus, Trash2, Sparkles } from 'lucide-react'
+import { DollarSign, Workflow, Zap, Users, Calendar, Plus, Trash2, Sparkles, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SpecialScenarioBuilder } from '@/components/ai-agent/SpecialScenarioBuilder'
 import type { WizardStep5, SpecialScenario, useAgentWizard } from '@/hooks/useAgentWizard'
@@ -89,6 +89,18 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
           Configure como o agente cobra, atende e lida com casos especiais.
         </p>
       </div>
+
+      {wizard.wizardData.step1?.interaction_mode !== 'inbound' && (
+        <div className="flex items-start gap-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+          <Send className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-indigo-900">Modo outbound ativo</p>
+            <p className="text-xs text-indigo-700 mt-0.5">
+              Quando o agente inicia a conversa, os campos de formulario configurados abaixo sao usados como contexto para personalizar a abordagem. Certifique-se de que os campos de dados de formulario estao corretos.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Card 1: Pricing */}
       <div className="bg-white border border-slate-200 rounded-xl p-5">

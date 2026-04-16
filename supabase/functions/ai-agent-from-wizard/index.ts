@@ -41,6 +41,14 @@ interface WizardData {
     tone?: string;
     language?: string;
     produto?: string;
+    interaction_mode?: "inbound" | "outbound" | "hybrid";
+    first_message_config?: {
+      type: "fixed" | "ai_generated";
+      fixed_template: string;
+      ai_instructions: string;
+      delay_seconds: number;
+    };
+    outbound_trigger_config?: Record<string, unknown>;
   };
   step2: {
     template_id: string;
@@ -170,6 +178,9 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
         escalation_rules: s6?.escalation_rules || template.default_escalation_rules || [],
         fallback_message: s6?.fallback_message || "Desculpe, não consegui processar. Um agente humano vai ajudá-lo.",
         ativa: s7?.go_live || false,
+        interaction_mode: s1.interaction_mode || "inbound",
+        first_message_config: s1.interaction_mode !== "inbound" ? s1.first_message_config : null,
+        outbound_trigger_config: s1.interaction_mode !== "inbound" ? s1.outbound_trigger_config : null,
       })
       .select("id, nome")
       .single();
@@ -216,6 +227,8 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
         advance_to_stage_id: stage.advance_to_stage_id,
         advance_condition: stage.advance_condition,
         response_options: stage.response_options,
+        maps_to_field: (stage as Record<string, unknown>).maps_to_field || null,
+        skip_if_filled: (stage as Record<string, unknown>).skip_if_filled ?? true,
       }));
 
       await supabase.from("ai_agent_qualification_flow").insert(flowRows);

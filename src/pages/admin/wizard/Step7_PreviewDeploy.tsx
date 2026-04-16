@@ -44,6 +44,7 @@ export default function Step7_PreviewDeploy({ wizard }: WizardProps) {
     },
   })
 
+  const isOutboundMode = wizard.wizardData.step1?.interaction_mode === 'outbound' || wizard.wizardData.step1?.interaction_mode === 'hybrid'
   const stageCount = (wizard.wizardData.step3?.stages || []).length
   const kbCount = (wizard.wizardData.step4?.kb_items || []).length
   const scenarioCount = (wizard.wizardData.step5?.special_scenarios || []).length
@@ -61,8 +62,13 @@ export default function Step7_PreviewDeploy({ wizard }: WizardProps) {
       { label: 'Base de conhecimento configurada', ok: kbCount > 0, critical: false },
       { label: 'Cenários especiais definidos', ok: scenarioCount > 0, critical: false },
       { label: 'Regras de escalação ativas', ok: activeTriggerCount > 0, critical: false },
+      ...(isOutboundMode ? [{
+        label: 'Primeira mensagem configurada',
+        ok: !!wizard.wizardData.step1?.first_message_config,
+        critical: true,
+      }] : []),
     ]
-  }, [wizard.wizardData, stageCount, kbCount, scenarioCount, activeTriggerCount, phoneLineId])
+  }, [wizard.wizardData, stageCount, kbCount, scenarioCount, activeTriggerCount, phoneLineId, isOutboundMode])
 
   const criticalMissing = checklist.filter((c) => c.critical && !c.ok)
   const canDeploy = criticalMissing.length === 0
@@ -190,6 +196,16 @@ export default function Step7_PreviewDeploy({ wizard }: WizardProps) {
                             conversas com clientes que ainda não responderam, é obrigatório
                             usar um template aprovado. Mensagens de texto livre só funcionam
                             dentro de 24h após o cliente enviar mensagem.
+                          </span>
+                        </div>
+                      )}
+                      {kind === 'oficial_meta' && isOutboundMode && (
+                        <div className="flex items-start gap-2 text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>
+                            O modo outbound envia a primeira mensagem automaticamente. Em linhas
+                            oficiais Meta, isso so funciona com template aprovado. A primeira
+                            mensagem sera enviada como texto livre apenas em linhas nao-oficiais.
                           </span>
                         </div>
                       )}
