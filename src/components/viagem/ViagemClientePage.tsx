@@ -6,6 +6,7 @@ import { PreparationView } from './PreparationView'
 import { CountdownView } from './CountdownView'
 import { TravelView } from './TravelView'
 import { MemoryView } from './MemoryView'
+import { OfflineBanner } from './OfflineBanner'
 
 interface ViagemClientePageProps {
   viagem: Viagem
@@ -38,6 +39,7 @@ export function ViagemClientePage({
 
   return (
     <div className="min-h-dvh bg-slate-50">
+      <OfflineBanner />
       <div className="max-w-lg mx-auto">
         <ViagemHero
           titulo={viagem.titulo}
