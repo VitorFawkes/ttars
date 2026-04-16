@@ -565,6 +565,7 @@ Deno.serve(async (req) => {
                                 }
                                 await supabase.from('contato_meios').upsert({
                                     contato_id: newContact.id,
+                                    org_id: orgIdForContact,
                                     tipo: 'whatsapp',
                                     valor: phone,
                                     valor_normalizado: normalizedPhone,
@@ -1156,6 +1157,7 @@ Deno.serve(async (req) => {
                             }
                             await supabase.from('contato_meios').upsert({
                                 contato_id: contactId,
+                                org_id: orgIdForContact,
                                 tipo: 'whatsapp',
                                 valor: contactPhone,
                                 valor_normalizado: normalizedPhone,
@@ -1711,6 +1713,13 @@ Deno.serve(async (req) => {
                         cardPayload.created_at = (parsedCreateDate && !isNaN(parsedCreateDate.getTime()))
                             ? parsedCreateDate.toISOString()
                             : new Date().toISOString();
+
+                        // H3-fix: org_id obrigatório — webhook não tem JWT, requesting_org_id() retorna NULL
+                        const orgIdForCard = getIntegrationOrgId(event.integration_id);
+                        if (!orgIdForCard) {
+                            throw new Error(`Integration Config Error: integrations.org_id não configurado para ${event.integration_id} — card não pode ser criado sem org destino`);
+                        }
+                        cardPayload.org_id = orgIdForCard;
 
                         const { error: iErr } = await supabase
                             .from('cards')
