@@ -484,3 +484,5 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-16T16:23:26Z | supabase/migrations/20260416_m1_001_travel_planner_enums.sql | applied_to_prod
 2026-04-16T16:24:14Z | supabase/migrations/20260416_m1_004_travel_planner_rpcs.sql | applied_to_prod
 2026-04-16T17:59:13Z | supabase/migrations/20260416_ai_agent_interaction_modes.sql | applied_to_staging
+2026-04-16T18:05:21Z | supabase/migrations/20260416_ai_agent_interaction_modes.sql | applied_to_prod
+2026-04-16T19:15:53Z | supabase/migrations/20260416b_outbound_queue_cron.sql | applied_to_prod
