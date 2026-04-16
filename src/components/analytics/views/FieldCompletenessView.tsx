@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, ChevronDown, Columns3, Filter, ListFilter, ExternalLink, ClipboardList, ArrowRight, UserPlus, Zap, Download } from 'lucide-react'
+import { Check, X, ChevronDown, Columns3, Filter, ListFilter, ExternalLink, ClipboardList, ArrowRight, UserPlus, Zap, Download, Bell, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
@@ -511,6 +511,7 @@ export default function FieldCompletenessView() {
     const [selectedFieldKeys, setSelectedFieldKeys] = useState<string[]>(() => loadFromLS(LS_COLUMNS_KEY) || [])
     const [selectedExtras, setSelectedExtras] = useState<ExtraColumnKey[]>(() => (loadFromLS(LS_EXTRAS_KEY) || []) as ExtraColumnKey[])
     const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
+    const [searchTerm] = useState('')
     const [page, setPage] = useState(0)
     const [sortCol, setSortCol] = useState<string | null>(null)
     const [sortAsc, setSortAsc] = useState(true)
@@ -523,6 +524,7 @@ export default function FieldCompletenessView() {
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
+    const [, setShowAlertModal] = useState(false)
 
     const handleSetFieldKeys = useCallback((keys: string[]) => {
         setSelectedFieldKeys(keys)
@@ -541,6 +543,7 @@ export default function FieldCompletenessView() {
         selectedFieldKeys,
         selectedExtraKeys: selectedExtras,
         productFilter: currentProduct,
+        pipelineId: pipelineId ?? undefined,
     })
 
     const allColumns = useMemo(() => {
@@ -556,12 +559,28 @@ export default function FieldCompletenessView() {
     }, [selectableFields, selectedFieldKeys, selectedExtras])
 
     const filteredRows = useMemo(() => {
-        if (fieldFilters.length === 0) return rows
-        return rows.filter(row => fieldFilters.every(f => {
-            const isFilled = row.filled[f.key] ?? false
-            return f.mode === 'filled' ? isFilled : !isFilled
-        }))
-    }, [rows, fieldFilters])
+        let result = rows
+
+        // Text search
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase().trim()
+            result = result.filter(row =>
+                (row.card.titulo || '').toLowerCase().includes(term) ||
+                (row.card.pessoa_nome || '').toLowerCase().includes(term) ||
+                (row.card.dono_atual_nome || '').toLowerCase().includes(term)
+            )
+        }
+
+        // Field filters
+        if (fieldFilters.length > 0) {
+            result = result.filter(row => fieldFilters.every(f => {
+                const isFilled = row.filled[f.key] ?? false
+                return f.mode === 'filled' ? isFilled : !isFilled
+            }))
+        }
+
+        return result
+    }, [rows, fieldFilters, searchTerm])
 
     const sortedRows = useMemo(() => {
         if (!sortCol) return filteredRows
@@ -665,6 +684,34 @@ export default function FieldCompletenessView() {
         clearSelection()
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const handleBulkAlert = async (titulo: string, corpo: string) => {
+        // Group cards by owner to avoid duplicate notifications
+        const byOwner = new Map<string, string[]>()
+        for (const r of selectedCards) {
+            const ownerId = r.card.dono_atual_id
+            if (!ownerId) continue
+            const arr = byOwner.get(ownerId) || []
+            arr.push(r.card.titulo || '(sem título)')
+            byOwner.set(ownerId, arr)
+        }
+
+        const notifications = [...byOwner.entries()].map(([userId, cardTitles]) => ({
+            user_id: userId,
+            type: 'card_alert',
+            title: titulo,
+            body: `${corpo}\n\nLeads: ${cardTitles.slice(0, 5).join(', ')}${cardTitles.length > 5 ? ` e mais ${cardTitles.length - 5}` : ''}`,
+            metadata: { origin: 'completeness_bulk', card_count: cardTitles.length },
+        }))
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).from('notifications').insert(notifications)
+        if (error) { toast.error('Erro ao criar alertas: ' + error.message); return }
+        toast.success(`${notifications.length} alerta${notifications.length > 1 ? 's' : ''} enviado${notifications.length > 1 ? 's' : ''}!`)
+        setShowAlertModal(false)
+        clearSelection()
+    }
+
     const handleExportCSV = () => {
         const rowsToExport = selectedCards.length > 0 ? selectedCards : sortedRows
         exportCSV(rowsToExport, selectedFieldKeys, selectedExtras, allColumns, fieldTypeMap)
@@ -685,6 +732,19 @@ export default function FieldCompletenessView() {
 
             {/* Controls Bar */}
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex items-center gap-3 flex-wrap">
+                {/* Search */}
+                <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="search"
+                        placeholder="Buscar lead, contato ou dono..."
+                        value={searchTerm}
+                        onChange={e => { setSearchTerm(e.target.value); setPage(0) }}
+                        className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[220px] focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
+                        autoComplete="off"
+                    />
+                </div>
+
                 <ColumnManager sections={selectableFields} selectedKeys={selectedFieldKeys} selectedExtras={selectedExtras} onChangeKeys={handleSetFieldKeys} onChangeExtras={handleSetExtras} />
                 {hasColumns && <FilterManager allColumns={allColumns} filters={fieldFilters} onChange={f => { setFieldFilters(f); setPage(0) }} />}
 
@@ -775,6 +835,10 @@ export default function FieldCompletenessView() {
 
                         <button onClick={() => setShowTaskModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
                             <ClipboardList className="w-3.5 h-3.5" /> Criar Tarefa
+                        </button>
+
+                        <button onClick={() => setShowAlertModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                            <Bell className="w-3.5 h-3.5" /> Alerta
                         </button>
 
                         <div className="relative">
