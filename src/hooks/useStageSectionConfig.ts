@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
@@ -15,10 +15,30 @@ const QUERY_KEY = ['stage-section-configs']
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ssc = () => supabase.from('stage_section_config' as any)
 
-export function useStageSectionConfig() {
+/**
+ * Hook para configs de visibilidade/collapse de seções por etapa.
+ * @param pipelineId — quando informado, filtra configs para stages desse pipeline apenas.
+ *   Obter via `useCurrentProductMeta().pipelineId`. Sem ele, retorna configs de TODOS os pipelines.
+ */
+export function useStageSectionConfig(pipelineId?: string) {
     const queryClient = useQueryClient()
 
-    const { data: configs, isLoading } = useQuery({
+    // Quando pipelineId informado, buscar stage IDs válidos
+    const { data: validStageIds } = useQuery({
+        queryKey: ['pipeline-stage-ids-for-filter', pipelineId],
+        queryFn: async () => {
+            if (!pipelineId) return null
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('id')
+                .eq('pipeline_id', pipelineId)
+            return data?.map(s => s.id) || []
+        },
+        enabled: !!pipelineId,
+        staleTime: 1000 * 60 * 5
+    })
+
+    const { data: allConfigs, isLoading } = useQuery({
         queryKey: QUERY_KEY,
         queryFn: async () => {
             const { data, error } = await ssc().select('*')
@@ -27,6 +47,14 @@ export function useStageSectionConfig() {
         },
         staleTime: 1000 * 60 * 5
     })
+
+    // Filtrar configs pelo pipeline quando pipelineId informado
+    const configs = useMemo(() => {
+        if (!allConfigs) return undefined
+        if (!pipelineId || !validStageIds) return allConfigs
+        const stageSet = new Set(validStageIds)
+        return allConfigs.filter(c => stageSet.has(c.stage_id))
+    }, [allConfigs, pipelineId, validStageIds])
 
     /** Returns true if section should be visible at this stage (default: visible) */
     const isSectionVisible = useCallback((stageId: string | null, sectionKey: string): boolean => {

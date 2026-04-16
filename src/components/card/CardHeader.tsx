@@ -378,7 +378,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
     // Stage selection
     const [showStageDropdown, setShowStageDropdown] = useState(false)
-    const { validateMove } = useQualityGate()
+    const headerPipelineId = useProductPipelineId(card.produto)
+    const { validateMove } = useQualityGate(headerPipelineId)
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
@@ -400,10 +401,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
 
     const { missingBlocking } = useStageRequirements(card)
-    const { getHeaderFields } = useFieldConfig()
+    const { getHeaderFields } = useFieldConfig(headerPipelineId)
     const headerFields = card.pipeline_stage_id ? getHeaderFields(card.pipeline_stage_id) : []
-    const pipelineId = useProductPipelineId(card.produto)
-    const { data: phasesData } = usePipelinePhases(pipelineId)
+    const { data: phasesData } = usePipelinePhases(headerPipelineId)
 
     // Card team (assistants)
     const { members: teamMembers, addMember, removeMember } = useCardTeam(card.id || undefined, card)
@@ -423,7 +423,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
     // Fetch pipeline stages with proper Kanban ordering (phase order_index -> stage ordem)
     const { data: stages } = useQuery({
-        queryKey: ['pipeline-stages-ordered', pipelineId],
+        queryKey: ['pipeline-stages-ordered', headerPipelineId],
         queryFn: async () => {
             let query = supabase
                 .from('pipeline_stages')
@@ -437,8 +437,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 `)
                 .eq('ativo', true)
 
-            if (pipelineId) {
-                query = query.eq('pipeline_id', pipelineId)
+            if (headerPipelineId) {
+                query = query.eq('pipeline_id', headerPipelineId)
             }
 
             const { data, error } = await query
@@ -455,7 +455,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         }
     })
 
-    const { getForStage: getFieldConfirmationsForStage } = useStageFieldConfirmations()
+    const { getForStage: getFieldConfirmationsForStage } = useStageFieldConfirmations(headerPipelineId)
 
     // Derived fields
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)

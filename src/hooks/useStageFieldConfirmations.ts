@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
@@ -19,11 +20,27 @@ export interface StageFieldConfirmation {
 const sfcTable = () => supabase.from('stage_field_confirmations' as any)
 
 /**
- * Lê todas as regras de confirmação ativas, globalmente.
- * Retorna um Map<stage_id, confirmations[]> para lookup O(1) durante movimentação.
+ * Lê todas as regras de confirmação ativas.
+ * @param pipelineId — quando informado, filtra confirmações para stages desse pipeline apenas.
+ *   Obter via `useCurrentProductMeta().pipelineId`. Sem ele, retorna confirmações de TODOS os pipelines.
  */
-export function useStageFieldConfirmations() {
-    const { data, isLoading } = useQuery({
+export function useStageFieldConfirmations(pipelineId?: string) {
+    // Quando pipelineId informado, buscar stage IDs válidos
+    const { data: validStageIds } = useQuery({
+        queryKey: ['pipeline-stage-ids-for-filter', pipelineId],
+        queryFn: async () => {
+            if (!pipelineId) return null
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('id')
+                .eq('pipeline_id', pipelineId)
+            return data?.map(s => s.id) || []
+        },
+        enabled: !!pipelineId,
+        staleTime: 1000 * 60 * 5
+    })
+
+    const { data: allData, isLoading } = useQuery({
         queryKey: ['stage-field-confirmations-all'],
         queryFn: async () => {
             const { data, error } = await sfcTable()
@@ -35,6 +52,14 @@ export function useStageFieldConfirmations() {
         },
         staleTime: 1000 * 60 * 5
     })
+
+    // Filtrar pelo pipeline quando pipelineId informado
+    const data = useMemo(() => {
+        if (!allData) return undefined
+        if (!pipelineId || !validStageIds) return allData
+        const stageSet = new Set(validStageIds)
+        return allData.filter(c => stageSet.has(c.stage_id))
+    }, [allData, pipelineId, validStageIds])
 
     const getForStage = (stageId: string): StageFieldConfirmation[] => {
         if (!data) return []

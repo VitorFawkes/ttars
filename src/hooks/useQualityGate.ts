@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
@@ -37,13 +38,33 @@ const PROPOSAL_STATUS_LABELS: Record<string, string> = {
     'accepted': 'Aceita'
 }
 
-export function useQualityGate() {
+/**
+ * Hook de validação de requisitos para movimentação de cards.
+ * @param pipelineId — quando informado, filtra regras para stages desse pipeline apenas (defesa em profundidade).
+ *   Obter via `useCurrentProductMeta().pipelineId`.
+ */
+export function useQualityGate(pipelineId?: string) {
+    // Quando pipelineId informado, buscar stage IDs válidos
+    const { data: validStageIds } = useQuery({
+        queryKey: ['pipeline-stage-ids-for-filter', pipelineId],
+        queryFn: async () => {
+            if (!pipelineId) return null
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('id')
+                .eq('pipeline_id', pipelineId)
+            return data?.map(s => s.id) || []
+        },
+        enabled: !!pipelineId,
+        staleTime: 1000 * 60 * 5
+    })
+
     // Fetch all required configurations
     // NOTE: não usar embed `system_fields(label)` — não existe FK entre
     // stage_field_config.field_key e system_fields.key, então o PostgREST
     // retorna PGRST200 e silencia toda a validação. Carregar rótulos via
     // fetch separado e mesclar em memória.
-    const { data: rules } = useQuery({
+    const { data: allRules } = useQuery({
         queryKey: ['stage-field-config-all'],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -84,6 +105,14 @@ export function useQualityGate() {
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
+
+    // Filtrar regras pelo pipeline quando pipelineId informado
+    const rules = useMemo(() => {
+        if (!allRules) return undefined
+        if (!pipelineId || !validStageIds) return allRules
+        const stageSet = new Set(validStageIds)
+        return allRules.filter(r => stageSet.has(r.stage_id))
+    }, [allRules, pipelineId, validStageIds])
 
     const validateMove = async (cardInput: Record<string, unknown>, targetStageId: string): Promise<ValidationResult> => {
         if (!rules) return { valid: true, missingRequirements: [] }
