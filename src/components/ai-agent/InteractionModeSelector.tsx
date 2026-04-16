@@ -133,6 +133,7 @@ export function InteractionModeSelector({
   }
 
   const cardCreatedTrigger = otc.triggers.find(t => t.type === 'card_created')
+  const idleDaysTrigger = otc.triggers.find(t => t.type === 'idle_days')
   const selectedOrigens = (cardCreatedTrigger?.conditions?.origem as string[]) || []
 
   return (
@@ -318,13 +319,78 @@ export function InteractionModeSelector({
                 <Switch disabled checked={false} />
               </div>
 
-              <div className="flex items-center justify-between opacity-50">
+              <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-900">Quando parado ha X dias</p>
-                  <p className="text-xs text-slate-400">Em breve</p>
+                  <p className="text-xs text-slate-500">Follow-up automatico para leads inativos</p>
                 </div>
-                <Switch disabled checked={false} />
+                <Switch
+                  checked={idleDaysTrigger?.enabled ?? false}
+                  onCheckedChange={(checked) => {
+                    const existing = otc.triggers.find(t => t.type === 'idle_days')
+                    if (existing) {
+                      const updated = otc.triggers.map(t =>
+                        t.type === 'idle_days' ? { ...t, enabled: checked } : t
+                      )
+                      onOutboundTriggerConfigChange({ ...otc, triggers: updated })
+                    } else {
+                      onOutboundTriggerConfigChange({
+                        ...otc,
+                        triggers: [
+                          ...otc.triggers,
+                          { type: 'idle_days', conditions: { days: 3, max_followups: 2 }, enabled: true },
+                        ],
+                      })
+                    }
+                  }}
+                />
               </div>
+
+              {idleDaysTrigger?.enabled && (
+                <div className="ml-4 pl-4 border-l-2 border-slate-100 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs text-slate-600 whitespace-nowrap">Dias sem atividade</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={(idleDaysTrigger.conditions.days as number) ?? 3}
+                      onChange={(e) => {
+                        const days = Math.max(1, Math.min(30, parseInt(e.target.value) || 3))
+                        const updated = otc.triggers.map(t =>
+                          t.type === 'idle_days'
+                            ? { ...t, conditions: { ...t.conditions, days } }
+                            : t
+                        )
+                        onOutboundTriggerConfigChange({ ...otc, triggers: updated })
+                      }}
+                      className="w-20"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs text-slate-600 whitespace-nowrap">Maximo de follow-ups por lead</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={(idleDaysTrigger.conditions.max_followups as number) ?? 2}
+                      onChange={(e) => {
+                        const max_followups = Math.max(1, Math.min(5, parseInt(e.target.value) || 2))
+                        const updated = otc.triggers.map(t =>
+                          t.type === 'idle_days'
+                            ? { ...t, conditions: { ...t.conditions, max_followups } }
+                            : t
+                        )
+                        onOutboundTriggerConfigChange({ ...otc, triggers: updated })
+                      }}
+                      className="w-20"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    A IA vai ler o historico da conversa anterior e gerar uma mensagem personalizada de follow-up.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

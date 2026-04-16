@@ -115,6 +115,99 @@ async function callLLM(
   return data.choices?.[0]?.message?.content || "";
 }
 
+async function generateFollowUpMessage(
+  supabase: ReturnType<typeof createClient>,
+  item: QueueItem,
+): Promise<string> {
+  const idleDays = (item.trigger_metadata as Record<string, unknown>)?.idle_days || 3;
+
+  // Carregar card com ai_resumo e ai_contexto
+  const { data: card } = await supabase
+    .from("cards")
+    .select("titulo, ai_resumo, ai_contexto, pipeline_stage_id, produto_data")
+    .eq("id", item.card_id)
+    .single();
+
+  // Carregar nome do estagio
+  let stageName = "";
+  if (card?.pipeline_stage_id) {
+    const { data: stage } = await supabase
+      .from("pipeline_stages")
+      .select("nome")
+      .eq("id", card.pipeline_stage_id)
+      .single();
+    stageName = stage?.nome || "";
+  }
+
+  // Carregar ultima conversa AI deste contato
+  const { data: lastConv } = await supabase
+    .from("ai_conversations")
+    .select("id, status, updated_at")
+    .eq("contact_id", item.contato_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  let historicoCompacto = "";
+  if (lastConv?.id) {
+    const { data: turns } = await supabase
+      .from("ai_conversation_turns")
+      .select("role, content, created_at")
+      .eq("conversation_id", lastConv.id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    if (turns && turns.length > 0) {
+      historicoCompacto = turns
+        .reverse()
+        .map((t) => {
+          const who = t.role === "user" ? "lead" : "agente";
+          return `[${who}]: ${t.content}`;
+        })
+        .join("\n");
+    }
+  }
+
+  // Carregar agent name e persona
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("nome, persona, system_prompt")
+    .eq("id", item.agent_id)
+    .single();
+
+  const agentName = agent?.nome || "Assistente";
+  const aiResumo = card?.ai_resumo || "Sem resumo disponivel";
+  const aiContexto = card?.ai_contexto || "";
+
+  const systemPrompt = `Voce e ${agentName}, assistente de vendas.
+${agent?.persona ? `Personalidade: ${agent.persona}` : ""}
+
+O lead ${item.contact_name || "Cliente"} conversou com voce ha ${idleDays} dias e nao respondeu mais.
+Seu objetivo: retomar a conversa de forma natural, como se fosse um follow-up humano.
+
+CONTEXTO DO LEAD:
+- Resumo: ${aiResumo}
+${aiContexto ? `- Contexto adicional: ${aiContexto}` : ""}
+${stageName ? `- Estagio no pipeline: ${stageName}` : ""}
+${card?.titulo ? `- Card: ${card.titulo}` : ""}
+
+ULTIMA CONVERSA:
+${historicoCompacto || "Nenhum historico disponivel"}
+
+REGRAS:
+- Gere UMA mensagem de follow-up natural que retome de onde parou.
+- NAO repita perguntas ja respondidas na conversa anterior.
+- NAO mencione IA, sistema, bot ou qualquer indicativo automatizado.
+- NAO diga "estou entrando em contato novamente" de forma robotica.
+- Tom casual e natural, como um humano mandaria no WhatsApp.
+- Maximo 2-3 frases. Pode usar 0-1 emoji.
+- Se o historico mostra que o lead demonstrou interesse em algo especifico, retome a partir dali.
+
+SAIDA: APENAS o texto da mensagem, pronto pra enviar via WhatsApp.`;
+
+  return await callLLM(systemPrompt, "Gere a mensagem de follow-up.");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -183,38 +276,44 @@ serve(async (req) => {
           continue;
         }
 
-        // 4. Generate first message
+        // 4. Generate message (first contact vs follow-up)
         let messageText = "";
-        const fmc = item.first_message_config;
 
-        if (!fmc) {
-          await supabase.rpc("complete_outbound_queue_item", {
-            p_queue_id: item.queue_id,
-            p_status: "skipped",
-            p_error: "No first_message_config",
-          });
-          results.push({ queue_id: item.queue_id, status: "skipped", error: "no_config" });
-          continue;
-        }
+        if (item.trigger_type === "idle_days") {
+          // === FOLLOW-UP: carregar contexto da conversa anterior ===
+          messageText = await generateFollowUpMessage(supabase, item);
+        } else {
+          // === FIRST CONTACT: usar first_message_config ===
+          const fmc = item.first_message_config;
 
-        const templateVars: Record<string, string> = {
-          contact_name: item.contact_name || "Cliente",
-        };
-        if (item.form_data) {
-          for (const [k, v] of Object.entries(item.form_data)) {
-            if (v) templateVars[`form_${k}`] = String(v);
+          if (!fmc) {
+            await supabase.rpc("complete_outbound_queue_item", {
+              p_queue_id: item.queue_id,
+              p_status: "skipped",
+              p_error: "No first_message_config",
+            });
+            results.push({ queue_id: item.queue_id, status: "skipped", error: "no_config" });
+            continue;
           }
-        }
 
-        if (fmc.type === "fixed" && fmc.fixed_template) {
-          messageText = resolveTemplate(fmc.fixed_template, templateVars);
-        } else if (fmc.type === "ai_generated" && fmc.ai_instructions) {
-          const formContext = Object.entries(item.form_data || {})
-            .filter(([, v]) => v)
-            .map(([k, v]) => `- ${k}: ${v}`)
-            .join("\n");
+          const templateVars: Record<string, string> = {
+            contact_name: item.contact_name || "Cliente",
+          };
+          if (item.form_data) {
+            for (const [k, v] of Object.entries(item.form_data)) {
+              if (v) templateVars[`form_${k}`] = String(v);
+            }
+          }
 
-          const systemPrompt = `Voce e um assistente de vendas. Gere UMA mensagem WhatsApp de primeiro contato.
+          if (fmc.type === "fixed" && fmc.fixed_template) {
+            messageText = resolveTemplate(fmc.fixed_template, templateVars);
+          } else if (fmc.type === "ai_generated" && fmc.ai_instructions) {
+            const formContext = Object.entries(item.form_data || {})
+              .filter(([, v]) => v)
+              .map(([k, v]) => `- ${k}: ${v}`)
+              .join("\n");
+
+            const systemPrompt = `Voce e um assistente de vendas. Gere UMA mensagem WhatsApp de primeiro contato.
 Instrucoes: ${fmc.ai_instructions}
 
 Dados do lead:
@@ -229,7 +328,8 @@ REGRAS:
 
 SAIDA: APENAS o texto da mensagem, pronto pra enviar.`;
 
-          messageText = await callLLM(systemPrompt, "Gere a primeira mensagem de abordagem.");
+            messageText = await callLLM(systemPrompt, "Gere a primeira mensagem de abordagem.");
+          }
         }
 
         if (!messageText.trim()) {
@@ -252,7 +352,7 @@ SAIDA: APENAS o texto da mensagem, pronto pra enviar.`;
             primary_agent_id: item.agent_id,
             current_agent_id: item.agent_id,
             status: "active",
-            intent: "outbound_first_contact",
+            intent: item.trigger_type === "idle_days" ? "outbound_followup" : "outbound_first_contact",
           })
           .select("id")
           .single();
