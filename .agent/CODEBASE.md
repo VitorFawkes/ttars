@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-14
+> **Last Updated:** 2026-04-16
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 172 tabelas | 87 paginas | 138 hooks | 17 views | 532 components
+> **Stats:** 172 tabelas | 87 paginas | 139 hooks | 17 views | 533 components
 =======
-> **Stats:** 172 tabelas | 87 paginas | 138 hooks | 17 views | 532 components
+> **Stats:** 172 tabelas | 87 paginas | 139 hooks | 17 views | 533 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **138 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **139 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -284,6 +284,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
+| `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
 | `useTripPlanApprovals()` | `useTripPlanApprovals.ts` |
 | `useTripPlanBlocks()` | `useTripPlanBlocks.ts` |

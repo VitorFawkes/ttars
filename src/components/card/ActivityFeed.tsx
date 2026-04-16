@@ -181,8 +181,18 @@ function formatValue(val: unknown): string | null {
         // Flexible date: { tipo, mes, ano, ... }
         if (obj.mes) return `${obj.mes}${obj.ano ? '/' + obj.ano : ''}`
         if (obj.data_inicio) return String(obj.data_inicio)
-        // Arrays (destinos, etc.)
-        if (Array.isArray(val)) return val.join(', ') || null
+        // Arrays (destinos, historico monde, etc.)
+        if (Array.isArray(val)) {
+            if (val.length === 0) return null
+            if (typeof val[0] === 'object' && val[0] !== null) {
+                const readable = val.map(item => {
+                    const o = item as Record<string, unknown>
+                    return String(o.numero ?? o.nome ?? o.label ?? o.titulo ?? JSON.stringify(o))
+                })
+                return readable.join(', ') || null
+            }
+            return val.join(', ') || null
+        }
         // Fallback: stringify compacto
         const str = JSON.stringify(val)
         return str.length > 80 ? str.slice(0, 77) + '...' : str

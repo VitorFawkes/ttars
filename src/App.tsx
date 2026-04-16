@@ -31,6 +31,7 @@ import WhatsAppView from './components/analytics/views/WhatsAppView'
 import SalesFunnelView from './components/analytics/views/SalesFunnelView'
 import TeamAnalyticsView from './components/analytics/views/TeamAnalyticsView'
 import OperationsView from './components/analytics/views/OperationsView'
+import FieldCompletenessView from './components/analytics/views/FieldCompletenessView'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
@@ -230,6 +231,7 @@ function App() {
                     <Route path="funnel" element={<SalesFunnelView />} />
                     <Route path="team" element={<TeamAnalyticsView />} />
                     <Route path="operations" element={<OperationsView />} />
+                    <Route path="completeness" element={<FieldCompletenessView />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />

@@ -25,7 +25,7 @@ function TypingIndicator() {
 
 export default function AIChat({ cardId, contactId }: AIChatProps) {
     const [input, setInput] = useState('')
-    const { messages, isLoading, sendMessage, reset } = useChatIA(cardId, contactId || null)
+    const { messages, isLoading, isLoadingHistory, sendMessage, reset } = useChatIA(cardId, contactId || null)
     const bottomRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll to bottom on new messages
@@ -76,7 +76,12 @@ export default function AIChat({ cardId, contactId }: AIChatProps) {
             {/* Messages Area */}
             <ScrollArea className="flex-1 px-4">
                 <div className="py-4 space-y-3">
-                    {messages.length === 0 && !isLoading ? (
+                    {isLoadingHistory ? (
+                        <div className="flex flex-col items-center pt-16">
+                            <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
+                            <p className="text-xs text-slate-500">Carregando conversa...</p>
+                        </div>
+                    ) : messages.length === 0 && !isLoading ? (
                         <div className="flex flex-col items-center pt-12">
                             <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
                                 <MessageSquare className="h-7 w-7 text-indigo-400" />
@@ -133,13 +138,13 @@ export default function AIChat({ cardId, contactId }: AIChatProps) {
                             }
                         }}
                         placeholder={isLoading ? 'Aguardando resposta...' : 'Ex: Me atualiza sobre esse cliente...'}
-                        disabled={isLoading}
+                        disabled={isLoading || isLoadingHistory}
                         aria-label="Pergunta para a IA"
                         className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <button
                         onClick={handleSend}
-                        disabled={!input.trim() || isLoading}
+                        disabled={!input.trim() || isLoading || isLoadingHistory}
                         aria-label="Enviar pergunta"
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                     >
