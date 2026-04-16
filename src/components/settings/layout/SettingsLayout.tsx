@@ -9,7 +9,7 @@ export default function SettingsLayout() {
     return (
         <div className="flex w-full h-full bg-muted/30">
             <SettingsSidebar />
-            <div className={cn("flex-1", isBuilder ? "overflow-hidden" : "overflow-auto")}>
+            <div className="flex-1 overflow-auto">
                 <div className={cn(isBuilder ? "h-full" : "p-8 max-w-7xl mx-auto")}>
                     <Outlet />
                 </div>
