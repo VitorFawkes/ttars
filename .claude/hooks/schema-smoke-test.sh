@@ -222,6 +222,41 @@ except Exception:
   fi
 fi
 
+# ── M1: Travel Planner tables (só após promoção para produção) ──
+# Detectar se viagens existe antes de testar todo o grupo
+VIAGENS_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+  "${URL}/rest/v1/viagens?select=id&limit=1" \
+  -H "apikey: ${ANON}" \
+  -H "Authorization: Bearer ${KEY}" \
+  --max-time 10)
+
+if [ "$VIAGENS_CHECK" = "200" ] || [ "$VIAGENS_CHECK" = "206" ]; then
+  test_query "viagens table" \
+    "viagens?select=id,card_id,estado,public_token,total_estimado&limit=1"
+
+  test_query "trip_items table" \
+    "trip_items?select=id,viagem_id,tipo,status,ordem&limit=1"
+
+  test_query "trip_comments table" \
+    "trip_comments?select=id,viagem_id,autor,texto&limit=1"
+
+  test_query "trip_events table" \
+    "trip_events?select=id,viagem_id,tipo&limit=1"
+
+  test_query "trip_item_history table" \
+    "trip_item_history?select=id,item_id,campo&limit=1"
+
+  test_query "trip_library_items table" \
+    "trip_library_items?select=id,tipo,titulo&limit=1"
+
+  # RPCs públicas do Travel Planner
+  test_rpc_exists "get_viagem_by_token RPC exists" "get_viagem_by_token" \
+    '{"p_token":"__nonexistent__"}'
+
+  test_rpc_exists "confirmar_viagem RPC exists" "confirmar_viagem" \
+    '{"p_token":"__nonexistent__"}'
+fi
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2

@@ -475,3 +475,11 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-14T21:02:18Z | supabase/migrations/20260414y_reactivation_patterns_v4.sql | applied_to_prod
 2026-04-14T21:02:26Z | supabase/migrations/20260414z_reactivation_rpc_v4.sql | applied_to_prod
 2026-04-14T21:02:34Z | supabase/migrations/20260414za_reactivation_bulk_rpcs.sql | applied_to_prod
+2026-04-16T14:45:47Z | supabase/migrations/20260416_fix_monde_historico_activity_label.sql | pre_existing_unrelated
+2026-04-16T14:46:47Z | supabase/migrations/20260416_fix_monde_historico_activity_label.sql | applied_to_prod
+2026-04-16T16:12:21Z | supabase/migrations/20260416_m1_001_travel_planner_enums.sql | pre_existing_unrelated
+2026-04-16T16:12:21Z | supabase/migrations/20260416_m1_002_travel_planner_tables.sql | pre_existing_unrelated
+2026-04-16T16:12:21Z | supabase/migrations/20260416_m1_003_travel_planner_triggers.sql | pre_existing_unrelated
+2026-04-16T16:12:21Z | supabase/migrations/20260416_m1_004_travel_planner_rpcs.sql | pre_existing_unrelated
+2026-04-16T16:23:26Z | supabase/migrations/20260416_m1_001_travel_planner_enums.sql | applied_to_prod
+2026-04-16T16:24:14Z | supabase/migrations/20260416_m1_004_travel_planner_rpcs.sql | applied_to_prod
