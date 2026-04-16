@@ -451,6 +451,43 @@ function PriorityDropdown({ onSelect, onClose }: {
     )
 }
 
+// ── Bulk Alert Modal ──────────────────────────────────────────────────
+
+function BulkAlertModal({ cardCount, onConfirm, onClose }: {
+    cardCount: number
+    onConfirm: (titulo: string, corpo: string) => void
+    onClose: () => void
+}) {
+    const [titulo, setTitulo] = useState('Dados incompletos nos seus leads')
+    const [corpo, setCorpo] = useState('Por favor, complete os dados pendentes dos leads abaixo.')
+
+    return (
+        <>
+            <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                    <h3 className="text-base font-semibold text-slate-900">Enviar alerta para donos de {cardCount} lead{cardCount > 1 ? 's' : ''}</h3>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block">Título do alerta</label>
+                            <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block">Mensagem</label>
+                            <textarea value={corpo} onChange={e => setCorpo(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none" />
+                        </div>
+                    </div>
+                    <p className="text-xs text-slate-400">Cada dono receberá 1 alerta com a lista dos seus leads. Os leads serão agrupados por dono.</p>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
+                        <button onClick={() => onConfirm(titulo, corpo)} disabled={!titulo.trim()} className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40">Enviar alertas</button>
+                    </div>
+                </div>
+            </div>
+        </>
+    )
+}
+
 // ── CSV Export ─────────────────────────────────────────────────────────
 
 function exportCSV(
@@ -511,7 +548,7 @@ export default function FieldCompletenessView() {
     const [selectedFieldKeys, setSelectedFieldKeys] = useState<string[]>(() => loadFromLS(LS_COLUMNS_KEY) || [])
     const [selectedExtras, setSelectedExtras] = useState<ExtraColumnKey[]>(() => (loadFromLS(LS_EXTRAS_KEY) || []) as ExtraColumnKey[])
     const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
-    const [searchTerm] = useState('')
+    const [searchTerm, setSearchTerm] = useState('')
     const [page, setPage] = useState(0)
     const [sortCol, setSortCol] = useState<string | null>(null)
     const [sortAsc, setSortAsc] = useState(true)
@@ -524,6 +561,7 @@ export default function FieldCompletenessView() {
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
+    const [showAlertModal, setShowAlertModal] = useState(false)
     const [, setShowAlertModal] = useState(false)
 
     const handleSetFieldKeys = useCallback((keys: string[]) => {
@@ -684,7 +722,6 @@ export default function FieldCompletenessView() {
         clearSelection()
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleBulkAlert = async (titulo: string, corpo: string) => {
         // Group cards by owner to avoid duplicate notifications
         const byOwner = new Map<string, string[]>()
@@ -871,6 +908,7 @@ export default function FieldCompletenessView() {
 
             {/* Modals */}
             {showTaskModal && <BulkTaskModal cardCount={selectedIds.size} onConfirm={handleBulkCreateTask} onClose={() => setShowTaskModal(false)} />}
+            {showAlertModal && <BulkAlertModal cardCount={selectedIds.size} onConfirm={handleBulkAlert} onClose={() => setShowAlertModal(false)} />}
             {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
         </div>
     )
