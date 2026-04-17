@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import {
     useFieldCompleteness,
     EXTRA_COLUMNS,
+    OWNER_EXTRA_KEYS,
     type ExtraColumnKey,
     type CardCompleteness,
 } from '@/hooks/analytics/useFieldCompleteness'
@@ -432,9 +433,8 @@ function BulkTaskModal({ cardCount, profiles, onConfirm, onClose }: {
 }) {
     const [titulo, setTitulo] = useState('Completar dados do lead')
     const [tipo, setTipo] = useState('tarefa')
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 3)
-    const [prazo, setPrazo] = useState(tomorrow.toISOString().slice(0, 10))
+    const today = new Date()
+    const [prazo, setPrazo] = useState(today.toISOString().slice(0, 10))
     const [prioridade, setPrioridade] = useState('media')
     const [responsavelMode, setResponsavelMode] = useState<'card_owner' | 'specific'>('card_owner')
     const [responsavelId, setResponsavelId] = useState('')
@@ -779,6 +779,10 @@ function exportCSV(
                 const [y, m, d] = v.split('-')
                 return `${d}/${m}/${y}`
             }
+            // Owner columns export the name
+            if (OWNER_EXTRA_KEYS.has(key as ExtraColumnKey)) {
+                return values[key] || 'sem dono'
+            }
             return filled[key] ? 'preenchido' : 'vazio'
         })
         return [...base, ...fields]
@@ -912,6 +916,14 @@ export default function FieldCompletenessView() {
                 if (!da) return sortAsc ? -1 : 1
                 if (!db) return sortAsc ? 1 : -1
                 return sortAsc ? da.localeCompare(db) : db.localeCompare(da)
+            }
+            // Owner extra column: sort by name
+            if (OWNER_EXTRA_KEYS.has(sortCol as ExtraColumnKey)) {
+                const na = a.values[sortCol] || '', nb = b.values[sortCol] || ''
+                if (!na && !nb) return 0
+                if (!na) return sortAsc ? 1 : -1
+                if (!nb) return sortAsc ? -1 : 1
+                return sortAsc ? na.localeCompare(nb) : nb.localeCompare(na)
             }
             return sortAsc ? (a.filled[sortCol] ? 1 : 0) - (b.filled[sortCol] ? 1 : 0) : (b.filled[sortCol] ? 1 : 0) - (a.filled[sortCol] ? 1 : 0)
         })
@@ -1259,7 +1271,21 @@ function CardRow({ row, fieldKeys, extraKeys, fieldTypeMap, isSelected, onToggle
                 }
                 return <td key={fk} className="px-3 py-2.5 text-center"><FillIndicator filled={filled[fk] ?? false} /></td>
             })}
-            {extraKeys.map(ek => <td key={ek} className="px-3 py-2.5 text-center"><FillIndicator filled={filled[ek] ?? false} /></td>)}
+            {extraKeys.map(ek => {
+                // Owner columns show the name, not ✓/✗
+                if (OWNER_EXTRA_KEYS.has(ek)) {
+                    const name = values[ek]
+                    return (
+                        <td key={ek} className="px-3 py-2.5 whitespace-nowrap">
+                            {name
+                                ? <span className="text-xs text-slate-700">{name}</span>
+                                : <span className="text-xs text-slate-400">—</span>
+                            }
+                        </td>
+                    )
+                }
+                return <td key={ek} className="px-3 py-2.5 text-center"><FillIndicator filled={filled[ek] ?? false} /></td>
+            })}
         </tr>
     )
 }

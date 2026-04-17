@@ -117,6 +117,18 @@ function isExtraFilled(card: ViewCard, extraKey: ExtraColumnKey): boolean {
     }
 }
 
+/** Returns the owner name for extra columns that reference people (null for _produtos) */
+function getExtraOwnerName(card: ViewCard, extraKey: ExtraColumnKey): string | null {
+    switch (extraKey) {
+        case '_pos_venda': return card.pos_owner_nome || null
+        case '_planner': return card.vendas_nome || null
+        case '_sdr': return card.sdr_owner_nome || null
+        default: return null
+    }
+}
+
+export const OWNER_EXTRA_KEYS = new Set<ExtraColumnKey>(['_pos_venda', '_planner', '_sdr'])
+
 // ── Hook ───────────────────────────────────────────────────────────────
 
 interface UseFieldCompletenessParams {
@@ -264,6 +276,10 @@ export function useFieldCompleteness({
 
             for (const ek of selectedExtraKeys) {
                 filled[ek] = isExtraFilled(card, ek)
+                // For owner extras, also store the name for display
+                if (OWNER_EXTRA_KEYS.has(ek)) {
+                    values[ek] = getExtraOwnerName(card, ek)
+                }
             }
 
             return { card, filled, values }
