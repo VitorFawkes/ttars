@@ -11,7 +11,8 @@ import {
     Copy,
     X,
     ShieldAlert,
-    UserCheck
+    UserCheck,
+    Users
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -35,10 +36,12 @@ import { RuleSelector } from './RuleSelector'
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
+type TeamRoleKey = 'sdr' | 'planner' | 'pos_venda' | 'concierge'
+
 interface ActionRequirement {
     id?: string
     stage_id: string
-    requirement_type: 'proposal' | 'task' | 'field' | 'rule'
+    requirement_type: 'proposal' | 'task' | 'field' | 'rule' | 'team_member'
     requirement_label: string
     is_required: boolean
     is_blocking: boolean
@@ -46,9 +49,18 @@ interface ActionRequirement {
     task_tipo?: string
     task_require_completed?: boolean
     field_key?: string
+    required_team_role?: TeamRoleKey
     // Fontes que podem ignorar este requisito específico
     bypass_sources?: string[]
 }
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const TEAM_ROLES: { key: TeamRoleKey; label: string }[] = [
+    { key: 'sdr', label: 'SDR' },
+    { key: 'planner', label: 'Planner' },
+    { key: 'pos_venda', label: 'Pós-Venda' },
+    { key: 'concierge', label: 'Concierge' },
+]
 
 // Opções de fontes de bypass (para uso futuro em edição de regras)
 // TODO: Implementar UI de edição de bypass_sources por regra
@@ -125,7 +137,7 @@ export default function GovernanceConsole() {
             const { data } = await supabase
                 .from('stage_field_config')
                 .select('*')
-                .in('requirement_type', ['proposal', 'task', 'field', 'rule'])
+                .in('requirement_type', ['proposal', 'task', 'field', 'rule', 'team_member'])
                 .in('stage_id', stageIds)
             return (data || []) as ActionRequirement[]
         },
@@ -251,6 +263,7 @@ export default function GovernanceConsole() {
                         task_tipo: rule.task_tipo,
                         task_require_completed: rule.task_require_completed,
                         field_key: rule.field_key,
+                        required_team_role: rule.required_team_role,
                         bypass_sources: rule.bypass_sources,
                     })
                 }
@@ -349,7 +362,8 @@ export default function GovernanceConsole() {
             fields: hydratedRules.filter(r => r.requirement_type === 'field'),
             tasks: hydratedRules.filter(r => r.requirement_type === 'task'),
             proposals: hydratedRules.filter(r => r.requirement_type === 'proposal'),
-            rules: hydratedRules.filter(r => r.requirement_type === 'rule')
+            rules: hydratedRules.filter(r => r.requirement_type === 'rule'),
+            teamMembers: hydratedRules.filter(r => r.requirement_type === 'team_member')
         }
     }, [hydratedRules])
 
@@ -363,18 +377,21 @@ export default function GovernanceConsole() {
                 ? taskTypes?.find(t => t.tipo === value)?.label || value
                 : type === 'rule'
                     ? SPECIAL_RULES.find(r => r.key === value)?.label || value
-                    : systemFields?.find(f => f.key === value)?.label || value
+                    : type === 'team_member'
+                        ? `Responsável ${TEAM_ROLES.find(t => t.key === value)?.label || value}`
+                        : systemFields?.find(f => f.key === value)?.label || value
 
         const newReq: ActionRequirement = {
             stage_id: selectedStageId,
-            requirement_type: type as 'proposal' | 'task' | 'field' | 'rule',
+            requirement_type: type as ActionRequirement['requirement_type'],
             requirement_label: label,
             is_required: true,
             is_blocking: true,
             ...(type === 'proposal' && { proposal_min_status: value }),
             ...(type === 'task' && { task_tipo: value, task_require_completed: false }),
             ...(type === 'field' && { field_key: value }),
-            ...(type === 'rule' && { field_key: value }) // We store rule key in field_key for simplicity
+            ...(type === 'rule' && { field_key: value }), // We store rule key in field_key for simplicity
+            ...(type === 'team_member' && { required_team_role: value as TeamRoleKey })
         }
         insertMutation.mutate(newReq)
     }
@@ -513,6 +530,7 @@ export default function GovernanceConsole() {
                                     taskTypes={taskTypes || []}
                                     sections={sections || []}
                                     specialRules={SPECIAL_RULES}
+                                    teamRoles={TEAM_ROLES}
                                 />
                             )}
                         </div>
@@ -543,6 +561,42 @@ export default function GovernanceConsole() {
                                     </div>
                                     <div className="space-y-2">
                                         {groupedRules.rules.map(rule => (
+                                            <RuleItem
+                                                key={rule.id}
+                                                rule={rule}
+                                                stageName={stages?.find(s => s.id === rule.stage_id)?.nome}
+                                                selected={rule.id ? selectedRuleIds.has(rule.id) : false}
+                                                onToggle={() => rule.id && toggleRuleSelection(rule.id)}
+                                                onDelete={() => rule.id && deleteMutation.mutate([rule.id])}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Team Members Group */}
+                            {groupedRules.teamMembers.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <Checkbox
+                                            checked={groupedRules.teamMembers.every(r => r.id && selectedRuleIds.has(r.id))}
+                                            onCheckedChange={(checked) => {
+                                                const newSet = new Set(selectedRuleIds)
+                                                groupedRules.teamMembers.forEach(r => {
+                                                    if (r.id) {
+                                                        if (checked) newSet.add(r.id)
+                                                        else newSet.delete(r.id)
+                                                    }
+                                                })
+                                                setSelectedRuleIds(newSet)
+                                            }}
+                                        />
+                                        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                            <Users className="w-4 h-4" /> Responsáveis Obrigatórios
+                                        </h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {groupedRules.teamMembers.map(rule => (
                                             <RuleItem
                                                 key={rule.id}
                                                 rule={rule}
@@ -781,12 +835,14 @@ function RuleItem({ rule, stageName, selected, onToggle, onDelete, onToggleCompl
                     rule.requirement_type === 'task' ? "bg-purple-50 text-purple-600" :
                         rule.requirement_type === 'proposal' ? "bg-emerald-50 text-emerald-600" :
                             rule.requirement_type === 'rule' ? "bg-amber-50 text-amber-600" :
-                                "bg-blue-50 text-blue-600"
+                                rule.requirement_type === 'team_member' ? "bg-indigo-50 text-indigo-600" :
+                                    "bg-blue-50 text-blue-600"
                 )}>
                     {rule.requirement_type === 'task' ? <CheckCircle2 className="w-5 h-5" /> :
                         rule.requirement_type === 'proposal' ? <FileText className="w-5 h-5" /> :
                             rule.requirement_type === 'rule' ? <ShieldAlert className="w-5 h-5" /> :
-                                <FileText className="w-5 h-5" />}
+                                rule.requirement_type === 'team_member' ? <Users className="w-5 h-5" /> :
+                                    <FileText className="w-5 h-5" />}
                 </div>
                 <div>
                     <h4 className={cn("font-medium", rule._isInvalid ? "text-red-500 line-through" : "text-gray-900")}>
