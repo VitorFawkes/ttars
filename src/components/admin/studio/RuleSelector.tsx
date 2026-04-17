@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronsUpDown, Search, FileText, CheckCircle2, LayoutList, ShieldAlert } from "lucide-react"
+import { ChevronsUpDown, Search, FileText, CheckCircle2, LayoutList, ShieldAlert, Users } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import {
     Command,
@@ -17,14 +17,15 @@ import {
 } from "@/components/ui/popover"
 
 interface RuleSelectorProps {
-    onSelect: (type: 'field' | 'task' | 'proposal' | 'rule', value: string) => void
+    onSelect: (type: 'field' | 'task' | 'proposal' | 'rule' | 'team_member', value: string) => void
     systemFields: any[]
     taskTypes: any[]
     sections: any[]
     specialRules?: { key: string, label: string, icon: any }[]
+    teamRoles?: { key: string, label: string }[]
 }
 
-export function RuleSelector({ onSelect, systemFields, taskTypes, sections, specialRules = [] }: RuleSelectorProps) {
+export function RuleSelector({ onSelect, systemFields, taskTypes, sections, specialRules = [], teamRoles = [] }: RuleSelectorProps) {
     const [open, setOpen] = useState(false)
 
     // Group fields by section
@@ -70,6 +71,27 @@ export function RuleSelector({ onSelect, systemFields, taskTypes, sections, spec
                     <CommandInput placeholder="Buscar regra, campo ou tarefa..." />
                     <CommandList>
                         <CommandEmpty>Nenhuma regra encontrada.</CommandEmpty>
+
+                        {/* TEAM MEMBER REQUIREMENTS */}
+                        {teamRoles.length > 0 && (
+                            <CommandGroup heading="Responsáveis Obrigatórios">
+                                {teamRoles.map((role) => (
+                                    <CommandItem
+                                        key={role.key}
+                                        value={`team-${role.key}`}
+                                        onSelect={() => {
+                                            onSelect('team_member', role.key)
+                                            setOpen(false)
+                                        }}
+                                        className="cursor-pointer !pointer-events-auto !opacity-100"
+                                    >
+                                        <Users className="mr-2 h-4 w-4 text-indigo-500" />
+                                        <span>Exigir alguém de {role.label}</span>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        )}
+                        {teamRoles.length > 0 && <CommandSeparator />}
 
                         {/* SPECIAL RULES */}
                         {specialRules.length > 0 && (

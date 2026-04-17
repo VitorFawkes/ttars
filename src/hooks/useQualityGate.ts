@@ -3,7 +3,23 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
 // Requirement types for validation
-type RequirementType = 'field' | 'proposal' | 'task' | 'rule' | 'document'
+type RequirementType = 'field' | 'proposal' | 'task' | 'rule' | 'document' | 'team_member'
+
+type TeamRole = 'sdr' | 'planner' | 'pos_venda' | 'concierge'
+
+const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
+    sdr: 'SDR',
+    planner: 'Planner',
+    pos_venda: 'Pós-Venda',
+    concierge: 'Concierge',
+}
+
+const TEAM_ROLE_TO_OWNER_COLUMN: Record<TeamRole, string> = {
+    sdr: 'sdr_owner_id',
+    planner: 'vendas_owner_id',
+    pos_venda: 'pos_owner_id',
+    concierge: 'concierge_owner_id',
+}
 
 interface RequirementRule {
     stage_id: string
@@ -14,6 +30,7 @@ interface RequirementRule {
     proposal_min_status: string | null
     task_tipo: string | null
     task_require_completed: boolean
+    required_team_role: TeamRole | null
 }
 
 // --- Unified missing requirement (single source of truth for the modal) ---
@@ -92,16 +109,22 @@ export function useQualityGate(pipelineId?: string) {
                 }
             }
 
-            return data.map((item): RequirementRule => ({
-                stage_id: item.stage_id as string,
-                requirement_type: (item.requirement_type || 'field') as RequirementType,
-                field_key: item.field_key,
-                label: (item.field_key ? labelByKey.get(item.field_key) : undefined) || item.requirement_label || item.field_key || 'Requisito',
-                is_blocking: item.is_blocking ?? true,
-                proposal_min_status: item.proposal_min_status,
-                task_tipo: item.task_tipo,
-                task_require_completed: item.task_require_completed ?? false
-            }))
+            return data.map((item): RequirementRule => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                const role = (item as any).required_team_role as TeamRole | null | undefined
+                const teamLabel = role ? `Responsável ${TEAM_ROLE_LABELS[role]}` : null
+                return {
+                    stage_id: item.stage_id as string,
+                    requirement_type: (item.requirement_type || 'field') as RequirementType,
+                    field_key: item.field_key,
+                    label: (item.field_key ? labelByKey.get(item.field_key) : undefined) || item.requirement_label || teamLabel || item.field_key || 'Requisito',
+                    is_blocking: item.is_blocking ?? true,
+                    proposal_min_status: item.proposal_min_status,
+                    task_tipo: item.task_tipo,
+                    task_require_completed: item.task_require_completed ?? false,
+                    required_team_role: role ?? null,
+                }
+            })
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
@@ -313,6 +336,35 @@ export function useQualityGate(pipelineId?: string) {
             }
         }
 
+        // --- Validate Team Member Requirements (owner OR team member with role) ---
+        const teamRules = stageRules.filter(r => r.requirement_type === 'team_member' && r.required_team_role)
+        if (teamRules.length > 0) {
+            const missingRoles = teamRules.filter(rule => {
+                const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[rule.required_team_role as TeamRole]
+                const ownerId = card[ownerCol]
+                return !ownerId
+            })
+
+            if (missingRoles.length > 0) {
+                const { data: teamMembers } = await supabase
+                    .from('card_team_members')
+                    .select('role')
+                    .eq('card_id', card.id as string)
+
+                const rolesPresent = new Set((teamMembers || []).map(m => m.role))
+
+                for (const rule of missingRoles) {
+                    if (!rolesPresent.has(rule.required_team_role!)) {
+                        missing.push({
+                            type: 'team_member',
+                            label: rule.label,
+                            detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole]
+                        })
+                    }
+                }
+            }
+        }
+
         // --- Validate Anexos (attachments) Requirements ---
         const documentRules = stageRules.filter(r => r.requirement_type === 'document')
         if (documentRules.length > 0) {
@@ -331,7 +383,7 @@ export function useQualityGate(pipelineId?: string) {
         }
 
         // --- Any future requirement_type added in the DB will be caught here ---
-        const handledTypes = new Set(['field', 'proposal', 'task', 'rule', 'document'])
+        const handledTypes = new Set(['field', 'proposal', 'task', 'rule', 'document', 'team_member'])
         const unknownRules = stageRules.filter(r => !handledTypes.has(r.requirement_type))
         for (const rule of unknownRules) {
             // Unknown types are always treated as missing (fail-closed) until validation logic is added
@@ -414,6 +466,18 @@ export function useQualityGate(pipelineId?: string) {
                 }
                 // contato_principal_completo e contato_principal_basico NÃO são
                 // verificados aqui (requerem fetch async — usar validateMove)
+            } else if (rule.requirement_type === 'team_member' && rule.required_team_role) {
+                // Sync pass: só valida se tem owner direto. Se não tiver, marca como pendente.
+                // validateMove (async) reverifica via card_team_members.
+                const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[rule.required_team_role as TeamRole]
+                const ownerId = card[ownerCol]
+                if (!ownerId) {
+                    missing.push({
+                        type: 'team_member',
+                        label: rule.label,
+                        detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole]
+                    })
+                }
             }
         }
 
@@ -433,6 +497,7 @@ export function useQualityGate(pipelineId?: string) {
                 r.requirement_type === 'proposal' ||
                 r.requirement_type === 'task' ||
                 r.requirement_type === 'document' ||
+                r.requirement_type === 'team_member' ||
                 (r.requirement_type === 'rule' && (r.field_key === 'contato_principal_completo' || r.field_key === 'contato_principal_basico'))
             )
         )

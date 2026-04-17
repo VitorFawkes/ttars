@@ -187,11 +187,24 @@ export function useAutomations() {
     mutationFn: async ({ item, active }: { item: AutomationItem; active: boolean }) => {
       const table = item.source === 'trigger' ? 'cadence_event_triggers' : 'cadence_templates'
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const sb = supabase as any
+
+      const { error } = await sb
         .from(table)
         .update({ is_active: active, updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) throw error
+
+      // Se o trigger dispara uma cadência, o template-alvo precisa estar no
+      // mesmo estado — senão o toggle fica "ligado" mas a cadence-engine
+      // pula silenciosamente quando template.is_active=false.
+      if (item.source === 'trigger' && item.target_template_id) {
+        const { error: tplError } = await sb
+          .from('cadence_templates')
+          .update({ is_active: active, updated_at: new Date().toISOString() })
+          .eq('id', item.target_template_id)
+        if (tplError) throw tplError
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['automations-hub'] }),
   })

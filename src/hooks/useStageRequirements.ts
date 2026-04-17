@@ -5,7 +5,23 @@ import type { Database } from '../database.types'
 type Card = Database['public']['Tables']['cards']['Row']
 
 // Unified requirement types
-type RequirementType = 'field' | 'proposal' | 'task' | 'rule' | 'document'
+type RequirementType = 'field' | 'proposal' | 'task' | 'rule' | 'document' | 'team_member'
+
+type TeamRoleKey = 'sdr' | 'planner' | 'pos_venda' | 'concierge'
+
+const TEAM_ROLE_LABELS: Record<TeamRoleKey, string> = {
+    sdr: 'SDR',
+    planner: 'Planner',
+    pos_venda: 'Pós-Venda',
+    concierge: 'Concierge',
+}
+
+const TEAM_ROLE_TO_OWNER: Record<TeamRoleKey, keyof Card> = {
+    sdr: 'sdr_owner_id',
+    planner: 'vendas_owner_id',
+    pos_venda: 'pos_owner_id',
+    concierge: 'concierge_owner_id',
+}
 
 interface BaseRequirement {
     id: string
@@ -42,7 +58,12 @@ export interface DocumentRequirement extends BaseRequirement {
     requirement_type: 'document'
 }
 
-export type Requirement = FieldRequirement | ProposalRequirement | TaskRequirement | RuleRequirement | DocumentRequirement
+export interface TeamMemberRequirement extends BaseRequirement {
+    requirement_type: 'team_member'
+    required_team_role: TeamRoleKey
+}
+
+export type Requirement = FieldRequirement | ProposalRequirement | TaskRequirement | RuleRequirement | DocumentRequirement | TeamMemberRequirement
 
 // Legacy interface for backward compatibility
 export interface LegacyRequirement {
@@ -93,6 +114,20 @@ export function useStageRequirements(card: Card) {
                 .eq('card_id', card.id)
             const total = count || 0
             return { total, completed: total, allComplete: total > 0 }
+        },
+        enabled: !!card.id,
+        staleTime: 1000 * 60 * 2
+    })
+
+    // Fetch card team members (for team_member requirement)
+    const { data: cardTeamRoles } = useQuery({
+        queryKey: ['card-team-roles', card.id],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('card_team_members')
+                .select('role')
+                .eq('card_id', card.id)
+            return new Set((data || []).map(m => m.role))
         },
         enabled: !!card.id,
         staleTime: 1000 * 60 * 2
@@ -222,6 +257,17 @@ export function useStageRequirements(card: Card) {
                     } as DocumentRequirement
                 }
 
+                if (reqType === 'team_member') {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+                    const role = ((config as any).required_team_role || 'pos_venda') as TeamRoleKey
+                    return {
+                        ...baseReq,
+                        requirement_type: 'team_member',
+                        label: config.requirement_label || `Responsável ${TEAM_ROLE_LABELS[role]}`,
+                        required_team_role: role,
+                    } as TeamMemberRequirement
+                }
+
                 // Default: field type
                 return {
                     ...baseReq,
@@ -309,6 +355,12 @@ export function useStageRequirements(card: Card) {
                 return checkTaskRequirement(req.task_tipo, req.task_require_completed)
             case 'document':
                 return docProgress?.allComplete ?? true
+            case 'team_member': {
+                const ownerCol = TEAM_ROLE_TO_OWNER[req.required_team_role]
+                const ownerId = ownerCol ? card[ownerCol] : null
+                if (ownerId) return true
+                return cardTeamRoles?.has(req.required_team_role) ?? false
+            }
             case 'rule':
                 if (req.field_key === 'lost_reason_required') {
                     const hasId = !!card.motivo_perda_id
