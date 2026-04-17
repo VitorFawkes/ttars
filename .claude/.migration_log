@@ -498,3 +498,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-17T14:15:31Z | supabase/migrations/20260417c_luna_parity_julia.sql | applied_to_prod
 2026-04-17T14:16:41Z | supabase/migrations/20260417c_luna_parity_julia.sql | applied_to_prod
 2026-04-17T14:17:04Z | supabase/migrations/20260417c_luna_parity_julia.sql | applied_to_prod
+2026-04-17T19:03:21Z | supabase/migrations/20260417_backfill_dono_atual_all_phases.sql | applied_to_prod
