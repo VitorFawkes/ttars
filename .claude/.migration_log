@@ -492,3 +492,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-17T01:13:49Z | supabase/migrations/20260416_ai_agent_interaction_modes.sql | applied_to_prod
 2026-04-17T01:15:59Z | supabase/migrations/20260416e_marco3_fixup.sql | applied_to_prod
 2026-04-17T01:16:38Z | supabase/migrations/20260416e_marco3_fixup.sql | applied_to_prod
+2026-04-17T12:13:19Z | supabase/migrations/20260417a_fix_outbound_pessoa_principal_id.sql | applied_to_prod
