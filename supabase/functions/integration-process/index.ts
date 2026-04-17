@@ -1617,15 +1617,26 @@ Deno.serve(async (req) => {
                     }
 
                     if (targetOwnerId) {
-                        cardPayload.dono_atual_id = targetOwnerId;
+                        // Only apply AC owner when the AC stage is actually applied.
+                        // If skipStageUpdate=true, CRM is in a more advanced phase than AC;
+                        // overwriting dono_atual_id with an AC owner from an older phase
+                        // desyncs "dono atual" from the real phase owner (bug: card shows
+                        // up in wrong user's "Minha Fila").
+                        if (skipStageUpdate) {
+                            log += ` [SKIP_OWNER: CRM phase more advanced, not overwriting dono_atual_id]`;
+                        } else {
+                            cardPayload.dono_atual_id = targetOwnerId;
 
-                        // Also set role-specific owner based on fase
-                        if (topology?.fase === 'SDR') {
-                            cardPayload.sdr_owner_id = targetOwnerId;
-                        } else if (topology?.fase === 'Planner') {
-                            cardPayload.vendas_owner_id = targetOwnerId;
-                        } else if (topology?.fase === 'Pós-venda') {
-                            cardPayload.concierge_owner_id = targetOwnerId;
+                            // Also set role-specific owner based on fase.
+                            // NOTE: Pós-venda maps to pos_owner_id (NOT concierge_owner_id —
+                            // concierge is a separate role used only after trip delivery).
+                            if (topology?.fase === 'SDR') {
+                                cardPayload.sdr_owner_id = targetOwnerId;
+                            } else if (topology?.fase === 'Planner') {
+                                cardPayload.vendas_owner_id = targetOwnerId;
+                            } else if (topology?.fase === 'Pós-venda') {
+                                cardPayload.pos_owner_id = targetOwnerId;
+                            }
                         }
                     }
 
