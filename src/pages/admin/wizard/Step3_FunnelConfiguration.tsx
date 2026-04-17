@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/Button'
-import { QualificationTimeline } from '@/components/ai-agent/QualificationTimeline'
+import { QualificationFlowEditor } from '@/components/ai-agent/editor/QualificationFlowEditor'
 import { AgentChatPreview, type PreviewMessage } from '@/components/ai-agent/AgentChatPreview'
+import type { QualificationStageInput } from '@/hooks/useAgentQualificationFlow'
 import type { QualificationStage, useAgentWizard } from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
@@ -32,8 +33,35 @@ export default function Step3_FunnelConfiguration({ wizard }: WizardProps) {
   const stages = (wizard.wizardData.step3?.stages || []) as QualificationStage[]
   const agentName = wizard.wizardData.step1?.agent_name?.trim() || 'Agente'
 
-  const handleStagesChange = (newStages: QualificationStage[]) => {
-    wizard.updateStep('step3', { stages: newStages })
+  // Adapter wizard.QualificationStage → editor.QualificationStageInput
+  const editorValue: QualificationStageInput[] = stages.map((s, i) => ({
+    stage_order: i + 1,
+    stage_name: s.stage_name,
+    stage_key: s.stage_key || '',
+    question: s.question,
+    subquestions: s.subquestions ?? [],
+    disqualification_triggers: s.disqualification_triggers ?? [],
+    advance_to_stage_id: s.advance_to_stage_id || null,
+    advance_condition: s.advance_condition || null,
+    response_options: s.response_options && s.response_options.length > 0 ? s.response_options : null,
+    maps_to_field: s.maps_to_field || null,
+    skip_if_filled: s.skip_if_filled ?? true,
+  }))
+
+  const handleStagesChange = (next: QualificationStageInput[]) => {
+    const adapted: QualificationStage[] = next.map((s) => ({
+      stage_name: s.stage_name,
+      stage_key: s.stage_key ?? '',
+      question: s.question,
+      subquestions: s.subquestions,
+      disqualification_triggers: s.disqualification_triggers,
+      advance_to_stage_id: s.advance_to_stage_id ?? '',
+      advance_condition: s.advance_condition ?? '',
+      response_options: s.response_options ?? [],
+      maps_to_field: s.maps_to_field ?? '',
+      skip_if_filled: s.skip_if_filled,
+    }))
+    wizard.updateStep('step3', { stages: adapted })
   }
 
   const isFormValid = stages.length > 0 && stages.every((s) => s.stage_name && s.question)
@@ -69,7 +97,7 @@ export default function Step3_FunnelConfiguration({ wizard }: WizardProps) {
           </p>
         </div>
 
-        <QualificationTimeline stages={stages} onChange={handleStagesChange} />
+        <QualificationFlowEditor value={editorValue} onChange={handleStagesChange} />
 
         <div className="flex justify-between pt-2">
           <Button onClick={() => wizard.goBack()} variant="outline">

@@ -4,6 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
+  GitBranch, Settings, Zap, Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/switch'
@@ -28,11 +29,16 @@ import { TabDecisoes } from '@/components/ai-agent/editor/TabDecisoes'
 import { TabValidatorRules } from '@/components/ai-agent/editor/TabValidatorRules'
 import { TabConhecimento } from '@/components/ai-agent/editor/TabConhecimento'
 import { TabTeste } from '@/components/ai-agent/editor/TabTeste'
+import { TabFunilQualificacao } from '@/components/ai-agent/editor/TabFunilQualificacao'
+import { TabRegrasNegocio } from '@/components/ai-agent/editor/TabRegrasNegocio'
+import { TabCenariosEspeciais } from '@/components/ai-agent/editor/TabCenariosEspeciais'
+import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
   DEFAULT_MULTIMODAL, DEFAULT_CONTEXT_FIELDS, DEFAULT_HANDOFF_ACTIONS,
   DEFAULT_PROMPTS_EXTRA, HANDOFF_SIGNALS_CATALOG,
+  DEFAULT_FIRST_MESSAGE, DEFAULT_OUTBOUND_TRIGGER,
 } from '@/components/ai-agent/editor/types'
 
 const DEFAULT_FORM: AgentEditorForm = {
@@ -50,6 +56,7 @@ const DEFAULT_FORM: AgentEditorForm = {
   pipeline_models: { ...DEFAULT_PIPELINE_MODELS },
   timings: { ...DEFAULT_TIMINGS },
   assigned_skill_ids: [],
+  skill_config_overrides: {},
   memory_config: { ...DEFAULT_MEMORY },
   context_fields_config: { ...DEFAULT_CONTEXT_FIELDS },
   multimodal_config: { ...DEFAULT_MULTIMODAL },
@@ -62,6 +69,9 @@ const DEFAULT_FORM: AgentEditorForm = {
   escalation_turn_limit: 10,
   fallback_message: 'Desculpe, não consegui processar sua mensagem. Um agente humano vai ajudá-lo em breve.',
   n8n_webhook_url: '',
+  interaction_mode: 'inbound',
+  first_message_config: { ...DEFAULT_FIRST_MESSAGE },
+  outbound_trigger_config: { ...DEFAULT_OUTBOUND_TRIGGER },
 }
 
 function formatRelative(iso: string): string {
@@ -121,7 +131,17 @@ export default function AiAgentDetailPage() {
       max_tokens: a.max_tokens,
       pipeline_models: { ...DEFAULT_PIPELINE_MODELS, ...((a.pipeline_models ?? {}) as unknown as AgentEditorForm['pipeline_models']) },
       timings: { ...DEFAULT_TIMINGS, ...((a.timings ?? {}) as AgentEditorForm['timings']) },
-      assigned_skill_ids: a.ai_agent_skills?.filter(s => s.enabled).map(s => s.skill_id) || [],
+      assigned_skill_ids: (a.ai_agent_skills || [])
+        .filter(s => s.enabled)
+        .slice()
+        .sort((x, y) => (x.priority ?? 0) - (y.priority ?? 0))
+        .map(s => s.skill_id),
+      skill_config_overrides: (a.ai_agent_skills || [])
+        .filter(s => s.enabled && s.config_override && Object.keys(s.config_override as Record<string, unknown>).length > 0)
+        .reduce((acc, s) => {
+          acc[s.skill_id] = (s.config_override as Record<string, unknown>) ?? {}
+          return acc
+        }, {} as Record<string, Record<string, unknown>>),
       memory_config: { ...DEFAULT_MEMORY, ...((a.memory_config ?? {}) as unknown as AgentEditorForm['memory_config']) },
       context_fields_config: { ...DEFAULT_CONTEXT_FIELDS, ...((a.context_fields_config ?? {}) as unknown as AgentEditorForm['context_fields_config']) },
       multimodal_config: { ...DEFAULT_MULTIMODAL, ...((a.multimodal_config ?? {}) as AgentEditorForm['multimodal_config']) },
@@ -134,6 +154,15 @@ export default function AiAgentDetailPage() {
       escalation_turn_limit: (escalationRules?.[0]?.turn_limit as number) || 10,
       fallback_message: a.fallback_message || '',
       n8n_webhook_url: a.n8n_webhook_url || '',
+      interaction_mode: (a.interaction_mode as AgentEditorForm['interaction_mode']) || 'inbound',
+      first_message_config: {
+        ...DEFAULT_FIRST_MESSAGE,
+        ...((a.first_message_config ?? {}) as Partial<AgentEditorForm['first_message_config']>),
+      },
+      outbound_trigger_config: {
+        ...DEFAULT_OUTBOUND_TRIGGER,
+        ...((a.outbound_trigger_config ?? {}) as Partial<AgentEditorForm['outbound_trigger_config']>),
+      },
     })
     setDirty(false)
   }, [existingAgent])
@@ -150,6 +179,14 @@ export default function AiAgentDetailPage() {
     }
     setSaving(true)
     try {
+      // Incrementa versão se o prompt principal ou qualquer prompt_extra mudou
+      const promptsChanged = existingAgent && (
+        existingAgent.system_prompt !== form.system_prompt
+        || JSON.stringify(existingAgent.prompts_extra ?? {}) !== JSON.stringify(form.prompts_extra)
+      )
+      const previousVersion = (existingAgent?.system_prompt_version as number | undefined) ?? 0
+      const nextVersion = isNew ? 1 : (promptsChanged ? previousVersion + 1 : previousVersion || 1)
+
       const payload = {
         produto: currentProduct,
         nome: form.nome,
@@ -160,6 +197,7 @@ export default function AiAgentDetailPage() {
         temperature: form.temperature,
         max_tokens: form.max_tokens,
         system_prompt: form.system_prompt,
+        system_prompt_version: nextVersion,
         prompts_extra: form.prompts_extra,
         pipeline_models: form.pipeline_models,
         timings: form.timings,
@@ -173,6 +211,9 @@ export default function AiAgentDetailPage() {
         fallback_message: form.fallback_message || null,
         n8n_webhook_url: form.n8n_webhook_url || null,
         ativa: form.ativa,
+        interaction_mode: form.interaction_mode,
+        first_message_config: form.interaction_mode !== 'inbound' ? form.first_message_config : null,
+        outbound_trigger_config: form.interaction_mode !== 'inbound' ? form.outbound_trigger_config : null,
         routing_criteria: {
           keywords: form.routing_keywords.split(',').map(k => k.trim()).filter(Boolean),
         },
@@ -208,12 +249,17 @@ export default function AiAgentDetailPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any).from('ai_agent_skills').delete().eq('agent_id', agentId)
         if (form.assigned_skill_ids.length > 0) {
-          const skillRows = form.assigned_skill_ids.map((skillId, i) => ({
-            agent_id: agentId,
-            skill_id: skillId,
-            enabled: true,
-            priority: i,
-          }))
+          const skillRows = form.assigned_skill_ids.map((skillId, i) => {
+            const override = form.skill_config_overrides?.[skillId]
+            const hasOverride = override && Object.keys(override).length > 0
+            return {
+              agent_id: agentId,
+              skill_id: skillId,
+              enabled: true,
+              priority: i,
+              config_override: hasOverride ? override : null,
+            }
+          })
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (supabase as any).from('ai_agent_skills').insert(skillRows)
         }
@@ -250,6 +296,10 @@ export default function AiAgentDetailPage() {
 
   const tabs: EditorTab[] = useMemo(() => [
     { id: 'identidade', label: 'Identidade', icon: Bot },
+    { id: 'modo', label: 'Modo de interação', icon: Send },
+    { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
+    { id: 'funil', label: 'Funil de qualificação', icon: GitBranch },
+    { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
     { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
     { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
     { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
@@ -407,6 +457,10 @@ export default function AiAgentDetailPage() {
 
       <AgentEditorLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === 'identidade' && <TabIdentidade form={form} setForm={setFormWrapper} />}
+        {activeTab === 'modo' && <TabModoInteracao form={form} setForm={setFormWrapper} />}
+        {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
+        {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
+        {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
         {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}

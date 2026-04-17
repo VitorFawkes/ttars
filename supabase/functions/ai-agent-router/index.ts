@@ -431,7 +431,60 @@ async function findAgentForLine(
 // 2. Load Agent Config (business, qualification, scenarios)
 // ---------------------------------------------------------------------------
 
-async function loadAgentConfig(supabase: SupabaseClient, agentId: string) {
+// Default conservador quando nenhum registro existe em ai_agent_business_config.
+// Mantém comportamento razoável para agentes criados fora do wizard (ex: Luna pré-seed).
+function defaultBusinessConfig(agent: AgentConfig): BusinessConfig {
+  return {
+    company_name: agent.nome ?? null,
+    company_description: null,
+    tone: null,
+    language: "pt-BR",
+    pricing_model: null,
+    pricing_json: {},
+    fee_presentation_timing: "never",
+    process_steps: [],
+    methodology_text: null,
+    calendar_system: "supabase_rpc",
+    calendar_config: { rpc_name: "agent_check_calendar" },
+    protected_fields: ["pessoa_principal_id", "produto_data", "valor_estimado", "contato.telefone"],
+    auto_update_fields: [],
+    contact_update_fields: [
+      "nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento", "endereco", "observacoes",
+    ],
+    form_data_fields: [],
+    has_secondary_contacts: false,
+    secondary_contact_role_name: "traveler",
+    secondary_contact_fields: [],
+    escalation_triggers: [],
+  };
+}
+
+// Deriva stages de qualificação dos gates declarados em intelligent_decisions.criar_reuniao
+// quando a tabela ai_agent_qualification_flow está vazia.
+function deriveQualificationFromGates(agent: AgentConfig): QualificationStage[] {
+  const decision = agent.intelligent_decisions?.criar_reuniao;
+  const gates = (decision?.config?.gates as string[] | undefined) ?? [];
+  if (gates.length === 0) return [];
+  return gates.map((gate, i) => ({
+    stage_order: i + 1,
+    stage_name: gate,
+    stage_key: gate,
+    question: `Confirme ${gate}.`,
+    subquestions: [],
+    disqualification_triggers: [],
+    advance_to_stage_id: null,
+    advance_condition: null,
+    response_options: null,
+    maps_to_field: null,
+    skip_if_filled: true,
+  }));
+}
+
+async function loadAgentConfig(
+  supabase: SupabaseClient,
+  agentId: string,
+  agent?: AgentConfig,
+) {
   const [bizRes, qualRes, scenarioRes] = await Promise.all([
     supabase
       .from("ai_agent_business_config")
@@ -451,9 +504,23 @@ async function loadAgentConfig(supabase: SupabaseClient, agentId: string) {
       .order("priority", { ascending: false }),
   ]);
 
+  const business = (bizRes.data as BusinessConfig | null)
+    || (agent ? defaultBusinessConfig(agent) : null);
+
+  const qualificationRaw = (qualRes.data as QualificationStage[]) || [];
+  const qualification = qualificationRaw.length > 0
+    ? qualificationRaw
+    : (agent ? deriveQualificationFromGates(agent) : []);
+
+  if (!bizRes.data || qualificationRaw.length === 0) {
+    console.log(
+      `[loadAgentConfig] agent=${agentId} fallback_applied business=${!bizRes.data} qualification=${qualificationRaw.length === 0}`,
+    );
+  }
+
   return {
-    business: (bizRes.data as BusinessConfig | null) || null,
-    qualification: (qualRes.data as QualificationStage[]) || [],
+    business,
+    qualification,
     scenarios: (scenarioRes.data as SpecialScenario[]) || [],
   };
 }
@@ -1949,7 +2016,8 @@ serve(async (req) => {
     }
 
     // ── 2. Carregar config completa do agente ──
-    const agentConfig = await loadAgentConfig(supabase, agent.id);
+    // Passa o agente para fallback conservador quando tabelas business/qualification estão vazias
+    const agentConfig = await loadAgentConfig(supabase, agent.id, agent);
 
     // ── 3. Encontrar/criar contato ──
     const contactId = await findOrCreateContact(supabase, input.contact_phone, input.contact_name, agent.org_id);

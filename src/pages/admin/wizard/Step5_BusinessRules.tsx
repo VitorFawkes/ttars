@@ -6,7 +6,8 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/Badge'
 import { DollarSign, Workflow, Zap, Users, Calendar, Plus, Trash2, Sparkles, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { SpecialScenarioBuilder } from '@/components/ai-agent/SpecialScenarioBuilder'
+import { SpecialScenariosEditor } from '@/components/ai-agent/editor/SpecialScenariosEditor'
+import type { SpecialScenarioInput } from '@/hooks/useAgentSpecialScenarios'
 import type { WizardStep5, SpecialScenario, useAgentWizard } from '@/hooks/useAgentWizard'
 
 type WizardProps = { wizard: ReturnType<typeof useAgentWizard> }
@@ -75,11 +76,37 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
     updateStep5({ secondary_contact_fields: next })
   }
 
-  const updateScenarios = (scenarios: SpecialScenario[]) => {
-    updateStep5({ special_scenarios: scenarios })
-  }
-
   const scenarios = step5.special_scenarios || []
+
+  // Adapter: wizard.SpecialScenario (simples) ⇆ SpecialScenarioInput (completo)
+  const scenariosAsEditorInput: SpecialScenarioInput[] = scenarios.map((s, i) => ({
+    scenario_name: s.scenario_name,
+    trigger_type: (s.trigger_type || 'keyword') as SpecialScenarioInput['trigger_type'],
+    trigger_config: s.trigger_config ?? {},
+    response_adjustment: s.response_adjustment || null,
+    simplified_qualification: null,
+    skip_fee_presentation: s.skip_fee_presentation,
+    skip_meeting_scheduling: s.skip_meeting_scheduling,
+    auto_assign_tag: s.auto_assign_tag || null,
+    handoff_message: s.handoff_message || null,
+    target_agent_id: null,
+    enabled: true,
+    priority: (scenarios.length - i) * 10,
+  }))
+
+  const updateScenarios = (next: SpecialScenarioInput[]) => {
+    const adapted: SpecialScenario[] = next.map((s) => ({
+      scenario_name: s.scenario_name,
+      trigger_type: s.trigger_type,
+      trigger_config: s.trigger_config,
+      response_adjustment: s.response_adjustment ?? '',
+      skip_fee_presentation: s.skip_fee_presentation,
+      skip_meeting_scheduling: s.skip_meeting_scheduling,
+      auto_assign_tag: s.auto_assign_tag ?? '',
+      handoff_message: s.handoff_message ?? '',
+    }))
+    updateStep5({ special_scenarios: adapted })
+  }
 
   return (
     <div className="space-y-6">
@@ -261,7 +288,7 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
           )}
         </div>
 
-        <SpecialScenarioBuilder scenarios={scenarios} onChange={updateScenarios} />
+        <SpecialScenariosEditor value={scenariosAsEditorInput} onChange={updateScenarios} />
       </div>
 
       {/* Card 4: Secondary contacts */}

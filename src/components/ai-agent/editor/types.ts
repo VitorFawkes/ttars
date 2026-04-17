@@ -66,6 +66,35 @@ export interface AgentPrompts {
   validator: string
 }
 
+export type InteractionMode = 'inbound' | 'outbound' | 'hybrid'
+
+export interface FirstMessageConfig {
+  type: 'fixed' | 'ai_generated'
+  fixed_template: string
+  ai_instructions: string
+  delay_seconds: number
+}
+
+export interface OutboundTrigger {
+  type: 'card_created' | 'stage_changed' | 'idle_days'
+  conditions: Record<string, unknown>
+  enabled: boolean
+}
+
+export interface BusinessHoursConfig {
+  start: string
+  end: string
+  timezone: string
+  days: string[]
+}
+
+export interface OutboundTriggerConfig {
+  triggers: OutboundTrigger[]
+  business_hours: BusinessHoursConfig
+  max_daily_outbound: number
+  max_outbound_per_contact?: number
+}
+
 export interface AgentEditorForm {
   nome: string
   descricao: string
@@ -84,6 +113,7 @@ export interface AgentEditorForm {
   timings: AgentTimings
 
   assigned_skill_ids: string[]
+  skill_config_overrides: Record<string, Record<string, unknown>>
 
   memory_config: MemoryConfig
   context_fields_config: ContextFieldsConfig
@@ -99,6 +129,10 @@ export interface AgentEditorForm {
   escalation_turn_limit: number
   fallback_message: string
   n8n_webhook_url: string
+
+  interaction_mode: InteractionMode
+  first_message_config: FirstMessageConfig
+  outbound_trigger_config: OutboundTriggerConfig
 }
 
 export const HANDOFF_SIGNALS_CATALOG: Array<{ slug: string; label: string; defaultDescription: string }> = [
@@ -169,6 +203,25 @@ export const DEFAULT_PROMPTS_EXTRA: Omit<AgentPrompts, 'main'> = {
   data_update: '',
   formatting: '',
   validator: '',
+}
+
+export const DEFAULT_FIRST_MESSAGE: FirstMessageConfig = {
+  type: 'fixed',
+  fixed_template: 'Olá {{contato.nome}}! Sou {{agente.nome}}, tudo bem por aí?',
+  ai_instructions: '',
+  delay_seconds: 0,
+}
+
+export const DEFAULT_OUTBOUND_TRIGGER: OutboundTriggerConfig = {
+  triggers: [],
+  business_hours: {
+    start: '09:00',
+    end: '18:00',
+    timezone: 'America/Sao_Paulo',
+    days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  },
+  max_daily_outbound: 50,
+  max_outbound_per_contact: 3,
 }
 
 export const MODELO_OPTIONS = [

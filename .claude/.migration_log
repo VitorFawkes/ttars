@@ -500,3 +500,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-17T14:17:04Z | supabase/migrations/20260417c_luna_parity_julia.sql | applied_to_prod
 2026-04-17T19:03:21Z | supabase/migrations/20260417_backfill_dono_atual_all_phases.sql | applied_to_prod
 2026-04-17T19:10:45Z | supabase/migrations/20260417b_enforce_dono_phase_invariant.sql | applied_to_prod
+2026-04-17T22:47:01Z | supabase/migrations/20260418a_luna_business_config_seed.sql | applied_to_prod
+2026-04-17T22:48:16Z | supabase/migrations/20260418a_luna_business_config_seed.sql | applied_to_prod
+2026-04-17T22:48:50Z | supabase/migrations/20260417d_requirement_type_team_member.sql | applied_to_prod

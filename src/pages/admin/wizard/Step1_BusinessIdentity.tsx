@@ -7,7 +7,13 @@ import { Label } from '@/components/ui/label'
 import { ToneSelector } from '@/components/ai-agent/ToneSelector'
 import { TONE_OPTIONS, type Tone } from '@/components/ai-agent/agent-constants'
 import { AgentChatPreview, type PreviewMessage } from '@/components/ai-agent/AgentChatPreview'
-import { InteractionModeSelector } from '@/components/ai-agent/InteractionModeSelector'
+import { InteractionModeEditor } from '@/components/ai-agent/editor/InteractionModeEditor'
+import {
+  DEFAULT_FIRST_MESSAGE,
+  DEFAULT_OUTBOUND_TRIGGER,
+  type FirstMessageConfig as EditorFirstMessage,
+  type OutboundTriggerConfig as EditorOutbound,
+} from '@/components/ai-agent/editor/types'
 import type {
   WizardStep1, InteractionMode, useAgentWizard,
 } from '@/hooks/useAgentWizard'
@@ -162,16 +168,14 @@ export default function Step1_BusinessIdentity({ wizard }: WizardProps) {
           </select>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <InteractionModeSelector
-            mode={(formData.interaction_mode as InteractionMode) || 'inbound'}
-            firstMessageConfig={formData.first_message_config}
-            outboundTriggerConfig={formData.outbound_trigger_config}
-            onModeChange={(mode) => setFormData(prev => ({ ...prev, interaction_mode: mode }))}
-            onFirstMessageConfigChange={(config) => setFormData(prev => ({ ...prev, first_message_config: config }))}
-            onOutboundTriggerConfigChange={(config) => setFormData(prev => ({ ...prev, outbound_trigger_config: config }))}
-          />
-        </div>
+        <InteractionModeEditor
+          mode={(formData.interaction_mode as InteractionMode) || 'inbound'}
+          firstMessage={(formData.first_message_config ?? DEFAULT_FIRST_MESSAGE) as EditorFirstMessage}
+          outbound={(formData.outbound_trigger_config ?? DEFAULT_OUTBOUND_TRIGGER) as EditorOutbound}
+          onModeChange={(mode) => setFormData(prev => ({ ...prev, interaction_mode: mode }))}
+          onFirstMessageChange={(config) => setFormData(prev => ({ ...prev, first_message_config: config }))}
+          onOutboundChange={(config) => setFormData(prev => ({ ...prev, outbound_trigger_config: config }))}
+        />
 
         <div className="flex justify-end">
           <Button onClick={handleNext} disabled={!isValid} className="gap-2">
