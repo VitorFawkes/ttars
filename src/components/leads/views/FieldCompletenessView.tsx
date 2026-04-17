@@ -406,7 +406,7 @@ function PersonFilter({ profiles, selectedIds, onChange }: {
     )
 }
 
-// ── Bulk Task Modal ───────────────────────────────────────────────────
+// ── Bulk Notify Modal (Tarefa + Alerta unificados) ────────────────────
 
 const TASK_TYPES_LIST = [
     { id: 'tarefa', label: 'Tarefa' },
@@ -416,28 +416,44 @@ const TASK_TYPES_LIST = [
     { id: 'coleta_documentos', label: 'Coleta Docs' },
 ] as const
 
-interface BulkTaskResult {
-    titulo: string
-    tipo: string
-    prazo: string
-    prioridade: string
-    responsavelMode: 'card_owner' | 'specific'
-    responsavelId: string | null
+// Recipient mode: pode ser um papel do card ("dono_atual", "sdr", "planner", "pos_venda") ou "specific"
+type RecipientMode = 'dono_atual' | 'sdr' | 'planner' | 'pos_venda' | 'specific'
+
+const RECIPIENT_LABELS: Record<RecipientMode, string> = {
+    dono_atual: 'Dono atual do lead',
+    sdr: 'SDR do lead',
+    planner: 'T. Planner do lead',
+    pos_venda: 'Pós-Venda do lead',
+    specific: 'Pessoa específica',
 }
 
-function BulkTaskModal({ cardCount, profiles, onConfirm, onClose }: {
-    cardCount: number
+export interface BulkNotifyResult {
+    createTask: boolean
+    createAlert: boolean
+    // Task fields
+    taskTitulo: string
+    taskTipo: string
+    taskPrazo: string
+    taskPrioridade: string
+    taskRecipientMode: RecipientMode
+    taskSpecificId: string | null
+    // Alert fields
+    alertTitulo: string
+    alertCorpo: string
+    alertRecipientMode: RecipientMode
+    alertSpecificId: string | null
+}
+
+function RecipientSelector({
+    label, mode, specificId, onModeChange, onSpecificChange, profiles,
+}: {
+    label: string
+    mode: RecipientMode
+    specificId: string
+    onModeChange: (m: RecipientMode) => void
+    onSpecificChange: (id: string) => void
     profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
-    onConfirm: (result: BulkTaskResult) => void
-    onClose: () => void
 }) {
-    const [titulo, setTitulo] = useState('Completar dados do lead')
-    const [tipo, setTipo] = useState('tarefa')
-    const today = new Date()
-    const [prazo, setPrazo] = useState(today.toISOString().slice(0, 10))
-    const [prioridade, setPrioridade] = useState('media')
-    const [responsavelMode, setResponsavelMode] = useState<'card_owner' | 'specific'>('card_owner')
-    const [responsavelId, setResponsavelId] = useState('')
     const [personSearch, setPersonSearch] = useState('')
 
     const filteredProfiles = personSearch.trim()
@@ -453,89 +469,184 @@ function BulkTaskModal({ cardCount, profiles, onConfirm, onClose }: {
         grouped.set(group, arr)
     }
 
-    const selectedName = profiles.find(p => p.id === responsavelId)?.full_name
+    const selectedName = profiles.find(p => p.id === specificId)?.full_name
+    const modes: RecipientMode[] = ['dono_atual', 'sdr', 'planner', 'pos_venda', 'specific']
+
+    return (
+        <div>
+            <label className="text-xs font-medium text-slate-500 mb-1.5 block">{label}</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+                {modes.map(m => (
+                    <button key={m} onClick={() => onModeChange(m)} className={cn(
+                        'px-3 py-1.5 text-xs rounded-lg border transition-all',
+                        mode === m ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                    )}>{RECIPIENT_LABELS[m]}</button>
+                ))}
+            </div>
+            {mode === 'specific' && (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <input type="text" placeholder="Buscar pessoa..." value={personSearch} onChange={e => setPersonSearch(e.target.value)} className="w-full px-3 py-2 text-xs border-b border-slate-100 focus:outline-none placeholder-slate-400" />
+                    <div className="max-h-[140px] overflow-y-auto p-1.5 space-y-1">
+                        {[...grouped.entries()].map(([group, members]) => (
+                            <div key={group}>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5">{group}</div>
+                                {members.map(p => (
+                                    <button key={p.id} onClick={() => onSpecificChange(p.id)} className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all', specificId === p.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
+                                        <span className={cn('w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0', specificId === p.id ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                                            {specificId === p.id && <Check className="w-2 h-2 text-white" />}
+                                        </span>
+                                        <span className="truncate">{p.full_name || '(sem nome)'}</span>
+                                        {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                    {selectedName && <div className="px-3 py-1.5 bg-indigo-50/50 text-xs text-indigo-700 border-t border-slate-100">Selecionado: <strong>{selectedName}</strong></div>}
+                </div>
+            )}
+            {mode !== 'specific' && mode !== 'dono_atual' && (
+                <p className="text-[11px] text-slate-400">Cada lead envia para seu respectivo {RECIPIENT_LABELS[mode].toLowerCase()}. Leads sem essa pessoa atribuída são ignorados.</p>
+            )}
+        </div>
+    )
+}
+
+function BulkNotifyModal({ cardCount, profiles, onConfirm, onClose }: {
+    cardCount: number
+    profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    onConfirm: (result: BulkNotifyResult) => void
+    onClose: () => void
+}) {
+    const [createTask, setCreateTask] = useState(true)
+    const [createAlert, setCreateAlert] = useState(false)
+
+    // Task state
+    const [taskTitulo, setTaskTitulo] = useState('Completar dados do lead')
+    const [taskTipo, setTaskTipo] = useState('tarefa')
+    const today = new Date()
+    const [taskPrazo, setTaskPrazo] = useState(today.toISOString().slice(0, 10))
+    const [taskPrioridade, setTaskPrioridade] = useState('media')
+    const [taskRecipientMode, setTaskRecipientMode] = useState<RecipientMode>('dono_atual')
+    const [taskSpecificId, setTaskSpecificId] = useState('')
+
+    // Alert state
+    const [alertTitulo, setAlertTitulo] = useState('Dados incompletos nos seus leads')
+    const [alertCorpo, setAlertCorpo] = useState('Por favor, complete os dados pendentes dos leads abaixo.')
+    const [alertRecipientMode, setAlertRecipientMode] = useState<RecipientMode>('dono_atual')
+    const [alertSpecificId, setAlertSpecificId] = useState('')
+
+    const isValid = (createTask || createAlert)
+        && (!createTask || (taskTitulo.trim() && (taskRecipientMode !== 'specific' || taskSpecificId)))
+        && (!createAlert || (alertTitulo.trim() && (alertRecipientMode !== 'specific' || alertSpecificId)))
+
+    const confirmBtnLabel = createTask && createAlert ? 'Criar tarefa + enviar alerta'
+        : createTask ? 'Criar tarefa'
+        : createAlert ? 'Enviar alerta'
+        : 'Selecione uma ação'
 
     return (
         <>
             <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
-                    <h3 className="text-base font-semibold text-slate-900">Criar tarefa para {cardCount} lead{cardCount > 1 ? 's' : ''}</h3>
-                    <div className="space-y-3">
-                        {/* Tipo */}
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Tipo</label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {TASK_TYPES_LIST.map(t => (
-                                    <button key={t.id} onClick={() => setTipo(t.id)} className={cn(
-                                        'px-3 py-1.5 text-xs rounded-lg border transition-all',
-                                        tipo === t.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
-                                    )}>{t.label}</button>
-                                ))}
-                            </div>
-                        </div>
-                        {/* Título */}
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Título da tarefa</label>
-                            <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
-                        </div>
-                        {/* Responsável */}
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Responsável</label>
-                            <div className="flex gap-2 mb-2">
-                                <button onClick={() => setResponsavelMode('card_owner')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', responsavelMode === 'card_owner' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
-                                    Dono de cada lead
-                                </button>
-                                <button onClick={() => setResponsavelMode('specific')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', responsavelMode === 'specific' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
-                                    Pessoa específica
-                                </button>
-                            </div>
-                            {responsavelMode === 'specific' && (
-                                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                    <input type="text" placeholder="Buscar pessoa..." value={personSearch} onChange={e => setPersonSearch(e.target.value)} className="w-full px-3 py-2 text-xs border-b border-slate-100 focus:outline-none placeholder-slate-400" />
-                                    <div className="max-h-[160px] overflow-y-auto p-1.5 space-y-1">
-                                        {[...grouped.entries()].map(([group, members]) => (
-                                            <div key={group}>
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5">{group}</div>
-                                                {members.map(p => (
-                                                    <button key={p.id} onClick={() => setResponsavelId(p.id)} className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all', responsavelId === p.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
-                                                        <span className={cn('w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0', responsavelId === p.id ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
-                                                            {responsavelId === p.id && <Check className="w-2 h-2 text-white" />}
-                                                        </span>
-                                                        <span className="truncate">{p.full_name || '(sem nome)'}</span>
-                                                        {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {selectedName && <div className="px-3 py-1.5 bg-indigo-50/50 text-xs text-indigo-700 border-t border-slate-100">Selecionado: <strong>{selectedName}</strong></div>}
-                                </div>
-                            )}
-                        </div>
-                        {/* Prazo + Prioridade */}
-                        <div className="flex gap-3">
-                            <div className="flex-1">
-                                <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo</label>
-                                <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
-                            </div>
-                            <div className="flex-1">
-                                <label className="text-xs font-medium text-slate-500 mb-1 block">Prioridade</label>
-                                <select value={prioridade} onChange={e => setPrioridade(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option value="alta">Alta</option>
-                                    <option value="media">Média</option>
-                                    <option value="baixa">Baixa</option>
-                                </select>
-                            </div>
-                        </div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl p-6 space-y-4 my-8">
+                    <h3 className="text-base font-semibold text-slate-900">Ação para {cardCount} lead{cardCount > 1 ? 's' : ''}</h3>
+
+                    {/* Seletor do que fazer */}
+                    <div className="flex gap-2">
+                        <button onClick={() => setCreateTask(v => !v)} className={cn(
+                            'flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium rounded-lg border transition-all',
+                            createTask ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                        )}>
+                            <span className={cn('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0', createTask ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                                {createTask && <Check className="w-3 h-3 text-white" />}
+                            </span>
+                            <ClipboardList className="w-3.5 h-3.5" />
+                            Criar Tarefa
+                        </button>
+                        <button onClick={() => setCreateAlert(v => !v)} className={cn(
+                            'flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium rounded-lg border transition-all',
+                            createAlert ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                        )}>
+                            <span className={cn('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0', createAlert ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                                {createAlert && <Check className="w-3 h-3 text-white" />}
+                            </span>
+                            <Bell className="w-3.5 h-3.5" />
+                            Enviar Alerta
+                        </button>
                     </div>
+
+                    {/* Seção Tarefa */}
+                    {createTask && (
+                        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                <ClipboardList className="w-3.5 h-3.5" /> Tarefa
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-500 mb-1.5 block">Tipo</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {TASK_TYPES_LIST.map(t => (
+                                        <button key={t.id} onClick={() => setTaskTipo(t.id)} className={cn(
+                                            'px-3 py-1.5 text-xs rounded-lg border transition-all',
+                                            taskTipo === t.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                                        )}>{t.label}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-500 mb-1 block">Título</label>
+                                <input type="text" value={taskTitulo} onChange={e => setTaskTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                            </div>
+                            <RecipientSelector label="Responsável" mode={taskRecipientMode} specificId={taskSpecificId} onModeChange={setTaskRecipientMode} onSpecificChange={setTaskSpecificId} profiles={profiles} />
+                            <div className="flex gap-3">
+                                <div className="flex-1">
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo</label>
+                                    <input type="date" value={taskPrazo} onChange={e => setTaskPrazo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Prioridade</label>
+                                    <select value={taskPrioridade} onChange={e => setTaskPrioridade(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                        <option value="alta">Alta</option>
+                                        <option value="media">Média</option>
+                                        <option value="baixa">Baixa</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Seção Alerta */}
+                    {createAlert && (
+                        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                <Bell className="w-3.5 h-3.5" /> Alerta
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-500 mb-1 block">Título</label>
+                                <input type="text" value={alertTitulo} onChange={e => setAlertTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-500 mb-1 block">Mensagem</label>
+                                <textarea value={alertCorpo} onChange={e => setAlertCorpo(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none" />
+                            </div>
+                            <RecipientSelector label="Enviar para" mode={alertRecipientMode} specificId={alertSpecificId} onModeChange={setAlertRecipientMode} onSpecificChange={setAlertSpecificId} profiles={profiles} />
+                        </div>
+                    )}
+
+                    {/* Ações */}
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
                         <button
-                            onClick={() => onConfirm({ titulo, tipo, prazo, prioridade, responsavelMode, responsavelId: responsavelMode === 'specific' ? responsavelId : null })}
-                            disabled={!titulo.trim() || (responsavelMode === 'specific' && !responsavelId)}
+                            onClick={() => onConfirm({
+                                createTask, createAlert,
+                                taskTitulo, taskTipo, taskPrazo, taskPrioridade,
+                                taskRecipientMode, taskSpecificId: taskRecipientMode === 'specific' ? taskSpecificId : null,
+                                alertTitulo, alertCorpo,
+                                alertRecipientMode, alertSpecificId: alertRecipientMode === 'specific' ? alertSpecificId : null,
+                            })}
+                            disabled={!isValid}
                             className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40"
-                        >Criar tarefas</button>
+                        >{confirmBtnLabel}</button>
                     </div>
                 </div>
             </div>
@@ -637,121 +748,6 @@ function PriorityDropdown({ onSelect, onClose }: {
     )
 }
 
-// ── Bulk Alert Modal ──────────────────────────────────────────────────
-
-interface BulkAlertResult {
-    titulo: string
-    corpo: string
-    destinatarioMode: 'card_owners' | 'specific'
-    destinatarioIds: string[]
-}
-
-function BulkAlertModal({ cardCount, profiles, onConfirm, onClose }: {
-    cardCount: number
-    profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
-    onConfirm: (result: BulkAlertResult) => void
-    onClose: () => void
-}) {
-    const [titulo, setTitulo] = useState('Dados incompletos nos seus leads')
-    const [corpo, setCorpo] = useState('Por favor, complete os dados pendentes dos leads abaixo.')
-    const [destinatarioMode, setDestinatarioMode] = useState<'card_owners' | 'specific'>('card_owners')
-    const [destinatarioIds, setDestinatarioIds] = useState<string[]>([])
-    const [personSearch, setPersonSearch] = useState('')
-
-    const filteredProfiles = personSearch.trim()
-        ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
-        : profiles
-
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
-    const grouped = new Map<string, typeof profiles>()
-    for (const p of filteredProfiles) {
-        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
-        const arr = grouped.get(group) || []
-        arr.push(p)
-        grouped.set(group, arr)
-    }
-
-    const toggleDest = (id: string) => {
-        if (destinatarioIds.includes(id)) {
-            setDestinatarioIds(destinatarioIds.filter(i => i !== id))
-        } else {
-            setDestinatarioIds([...destinatarioIds, id])
-        }
-    }
-
-    return (
-        <>
-            <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
-                    <h3 className="text-base font-semibold text-slate-900">Enviar alerta ({cardCount} lead{cardCount > 1 ? 's' : ''})</h3>
-                    <div className="space-y-3">
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Título do alerta</label>
-                            <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
-                        </div>
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Mensagem</label>
-                            <textarea value={corpo} onChange={e => setCorpo(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none" />
-                        </div>
-                        {/* Destinatário */}
-                        <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Enviar para</label>
-                            <div className="flex gap-2 mb-2">
-                                <button onClick={() => setDestinatarioMode('card_owners')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', destinatarioMode === 'card_owners' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
-                                    Donos dos leads
-                                </button>
-                                <button onClick={() => setDestinatarioMode('specific')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', destinatarioMode === 'specific' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
-                                    Pessoas específicas
-                                </button>
-                            </div>
-                            {destinatarioMode === 'specific' && (
-                                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                    <input type="text" placeholder="Buscar pessoa..." value={personSearch} onChange={e => setPersonSearch(e.target.value)} className="w-full px-3 py-2 text-xs border-b border-slate-100 focus:outline-none placeholder-slate-400" />
-                                    <div className="max-h-[160px] overflow-y-auto p-1.5 space-y-1">
-                                        {[...grouped.entries()].map(([group, members]) => (
-                                            <div key={group}>
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5">{group}</div>
-                                                {members.map(p => {
-                                                    const isSel = destinatarioIds.includes(p.id)
-                                                    return (
-                                                        <button key={p.id} onClick={() => toggleDest(p.id)} className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all', isSel ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
-                                                            <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0', isSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
-                                                                {isSel && <Check className="w-2.5 h-2.5 text-white" />}
-                                                            </span>
-                                                            <span className="truncate">{p.full_name || '(sem nome)'}</span>
-                                                            {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {destinatarioIds.length > 0 && (
-                                        <div className="px-3 py-1.5 bg-indigo-50/50 text-xs text-indigo-700 border-t border-slate-100">
-                                            {destinatarioIds.length} pessoa{destinatarioIds.length > 1 ? 's' : ''} selecionada{destinatarioIds.length > 1 ? 's' : ''}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            {destinatarioMode === 'card_owners' && (
-                                <p className="text-xs text-slate-400">Cada dono receberá 1 alerta com a lista dos seus leads.</p>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                        <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
-                        <button
-                            onClick={() => onConfirm({ titulo, corpo, destinatarioMode, destinatarioIds })}
-                            disabled={!titulo.trim() || (destinatarioMode === 'specific' && destinatarioIds.length === 0)}
-                            className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40"
-                        >Enviar alertas</button>
-                    </div>
-                </div>
-            </div>
-        </>
-    )
-}
 
 // ── CSV Export ─────────────────────────────────────────────────────────
 
@@ -828,11 +824,10 @@ export default function FieldCompletenessView() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
     // Bulk action modals
-    const [showTaskModal, setShowTaskModal] = useState(false)
+    const [showNotifyModal, setShowNotifyModal] = useState(false)
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
-    const [showAlertModal, setShowAlertModal] = useState(false)
     const stagesInitRef = useRef(false)
 
     // Auto-select Pós-Venda stages on first load (default selection).
@@ -993,25 +988,107 @@ export default function FieldCompletenessView() {
 
     // ── Bulk action handlers ──
 
-    const handleBulkCreateTask = async (result: BulkTaskResult) => {
-        const tasks = selectedCards.map(r => ({
-            card_id: r.card.id!,
-            titulo: result.titulo,
-            tipo: result.tipo,
-            responsavel_id: result.responsavelMode === 'specific' ? result.responsavelId : r.card.dono_atual_id,
-            data_vencimento: result.prazo ? new Date(result.prazo + 'T12:00:00').toISOString() : null,
-            prioridade: result.prioridade,
-            status: 'pendente',
-            concluida: false,
-            created_by: profile?.id,
-            metadata: { origin: 'completeness_bulk' },
-        }))
+    // Resolve recipient user ID for a given card based on recipient mode
+    const resolveRecipient = (card: typeof selectedCards[0]['card'], mode: string, specificId: string | null): string | null => {
+        switch (mode) {
+            case 'dono_atual': return card.dono_atual_id || null
+            case 'sdr': return card.sdr_owner_id || null
+            case 'planner': return card.vendas_owner_id || null
+            case 'pos_venda': return card.pos_owner_id || null
+            case 'specific': return specificId
+            default: return null
+        }
+    }
 
-        const { error } = await supabase.from('tarefas').insert(tasks)
-        if (error) { toast.error('Erro ao criar tarefas: ' + error.message); return }
-        toast.success(`${tasks.length} tarefas criadas!`)
-        queryClient.invalidateQueries({ queryKey: ['tasks'] })
-        setShowTaskModal(false)
+    const handleBulkNotify = async (result: BulkNotifyResult) => {
+        let taskCount = 0
+        let alertCount = 0
+        let taskSkipped = 0
+        let alertSkipped = 0
+
+        // Create tasks (one per card) ──
+        if (result.createTask) {
+            const tasks: {
+                card_id: string
+                titulo: string
+                tipo: string
+                responsavel_id: string
+                data_vencimento: string | null
+                prioridade: string
+                status: string
+                concluida: boolean
+                created_by: string | undefined
+                metadata: Record<string, unknown>
+            }[] = []
+
+            for (const r of selectedCards) {
+                const responsavelId = resolveRecipient(r.card, result.taskRecipientMode, result.taskSpecificId)
+                if (!responsavelId) { taskSkipped++; continue }
+                tasks.push({
+                    card_id: r.card.id!,
+                    titulo: result.taskTitulo,
+                    tipo: result.taskTipo,
+                    responsavel_id: responsavelId,
+                    data_vencimento: result.taskPrazo ? new Date(result.taskPrazo + 'T12:00:00').toISOString() : null,
+                    prioridade: result.taskPrioridade,
+                    status: 'pendente',
+                    concluida: false,
+                    created_by: profile?.id,
+                    metadata: { origin: 'completeness_bulk' },
+                })
+            }
+
+            if (tasks.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).from('tarefas').insert(tasks)
+                if (error) { toast.error('Erro ao criar tarefas: ' + error.message); return }
+                taskCount = tasks.length
+                queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            }
+        }
+
+        // Create alerts (grouped by recipient — 1 notification per person) ──
+        if (result.createAlert) {
+            // Group card titles by recipient user ID
+            const byRecipient = new Map<string, string[]>()
+            for (const r of selectedCards) {
+                const recipientId = resolveRecipient(r.card, result.alertRecipientMode, result.alertSpecificId)
+                if (!recipientId) { alertSkipped++; continue }
+                const arr = byRecipient.get(recipientId) || []
+                arr.push(r.card.titulo || '(sem título)')
+                byRecipient.set(recipientId, arr)
+            }
+
+            const notifications = [...byRecipient.entries()].map(([userId, titles]) => ({
+                user_id: userId,
+                type: 'card_alert',
+                title: result.alertTitulo,
+                body: `${result.alertCorpo}\n\nLeads: ${titles.slice(0, 5).join(', ')}${titles.length > 5 ? ` e mais ${titles.length - 5}` : ''}`,
+                metadata: { origin: 'completeness_bulk', card_count: titles.length },
+            }))
+
+            if (notifications.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).from('notifications').insert(notifications)
+                if (error) { toast.error('Erro ao criar alertas: ' + error.message); return }
+                alertCount = notifications.length
+            }
+        }
+
+        // Feedback ──
+        const parts: string[] = []
+        if (taskCount > 0) parts.push(`${taskCount} tarefa${taskCount > 1 ? 's' : ''}`)
+        if (alertCount > 0) parts.push(`${alertCount} alerta${alertCount > 1 ? 's' : ''}`)
+        if (parts.length > 0) toast.success(`${parts.join(' + ')} criado${parts.length > 1 ? 's' : ''}!`)
+
+        if (taskSkipped > 0 || alertSkipped > 0) {
+            const skipMsgs: string[] = []
+            if (taskSkipped > 0) skipMsgs.push(`${taskSkipped} tarefa${taskSkipped > 1 ? 's' : ''} sem responsável`)
+            if (alertSkipped > 0) skipMsgs.push(`${alertSkipped} alerta${alertSkipped > 1 ? 's' : ''} sem destinatário`)
+            toast.warning(`Pulados: ${skipMsgs.join(', ')}`)
+        }
+
+        setShowNotifyModal(false)
         clearSelection()
     }
 
@@ -1038,39 +1115,6 @@ export default function FieldCompletenessView() {
     const handleBulkPriority = async (p: 'alta' | 'media' | 'baixa') => {
         await bulkChangePriority({ cardIds: selectedCardIds, prioridade: p })
         queryClient.invalidateQueries({ queryKey: ['completeness-cards'] })
-        clearSelection()
-    }
-
-    const handleBulkAlert = async (result: BulkAlertResult) => {
-        const cardTitles = selectedCards.map(r => r.card.titulo || '(sem título)')
-        const leadsList = cardTitles.slice(0, 5).join(', ') + (cardTitles.length > 5 ? ` e mais ${cardTitles.length - 5}` : '')
-
-        let targetUserIds: string[]
-
-        if (result.destinatarioMode === 'specific') {
-            targetUserIds = result.destinatarioIds
-        } else {
-            // Group by card owner — deduplicate
-            const ownerIds = new Set<string>()
-            for (const r of selectedCards) {
-                if (r.card.dono_atual_id) ownerIds.add(r.card.dono_atual_id)
-            }
-            targetUserIds = [...ownerIds]
-        }
-
-        const notifications = targetUserIds.map(userId => ({
-            user_id: userId,
-            type: 'card_alert',
-            title: result.titulo,
-            body: `${result.corpo}\n\nLeads: ${leadsList}`,
-            metadata: { origin: 'completeness_bulk', card_count: selectedCards.length },
-        }))
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).from('notifications').insert(notifications)
-        if (error) { toast.error('Erro ao criar alertas: ' + error.message); return }
-        toast.success(`${notifications.length} alerta${notifications.length > 1 ? 's' : ''} enviado${notifications.length > 1 ? 's' : ''}!`)
-        setShowAlertModal(false)
         clearSelection()
     }
 
@@ -1202,12 +1246,8 @@ export default function FieldCompletenessView() {
                         </span>
                         <div className="h-5 w-px bg-slate-200" />
 
-                        <button onClick={() => setShowTaskModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
-                            <ClipboardList className="w-3.5 h-3.5" /> Criar Tarefa
-                        </button>
-
-                        <button onClick={() => setShowAlertModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
-                            <Bell className="w-3.5 h-3.5" /> Alerta
+                        <button onClick={() => setShowNotifyModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                            <ClipboardList className="w-3.5 h-3.5" /> Tarefa / Alerta
                         </button>
 
                         <div className="relative">
@@ -1239,8 +1279,7 @@ export default function FieldCompletenessView() {
             )}
 
             {/* Modals */}
-            {showTaskModal && <BulkTaskModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkCreateTask} onClose={() => setShowTaskModal(false)} />}
-            {showAlertModal && <BulkAlertModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkAlert} onClose={() => setShowAlertModal(false)} />}
+            {showNotifyModal && <BulkNotifyModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkNotify} onClose={() => setShowNotifyModal(false)} />}
             {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
         </div>
     )
