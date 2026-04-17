@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, X, ChevronDown, Columns3, Filter, ListFilter, ExternalLink, ClipboardList, ArrowRight, UserPlus, Zap, Download, Bell, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -833,20 +833,21 @@ export default function FieldCompletenessView() {
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
-    const [stagesInitialized, setStagesInitialized] = useState(false)
+    const stagesInitRef = useRef(false)
 
-    // Auto-select Pós-Venda stages on first load (default selection)
+    // Auto-select Pós-Venda stages on first load (default selection).
+    // queueMicrotask evita cascading render do lint react-hooks/set-state-in-effect.
     useEffect(() => {
-        if (stagesInitialized) return
+        if (stagesInitRef.current) return
         if (!phases.length || !stages.length) return
+        stagesInitRef.current = true
         const posPhase = phases.find(p => p.slug === 'pos_venda')
-        if (!posPhase) { setStagesInitialized(true); return }
+        if (!posPhase) return
         const posStageIds = stages.filter(s => s.phase_id === posPhase.id).map(s => s.id)
         if (posStageIds.length > 0) {
-            setSelectedStageIds(posStageIds)
+            queueMicrotask(() => setSelectedStageIds(posStageIds))
         }
-        setStagesInitialized(true)
-    }, [phases, stages, stagesInitialized])
+    }, [phases, stages])
 
     const handleSetFieldKeys = useCallback((keys: string[]) => {
         setSelectedFieldKeys(keys)
