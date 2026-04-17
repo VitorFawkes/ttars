@@ -127,7 +127,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: a.modelo || "gpt-4.1-mini",
         temperature: a.temperature ?? 0.7,
-        max_tokens: a.max_tokens ?? 1024,
+        max_completion_tokens: a.max_tokens ?? 1024,
         messages: [
           { role: "system", content: systemPrompt },
           ...body.messages,
