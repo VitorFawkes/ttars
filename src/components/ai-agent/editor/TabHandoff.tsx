@@ -1,9 +1,12 @@
-import { Handshake, Tag, Bell, MessageCircle, Pause } from 'lucide-react'
+import { Handshake, Tag, Bell, MessageCircle, Pause, GitBranch } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Select } from '@/components/ui/Select'
 import { HANDOFF_SIGNALS_CATALOG, type AgentEditorForm } from './types'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -12,6 +15,14 @@ interface Props {
 }
 
 export function TabHandoff({ form, setForm }: Props) {
+  const { pipelineId } = useCurrentProductMeta()
+  const { data: stages = [] } = usePipelineStages(pipelineId)
+
+  const stageOptions = [
+    { value: '', label: 'Não mudar etapa' },
+    ...stages.map(s => ({ value: s.id, label: s.nome })),
+  ]
+
   const toggleSignal = (slug: string) => {
     setForm(f => ({
       ...f,
@@ -85,6 +96,24 @@ export function TabHandoff({ form, setForm }: Props) {
         <p className="text-sm text-slate-500 -mt-2">
           Ações automáticas ao detectar qualquer sinal habilitado.
         </p>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <GitBranch className="w-4 h-4 text-slate-400" />
+            Mover card para etapa (opcional)
+          </Label>
+          <Select
+            value={form.handoff_actions.change_stage_id ?? ''}
+            onChange={(v: string) => setForm(f => ({
+              ...f,
+              handoff_actions: { ...f.handoff_actions, change_stage_id: v || null },
+            }))}
+            options={stageOptions}
+          />
+          <p className="text-[11px] text-slate-400">
+            Útil para sinalizar no funil que o card chegou em um humano (ex: "Conectado" ou "Reunião Agendada").
+          </p>
+        </div>
 
         <div className="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
           <div className="flex items-start gap-2 flex-1 min-w-0">

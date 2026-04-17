@@ -5,7 +5,6 @@ import {
     GitBranch,
     Users,
     PackageCheck,
-    ClipboardCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +14,6 @@ const navItems = [
     { to: '/analytics/funnel', icon: GitBranch, label: 'Funil de Vendas' },
     { to: '/analytics/team', icon: Users, label: 'Equipe' },
     { to: '/analytics/operations', icon: PackageCheck, label: 'Operações' },
-    { to: '/analytics/completeness', icon: ClipboardCheck, label: 'Preenchimento' },
 ]
 
 export default function AnalyticsSidebar() {

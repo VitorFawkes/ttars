@@ -26,6 +26,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { JULIA_DEFAULTS } from "../_shared/julia_defaults.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -159,6 +160,14 @@ Este agente usa o pipeline v2 (backoffice + data + persona + validator + formatt
 Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir das tabelas de configuracao.`;
 
     // ── 3. Criar agente ──
+    // Agente novo nasce com a inteligência base da Julia (prompts das 5 fases,
+    // regras do validador, handoff signals, decisões inteligentes, pipeline_models,
+    // timings, memory_config, context_fields_config, handoff_actions, multimodal).
+    // O usuário pode ajustar no editor depois. Se não ajustar, já sai pronto para rodar.
+    const systemPromptFinal = (systemPrompt && systemPrompt.trim().length > 200)
+      ? systemPrompt
+      : JULIA_DEFAULTS.prompts.main.replace('{{agente.nome}}', s1.agent_name);
+
     const { data: agent, error: agentErr } = await supabase
       .from("ai_agents")
       .insert({
@@ -168,10 +177,10 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
         persona: s1.agent_persona,
         tipo: template.tipo,
         produto: s1.produto || "trips",
-        modelo: "gpt-5.1",
-        temperature: 0.7,
-        max_tokens: 1024,
-        system_prompt: systemPrompt,
+        modelo: JULIA_DEFAULTS.pipeline_models.main.model,
+        temperature: JULIA_DEFAULTS.pipeline_models.main.temperature,
+        max_tokens: JULIA_DEFAULTS.pipeline_models.main.max_tokens,
+        system_prompt: systemPromptFinal,
         template_id: template_id,
         is_template_based: true,
         routing_criteria: template.default_routing_criteria || {},
@@ -181,6 +190,22 @@ Os prompts detalhados sao gerados dinamicamente pelo ai-agent-router a partir da
         interaction_mode: s1.interaction_mode || "inbound",
         first_message_config: s1.interaction_mode !== "inbound" ? s1.first_message_config : null,
         outbound_trigger_config: s1.interaction_mode !== "inbound" ? s1.outbound_trigger_config : null,
+        // ── Inteligência avançada (defaults Julia) ──
+        prompts_extra: {
+          context: JULIA_DEFAULTS.prompts.context,
+          data_update: JULIA_DEFAULTS.prompts.data_update,
+          formatting: JULIA_DEFAULTS.prompts.formatting,
+          validator: JULIA_DEFAULTS.prompts.validator,
+        },
+        pipeline_models: JULIA_DEFAULTS.pipeline_models,
+        timings: JULIA_DEFAULTS.timings,
+        memory_config: JULIA_DEFAULTS.memory_config,
+        context_fields_config: JULIA_DEFAULTS.context_fields_config,
+        multimodal_config: JULIA_DEFAULTS.multimodal_config,
+        handoff_signals: JULIA_DEFAULTS.handoff_signals,
+        handoff_actions: JULIA_DEFAULTS.handoff_actions,
+        intelligent_decisions: JULIA_DEFAULTS.intelligent_decisions,
+        validator_rules: JULIA_DEFAULTS.validator_rules,
       })
       .select("id, nome")
       .single();

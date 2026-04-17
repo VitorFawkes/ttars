@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Database, UploadCloud, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Database, UploadCloud, AlertTriangle, RefreshCw, ClipboardCheck, LayoutList } from 'lucide-react'
+import { cn } from '../lib/utils'
 import { useProductContext } from '../hooks/useProductContext'
 import { useLeadsFilters } from '../hooks/useLeadsFilters'
 import { useLeadsQuery } from '../hooks/useLeadsQuery'
@@ -10,10 +12,95 @@ import LeadsBulkActions from '../components/leads/LeadsBulkActions'
 import LeadsExport from '../components/leads/LeadsExport'
 import LeadsPagination from '../components/leads/LeadsPagination'
 import LeadsStatsBar from '../components/leads/LeadsStatsBar'
+import FieldCompletenessView from '../components/leads/views/FieldCompletenessView'
 import { ColumnManager } from '../components/ui/data-grid/ColumnManager'
 import DealImportModal from '../components/kanban/DealImportModal'
 
+type View = 'geral' | 'preenchimento'
+
+const VALID_VIEWS: View[] = ['geral', 'preenchimento']
+
+function isValidView(v: string | null): v is View {
+    return v !== null && (VALID_VIEWS as string[]).includes(v)
+}
+
 export default function Leads() {
+    const [searchParams, setSearchParams] = useSearchParams()
+    const rawView = searchParams.get('view')
+    const view: View = isValidView(rawView) ? rawView : 'geral'
+
+    const setView = (next: View) => {
+        const params = new URLSearchParams(searchParams)
+        if (next === 'geral') {
+            params.delete('view')
+        } else {
+            params.set('view', next)
+        }
+        setSearchParams(params, { replace: true })
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-gray-50">
+            {/* Header + Tabs */}
+            <div className="bg-white border-b border-gray-200">
+                <div className="flex items-center gap-3 px-6 pt-4 pb-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                        <Database className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">Gestão de Leads</h1>
+                        <p className="text-sm text-gray-500">
+                            {view === 'geral'
+                                ? 'Trabalhe sua carteira de leads em massa'
+                                : 'Audite e corrija campos vazios nos seus leads'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 px-4">
+                    <TabButton
+                        icon={LayoutList}
+                        label="Visão Geral"
+                        active={view === 'geral'}
+                        onClick={() => setView('geral')}
+                    />
+                    <TabButton
+                        icon={ClipboardCheck}
+                        label="Preenchimento de Campos"
+                        active={view === 'preenchimento'}
+                        onClick={() => setView('preenchimento')}
+                    />
+                </div>
+            </div>
+
+            {view === 'geral' ? <LeadsGeneralView /> : <LeadsCompletenessView />}
+        </div>
+    )
+}
+
+function TabButton({ icon: Icon, label, active, onClick }: {
+    icon: React.ElementType
+    label: string
+    active: boolean
+    onClick: () => void
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px',
+                active
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'
+            )}
+        >
+            <Icon className="w-4 h-4" />
+            {label}
+        </button>
+    )
+}
+
+function LeadsGeneralView() {
     const { currentProduct } = useProductContext()
     const { filters, setPage, setPageSize } = useLeadsFilters()
     const { data: queryResult, isLoading, isError, refetch } = useLeadsQuery({ filters })
@@ -46,21 +133,12 @@ export default function Leads() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-gray-50">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                        <Database className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900">Gestão de Leads</h1>
-                        <p className="text-sm text-gray-500">
-                            {isLoading ? 'Carregando...' : isError ? 'Erro ao carregar dados' : `${total} leads encontrados`}
-                        </p>
-                    </div>
-                </div>
-
+        <>
+            {/* Sub-header: counter + actions */}
+            <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
+                <p className="text-sm text-gray-500">
+                    {isLoading ? 'Carregando...' : isError ? 'Erro ao carregar dados' : `${total} leads encontrados`}
+                </p>
                 <div className="flex items-center gap-3">
                     <ColumnManager
                         columns={columns}
@@ -145,6 +223,14 @@ export default function Leads() {
                     window.location.reload()
                 }}
             />
+        </>
+    )
+}
+
+function LeadsCompletenessView() {
+    return (
+        <div className="flex-1 overflow-auto p-6">
+            <FieldCompletenessView />
         </div>
     )
 }

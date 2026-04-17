@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
-  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle,
+  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/switch'
@@ -25,6 +25,7 @@ import { TabMultimodal } from '@/components/ai-agent/editor/TabMultimodal'
 import { TabAtivacao } from '@/components/ai-agent/editor/TabAtivacao'
 import { TabHandoff } from '@/components/ai-agent/editor/TabHandoff'
 import { TabDecisoes } from '@/components/ai-agent/editor/TabDecisoes'
+import { TabValidatorRules } from '@/components/ai-agent/editor/TabValidatorRules'
 import { TabConhecimento } from '@/components/ai-agent/editor/TabConhecimento'
 import { TabTeste } from '@/components/ai-agent/editor/TabTeste'
 import {
@@ -258,6 +259,7 @@ export default function AiAgentDetailPage() {
     { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
     { id: 'handoff', label: 'Handoff', icon: Handshake },
     { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
+    { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
     { id: 'ativacao', label: 'Ativação', icon: Power },
     { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
   ], [isN8n])
@@ -415,6 +417,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
         {activeTab === 'handoff' && <TabHandoff form={form} setForm={setFormWrapper} />}
         {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} />}
+        {activeTab === 'validador' && !isN8n && <TabValidatorRules form={form} setForm={setFormWrapper} />}
         {activeTab === 'ativacao' && (
           <TabAtivacao
             form={form}

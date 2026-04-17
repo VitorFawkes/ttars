@@ -86,6 +86,9 @@ interface AgentConfig {
   handoff_signals?: Array<{ slug: string; enabled: boolean; description: string }> | null;
   intelligent_decisions?: Record<string, { enabled: boolean; config: Record<string, unknown> }> | null;
   prompts_extra?: { context?: string; data_update?: string; formatting?: string; validator?: string } | null;
+  pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
+  timings?: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
+  validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
 }
 
 interface BusinessConfig {
@@ -391,7 +394,8 @@ async function findAgentForLine(
         system_prompt, persona, routing_criteria, escalation_rules,
         memory_config, fallback_message, fallback_agent_id,
         n8n_webhook_url, template_id, is_template_based, ativa,
-        handoff_signals, intelligent_decisions, prompts_extra
+        handoff_signals, intelligent_decisions, prompts_extra,
+        pipeline_models, timings, validator_rules
       )
     `)
     .in("phone_line_id", lineIds)
@@ -1180,7 +1184,23 @@ async function runBackofficeAgent(
     };
   }
 
-  const prompt = `Voce e um analista de backoffice que consolida fatos do cliente.
+  // Agent.prompts_extra.context tem prioridade (paridade Julia).
+  // Se vazio, cai no hardcoded default.
+  const customContext = agent.prompts_extra?.context;
+  const dataBlock = `
+
+## Dados deste turno (injetados pelo runtime)
+- Histórico completo: ${ctx.historico}
+- ai_resumo atual: ${ctx.ai_resumo || "(vazio)"}
+- ai_contexto atual: ${ctx.ai_contexto || "(vazio)"}
+- Papel do remetente (contact_role): ${ctx.contact_role}
+- Nome: ${ctx.contact_name}
+
+Responda SEMPRE em JSON único conforme a saída pedida acima.`;
+
+  const prompt = customContext && customContext.trim().length > 80
+    ? customContext + dataBlock
+    : `Voce e um analista de backoffice que consolida fatos do cliente.
 
 Dados:
 - Historico: ${ctx.historico}
@@ -1205,9 +1225,13 @@ Resposta OBRIGATORIA em JSON:
   "mudancas": { "ai_resumo": true|false, "ai_contexto": true|false }
 }`;
 
+  const contextModel = agent.pipeline_models?.context?.model || agent.modelo;
+  const contextTemp = agent.pipeline_models?.context?.temperature ?? 0.3;
+  const contextMaxTok = agent.pipeline_models?.context?.max_tokens ?? 1024;
+
   try {
     const { response } = await callLLM(
-      agent.modelo, 0.3, 1024,
+      contextModel, contextTemp, contextMaxTok,
       prompt, ctx.historico_compacto,
     );
     const parsed = JSON.parse(response.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
@@ -1303,7 +1327,30 @@ async function runDataAgentLLM(
     ? ["cpf", "passaporte", "data_nascimento", "email", "observacoes"]
     : ["nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento", "observacoes"];
 
-  const prompt = `Voce e o Agente de Dados. Sua tarefa: ler a conversa e decidir se ha dados novos e COMPROVAVEIS pra gravar no CRM. Nao conversa, so decide.
+  const customData = agent.prompts_extra?.data_update;
+  const dataBlock = `
+
+## Dados deste turno (injetados pelo runtime)
+- Card ID: ${ctx.card_id}
+- Contato ID: ${ctx.contato_id}
+- Role: ${isTraveler ? "traveler" : "primary"}
+- Stage atual: ${ctx.pipeline_stage_id || "(nao definido)"}
+- ai_resumo atual: ${backoffice.ai_resumo || "(vazio)"}
+- ai_contexto atual: ${backoffice.ai_contexto || "(vazio)"}
+- Sinais: first_lead_message_only=${ctx.first_lead_message_only}, lead_replied_now=${ctx.lead_replied_now}, meeting_created_or_confirmed=${ctx.meeting_created_or_confirmed}
+- Stages disponíveis para avanço:
+${stagesOpts || "(nenhum stage configurado)"}
+- Campos PROTEGIDOS (não tocar): ${protectedFields.join(", ")}
+- Campos permitidos no card: ${allowedCardFields.join(", ")}
+- Campos permitidos no contato: ${allowedContactFields.join(", ")}
+- Histórico:
+${ctx.historico_compacto}
+
+Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}, "reasoning": "..." }`;
+
+  const prompt = customData && customData.trim().length > 80
+    ? customData + dataBlock
+    : `Voce e o Agente de Dados. Sua tarefa: ler a conversa e decidir se ha dados novos e COMPROVAVEIS pra gravar no CRM. Nao conversa, so decide.
 
 ## Contexto
 - Card ID: ${ctx.card_id}
@@ -1353,9 +1400,13 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 
 Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios.`;
 
+  const dataModel = agent.pipeline_models?.data?.model || agent.modelo;
+  const dataTemp = agent.pipeline_models?.data?.temperature ?? 0.1;
+  const dataMaxTok = agent.pipeline_models?.data?.max_tokens ?? 800;
+
   let parsed: { card_patch?: Record<string, unknown>; contact_patch?: Record<string, unknown>; reasoning?: string };
   try {
-    const { response } = await callLLM(agent.modelo, 0.1, 800, prompt, ctx.historico_compacto || "(sem historico)");
+    const { response } = await callLLM(dataModel, dataTemp, dataMaxTok, prompt, ctx.historico_compacto || "(sem historico)");
     parsed = JSON.parse(response.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
   } catch (err) {
     console.warn("[runDataAgentLLM] parse failed:", err);
@@ -1614,7 +1665,21 @@ async function runValidator(
     .filter(Boolean)
     .join("\n");
 
-  const validatorPrompt = `Voce e um validador de qualidade de mensagens WhatsApp. A maioria das mensagens esta OK — so intervenha quando algo realmente precisa de ajuste.
+  const customValidator = agent.prompts_extra?.validator;
+  const enabledRules = (agent.validator_rules || []).filter(r => r.enabled);
+  const rulesBlock = enabledRules.length > 0
+    ? `\n## Regras habilitadas no agente\n${enabledRules.map((r, i) => `${i + 1}. ${r.condition} → ${r.action === 'block' ? 'BLOQUEAR' : r.action === 'correct' ? 'CORRIGIR' : 'IGNORAR'}`).join('\n')}\n`
+    : '';
+
+  const validatorPrompt = customValidator && customValidator.trim().length > 80
+    ? customValidator
+        .replace('{{mensagem_proposta}}', response)
+        .replace('{{contato.nome}}', ctx.contact_name || '(sem nome)')
+        .replace('{{is_primeiro_contato}}', String(ctx.is_primeiro_contato))
+      + rulesBlock
+      + (activeScenarioChecks ? `\n## Cenários especiais deste agente\n${activeScenarioChecks}\n` : '')
+      + `\n\nSe TUDO OK: retorne o texto ORIGINAL sem alterações.\nSe precisa correção: retorne apenas o texto CORRIGIDO.\nSAÍDA: apenas o texto final. Nada mais.`
+    : `Voce e um validador de qualidade de mensagens WhatsApp. A maioria das mensagens esta OK — so intervenha quando algo realmente precisa de ajuste.
 
 Analise a resposta abaixo e verifique:
 
@@ -1628,7 +1693,7 @@ Analise a resposta abaixo e verifique:
 8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
 9. Empilha 2+ perguntas na mesma mensagem? → CORRIJA pra UMA pergunta só
 ${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
-
+${rulesBlock}
 RESPOSTA a validar:
 """
 ${response}
@@ -1639,9 +1704,13 @@ Se PRECISA CORRECAO: responda o texto CORRIGIDO, pronto para enviar.
 
 SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 
+  const validatorModel = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+  const validatorTemp = agent.pipeline_models?.validator?.temperature ?? 0.1;
+  const validatorMaxTok = agent.pipeline_models?.validator?.max_tokens ?? 1024;
+
   try {
     const { response: validated } = await callLLM(
-      "gpt-4.1-mini", 0.1, 1024,
+      validatorModel, validatorTemp, validatorMaxTok,
       validatorPrompt, response,
     );
     return validated.trim() || response;
@@ -1655,37 +1724,39 @@ SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 // 11. Pipeline Step: Formatter (split WhatsApp messages)
 // ---------------------------------------------------------------------------
 
-function formatWhatsAppMessages(text: string): string[] {
+function formatWhatsAppMessages(text: string, maxBlocks = 3): string[] {
+  const cap = Math.max(1, Math.min(maxBlocks, 10));
+
   // Se ja e curto, envia como esta
   if (text.length < 300) return [text.trim()];
 
   // Tentar dividir por paragrafos (dupla quebra de linha)
   const paragraphs = text.split(/\n\n+/).filter((p) => p.trim());
-  if (paragraphs.length >= 2 && paragraphs.length <= 3) {
+  if (paragraphs.length >= 2 && paragraphs.length <= cap) {
     return paragraphs.map((p) => p.trim());
   }
 
-  // Se muitos paragrafos, agrupar em ate 3 mensagens
-  if (paragraphs.length > 3) {
-    const perMsg = Math.ceil(paragraphs.length / 3);
+  // Se muitos paragrafos, agrupar em ate cap mensagens
+  if (paragraphs.length > cap) {
+    const perMsg = Math.ceil(paragraphs.length / cap);
     const msgs: string[] = [];
     for (let i = 0; i < paragraphs.length; i += perMsg) {
       msgs.push(paragraphs.slice(i, i + perMsg).join("\n\n").trim());
     }
-    return msgs.slice(0, 3);
+    return msgs.slice(0, cap);
   }
 
   // Dividir por sentencas
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
-  if (sentences.length <= 3) return sentences.map((s) => s.trim());
+  if (sentences.length <= cap) return sentences.map((s) => s.trim());
 
-  // Agrupar sentencas em 2-3 mensagens
-  const perMsg = Math.ceil(sentences.length / Math.min(3, Math.ceil(sentences.length / 2)));
+  // Agrupar sentencas em ate cap mensagens
+  const perMsg = Math.ceil(sentences.length / Math.min(cap, Math.ceil(sentences.length / 2)));
   const msgs: string[] = [];
   for (let i = 0; i < sentences.length; i += perMsg) {
     msgs.push(sentences.slice(i, i + perMsg).join(" ").trim());
   }
-  return msgs.slice(0, 3);
+  return msgs.slice(0, cap);
 }
 
 // ---------------------------------------------------------------------------
@@ -1699,6 +1770,7 @@ async function sendResponse(
   cardId: string | null,
   messages: string[],
   phoneNumberId?: string,
+  typingDelayMs = 1500,
 ): Promise<void> {
   const echoApiUrl = Deno.env.get("ECHO_API_URL");
   const echoApiKey = Deno.env.get("ECHO_API_KEY");
@@ -1758,7 +1830,7 @@ async function sendResponse(
 
       // Pequeno delay entre mensagens para naturalidade
       if (i < messages.length - 1) {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, typingDelayMs));
       }
     } catch (err) {
       console.error(`[sendResponse] Error sending msg ${i + 1}:`, err);
@@ -1893,7 +1965,9 @@ serve(async (req) => {
       supabase, contactId, agent.id, input.phone_number_id, agent.org_id,
     );
 
-    // ── 5. Debounce check (20s buffer — paridade com Julia) ──
+    // ── 5. Debounce check (janela configurável via agent.timings.debounce_seconds) ──
+    const debounceSeconds = agent.timings?.debounce_seconds ?? 20;
+    const debounceMs = debounceSeconds * 1000;
     const normalizedForBuffer = normalizePhone(input.contact_phone);
     const { data: buffered } = await supabase
       .from("ai_message_buffer")
@@ -1906,9 +1980,9 @@ serve(async (req) => {
       const newest = buffered[buffered.length - 1];
       const ageMs = Date.now() - new Date(newest.created_at).getTime();
 
-      if (ageMs < 20_000) {
+      if (ageMs < debounceMs) {
         // Still within debounce window — don't process yet
-        console.log(`[debounce] ${buffered.length} msgs buffered, newest ${Math.round(ageMs / 1000)}s ago — waiting`);
+        console.log(`[debounce] ${buffered.length} msgs buffered, newest ${Math.round(ageMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
         return new Response(
           JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1954,9 +2028,12 @@ serve(async (req) => {
     const { escalated, message: escalationMsg } = await checkEscalation(
       supabase, conversationId, agent, ctx.turn_count, agentConfig.business,
     );
+    const maxBlocks = agent.timings?.max_message_blocks ?? 3;
+    const typingDelayMs = Math.round((agent.timings?.typing_delay_seconds ?? 1.5) * 1000);
+
     if (escalated) {
-      const msgs = formatWhatsAppMessages(escalationMsg);
-      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id);
+      const msgs = formatWhatsAppMessages(escalationMsg, maxBlocks);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1993,7 +2070,7 @@ serve(async (req) => {
     const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
 
     // ── Step 5: Formatter ──
-    const messages = formatWhatsAppMessages(validatedResponse);
+    const messages = formatWhatsAppMessages(validatedResponse, maxBlocks);
 
     // ═══════════════════════════════════════════════════════════════════
 
@@ -2019,7 +2096,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs);
 
     return new Response(
       JSON.stringify({

@@ -1,9 +1,15 @@
 import { useRef } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Download } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/Button'
+import { toast } from 'sonner'
 import { PromptVariablesPanel } from './PromptVariablesPanel'
 import type { AgentEditorForm } from './types'
+import {
+  JULIA_PROMPT_MAIN, JULIA_PROMPT_CONTEXT, JULIA_PROMPT_DATA_UPDATE,
+  JULIA_PROMPT_FORMATTING, JULIA_PROMPT_VALIDATOR,
+} from '@/lib/julia-defaults'
 
 interface Props {
   form: AgentEditorForm
@@ -12,12 +18,42 @@ interface Props {
 
 type PromptKey = 'main' | 'context' | 'data_update' | 'formatting' | 'validator'
 
-const PROMPT_BLOCKS: Array<{ key: PromptKey; title: string; hint: string; placeholder: string }> = [
-  { key: 'main', title: '1. Prompt principal', hint: 'Comportamento, regras e papéis do agente. Base da personalidade.', placeholder: 'Você é Julia, consultora de viagens da Welcome Viagens...' },
-  { key: 'context', title: '2. Prompt de contexto', hint: 'Como consolidar ai_resumo e ai_contexto do card a partir do histórico.', placeholder: 'Consolide o contexto do card olhando o histórico. Destaque intenção, destino, datas e bloqueios...' },
-  { key: 'data_update', title: '3. Prompt de atualização de dados', hint: 'Quais campos do CRM pode atualizar e com que nível de evidência.', placeholder: 'Atualize apenas os campos listados em Contexto & Campos quando houver evidência clara na conversa...' },
-  { key: 'formatting', title: '4. Prompt de formatação', hint: 'Divisão em blocos, markdown de WhatsApp, regras de link.', placeholder: 'Divida a resposta em até 3 blocos. Use *negrito* para destaques e nunca envie links quebrados...' },
-  { key: 'validator', title: '5. Prompt do validador', hint: 'Regras de bloqueio/correção antes de enviar. Ex: não mencionar IA, não inventar fatos.', placeholder: 'Antes de liberar a resposta: verifique se não menciona que é IA, não inventa fatos e não repete apresentação em mensagem não-inicial...' },
+const PROMPT_BLOCKS: Array<{ key: PromptKey; title: string; hint: string; placeholder: string; juliaDefault: string; juliaHint: string }> = [
+  {
+    key: 'main', title: '1. Prompt principal',
+    hint: 'Comportamento, regras e papéis do agente. Base da personalidade.',
+    placeholder: 'Você é Julia, consultora de viagens da Welcome Viagens...',
+    juliaDefault: JULIA_PROMPT_MAIN,
+    juliaHint: 'Persona Julia completa: regras de VIAJANTE, não-repetição de formulário, fluxo Club Med, critérios de qualificação e desqualificação, gates para apresentar taxa/reunião.',
+  },
+  {
+    key: 'context', title: '2. Prompt de contexto',
+    hint: 'Como consolidar ai_resumo e ai_contexto do card a partir do histórico. Corresponde ao agente "Atualiza Info Lead e Contexto" no fluxo antigo.',
+    placeholder: 'Consolide o contexto do card olhando o histórico...',
+    juliaDefault: JULIA_PROMPT_CONTEXT,
+    juliaHint: 'Regras de o que entra/não entra em ai_resumo, cronologia em ai_contexto, regra VIAJANTE ([Viajante: X]).',
+  },
+  {
+    key: 'data_update', title: '3. Prompt de atualização de dados',
+    hint: 'Quais campos do CRM pode atualizar e com que nível de evidência. Corresponde ao "Atualiza dados" no fluxo antigo.',
+    placeholder: 'Atualize apenas os campos listados em Contexto & Campos quando houver evidência clara...',
+    juliaDefault: JULIA_PROMPT_DATA_UPDATE,
+    juliaHint: 'Colunas permitidas, regras de estágio (Tentativa → Conectado → Reunião Agendada), normalização de CPF/data/email.',
+  },
+  {
+    key: 'formatting', title: '4. Prompt de formatação',
+    hint: 'Divisão em blocos, markdown de WhatsApp, regras de link. Corresponde ao "Format WhatsApp Messages" no fluxo antigo.',
+    placeholder: 'Divida a resposta em até 3 blocos. Use *negrito* para destaques...',
+    juliaDefault: JULIA_PROMPT_FORMATTING,
+    juliaHint: 'Regras de divisão em 3 blocos, markdown WhatsApp (*negrito*, ~tachado~, `link`), pergunta em bloco separado.',
+  },
+  {
+    key: 'validator', title: '5. Prompt do validador',
+    hint: 'Regras de bloqueio/correção antes de enviar. Corresponde ao "Validador" no fluxo antigo.',
+    placeholder: 'Antes de liberar a resposta: verifique se não menciona que é IA...',
+    juliaDefault: JULIA_PROMPT_VALIDATOR,
+    juliaHint: 'Os 8 checks da Julia: menção a IA, inventar fatos, tom robótico, repetir apresentação, mencionar sistema, rejeitar cedo, "não trabalhamos isolado", Club Med taxa/reunião.',
+  },
 ]
 
 export function TabPrompts({ form, setForm }: Props) {
@@ -73,9 +109,27 @@ export function TabPrompts({ form, setForm }: Props) {
 
       {PROMPT_BLOCKS.map(block => (
         <section key={block.key} className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-3">
-          <div>
-            <Label className="text-base">{block.title}</Label>
-            <p className="text-xs text-slate-500 mt-0.5">{block.hint}</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label className="text-base">{block.title}</Label>
+              <p className="text-xs text-slate-500 mt-0.5">{block.hint}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 flex-shrink-0"
+              onClick={() => {
+                const current = getValue(block.key)
+                if (current.trim().length > 0) {
+                  if (!confirm(`Substituir o conteúdo atual de "${block.title}" pelo padrão Julia?`)) return
+                }
+                setValue(block.key, block.juliaDefault)
+                toast.success(`Padrão Julia carregado em "${block.title}"`)
+              }}
+              title={block.juliaHint}
+            >
+              <Download className="w-4 h-4" /> Usar padrão Julia
+            </Button>
           </div>
           <Textarea
             ref={(el: HTMLTextAreaElement | null) => { refs.current[block.key] = el }}
