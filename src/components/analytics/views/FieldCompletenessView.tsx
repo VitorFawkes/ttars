@@ -407,28 +407,113 @@ function PersonFilter({ profiles, selectedIds, onChange }: {
 
 // ── Bulk Task Modal ───────────────────────────────────────────────────
 
-function BulkTaskModal({ cardCount, onConfirm, onClose }: {
+const TASK_TYPES_LIST = [
+    { id: 'tarefa', label: 'Tarefa' },
+    { id: 'contato', label: 'Contato' },
+    { id: 'email', label: 'E-mail' },
+    { id: 'enviar_proposta', label: 'Enviar Proposta' },
+    { id: 'coleta_documentos', label: 'Coleta Docs' },
+] as const
+
+interface BulkTaskResult {
+    titulo: string
+    tipo: string
+    prazo: string
+    prioridade: string
+    responsavelMode: 'card_owner' | 'specific'
+    responsavelId: string | null
+}
+
+function BulkTaskModal({ cardCount, profiles, onConfirm, onClose }: {
     cardCount: number
-    onConfirm: (titulo: string, prazo: string, prioridade: string) => void
+    profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    onConfirm: (result: BulkTaskResult) => void
     onClose: () => void
 }) {
     const [titulo, setTitulo] = useState('Completar dados do lead')
+    const [tipo, setTipo] = useState('tarefa')
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 3)
     const [prazo, setPrazo] = useState(tomorrow.toISOString().slice(0, 10))
     const [prioridade, setPrioridade] = useState('media')
+    const [responsavelMode, setResponsavelMode] = useState<'card_owner' | 'specific'>('card_owner')
+    const [responsavelId, setResponsavelId] = useState('')
+    const [personSearch, setPersonSearch] = useState('')
+
+    const filteredProfiles = personSearch.trim()
+        ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
+        : profiles
+
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const grouped = new Map<string, typeof profiles>()
+    for (const p of filteredProfiles) {
+        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
+        const arr = grouped.get(group) || []
+        arr.push(p)
+        grouped.set(group, arr)
+    }
+
+    const selectedName = profiles.find(p => p.id === responsavelId)?.full_name
 
     return (
         <>
             <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={onClose} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
                     <h3 className="text-base font-semibold text-slate-900">Criar tarefa para {cardCount} lead{cardCount > 1 ? 's' : ''}</h3>
                     <div className="space-y-3">
+                        {/* Tipo */}
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Tipo</label>
+                            <div className="flex flex-wrap gap-1.5">
+                                {TASK_TYPES_LIST.map(t => (
+                                    <button key={t.id} onClick={() => setTipo(t.id)} className={cn(
+                                        'px-3 py-1.5 text-xs rounded-lg border transition-all',
+                                        tipo === t.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                                    )}>{t.label}</button>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Título */}
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Título da tarefa</label>
                             <input type="text" value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
                         </div>
+                        {/* Responsável */}
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Responsável</label>
+                            <div className="flex gap-2 mb-2">
+                                <button onClick={() => setResponsavelMode('card_owner')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', responsavelMode === 'card_owner' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
+                                    Dono de cada lead
+                                </button>
+                                <button onClick={() => setResponsavelMode('specific')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', responsavelMode === 'specific' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
+                                    Pessoa específica
+                                </button>
+                            </div>
+                            {responsavelMode === 'specific' && (
+                                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                    <input type="text" placeholder="Buscar pessoa..." value={personSearch} onChange={e => setPersonSearch(e.target.value)} className="w-full px-3 py-2 text-xs border-b border-slate-100 focus:outline-none placeholder-slate-400" />
+                                    <div className="max-h-[160px] overflow-y-auto p-1.5 space-y-1">
+                                        {[...grouped.entries()].map(([group, members]) => (
+                                            <div key={group}>
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5">{group}</div>
+                                                {members.map(p => (
+                                                    <button key={p.id} onClick={() => setResponsavelId(p.id)} className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all', responsavelId === p.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
+                                                        <span className={cn('w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0', responsavelId === p.id ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                                                            {responsavelId === p.id && <Check className="w-2 h-2 text-white" />}
+                                                        </span>
+                                                        <span className="truncate">{p.full_name || '(sem nome)'}</span>
+                                                        {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {selectedName && <div className="px-3 py-1.5 bg-indigo-50/50 text-xs text-indigo-700 border-t border-slate-100">Selecionado: <strong>{selectedName}</strong></div>}
+                                </div>
+                            )}
+                        </div>
+                        {/* Prazo + Prioridade */}
                         <div className="flex gap-3">
                             <div className="flex-1">
                                 <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo</label>
@@ -444,10 +529,13 @@ function BulkTaskModal({ cardCount, onConfirm, onClose }: {
                             </div>
                         </div>
                     </div>
-                    <p className="text-xs text-slate-400">Cada lead receberá uma tarefa atribuída ao seu dono atual.</p>
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
-                        <button onClick={() => onConfirm(titulo, prazo, prioridade)} disabled={!titulo.trim()} className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40">Criar tarefas</button>
+                        <button
+                            onClick={() => onConfirm({ titulo, tipo, prazo, prioridade, responsavelMode, responsavelId: responsavelMode === 'specific' ? responsavelId : null })}
+                            disabled={!titulo.trim() || (responsavelMode === 'specific' && !responsavelId)}
+                            className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40"
+                        >Criar tarefas</button>
                     </div>
                 </div>
             </div>
@@ -551,20 +639,52 @@ function PriorityDropdown({ onSelect, onClose }: {
 
 // ── Bulk Alert Modal ──────────────────────────────────────────────────
 
-function BulkAlertModal({ cardCount, onConfirm, onClose }: {
+interface BulkAlertResult {
+    titulo: string
+    corpo: string
+    destinatarioMode: 'card_owners' | 'specific'
+    destinatarioIds: string[]
+}
+
+function BulkAlertModal({ cardCount, profiles, onConfirm, onClose }: {
     cardCount: number
-    onConfirm: (titulo: string, corpo: string) => void
+    profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    onConfirm: (result: BulkAlertResult) => void
     onClose: () => void
 }) {
     const [titulo, setTitulo] = useState('Dados incompletos nos seus leads')
     const [corpo, setCorpo] = useState('Por favor, complete os dados pendentes dos leads abaixo.')
+    const [destinatarioMode, setDestinatarioMode] = useState<'card_owners' | 'specific'>('card_owners')
+    const [destinatarioIds, setDestinatarioIds] = useState<string[]>([])
+    const [personSearch, setPersonSearch] = useState('')
+
+    const filteredProfiles = personSearch.trim()
+        ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
+        : profiles
+
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const grouped = new Map<string, typeof profiles>()
+    for (const p of filteredProfiles) {
+        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
+        const arr = grouped.get(group) || []
+        arr.push(p)
+        grouped.set(group, arr)
+    }
+
+    const toggleDest = (id: string) => {
+        if (destinatarioIds.includes(id)) {
+            setDestinatarioIds(destinatarioIds.filter(i => i !== id))
+        } else {
+            setDestinatarioIds([...destinatarioIds, id])
+        }
+    }
 
     return (
         <>
             <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={onClose} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
-                    <h3 className="text-base font-semibold text-slate-900">Enviar alerta para donos de {cardCount} lead{cardCount > 1 ? 's' : ''}</h3>
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+                    <h3 className="text-base font-semibold text-slate-900">Enviar alerta ({cardCount} lead{cardCount > 1 ? 's' : ''})</h3>
                     <div className="space-y-3">
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Título do alerta</label>
@@ -574,11 +694,58 @@ function BulkAlertModal({ cardCount, onConfirm, onClose }: {
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Mensagem</label>
                             <textarea value={corpo} onChange={e => setCorpo(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none" />
                         </div>
+                        {/* Destinatário */}
+                        <div>
+                            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Enviar para</label>
+                            <div className="flex gap-2 mb-2">
+                                <button onClick={() => setDestinatarioMode('card_owners')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', destinatarioMode === 'card_owners' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
+                                    Donos dos leads
+                                </button>
+                                <button onClick={() => setDestinatarioMode('specific')} className={cn('px-3 py-1.5 text-xs rounded-lg border transition-all', destinatarioMode === 'specific' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
+                                    Pessoas específicas
+                                </button>
+                            </div>
+                            {destinatarioMode === 'specific' && (
+                                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                    <input type="text" placeholder="Buscar pessoa..." value={personSearch} onChange={e => setPersonSearch(e.target.value)} className="w-full px-3 py-2 text-xs border-b border-slate-100 focus:outline-none placeholder-slate-400" />
+                                    <div className="max-h-[160px] overflow-y-auto p-1.5 space-y-1">
+                                        {[...grouped.entries()].map(([group, members]) => (
+                                            <div key={group}>
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5">{group}</div>
+                                                {members.map(p => {
+                                                    const isSel = destinatarioIds.includes(p.id)
+                                                    return (
+                                                        <button key={p.id} onClick={() => toggleDest(p.id)} className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all', isSel ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
+                                                            <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0', isSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                                                                {isSel && <Check className="w-2.5 h-2.5 text-white" />}
+                                                            </span>
+                                                            <span className="truncate">{p.full_name || '(sem nome)'}</span>
+                                                            {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {destinatarioIds.length > 0 && (
+                                        <div className="px-3 py-1.5 bg-indigo-50/50 text-xs text-indigo-700 border-t border-slate-100">
+                                            {destinatarioIds.length} pessoa{destinatarioIds.length > 1 ? 's' : ''} selecionada{destinatarioIds.length > 1 ? 's' : ''}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {destinatarioMode === 'card_owners' && (
+                                <p className="text-xs text-slate-400">Cada dono receberá 1 alerta com a lista dos seus leads.</p>
+                            )}
+                        </div>
                     </div>
-                    <p className="text-xs text-slate-400">Cada dono receberá 1 alerta com a lista dos seus leads. Os leads serão agrupados por dono.</p>
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancelar</button>
-                        <button onClick={() => onConfirm(titulo, corpo)} disabled={!titulo.trim()} className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40">Enviar alertas</button>
+                        <button
+                            onClick={() => onConfirm({ titulo, corpo, destinatarioMode, destinatarioIds })}
+                            disabled={!titulo.trim() || (destinatarioMode === 'specific' && destinatarioIds.length === 0)}
+                            className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40"
+                        >Enviar alertas</button>
                     </div>
                 </div>
             </div>
@@ -785,14 +952,14 @@ export default function FieldCompletenessView() {
 
     // ── Bulk action handlers ──
 
-    const handleBulkCreateTask = async (titulo: string, prazo: string, prioridade: string) => {
+    const handleBulkCreateTask = async (result: BulkTaskResult) => {
         const tasks = selectedCards.map(r => ({
             card_id: r.card.id!,
-            titulo,
-            tipo: 'tarefa',
-            responsavel_id: r.card.dono_atual_id,
-            data_vencimento: prazo ? new Date(prazo + 'T12:00:00').toISOString() : null,
-            prioridade,
+            titulo: result.titulo,
+            tipo: result.tipo,
+            responsavel_id: result.responsavelMode === 'specific' ? result.responsavelId : r.card.dono_atual_id,
+            data_vencimento: result.prazo ? new Date(result.prazo + 'T12:00:00').toISOString() : null,
+            prioridade: result.prioridade,
             status: 'pendente',
             concluida: false,
             created_by: profile?.id,
@@ -833,23 +1000,29 @@ export default function FieldCompletenessView() {
         clearSelection()
     }
 
-    const handleBulkAlert = async (titulo: string, corpo: string) => {
-        // Group cards by owner to avoid duplicate notifications
-        const byOwner = new Map<string, string[]>()
-        for (const r of selectedCards) {
-            const ownerId = r.card.dono_atual_id
-            if (!ownerId) continue
-            const arr = byOwner.get(ownerId) || []
-            arr.push(r.card.titulo || '(sem título)')
-            byOwner.set(ownerId, arr)
+    const handleBulkAlert = async (result: BulkAlertResult) => {
+        const cardTitles = selectedCards.map(r => r.card.titulo || '(sem título)')
+        const leadsList = cardTitles.slice(0, 5).join(', ') + (cardTitles.length > 5 ? ` e mais ${cardTitles.length - 5}` : '')
+
+        let targetUserIds: string[]
+
+        if (result.destinatarioMode === 'specific') {
+            targetUserIds = result.destinatarioIds
+        } else {
+            // Group by card owner — deduplicate
+            const ownerIds = new Set<string>()
+            for (const r of selectedCards) {
+                if (r.card.dono_atual_id) ownerIds.add(r.card.dono_atual_id)
+            }
+            targetUserIds = [...ownerIds]
         }
 
-        const notifications = [...byOwner.entries()].map(([userId, cardTitles]) => ({
+        const notifications = targetUserIds.map(userId => ({
             user_id: userId,
             type: 'card_alert',
-            title: titulo,
-            body: `${corpo}\n\nLeads: ${cardTitles.slice(0, 5).join(', ')}${cardTitles.length > 5 ? ` e mais ${cardTitles.length - 5}` : ''}`,
-            metadata: { origin: 'completeness_bulk', card_count: cardTitles.length },
+            title: result.titulo,
+            body: `${result.corpo}\n\nLeads: ${leadsList}`,
+            metadata: { origin: 'completeness_bulk', card_count: selectedCards.length },
         }))
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1025,8 +1198,8 @@ export default function FieldCompletenessView() {
             )}
 
             {/* Modals */}
-            {showTaskModal && <BulkTaskModal cardCount={selectedIds.size} onConfirm={handleBulkCreateTask} onClose={() => setShowTaskModal(false)} />}
-            {showAlertModal && <BulkAlertModal cardCount={selectedIds.size} onConfirm={handleBulkAlert} onClose={() => setShowAlertModal(false)} />}
+            {showTaskModal && <BulkTaskModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkCreateTask} onClose={() => setShowTaskModal(false)} />}
+            {showAlertModal && <BulkAlertModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkAlert} onClose={() => setShowAlertModal(false)} />}
             {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
         </div>
     )
