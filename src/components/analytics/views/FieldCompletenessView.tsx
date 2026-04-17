@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, X, ChevronDown, Columns3, Filter, ListFilter, ExternalLink, ClipboardList, ArrowRight, UserPlus, Zap, Download, Bell, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -833,6 +833,20 @@ export default function FieldCompletenessView() {
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
+    const [stagesInitialized, setStagesInitialized] = useState(false)
+
+    // Auto-select Pós-Venda stages on first load (default selection)
+    useEffect(() => {
+        if (stagesInitialized) return
+        if (!phases.length || !stages.length) return
+        const posPhase = phases.find(p => p.slug === 'pos_venda')
+        if (!posPhase) { setStagesInitialized(true); return }
+        const posStageIds = stages.filter(s => s.phase_id === posPhase.id).map(s => s.id)
+        if (posStageIds.length > 0) {
+            setSelectedStageIds(posStageIds)
+        }
+        setStagesInitialized(true)
+    }, [phases, stages, stagesInitialized])
 
     const handleSetFieldKeys = useCallback((keys: string[]) => {
         setSelectedFieldKeys(keys)
