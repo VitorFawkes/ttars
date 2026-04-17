@@ -8,6 +8,7 @@ import ContactIntelligenceWidget from './ContactIntelligenceWidget'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
 import { useCardPeople } from '../../hooks/useCardPeople'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import type { Database } from '../../database.types'
@@ -24,7 +25,8 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
     // Collapse state from stage_section_config (composite keys: people:viajantes, people:travel_history)
-    const { isSectionCollapsed, isSectionVisible, isLoading: sscLoading } = useStageSectionConfig()
+    const { pipelineId } = useCurrentProductMeta()
+    const { isSectionCollapsed, isSectionVisible, isLoading: sscLoading } = useStageSectionConfig(pipelineId)
     const stageId = card.pipeline_stage_id as string
     const travelersVisible = isSectionVisible(stageId, 'people:viajantes')
     const historyVisible = isSectionVisible(stageId, 'people:travel_history')

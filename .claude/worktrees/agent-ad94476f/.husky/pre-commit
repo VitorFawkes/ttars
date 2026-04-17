@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# WelcomeCRM Pre-commit Hook
+# Verifica se CODEBASE.md está atualizado quando novos hooks/pages são adicionados
+
+echo "🔍 Verificando sincronização do CODEBASE.md..."
+
+# Detectar arquivos novos em hooks/pages
+NEW_HOOKS=$(git diff --cached --name-only --diff-filter=A | grep "^src/hooks/.*\.ts$" || true)
+NEW_PAGES=$(git diff --cached --name-only --diff-filter=A | grep "^src/pages/.*\.tsx$" || true)
+NEW_COMPONENTS=$(git diff --cached --name-only --diff-filter=A | grep "^src/components/.*\.tsx$" || true)
+
+if [ -n "$NEW_HOOKS" ] || [ -n "$NEW_PAGES" ] || [ -n "$NEW_COMPONENTS" ]; then
+    echo "📝 Novos arquivos detectados:"
+    [ -n "$NEW_HOOKS" ] && echo "  Hooks: $NEW_HOOKS"
+    [ -n "$NEW_PAGES" ] && echo "  Pages: $NEW_PAGES"
+    [ -n "$NEW_COMPONENTS" ] && echo "  Components: $(echo "$NEW_COMPONENTS" | wc -l | tr -d ' ') arquivo(s)"
+
+    # Verificar se CODEBASE.md também está sendo commitado
+    if ! git diff --cached --name-only | grep -q "CODEBASE.md"; then
+        echo ""
+        echo "❌ BLOQUEADO: Você adicionou novos hooks/pages/components mas não atualizou CODEBASE.md"
+        echo ""
+        echo "Execute:"
+        echo "  python3 .agent/scripts/sync_codebase.py --fix"
+        echo "  git add .agent/CODEBASE.md"
+        echo ""
+        exit 1
+    fi
+fi
+
+echo "✅ Sincronização OK"
+exit 0

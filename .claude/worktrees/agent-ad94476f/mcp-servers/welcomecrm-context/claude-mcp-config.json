@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "welcomecrm-context": {
+      "command": "node",
+      "args": ["/Users/vitorgambetti/Documents/WelcomeCRM/mcp-servers/welcomecrm-context/dist/index.js"],
+      "cwd": "/Users/vitorgambetti/Documents/WelcomeCRM"
+    }
+  }
+}

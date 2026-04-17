@@ -12,6 +12,7 @@ import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -46,7 +47,8 @@ export default function WeddingInformation({ card, isExpanded: _isExpanded, onTo
     const [lastSavedData, setLastSavedData] = useState<Record<string, Json>>({})
     const [isDirty, setIsDirty] = useState(false)
 
-    const { getVisibleFields, isLoading: loadingFields } = useFieldConfig()
+    const { pipelineId } = useCurrentProductMeta()
+    const { getVisibleFields, isLoading: loadingFields } = useFieldConfig(pipelineId)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { missingBlocking } = useStageRequirements(card as any)
 

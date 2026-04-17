@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { AlertTriangle, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -60,7 +61,8 @@ export default function LossReasonModal({
     /* eslint-enable react-hooks/set-state-in-effect */
 
     // 1. Get Governance Rules for this stage
-    const { getFieldConfig } = useFieldConfig();
+    const { pipelineId } = useCurrentProductMeta();
+    const { getFieldConfig } = useFieldConfig(pipelineId);
 
     // Check requirements
     const motivoConfig = getFieldConfig(targetStageId, 'motivo_perda_id');

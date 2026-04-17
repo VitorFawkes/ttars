@@ -7,6 +7,7 @@ import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useBulkLeadActions } from '@/hooks/useBulkLeadActions'
+import { useFilterOptions } from '@/hooks/useFilterOptions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -307,6 +308,103 @@ function FilterManager({ allColumns, filters, onChange }: {
     )
 }
 
+// ── Person Filter (by team member / owner) ────────────────────────────
+
+function PersonFilter({ profiles, selectedIds, onChange }: {
+    profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    selectedIds: string[]
+    onChange: (ids: string[]) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const [search, setSearch] = useState('')
+
+    const filtered = search.trim()
+        ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase()))
+        : profiles
+
+    // Group by phase
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const grouped = new Map<string, typeof profiles>()
+    for (const p of filtered) {
+        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
+        const arr = grouped.get(group) || []
+        arr.push(p)
+        grouped.set(group, arr)
+    }
+
+    const toggle = (id: string) => {
+        if (selectedIds.includes(id)) {
+            onChange(selectedIds.filter(i => i !== id))
+        } else {
+            onChange([...selectedIds, id])
+        }
+    }
+
+    const selectedNames = profiles.filter(p => selectedIds.includes(p.id)).map(p => p.full_name || '?')
+
+    return (
+        <div className="relative">
+            <button onClick={() => setOpen(o => !o)} className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all shadow-sm',
+                selectedIds.length > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+            )}>
+                <UserPlus className="w-3.5 h-3.5" />
+                {selectedIds.length > 0 ? `${selectedNames.slice(0, 2).join(', ')}${selectedIds.length > 2 ? ` +${selectedIds.length - 2}` : ''}` : 'Pessoa'}
+                <ChevronDown className={cn('w-3 h-3 text-slate-400 transition-transform', open && 'rotate-180')} />
+            </button>
+
+            {open && (
+                <>
+                    <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+                    <div className="absolute top-full left-0 mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl w-[260px] max-h-[350px] flex flex-col">
+                        <div className="p-2 border-b border-slate-100">
+                            <input
+                                type="text"
+                                placeholder="Buscar pessoa..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="overflow-y-auto p-2 space-y-2">
+                            {[...grouped.entries()].map(([group, members]) => (
+                                <div key={group}>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-1">{group}</div>
+                                    {members.map(p => {
+                                        const isSel = selectedIds.includes(p.id)
+                                        return (
+                                            <button key={p.id} onClick={() => toggle(p.id)} className={cn(
+                                                'flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded-md transition-all',
+                                                isSel ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50',
+                                            )}>
+                                                <span className={cn(
+                                                    'w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0',
+                                                    isSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300',
+                                                )}>
+                                                    {isSel && <Check className="w-2.5 h-2.5 text-white" />}
+                                                </span>
+                                                <span className="truncate">{p.full_name || '(sem nome)'}</span>
+                                                {p.team_name && <span className="text-[10px] text-slate-400 ml-auto flex-shrink-0">{p.team_name}</span>}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            ))}
+                            {filtered.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Nenhuma pessoa encontrada</p>}
+                        </div>
+                        {selectedIds.length > 0 && (
+                            <div className="p-2 border-t border-slate-100">
+                                <button onClick={() => { onChange([]); setOpen(false) }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Limpar filtro</button>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
 // ── Bulk Task Modal ───────────────────────────────────────────────────
 
 function BulkTaskModal({ cardCount, onConfirm, onClose }: {
@@ -542,6 +640,7 @@ export default function FieldCompletenessView() {
     const { profile } = useAuth()
     const queryClient = useQueryClient()
     const { bulkMoveStage, bulkChangeOwner, bulkChangePriority, isLoading: bulkLoading } = useBulkLeadActions()
+    const { data: filterOptions } = useFilterOptions()
 
     // State
     const [selectedStageIds, setSelectedStageIds] = useState<string[]>([])
@@ -549,6 +648,7 @@ export default function FieldCompletenessView() {
     const [selectedExtras, setSelectedExtras] = useState<ExtraColumnKey[]>(() => (loadFromLS(LS_EXTRAS_KEY) || []) as ExtraColumnKey[])
     const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
     const [searchTerm, setSearchTerm] = useState('')
+    const [personFilter, setPersonFilter] = useState<string[]>([])
     const [page, setPage] = useState(0)
     const [sortCol, setSortCol] = useState<string | null>(null)
     const [sortAsc, setSortAsc] = useState(true)
@@ -580,6 +680,7 @@ export default function FieldCompletenessView() {
         selectedFieldKeys,
         selectedExtraKeys: selectedExtras,
         productFilter: currentProduct,
+        pipelineId: pipelineId ?? undefined,
     })
 
     const allColumns = useMemo(() => {
@@ -607,6 +708,18 @@ export default function FieldCompletenessView() {
             )
         }
 
+        // Person filter — match any owner role (SDR, Planner, Pós-Venda, Dono Atual)
+        if (personFilter.length > 0) {
+            const pset = new Set(personFilter)
+            result = result.filter(row => {
+                const c = row.card
+                return pset.has(c.dono_atual_id || '') ||
+                    pset.has(c.sdr_owner_id || '') ||
+                    pset.has(c.vendas_owner_id || '') ||
+                    pset.has(c.pos_owner_id || '')
+            })
+        }
+
         // Field filters
         if (fieldFilters.length > 0) {
             result = result.filter(row => fieldFilters.every(f => {
@@ -616,7 +729,7 @@ export default function FieldCompletenessView() {
         }
 
         return result
-    }, [rows, fieldFilters, searchTerm])
+    }, [rows, fieldFilters, searchTerm, personFilter])
 
     const sortedRows = useMemo(() => {
         if (!sortCol) return filteredRows
@@ -779,6 +892,13 @@ export default function FieldCompletenessView() {
                         autoComplete="off"
                     />
                 </div>
+
+                {/* Person filter */}
+                <PersonFilter
+                    profiles={filterOptions?.profiles || []}
+                    selectedIds={personFilter}
+                    onChange={ids => { setPersonFilter(ids); setPage(0) }}
+                />
 
                 <ColumnManager sections={selectableFields} selectedKeys={selectedFieldKeys} selectedExtras={selectedExtras} onChangeKeys={handleSetFieldKeys} onChangeExtras={handleSetExtras} />
                 {hasColumns && <FilterManager allColumns={allColumns} filters={fieldFilters} onChange={f => { setFieldFilters(f); setPage(0) }} />}

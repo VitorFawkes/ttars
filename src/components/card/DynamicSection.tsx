@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { Pencil, Check, X } from 'lucide-react'
 import type { Database } from '../../database.types'
 
@@ -10,19 +11,22 @@ interface DynamicSectionProps {
     section: string
     card: Card
     title?: string
-    onUpdate: (fieldKey: string, value: any) => Promise<void>
+    onUpdate: (fieldKey: string, value: FieldValue) => Promise<void>
 }
 
+type FieldValue = string | number | boolean | null
+
 export default function DynamicSection({ stageId, section, card, title, onUpdate }: DynamicSectionProps) {
-    const { getVisibleFields } = useFieldConfig()
+    const { pipelineId } = useCurrentProductMeta()
+    const { getVisibleFields } = useFieldConfig(pipelineId)
     const fields = getVisibleFields(stageId, section)
     const [editingField, setEditingField] = useState<string | null>(null)
-    const [tempValue, setTempValue] = useState<any>(null)
+    const [tempValue, setTempValue] = useState<FieldValue>(null)
     const [saving, setSaving] = useState(false)
 
     if (fields.length === 0) return null
 
-    const handleEdit = (key: string, currentValue: any) => {
+    const handleEdit = (key: string, currentValue: FieldValue) => {
         setEditingField(key)
         setTempValue(currentValue)
     }
@@ -51,7 +55,7 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
     const getValue = (key: string) => {
         // TODO: Handle nested JSON paths if key contains dots or is known to be in produto_data
         // For now, check card[key]
-        return (card as any)[key]
+        return (card as Record<string, FieldValue>)[key]
     }
 
     return (
@@ -89,7 +93,7 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
                                     {field.type === 'text' && (
                                         <input
                                             type="text"
-                                            value={tempValue || ''}
+                                            value={String(tempValue ?? '')}
                                             onChange={e => setTempValue(e.target.value)}
                                             className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             autoFocus
@@ -98,7 +102,7 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
                                     {field.type === 'number' && (
                                         <input
                                             type="number"
-                                            value={tempValue || ''}
+                                            value={String(tempValue ?? '')}
                                             onChange={e => setTempValue(e.target.value)}
                                             className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             autoFocus
@@ -108,7 +112,7 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
                                         <input
                                             type="number"
                                             step="0.01"
-                                            value={tempValue || ''}
+                                            value={String(tempValue ?? '')}
                                             onChange={e => setTempValue(e.target.value)}
                                             className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             autoFocus
@@ -117,7 +121,7 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
                                     {field.type === 'date' && (
                                         <input
                                             type="date"
-                                            value={tempValue ? new Date(tempValue).toISOString().split('T')[0] : ''}
+                                            value={tempValue ? new Date(String(tempValue)).toISOString().split('T')[0] : ''}
                                             onChange={e => setTempValue(e.target.value)}
                                             className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                             autoFocus
@@ -152,13 +156,13 @@ export default function DynamicSection({ stageId, section, card, title, onUpdate
                                 <div className="text-sm text-gray-900 min-h-[20px]">
                                     {/* Display based on type */}
                                     {field.type === 'currency' && value ? (
-                                        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+                                        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value))
                                     ) : field.type === 'date' && value ? (
-                                        new Date(value).toLocaleDateString('pt-BR')
+                                        new Date(String(value)).toLocaleDateString('pt-BR')
                                     ) : field.type === 'boolean' ? (
                                         value ? 'Sim' : 'Não'
                                     ) : (
-                                        value || <span className="text-gray-400 italic">Vazio</span>
+                                        String(value) || <span className="text-gray-400 italic">Vazio</span>
                                     )}
                                 </div>
                             )}

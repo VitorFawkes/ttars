@@ -216,6 +216,22 @@ Famílias atuais para auditar ao mexer: cadence (templates/triggers/steps/instan
 7. Reuniões/atividades sem `card_id`: manter visíveis (não filtrar)
 8. `usePipelineStages(pipelineId?)` — passar `pipelineId` quando produto importa
 
+### Isolamento de Metadados — configs, campos, seções (OBRIGATÓRIO)
+
+Filtrar **dados** (cards, contatos) NÃO é suficiente. Hooks que retornam configs de campo, visibilidade de seções ou regras por etapa DEVEM filtrar por `pipeline_id`. Sem filtro, campos de WEDDING aparecem em telas de TRIPS.
+
+**Regra:** Todo hook que consulta `stage_field_config`, `stage_section_config`, `section_field_config`, `stage_field_confirmations` ou `pipeline_stages` DEVE receber `pipelineId` e filtrar. Obter via `useCurrentProductMeta().pipelineId` ou `useProductPipelineId(card.produto)`.
+
+**Hooks que EXIGEM pipelineId em telas de produto:**
+- `useFieldConfig(pipelineId)` — configs de campo por etapa
+- `useStageSectionConfig(pipelineId)` — visibilidade/collapse de seções
+- `useStageFieldConfirmations(pipelineId)` — confirmações de campo
+- `useQualityGate(pipelineId)` — regras de validação (defesa em profundidade)
+
+**Hooks que já filtram (padrão a seguir):** `usePipelineStages`, `usePipelinePhases`, `useSections`
+
+**Exceção — Pipeline Studio admin:** pode chamar sem pipelineId (precisa ver configs de todos os pipelines para gerenciar)
+
 ### Backend (SQL/RPCs) — Checklist para código novo
 1. Toda RPC que toca `cards` DEVE ter: `AND (p_product IS NULL OR c.produto::TEXT = p_product)`
 2. Toda RPC que toca `pipeline_stages` DEVE ter:

@@ -18,7 +18,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { useSections, type Section } from '../../hooks/useSections'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
-import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
+import { useCurrentProductMeta, useProductPipelineId } from '../../hooks/useCurrentProductMeta'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { cn } from '../../lib/utils'
@@ -188,7 +188,8 @@ export default function DynamicSectionWidget({
     const section = useMemo(() => sections.find(s => s.key === sectionKey), [sections, sectionKey])
 
     // Apply default_collapsed on first load (stage-level > global fallback)
-    const { isSectionCollapsed } = useStageSectionConfig()
+    const widgetPipelineId = useProductPipelineId(card.produto)
+    const { isSectionCollapsed } = useStageSectionConfig(widgetPipelineId)
     if (section && !hasInitCollapse) {
         setHasInitCollapse(true)
         const stageCollapsed = isSectionCollapsed(card.pipeline_stage_id as string, sectionKey)
@@ -196,7 +197,7 @@ export default function DynamicSectionWidget({
     }
 
     // Fetch field configuration
-    const { getVisibleFields, isLoading: loadingFields } = useFieldConfig()
+    const { getVisibleFields, isLoading: loadingFields } = useFieldConfig(widgetPipelineId)
 
     // Stage requirements for field blocking indicators
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -427,7 +428,8 @@ interface CollapsibleWidgetSectionProps {
 }
 
 function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: CollapsibleWidgetSectionProps) {
-    const { isSectionCollapsed: isStageCollapsed } = useStageSectionConfig()
+    const cwsPipelineId = useProductPipelineId(card.produto)
+    const { isSectionCollapsed: isStageCollapsed } = useStageSectionConfig(cwsPipelineId)
     const stageCollapsed = isStageCollapsed(card.pipeline_stage_id as string, section.key)
     const [isExpanded, setIsExpanded] = useState(!(stageCollapsed || section.default_collapsed))
     const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
@@ -507,12 +509,14 @@ export function DynamicSectionsList({ card, position, excludeKeys = [] }: Dynami
     const productKey = produto || 'TRIPS'
     const { data: sections = [], isLoading } = useSections(productKey)
 
+    // Pipeline context
+    const { pipelineId } = useCurrentProductMeta()
+
     // Stage-based section visibility
-    const { isSectionVisible } = useStageSectionConfig()
+    const { isSectionVisible } = useStageSectionConfig(pipelineId)
     const stageId = card.pipeline_stage_id
 
     // Pipeline phases — used to expand trip_info into per-phase sections
-    const { pipelineId } = useCurrentProductMeta()
     const { data: pipelinePhases } = usePipelinePhases(pipelineId)
 
     const visiblePhases = useMemo(() => {

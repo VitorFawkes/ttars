@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WelcomeCRM — Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css" id="theme">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --r-background-color: #0A0A0B;
+      --r-main-font: 'Inter', system-ui, -apple-system, sans-serif;
+      --r-main-font-size: 28px;
+      --r-main-color: #334155;
+      --r-heading-font: 'Inter', system-ui, -apple-system, sans-serif;
+      --r-heading-color: #0f172a;
+      --r-heading-font-weight: 700;
+      --r-heading-letter-spacing: -0.025em;
+      --r-heading-line-height: 1.15;
+      --r-heading-text-transform: none;
+      --r-link-color: #6366f1;
+      --r-selection-background-color: #c7d2fe;
+      --brand: #6366f1;
+      --brand-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      --surface: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --border: #e2e8f0;
+    }
+
+    .reveal { font-weight: 400; }
+    .reveal h2 { font-size: 2.2em; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.15em; text-transform: none; }
+    .reveal p, .reveal li { line-height: 1.65; color: var(--text-secondary); }
+
+    .reveal section.dark h1, .reveal section.dark h2, .reveal section.dark h3 { color: #f1f5f9; }
+    .reveal section.dark p, .reveal section.dark li { color: #cbd5e1; }
+    .reveal section.dark .badge { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+
+    .reveal .gradient-heading {
+      background: linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,0.55) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .bg-aurora-dark {
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(168,85,247,0.13) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.08) 0%, transparent 60%),
+        #0A0A0B !important;
+    }
+
+    .reveal .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99,102,241,0.15);
+      color: #a5b4fc;
+      font-size: 0.5em;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 100px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 0.6em;
+    }
+    .reveal .badge svg { width: 14px; height: 14px; }
+
+    .reveal .browser-frame-dark {
+      background: #1c1c1e;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 25px 50px -12px rgba(0,0,0,0.5),
+        0 0 80px -20px rgba(99,102,241,0.2);
+    }
+    .reveal .browser-frame-dark .browser-bar {
+      height: 40px;
+      background: #2d2d2d;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+    }
+    .reveal .browser-frame-dark .browser-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .reveal .browser-frame-dark .browser-dot.red { background: #ff5f57; }
+    .reveal .browser-frame-dark .browser-dot.yellow { background: #febc2e; }
+    .reveal .browser-frame-dark .browser-dot.green { background: #28c840; }
+    .reveal .browser-frame-dark .browser-url {
+      margin-left: 12px;
+      background: #1c1c1e;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 11px;
+      color: #888;
+      font-family: 'Inter', sans-serif;
+      flex: 1;
+      max-width: 320px;
+    }
+    .reveal .browser-frame-dark img {
+      width: 100%;
+      display: block;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .reveal .columns {
+      display: flex;
+      gap: 40px;
+      align-items: center;
+      text-align: left;
+    }
+    .reveal .columns .col { flex: 1; }
+
+    .reveal .check-list { list-style: none; padding: 0; }
+    .reveal .check-list li {
+      position: relative;
+      padding-left: 32px;
+      margin-bottom: 0.5em;
+    }
+    .reveal .check-list li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      width: 20px;
+      height: 20px;
+      background: rgba(99,102,241,0.15);
+      border-radius: 6px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a5b4fc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+      background-size: 13px;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .reveal .text-center { text-align: center; }
+    .reveal .text-sm { font-size: 0.7em; }
+    .reveal .text-xs { font-size: 0.55em; }
+    .reveal img { border-radius: 12px; box-shadow: none; }
+    .reveal .progress { color: var(--brand); height: 3px; }
+    .reveal .controls { color: var(--brand); }
+
+    .ia-zoom-container {
+      overflow: hidden;
+      border-radius: 0;
+    }
+
+    .ia-zoom-img {
+      border-radius: 0 !important;
+      animation: iaZoomCycle 8s ease-in-out infinite;
+      transform-origin: 88% 12%;
+    }
+
+    @keyframes iaZoomCycle {
+      0%   { transform: scale(1); }
+      15%  { transform: scale(1); }
+      45%  { transform: scale(3.2); }
+      70%  { transform: scale(3.2); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- SLIDE 1: Pipeline scroll horizontal -->
+      <section class="dark bg-aurora-dark">
+        <div class="badge"><i data-lucide="kanban"></i> Pipeline</div>
+        <h2 class="gradient-heading text-center" style="margin-bottom: 0.5em;">Pipeline visual completo</h2>
+        <div class="browser-frame-dark" style="max-width: 88%; margin: 0 auto;">
+          <div class="browser-bar">
+            <div class="browser-dot red"></div>
+            <div class="browser-dot yellow"></div>
+            <div class="browser-dot green"></div>
+            <div class="browser-url">app.welcometrips.com.br/pipeline</div>
+          </div>
+          <img src="/demo-assets/pipeline-scroll.gif" alt="Pipeline com scroll horizontal">
+        </div>
+      </section>
+
+      <!-- SLIDE 2: Meu Dia -->
+      <section class="dark bg-aurora-dark">
+        <div class="badge"><i data-lucide="calendar-check"></i> Meu Dia</div>
+        <h2 class="gradient-heading text-center" style="margin-bottom: 0.5em;">Tarefas do dia organizadas</h2>
+        <div class="browser-frame-dark" style="max-width: 88%; margin: 0 auto;">
+          <div class="browser-bar">
+            <div class="browser-dot red"></div>
+            <div class="browser-dot yellow"></div>
+            <div class="browser-dot green"></div>
+            <div class="browser-url">app.welcometrips.com.br/pipeline</div>
+          </div>
+          <img src="/demo-assets/meudia-tabs.gif" alt="Meu Dia com tarefas por dia">
+        </div>
+      </section>
+
+      <!-- SLIDE 3: Card viagem -->
+      <section class="dark bg-aurora-dark">
+        <div class="badge"><i data-lucide="plane"></i> Card de Viagem</div>
+        <h2 class="gradient-heading text-center" style="margin-bottom: 0.5em;">Tudo sobre cada viagem</h2>
+        <div class="browser-frame-dark" style="max-width: 88%; margin: 0 auto;">
+          <div class="browser-bar">
+            <div class="browser-dot red"></div>
+            <div class="browser-dot yellow"></div>
+            <div class="browser-dot green"></div>
+            <div class="browser-url">app.welcometrips.com.br/cards/marilia-gulin</div>
+          </div>
+          <img src="/demo-assets/card-viagem-v3.gif" alt="Card de viagem com informações completas">
+        </div>
+      </section>
+
+      <!-- SLIDE 4: Card IA -->
+      <section class="dark bg-aurora-dark">
+        <div class="columns" style="gap: 48px;">
+          <div class="col" style="flex: 0.35;">
+            <div class="badge"><i data-lucide="brain"></i> IA Integrada</div>
+            <h2 class="gradient-heading" style="font-size: 1.7em; margin-top: 0.3em;">Preenchimento<br>inteligente de campos</h2>
+            <p class="text-sm" style="color: #94a3b8; margin-top: 0.8em;">A IA analisa mensagens de WhatsApp, transcrições de reuniões e áudios de briefing para atualizar os campos do card automaticamente.</p>
+            <ul class="check-list" style="margin-top: 1em;">
+              <li class="text-sm" style="color: #cbd5e1;">Leitura de conversa WhatsApp</li>
+              <li class="text-sm" style="color: #cbd5e1;">Briefing por áudio</li>
+              <li class="text-sm" style="color: #cbd5e1;">Transcrição de reunião</li>
+            </ul>
+          </div>
+          <div class="col" style="flex: 0.65;">
+            <div class="browser-frame-dark">
+              <div class="browser-bar">
+                <div class="browser-dot red"></div>
+                <div class="browser-dot yellow"></div>
+                <div class="browser-dot green"></div>
+                <div class="browser-url">app.welcometrips.com.br/cards/...</div>
+              </div>
+              <div class="ia-zoom-container">
+                <img src="/demo-assets/ia-dropdown-v3.png" alt="Usar IA com dropdown aberto" class="ia-zoom-img">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      transition: 'fade',
+      transitionSpeed: 'slow',
+      backgroundTransition: 'fade',
+      width: 1920,
+      height: 1080,
+      margin: 0.04,
+      center: true,
+      slideNumber: false,
+      autoAnimateDuration: 0.6,
+      autoAnimateEasing: 'ease',
+    });
+    lucide.createIcons();
+  </script>
+</body>
+</html>

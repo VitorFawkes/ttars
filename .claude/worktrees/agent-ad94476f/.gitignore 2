@@ -1,0 +1,116 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env
+.env.development.staging
+.vercel
+.env*.local
+lint_output.txt
+
+
+# Claude IDE secrets (nunca commitar!)
+.claude/secrets.json
+.claude/settings.local.json
+.claude/.migration_applied
+
+# Agent memory (local)
+.agent/
+
+# Scripts de debug com credenciais (NUNCA commitar!)
+debug_*.js
+debug_*.ts
+test-*.ts
+*-admin.ts
+scripts/debug-*.ts
+scripts/*-admin.ts
+update_card_contact.ts
+
+# Arquivos que podem conter secrets
+*.secret
+*.secrets
+*credentials*
+*_KEY*
+
+# Backup files (local rollback data)
+.backup/
+
+# Supabase temp files
+supabase/.temp/
+
+# DB audit data (gerado por audit-db-schema.sh, não versionado)
+.claude/db-audit/
+
+# Referência local (não é código)
+Exemplo Colunas Mondee/
+
+# Reports and temporary files
+*.docx
+*_REPORT.md
+*_INDEX.txt
+*_SUMMARY.txt
+*_SUMMARY.md
+*.bak
+Weddings/
+EXECUTE_NOW*.sql
+FIX_VIEW_TIMEOUT_EXECUTE_NOW.sql
+mockup-cards-mobile.html
+scripts/*.sql
+scripts/*.mjs
+
+# Arquivos avulsos de teste/dev local
+Estoque/
+teste_vendas_monde.csv
+skills-lock.json
+.agents/
+supabase/functions/monde-api-test/
+scripts/capture-gif.sh
+
+# Conflitos de sync iCloud (nunca versionar duplicatas)
+* 2.*
+* 3.*
+
+# Screenshots soltos na raiz (Playwright/debug ad-hoc)
+/*.png
+/*.jpg
+/*.jpeg
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Playwright E2E artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/tests/e2e/.auth/
+
+# Docs/snapshots temporários ad-hoc na raiz
+/builder-*-snapshot.md
+/wizard-snapshot.md
+/ITERPEC_API_*.md
+/Iterpec Api/
+/exemplovoo/
+
+# Plans locais do Claude Code (por sessão)
+.claude/plans/
+.claude/agent-memory/

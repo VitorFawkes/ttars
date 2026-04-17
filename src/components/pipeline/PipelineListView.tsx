@@ -98,7 +98,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
     const cards = queryResult?.data
     const totalCards = queryResult?.total ?? 0
     const totalPages = queryResult?.totalPages ?? 1
-    const { validateMoveSync } = useQualityGate()
+    const { validateMoveSync } = useQualityGate(pipelineId)
 
     // --- State ---
     const [sortField, setSortField] = useState<keyof Card | 'proxima_tarefa'>('created_at')

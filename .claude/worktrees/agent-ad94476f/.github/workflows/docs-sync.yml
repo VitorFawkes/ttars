@@ -1,0 +1,60 @@
+name: Docs Sync Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.agent/CODEBASE.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.agent/CODEBASE.md'
+
+jobs:
+  sync-check:
+    name: Verify CODEBASE.md sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run sync check
+        run: python3 .agent/scripts/sync_codebase.py --strict
+
+      - name: Comment on PR if failed
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## ❌ CODEBASE.md Desatualizado!
+
+            A documentação do projeto não está sincronizada com o código.
+
+            ### Como corrigir:
+            \`\`\`bash
+            # Executar localmente
+            python3 .agent/scripts/sync_codebase.py --fix
+            git add .agent/CODEBASE.md
+            git commit --amend --no-edit
+            git push --force-with-lease
+            \`\`\`
+
+            Ou use \`npm run sync:fix\` se configurado.
+
+            ---
+            *Verificação automática do Triple-Lock Protocol*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            })

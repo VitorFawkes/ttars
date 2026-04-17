@@ -62,14 +62,14 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const [activeCard, setActiveCard] = useState<Card | null>(null)
     const [activeCardPhaseSlug, setActiveCardPhaseSlug] = useState<string | null>(null)
     const { collapsedPhases, setCollapsedPhases, groupFilters } = usePipelineFilters()
-    const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate()
+    const { products } = useProducts()
+    const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
+    const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate(pipelineId)
     const { session } = useAuth()
     // Pre-fetch para expansão de fases — valor usado indiretamente via cache do React Query
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
-    const { products } = useProducts()
-    const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { data: phasesData } = usePipelinePhases(pipelineId)
     const { getNextPhase } = usePhaseCapabilities(pipelineId)
     const receitaPerm = useReceitaPermission()
@@ -154,7 +154,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     })
 
-    const { getForStage: getFieldConfirmationsForStage } = useStageFieldConfirmations()
+    const { getForStage: getFieldConfirmationsForStage } = useStageFieldConfirmations(pipelineId)
 
     // Fetch Cards — filtra por status (oculta ganhos/perdidos por padrão)
     const { data: cards, isError, refetch } = usePipelineCards({

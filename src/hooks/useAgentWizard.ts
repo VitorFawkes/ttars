@@ -29,6 +29,7 @@ export interface OutboundTriggerConfig {
   triggers: OutboundTrigger[]
   business_hours: BusinessHoursConfig
   max_daily_outbound: number
+  max_outbound_per_contact?: number
 }
 
 export interface WizardStep1 {

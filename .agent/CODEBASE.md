@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-16
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 178 tabelas | 87 paginas | 139 hooks | 17 views | 590 components
+> **Stats:** 178 tabelas | 88 paginas | 140 hooks | 17 views | 554 components
 =======
-> **Stats:** 178 tabelas | 87 paginas | 139 hooks | 17 views | 590 components
+> **Stats:** 178 tabelas | 88 paginas | 140 hooks | 17 views | 554 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **139 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **140 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -266,6 +266,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useOrgMembers()` | `useOrgMembers.ts` |
 | `useOrgSwitch()` | `useOrgSwitch.ts` |
 | `useOrganizations()` | `useOrganizations.ts` |
+| `useOutboundQueue()` | `useOutboundQueue.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
@@ -387,7 +388,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **87 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **88 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -431,6 +432,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
 | `MensagemTemplatePage` | `src/pages/admin/MensagemTemplatePage.tsx` |
+| `OutboundQueuePage` | `src/pages/admin/OutboundQueuePage.tsx` |
 | `PhaseVisibilitySettings` | `src/pages/admin/PhaseVisibilitySettings.tsx` |
 | `PipelineStudio` | `src/pages/admin/PipelineStudio.tsx` |
 | `ProductsManagement` | `src/pages/admin/ProductsManagement.tsx` |

@@ -1,0 +1,30 @@
+====================================================================
+PROMPT PARA COLAR NO ANTIGRAVITY
+====================================================================
+
+Preciso que você execute 2 tarefas de deploy:
+
+## TAREFA 1: Executar a migração SQL
+
+Execute o SQL do arquivo `supabase/migrations/20260128_enterprise_field_storage.sql` no banco Supabase.
+
+Este SQL adiciona as colunas `storage_location` e `db_column_name` na tabela `integration_field_map` e popula os valores baseado nos padrões existentes.
+
+## TAREFA 2: Deploy da Edge Function
+
+Faça deploy da Edge Function `integration-process` que foi modificada em `supabase/functions/integration-process/index.ts`.
+
+A função foi atualizada para ler `storage_location` e `db_column_name` do banco de dados ao invés de usar lista hardcoded de colunas.
+
+## VERIFICAÇÃO
+
+Após o deploy, execute esta query para verificar:
+
+```sql
+SELECT local_field_key, storage_location, db_column_name
+FROM integration_field_map
+WHERE entity_type = 'deal' AND is_active = true
+ORDER BY storage_location;
+```
+
+====================================================================

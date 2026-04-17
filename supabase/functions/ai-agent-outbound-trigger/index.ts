@@ -276,6 +276,27 @@ serve(async (req) => {
           continue;
         }
 
+        // 3b. Anti-spam: check max outbound per contact
+        const maxPerContact = (agentRow?.outbound_trigger_config as Record<string, unknown>)
+          ?.max_outbound_per_contact as number | undefined ?? 3;
+
+        const { count: sentCount } = await supabase
+          .from("ai_outbound_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("contato_id", item.contato_id)
+          .eq("status", "sent");
+
+        if ((sentCount ?? 0) >= maxPerContact) {
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "skipped",
+            p_error: "max_outbound_reached",
+          });
+          results.push({ queue_id: item.queue_id, status: "skipped", error: "max_outbound_reached" });
+          console.log(`[ai-agent-outbound-trigger] Skipped ${item.contact_name}: max outbound reached (${sentCount}/${maxPerContact})`);
+          continue;
+        }
+
         // 4. Generate message (first contact vs follow-up)
         let messageText = "";
 

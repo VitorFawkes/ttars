@@ -76,7 +76,7 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
     }
 
     // Fetch Field Configs
-    const { getVisibleFields, isLoading: loadingConfig } = useFieldConfig()
+    const { getVisibleFields, isLoading: loadingConfig } = useFieldConfig(pipelineId)
 
     // Fetch fields based on card's current stage
     const fields = useMemo(() => {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   MessageCircle, Send, ArrowLeftRight, ChevronDown, ChevronUp,
-  Clock, Calendar, Zap,
+  Clock, Calendar, Zap, ShieldAlert,
 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
@@ -461,6 +461,32 @@ export function InteractionModeSelector({
                 className="w-24"
               />
             </div>
+          </div>
+
+          {/* Anti-spam */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-indigo-600" />
+              <Label className="text-sm font-semibold text-slate-900">Anti-spam</Label>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Label className="text-xs whitespace-nowrap">Maximo de abordagens por contato</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={otc.max_outbound_per_contact ?? 3}
+                onChange={(e) => onOutboundTriggerConfigChange({
+                  ...otc,
+                  max_outbound_per_contact: Math.max(1, Math.min(10, parseInt(e.target.value) || 3)),
+                })}
+                className="w-20"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Quando um contato receber esse numero de mensagens, novas tentativas serao ignoradas automaticamente.
+            </p>
           </div>
         </div>
       )}

@@ -124,6 +124,7 @@ interface UseFieldCompletenessParams {
     selectedFieldKeys: string[]
     selectedExtraKeys: ExtraColumnKey[]
     productFilter: string
+    pipelineId?: string
 }
 
 export function useFieldCompleteness({
@@ -131,8 +132,9 @@ export function useFieldCompleteness({
     selectedFieldKeys,
     selectedExtraKeys,
     productFilter,
+    pipelineId,
 }: UseFieldCompletenessParams) {
-    const { systemFields, stageConfigs, sectionFieldConfigs, isLoading: configLoading } = useFieldConfig()
+    const { systemFields, stageConfigs, sectionFieldConfigs, isLoading: configLoading } = useFieldConfig(pipelineId)
 
     // Fetch sections for grouping labels
     const { data: sections } = useQuery({

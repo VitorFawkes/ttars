@@ -1,0 +1,191 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║        ORPHAN FUNCTIONS - QUICK REFERENCE GUIDE                          ║
+║               WelcomeCRM - Análise de Segurança                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 1: is_manager_or_admin()
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: ⚠️ ATIVA - NÃO REMOVER
+Arquivo: /supabase/migrations/20260121130000_roles_teams_separation.sql
+Linhas: 116-134
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada diretamente
+Risco: ALTO se remover (quebra RBAC)
+
+Recomendação: MANTER - Função helper legítima para RBAC
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 2: has_role(role_name TEXT)
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: ⚠️ ATIVA - NÃO REMOVER
+Arquivo: /supabase/migrations/20260121130000_roles_teams_separation.sql
+Linhas: 99-113
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada diretamente
+Risco: ALTO se remover (quebra verificações de role)
+
+Recomendação: MANTER - Helper genérico reutilizável
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 3: is_privileged_user()
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: 🔴 PHANTOM - REMOVER
+Banco: NÃO EXISTE
+Arquivo de Tipo: /src/database.types.ts (linha 6279)
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada
+Risco: ZERO se remover (não existe no BD)
+
+Recomendação: REMOVER de database.types.ts após regeneração
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 4: is_card_owner(p_card_id uuid)
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: 🔴 PHANTOM - REMOVER
+Banco: NÃO EXISTE
+Arquivo de Tipo: /src/database.types.ts (linha 6275)
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada
+Risco: ZERO se remover (não existe no BD)
+
+Recomendação: REMOVER de database.types.ts após regeneração
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 5: find_contact_by_whatsapp(p_convo_id, p_phone)
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: 🔴 PHANTOM - REMOVER
+Banco: NÃO EXISTE
+Arquivo de Tipo: /src/database.types.ts (linhas 6199-6202)
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada
+Risco: ZERO se remover (não existe no BD)
+
+Recomendação: REMOVER de database.types.ts após regeneração
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 6: validate_transition(p_card_id, p_target_stage_id)
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: ⚠️ ATIVA - NÃO REMOVER
+Arquivo: /supabase/migrations/20251214230000_admin_governance.sql
+Linhas: 35-67
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada diretamente (mas em database.types.ts)
+Risco: CRÍTICO se remover (quebra validação de pipeline)
+
+Recomendação: MANTER - Função crítica de validação
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 7: pode_avancar_etapa(p_card_id, p_nova_etapa_id)
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: 🔴 PHANTOM - REMOVER
+Banco: NÃO EXISTE
+Arquivo de Tipo: /src/database.types.ts (linhas 6318-6321)
+Trigger: Não
+RLS Policy: Não
+Código: Não chamada
+Risco: ZERO se remover (não existe no BD)
+Nota: Funcionalidade está em validate_transition
+
+Recomendação: REMOVER de database.types.ts após regeneração
+
+
+═══════════════════════════════════════════════════════════════════════════════
+FUNÇÃO 8: log_tarefa_activity() [VERSÃO 1]
+═══════════════════════════════════════════════════════════════════════════════
+
+Status: 🟢 LEGADO - REMOVER
+Arquivo 1: /supabase/migrations/20251210123247_complete_activity_logging.sql
+Arquivo 2: /supabase/migrations/20251224000003_update_activity_log.sql
+Arquivo 3: /supabase/migrations/20251224000005_improve_reschedule_log.sql
+Trigger Original: ❌ DROPADO em 20251224120000
+Versão Ativa: log_tarefa_activity_v2 (20251224163000_fix_meeting_logic.sql)
+Risco: ZERO se remover (v2 já está ativa)
+
+Recomendação: REMOVER definições v1, manter v2
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PLANO DE AÇÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+PASSO 1: Regenerar database.types.ts
+  $ supabase gen types typescript > src/database.types.ts
+
+  Isso removerá automaticamente as 4 phantom functions
+
+PASSO 2: Limpar definições legado de log_tarefa_activity v1
+  Editar arquivo:
+    - supabase/migrations/20251210123247_complete_activity_logging.sql
+    - supabase/migrations/20251224000003_update_activity_log.sql
+    - supabase/migrations/20251224000005_improve_reschedule_log.sql
+
+  Remover blocos de CREATE OR REPLACE FUNCTION log_tarefa_activity()
+
+PASSO 3: Verificação
+  $ grep -rn "is_privileged_user\|is_card_owner\|find_contact_by_whatsapp\|pode_avancar_etapa\|log_tarefa_activity[^_]" src/ database.types.ts
+
+PASSO 4: Testar
+  $ npm run dev
+
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMO EXECUTIVO
+═══════════════════════════════════════════════════════════════════════════════
+
+MANTER (3):
+  - is_manager_or_admin() ← RBAC Helper
+  - has_role() ← Role Checker
+  - validate_transition() ← Pipeline Validation
+
+REMOVER PHANTOM (4):
+  - is_privileged_user
+  - is_card_owner
+  - find_contact_by_whatsapp
+  - pode_avancar_etapa
+
+REMOVER LEGADO (1):
+  - log_tarefa_activity() [v1]
+
+SEGURANÇA: ✅ 100% - Risco ZERO de quebrar código ativo
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TABELA RÁPIDA DE DECISÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+Função                    | Status    | Decisão
+--------------------------|-----------|------------------
+is_manager_or_admin       | Ativo     | ⚠️  MANTER
+has_role                  | Ativo     | ⚠️  MANTER
+is_privileged_user        | Phantom   | 🟢 REMOVER
+is_card_owner             | Phantom   | 🟢 REMOVER
+find_contact_by_whatsapp  | Phantom   | 🟢 REMOVER
+validate_transition       | Ativo     | ⚠️  MANTER
+pode_avancar_etapa        | Phantom   | 🟢 REMOVER
+log_tarefa_activity v1    | Legado    | 🟢 REMOVER
+
+
+═══════════════════════════════════════════════════════════════════════════════
+Para documentação completa, veja:
+  /sessions/sleepy-epic-clarke/mnt/WelcomeCRM/ORPHAN_FUNCTIONS_AUDIT_REPORT.md
+═══════════════════════════════════════════════════════════════════════════════

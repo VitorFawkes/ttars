@@ -33,6 +33,42 @@ if [ $? -ne 0 ]; then
   exit 2
 fi
 
+# ── Isolamento de metadados: hooks de config DEVEM receber pipelineId ──
+# BLOQUEIA se arquivos modificados chamam hooks de config sem pipelineId
+# ou fazem queries diretas a tabelas de config fora dos hooks centrais
+PIPELINE_HOOKS="useFieldConfig|useStageSectionConfig|useStageFieldConfirmations|useQualityGate"
+# Tabelas de config que só devem ser acessadas via hooks (não .from() direto em componentes)
+CONFIG_TABLES="stage_field_config|stage_section_config|section_field_config|stage_field_confirmations"
+# Excluir: definições dos hooks, Pipeline Studio (admin precisa de visão global), testes, hooks analytics
+EXCLUDE_PATTERN="src/hooks/(useFieldConfig|useStageSectionConfig|useSectionFieldConfig|useStageFieldConfirmations|useQualityGate)\.ts|src/components/admin/studio/|__tests__"
+ISOLATION_VIOLATIONS=""
+for f in $CHANGED_FILES; do
+  echo "$f" | grep -qE "$EXCLUDE_PATTERN" && continue
+  # 1. Hooks de config chamados sem pipelineId: useFieldConfig() ou useQualityGate()
+  if grep -qE "($PIPELINE_HOOKS)\(\)" "$f" 2>/dev/null; then
+    MATCHES=$(grep -nE "($PIPELINE_HOOKS)\(\)" "$f" 2>/dev/null | head -3)
+    ISOLATION_VIOLATIONS=$(printf "%s\n  %s (hook sem pipelineId): %s" "$ISOLATION_VIOLATIONS" "$f" "$MATCHES")
+  fi
+  # 2. Queries diretas a tabelas de config fora dos hooks centrais
+  if grep -qE "\.from\(['\"]($CONFIG_TABLES)['\"]" "$f" 2>/dev/null; then
+    MATCHES=$(grep -nE "\.from\(['\"]($CONFIG_TABLES)['\"]" "$f" 2>/dev/null | head -3)
+    ISOLATION_VIOLATIONS=$(printf "%s\n  %s (query direta a tabela de config — use o hook centralizado): %s" "$ISOLATION_VIOLATIONS" "$f" "$MATCHES")
+  fi
+done
+if [ -n "$ISOLATION_VIOLATIONS" ]; then
+  echo "" >&2
+  echo "BLOQUEADO: Violação de isolamento de metadados (vazamento cross-pipeline):" >&2
+  echo "$ISOLATION_VIOLATIONS" >&2
+  echo "" >&2
+  echo "Correção:" >&2
+  echo "  - Hooks: passe pipelineId → useFieldConfig(pipelineId), useQualityGate(pipelineId), etc." >&2
+  echo "  - Queries diretas: use os hooks centrais (useFieldConfig, useStageSectionConfig, etc.)" >&2
+  echo "  - Obter pipelineId via useCurrentProductMeta().pipelineId ou useProductPipelineId(card.produto)" >&2
+  echo "  - Ver CLAUDE.md → 'Isolamento de Metadados'" >&2
+  echo "" >&2
+  exit 2
+fi
+
 # Verificar se arquivos novos foram criados em diretórios-chave
 # Se sim, CODEBASE.md deve ter sido atualizado (via npm run sync:fix)
 NEW_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^src/(hooks|pages|components)/.*\.(ts|tsx)$')

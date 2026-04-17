@@ -174,11 +174,11 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     }, [card.briefing_inicial])
 
     const queryClient = useQueryClient()
+    const { pipelineId } = useCurrentProductMeta()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { missingBlocking } = useStageRequirements(card as any)
-    const { getVisibleFields } = useFieldConfig()
+    const { getVisibleFields } = useFieldConfig(pipelineId)
     const { setLocked } = useFieldLock(card.id)
-    const { pipelineId } = useCurrentProductMeta()
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: stages } = usePipelineStages(pipelineId)
 
