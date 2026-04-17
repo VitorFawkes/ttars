@@ -34,7 +34,7 @@ const DATE_TYPES = new Set(['date', 'date_range', 'flexible_date'])
 
 export const EXTRA_COLUMNS = [
     { key: '_pos_venda', label: 'Dono Pós-Venda', section: '_extras' },
-    { key: '_planner', label: 'Dono Planejamento', section: '_extras' },
+    { key: '_planner', label: 'Dono T. Planner', section: '_extras' },
     { key: '_sdr', label: 'Dono SDR', section: '_extras' },
     { key: '_produtos', label: 'Produtos', section: '_extras' },
 ] as const

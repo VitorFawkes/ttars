@@ -324,7 +324,7 @@ function PersonFilter({ profiles, selectedIds, onChange }: {
         : profiles
 
     // Group by phase
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
     const grouped = new Map<string, typeof profiles>()
     for (const p of filtered) {
         const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
@@ -444,7 +444,7 @@ function BulkTaskModal({ cardCount, profiles, onConfirm, onClose }: {
         ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
         : profiles
 
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
     const grouped = new Map<string, typeof profiles>()
     for (const p of filteredProfiles) {
         const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
@@ -597,7 +597,7 @@ function OwnerAssignModal({ cardCount, onConfirm, onClose }: {
                             <select value={field} onChange={e => setField(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
                                 <option value="dono_atual_id">Dono Atual</option>
                                 <option value="sdr_owner_id">SDR</option>
-                                <option value="vendas_owner_id">Planejamento</option>
+                                <option value="vendas_owner_id">T. Planner</option>
                                 <option value="pos_owner_id">Pós-Venda</option>
                             </select>
                         </div>
@@ -662,7 +662,7 @@ function BulkAlertModal({ cardCount, profiles, onConfirm, onClose }: {
         ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
         : profiles
 
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'Planejamento', pos_venda: 'Pós-Venda' }
+    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
     const grouped = new Map<string, typeof profiles>()
     for (const p of filteredProfiles) {
         const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
@@ -819,6 +819,7 @@ export default function FieldCompletenessView() {
     const [selectedExtras, setSelectedExtras] = useState<ExtraColumnKey[]>(() => (loadFromLS(LS_EXTRAS_KEY) || []) as ExtraColumnKey[])
     const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
     const [searchTerm, setSearchTerm] = useState('')
+    const [excludeTerm, setExcludeTerm] = useState('')
     const [personFilter, setPersonFilter] = useState<string[]>([])
     const [page, setPage] = useState(0)
     const [sortCol, setSortCol] = useState<string | null>(null)
@@ -883,14 +884,28 @@ export default function FieldCompletenessView() {
     const filteredRows = useMemo(() => {
         let result = rows
 
-        // Text search
+        // Helper: check if row matches a text term (in title, contact or owner name)
+        const rowMatchesText = (row: typeof rows[0], term: string): boolean => {
+            const c = row.card
+            return (c.titulo || '').toLowerCase().includes(term) ||
+                (c.pessoa_nome || '').toLowerCase().includes(term) ||
+                (c.dono_atual_nome || '').toLowerCase().includes(term)
+        }
+
+        // Text search (include) — supports multiple terms separated by comma
         if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase().trim()
-            result = result.filter(row =>
-                (row.card.titulo || '').toLowerCase().includes(term) ||
-                (row.card.pessoa_nome || '').toLowerCase().includes(term) ||
-                (row.card.dono_atual_nome || '').toLowerCase().includes(term)
-            )
+            const terms = searchTerm.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
+            if (terms.length > 0) {
+                result = result.filter(row => terms.some(t => rowMatchesText(row, t)))
+            }
+        }
+
+        // Exclude term — hide rows that contain any of these terms
+        if (excludeTerm.trim()) {
+            const terms = excludeTerm.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
+            if (terms.length > 0) {
+                result = result.filter(row => !terms.some(t => rowMatchesText(row, t)))
+            }
         }
 
         // Person filter — match any owner role (SDR, Planner, Pós-Venda, Dono Atual)
@@ -914,7 +929,7 @@ export default function FieldCompletenessView() {
         }
 
         return result
-    }, [rows, fieldFilters, searchTerm, personFilter])
+    }, [rows, fieldFilters, searchTerm, excludeTerm, personFilter])
 
     const sortedRows = useMemo(() => {
         if (!sortCol) return filteredRows
@@ -1079,15 +1094,28 @@ export default function FieldCompletenessView() {
 
             {/* Controls Bar */}
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex items-center gap-3 flex-wrap">
-                {/* Search */}
+                {/* Search (include) */}
                 <div className="relative">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                         type="search"
-                        placeholder="Buscar lead, contato ou dono..."
+                        placeholder="Buscar (separe por vírgula)..."
                         value={searchTerm}
                         onChange={e => { setSearchTerm(e.target.value); setPage(0) }}
                         className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[220px] focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
+                        autoComplete="off"
+                    />
+                </div>
+
+                {/* Exclude search */}
+                <div className="relative">
+                    <X className="w-3.5 h-3.5 text-red-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                        type="search"
+                        placeholder="Excluir (ex: Legado)..."
+                        value={excludeTerm}
+                        onChange={e => { setExcludeTerm(e.target.value); setPage(0) }}
+                        className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[200px] focus:ring-1 focus:ring-red-500 focus:border-red-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
                         autoComplete="off"
                     />
                 </div>
