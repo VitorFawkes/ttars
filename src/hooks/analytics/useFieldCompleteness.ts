@@ -164,7 +164,8 @@ export function useFieldCompleteness({
             }
         }
         // Also include fields with section-level visibility defaults
-        if (sectionFieldConfigs) {
+        // BUT only when no pipeline filter — section defaults are global and would leak cross-pipeline fields
+        if (!pipelineId && sectionFieldConfigs) {
             for (const sfc of sectionFieldConfigs) {
                 if (sfc.is_visible) {
                     visibleFieldKeys.add(sfc.field_key)
