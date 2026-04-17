@@ -494,3 +494,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-17T01:16:38Z | supabase/migrations/20260416e_marco3_fixup.sql | applied_to_prod
 2026-04-17T12:13:19Z | supabase/migrations/20260417a_fix_outbound_pessoa_principal_id.sql | applied_to_prod
 2026-04-17T12:41:12Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260417b_skip_self_notify_robust.sql | applied_to_prod
+2026-04-17T13:14:06Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260417_team_member_requirement.sql | applied_to_prod
