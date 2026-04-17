@@ -431,6 +431,41 @@ async function findAgentForLine(
 // 2. Load Agent Config (business, qualification, scenarios)
 // ---------------------------------------------------------------------------
 
+// Monta a linha de taxa respeitando o pricing_model. Se o usuário escreveu uma frase
+// customizada (pricing_json.message), usa ela diretamente — senão sintetiza a partir
+// dos campos estruturados. Retorna string vazia quando o agente não deve falar de preço
+// (sem modelo configurado, modelo 'free' ou timing 'never').
+function buildFeeMessage(business: BusinessConfig | null): string {
+  if (!business) return "";
+  const model = (business as { pricing_model?: string | null }).pricing_model ?? null;
+  if (model === null || model === "free") return "";
+
+  const pj = (business.pricing_json ?? {}) as Record<string, unknown>;
+  const custom = typeof pj.message === "string" ? pj.message.trim() : "";
+  if (custom) return custom;
+
+  switch (model) {
+    case "flat":
+      return `Taxa: ${(pj.fee as number | string | undefined) ?? "a combinar"} ${(pj.currency as string | undefined) ?? "BRL"}`;
+    case "percentage":
+      return `Taxa: ${(pj.percent as number | string | undefined) ?? "?"}% sobre ${(pj.basis as string | undefined) ?? "o valor"}`;
+    case "tiered": {
+      const tiers = (pj.tiers as Array<{ label?: string; min?: number; max?: number | null; fee?: number }> | undefined) ?? [];
+      if (tiers.length === 0) return "Taxa varia por faixa (consultar base de conhecimento).";
+      const currency = (pj.currency as string | undefined) ?? "BRL";
+      const list = tiers.map(t => {
+        const range = t.label || (t.max != null ? `${t.min ?? 0}–${t.max}` : `a partir de ${t.min ?? 0}`);
+        return `${range}: ${t.fee ?? "?"} ${currency}`;
+      }).join("; ");
+      return `Taxa por faixa — ${list}`;
+    }
+    case "custom":
+      return "Valor sob cotação (explicar caso a caso, sem comprometer número).";
+    default:
+      return "";
+  }
+}
+
 // Default conservador quando nenhum registro existe em ai_agent_business_config.
 // Mantém comportamento razoável para agentes criados fora do wizard (ex: Luna pré-seed).
 function defaultBusinessConfig(agent: AgentConfig): BusinessConfig {
@@ -1589,9 +1624,7 @@ async function runPersonaAgent(
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
 
-  const feeMsg = business?.pricing_json
-    ? `Taxa: ${(business.pricing_json as Record<string, unknown>).fee || "a combinar"} ${(business.pricing_json as Record<string, unknown>).currency || "BRL"}`
-    : "";
+  const feeMsg = buildFeeMessage(business);
 
   // Biblioteca de técnicas de vendas e antipadrões — destilada do prompt da Julia (Responde Lead)
   // Aplicável a qualquer agente de pré-venda SPIN/qualificação.

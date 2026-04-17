@@ -39,9 +39,11 @@ export const DEFAULT_BUSINESS_CONFIG: BusinessConfigInput = {
   company_description: '',
   tone: 'friendly',
   language: 'pt-BR',
+  // Default é null/never: agente não aborda preço a menos que seja explicitamente configurado.
+  // O BusinessConfigEditor ajusta o timing automaticamente quando o usuário escolhe um pricing_model.
   pricing_model: null,
   pricing_json: {},
-  fee_presentation_timing: 'after_qualification',
+  fee_presentation_timing: 'never',
   process_steps: [],
   methodology_text: '',
   calendar_system: 'supabase_rpc',

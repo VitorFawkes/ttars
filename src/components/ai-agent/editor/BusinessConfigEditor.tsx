@@ -1,6 +1,7 @@
-import { Settings, Building2, DollarSign, BookOpen, Calendar, Users2, AlertTriangle } from 'lucide-react'
+import { Settings, Building2, DollarSign, BookOpen, Calendar, Users2, AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,13 +15,13 @@ const TONE_OPTIONS: Array<{ value: AgentTone; label: string }> = [
   { value: 'empathetic', label: 'Empático (acolhedor)' },
 ]
 
-const PRICING_MODEL_OPTIONS: Array<{ value: PricingModel | ''; label: string }> = [
-  { value: '', label: '—' },
-  { value: 'flat', label: 'Taxa fixa' },
-  { value: 'percentage', label: 'Percentual' },
-  { value: 'tiered', label: 'Por faixas' },
-  { value: 'free', label: 'Sem cobrança' },
-  { value: 'custom', label: 'Customizado (cotação)' },
+const PRICING_MODEL_OPTIONS: Array<{ value: PricingModel | ''; label: string; hint: string }> = [
+  { value: '', label: 'Não configurado — agente não fala de preço', hint: 'Escolha isso quando o preço não é parte da conversa (ex: saúde, suporte, atendimento interno).' },
+  { value: 'flat', label: 'Taxa fixa', hint: 'Um valor único (ex: R$ 500 de planejamento).' },
+  { value: 'percentage', label: 'Percentual', hint: 'Uma porcentagem sobre outro valor (ex: 10% sobre o valor da viagem).' },
+  { value: 'tiered', label: 'Por faixas', hint: 'Valores diferentes conforme faixa (ex: até 10k = R$300; acima = R$500).' },
+  { value: 'free', label: 'Gratuito', hint: 'Serviço sem cobrança — agente pode mencionar explicitamente.' },
+  { value: 'custom', label: 'Sob cotação', hint: 'Preço depende do caso — agente não apresenta número, explica como funciona.' },
 ]
 
 const FEE_TIMING_OPTIONS: Array<{ value: FeeTiming; label: string }> = [
@@ -66,7 +67,6 @@ function StringArrayInput({ label, value, onChange, placeholder }: {
 
 export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorProps) {
   const patch = (p: Partial<BusinessConfigInput>) => onChange({ ...value, ...p })
-
   const pricingJson = (value.pricing_json ?? {}) as Record<string, unknown>
 
   return (
@@ -117,61 +117,31 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
         </div>
       </section>
 
-      {/* Preço e taxa */}
+      {/* Preço e taxa — opcional e condicional ao modelo escolhido */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
         <header className="flex items-center gap-2">
           <DollarSign className="w-5 h-5 text-emerald-500" />
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Preço e taxa</h3>
-            <p className="text-xs text-slate-500">Como e quando o agente apresenta cobrança ao cliente.</p>
+            <h3 className="text-base font-semibold text-slate-900">Preço e taxa (opcional)</h3>
+            <p className="text-xs text-slate-500">Configure só se o agente precisa falar de cobrança. Nem todo agente cobra taxa — para suporte, atendimento ou casos em que preço não é parte da conversa, deixe como "Não configurado".</p>
           </div>
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Modelo de preço</Label>
-            <Select
-              value={value.pricing_model ?? ''}
-              onChange={(v: string) => patch({ pricing_model: (v || null) as PricingModel | null })}
-              options={PRICING_MODEL_OPTIONS}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Quando apresentar</Label>
-            <Select
-              value={value.fee_presentation_timing ?? 'after_qualification'}
-              onChange={(v: string) => patch({ fee_presentation_timing: v as FeeTiming })}
-              options={FEE_TIMING_OPTIONS}
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Valor</Label>
-            <Input
-              type="number"
-              value={(pricingJson.fee as number | undefined) ?? ''}
-              onChange={e => patch({ pricing_json: { ...pricingJson, fee: e.target.value ? Number(e.target.value) : undefined } })}
-              placeholder="500"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Moeda</Label>
-            <Input
-              value={(pricingJson.currency as string | undefined) ?? 'BRL'}
-              onChange={e => patch({ pricing_json: { ...pricingJson, currency: e.target.value } })}
-              placeholder="BRL"
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">Frase que o agente usa ao apresentar a taxa</Label>
-          <Textarea
-            rows={2}
-            value={(pricingJson.message as string | undefined) ?? ''}
-            onChange={e => patch({ pricing_json: { ...pricingJson, message: e.target.value } })}
-            placeholder="A taxa de planejamento é R$ 500 e garante dedicação exclusiva…"
-          />
-        </div>
+
+        <PricingEditor
+          model={value.pricing_model ?? null}
+          pricingJson={pricingJson}
+          timing={value.fee_presentation_timing ?? null}
+          onModelChange={(model) => {
+            // Ao mudar de modelo, limpa o pricing_json para evitar carregar valores de modelo anterior
+            patch({
+              pricing_model: model,
+              pricing_json: {},
+              fee_presentation_timing: model === null || model === 'free' ? 'never' : 'after_qualification',
+            })
+          }}
+          onPricingJsonChange={(json) => patch({ pricing_json: json })}
+          onTimingChange={(timing) => patch({ fee_presentation_timing: timing })}
+        />
       </section>
 
       {/* Processo */}
@@ -325,6 +295,243 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
           placeholder={'[\n  { "type": "turn_count", "threshold": 15 }\n]'}
         />
       </section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PricingEditor — condicional ao modelo selecionado. A ideia é que cada modelo
+// tem uma UX diferente (flat tem valor+moeda, percentage tem %, tiered tem
+// faixas, free tem nada, custom só texto). Nunca mostrar campos de valor se
+// não faz sentido pro modelo atual, porque isso confunde quem está configurando
+// ("tenho mesmo que preencher um valor?").
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PriceTier {
+  label?: string
+  min?: number
+  max?: number | null
+  fee: number
+}
+
+interface PricingEditorProps {
+  model: PricingModel | null
+  pricingJson: Record<string, unknown>
+  timing: FeeTiming | null
+  onModelChange: (model: PricingModel | null) => void
+  onPricingJsonChange: (json: Record<string, unknown>) => void
+  onTimingChange: (timing: FeeTiming) => void
+}
+
+function PricingEditor({
+  model, pricingJson, timing,
+  onModelChange, onPricingJsonChange, onTimingChange,
+}: PricingEditorProps) {
+  const modelHint = PRICING_MODEL_OPTIONS.find(o => o.value === (model ?? ''))?.hint
+  // "Quando apresentar" só faz sentido quando há algo a apresentar (não-null e não-free).
+  const showTiming = model !== null && model !== 'free'
+  // Frase customizada do agente: aplicável em todos os modelos exceto null.
+  const showMessage = model !== null
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Modelo de preço</Label>
+        <Select
+          value={model ?? ''}
+          onChange={(v: string) => onModelChange((v || null) as PricingModel | null)}
+          options={PRICING_MODEL_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+        />
+        {modelHint && <p className="text-[11px] text-slate-500 italic">{modelHint}</p>}
+      </div>
+
+      {/* Campos específicos por modelo */}
+      {model === 'flat' && <FlatPricingFields pricingJson={pricingJson} onChange={onPricingJsonChange} />}
+      {model === 'percentage' && <PercentagePricingFields pricingJson={pricingJson} onChange={onPricingJsonChange} />}
+      {model === 'tiered' && <TieredPricingFields pricingJson={pricingJson} onChange={onPricingJsonChange} />}
+      {model === 'free' && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+          <p className="text-xs text-emerald-900">
+            O agente pode mencionar explicitamente que o serviço é gratuito. Use a frase abaixo para deixar o tom certo.
+          </p>
+        </div>
+      )}
+      {model === 'custom' && (
+        <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3">
+          <p className="text-xs text-indigo-900">
+            Sem número fixo: o agente explica que o valor é cotado caso a caso. Escreva abaixo como ele explica isso.
+          </p>
+        </div>
+      )}
+
+      {/* Frase que o agente usa — aplicável em todos os modelos configurados */}
+      {showMessage && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-slate-600">
+            {model === 'custom' ? 'Como o agente explica a cobrança' :
+             model === 'free' ? 'Como o agente comunica que é gratuito' :
+             'Frase que o agente usa ao apresentar a taxa'}
+          </Label>
+          <Textarea
+            rows={2}
+            value={(pricingJson.message as string | undefined) ?? ''}
+            onChange={e => onPricingJsonChange({ ...pricingJson, message: e.target.value })}
+            placeholder={
+              model === 'flat' ? 'A taxa de planejamento é R$ 500 e garante dedicação exclusiva...' :
+              model === 'percentage' ? 'Cobramos 10% sobre o valor da viagem...' :
+              model === 'tiered' ? 'Nossa taxa varia conforme a faixa de orçamento...' :
+              model === 'free' ? 'Esse atendimento é gratuito...' :
+              model === 'custom' ? 'O valor depende do projeto — combinamos após entender sua necessidade...' :
+              ''
+            }
+          />
+        </div>
+      )}
+
+      {/* Quando apresentar — só quando faz sentido cobrar */}
+      {showTiming && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-slate-600">Quando apresentar</Label>
+          <Select
+            value={timing ?? 'after_qualification'}
+            onChange={(v: string) => onTimingChange(v as FeeTiming)}
+            options={FEE_TIMING_OPTIONS.filter(o => o.value !== 'never')}
+          />
+        </div>
+      )}
+
+      {model === null && (
+        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+          <p className="text-xs text-slate-600">
+            Nada a configurar aqui. O agente não vai abordar preço espontaneamente. Se o cliente perguntar sobre valores, ele pede mais contexto ou passa para o humano.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FlatPricingFields({ pricingJson, onChange }: { pricingJson: Record<string, unknown>; onChange: (j: Record<string, unknown>) => void }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Valor</Label>
+        <Input
+          type="number"
+          value={(pricingJson.fee as number | undefined) ?? ''}
+          onChange={e => onChange({ ...pricingJson, fee: e.target.value ? Number(e.target.value) : undefined })}
+          placeholder="500"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Moeda</Label>
+        <Input
+          value={(pricingJson.currency as string | undefined) ?? 'BRL'}
+          onChange={e => onChange({ ...pricingJson, currency: e.target.value })}
+          placeholder="BRL"
+        />
+      </div>
+    </div>
+  )
+}
+
+function PercentagePricingFields({ pricingJson, onChange }: { pricingJson: Record<string, unknown>; onChange: (j: Record<string, unknown>) => void }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Percentual (%)</Label>
+        <Input
+          type="number"
+          step="0.1"
+          value={(pricingJson.percent as number | undefined) ?? ''}
+          onChange={e => onChange({ ...pricingJson, percent: e.target.value ? Number(e.target.value) : undefined })}
+          placeholder="10"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Sobre qual valor</Label>
+        <Input
+          value={(pricingJson.basis as string | undefined) ?? ''}
+          onChange={e => onChange({ ...pricingJson, basis: e.target.value })}
+          placeholder="valor da viagem, valor do imóvel, ticket do mês..."
+        />
+      </div>
+    </div>
+  )
+}
+
+function TieredPricingFields({ pricingJson, onChange }: { pricingJson: Record<string, unknown>; onChange: (j: Record<string, unknown>) => void }) {
+  const tiers = (pricingJson.tiers as PriceTier[] | undefined) ?? []
+  const currency = (pricingJson.currency as string | undefined) ?? 'BRL'
+
+  const updateTier = (idx: number, patch: Partial<PriceTier>) => {
+    const next = tiers.map((t, i) => (i === idx ? { ...t, ...patch } : t))
+    onChange({ ...pricingJson, tiers: next })
+  }
+
+  const removeTier = (idx: number) => {
+    onChange({ ...pricingJson, tiers: tiers.filter((_, i) => i !== idx) })
+  }
+
+  const addTier = () => {
+    onChange({ ...pricingJson, tiers: [...tiers, { label: '', min: 0, max: null, fee: 0 } as PriceTier] })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-600">Moeda</Label>
+        <Input
+          value={currency}
+          onChange={e => onChange({ ...pricingJson, currency: e.target.value })}
+          placeholder="BRL"
+          className="max-w-xs"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-slate-600">Faixas</Label>
+        {tiers.length === 0 && (
+          <p className="text-xs text-slate-400 italic">Nenhuma faixa. Adicione pelo menos uma.</p>
+        )}
+        {tiers.map((tier, idx) => (
+          <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-start">
+            <Input
+              value={tier.label ?? ''}
+              onChange={e => updateTier(idx, { label: e.target.value })}
+              placeholder="Rótulo (ex: Viagem nacional)"
+              className="text-sm"
+            />
+            <Input
+              type="number"
+              value={tier.min ?? ''}
+              onChange={e => updateTier(idx, { min: e.target.value ? Number(e.target.value) : 0 })}
+              placeholder="Mínimo"
+              className="text-sm"
+            />
+            <Input
+              type="number"
+              value={tier.max ?? ''}
+              onChange={e => updateTier(idx, { max: e.target.value ? Number(e.target.value) : null })}
+              placeholder="Máximo (vazio = sem teto)"
+              className="text-sm"
+            />
+            <Input
+              type="number"
+              value={tier.fee ?? ''}
+              onChange={e => updateTier(idx, { fee: e.target.value ? Number(e.target.value) : 0 })}
+              placeholder="Taxa"
+              className="text-sm"
+            />
+            <Button variant="ghost" size="sm" onClick={() => removeTier(idx)} className="text-red-500 hover:bg-red-50 h-9 w-9 p-0">
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" onClick={addTier} className="gap-1.5">
+          <Plus className="w-3.5 h-3.5" /> Adicionar faixa
+        </Button>
+      </div>
     </div>
   )
 }
