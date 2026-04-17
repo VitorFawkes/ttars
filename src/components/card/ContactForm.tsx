@@ -21,9 +21,11 @@ interface ContactFormProps {
     onCancel: () => void
     initialName?: string
     onSelectExisting?: (contactId: string, mergeData?: Record<string, string | null>) => void
+    /** Quando true, o bot\u00e3o do painel de duplicados vira "Substituir por este contato". */
+    replaceMode?: boolean
 }
 
-export default function ContactForm({ contact, onSave, onCancel, initialName = '', onSelectExisting }: ContactFormProps) {
+export default function ContactForm({ contact, onSave, onCancel, initialName = '', onSelectExisting, replaceMode = false }: ContactFormProps) {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [potentialGuardians, setPotentialGuardians] = useState<Contato[]>([])
@@ -380,6 +382,7 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                     }}
                     onDismiss={() => setDismissed(true)}
                     mode="full"
+                    replaceMode={replaceMode}
                 />
             )}
 

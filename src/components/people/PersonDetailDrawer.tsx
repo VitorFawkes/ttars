@@ -13,6 +13,7 @@ import type { Database } from '../../database.types'
 import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package, RefreshCw } from 'lucide-react'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
+import { swapCardContact } from '../../lib/swapCardContact'
 import { toast } from 'sonner'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
 import ContactDetailsViewer from '../card/ContactDetailsViewer'
@@ -223,18 +224,26 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                                 contact={person}
                                 onSave={handleSaveContact}
                                 onCancel={onClose}
+                                replaceMode={!!card?.id}
                                 onSelectExisting={async (contactId, mergeData) => {
-                                    if (mergeData && Object.keys(mergeData).length > 0) {
-                                        try {
+                                    try {
+                                        if (mergeData && Object.keys(mergeData).length > 0) {
                                             await mergeContactData(contactId, mergeData)
-                                            toast.success('Dados mesclados ao contato existente')
-                                        } catch (err) {
-                                            console.error('Error merging contact data:', err)
-                                            toast.error('Erro ao mesclar dados')
                                         }
+
+                                        if (card?.id && person.id !== contactId) {
+                                            await swapCardContact(card.id, person.id, contactId)
+                                            toast.success('Contato substituído nesta viagem')
+                                        } else if (mergeData && Object.keys(mergeData).length > 0) {
+                                            toast.success('Dados mesclados ao contato existente')
+                                        }
+
+                                        onRefresh?.()
+                                        onClose()
+                                    } catch (err) {
+                                        console.error('Error replacing contact:', err)
+                                        toast.error('Não foi possível substituir o contato')
                                     }
-                                    onRefresh?.()
-                                    onClose()
                                 }}
                             />
                         </TabsContent>

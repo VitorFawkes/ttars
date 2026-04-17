@@ -24,6 +24,8 @@ interface DuplicateWarningPanelProps {
     onDismiss?: () => void
     mode?: 'full' | 'compact'
     noDuplicatesFound?: boolean
+    /** Quando true, a ação substitui o contato atual pelo duplicado (em vez de apenas navegar). */
+    replaceMode?: boolean
 }
 
 function getMergeableFields(
@@ -58,6 +60,7 @@ export default function DuplicateWarningPanel({
     onDismiss,
     mode = 'full',
     noDuplicatesFound,
+    replaceMode = false,
 }: DuplicateWarningPanelProps) {
     if (!isChecking && duplicates.length === 0 && !noDuplicatesFound) return null
 
@@ -242,7 +245,14 @@ export default function DuplicateWarningPanel({
                                             : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                                     )}
                                 >
-                                    {mergeableFields.length > 0 ? (
+                                    {replaceMode ? (
+                                        <>
+                                            <ArrowRight className="h-3.5 w-3.5" />
+                                            {mergeableFields.length > 0
+                                                ? 'Substituir e mesclar dados'
+                                                : 'Substituir por este contato'}
+                                        </>
+                                    ) : mergeableFields.length > 0 ? (
                                         <>
                                             <ArrowRight className="h-3.5 w-3.5" />
                                             Abrir e mesclar dados
@@ -267,7 +277,9 @@ export default function DuplicateWarningPanel({
                     onClick={onDismiss}
                     className="w-full text-center text-xs text-slate-500 hover:text-slate-700 py-1 transition-colors"
                 >
-                    Ignorar e criar novo contato mesmo assim
+                    {replaceMode
+                        ? 'Ignorar e manter o contato atual'
+                        : 'Ignorar e criar novo contato mesmo assim'}
                 </button>
             )}
         </div>
