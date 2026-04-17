@@ -36,6 +36,7 @@ function fromRemote(c: BusinessConfig | null): BusinessConfigInput {
     secondary_contact_role_name: c.secondary_contact_role_name,
     secondary_contact_fields: c.secondary_contact_fields,
     escalation_triggers: c.escalation_triggers,
+    custom_blocks: c.custom_blocks ?? [],
   }
 }
 

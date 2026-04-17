@@ -6,6 +6,11 @@ export type PricingModel = 'flat' | 'percentage' | 'tiered' | 'free' | 'custom'
 export type FeeTiming = 'immediately' | 'after_discovery' | 'after_qualification' | 'at_commitment' | 'never'
 export type CalendarSystem = 'calendly' | 'google' | 'n8n' | 'supabase_rpc' | 'none'
 
+export interface BusinessCustomBlock {
+  title: string
+  content: string
+}
+
 export interface BusinessConfig {
   id: string
   agent_id: string
@@ -28,6 +33,7 @@ export interface BusinessConfig {
   secondary_contact_role_name: string
   secondary_contact_fields: string[]
   escalation_triggers: Array<Record<string, unknown>>
+  custom_blocks: BusinessCustomBlock[]
   created_at: string
   updated_at: string
 }
@@ -56,6 +62,7 @@ export const DEFAULT_BUSINESS_CONFIG: BusinessConfigInput = {
   secondary_contact_role_name: 'traveler',
   secondary_contact_fields: [],
   escalation_triggers: [],
+  custom_blocks: [],
 }
 
 const keyForAgent = (agentId?: string) => ['agent-business-config', agentId ?? 'none']

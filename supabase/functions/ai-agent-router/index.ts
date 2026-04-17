@@ -91,6 +91,11 @@ interface AgentConfig {
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
 }
 
+interface BusinessCustomBlock {
+  title: string;
+  content: string;
+}
+
 interface BusinessConfig {
   company_name: string | null;
   company_description: string | null;
@@ -111,6 +116,7 @@ interface BusinessConfig {
   secondary_contact_role_name: string;
   secondary_contact_fields: string[];
   escalation_triggers: Array<Record<string, unknown>>;
+  custom_blocks: BusinessCustomBlock[];
 }
 
 interface QualificationStage {
@@ -466,6 +472,21 @@ function buildFeeMessage(business: BusinessConfig | null): string {
   }
 }
 
+// Monta a seção de "Contexto do negócio" a partir dos blocos customizados que o
+// admin configurou. Cada bloco tem título + conteúdo livre — é a forma do editor
+// ensinar conceitos específicos do domínio (vagas ativas, convênios, SLA, etc)
+// que não se encaixam nos campos estruturados. Retorna vazio quando não há blocos.
+function buildCustomBlocksText(business: BusinessConfig | null): string {
+  const blocks = (business?.custom_blocks ?? []).filter(b => b && (b.title?.trim() || b.content?.trim()));
+  if (blocks.length === 0) return "";
+  const sections = blocks.map(b => {
+    const title = b.title?.trim() || "Bloco";
+    const content = b.content?.trim() || "";
+    return `### ${title}\n${content}`;
+  }).join("\n\n");
+  return `\n## CONTEXTO DO NEGÓCIO\nInformações que você deve conhecer e usar ao responder. Traga esses fatos quando forem relevantes, mas nunca copie literal — reformule conversacionalmente.\n\n${sections}\n`;
+}
+
 // Default conservador quando nenhum registro existe em ai_agent_business_config.
 // Mantém comportamento razoável para agentes criados fora do wizard (ex: Luna pré-seed).
 function defaultBusinessConfig(agent: AgentConfig): BusinessConfig {
@@ -491,6 +512,7 @@ function defaultBusinessConfig(agent: AgentConfig): BusinessConfig {
     secondary_contact_role_name: "traveler",
     secondary_contact_fields: [],
     escalation_triggers: [],
+    custom_blocks: [],
   };
 }
 
@@ -1625,6 +1647,7 @@ async function runPersonaAgent(
     .join("\n");
 
   const feeMsg = buildFeeMessage(business);
+  const customBlocksText = buildCustomBlocksText(business);
 
   // Biblioteca de técnicas de vendas e antipadrões — destilada do prompt da Julia (Responde Lead)
   // Aplicável a qualquer agente de pré-venda SPIN/qualificação.
@@ -1685,6 +1708,8 @@ ${backoffice.detected_role === "traveler" ? `COMPORTAMENTO TRAVELER:
 5. NUNCA desqualifique traveler` : ""}
 
 ${business?.methodology_text ? `O QUE OFERECEMOS:\n${business.methodology_text}` : ""}
+
+${customBlocksText}
 
 ${qualStages ? `QUALIFICACAO (so o que falta):\n${qualStages}\nUMA pergunta por vez. Responda primeiro, depois pergunte.` : ""}
 

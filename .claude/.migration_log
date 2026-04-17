@@ -503,3 +503,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-17T22:47:01Z | supabase/migrations/20260418a_luna_business_config_seed.sql | applied_to_prod
 2026-04-17T22:48:16Z | supabase/migrations/20260418a_luna_business_config_seed.sql | applied_to_prod
 2026-04-17T22:48:50Z | supabase/migrations/20260417d_requirement_type_team_member.sql | applied_to_prod
+2026-04-17T23:11:00Z | supabase/migrations/20260418b_agent_business_custom_blocks.sql | applied_to_prod

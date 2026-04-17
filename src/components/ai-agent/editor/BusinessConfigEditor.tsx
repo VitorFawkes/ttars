@@ -1,11 +1,13 @@
-import { Settings, Building2, DollarSign, BookOpen, Calendar, Users2, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { Settings, Building2, DollarSign, BookOpen, Calendar, Users2, AlertTriangle, Plus, Trash2, Boxes, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import type { BusinessConfigInput, AgentTone, PricingModel, FeeTiming, CalendarSystem } from '@/hooks/useAgentBusinessConfig'
+import { cn } from '@/lib/utils'
+import type { BusinessConfigInput, AgentTone, PricingModel, FeeTiming, CalendarSystem, BusinessCustomBlock } from '@/hooks/useAgentBusinessConfig'
 
 const TONE_OPTIONS: Array<{ value: AgentTone; label: string }> = [
   { value: 'formal', label: 'Formal (empresarial, respeitoso)' },
@@ -68,6 +70,8 @@ function StringArrayInput({ label, value, onChange, placeholder }: {
 export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorProps) {
   const patch = (p: Partial<BusinessConfigInput>) => onChange({ ...value, ...p })
   const pricingJson = (value.pricing_json ?? {}) as Record<string, unknown>
+  const hasPricing = value.pricing_model !== null && value.pricing_model !== undefined
+  const [pricingExpanded, setPricingExpanded] = useState(hasPricing)
 
   return (
     <div className="space-y-6">
@@ -117,30 +121,88 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
         </div>
       </section>
 
-      {/* Preço e taxa — opcional e condicional ao modelo escolhido */}
+      {/* Preço e taxa — módulo OPCIONAL. Por padrão não aparece na conversa do agente.
+          Só configure se o agente precisa falar de valores (ex: vendas consultivas).
+          Agentes de suporte, recrutamento, clínica, educação e muitos outros não têm preço. */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
-        <header className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-emerald-500" />
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">Preço e taxa (opcional)</h3>
-            <p className="text-xs text-slate-500">Configure só se o agente precisa falar de cobrança. Nem todo agente cobra taxa — para suporte, atendimento ou casos em que preço não é parte da conversa, deixe como "Não configurado".</p>
+        <header className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <DollarSign className={cn('w-5 h-5', hasPricing ? 'text-emerald-500' : 'text-slate-300')} />
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">Preço e cobrança <span className="text-xs font-normal text-slate-400">— opcional</span></h3>
+              <p className="text-xs text-slate-500">Ative apenas se o agente precisa abordar valores com o cliente. Muitos agentes (suporte, recrutamento, atendimento interno) não precisam disso.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Switch
+              checked={hasPricing}
+              onCheckedChange={(v) => {
+                if (v) {
+                  // Ativar: sugere flat como default
+                  setPricingExpanded(true)
+                  patch({
+                    pricing_model: 'flat',
+                    pricing_json: {},
+                    fee_presentation_timing: 'after_qualification',
+                  })
+                } else {
+                  // Desativar: limpa tudo, agente não fala de preço
+                  setPricingExpanded(false)
+                  patch({
+                    pricing_model: null,
+                    pricing_json: {},
+                    fee_presentation_timing: 'never',
+                  })
+                }
+              }}
+            />
+            {hasPricing && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPricingExpanded(e => !e)}
+                className="h-8 w-8 p-0"
+              >
+                {pricingExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+            )}
           </div>
         </header>
 
-        <PricingEditor
-          model={value.pricing_model ?? null}
-          pricingJson={pricingJson}
-          timing={value.fee_presentation_timing ?? null}
-          onModelChange={(model) => {
-            // Ao mudar de modelo, limpa o pricing_json para evitar carregar valores de modelo anterior
-            patch({
-              pricing_model: model,
-              pricing_json: {},
-              fee_presentation_timing: model === null || model === 'free' ? 'never' : 'after_qualification',
-            })
-          }}
-          onPricingJsonChange={(json) => patch({ pricing_json: json })}
-          onTimingChange={(timing) => patch({ fee_presentation_timing: timing })}
+        {hasPricing && pricingExpanded && (
+          <PricingEditor
+            model={value.pricing_model ?? null}
+            pricingJson={pricingJson}
+            timing={value.fee_presentation_timing ?? null}
+            onModelChange={(model) => {
+              // Ao mudar de modelo, limpa o pricing_json para evitar carregar valores de modelo anterior
+              patch({
+                pricing_model: model,
+                pricing_json: {},
+                fee_presentation_timing: model === null || model === 'free' ? 'never' : 'after_qualification',
+              })
+            }}
+            onPricingJsonChange={(json) => patch({ pricing_json: json })}
+            onTimingChange={(timing) => patch({ fee_presentation_timing: timing })}
+          />
+        )}
+      </section>
+
+      {/* Blocos do negócio — contexto livre, extensível, agnóstico ao domínio.
+          Onde um agente de recrutamento coloca "Vagas ativas", um de clínica coloca
+          "Protocolo de crise", um de suporte coloca "SLA por prioridade", etc.
+          Cada bloco vira um trecho do system prompt do agente. */}
+      <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+        <header className="flex items-center gap-2">
+          <Boxes className="w-5 h-5 text-indigo-500" />
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Blocos de contexto do negócio</h3>
+            <p className="text-xs text-slate-500">Adicione qualquer informação relevante ao seu domínio. Exemplos: "Vagas ativas" (recrutamento), "Convênios aceitos" (clínica), "SLA por prioridade" (suporte), "Políticas da empresa", "Diferenciais" etc. Tudo que você escrever aqui vira contexto que o agente consulta ao responder.</p>
+          </div>
+        </header>
+        <CustomBlocksEditor
+          blocks={value.custom_blocks ?? []}
+          onChange={(next) => patch({ custom_blocks: next })}
         />
       </section>
 
@@ -532,6 +594,110 @@ function TieredPricingFields({ pricingJson, onChange }: { pricingJson: Record<st
           <Plus className="w-3.5 h-3.5" /> Adicionar faixa
         </Button>
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CustomBlocksEditor — contexto genérico extensível do negócio. Cada bloco tem
+// título curto e conteúdo livre. O runtime injeta tudo isso no system prompt
+// do agente. É a forma do admin ensinar ao agente CONCEITOS específicos do
+// domínio que não se encaixam nos campos estruturados (preço, processo etc).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BLOCK_EXAMPLES = [
+  { title: 'Vagas ativas', content: 'Desenvolvedor Full-Stack Sênior — remoto, até R$ 18k\nAnalista de Dados Pleno — híbrido SP, até R$ 12k\nDesigner de Produto Pleno — remoto, até R$ 14k' },
+  { title: 'Convênios aceitos', content: 'Unimed, Bradesco Saúde, SulAmérica, Amil. Particular com recibo para reembolso.' },
+  { title: 'SLA por prioridade', content: 'Crítico: 1h. Alto: 4h. Médio: 1 dia útil. Baixo: 3 dias úteis.' },
+  { title: 'Políticas da empresa', content: 'Descreva políticas importantes que o agente precisa conhecer.' },
+  { title: 'Diferenciais', content: 'O que torna o serviço único vs concorrência.' },
+]
+
+function CustomBlocksEditor({
+  blocks, onChange,
+}: { blocks: BusinessCustomBlock[]; onChange: (next: BusinessCustomBlock[]) => void }) {
+  const add = (preset?: BusinessCustomBlock) => {
+    onChange([...blocks, preset ?? { title: '', content: '' }])
+  }
+
+  const update = (idx: number, patch: Partial<BusinessCustomBlock>) => {
+    onChange(blocks.map((b, i) => (i === idx ? { ...b, ...patch } : b)))
+  }
+
+  const remove = (idx: number) => {
+    onChange(blocks.filter((_, i) => i !== idx))
+  }
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir
+    if (target < 0 || target >= blocks.length) return
+    const next = [...blocks]
+    ;[next[idx], next[target]] = [next[target], next[idx]]
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-3">
+      {blocks.length === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-300 p-4 space-y-3">
+          <p className="text-sm text-slate-500 text-center">
+            Nenhum bloco de contexto ainda. Escolha um exemplo abaixo ou crie do zero.
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {BLOCK_EXAMPLES.map((ex, i) => (
+              <Button
+                key={i}
+                variant="outline"
+                size="sm"
+                onClick={() => add(ex)}
+                className="text-xs"
+              >
+                + {ex.title}
+              </Button>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => add()} className="text-xs">
+              + Em branco
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {blocks.map((block, idx) => (
+        <div key={idx} className="border border-indigo-200 bg-indigo-50/30 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <div className="flex flex-col pt-1.5">
+              <button onClick={() => move(idx, -1)} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => move(idx, 1)} disabled={idx === blocks.length - 1} className="p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <Input
+              value={block.title}
+              onChange={e => update(idx, { title: e.target.value })}
+              placeholder="Título do bloco (ex: Vagas ativas, Convênios aceitos, SLA…)"
+              className="font-medium flex-1"
+            />
+            <Button variant="ghost" size="sm" onClick={() => remove(idx)} className="text-red-500 hover:bg-red-50 h-9 w-9 p-0 flex-shrink-0">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <Textarea
+            rows={4}
+            value={block.content}
+            onChange={e => update(idx, { content: e.target.value })}
+            placeholder="Conteúdo que o agente precisa conhecer sobre este tópico. Pode ser lista, texto corrido, regras. Seja objetivo e direto."
+          />
+        </div>
+      ))}
+
+      {blocks.length > 0 && (
+        <Button variant="outline" onClick={() => add()} className="gap-2 w-full">
+          <Plus className="w-4 h-4" /> Adicionar bloco
+        </Button>
+      )}
     </div>
   )
 }
