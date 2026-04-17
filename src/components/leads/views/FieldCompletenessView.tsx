@@ -819,7 +819,6 @@ export default function FieldCompletenessView() {
     const [selectedExtras, setSelectedExtras] = useState<ExtraColumnKey[]>(() => (loadFromLS(LS_EXTRAS_KEY) || []) as ExtraColumnKey[])
     const [fieldFilters, setFieldFilters] = useState<FieldFilter[]>([])
     const [searchTerm, setSearchTerm] = useState('')
-    const [excludeTerm, setExcludeTerm] = useState('')
     const [personFilter, setPersonFilter] = useState<string[]>([])
     const [page, setPage] = useState(0)
     const [sortCol, setSortCol] = useState<string | null>(null)
@@ -892,19 +891,19 @@ export default function FieldCompletenessView() {
                 (c.dono_atual_nome || '').toLowerCase().includes(term)
         }
 
-        // Text search (include) — supports multiple terms separated by comma
+        // Unified search: supports include and exclude terms in the same field
+        // Prefix with "-" to exclude. Separate terms by comma.
+        // Examples: "maria" (include), "-legado" (exclude), "maria, -legado" (both)
         if (searchTerm.trim()) {
-            const terms = searchTerm.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
-            if (terms.length > 0) {
-                result = result.filter(row => terms.some(t => rowMatchesText(row, t)))
-            }
-        }
+            const parts = searchTerm.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
+            const includeTerms = parts.filter(t => !t.startsWith('-'))
+            const excludeTerms = parts.filter(t => t.startsWith('-')).map(t => t.slice(1).trim()).filter(Boolean)
 
-        // Exclude term — hide rows that contain any of these terms
-        if (excludeTerm.trim()) {
-            const terms = excludeTerm.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
-            if (terms.length > 0) {
-                result = result.filter(row => !terms.some(t => rowMatchesText(row, t)))
+            if (includeTerms.length > 0) {
+                result = result.filter(row => includeTerms.some(t => rowMatchesText(row, t)))
+            }
+            if (excludeTerms.length > 0) {
+                result = result.filter(row => !excludeTerms.some(t => rowMatchesText(row, t)))
             }
         }
 
@@ -929,7 +928,7 @@ export default function FieldCompletenessView() {
         }
 
         return result
-    }, [rows, fieldFilters, searchTerm, excludeTerm, personFilter])
+    }, [rows, fieldFilters, searchTerm, personFilter])
 
     const sortedRows = useMemo(() => {
         if (!sortCol) return filteredRows
@@ -1094,28 +1093,15 @@ export default function FieldCompletenessView() {
 
             {/* Controls Bar */}
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex items-center gap-3 flex-wrap">
-                {/* Search (include) */}
-                <div className="relative">
+                {/* Search — supports include/exclude with "-" prefix */}
+                <div className="relative" title={'Digite texto para buscar.\nUse "-" antes de um termo para excluir.\nEx: "-Legado" esconde leads com "Legado".\nSepare vários termos por vírgula.'}>
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                         type="search"
-                        placeholder="Buscar (separe por vírgula)..."
+                        placeholder='Buscar... (use "-Legado" para excluir)'
                         value={searchTerm}
                         onChange={e => { setSearchTerm(e.target.value); setPage(0) }}
-                        className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[220px] focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
-                        autoComplete="off"
-                    />
-                </div>
-
-                {/* Exclude search */}
-                <div className="relative">
-                    <X className="w-3.5 h-3.5 text-red-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                        type="search"
-                        placeholder="Excluir (ex: Legado)..."
-                        value={excludeTerm}
-                        onChange={e => { setExcludeTerm(e.target.value); setPage(0) }}
-                        className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[200px] focus:ring-1 focus:ring-red-500 focus:border-red-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
+                        className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-[320px] focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-400 [&::-webkit-search-cancel-button]:hidden"
                         autoComplete="off"
                     />
                 </div>
