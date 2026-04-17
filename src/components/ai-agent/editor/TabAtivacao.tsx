@@ -1,10 +1,13 @@
-import { Power, Phone, AlertTriangle, PowerOff } from 'lucide-react'
+import { Power, Phone, AlertTriangle, PowerOff, ChevronUp, ChevronDown } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { AgentEditorForm } from './types'
 import { useTogglePhoneLineConfig } from '@/hooks/useAiAgents'
+import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface Props {
   form: AgentEditorForm
@@ -24,7 +27,30 @@ interface Props {
 
 export function TabAtivacao({ form, setForm, agentId, phoneLines }: Props) {
   const togglePhoneLine = useTogglePhoneLineConfig(agentId)
-  const allLinesInactive = phoneLines && phoneLines.length > 0 && phoneLines.every(l => !l.ativa)
+  const queryClient = useQueryClient()
+  const sortedLines = phoneLines ? [...phoneLines].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)) : []
+  const allLinesInactive = sortedLines.length > 0 && sortedLines.every(l => !l.ativa)
+
+  const movePriority = async (idx: number, dir: -1 | 1) => {
+    const target = idx + dir
+    if (target < 0 || target >= sortedLines.length) return
+    const a = sortedLines[idx]
+    const b = sortedLines[target]
+    // Troca priorities: o de cima fica com priority maior
+    const aNew = b.priority ?? 0
+    const bNew = a.priority ?? 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any
+    try {
+      await Promise.all([
+        sb.from('ai_agent_phone_line_config').update({ priority: aNew }).eq('id', a.id),
+        sb.from('ai_agent_phone_line_config').update({ priority: bNew }).eq('id', b.id),
+      ])
+      queryClient.invalidateQueries({ queryKey: ['ai-agents', 'detail', agentId] })
+    } catch {
+      toast.error('Erro ao reordenar linhas')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -62,7 +88,7 @@ export function TabAtivacao({ form, setForm, agentId, phoneLines }: Props) {
           Linhas em que este agente responde. Cada linha pode ser ligada/desligada individualmente sem desligar o agente inteiro.
         </p>
 
-        {!phoneLines || phoneLines.length === 0 ? (
+        {sortedLines.length === 0 ? (
           <p className="text-sm text-slate-500 py-6 text-center border border-dashed border-slate-200 rounded-lg">
             Nenhuma linha WhatsApp vinculada. Vincule em Configurações &gt; WhatsApp.
           </p>
@@ -74,9 +100,22 @@ export function TabAtivacao({ form, setForm, agentId, phoneLines }: Props) {
                 <p className="text-xs text-amber-700">Agente ligado, mas nenhuma linha está ativa. Ative pelo menos uma abaixo.</p>
               </div>
             )}
-            {phoneLines.map(line => (
+            {sortedLines.length > 1 && (
+              <p className="text-xs text-slate-400 italic">Use as setas para mudar a prioridade quando a mesma mensagem pode chegar em várias linhas.</p>
+            )}
+            {sortedLines.map((line, idx) => (
               <div key={line.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {sortedLines.length > 1 && (
+                    <div className="flex flex-col flex-shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => movePriority(idx, -1)} disabled={idx === 0} className="p-0 h-5 w-5 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => movePriority(idx, 1)} disabled={idx === sortedLines.length - 1} className="p-0 h-5 w-5 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                   <div className={cn('w-2 h-2 rounded-full flex-shrink-0', line.ativa && form.ativa ? 'bg-green-500' : 'bg-slate-300')} />
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">

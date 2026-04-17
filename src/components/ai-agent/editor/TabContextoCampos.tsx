@@ -1,7 +1,14 @@
-import { Radio, Eye, Edit3 } from 'lucide-react'
+import { Radio, Eye, Edit3, ShieldCheck } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { AgentEditorForm } from './types'
+
+type EvidenceLevel = 'low' | 'medium' | 'high'
+const EVIDENCE_LEVELS: Array<{ value: EvidenceLevel; label: string; color: string }> = [
+  { value: 'low', label: 'Baixa', color: 'bg-slate-100 text-slate-600' },
+  { value: 'medium', label: 'Média', color: 'bg-amber-100 text-amber-700' },
+  { value: 'high', label: 'Alta', color: 'bg-emerald-100 text-emerald-700' },
+]
 
 interface Props {
   form: AgentEditorForm
@@ -55,6 +62,16 @@ export function TabContextoCampos({ form, setForm }: Props) {
     }))
   }
 
+  const setEvidence = (key: string, level: EvidenceLevel) => {
+    setForm(f => ({
+      ...f,
+      context_fields_config: {
+        ...f.context_fields_config,
+        evidence_level: { ...f.context_fields_config.evidence_level, [key]: level },
+      },
+    }))
+  }
+
   const groups = Array.from(new Set(AVAILABLE_FIELDS.map(f => f.group)))
 
   return (
@@ -65,7 +82,8 @@ export function TabContextoCampos({ form, setForm }: Props) {
       </header>
       <p className="text-sm text-slate-500 -mt-2">
         <Eye className="w-3 h-3 inline mr-1 text-indigo-600" /> <b>Ver:</b> o agente enxerga esse campo ao decidir.{' '}
-        <Edit3 className="w-3 h-3 inline mx-1 ml-2 text-emerald-600" /> <b>Atualizar:</b> o agente pode escrever esse campo via tool UpdateContato.
+        <Edit3 className="w-3 h-3 inline mx-1 ml-2 text-emerald-600" /> <b>Atualizar:</b> o agente pode escrever esse campo via tool UpdateContato.{' '}
+        <ShieldCheck className="w-3 h-3 inline mx-1 ml-2 text-amber-600" /> <b>Evidência:</b> o quão forte precisa ser o sinal do cliente para o agente atualizar (alta = só quando 100% certo).
         <br />
         Nunca atualiza <code>pessoa_principal_id</code> — restrição do sistema.
       </p>
@@ -77,10 +95,11 @@ export function TabContextoCampos({ form, setForm }: Props) {
             {AVAILABLE_FIELDS.filter(f => f.group === group).map(field => {
               const visible = form.context_fields_config.visible_fields.includes(field.key)
               const updatable = form.context_fields_config.updatable_fields.includes(field.key)
+              const currentEvidence = (form.context_fields_config.evidence_level?.[field.key] as EvidenceLevel | undefined) ?? 'medium'
               return (
                 <div key={field.key} className="flex items-center justify-between p-2 border border-slate-100 rounded-lg hover:bg-slate-50">
                   <span className="text-sm text-slate-800">{field.label}</span>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => toggleVisible(field.key)}
@@ -108,6 +127,24 @@ export function TabContextoCampos({ form, setForm }: Props) {
                     >
                       <Edit3 className="w-3 h-3" /> atualizar
                     </button>
+                    {field.updatable && updatable && (
+                      <div className="flex border border-slate-200 rounded overflow-hidden ml-1">
+                        {EVIDENCE_LEVELS.map(lvl => (
+                          <button
+                            key={lvl.value}
+                            type="button"
+                            onClick={() => setEvidence(field.key, lvl.value)}
+                            className={cn(
+                              'text-[10px] px-1.5 py-1 transition-colors',
+                              currentEvidence === lvl.value ? lvl.color + ' font-semibold' : 'text-slate-400 hover:bg-slate-100'
+                            )}
+                            title={`Evidência ${lvl.label}`}
+                          >
+                            {lvl.label[0]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )

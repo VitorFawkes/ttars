@@ -49,6 +49,7 @@ export interface AiAgent {
     skill_id: string
     enabled: boolean
     priority: number
+    config_override?: Record<string, unknown> | null
     ai_skills: { id: string; nome: string; categoria: string; tipo: string } | null
   }>
   ai_agent_phone_line_config?: Array<{
