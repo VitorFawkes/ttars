@@ -488,3 +488,7 @@ PENDING | supabase/migrations/20260402_h3_013_trigger_functions_org_patch.sql | 
 2026-04-16T19:15:53Z | supabase/migrations/20260416b_outbound_queue_cron.sql | applied_to_prod
 2026-04-16T20:21:31Z | supabase/migrations/20260416c_followup_idle_days.sql | applied_to_prod
 PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applied_to_staging
+2026-04-17T01:13:19Z | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applied_to_prod
+2026-04-17T01:13:49Z | supabase/migrations/20260416_ai_agent_interaction_modes.sql | applied_to_prod
+2026-04-17T01:15:59Z | supabase/migrations/20260416e_marco3_fixup.sql | applied_to_prod
+2026-04-17T01:16:38Z | supabase/migrations/20260416e_marco3_fixup.sql | applied_to_prod

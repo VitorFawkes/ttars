@@ -27,6 +27,7 @@ import {
     Clock,
     BookOpen,
     BarChart3,
+    Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -144,6 +145,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/ai-skills" icon={Wrench} label="Ferramentas IA" />
                             <NavItem to="/settings/ai-knowledge-bases" icon={BookOpen} label="Bases de Conhecimento" />
                             <NavItem to="/settings/ai-agents/analytics" icon={BarChart3} label="Analytics IA" />
+                            <NavItem to="/settings/ai-agents/outbound-queue" icon={Send} label="Fila de Envios" />
                             <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações" />
                             <NavItem to="/settings/customization/alert-rules" icon={AlertTriangle} label="Alertas de Cards" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />
