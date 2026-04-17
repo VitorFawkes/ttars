@@ -512,14 +512,15 @@ function RecipientSelector({
     )
 }
 
-function BulkNotifyModal({ cardCount, profiles, onConfirm, onClose }: {
+function BulkNotifyModal({ cardCount, profiles, initialMode, onConfirm, onClose }: {
     cardCount: number
     profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    initialMode: 'task' | 'alert'
     onConfirm: (result: BulkNotifyResult) => void
     onClose: () => void
 }) {
-    const [createTask, setCreateTask] = useState(true)
-    const [createAlert, setCreateAlert] = useState(false)
+    const [createTask, setCreateTask] = useState(initialMode === 'task')
+    const [createAlert, setCreateAlert] = useState(initialMode === 'alert')
 
     // Task state
     const [taskTitulo, setTaskTitulo] = useState('Completar dados do lead')
@@ -824,7 +825,7 @@ export default function FieldCompletenessView() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
     // Bulk action modals
-    const [showNotifyModal, setShowNotifyModal] = useState(false)
+    const [showNotifyModal, setShowNotifyModal] = useState<false | 'task' | 'alert'>(false)
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const [showOwnerModal, setShowOwnerModal] = useState(false)
     const [showPriorityDropdown, setShowPriorityDropdown] = useState(false)
@@ -1246,8 +1247,12 @@ export default function FieldCompletenessView() {
                         </span>
                         <div className="h-5 w-px bg-slate-200" />
 
-                        <button onClick={() => setShowNotifyModal(true)} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
-                            <ClipboardList className="w-3.5 h-3.5" /> Tarefa / Alerta
+                        <button onClick={() => setShowNotifyModal('task')} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                            <ClipboardList className="w-3.5 h-3.5" /> Criar Tarefa
+                        </button>
+
+                        <button onClick={() => setShowNotifyModal('alert')} disabled={bulkLoading} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                            <Bell className="w-3.5 h-3.5" /> Alerta
                         </button>
 
                         <div className="relative">
@@ -1279,7 +1284,7 @@ export default function FieldCompletenessView() {
             )}
 
             {/* Modals */}
-            {showNotifyModal && <BulkNotifyModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} onConfirm={handleBulkNotify} onClose={() => setShowNotifyModal(false)} />}
+            {showNotifyModal && <BulkNotifyModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} initialMode={showNotifyModal} onConfirm={handleBulkNotify} onClose={() => setShowNotifyModal(false)} />}
             {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
         </div>
     )
