@@ -533,3 +533,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T15:10:57Z | supabase/migrations/20260420d_sprint_d_motor_temporal.sql | applied_to_prod
 2026-04-20T15:25:18Z | supabase/migrations/20260420e_sprint_d_fn_temporal_fix_contato_join.sql | applied_to_prod
 2026-04-20T15:33:53Z | supabase/migrations/20260420i_analytics_leaderboard_fix_ambiguous.sql | applied_to_prod
+2026-04-20T17:18:17Z | supabase/migrations/20260420k_contato_principal_completo_sem_email_rebase.sql | applied_to_prod
+2026-04-20T17:20:19Z | supabase/migrations/20260420k_analytics_fix_org_isolation_funil.sql | applied_to_prod
+2026-04-20T17:42:03Z | supabase/migrations/20260420l_top_destinations_from_cards.sql | applied_to_prod
