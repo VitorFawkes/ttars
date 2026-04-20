@@ -12,10 +12,18 @@ export default defineConfig({
       strategies: 'generateSW',
       manifest: false, // usa public/manifest.json existente
       workbox: {
+        // Service worker novo assume controle imediato + limpa caches velhos.
+        // Evita o cenário clássico de usuário preso com bundle antigo após deploy.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB — bundle principal excede o default de 2 MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackAllowlist: [/^\/v\//],
+        // NUNCA cachear auth/RPCs do Supabase ou assets com hash — evita servir
+        // bundle velho quando o HTML novo já aponta pra hash novo.
+        navigateFallbackDenylist: [/^\/api\//, /\/auth\//, /\.supabase\.co/],
         runtimeCaching: [
           {
             // Voucher PDFs do Supabase Storage — cache longo
@@ -38,11 +46,15 @@ export default defineConfig({
             },
           },
           {
-            // Assets estáticos (JS, CSS) — stale-while-revalidate
+            // Assets estáticos (JS, CSS hashados) — rede primeiro com timeout curto.
+            // NetworkFirst previne o cenário de servir bundle antigo incompatível
+            // com o HTML novo pós-deploy. StaleWhileRevalidate anterior causava
+            // "Processando..." travado porque browser recebia JS com hash obsoleto.
             urlPattern: /\.(?:js|css)$/,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'static-assets',
+              networkTimeoutSeconds: 3,
               expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
             },
           },

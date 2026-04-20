@@ -33,6 +33,39 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const RECOVERY_FLAG = 'welcomecrm_auth_recovery_attempted'
+
+// Quando o AuthContext trava por 10s, quase sempre é Service Worker velho
+// interceptando requests com bundle obsoleto. Tenta limpar e recarregar UMA vez
+// (flag em sessionStorage impede loop infinito de reload).
+async function recoverFromStaleCache(): Promise<void> {
+    try {
+        if (sessionStorage.getItem(RECOVERY_FLAG)) return
+        sessionStorage.setItem(RECOVERY_FLAG, '1')
+
+        if ('serviceWorker' in navigator) {
+            try {
+                const regs = await navigator.serviceWorker.getRegistrations()
+                await Promise.all(regs.map(r => r.unregister()))
+            } catch {
+                // ignora — provavelmente secure context inválido
+            }
+        }
+        if ('caches' in window) {
+            try {
+                const keys = await caches.keys()
+                await Promise.all(keys.map(k => caches.delete(k)))
+            } catch {
+                // ignora
+            }
+        }
+        // Force reload sem cache
+        window.location.reload()
+    } catch (err) {
+        console.error('recoverFromStaleCache falhou:', err)
+    }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
@@ -43,11 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         let resolved = false
 
-        // Safety timeout: se getSession() não resolver em 10s, forçar loading=false
+        // Safety timeout: se getSession() não resolver em 10s, forçar loading=false.
+        // Como 99% dos casos em produção são Service Worker velho interceptando requests,
+        // limpa SW + caches e recarrega uma vez antes de mostrar erro (flag impede loop).
         const timeout = setTimeout(() => {
             if (!resolved) {
                 resolved = true
                 console.error('AuthContext: timeout — Supabase não respondeu em 10s')
+                void recoverFromStaleCache()
                 setAuthError('Não foi possível conectar ao servidor. Verifique sua conexão.')
                 setLoading(false)
             }
