@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import {
     AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2,
     LayoutList, ShieldAlert, AlertCircle, UserCheck, Search, User,
+    Check, X, Loader2,
     type LucideIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -63,14 +64,6 @@ const TEAM_ROLE_LABEL: Record<string, string> = {
     concierge: 'Concierge',
 }
 
-// --- Inline user picker (sem dropdown flutuante — lista fica dentro do modal) ---
-
-interface InlineUserPickerProps {
-    phaseSlug: string
-    onPick: (userId: string, userName: string | null) => void
-    isSaving?: boolean
-}
-
 interface EligibleUser {
     id: string
     nome: string | null
@@ -79,11 +72,10 @@ interface EligibleUser {
     phaseSlugs: string[]
 }
 
-function InlineUserPicker({ phaseSlug, onPick, isSaving }: InlineUserPickerProps) {
-    const [search, setSearch] = useState('')
-
-    const { data: users = [], isLoading } = useQuery<EligibleUser[]>({
+function useEligibleUsers(phaseSlug: string, enabled: boolean) {
+    return useQuery<EligibleUser[]>({
         queryKey: ['quality-gate-eligible-owners', phaseSlug],
+        enabled,
         queryFn: async () => {
             const { data: profiles } = await supabase
                 .from('profiles')
@@ -92,22 +84,21 @@ function InlineUserPicker({ phaseSlug, onPick, isSaving }: InlineUserPickerProps
                 .order('nome')
 
             const ids = (profiles || []).map(p => p.id)
-            let membership: Record<string, Set<string>> = {}
+            const membership: Record<string, Set<string>> = {}
             if (ids.length > 0) {
                 const { data: tms } = await supabase
                     .from('team_members')
                     .select('user_id, team:teams!inner(phase:pipeline_phases(slug))')
                     .in('user_id', ids)
-                membership = (tms || []).reduce<Record<string, Set<string>>>((acc, row) => {
+                for (const row of tms || []) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- relacionamento aninhado não tipado
                     const slug: string | null = (row as any).team?.phase?.slug ?? null
                     if (slug) {
                         const userId = row.user_id as string
-                        if (!acc[userId]) acc[userId] = new Set()
-                        acc[userId].add(slug)
+                        if (!membership[userId]) membership[userId] = new Set()
+                        membership[userId].add(slug)
                     }
-                    return acc
-                }, {})
+                }
             }
 
             return (profiles || []).map(p => ({
@@ -119,9 +110,19 @@ function InlineUserPicker({ phaseSlug, onPick, isSaving }: InlineUserPickerProps
             }))
         }
     })
+}
+
+interface InlineUserPickerProps {
+    phaseSlug: string
+    selectedUserId: string | null
+    onPick: (user: EligibleUser) => void
+}
+
+function InlineUserPicker({ phaseSlug, selectedUserId, onPick }: InlineUserPickerProps) {
+    const [search, setSearch] = useState('')
+    const { data: users = [], isLoading } = useEligibleUsers(phaseSlug, true)
 
     const eligible = useMemo(() => {
-        // Fail-open: se ninguém tem a phase atribuída, mostra todos (não quebra UX)
         const hasAnyForPhase = users.some(u => u.phaseSlugs.includes(phaseSlug))
         const base = users.filter(u => {
             if (u.is_admin) return true
@@ -134,8 +135,8 @@ function InlineUserPicker({ phaseSlug, onPick, isSaving }: InlineUserPickerProps
     }, [users, phaseSlug, search])
 
     return (
-        <div className="mt-2 bg-white border border-indigo-100 rounded-lg overflow-hidden">
-            <div className="relative border-b border-indigo-100 bg-white">
+        <div className="mt-2 bg-white border border-indigo-200 rounded-lg overflow-hidden">
+            <div className="relative border-b border-slate-100 bg-white">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <input
                     type="text"
@@ -153,34 +154,50 @@ function InlineUserPicker({ phaseSlug, onPick, isSaving }: InlineUserPickerProps
                         {search ? 'Nenhum usuário encontrado' : 'Nenhum usuário disponível'}
                     </div>
                 ) : (
-                    eligible.map(u => (
-                        <button
-                            key={u.id}
-                            type="button"
-                            disabled={isSaving}
-                            onClick={() => onPick(u.id, u.nome)}
-                            className={cn(
-                                'w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-b-0',
-                                isSaving && 'opacity-50 cursor-not-allowed'
-                            )}
-                        >
-                            <div className="h-7 w-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                <User className="h-3.5 w-3.5 text-indigo-600" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium text-slate-900 truncate">
-                                    {u.nome || u.email || '(sem nome)'}
-                                </div>
-                                {u.nome && u.email && (
-                                    <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                    eligible.map(u => {
+                        const isSelected = u.id === selectedUserId
+                        return (
+                            <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => onPick(u)}
+                                className={cn(
+                                    'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors border-b border-slate-50 last:border-b-0',
+                                    isSelected ? 'bg-indigo-100' : 'hover:bg-indigo-50'
                                 )}
-                            </div>
-                        </button>
-                    ))
+                            >
+                                <div className={cn(
+                                    'h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0',
+                                    isSelected ? 'bg-indigo-600' : 'bg-indigo-100'
+                                )}>
+                                    {isSelected
+                                        ? <Check className="h-3.5 w-3.5 text-white" />
+                                        : <User className="h-3.5 w-3.5 text-indigo-600" />
+                                    }
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className={cn(
+                                        'text-sm font-medium truncate',
+                                        isSelected ? 'text-indigo-900' : 'text-slate-900'
+                                    )}>
+                                        {u.nome || u.email || '(sem nome)'}
+                                    </div>
+                                    {u.nome && u.email && (
+                                        <div className="text-xs text-slate-500 truncate">{u.email}</div>
+                                    )}
+                                </div>
+                            </button>
+                        )
+                    })
                 )}
             </div>
         </div>
     )
+}
+
+interface PendingSelection {
+    userId: string
+    userName: string | null
 }
 
 export default function QualityGateModal({
@@ -194,6 +211,7 @@ export default function QualityGateModal({
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [expandedRole, setExpandedRole] = useState<string | null>(null)
+    const [pending, setPending] = useState<Record<string, PendingSelection>>({})
 
     const handleOpenCard = () => {
         onClose()
@@ -207,17 +225,22 @@ export default function QualityGateModal({
             const { error } = await supabase.from('cards').update({ [ownerCol]: userId }).eq('id', cardId)
             if (error) throw error
         },
-        onSuccess: () => {
-            toast.success('Responsável atribuído')
+        onSuccess: (_data, variables) => {
+            toast.success('Responsável salvo')
             queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             queryClient.invalidateQueries({ queryKey: ['card', cardId] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['card-team-roles', cardId] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
+            setPending(prev => {
+                const next = { ...prev }
+                delete next[variables.role]
+                return next
+            })
             setExpandedRole(null)
         },
         onError: (error: Error) => {
-            toast.error('Erro ao atribuir responsável: ' + error.message)
+            toast.error('Erro ao salvar: ' + error.message)
         }
     })
 
@@ -262,31 +285,88 @@ export default function QualityGateModal({
                                         if (item.type === 'team_member' && item.required_team_role) {
                                             const role = item.required_team_role
                                             const isExpanded = expandedRole === role
-                                            const isSavingThis = assignOwnerMutation.isPending && assignOwnerMutation.variables?.role === role
+                                            const pendingSel = pending[role]
+                                            const isSaving = assignOwnerMutation.isPending && assignOwnerMutation.variables?.role === role
+                                            const roleLabel = TEAM_ROLE_LABEL[role] || ''
 
                                             return (
-                                                <li key={idx}>
+                                                <li key={idx} className="space-y-2">
                                                     <div className="flex items-center justify-between gap-3">
-                                                        <div className={`flex items-center gap-2 text-sm ${config.text} min-w-0`}>
+                                                        <div className={`flex items-center gap-2 text-sm ${config.text} min-w-0 flex-1`}>
                                                             <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
                                                             <span className="truncate">{item.label}</span>
                                                         </div>
-                                                        {!isExpanded && (
+
+                                                        {pendingSel ? (
+                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-indigo-200 text-xs">
+                                                                    <div className="h-4 w-4 rounded-full bg-indigo-600 flex items-center justify-center">
+                                                                        <Check className="h-2.5 w-2.5 text-white" />
+                                                                    </div>
+                                                                    <span className="font-medium text-indigo-900 max-w-[120px] truncate">
+                                                                        {pendingSel.userName || 'Selecionado'}
+                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={isSaving}
+                                                                        onClick={() => {
+                                                                            setPending(prev => {
+                                                                                const next = { ...prev }
+                                                                                delete next[role]
+                                                                                return next
+                                                                            })
+                                                                        }}
+                                                                        className="ml-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                                                                        title="Desfazer"
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </button>
+                                                                </span>
+                                                                <Button
+                                                                    size="sm"
+                                                                    disabled={isSaving}
+                                                                    onClick={() => assignOwnerMutation.mutate({ role, userId: pendingSel.userId })}
+                                                                    className="h-7 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                                                                >
+                                                                    {isSaving ? (
+                                                                        <>
+                                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            Salvando…
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Check className="h-3 w-3" />
+                                                                            Salvar
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setExpandedRole(role)}
-                                                                className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                                onClick={() => setExpandedRole(isExpanded ? null : role)}
+                                                                className={cn(
+                                                                    'flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-md border transition-colors',
+                                                                    isExpanded
+                                                                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                                                                        : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                                                                )}
                                                             >
-                                                                Atribuir {TEAM_ROLE_LABEL[role] || ''}
+                                                                {isExpanded ? 'Fechar' : `Atribuir ${roleLabel}`}
                                                             </button>
                                                         )}
                                                     </div>
-                                                    {isExpanded && (
+
+                                                    {isExpanded && !pendingSel && (
                                                         <InlineUserPicker
                                                             phaseSlug={role}
-                                                            isSaving={isSavingThis}
-                                                            onPick={(userId) => {
-                                                                assignOwnerMutation.mutate({ role, userId })
+                                                            selectedUserId={null}
+                                                            onPick={(u) => {
+                                                                setPending(prev => ({
+                                                                    ...prev,
+                                                                    [role]: { userId: u.id, userName: u.nome || u.email }
+                                                                }))
+                                                                setExpandedRole(null)
                                                             }}
                                                         />
                                                     )}
