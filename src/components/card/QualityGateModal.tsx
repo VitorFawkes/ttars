@@ -17,6 +17,7 @@ import type { MissingRequirement } from '../../hooks/useQualityGate'
 interface QualityGateModalProps {
     isOpen: boolean
     onClose: () => void
+    /** Chamado quando todos os requisitos foram satisfeitos — em card-detail/kanban isso dispara a mudança de etapa */
     onConfirm: () => void
     cardId: string
     targetStageName: string
@@ -203,6 +204,7 @@ interface PendingSelection {
 export default function QualityGateModal({
     isOpen,
     onClose,
+    onConfirm,
     cardId,
     targetStageName,
     missingRequirements,
@@ -212,11 +214,24 @@ export default function QualityGateModal({
     const queryClient = useQueryClient()
     const [expandedRole, setExpandedRole] = useState<string | null>(null)
     const [pending, setPending] = useState<Record<string, PendingSelection>>({})
+    // Roles que o usuário já atribuiu dentro deste modal (usado para auto-prosseguir)
+    const [satisfiedRoles, setSatisfiedRoles] = useState<Set<string>>(new Set())
 
     const handleOpenCard = () => {
         onClose()
         navigate(`/cards/${cardId}`)
     }
+
+    // Requisitos que ainda bloqueiam considerando o que já foi salvo localmente
+    const unresolvedRequirements = useMemo(
+        () => missingRequirements.filter(r => {
+            if (r.type === 'team_member' && r.required_team_role) {
+                return !satisfiedRoles.has(r.required_team_role)
+            }
+            return true
+        }),
+        [missingRequirements, satisfiedRoles]
+    )
 
     const assignOwnerMutation = useMutation({
         mutationFn: async ({ role, userId }: { role: string; userId: string }) => {
@@ -226,7 +241,6 @@ export default function QualityGateModal({
             if (error) throw error
         },
         onSuccess: (_data, variables) => {
-            toast.success('Responsável salvo')
             queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             queryClient.invalidateQueries({ queryKey: ['card', cardId] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
@@ -238,6 +252,26 @@ export default function QualityGateModal({
                 return next
             })
             setExpandedRole(null)
+            setSatisfiedRoles(prev => {
+                const next = new Set(prev)
+                next.add(variables.role)
+                return next
+            })
+
+            // Se o que acabou de ser resolvido era a última pendência, prossegue com a mudança de etapa
+            const stillPending = missingRequirements.filter(r => {
+                if (r.type === 'team_member' && r.required_team_role) {
+                    return r.required_team_role !== variables.role && !satisfiedRoles.has(r.required_team_role)
+                }
+                return true
+            })
+
+            if (stillPending.length === 0) {
+                toast.success('Responsável salvo — movendo card…')
+                onConfirm()
+            } else {
+                toast.success('Responsável salvo')
+            }
         },
         onError: (error: Error) => {
             toast.error('Erro ao salvar: ' + error.message)
@@ -245,13 +279,13 @@ export default function QualityGateModal({
     })
 
     const grouped = new Map<string, MissingRequirement[]>()
-    for (const req of missingRequirements) {
+    for (const req of unresolvedRequirements) {
         const list = grouped.get(req.type) || []
         list.push(req)
         grouped.set(req.type, list)
     }
 
-    const remainingCount = missingRequirements.length
+    const remainingCount = unresolvedRequirements.length
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
