@@ -21,6 +21,7 @@ import {
   Layers,
   Tag,
   Bell,
+  MessageCircle,
 } from 'lucide-react'
 
 export type ActionType =
@@ -67,6 +68,7 @@ export type EventType =
   | 'field_changed'
   | 'tag_added'
   | 'tag_removed'
+  | 'inbound_message_pattern'
   | 'dias_antes_viagem'
   | 'dias_apos_viagem'
   | 'aniversario_contato'
@@ -74,6 +76,19 @@ export type EventType =
   | 'dias_no_stage'
   | 'card_won'
   | 'cron_roteamento'
+
+/**
+ * Modos de matching para gatilho `inbound_message_pattern`.
+ * Mantém em sincronia com o matcher em supabase/functions/ai-agent-router/index.ts.
+ */
+export type InboundMatchMode = 'contains' | 'starts_with' | 'equals' | 'regex'
+
+export const INBOUND_MATCH_MODE_OPTIONS: Array<{ value: InboundMatchMode; label: string; help: string }> = [
+  { value: 'contains', label: 'Contém', help: 'Texto da mensagem inclui o trecho informado.' },
+  { value: 'starts_with', label: 'Começa com', help: 'Mensagem começa pelo trecho (ignora espaços iniciais).' },
+  { value: 'equals', label: 'É igual a', help: 'Mensagem inteira é exatamente igual ao trecho.' },
+  { value: 'regex', label: 'Expressão regular', help: 'Padrão regex (avançado). Ex: cancela|desisto' },
+]
 
 /**
  * Whitelist de campos do card que podem disparar `field_changed`.
@@ -356,6 +371,30 @@ export const RECIPES: RecipePreset[] = [
       },
     },
   },
+
+  // ─── INBOUND MESSAGE PATTERN ─────────────────────────────────────────
+  {
+    id: 'inbound_cancelar_avisa_dono',
+    name: 'Cliente disse "cancelar" → avisa dono',
+    category: 'tarefa',
+    summary: 'Se o cliente mandar uma mensagem com palavra de cancelamento, dispara notificação interna pro dono do card antes do agente IA responder.',
+    icon: MessageCircle,
+    preset: {
+      event_type: 'inbound_message_pattern',
+      event_config: {
+        pattern: 'cancelar|desistir|nao quero mais|não quero mais',
+        match_mode: 'regex',
+        case_sensitive: false,
+        skip_ai: true,
+      },
+      action_type: 'notify_internal',
+      action_config: {
+        recipient_mode: 'card_owner',
+        title: 'Cliente sinalizou cancelamento',
+        body: 'O cliente do card {{card.titulo}} mandou uma mensagem indicando cancelamento. Confere antes que o agente IA responda.',
+      },
+    },
+  },
 ]
 
 export const RECIPE_CATEGORIES: Array<{ key: RecipePreset['category']; label: string; description: string }> = [
@@ -404,6 +443,7 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   field_changed: 'Campo do card mudou',
   tag_added: 'Tag adicionada ao card',
   tag_removed: 'Tag removida do card',
+  inbound_message_pattern: 'Cliente respondeu com palavra-chave',
   dias_antes_viagem: 'X dias antes da viagem',
   dias_apos_viagem: 'X dias depois da viagem',
   aniversario_contato: 'Aniversário do contato',

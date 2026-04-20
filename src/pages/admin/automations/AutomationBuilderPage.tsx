@@ -26,7 +26,8 @@ import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
   ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS, FIELD_CHANGED_OPTIONS,
-  type ActionType, type EventType, type RecipePreset,
+  INBOUND_MATCH_MODE_OPTIONS,
+  type ActionType, type EventType, type InboundMatchMode, type RecipePreset,
 } from '@/lib/automation-recipes'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 
@@ -131,6 +132,7 @@ const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'field_changed', label: EVENT_TYPE_LABELS.field_changed },
   { value: 'tag_added', label: EVENT_TYPE_LABELS.tag_added },
   { value: 'tag_removed', label: EVENT_TYPE_LABELS.tag_removed },
+  { value: 'inbound_message_pattern', label: EVENT_TYPE_LABELS.inbound_message_pattern },
   { value: 'dias_antes_viagem', label: EVENT_TYPE_LABELS.dias_antes_viagem },
   { value: 'dias_apos_viagem', label: EVENT_TYPE_LABELS.dias_apos_viagem },
   { value: 'aniversario_contato', label: EVENT_TYPE_LABELS.aniversario_contato },
@@ -1140,10 +1142,15 @@ function EventConfigEditor({
   const needsPhase = form.event_type === 'macro_stage_enter'
   const needsField = form.event_type === 'field_changed'
   const needsTag = form.event_type === 'tag_added' || form.event_type === 'tag_removed'
+  const needsInboundPattern = form.event_type === 'inbound_message_pattern'
 
   const selectedField = needsField
     ? FIELD_CHANGED_OPTIONS.find((f) => f.key === (form.event_config.field as string))
     : null
+
+  const inboundMatchMode = (form.event_config.match_mode as InboundMatchMode) || 'contains'
+  const inboundCaseSensitive = form.event_config.case_sensitive === true
+  const inboundSkipAi = form.event_config.skip_ai !== false // default true
 
   return (
     <div className="space-y-3">
@@ -1277,6 +1284,71 @@ function EventConfigEditor({
             {!pipelineId && ' Limite: pipeline não detectado.'}
           </p>
         </div>
+      )}
+
+      {needsInboundPattern && (
+        <>
+          <div>
+            <Label>Palavra ou trecho a procurar</Label>
+            <Input
+              value={(form.event_config.pattern as string) || ''}
+              onChange={(e) => setForm({ event_config: { ...form.event_config, pattern: e.target.value } })}
+              placeholder="ex: cancelar, desistir, falar com humano"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Dispara quando o cliente manda uma mensagem que bate com esse trecho. Só vale se já existir card aberto pro contato.
+            </p>
+          </div>
+
+          <div>
+            <Label>Como comparar?</Label>
+            <Select
+              value={inboundMatchMode}
+              onChange={(v) =>
+                setForm({ event_config: { ...form.event_config, match_mode: v as InboundMatchMode } })
+              }
+              options={INBOUND_MATCH_MODE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              {INBOUND_MATCH_MODE_OPTIONS.find((o) => o.value === inboundMatchMode)?.help}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              id="inbound_case_sensitive"
+              type="checkbox"
+              checked={inboundCaseSensitive}
+              onChange={(e) =>
+                setForm({ event_config: { ...form.event_config, case_sensitive: e.target.checked } })
+              }
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <label htmlFor="inbound_case_sensitive" className="text-sm text-slate-700">
+              Diferenciar maiúsculas e minúsculas
+            </label>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <input
+              id="inbound_skip_ai"
+              type="checkbox"
+              checked={inboundSkipAi}
+              onChange={(e) =>
+                setForm({ event_config: { ...form.event_config, skip_ai: e.target.checked } })
+              }
+              className="h-4 w-4 rounded border-slate-300 mt-0.5"
+            />
+            <div>
+              <label htmlFor="inbound_skip_ai" className="text-sm text-slate-700">
+                Pular o agente IA quando bater
+              </label>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Quando ligado, o agente IA não responde nessa mensagem — só sua automação roda. Desligue se quiser que o agente IA também responda em paralelo.
+              </p>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -1469,6 +1541,17 @@ export default function AutomationBuilderPage() {
     if (form.event_type === 'field_changed' && !form.event_config.field) {
       return 'Selecione qual campo do card dispara a automação'
     }
+    if (form.event_type === 'inbound_message_pattern') {
+      const pattern = String(form.event_config.pattern || '').trim()
+      if (!pattern) return 'Informe a palavra ou trecho que dispara a automação'
+      if ((form.event_config.match_mode as InboundMatchMode) === 'regex') {
+        try {
+          new RegExp(pattern)
+        } catch {
+          return 'Expressão regular inválida — revise o padrão'
+        }
+      }
+    }
     return null
   }
 
@@ -1658,6 +1741,19 @@ export default function AutomationBuilderPage() {
                 <p className="text-xs text-slate-500 mt-1">
                   Tag: {cardTags?.find((t) => t.id === form.event_config.tag_id)?.name || 'Qualquer'}
                 </p>
+              )}
+              {form.event_type === 'inbound_message_pattern' && (
+                <>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Trecho: <code className="text-xs">{String(form.event_config.pattern || '')}</code>{' '}
+                    ({INBOUND_MATCH_MODE_OPTIONS.find((o) => o.value === (form.event_config.match_mode || 'contains'))?.label})
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {form.event_config.skip_ai === false
+                      ? 'Agente IA também responde em paralelo.'
+                      : 'Agente IA não responde quando bater.'}
+                  </p>
+                </>
               )}
             </div>
             <div>

@@ -2028,6 +2028,161 @@ async function checkEscalation(
 }
 
 // ---------------------------------------------------------------------------
+// Inbound Pattern Matcher (gatilho automation determinístico antes da IA)
+// ---------------------------------------------------------------------------
+// Verifica se a mensagem inbound bate com algum cadence_event_triggers de
+// event_type='inbound_message_pattern' configurado pra org do agente. Se sim,
+// enfileira em cadence_entry_queue (cadence-engine cuida da execução). Se o
+// trigger pediu skip_ai=true (default), o pipeline IA é abortado e a regra
+// determinística responde sozinha.
+
+interface InboundPatternMatchResult {
+  matched: boolean;
+  skip_ai: boolean;
+  matched_trigger_name?: string;
+  matched_trigger_id?: string;
+}
+
+async function checkInboundPatternMatch(
+  supabase: SupabaseClient,
+  agentOrgId: string,
+  cardId: string,
+  pipelineStageId: string | null,
+  messageText: string,
+): Promise<InboundPatternMatchResult> {
+  if (!messageText || !cardId) return { matched: false, skip_ai: false };
+
+  // Resolve pipeline_id do card pra filtrar applicable_pipeline_ids
+  let pipelineId: string | null = null;
+  if (pipelineStageId) {
+    const { data: stageRow } = await supabase
+      .from("pipeline_stages")
+      .select("pipeline_id")
+      .eq("id", pipelineStageId)
+      .maybeSingle();
+    pipelineId = (stageRow as { pipeline_id?: string } | null)?.pipeline_id || null;
+  }
+
+  const { data: triggers, error } = await supabase
+    .from("cadence_event_triggers")
+    .select("id, name, event_config, applicable_pipeline_ids, applicable_stage_ids, delay_minutes")
+    .eq("event_type", "inbound_message_pattern")
+    .eq("is_active", true)
+    .eq("org_id", agentOrgId);
+
+  if (error) {
+    console.error("[inbound_pattern] Failed to fetch triggers:", error);
+    return { matched: false, skip_ai: false };
+  }
+  if (!triggers || triggers.length === 0) return { matched: false, skip_ai: false };
+
+  let matchedAny = false;
+  let aggregatedSkipAi = false;
+  let firstName: string | undefined;
+  let firstId: string | undefined;
+
+  for (const t of triggers as Array<{
+    id: string;
+    name: string | null;
+    event_config: Record<string, unknown> | null;
+    applicable_pipeline_ids: string[] | null;
+    applicable_stage_ids: string[] | null;
+    delay_minutes: number | null;
+  }>) {
+    const cfg = (t.event_config || {}) as Record<string, unknown>;
+    const pattern = String(cfg.pattern ?? "").trim();
+    if (!pattern) continue;
+
+    const apIds = t.applicable_pipeline_ids || [];
+    if (apIds.length > 0 && pipelineId && !apIds.includes(pipelineId)) continue;
+    const asIds = t.applicable_stage_ids || [];
+    if (asIds.length > 0 && pipelineStageId && !asIds.includes(pipelineStageId)) continue;
+
+    const mode = String(cfg.match_mode ?? "contains") as
+      | "regex"
+      | "contains"
+      | "starts_with"
+      | "equals";
+    const caseSensitive = cfg.case_sensitive === true;
+
+    let isMatch = false;
+    if (mode === "regex") {
+      try {
+        const re = new RegExp(pattern, caseSensitive ? "" : "i");
+        isMatch = re.test(messageText);
+      } catch (err) {
+        console.error(`[inbound_pattern] invalid regex on trigger ${t.id}:`, err);
+        continue;
+      }
+    } else {
+      const haystack = caseSensitive ? messageText : messageText.toLowerCase();
+      const needle = caseSensitive ? pattern : pattern.toLowerCase();
+      if (mode === "starts_with") isMatch = haystack.trimStart().startsWith(needle);
+      else if (mode === "equals") isMatch = haystack.trim() === needle.trim();
+      else isMatch = haystack.includes(needle); // contains (default)
+    }
+
+    if (!isMatch) continue;
+
+    const skipAi = cfg.skip_ai !== false; // default true
+    const delayMin = Number(t.delay_minutes ?? 0);
+    const executeAt =
+      delayMin > 0
+        ? new Date(Date.now() + delayMin * 60_000).toISOString()
+        : new Date().toISOString();
+
+    const { count: pendingCount } = await supabase
+      .from("cadence_entry_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("card_id", cardId)
+      .eq("trigger_id", t.id)
+      .eq("status", "pending");
+
+    if ((pendingCount ?? 0) > 0) {
+      console.log(`[inbound_pattern] trigger ${t.id} já pendente pra card ${cardId}, pulando insert`);
+    } else {
+      const matchedSnippet =
+        messageText.length > 500 ? messageText.slice(0, 500) + "…" : messageText;
+      const { error: insertErr } = await supabase.from("cadence_entry_queue").insert({
+        card_id: cardId,
+        trigger_id: t.id,
+        event_type: "inbound_message_pattern",
+        event_data: {
+          pattern,
+          match_mode: mode,
+          case_sensitive: caseSensitive,
+          matched_text: matchedSnippet,
+          pipeline_id: pipelineId,
+          stage_id: pipelineStageId,
+        },
+        execute_at: executeAt,
+      });
+      if (insertErr) {
+        console.error(`[inbound_pattern] failed to enqueue trigger ${t.id}:`, insertErr);
+        continue;
+      }
+      console.log(
+        `[inbound_pattern] enqueued ${t.id} (${t.name || "sem nome"}) card=${cardId} skip_ai=${skipAi}`,
+      );
+    }
+
+    if (!matchedAny) {
+      matchedAny = true;
+      firstName = t.name || undefined;
+      firstId = t.id;
+    }
+    if (skipAi) aggregatedSkipAi = true;
+  }
+
+  return {
+    matched: matchedAny,
+    skip_ai: aggregatedSkipAi,
+    matched_trigger_name: firstName,
+    matched_trigger_id: firstId,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main Handler
 // ---------------------------------------------------------------------------
 
@@ -2169,6 +2324,28 @@ serve(async (req) => {
     const ctx = await buildConversationContext(
       supabase, conversationId, contactId, agentConfig,
     );
+
+    // ── 6b. Inbound pattern matcher (regra determinística antes da IA) ──
+    if (ctx.card_id) {
+      const patternResult = await checkInboundPatternMatch(
+        supabase, agent.org_id, ctx.card_id, ctx.pipeline_stage_id, processedText,
+      );
+      if (patternResult.matched && patternResult.skip_ai) {
+        console.log(
+          `[main] inbound_message_pattern matched (${patternResult.matched_trigger_name}) — pulando pipeline IA`,
+        );
+        return new Response(
+          JSON.stringify({
+            handled: true,
+            agent: agent.nome,
+            inbound_pattern_matched: true,
+            matched_trigger: patternResult.matched_trigger_name,
+            skipped_ai: true,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
 
     // ── 7. Check escalation ──
     const { escalated, message: escalationMsg } = await checkEscalation(
