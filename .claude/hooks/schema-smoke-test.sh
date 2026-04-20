@@ -196,28 +196,25 @@ test_query "view_cards_acoes.org_id column" \
 test_query "requesting_org_id function exists" \
   "rpc/requesting_org_id"
 
-# ── H3-035: cross-org integrity entre cadence_event_triggers e cadence_templates ──
-# Trigger + template devem morar na mesma org. Ver 20260414l_cadence_event_triggers_strict_template_org.sql.
+# ── Sprint C: cross-org integrity em cadence_event_triggers ──
+# Cobre target_template_id, target_stage_id, tag_id, applicable_pipeline_ids,
+# e task_configs[].assign_to_user_id. Ver 20260420c_sprint_c_*.sql.
 if [ "$STAGING_MODE" = "false" ]; then
   TOTAL=$((TOTAL + 1))
-  MISALIGNED=$(curl -s \
-    "${URL}/rest/v1/cadence_event_triggers?select=id,org_id,target_template_id,cadence_templates!cadence_event_triggers_target_template_id_fkey(org_id)&target_template_id=not.is.null" \
+  CROSS_ORG=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/cadence_triggers_cross_org_count" \
     -H "apikey: ${ANON}" \
     -H "Authorization: Bearer ${KEY}" \
-    --max-time 10 \
-    | python3 -c "import sys,json
-try:
-  d=json.load(sys.stdin)
-  bad=[r for r in d if isinstance(r,dict) and r.get('cadence_templates') and r['org_id']!=r['cadence_templates']['org_id']]
-  print(len(bad))
-except Exception:
-  print('ERR')" 2>/dev/null)
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
 
-  if [ "$MISALIGNED" = "ERR" ] || [ -z "$MISALIGNED" ]; then
-    echo "  FAIL: cadence_event_triggers cross-org audit → resposta inesperada" >&2
+  if [ -z "$CROSS_ORG" ] || ! echo "$CROSS_ORG" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: cadence_triggers_cross_org_count → resposta inesperada: $CROSS_ORG" >&2
     FAILED=$((FAILED + 1))
-  elif [ "$MISALIGNED" != "0" ]; then
-    echo "  FAIL: $MISALIGNED cadence_event_triggers com org_id divergente do template — rodar migration de alinhamento" >&2
+  elif [ "$CROSS_ORG" != "0" ]; then
+    echo "  FAIL: $CROSS_ORG cadence_event_triggers com FK cross-org — rodar auditoria" >&2
     FAILED=$((FAILED + 1))
   fi
 fi
