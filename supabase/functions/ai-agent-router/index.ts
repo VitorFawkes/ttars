@@ -84,6 +84,7 @@ interface AgentConfig {
   timings?: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
   test_mode_phone_whitelist?: string[] | null;
+  multimodal_config?: { audio?: boolean; image?: boolean; pdf?: boolean } | null;
 }
 
 interface BusinessCustomBlock {
@@ -327,7 +328,16 @@ async function processMediaInline(
   messageType: string,
   mediaUrl: string,
   originalText: string,
+  multimodalConfig?: { audio?: boolean; image?: boolean; pdf?: boolean } | null,
 ): Promise<string> {
+  // Respeitar toggles do multimodal_config do agente quando fornecido.
+  // Se desligado, retorna placeholder sem chamar OpenAI (economiza tokens + evita leak).
+  if (multimodalConfig) {
+    if (messageType === "audio" && multimodalConfig.audio === false) return originalText || "[Áudio recebido — processamento desabilitado]";
+    if (messageType === "image" && multimodalConfig.image === false) return originalText || "[Imagem recebida — processamento desabilitado]";
+    if (messageType === "document" && multimodalConfig.pdf === false) return originalText || "[Documento recebido — processamento desabilitado]";
+  }
+
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) {
     console.warn("[processMediaInline] No OPENAI_API_KEY, using placeholder");
@@ -399,7 +409,7 @@ async function findAgentForLine(
         n8n_webhook_url, template_id, is_template_based, ativa,
         handoff_signals, intelligent_decisions, prompts_extra,
         pipeline_models, timings, validator_rules,
-        test_mode_phone_whitelist
+        test_mode_phone_whitelist, multimodal_config
       )
     `)
     .in("phone_line_id", lineIds)
@@ -713,7 +723,12 @@ async function buildConversationContext(
   conversationId: string,
   contactId: string,
   agentConfig: { business: BusinessConfig | null },
+  memoryConfig?: Record<string, unknown> | null,
 ): Promise<ConversationContext> {
+  // memory_config do agente: max_history_turns (limite total) e short_term_turns
+  // (window do compacto). Defaults batem com comportamento legado (50/8).
+  const maxHistoryTurns = (memoryConfig?.max_history_turns as number) ?? 50;
+  const shortTermTurns = (memoryConfig?.short_term_turns as number) ?? 8;
   // Carregar mensagens WhatsApp do contato (como Julia faz)
   const { data: contact } = await supabase
     .from("contatos")
@@ -738,15 +753,16 @@ async function buildConversationContext(
     ? { ...cardRow, responsavel_id: cardRow.dono_atual_id || cardRow.sdr_owner_id || null }
     : null;
 
-  // Buscar historico de turns da conversa AI
+  // Buscar historico de turns da conversa AI — limite respeitado de memory_config
   const { data: turns } = await supabase
     .from("ai_conversation_turns")
     .select("role, content, created_at")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .limit(50);
+    .order("created_at", { ascending: false })
+    .limit(maxHistoryTurns);
 
-  const msgs = turns || [];
+  // Reverter para ordem cronológica ascending (limit pegou os mais recentes)
+  const msgs = (turns || []).reverse();
 
   // Formatar historico (como Julia: "DD/MM/YY_HH:MM_[who]: [msg]")
   const historico = msgs
@@ -758,7 +774,7 @@ async function buildConversationContext(
     })
     .join("\n");
 
-  const historico_compacto = msgs.slice(-8)
+  const historico_compacto = msgs.slice(-shortTermTurns)
     .map((m) => {
       const who = m.role === "user" ? "lead" : "owner";
       return `[${who}]: ${m.content}`;
@@ -1040,6 +1056,7 @@ async function executeToolCall(
   args: Record<string, unknown>,
   ctx: ConversationContext,
   agent: AgentConfig,
+  business?: BusinessConfig | null,
 ): Promise<string> {
   const startTime = Date.now();
   let result = "";
@@ -1091,7 +1108,10 @@ async function executeToolCall(
       }
 
       case "check_calendar": {
-        const { data: calResult } = await supabase.rpc("agent_check_calendar", {
+        // calendar_config.rpc_name permite trocar a RPC sem editar código (ex: novo provider)
+        const calendarRpc = (business?.calendar_config as { rpc_name?: string } | undefined)?.rpc_name
+          || "agent_check_calendar";
+        const { data: calResult } = await supabase.rpc(calendarRpc, {
           p_owner_id: ctx.sdr_owner_id,
           p_date_from: args.date_from as string,
           p_date_to: args.date_to as string,
@@ -1228,6 +1248,7 @@ async function callLLMWithTools(
   tools: ToolDefinition[],
   ctx: ConversationContext,
   agent: AgentConfig,
+  business?: BusinessConfig | null,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -1295,7 +1316,7 @@ async function callLLMWithTools(
 
       console.log(`[callLLMWithTools] Tool call: ${fnName}(${JSON.stringify(fnArgs).substring(0, 200)})`);
 
-      const toolResult = await executeToolCall(supabase, fnName, fnArgs, ctx, agent);
+      const toolResult = await executeToolCall(supabase, fnName, fnArgs, ctx, agent, business);
 
       messages.push({
         role: "tool",
@@ -1468,13 +1489,30 @@ async function runDataAgentLLM(
     .map((s) => `  - "${s.advance_to_stage_id}" (${s.stage_name}${s.advance_condition ? `, condicao: ${s.advance_condition}` : ""})`)
     .join("\n");
 
-  const allowedCardFields = isTraveler
+  // Só campos que REALMENTE existem no schema atual de cards.
+  // Dados como destino, número de viajantes, orçamento bruto, ocasião → vão em ai_resumo/ai_contexto
+  // (texto livre), não em colunas dedicadas — valor_estimado e produto_data são protected_fields
+  // e só a consultora humana edita depois do briefing.
+  const baseAllowedCardFields = isTraveler
     ? ["ai_resumo", "ai_contexto"]
-    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "destino", "data_ida", "data_volta", "numero_viajantes", "orcamento_estimado", "ocasiao_especial", "observacoes_ia"];
+    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "data_viagem_inicio", "data_viagem_fim"];
 
-  const allowedContactFields = isTraveler
+  // Se admin configurou auto_update_fields, restringir ainda mais (interseção)
+  const autoUpdateFields = business?.auto_update_fields || [];
+  const allowedCardFields = autoUpdateFields.length > 0
+    ? baseAllowedCardFields.filter((f) => autoUpdateFields.includes(f))
+    : baseAllowedCardFields;
+
+  // contact_update_fields do business_config se configurado, senão default razoável
+  const configContactFields = business?.contact_update_fields || [];
+  const defaultContactFields = isTraveler
     ? ["cpf", "passaporte", "data_nascimento", "email", "observacoes"]
     : ["nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento", "observacoes"];
+  const allowedContactFields = configContactFields.length > 0
+    ? (isTraveler
+        ? configContactFields.filter((f) => ["cpf","passaporte","data_nascimento","email","observacoes"].includes(f))
+        : configContactFields)
+    : defaultContactFields;
 
   const customData = agent.prompts_extra?.data_update;
   const dataBlock = `
@@ -1531,10 +1569,9 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - titulo (so se primary): "Viagem [Destino] - [Nome]". Ex: "Viagem Italia - Joao". Nao atualizar se ja tem titulo compativel.
 - cpf: so digitos, 11 caracteres.
 - passaporte: alfanumerico uppercase.
-- data_nascimento / data_ida / data_volta: YYYY-MM-DD.
-- numero_viajantes: inteiro.
-- orcamento_estimado: inteiro em BRL (aceitar "k" = mil).
+- data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
 - nome/sobrenome: primeira letra maiuscula.
+- Destino, número de viajantes, orcamento bruto, ocasião → NÃO têm coluna dedicada. Grave em ai_resumo/ai_contexto como texto livre; a consultora humana registra valores estruturados depois do briefing.
 
 ### Avanco de stage (so se NAO for traveler)
 - Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
@@ -1813,14 +1850,20 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
       };
     });
 
-  // Use tool calling for template-based agents
+  // Use tool calling for template-based agents.
+  // pipeline_models.main permite override de modelo/temp/max_tokens só pra etapa
+  // do persona — útil quando admin quer modelo mais inteligente só pra resposta
+  // ao cliente sem afetar context/data agents (que rodam em modelos baratos).
+  const personaModel = agent.pipeline_models?.main?.model || agent.modelo;
+  const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
+  const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
   const tools = await loadAgentTools(supabase, agent.id);
   return callLLMWithTools(
     supabase,
-    agent.modelo, agent.temperature, agent.max_tokens,
+    personaModel, personaTemp, personaMaxTok,
     personaPrompt, userMessage, history,
     tools,
-    ctx, agent,
+    ctx, agent, business,
   );
 }
 
@@ -1908,19 +1951,17 @@ SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 // 11. Pipeline Step: Formatter (split WhatsApp messages)
 // ---------------------------------------------------------------------------
 
-function formatWhatsAppMessages(text: string, maxBlocks = 3): string[] {
+// Heurística: fallback quando LLM formatter não está configurado ou falha
+function formatWhatsAppMessagesHeuristic(text: string, maxBlocks = 3): string[] {
   const cap = Math.max(1, Math.min(maxBlocks, 10));
 
-  // Se ja e curto, envia como esta
   if (text.length < 300) return [text.trim()];
 
-  // Tentar dividir por paragrafos (dupla quebra de linha)
   const paragraphs = text.split(/\n\n+/).filter((p) => p.trim());
   if (paragraphs.length >= 2 && paragraphs.length <= cap) {
     return paragraphs.map((p) => p.trim());
   }
 
-  // Se muitos paragrafos, agrupar em ate cap mensagens
   if (paragraphs.length > cap) {
     const perMsg = Math.ceil(paragraphs.length / cap);
     const msgs: string[] = [];
@@ -1930,17 +1971,81 @@ function formatWhatsAppMessages(text: string, maxBlocks = 3): string[] {
     return msgs.slice(0, cap);
   }
 
-  // Dividir por sentencas
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
   if (sentences.length <= cap) return sentences.map((s) => s.trim());
 
-  // Agrupar sentencas em ate cap mensagens
   const perMsg = Math.ceil(sentences.length / Math.min(cap, Math.ceil(sentences.length / 2)));
   const msgs: string[] = [];
   for (let i = 0; i < sentences.length; i += perMsg) {
     msgs.push(sentences.slice(i, i + perMsg).join(" ").trim());
   }
   return msgs.slice(0, cap);
+}
+
+// LLM formatter — paridade com "Format WhatsApp Messages" da Julia no n8n.
+// Divide em blocos naturais respeitando o prompt custom (prompts_extra.formatting)
+// e o model/temp de pipeline_models.formatter. Mantém markdown WhatsApp e quebra
+// perguntas em bloco separado. Se prompt custom for muito curto ou LLM falhar,
+// cai no heurístico.
+async function formatWhatsAppMessages(
+  text: string,
+  maxBlocks = 3,
+  agent?: AgentConfig,
+): Promise<string[]> {
+  const cap = Math.max(1, Math.min(maxBlocks, 10));
+
+  if (!text || !text.trim()) return [];
+  if (text.length < 150) return [text.trim()];
+
+  const customFormatter = agent?.prompts_extra?.formatting;
+  const formatterModel = agent?.pipeline_models?.formatter?.model;
+
+  const shouldUseLLM =
+    (customFormatter && customFormatter.trim().length > 80)
+    || !!formatterModel;
+
+  if (!shouldUseLLM) {
+    return formatWhatsAppMessagesHeuristic(text, cap);
+  }
+
+  const defaultFormatterPrompt = `Você divide respostas prontas em até ${cap} blocos naturais pra WhatsApp, sem alterar o conteúdo.
+
+REGRA DE OURO: NUNCA altere o texto. Só divida e aplique markdown do WhatsApp.
+
+Regras:
+1. Máximo ${cap} blocos — cada um legível, sem parágrafo longo.
+2. Se tiver pergunta no final, ela vai em bloco separado.
+3. Dentro de cada bloco: quebras de linha após pontuação pra separar ideias.
+4. Markdown WhatsApp: *negrito* (nunca **), ~tachado~, _itálico_ raro, \`link\`.
+5. Jamais deixe bloco vazio.
+
+Saída OBRIGATÓRIA em JSON:
+{ "messages": ["bloco1", "bloco2", "bloco3"] }
+
+Retorne APENAS o JSON. Nada mais.`;
+
+  const promptBody = customFormatter && customFormatter.trim().length > 80
+    ? customFormatter
+        .replace(/\{\{\s*cap\s*\}\}/g, String(cap))
+    : defaultFormatterPrompt;
+
+  const model = formatterModel || agent?.modelo || "gpt-4.1-mini";
+  const temperature = agent?.pipeline_models?.formatter?.temperature ?? 0.3;
+  const maxTokens = agent?.pipeline_models?.formatter?.max_tokens ?? 1024;
+
+  try {
+    const { response } = await callLLM(model, temperature, maxTokens, promptBody, text);
+    const cleaned = response.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    const msgs = parsed.messages;
+    if (Array.isArray(msgs) && msgs.length > 0 && msgs.every((m) => typeof m === "string" && m.trim().length > 0)) {
+      return msgs.slice(0, cap).map((m: string) => m.trim());
+    }
+    console.warn("[formatter] LLM returned invalid shape, using heuristic fallback");
+  } catch (err) {
+    console.warn("[formatter] LLM error, using heuristic fallback:", err);
+  }
+  return formatWhatsAppMessagesHeuristic(text, cap);
 }
 
 // ---------------------------------------------------------------------------
@@ -2273,13 +2378,9 @@ serve(async (req) => {
       );
     }
 
-    // Processar mídia (áudio/imagem/documento) se aplicável
+    // Placeholder temporário — agente é encontrado com isso antes de processar mídia,
+    // para que multimodal_config do agente possa ser respeitado no processamento.
     let processedText = messageTypeToPlaceholder(input.message_type, input.message_text);
-
-    if (input.media_url && input.message_type && input.message_type !== "text") {
-      processedText = await processMediaInline(input.message_type, input.media_url, input.message_text);
-      console.log(`[main] Media processed: ${input.message_type} → ${processedText.substring(0, 100)}...`);
-    }
 
     // ── 1. Encontrar agente ──
     const agent = await findAgentForLine(
@@ -2289,6 +2390,17 @@ serve(async (req) => {
       processedText,
       input.contact_phone,
     );
+
+    // Processar mídia (áudio/imagem/documento) se aplicável — respeitando multimodal_config do agente
+    if (input.media_url && input.message_type && input.message_type !== "text") {
+      processedText = await processMediaInline(
+        input.message_type,
+        input.media_url,
+        input.message_text,
+        agent?.multimodal_config,
+      );
+      console.log(`[main] Media processed: ${input.message_type} → ${processedText.substring(0, 100)}...`);
+    }
 
     if (!agent) {
       return new Response(
@@ -2364,10 +2476,15 @@ serve(async (req) => {
           processedText = combined;
           console.log(`[debounce] Combined ${buffered.length} messages into one (${combined.length} chars)`);
         }
-        // Process media from the last media message in buffer
+        // Process media from the last media message in buffer (respeita multimodal_config)
         const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
         if (lastMedia) {
-          const mediaContent = await processMediaInline(lastMedia.message_type, lastMedia.media_url, lastMedia.message_text);
+          const mediaContent = await processMediaInline(
+            lastMedia.message_type,
+            lastMedia.media_url,
+            lastMedia.message_text,
+            agent.multimodal_config,
+          );
           processedText = processedText + "\n" + mediaContent;
         }
       }
@@ -2389,7 +2506,7 @@ serve(async (req) => {
 
     // ── 6. Build context (paridade com "Historico Texto") ──
     const ctx = await buildConversationContext(
-      supabase, conversationId, contactId, agentConfig,
+      supabase, conversationId, contactId, agentConfig, agent.memory_config,
     );
 
     // ── 6b. Inbound pattern matcher (regra determinística antes da IA) ──
@@ -2422,7 +2539,7 @@ serve(async (req) => {
     const typingDelayMs = Math.round((agent.timings?.typing_delay_seconds ?? 1.5) * 1000);
 
     if (escalated) {
-      const msgs = formatWhatsAppMessages(escalationMsg, maxBlocks);
+      const msgs = await formatWhatsAppMessages(escalationMsg, maxBlocks, agent);
       await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
@@ -2460,7 +2577,7 @@ serve(async (req) => {
     const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
 
     // ── Step 5: Formatter ──
-    const messages = formatWhatsAppMessages(validatedResponse, maxBlocks);
+    const messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
 
     // ═══════════════════════════════════════════════════════════════════
 
