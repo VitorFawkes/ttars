@@ -89,6 +89,7 @@ interface AgentConfig {
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
   timings?: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
+  test_mode_phone_whitelist?: string[] | null;
 }
 
 interface BusinessCustomBlock {
@@ -403,7 +404,8 @@ async function findAgentForLine(
         memory_config, fallback_message, fallback_agent_id,
         n8n_webhook_url, template_id, is_template_based, ativa,
         handoff_signals, intelligent_decisions, prompts_extra,
-        pipeline_models, timings, validator_rules
+        pipeline_models, timings, validator_rules,
+        test_mode_phone_whitelist
       )
     `)
     .in("phone_line_id", lineIds)
@@ -725,16 +727,22 @@ async function buildConversationContext(
     .eq("id", contactId)
     .single();
 
-  // Buscar card ativo
+  // Buscar card ativo. Colunas reais: pessoa_principal_id (não contato_principal_id),
+  // dono_atual_id/sdr_owner_id (não responsavel_id); não existe cards.status (usar estado_operacional).
   const { data: cards } = await supabase
     .from("cards")
-    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, responsavel_id, produto_data")
-    .eq("contato_principal_id", contactId)
-    .in("status", ["aberto", "novo"])
+    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional")
+    .eq("pessoa_principal_id", contactId)
+    .is("archived_at", null)
+    .is("deleted_at", null)
+    .neq("estado_operacional", "encerrado")
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const card = cards?.[0] || null;
+  const cardRow = cards?.[0] || null;
+  const card = cardRow
+    ? { ...cardRow, responsavel_id: cardRow.dono_atual_id || cardRow.sdr_owner_id || null }
+    : null;
 
   // Buscar historico de turns da conversa AI
   const { data: turns } = await supabase
@@ -1915,6 +1923,7 @@ async function sendResponse(
   messages: string[],
   phoneNumberId?: string,
   typingDelayMs = 1500,
+  testWhitelist?: string[] | null,
 ): Promise<void> {
   const echoApiUrl = Deno.env.get("ECHO_API_URL");
   const echoApiKey = Deno.env.get("ECHO_API_KEY");
@@ -1927,6 +1936,32 @@ async function sendResponse(
 
   const resolvedPhoneId = phoneNumberId || defaultPhoneId;
   const normalizedPhone = contactPhone.replace(/\D/g, "");
+
+  if (testWhitelist && testWhitelist.length > 0) {
+    const normalizedWhitelist = testWhitelist.map((p) => p.replace(/\D/g, ""));
+    if (!normalizedWhitelist.includes(normalizedPhone)) {
+      console.warn(
+        `[sendResponse] BLOCKED by test_mode_phone_whitelist: to=${normalizedPhone} allowed=${JSON.stringify(normalizedWhitelist)}`,
+      );
+      await supabase.from("whatsapp_messages").insert({
+        contact_id: contactId,
+        card_id: cardId || null,
+        body: messages.join("\n\n"),
+        direction: "outbound",
+        is_from_me: true,
+        type: "text",
+        status: "blocked_test_mode",
+        sender_phone: normalizedPhone,
+        sent_by_user_name: "Luna IA (blocked)",
+        metadata: {
+          source: "ai_agent",
+          blocked_reason: "test_mode_phone_whitelist",
+          allowed_phones: normalizedWhitelist,
+        },
+      });
+      return;
+    }
+  }
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -2356,7 +2391,7 @@ serve(async (req) => {
 
     if (escalated) {
       const msgs = formatWhatsAppMessages(escalationMsg, maxBlocks);
-      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -2419,7 +2454,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
 
     return new Response(
       JSON.stringify({

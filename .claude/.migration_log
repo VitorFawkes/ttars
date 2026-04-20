@@ -536,3 +536,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T17:18:17Z | supabase/migrations/20260420k_contato_principal_completo_sem_email_rebase.sql | applied_to_prod
 2026-04-20T17:20:19Z | supabase/migrations/20260420k_analytics_fix_org_isolation_funil.sql | applied_to_prod
 2026-04-20T17:42:03Z | supabase/migrations/20260420l_top_destinations_from_cards.sql | applied_to_prod
+2026-04-20T18:10:05Z | supabase/migrations/20260420m_funnel_velocity_cap_outliers.sql | applied_to_prod
+2026-04-20T18:10:15Z | supabase/migrations/20260420n_team_sla_ignore_no_config.sql | applied_to_prod
+2026-04-20T18:41:15Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260420m_ai_agents_test_whitelist.sql | applied_to_prod

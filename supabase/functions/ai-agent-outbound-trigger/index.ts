@@ -256,12 +256,32 @@ serve(async (req) => {
           continue;
         }
 
-        // 3. Check business hours
+        // 3. Check business hours + test-mode whitelist
         const { data: agentRow } = await supabase
           .from("ai_agents")
-          .select("outbound_trigger_config")
+          .select("outbound_trigger_config, test_mode_phone_whitelist")
           .eq("id", item.agent_id)
           .single();
+
+        const testWhitelist = (agentRow as { test_mode_phone_whitelist?: string[] | null } | null)
+          ?.test_mode_phone_whitelist;
+
+        if (testWhitelist && testWhitelist.length > 0) {
+          const normalizedTarget = normalizePhone(item.contact_phone);
+          const normalizedWhitelist = testWhitelist.map((p) => p.replace(/\D/g, ""));
+          if (!normalizedWhitelist.includes(normalizedTarget)) {
+            console.warn(
+              `[ai-agent-outbound-trigger] BLOCKED by test_mode_phone_whitelist: to=${normalizedTarget} allowed=${JSON.stringify(normalizedWhitelist)}`,
+            );
+            await supabase.rpc("complete_outbound_queue_item", {
+              p_queue_id: item.queue_id,
+              p_status: "skipped",
+              p_error: "blocked_by_test_mode_phone_whitelist",
+            });
+            results.push({ queue_id: item.queue_id, status: "skipped", error: "blocked_by_test_mode" });
+            continue;
+          }
+        }
 
         const bizHours = (agentRow?.outbound_trigger_config as Record<string, unknown>)
           ?.business_hours as BusinessHoursConfig | undefined;
