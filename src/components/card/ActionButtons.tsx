@@ -7,6 +7,7 @@ import { useCreateProposal } from '@/hooks/useProposal'
 import { useAuth } from '@/contexts/AuthContext'
 import { useArchiveCard } from '@/hooks/useArchiveCard'
 import { useAIExtractionReview } from '@/hooks/useAIExtractionReview'
+import { useAIConversationExtraction } from '@/hooks/useAIConversationExtraction'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,6 +18,7 @@ import DeleteCardModal from './DeleteCardModal'
 import BriefingIAModal from './BriefingIAModal'
 import TranscriptionIAModal from './TranscriptionIAModal'
 import AIExtractionReviewModal from './AIExtractionReviewModal'
+import AIConversationReviewModal from './AIConversationReviewModal'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -48,7 +50,23 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     const [showBriefingIA, setShowBriefingIA] = useState(false)
     const [showTranscriptionIA, setShowTranscriptionIA] = useState(false)
     const [showAIReview, setShowAIReview] = useState(false)
+    const [showAIConversation, setShowAIConversation] = useState(false)
     const aiReview = useAIExtractionReview(card.id)
+    const aiConversation = useAIConversationExtraction(card.id)
+
+    // Conta mensagens do card para habilitar botão "IA lê conversa"
+    const { data: whatsappMessageCount = 0 } = useQuery({
+        queryKey: ['whatsapp-message-count', card.id],
+        queryFn: async () => {
+            const { count } = await supabase
+                .from('whatsapp_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('card_id', card.id)
+            return count || 0
+        },
+        enabled: !!card.id,
+        staleTime: 30_000,
+    })
 
     // Auto-close review modal when extraction finishes without preview (no_update, wrong_trip, etc.)
     // Or after applying fields (with preview) — brief delay to show success state
@@ -67,6 +85,21 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
             return () => clearTimeout(timer)
         }
     }, [showAIReview, aiReview.step, aiReview.preview])
+
+    // Auto-close conversation modal após done sem preview ou 1.5s após apply
+    useEffect(() => {
+        if (!showAIConversation || aiConversation.step !== 'done') return
+        if (!aiConversation.preview) {
+            setShowAIConversation(false)
+            aiConversation.reset()
+        } else {
+            const timer = setTimeout(() => {
+                setShowAIConversation(false)
+                aiConversation.reset()
+            }, 1500)
+            return () => clearTimeout(timer)
+        }
+    }, [showAIConversation, aiConversation.step, aiConversation.preview])
 
     const { archive, isArchiving } = useArchiveCard({
         onSuccess: () => navigate('/pipeline')
@@ -323,9 +356,17 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     <DropdownMenuTrigger asChild>
                         <button
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors text-xs font-medium"
-                            disabled={aiReview.step === 'extracting' || aiReview.step === 'applying'}
+                            disabled={
+                                aiReview.step === 'extracting' ||
+                                aiReview.step === 'applying' ||
+                                aiConversation.step === 'extracting' ||
+                                aiConversation.step === 'applying'
+                            }
                         >
-                            {aiReview.step === 'extracting' || aiReview.step === 'applying' ? (
+                            {aiReview.step === 'extracting' ||
+                            aiReview.step === 'applying' ||
+                            aiConversation.step === 'extracting' ||
+                            aiConversation.step === 'applying' ? (
                                 <>
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     IA analisando...
@@ -342,15 +383,24 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem
                             onClick={() => {
-                                aiReview.extractPreview('whatsapp')
-                                setShowAIReview(true)
+                                if (whatsappMessageCount < 3) {
+                                    toast.info('A conversa ainda está curta — aguarde mais mensagens para a IA analisar.')
+                                    return
+                                }
+                                setShowAIConversation(true)
+                                aiConversation.extract()
                             }}
+                            disabled={whatsappMessageCount < 3}
                             className="flex items-center gap-2 cursor-pointer"
                         >
                             <MessageSquare className="h-4 w-4 text-green-600" />
-                            <div>
+                            <div className="flex-1">
                                 <div className="text-sm font-medium">Ler conversa WhatsApp</div>
-                                <div className="text-xs text-slate-500">Julia analisa as mensagens</div>
+                                <div className="text-xs text-slate-500">
+                                    {whatsappMessageCount < 3
+                                        ? 'Precisa de pelo menos 3 mensagens'
+                                        : 'Preenche viagem, contato e acompanhantes'}
+                                </div>
                             </div>
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -522,6 +572,15 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 preview={aiReview.preview}
                 onApply={(decisions, approveBriefing) => aiReview.applyDecisions(decisions, approveBriefing)}
                 onCancel={() => { setShowAIReview(false); aiReview.reset() }}
+            />
+
+            <AIConversationReviewModal
+                isOpen={showAIConversation}
+                onClose={() => { setShowAIConversation(false); aiConversation.reset() }}
+                step={aiConversation.step}
+                preview={aiConversation.preview}
+                onApply={(decisions) => aiConversation.apply(decisions)}
+                onCancel={() => { setShowAIConversation(false); aiConversation.reset() }}
             />
         </>
     )

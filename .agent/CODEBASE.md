@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-20
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 179 tabelas | 88 paginas | 144 hooks | 17 views | 565 components
+> **Stats:** 179 tabelas | 88 paginas | 145 hooks | 17 views | 566 components
 =======
-> **Stats:** 179 tabelas | 88 paginas | 144 hooks | 17 views | 565 components
+> **Stats:** 179 tabelas | 88 paginas | 145 hooks | 17 views | 566 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,11 +173,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **144 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **145 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
 |------|------|
+| `useAIConversationExtraction()` | `useAIConversationExtraction.ts` |
 | `useAIExtract()` | `useAIExtract.ts` |
 | `useAIExtraction()` | `useAIExtraction.ts` |
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
