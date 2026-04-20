@@ -1,8 +1,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2, LayoutList, ShieldAlert, AlertCircle, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2, LayoutList, ShieldAlert, AlertCircle, UserCheck, type LucideIcon } from 'lucide-react'
 import { createElement } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../../lib/supabase'
+import { toast } from 'sonner'
+import OwnerSelector from '../pipeline/OwnerSelector'
 import type { MissingRequirement } from '../../hooks/useQualityGate'
 
 interface QualityGateModalProps {
@@ -17,8 +21,6 @@ interface QualityGateModalProps {
 }
 
 // --- Config map: defines how each requirement type renders ---
-// Adding a new type here is all that's needed for visual support.
-// Types NOT in this map still render with a fallback style.
 interface TypeConfig {
     title: string
     icon: LucideIcon
@@ -75,6 +77,15 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
         dot: 'bg-amber-500',
         titleColor: 'text-amber-700',
     },
+    team_member: {
+        title: 'Responsáveis Obrigatórios',
+        icon: UserCheck,
+        bg: 'bg-indigo-50',
+        border: 'border-indigo-100',
+        text: 'text-indigo-800',
+        dot: 'bg-indigo-500',
+        titleColor: 'text-indigo-700',
+    },
 }
 
 const FALLBACK_CONFIG: TypeConfig = {
@@ -87,6 +98,13 @@ const FALLBACK_CONFIG: TypeConfig = {
     titleColor: 'text-gray-700',
 }
 
+const TEAM_ROLE_TO_OWNER_COLUMN: Record<string, string> = {
+    sdr: 'sdr_owner_id',
+    planner: 'vendas_owner_id',
+    pos_venda: 'pos_owner_id',
+    concierge: 'concierge_owner_id',
+}
+
 export default function QualityGateModal({
     isOpen,
     onClose,
@@ -96,11 +114,35 @@ export default function QualityGateModal({
     context = 'kanban',
 }: QualityGateModalProps) {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
 
     const handleOpenCard = () => {
         onClose()
         navigate(`/cards/${cardId}`)
     }
+
+    const assignOwnerMutation = useMutation({
+        mutationFn: async ({ role, userId }: { role: string; userId: string | null }) => {
+            const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[role]
+            if (!ownerCol) throw new Error(`Role desconhecida: ${role}`)
+
+            const { error } = await supabase
+                .from('cards')
+                .update({ [ownerCol]: userId })
+                .eq('id', cardId)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            toast.success('Responsável atribuído')
+            queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['card-team-roles', cardId] })
+        },
+        onError: (error: Error) => {
+            toast.error('Erro ao atribuir responsável: ' + error.message)
+        }
+    })
 
     // Group requirements by type, preserving insertion order
     const grouped = new Map<string, MissingRequirement[]>()
@@ -110,9 +152,11 @@ export default function QualityGateModal({
         grouped.set(req.type, list)
     }
 
+    const remainingCount = missingRequirements.length
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[450px]">
+            <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-amber-600">
                         <AlertTriangle className="h-5 w-5" />
@@ -137,25 +181,53 @@ export default function QualityGateModal({
                                     {createElement(config.icon, { className: 'w-4 h-4' })}
                                     {config.title}
                                 </div>
-                                <ul className="space-y-1.5">
-                                    {items.map((item, idx) => (
-                                        <li
-                                            key={idx}
-                                            className={`flex items-center gap-2 text-sm ${config.text}`}
-                                        >
-                                            <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
-                                            {item.label}
-                                            {item.detail && (
-                                                <span className="text-xs opacity-70">({item.detail})</span>
-                                            )}
-                                        </li>
-                                    ))}
+                                <ul className="space-y-2">
+                                    {items.map((item, idx) => {
+                                        if (item.type === 'team_member' && item.required_team_role) {
+                                            return (
+                                                <li key={idx} className="flex items-center justify-between gap-3">
+                                                    <div className={`flex items-center gap-2 text-sm ${config.text}`}>
+                                                        <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
+                                                        {item.label}
+                                                    </div>
+                                                    <div className="min-w-[180px]">
+                                                        <OwnerSelector
+                                                            value={null}
+                                                            onChange={(userId) => {
+                                                                if (!userId) return
+                                                                assignOwnerMutation.mutate({
+                                                                    role: item.required_team_role!,
+                                                                    userId,
+                                                                })
+                                                            }}
+                                                            phaseSlug={item.required_team_role}
+                                                            placeholder="Selecionar…"
+                                                            compact
+                                                        />
+                                                    </div>
+                                                </li>
+                                            )
+                                        }
+
+                                        return (
+                                            <li
+                                                key={idx}
+                                                className={`flex items-center gap-2 text-sm ${config.text}`}
+                                            >
+                                                <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
+                                                {item.label}
+                                                {item.detail && (
+                                                    <span className="text-xs opacity-70">({item.detail})</span>
+                                                )}
+                                            </li>
+                                        )
+                                    })}
                                 </ul>
                             </div>
                         )
                     })}
 
-                    {context === 'kanban' && (
+                    {context === 'kanban' && remainingCount > 0 && (
                         <p className="text-xs text-gray-500">
                             Acesse a página do card para atender os requisitos necessários.
                         </p>
@@ -168,7 +240,7 @@ export default function QualityGateModal({
                             onClick={onClose}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
-                            Entendi
+                            {remainingCount === 0 ? 'Fechar' : 'Entendi'}
                         </Button>
                     ) : (
                         <>

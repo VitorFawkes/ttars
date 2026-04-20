@@ -38,6 +38,7 @@ export interface MissingRequirement {
     type: RequirementType | string  // string allows future types without code changes
     label: string
     detail?: string  // e.g. "(concluída)", "Enviada", "2/3 recebidos"
+    required_team_role?: TeamRole  // set when type === 'team_member', lets the modal render inline picker
 }
 
 interface ValidationResult {
@@ -358,7 +359,8 @@ export function useQualityGate(pipelineId?: string) {
                         missing.push({
                             type: 'team_member',
                             label: rule.label,
-                            detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole]
+                            detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole],
+                            required_team_role: rule.required_team_role as TeamRole,
                         })
                     }
                 }
@@ -475,7 +477,8 @@ export function useQualityGate(pipelineId?: string) {
                     missing.push({
                         type: 'team_member',
                         label: rule.label,
-                        detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole]
+                        detail: TEAM_ROLE_LABELS[rule.required_team_role as TeamRole],
+                        required_team_role: rule.required_team_role as TeamRole,
                     })
                 }
             }

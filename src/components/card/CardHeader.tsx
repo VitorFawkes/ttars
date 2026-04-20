@@ -1722,7 +1722,11 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             <QualityGateModal
                 isOpen={qualityGateModalOpen}
                 onClose={() => setQualityGateModalOpen(false)}
-                missingRequirements={pendingStageChange?.missingRequirements || missingBlocking.map(r => ({ type: r.requirement_type, label: r.label }))}
+                missingRequirements={pendingStageChange?.missingRequirements || missingBlocking.map(r => ({
+                    type: r.requirement_type,
+                    label: r.label,
+                    required_team_role: r.requirement_type === 'team_member' ? r.required_team_role : undefined,
+                }))}
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || currentStage?.nome || ''}
                 cardId={card.id!}
