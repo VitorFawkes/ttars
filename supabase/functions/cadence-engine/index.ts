@@ -975,19 +975,14 @@ async function executeSendMessageAction(
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
         .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
 
-    // Resolver phone_number_id (default = primeira linha ativa)
-    let resolvedPhoneId = phoneNumberId || defaultEchoPhoneId;
+    // Resolver phone_number_id.
+    // Sprint B: automation DEVE carregar phone_number_id em action_config.
+    // CHECK + trigger no banco bloqueiam INSERT sem linha. Mantemos
+    // defaultEchoPhoneId (env) como último recurso para contextos não-automation
+    // (ex: cadence_steps chamando send_message direto, uso operacional manual).
+    const resolvedPhoneId = phoneNumberId || defaultEchoPhoneId;
     if (!resolvedPhoneId) {
-        const { data: linha } = await supabaseClient
-            .from("whatsapp_linha_config")
-            .select("phone_number_id")
-            .eq("ativo", true)
-            .limit(1)
-            .single();
-        resolvedPhoneId = linha?.phone_number_id || "";
-    }
-    if (!resolvedPhoneId) {
-        throw new Error("phone_number_id não pôde ser resolvido");
+        throw new Error("phone_number_id ausente — automação precisa escolher uma linha WhatsApp explicitamente no builder");
     }
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");

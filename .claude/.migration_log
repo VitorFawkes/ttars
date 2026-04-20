@@ -518,3 +518,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T13:28:16Z | supabase/migrations/20260420a_fix_field_changed_trigger_array_concat.sql | applied_to_prod
 2026-04-20T14:21:29Z | supabase/migrations/20260420a_sprint_a_automations_cleanup.sql | applied_to_prod
 2026-04-20T14:22:23Z | supabase/migrations/20260420a_sprint_a_automations_cleanup.sql | applied_to_prod
+2026-04-20T14:30:39Z | supabase/migrations/20260420b_contato_name_lock_and_helper.sql | applied_to_prod
+2026-04-20T14:31:45Z | supabase/migrations/20260420c_criar_card_echo_update_weak_name.sql | applied_to_prod
+2026-04-20T14:31:57Z | supabase/migrations/20260420d_process_whatsapp_update_weak_name.sql | applied_to_prod
+2026-04-20T14:32:10Z | supabase/migrations/20260420e_enable_whatsapp_update_contact.sql | applied_to_prod
+2026-04-20T14:32:43Z | supabase/migrations/20260420e_enable_whatsapp_update_contact.sql | applied_to_prod
+2026-04-20T14:33:50Z | supabase/migrations/20260420b_sprint_b_whatsapp_line_required.sql | applied_to_prod

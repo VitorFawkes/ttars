@@ -23,6 +23,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useCardTags } from '@/hooks/useCardTags'
 import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '@/hooks/useWhatsAppTemplates'
+import { useWhatsAppLinhas, isOfficialMetaLine, type WhatsAppLinha } from '@/hooks/useWhatsAppLinhas'
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
   ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS, FIELD_CHANGED_OPTIONS,
@@ -360,54 +361,93 @@ function HsmTemplatePicker({
 }
 
 function SendMessageEditor({
-  form, setForm, templates, waTemplates, waTemplatesLoading,
+  form, setForm, templates, waTemplates, waTemplatesLoading, linhas, linhasLoading,
 }: {
   form: FormState
   setForm: (next: Partial<FormState>) => void
   templates: Array<{ id: string; nome: string; categoria: string; corpo: string | null }>
   waTemplates: WhatsAppTemplate[]
   waTemplatesLoading: boolean
+  linhas: WhatsAppLinha[]
+  linhasLoading: boolean
 }) {
   const proactive = isProactiveEvent(form.event_type)
+  const selectedLinha = useMemo(
+    () => linhas.find((l) => l.phone_number_id === form.phone_number_id) || null,
+    [linhas, form.phone_number_id]
+  )
+  const linhaIsOfficial = selectedLinha ? isOfficialMetaLine(selectedLinha.phone_number_id) : false
+  // Linha oficial Meta + gatilho proativo = texto livre cai no buraco 131047.
+  // Trigger no banco rejeita o save; aqui a UI força o modo HSM pra evitar o erro.
+  const forceHsm = linhaIsOfficial && proactive
+
+  useEffect(() => {
+    if (forceHsm && form.message_mode !== 'hsm') {
+      setForm({ message_mode: 'hsm' })
+    }
+  }, [forceHsm, form.message_mode, setForm])
 
   return (
     <div className="space-y-4">
-      {proactive && form.message_mode !== 'hsm' && (
-        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-amber-900">
-            <strong>Atenção:</strong> gatilho proativo ({EVENT_TYPE_LABELS[form.event_type]}) dispara sem conversa recente.
-            O WhatsApp <strong>drops mensagem de texto livre</strong> se estiver fora da janela de 24h.
-            Use um <strong>template HSM aprovado</strong> para garantir entrega.
-            <button
-              className="ml-1 underline"
-              onClick={() => setForm({ message_mode: 'hsm' })}
-            >
-              Trocar para HSM
-            </button>
+      <div className="space-y-2">
+        <Label>Linha WhatsApp</Label>
+        <Select
+          value={form.phone_number_id || ''}
+          onChange={(v) => setForm({ phone_number_id: v || null })}
+          disabled={linhasLoading}
+          options={[
+            { value: '', label: linhasLoading ? 'Carregando...' : linhas.length === 0 ? 'Nenhuma linha ativa' : 'Selecione de qual linha a mensagem sai' },
+            ...linhas.map((l) => ({
+              value: l.phone_number_id || '',
+              label: `${l.phone_number_label} — ${isOfficialMetaLine(l.phone_number_id) ? 'Oficial Meta' : 'Não-oficial'}`,
+            })),
+          ]}
+        />
+        {selectedLinha && (
+          <div className="flex items-center gap-2 text-xs">
+            <Badge variant={linhaIsOfficial ? 'default' : 'secondary'}>
+              {linhaIsOfficial ? 'Oficial Meta' : 'Não-oficial (Echo/ChatPro)'}
+            </Badge>
+            <span className="text-slate-500">
+              {linhaIsOfficial
+                ? (proactive
+                    ? 'Gatilho proativo + linha oficial: só template Meta aprovado.'
+                    : 'Gatilho reativo: cliente acabou de escrever, qualquer texto entrega.')
+                : 'Texto livre ou template — qualquer modo entrega.'}
+            </span>
           </div>
-        </div>
-      )}
+        )}
+        {!form.phone_number_id && (
+          <p className="text-xs text-amber-700 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Escolha uma linha — sem isso a mensagem não pode sair.
+          </p>
+        )}
+      </div>
 
       <div className="flex items-center gap-2 flex-wrap">
         {([
-          { key: 'hsm', label: 'Template HSM', icon: ShieldCheck, hint: 'Funciona sempre' },
-          { key: 'template', label: 'Template salvo', icon: MessageSquare, hint: 'Texto livre' },
-          { key: 'custom', label: 'Texto direto', icon: Sparkles, hint: 'Texto livre' },
+          { key: 'hsm', label: 'Template HSM', icon: ShieldCheck, hint: 'Aprovado pela Meta' },
+          { key: 'template', label: 'Template salvo', icon: MessageSquare, hint: 'Texto livre salvo' },
+          { key: 'custom', label: 'Texto direto', icon: Sparkles, hint: 'Texto livre inline' },
         ] as const).map((opt) => {
           const Icon = opt.icon
           const active = form.message_mode === opt.key
+          const disabled = forceHsm && opt.key !== 'hsm'
           return (
             <button
               key={opt.key}
-              onClick={() => setForm({ message_mode: opt.key })}
+              onClick={() => { if (!disabled) setForm({ message_mode: opt.key }) }}
+              disabled={disabled}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border',
                 active
                   ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  : disabled
+                    ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               )}
-              title={opt.hint}
+              title={disabled ? 'Linha oficial Meta + gatilho proativo: só template aprovado' : opt.hint}
             >
               <Icon className="w-3.5 h-3.5" />
               {opt.label}
@@ -1351,6 +1391,7 @@ export default function AutomationBuilderPage() {
   const userOptions: Array<{ id: string; nome_completo: string }> = (users || []).map((u: { id: string; nome: string }) => ({ id: u.id, nome_completo: u.nome }))
   const { templates: messageTemplates } = useMensagemTemplates(currentProduct || undefined)
   const { data: waTemplates = [], isLoading: waTemplatesLoading } = useWhatsAppTemplates(null)
+  const { data: waLinhas = [], isLoading: waLinhasLoading } = useWhatsAppLinhas(currentProduct)
   const { tags: cardTags } = useCardTags(currentProduct || undefined)
 
   const [step, setStep] = useState<Step>(isNew ? 'gallery' : 'editor')
@@ -1483,6 +1524,7 @@ export default function AutomationBuilderPage() {
   const validate = (): string | null => {
     if (!form.name.trim()) return 'Dê um nome à automação'
     if (form.action_type === 'send_message') {
+      if (!form.phone_number_id) return 'Escolha de qual linha WhatsApp a mensagem sai'
       if (form.message_mode === 'hsm' && !form.hsm_template_name) return 'Selecione um template HSM aprovado'
       if (form.message_mode === 'template' && !form.template_id) return 'Selecione um template'
       if (form.message_mode === 'custom' && !form.message_body.trim()) return 'Escreva o texto da mensagem'
@@ -1895,6 +1937,8 @@ export default function AutomationBuilderPage() {
               templates={messageTemplates}
               waTemplates={waTemplates}
               waTemplatesLoading={waTemplatesLoading}
+              linhas={waLinhas}
+              linhasLoading={waLinhasLoading}
             />
           )}
           {form.action_type === 'create_task' && (
