@@ -46,9 +46,10 @@ export interface AutomationItem {
 
 export function useAutomations() {
   const queryClient = useQueryClient()
+  const { pipelineId } = useCurrentProductMeta()
 
   const query = useQuery({
-    queryKey: ['automations-hub'],
+    queryKey: ['automations-hub', pipelineId ?? 'all'],
     queryFn: async (): Promise<AutomationItem[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabelas não tipadas
       const sb = supabase as any
@@ -56,12 +57,12 @@ export function useAutomations() {
       const [triggersRes, templatesRes, instancesRes, entryLogsRes] = await Promise.all([
         sb
           .from('cadence_event_triggers')
-          .select('id, name, event_type, action_type, is_active, created_at, updated_at, target_template_id, action_config')
+          .select('id, name, event_type, action_type, is_active, created_at, updated_at, target_template_id, action_config, applicable_pipeline_ids, applicable_stage_ids')
           .in('action_type', ['send_message', 'create_task', 'change_stage', 'start_cadence'])
           .order('created_at', { ascending: false }),
         sb
           .from('cadence_templates')
-          .select('id, name, description, is_active, execution_mode, created_at, updated_at')
+          .select('id, name, description, is_active, execution_mode, created_at, updated_at, applicable_stages')
           .order('created_at', { ascending: false }),
         sb.from('cadence_instances').select('template_id, status'),
         sb
@@ -73,6 +74,37 @@ export function useAutomations() {
 
       if (triggersRes.error) throw triggersRes.error
       if (templatesRes.error) throw templatesRes.error
+
+      // Isolamento por produto: mapeia stage_id → pipeline_id para poder filtrar templates
+      // cujo applicable_stages pertence ao pipeline atual.
+      const allStageIds = Array.from(new Set([
+        ...(triggersRes.data || []).flatMap((t: { applicable_stage_ids: string[] | null }) => t.applicable_stage_ids || []),
+        ...(templatesRes.data || []).flatMap((t: { applicable_stages: string[] | null }) => t.applicable_stages || []),
+      ]))
+      const stagesRes = allStageIds.length > 0
+        ? await sb.from('pipeline_stages').select('id, pipeline_id').in('id', allStageIds)
+        : { data: [] }
+      const stagePipelineMap = new Map<string, string>(
+        (stagesRes.data || []).map((s: { id: string; pipeline_id: string }) => [s.id, s.pipeline_id])
+      )
+
+      const belongsToCurrentPipeline = (scope: {
+        applicable_pipeline_ids?: string[] | null
+        applicable_stage_ids?: string[] | null
+        applicable_stages?: string[] | null
+      }): boolean => {
+        if (!pipelineId) return true
+        const pipelines = scope.applicable_pipeline_ids
+        if (pipelines && pipelines.length > 0) {
+          return pipelines.includes(pipelineId)
+        }
+        const stages = scope.applicable_stage_ids || scope.applicable_stages
+        if (stages && stages.length > 0) {
+          return stages.some((sid: string) => stagePipelineMap.get(sid) === pipelineId)
+        }
+        // Sem escopo definido: automação global — aparece em todos os produtos da org.
+        return true
+      }
 
       // Contar instâncias por template
       const instByTemplate = new Map<string, { active: number; completed: number }>()
@@ -126,7 +158,9 @@ export function useAutomations() {
           .filter((id: string | null): id is string => Boolean(id))
       )
 
-      const triggers: AutomationItem[] = (triggersRes.data || []).map((t: {
+      const triggersFiltered = (triggersRes.data || []).filter(belongsToCurrentPipeline)
+
+      const triggers: AutomationItem[] = triggersFiltered.map((t: {
         id: string; name: string | null; event_type: string; action_type: string;
         is_active: boolean; created_at: string; updated_at: string | null;
         target_template_id: string | null;
@@ -153,6 +187,7 @@ export function useAutomations() {
 
       const templates: AutomationItem[] = (templatesRes.data || [])
         .filter((tpl: { id: string }) => !consumedTemplateIds.has(tpl.id))
+        .filter(belongsToCurrentPipeline)
         .map((tpl: {
           id: string; name: string; description: string | null; is_active: boolean;
           execution_mode: 'linear' | 'blocks' | null;
