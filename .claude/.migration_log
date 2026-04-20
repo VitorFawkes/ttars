@@ -528,3 +528,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T14:44:04Z | supabase/migrations/20260420c_sprint_c_cadence_event_triggers_cross_org_guard.sql | applied_to_prod
 2026-04-20T14:46:31Z | supabase/migrations/20260420f_analytics_reform_foundation.sql | applied_to_prod
 2026-04-20T14:51:06Z | supabase/migrations/20260420d_criar_sub_card_bloqueia_fora_pos_venda.sql | applied_to_prod
+2026-04-20T15:07:32Z | supabase/migrations/20260420g_ai_conversation_extraction_backend.sql | applied_to_prod
+2026-04-20T15:08:14Z | supabase/migrations/20260420g_ai_conversation_extraction_backend.sql | applied_to_prod
+2026-04-20T15:10:57Z | supabase/migrations/20260420d_sprint_d_motor_temporal.sql | applied_to_prod
