@@ -516,3 +516,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T02:33:17Z | supabase/migrations/20260419d_automations_sprint3_triggers.sql | applied_to_prod
 2026-04-20T02:56:25Z | supabase/migrations/20260419e_automations_inbound_message_pattern.sql | applied_to_prod
 2026-04-20T13:28:16Z | supabase/migrations/20260420a_fix_field_changed_trigger_array_concat.sql | applied_to_prod
+2026-04-20T14:21:29Z | supabase/migrations/20260420a_sprint_a_automations_cleanup.sql | applied_to_prod
+2026-04-20T14:22:23Z | supabase/migrations/20260420a_sprint_a_automations_cleanup.sql | applied_to_prod

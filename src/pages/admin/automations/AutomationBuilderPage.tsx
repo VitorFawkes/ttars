@@ -133,12 +133,6 @@ const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'tag_added', label: EVENT_TYPE_LABELS.tag_added },
   { value: 'tag_removed', label: EVENT_TYPE_LABELS.tag_removed },
   { value: 'inbound_message_pattern', label: EVENT_TYPE_LABELS.inbound_message_pattern },
-  { value: 'dias_antes_viagem', label: EVENT_TYPE_LABELS.dias_antes_viagem },
-  { value: 'dias_apos_viagem', label: EVENT_TYPE_LABELS.dias_apos_viagem },
-  { value: 'aniversario_contato', label: EVENT_TYPE_LABELS.aniversario_contato },
-  { value: 'proposta_expirada', label: EVENT_TYPE_LABELS.proposta_expirada },
-  { value: 'dias_no_stage', label: EVENT_TYPE_LABELS.dias_no_stage },
-  { value: 'card_won', label: EVENT_TYPE_LABELS.card_won },
 ]
 
 const TASK_TIPO_OPTIONS = [
@@ -1134,11 +1128,7 @@ function EventConfigEditor({
   tags: Array<{ id: string; name: string; color: string | null }>
   pipelineId: string | null | undefined
 }) {
-  const needsStages = form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage'
-  const needsDays =
-    form.event_type === 'dias_antes_viagem' ||
-    form.event_type === 'dias_apos_viagem' ||
-    form.event_type === 'dias_no_stage'
+  const needsStages = form.event_type === 'stage_enter'
   const needsPhase = form.event_type === 'macro_stage_enter'
   const needsField = form.event_type === 'field_changed'
   const needsTag = form.event_type === 'tag_added' || form.event_type === 'tag_removed'
@@ -1165,9 +1155,7 @@ function EventConfigEditor({
 
       {needsStages && (
         <div>
-          <Label>
-            {form.event_type === 'stage_enter' ? 'Em qual(is) etapa(s)?' : 'Em qual etapa o card está parado?'}
-          </Label>
+          <Label>Em qual(is) etapa(s)?</Label>
           <div className="flex flex-wrap gap-2">
             {stages.map((s) => {
               const active = form.stage_ids.includes(s.id)
@@ -1193,18 +1181,6 @@ function EventConfigEditor({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {needsDays && (
-        <div>
-          <Label>Quantidade de dias</Label>
-          <Input
-            type="number"
-            min={0}
-            value={(form.event_config.dias as number) ?? 7}
-            onChange={(e) => setForm({ event_config: { ...form.event_config, dias: Number(e.target.value) } })}
-          />
         </div>
       )}
 
@@ -1535,7 +1511,7 @@ export default function AutomationBuilderPage() {
         return 'URL inválida'
       }
     }
-    if ((form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage') && form.stage_ids.length === 0) {
+    if (form.event_type === 'stage_enter' && form.stage_ids.length === 0) {
       return 'Selecione ao menos uma etapa'
     }
     if (form.event_type === 'field_changed' && !form.event_config.field) {

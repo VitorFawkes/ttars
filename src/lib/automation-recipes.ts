@@ -10,17 +10,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles,
-  Calendar,
-  CheckCircle2,
-  Gift,
-  Clock,
-  MessageSquarePlus,
-  AlertTriangle,
-  Plane,
   Target,
   Layers,
-  Tag,
-  Bell,
   MessageCircle,
 } from 'lucide-react'
 
@@ -69,12 +60,6 @@ export type EventType =
   | 'tag_added'
   | 'tag_removed'
   | 'inbound_message_pattern'
-  | 'dias_antes_viagem'
-  | 'dias_apos_viagem'
-  | 'aniversario_contato'
-  | 'proposta_expirada'
-  | 'dias_no_stage'
-  | 'card_won'
   | 'cron_roteamento'
 
 /**
@@ -142,11 +127,6 @@ export const FIELD_CHANGED_OPTIONS: Array<{
  */
 export const PROACTIVE_EVENTS: Set<EventType> = new Set([
   'card_created',
-  'dias_antes_viagem',
-  'dias_apos_viagem',
-  'aniversario_contato',
-  'proposta_expirada',
-  'dias_no_stage',
 ])
 
 export function isProactiveEvent(event: EventType): boolean {
@@ -168,7 +148,7 @@ export interface RecipePreset {
   /** Pré-preenchimento — o usuário ajusta depois */
   preset: {
     event_type: EventType
-    /** Config adicional do evento (ex: days_before para dias_antes_viagem) */
+    /** Config adicional do evento (ex: pattern e match_mode pra inbound_message_pattern) */
     event_config?: Record<string, unknown>
     action_type: ActionType
     action_config?: Record<string, unknown>
@@ -199,92 +179,6 @@ export const RECIPES: RecipePreset[] = [
       suggested_hsm_template: 'wt_primeiro_contato001',
     },
   },
-  {
-    id: 'lembrete_d7_antes_viagem',
-    name: 'Lembrete 7 dias antes da viagem',
-    category: 'mensagem',
-    summary: 'Faltando 7 dias para a data da viagem, envia lembrete ao cliente.',
-    icon: Plane,
-    product: 'TRIPS',
-    preset: {
-      event_type: 'dias_antes_viagem',
-      event_config: { dias: 7 },
-      action_type: 'send_message',
-      suggested_message:
-        'Oi {{contact.nome}}! Faltam só 7 dias para sua viagem para {{card.destino}}. Conferiu passaporte, seguro e tudo mais? Qualquer dúvida, chama!',
-    },
-  },
-  {
-    id: 'lembrete_d1_checkin',
-    name: 'Check-in D-1',
-    category: 'mensagem',
-    summary: 'Um dia antes da viagem, envia mensagem com documentos e contatos.',
-    icon: Calendar,
-    product: 'TRIPS',
-    preset: {
-      event_type: 'dias_antes_viagem',
-      event_config: { dias: 1 },
-      action_type: 'send_message',
-      suggested_message:
-        'Oi {{contact.nome}}! Amanhã começa sua viagem 🎉 Lembre de levar passaporte/RG, voucher e nosso telefone de emergência. Boa viagem!',
-    },
-  },
-  {
-    id: 'proposta_expirando',
-    name: 'Cobrar proposta expirando',
-    category: 'mensagem',
-    summary: 'Quando a proposta expira, envia mensagem pedindo retorno.',
-    icon: AlertTriangle,
-    preset: {
-      event_type: 'proposta_expirada',
-      action_type: 'send_message',
-      suggested_message:
-        'Oi {{contact.nome}}! Sua proposta para {{card.destino}} expira hoje. Quer renovar? É só me responder!',
-    },
-  },
-  {
-    id: 'pos_viagem_d7',
-    name: 'Follow-up pós-viagem D+7',
-    category: 'mensagem',
-    summary: '7 dias depois da viagem, pergunta como foi e pede avaliação.',
-    icon: MessageSquarePlus,
-    product: 'TRIPS',
-    preset: {
-      event_type: 'dias_apos_viagem',
-      event_config: { dias: 7 },
-      action_type: 'send_message',
-      suggested_message:
-        'Oi {{contact.nome}}! Como foi a viagem para {{card.destino}}? Adoraríamos ouvir sua experiência ✨',
-    },
-  },
-  {
-    id: 'aniversario',
-    name: 'Aniversário do cliente',
-    category: 'mensagem',
-    summary: 'No aniversário do contato, envia mensagem de parabéns.',
-    icon: Gift,
-    preset: {
-      event_type: 'aniversario_contato',
-      action_type: 'send_message',
-      suggested_message:
-        'Feliz aniversário, {{contact.nome}}! 🎂 Que este novo ciclo venha cheio de novas viagens e aventuras.',
-    },
-  },
-  {
-    id: 'wedding_d60',
-    name: 'Wedding: contagem 60 dias',
-    category: 'mensagem',
-    summary: 'Faltando 60 dias pro casamento, envia checklist de preparativos.',
-    icon: Calendar,
-    product: 'WEDDING',
-    preset: {
-      event_type: 'dias_antes_viagem',
-      event_config: { dias: 60 },
-      action_type: 'send_message',
-      suggested_message:
-        'Faltam 60 dias pro grande dia! Vamos alinhar os últimos detalhes? Me conta o que ainda está pendente.',
-    },
-  },
 
   // ─── PIPELINE ────────────────────────────────────────────────────────
   {
@@ -300,33 +194,6 @@ export const RECIPES: RecipePreset[] = [
     },
   },
 
-  // ─── TAREFA ──────────────────────────────────────────────────────────
-  {
-    id: 'tarefa_sla_stage',
-    name: 'SLA: tarefa se parado em etapa',
-    category: 'tarefa',
-    summary: 'Se o card ficar X dias na mesma etapa, cria tarefa pro dono do card.',
-    icon: Clock,
-    preset: {
-      event_type: 'dias_no_stage',
-      event_config: { dias: 5 },
-      action_type: 'create_task',
-      suggested_task_title: 'Ação urgente — card parado na etapa há 5 dias',
-    },
-  },
-  {
-    id: 'tarefa_card_ganho',
-    name: 'Tarefa pós-fechamento',
-    category: 'tarefa',
-    summary: 'Quando um card é ganho, cria tarefa de onboarding pro planner.',
-    icon: CheckCircle2,
-    preset: {
-      event_type: 'card_won',
-      action_type: 'create_task',
-      suggested_task_title: 'Iniciar onboarding do cliente ganho',
-    },
-  },
-
   // ─── CADÊNCIA ────────────────────────────────────────────────────────
   {
     id: 'cadencia_prospeccao',
@@ -338,37 +205,6 @@ export const RECIPES: RecipePreset[] = [
       event_type: 'card_created',
       action_type: 'start_cadence',
       action_config: { target_template_id: null },
-    },
-  },
-
-  // ─── PIPELINE (tag + notify) ─────────────────────────────────────────
-  {
-    id: 'tag_quando_ganho',
-    name: 'Marcar card ganho com tag',
-    category: 'pipeline',
-    summary: 'Quando um card é ganho, adiciona uma tag pra facilitar relatório.',
-    icon: Tag,
-    preset: {
-      event_type: 'card_won',
-      action_type: 'add_tag',
-      action_config: { tag_id: null },
-    },
-  },
-  {
-    id: 'avisar_dono_sla',
-    name: 'Avisar dono quando SLA estourar',
-    category: 'tarefa',
-    summary: 'Se o card ficar parado muito tempo em etapa, avisa o dono pelo sino do app.',
-    icon: Bell,
-    preset: {
-      event_type: 'dias_no_stage',
-      event_config: { dias: 5 },
-      action_type: 'notify_internal',
-      action_config: {
-        recipient_mode: 'card_owner',
-        title: 'Card parado há muito tempo',
-        body: 'O card {{card.titulo}} está parado na mesma etapa há 5 dias.',
-      },
     },
   },
 
@@ -444,11 +280,5 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   tag_added: 'Tag adicionada ao card',
   tag_removed: 'Tag removida do card',
   inbound_message_pattern: 'Cliente respondeu com palavra-chave',
-  dias_antes_viagem: 'X dias antes da viagem',
-  dias_apos_viagem: 'X dias depois da viagem',
-  aniversario_contato: 'Aniversário do contato',
-  proposta_expirada: 'Proposta expirou',
-  dias_no_stage: 'Card parado X dias em etapa',
-  card_won: 'Card ganho',
   cron_roteamento: 'Roteamento automático diário',
 }
