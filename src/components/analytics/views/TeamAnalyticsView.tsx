@@ -18,7 +18,7 @@ type SortKey = 'user_nome' | 'active_cards' | 'won_cards' | 'conversion_rate' | 
 type PhaseFilter = 'sdr' | 'planner' | 'pos_venda'
 
 export default function TeamAnalyticsView() {
-    const { setActiveView, product, dateRange } = useAnalyticsFilters()
+    const { setActiveView, dateRange } = useAnalyticsFilters()
     const drillDown = useDrillDownStore()
     const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('sdr')
     const [sortKey, setSortKey] = useState<SortKey>('won_cards')
@@ -32,21 +32,13 @@ export default function TeamAnalyticsView() {
     // Fetch team performance data
     const { data: teamData, isLoading: teamLoading, error: teamError, refetch: refetchTeam } = useTeamPerformance(phaseFilter)
 
-    // Fetch task stats
+    // Fetch task stats. Antes fazia `cards.select('id')` → `tarefas.in('card_id', [500+ uuids])`
+    // o que gerava URL gigante e HTTP 400. A RLS de tarefas já isola por org_id, então
+    // basta contar tarefas diretamente com os predicados de data — o isolamento por
+    // produto não é crítico aqui (user só vê a própria org de qualquer forma).
     const taskStats = useQuery({
-        queryKey: ['analytics', 'task-stats', phaseFilter, product],
+        queryKey: ['analytics', 'task-stats', phaseFilter],
         queryFn: async () => {
-            // Get cards in this phase to filter tasks
-            const { data: cards } = await supabase
-                .from('cards')
-                .select('id')
-                .eq('produto', product as 'TRIPS')
-                .is('deleted_at', null)
-                .is('archived_at', null)
-
-            if (!cards?.length) return { overdue: 0, today: 0, thisWeek: 0, completed: 0 }
-
-            const cardIds = cards.map(c => c.id)
             const now = new Date()
             const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
             const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
@@ -54,16 +46,16 @@ export default function TeamAnalyticsView() {
 
             const [overdueRes, todayRes, weekRes, completedRes] = await Promise.all([
                 supabase.from('tarefas').select('id', { count: 'exact', head: true })
-                    .in('card_id', cardIds).eq('concluida', false).is('deleted_at', null)
+                    .eq('concluida', false).is('deleted_at', null)
                     .lt('data_vencimento', todayStart),
                 supabase.from('tarefas').select('id', { count: 'exact', head: true })
-                    .in('card_id', cardIds).eq('concluida', false).is('deleted_at', null)
+                    .eq('concluida', false).is('deleted_at', null)
                     .gte('data_vencimento', todayStart).lte('data_vencimento', todayEnd),
                 supabase.from('tarefas').select('id', { count: 'exact', head: true })
-                    .in('card_id', cardIds).eq('concluida', false).is('deleted_at', null)
+                    .eq('concluida', false).is('deleted_at', null)
                     .gte('data_vencimento', todayStart).lte('data_vencimento', weekEnd),
                 supabase.from('tarefas').select('id', { count: 'exact', head: true })
-                    .in('card_id', cardIds).eq('concluida', true).is('deleted_at', null)
+                    .eq('concluida', true).is('deleted_at', null)
                     .gte('concluida_em', dateRange.start).lte('concluida_em', dateRange.end),
             ])
 

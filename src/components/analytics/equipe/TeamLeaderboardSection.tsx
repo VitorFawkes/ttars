@@ -25,10 +25,10 @@ export default function TeamLeaderboardSection() {
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
     const slaByUser = useMemo(() => {
-        const map = new Map<string, { compliance: number; transicoes: number; tempo: number }>()
+        const map = new Map<string, { compliance: number | null; transicoes: number; tempo: number }>()
         for (const s of slaRows ?? []) {
             map.set(s.user_id, {
-                compliance: s.compliance_rate,
+                compliance: s.compliance_rate,  // pode vir NULL se nenhuma etapa tinha SLA configurado
                 transicoes: s.total_transicoes,
                 tempo: s.tempo_medio_horas,
             })
@@ -162,11 +162,15 @@ export default function TeamLeaderboardSection() {
                                         <td className={cn(
                                             'px-3 py-2.5 text-right tabular-nums font-medium text-xs',
                                             slaLoading ? 'text-slate-400' :
-                                                !sla || sla.transicoes === 0 ? 'text-slate-400' :
+                                                !sla || sla.transicoes === 0 || sla.compliance === null ? 'text-slate-400' :
                                                     sla.compliance >= 80 ? 'text-emerald-600' :
                                                         sla.compliance >= 50 ? 'text-amber-600' : 'text-rose-600'
                                         )}>
-                                            {slaLoading ? '…' : !sla || sla.transicoes === 0 ? '—' : `${sla.compliance}%`}
+                                            {slaLoading
+                                                ? '…'
+                                                : !sla || sla.transicoes === 0 || sla.compliance === null
+                                                    ? '—'
+                                                    : `${sla.compliance}%`}
                                         </td>
                                         <td className={cn(
                                             'px-3 py-2.5 text-right tabular-nums font-medium',

@@ -5,6 +5,7 @@ import { useAnalyticsFilters, type AnalysisMode, type DatePreset, type Granulari
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useProducts } from '@/hooks/useProducts'
+import { useProductContext } from '@/hooks/useProductContext'
 import { useCardTags } from '@/hooks/useCardTags'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,27 @@ function useConsultants() {
     })
 }
 
+// Controla quais filtros a top bar mostra por aba. Evita a poluição
+// visual de expor dropdowns que a aba ignora (ex: período em Saúde).
+interface ViewFeatures {
+    mode: boolean           // "Entradas por Etapa" / Coorte / Ganho
+    period: boolean         // Date range + presets
+    granularity: boolean    // Dia/Semana/Mês
+    tags: boolean
+    owners: boolean
+    label?: string          // Rótulo opcional da aba exibido no topo
+}
+const FEATURES_BY_VIEW: Record<string, ViewFeatures> = {
+    saude:      { mode: false, period: false, granularity: false, tags: true, owners: true, label: 'Saúde do pipeline' },
+    funnel:     { mode: true,  period: true,  granularity: false, tags: true, owners: true, label: 'Funil de vendas' },
+    team:       { mode: false, period: true,  granularity: false, tags: true, owners: true, label: 'Equipe' },
+    resumo:     { mode: false, period: true,  granularity: true,  tags: true, owners: true, label: 'Resumo' },
+    pipeline:   { mode: false, period: false, granularity: false, tags: true, owners: true, label: 'Pipeline ao vivo' },
+    whatsapp:   { mode: false, period: true,  granularity: true,  tags: true, owners: true, label: 'Conversas' },
+    operations: { mode: false, period: true,  granularity: false, tags: true, owners: true, label: 'Operações' },
+}
+const DEFAULT_FEATURES: ViewFeatures = { mode: true, period: true, granularity: true, tags: true, owners: true }
+
 export default function GlobalControls() {
     const {
         datePreset,
@@ -67,9 +89,10 @@ export default function GlobalControls() {
         toggleOwnerId,
         setTagIds,
         toggleTagId,
-        product,
     } = useAnalyticsFilters()
 
+    const { currentProduct: product } = useProductContext()
+    const features = FEATURES_BY_VIEW[activeView] ?? DEFAULT_FEATURES
     const isSnapshotView = activeView === 'pipeline'
 
     const { products } = useProducts()
@@ -155,14 +178,14 @@ export default function GlobalControls() {
             <div className="flex items-center gap-2 min-w-0">
             {/* Left: scrollable controls */}
             <div className="flex items-center gap-3 flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-                {isSnapshotView && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200">
-                        <span className="text-xs font-semibold text-indigo-700">Pipeline Atual</span>
-                        <span className="text-[10px] text-indigo-500">Snapshot em tempo real</span>
+                {features.label && (
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-semibold text-slate-700">{features.label}</span>
+                        {isSnapshotView && <span className="text-[10px] text-slate-400">Snapshot em tempo real</span>}
                     </div>
                 )}
                 {/* Analysis mode dropdown — 3 sections */}
-                {!isSnapshotView && <DropdownMenu>
+                {features.mode && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500">
                             <span className="max-w-[200px] truncate">{triggerLabel}</span>
@@ -237,67 +260,67 @@ export default function GlobalControls() {
                     </DropdownMenuContent>
                 </DropdownMenu>}
 
-                {!isSnapshotView && <>
-                {/* Granularity toggle */}
-                <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
-                    {granularities.map((g) => (
-                        <button
-                            key={g.value}
-                            onClick={() => setGranularity(g.value)}
-                            className={cn(
-                                'px-3 py-1.5 text-xs font-medium transition-colors',
-                                granularity === g.value
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'text-slate-600 hover:bg-slate-50'
-                            )}
-                        >
-                            {g.label}
-                        </button>
-                    ))}
-                </div>
+                {features.granularity && (
+                    <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
+                        {granularities.map((g) => (
+                            <button
+                                key={g.value}
+                                onClick={() => setGranularity(g.value)}
+                                className={cn(
+                                    'px-3 py-1.5 text-xs font-medium transition-colors',
+                                    granularity === g.value
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'text-slate-600 hover:bg-slate-50'
+                                )}
+                            >
+                                {g.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
-                {/* Date range inputs */}
-                <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-400" />
-                    <input
-                        type="date"
-                        value={dateRange.start.split('T')[0]}
-                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value + 'T00:00:00.000Z' })}
-                        className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <span className="text-slate-400 text-xs">—</span>
-                    <input
-                        type="date"
-                        value={dateRange.end.split('T')[0]}
-                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value + 'T23:59:59.999Z' })}
-                        className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                </div>
-
-                {/* Date presets */}
-                <div className="flex items-center gap-1">
-                    {presets.map((p) => (
-                        <button
-                            key={p.value}
-                            onClick={() => setDatePreset(p.value)}
-                            className={cn(
-                                'px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors',
-                                datePreset === p.value
-                                    ? 'bg-slate-900 text-white'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                            )}
-                        >
-                            {p.label}
-                        </button>
-                    ))}
-                </div>
-                </>}
+                {features.period && (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-slate-400" />
+                            <input
+                                type="date"
+                                value={dateRange.start.split('T')[0]}
+                                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value + 'T00:00:00.000Z' })}
+                                className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                            <span className="text-slate-400 text-xs">—</span>
+                            <input
+                                type="date"
+                                value={dateRange.end.split('T')[0]}
+                                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value + 'T23:59:59.999Z' })}
+                                className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1">
+                            {presets.map((p) => (
+                                <button
+                                    key={p.value}
+                                    onClick={() => setDatePreset(p.value)}
+                                    className={cn(
+                                        'px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors',
+                                        datePreset === p.value
+                                            ? 'bg-slate-900 text-white'
+                                            : 'text-slate-500 hover:bg-slate-100'
+                                    )}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>{/* end left scrollable */}
 
                 {/* Right-side filters: Tags + Consultant + Product */}
                 <div className="flex items-center gap-2 shrink-0">
                 {/* Tag filter (only shown if there are tags) */}
-                {allTags.length > 0 && (
+                {features.tags && allTags.length > 0 && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button className={cn(
@@ -352,7 +375,7 @@ export default function GlobalControls() {
                 )}
 
                 {/* Consultant filter (multi-select) */}
-                <DropdownMenu>
+                {features.owners && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button className={cn(
                             'inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500',
@@ -398,7 +421,7 @@ export default function GlobalControls() {
                             </DropdownMenuItem>
                         ))}
                     </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu>}
 
                 </div>
             </div>
