@@ -18,6 +18,7 @@ import {
     TableRow,
 } from '@/components/ui/Table';
 import { supabase } from '@/lib/supabase';
+import { FailuresPanel } from './FailuresPanel';
 
 interface MonitorInstance {
     id: string;
@@ -326,6 +327,8 @@ export function GlobalMonitor() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <FailuresPanel />
         </div>
     );
 }
