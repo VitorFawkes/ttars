@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import type { Database } from '../../database.types'
+import { getPhaseBadgeClass, legacyFaseToSlug } from '../../lib/pipeline/phaseLabels'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -32,12 +33,7 @@ export default function CardStatusWidget({ card }: CardStatusWidgetProps) {
         enabled: !!card.pessoa_principal_id
     })
 
-    const phaseColors = {
-        'SDR': 'bg-blue-100 text-blue-700 border-blue-200',
-        'Planner': 'bg-purple-100 text-purple-700 border-purple-200',
-        'Pós-venda': 'bg-green-100 text-green-700 border-green-200',
-        'Outro': 'bg-gray-100 text-gray-700 border-gray-200'
-    }
+    const phaseSlug = card.phase_slug ?? legacyFaseToSlug(card.fase)
 
     return (
         <div className="rounded-lg border bg-white p-4 shadow-sm">
@@ -56,7 +52,7 @@ export default function CardStatusWidget({ card }: CardStatusWidgetProps) {
                 <div className="flex items-center justify-between">
                     <span className={cn(
                         "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border",
-                        phaseColors[card.fase as keyof typeof phaseColors] || phaseColors['Outro']
+                        getPhaseBadgeClass(phaseSlug)
                     )}>
                         {card.fase}
                     </span>

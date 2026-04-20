@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { X, Clock, ArrowRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { getPhaseColor, legacyFaseToSlug } from '../../lib/pipeline/phaseLabels'
 
 interface OwnerHistoryModalProps {
     cardId: string
@@ -9,11 +10,34 @@ interface OwnerHistoryModalProps {
     onClose: () => void
 }
 
+interface OwnerProfileRef {
+    nome: string | null
+    email?: string | null
+}
+
+interface OwnerHistoryEntry {
+    id: string
+    started_at: string
+    ended_at: string | null
+    fase: string | null
+    transfer_reason: string | null
+    owner: OwnerProfileRef | null
+    transferred_by_user: OwnerProfileRef | null
+}
+
 export default function OwnerHistoryModal({ cardId, isOpen, onClose }: OwnerHistoryModalProps) {
-    const { data: history, isLoading } = useQuery({
+    const { data: history, isLoading } = useQuery<OwnerHistoryEntry[]>({
         queryKey: ['owner-history', cardId],
         queryFn: async () => {
-            const { data, error } = await (supabase.from('card_owner_history') as any)
+            // card_owner_history pode não estar nos types gerados ainda — cast explícito e controlado
+            const { data, error } = await (supabase
+                .from('card_owner_history') as unknown as {
+                    select: (q: string) => {
+                        eq: (c: string, v: string) => {
+                            order: (c: string, o: { ascending: boolean }) => Promise<{ data: OwnerHistoryEntry[] | null; error: Error | null }>
+                        }
+                    }
+                })
                 .select(`
                     *,
                     owner:profiles!owner_id(nome, email),
@@ -23,19 +47,12 @@ export default function OwnerHistoryModal({ cardId, isOpen, onClose }: OwnerHist
                 .order('started_at', { ascending: false })
 
             if (error) throw error
-            return data
+            return data ?? []
         },
         enabled: isOpen
     })
 
     if (!isOpen) return null
-
-    const phaseColors = {
-        'SDR': 'bg-blue-100 text-blue-700',
-        'Planner': 'bg-purple-100 text-purple-700',
-        'Pós-venda': 'bg-green-100 text-green-700',
-        'Outro': 'bg-gray-100 text-gray-700'
-    }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -55,9 +72,9 @@ export default function OwnerHistoryModal({ cardId, isOpen, onClose }: OwnerHist
                         <div className="text-center py-8 text-gray-500">Carregando...</div>
                     ) : history && history.length > 0 ? (
                         <div className="space-y-4">
-                            {history.map((entry: any, idx: number) => {
-                                const owner = entry.owner as any
-                                const transferredBy = entry.transferred_by_user as any
+                            {history.map((entry, idx) => {
+                                const owner = entry.owner
+                                const transferredBy = entry.transferred_by_user
                                 const isActive = !entry.ended_at
                                 const duration = entry.ended_at
                                     ? Math.floor((new Date(entry.ended_at).getTime() - new Date(entry.started_at).getTime()) / (1000 * 60 * 60 * 24))
@@ -82,12 +99,18 @@ export default function OwnerHistoryModal({ cardId, isOpen, onClose }: OwnerHist
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="font-semibold text-gray-900">{owner?.nome || 'Usuário desconhecido'}</span>
-                                                        <span className={cn(
-                                                            "px-2 py-0.5 rounded-full text-xs font-medium",
-                                                            phaseColors[entry.fase as keyof typeof phaseColors] || phaseColors['Outro']
-                                                        )}>
-                                                            {entry.fase}
-                                                        </span>
+                                                        {(() => {
+                                                            const slug = legacyFaseToSlug(entry.fase)
+                                                            const c = getPhaseColor(slug)
+                                                            return (
+                                                                <span className={cn(
+                                                                    "px-2 py-0.5 rounded-full text-xs font-medium",
+                                                                    c.activeBg, c.text,
+                                                                )}>
+                                                                    {entry.fase}
+                                                                </span>
+                                                            )
+                                                        })()}
                                                         {isActive && (
                                                             <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                                                                 Atual

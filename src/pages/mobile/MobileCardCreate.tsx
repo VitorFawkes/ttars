@@ -16,11 +16,13 @@ import {
   Loader2, Mic, PenLine, CheckCircle, Plus, X
 } from 'lucide-react'
 import { toast } from 'sonner'
-// Phase colors
-const PHASE_COLORS: Record<string, string> = {
-  'SDR': 'bg-blue-100 text-blue-700 border-blue-200',
-  'Planner': 'bg-purple-100 text-purple-700 border-purple-200',
-  'Pós-venda': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+import { getPhaseColor } from '../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../types/pipeline'
+
+// Classe Tailwind composta para mobile: monta a partir de getPhaseColor (tokens por slug).
+function phaseChipClass(slug: string | null | undefined): string {
+  const c = getPhaseColor(slug)
+  return `${c.activeBg} ${c.text} ${c.border}`
 }
 
 export default function MobileCardCreate() {
@@ -320,7 +322,7 @@ export default function MobileCardCreate() {
                   <span className="text-slate-500">Estágio</span>
                   <span className={cn(
                     'px-2 py-0.5 rounded-full text-xs font-medium border',
-                    PHASE_COLORS[selectedStage.fase || ''] || 'bg-slate-100 text-slate-700 border-slate-200'
+                    phaseChipClass(selectedStage.phase_slug)
                   )}>
                     {selectedStage.nome}
                   </span>
@@ -363,14 +365,36 @@ export default function MobileCardCreate() {
     )
   }
 
-  // Group stages by phase
-  const stagesByPhase = allowedStages.reduce((acc, stage) => {
-    const phase = stage.fase || 'Outros'
-    if (phase === 'Resolução') return acc
-    if (!acc[phase]) acc[phase] = []
-    acc[phase].push(stage)
-    return acc
-  }, {} as Record<string, typeof allowedStages>)
+  // Agrupar etapas por fase — chave estável é phase_id; label vem de phase_name do banco.
+  // Terminais (phase_is_terminal=true ou slug=RESOLUCAO) são ocultas da UI de criação.
+  type MobilePhaseGroup = {
+    phaseId: string
+    slug: string | null
+    label: string
+    order: number
+    stages: typeof allowedStages
+  }
+  const stagesByPhase: MobilePhaseGroup[] = (() => {
+    const map = new Map<string, MobilePhaseGroup>()
+    for (const s of allowedStages) {
+      const terminal = s.phase_is_terminal === true || s.phase_slug === SystemPhase.RESOLUCAO
+      if (terminal) continue
+      const key = s.phase_id ?? '__none__'
+      let g = map.get(key)
+      if (!g) {
+        g = {
+          phaseId: key,
+          slug: s.phase_slug,
+          label: s.phase_name || s.fase || 'Outros',
+          order: s.phase_order ?? 999,
+          stages: [],
+        }
+        map.set(key, g)
+      }
+      g.stages.push(s)
+    }
+    return [...map.values()].sort((a, b) => a.order - b.order)
+  })()
 
   return (
     <div className="h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
@@ -462,7 +486,7 @@ export default function MobileCardCreate() {
               {selectedStageName && (
                 <span className={cn(
                   'ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border',
-                  PHASE_COLORS[allowedStages.find(s => s.id === effectiveStageId)?.fase || ''] || 'bg-slate-100 text-slate-700 border-slate-200'
+                  phaseChipClass(allowedStages.find(s => s.id === effectiveStageId)?.phase_slug)
                 )}>
                   {selectedStageName}
                 </span>
@@ -473,31 +497,33 @@ export default function MobileCardCreate() {
 
           {showStages && (
             <div className="mt-3 space-y-3">
-              {Object.entries(stagesByPhase).map(([phase, stages]) => (
-                <div key={phase}>
-                  <p className="text-xs font-medium text-slate-500 mb-1.5">{phase}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {stages.map(stage => {
-                      const isSelected = effectiveStageId === stage.id
-                      const colors = PHASE_COLORS[phase] || 'bg-slate-100 text-slate-700 border-slate-200'
-                      return (
-                        <button
-                          key={stage.id}
-                          onClick={() => { setSelectedStageId(stage.id); setShowStages(false) }}
-                          className={cn(
-                            'px-3 py-2 rounded-lg text-xs font-medium border transition-all min-h-[44px]',
-                            isSelected ? cn(colors, 'ring-2 ring-indigo-500') : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
-                          )}
-                          style={{ touchAction: 'manipulation' }}
-                        >
-                          {isSelected && <Check className="w-3 h-3 inline mr-1" />}
-                          {stage.nome}
-                        </button>
-                      )
-                    })}
+              {stagesByPhase.map(g => {
+                const colors = phaseChipClass(g.slug)
+                return (
+                  <div key={g.phaseId}>
+                    <p className="text-xs font-medium text-slate-500 mb-1.5">{g.label}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {g.stages.map(stage => {
+                        const isSelected = effectiveStageId === stage.id
+                        return (
+                          <button
+                            key={stage.id}
+                            onClick={() => { setSelectedStageId(stage.id); setShowStages(false) }}
+                            className={cn(
+                              'px-3 py-2 rounded-lg text-xs font-medium border transition-all min-h-[44px]',
+                              isSelected ? cn(colors, 'ring-2 ring-indigo-500') : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
+                            )}
+                            style={{ touchAction: 'manipulation' }}
+                          >
+                            {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                            {stage.nome}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

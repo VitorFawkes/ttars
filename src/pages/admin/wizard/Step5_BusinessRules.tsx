@@ -129,18 +129,31 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
         </div>
       )}
 
-      {/* Card 1: Pricing */}
+      {/* Card 1: Pricing (opcional — muitos agentes não abordam preço) */}
       <div className="bg-white border border-slate-200 rounded-xl p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
-            <DollarSign className="w-4 h-4 text-green-600" />
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Preço e cobrança <span className="text-xs font-normal text-slate-400">— opcional</span></h3>
+              <p className="text-xs text-slate-500">Ative apenas se o agente precisa abordar valores com o cliente.</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900">Taxa e cobrança</h3>
-            <p className="text-xs text-slate-500">Como o agente apresenta o valor do serviço</p>
-          </div>
+          <Switch
+            checked={!!step5.pricing_model}
+            onCheckedChange={(on) => {
+              if (on) {
+                updateStep5({ pricing_model: 'flat', fee_presentation_timing: 'after_qualification', pricing_json: {} })
+              } else {
+                updateStep5({ pricing_model: '', fee_presentation_timing: 'never', pricing_json: {} })
+              }
+            }}
+          />
         </div>
 
+        {step5.pricing_model && (
         <div className="space-y-4">
           <div>
             <Label className="text-xs mb-2 block">Modelo de cobrança</Label>
@@ -216,6 +229,7 @@ export default function Step5_BusinessRules({ wizard }: WizardProps) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Card 2: Process steps */}

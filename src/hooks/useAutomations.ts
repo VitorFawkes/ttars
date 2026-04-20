@@ -12,6 +12,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { ActionType, EventType } from '../lib/automation-recipes'
+import { useCurrentProductMeta } from './useCurrentProductMeta'
 
 export type AutomationSource = 'trigger' | 'cadence_template'
 

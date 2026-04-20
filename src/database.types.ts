@@ -151,6 +151,7 @@ export type Database = {
           company_name: string | null
           contact_update_fields: Json | null
           created_at: string | null
+          custom_blocks: Json
           escalation_triggers: Json | null
           fee_presentation_timing: string | null
           form_data_fields: Json | null
@@ -176,6 +177,7 @@ export type Database = {
           company_name?: string | null
           contact_update_fields?: Json | null
           created_at?: string | null
+          custom_blocks?: Json
           escalation_triggers?: Json | null
           fee_presentation_timing?: string | null
           form_data_fields?: Json | null
@@ -201,6 +203,7 @@ export type Database = {
           company_name?: string | null
           contact_update_fields?: Json | null
           created_at?: string | null
+          custom_blocks?: Json
           escalation_triggers?: Json | null
           fee_presentation_timing?: string | null
           form_data_fields?: Json | null
@@ -550,8 +553,10 @@ export type Database = {
           created_at: string | null
           disqualification_triggers: Json | null
           id: string
+          maps_to_field: string | null
           question: string
           response_options: Json | null
+          skip_if_filled: boolean | null
           stage_key: string | null
           stage_name: string
           stage_order: number
@@ -564,8 +569,10 @@ export type Database = {
           created_at?: string | null
           disqualification_triggers?: Json | null
           id?: string
+          maps_to_field?: string | null
           question: string
           response_options?: Json | null
+          skip_if_filled?: boolean | null
           stage_key?: string | null
           stage_name: string
           stage_order: number
@@ -578,8 +585,10 @@ export type Database = {
           created_at?: string | null
           disqualification_triggers?: Json | null
           id?: string
+          maps_to_field?: string | null
           question?: string
           response_options?: Json | null
+          skip_if_filled?: boolean | null
           stage_key?: string | null
           stage_name?: string
           stage_order?: number
@@ -867,10 +876,12 @@ export type Database = {
           external_config: Json | null
           fallback_agent_id: string | null
           fallback_message: string | null
+          first_message_config: Json | null
           handoff_actions: Json | null
           handoff_signals: Json | null
           id: string
           intelligent_decisions: Json | null
+          interaction_mode: string | null
           is_template_based: boolean | null
           max_tokens: number | null
           memory_config: Json | null
@@ -879,9 +890,11 @@ export type Database = {
           n8n_webhook_url: string | null
           nome: string
           org_id: string
+          outbound_trigger_config: Json | null
           persona: string | null
           pipeline_models: Json | null
           produto: Database["public"]["Enums"]["app_product"]
+          prompts_extra: Json
           routing_criteria: Json | null
           system_prompt: string
           system_prompt_version: number | null
@@ -905,10 +918,12 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          first_message_config?: Json | null
           handoff_actions?: Json | null
           handoff_signals?: Json | null
           id?: string
           intelligent_decisions?: Json | null
+          interaction_mode?: string | null
           is_template_based?: boolean | null
           max_tokens?: number | null
           memory_config?: Json | null
@@ -917,9 +932,11 @@ export type Database = {
           n8n_webhook_url?: string | null
           nome: string
           org_id?: string
+          outbound_trigger_config?: Json | null
           persona?: string | null
           pipeline_models?: Json | null
           produto: Database["public"]["Enums"]["app_product"]
+          prompts_extra?: Json
           routing_criteria?: Json | null
           system_prompt: string
           system_prompt_version?: number | null
@@ -943,10 +960,12 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          first_message_config?: Json | null
           handoff_actions?: Json | null
           handoff_signals?: Json | null
           id?: string
           intelligent_decisions?: Json | null
+          interaction_mode?: string | null
           is_template_based?: boolean | null
           max_tokens?: number | null
           memory_config?: Json | null
@@ -955,9 +974,11 @@ export type Database = {
           n8n_webhook_url?: string | null
           nome?: string
           org_id?: string
+          outbound_trigger_config?: Json | null
           persona?: string | null
           pipeline_models?: Json | null
           produto?: Database["public"]["Enums"]["app_product"]
+          prompts_extra?: Json
           routing_criteria?: Json | null
           system_prompt?: string
           system_prompt_version?: number | null
@@ -1539,6 +1560,143 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_outbound_queue: {
+        Row: {
+          agent_id: string
+          attempts: number | null
+          card_id: string
+          contact_name: string | null
+          contact_phone: string
+          contato_id: string
+          created_at: string | null
+          error_message: string | null
+          form_data: Json | null
+          id: string
+          max_attempts: number | null
+          next_retry_at: string | null
+          org_id: string
+          processed_at: string | null
+          scheduled_for: string | null
+          status: string
+          trigger_metadata: Json | null
+          trigger_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          attempts?: number | null
+          card_id: string
+          contact_name?: string | null
+          contact_phone: string
+          contato_id: string
+          created_at?: string | null
+          error_message?: string | null
+          form_data?: Json | null
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          org_id?: string
+          processed_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          trigger_metadata?: Json | null
+          trigger_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          attempts?: number | null
+          card_id?: string
+          contact_name?: string | null
+          contact_phone?: string
+          contato_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          form_data?: Json | null
+          id?: string
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          org_id?: string
+          processed_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          trigger_metadata?: Json | null
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_outbound_queue_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_outbound_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_card"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_card"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_card"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_card"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_card"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_contato"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_contato"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "fk_outbound_queue_contato"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -11627,6 +11785,7 @@ export type Database = {
           days_until_birthday: number | null
           days_until_ideal_contact: number | null
           gifts_sent_count: number | null
+          has_sibling_open_card: boolean | null
           ideal_contact_date: string | null
           is_high_value: boolean | null
           is_referrer: boolean | null
@@ -11634,6 +11793,9 @@ export type Database = {
           last_gift_date: string | null
           last_interaction_date: string | null
           last_interaction_type: string | null
+          last_lost_reason_id: string | null
+          last_lost_reason_name: string | null
+          last_responsavel_id: string | null
           org_id: string
           peak_months: number[] | null
           peak_months_confidence: number | null
@@ -11642,6 +11804,7 @@ export type Database = {
           prediction_confidence: number | null
           preferred_duration_days: number | null
           reactivation_score: number | null
+          recent_interaction_warning: boolean | null
           referral_count: number | null
           score_breakdown: Json | null
           total_completed_trips: number | null
@@ -11662,6 +11825,7 @@ export type Database = {
           days_until_birthday?: number | null
           days_until_ideal_contact?: number | null
           gifts_sent_count?: number | null
+          has_sibling_open_card?: boolean | null
           ideal_contact_date?: string | null
           is_high_value?: boolean | null
           is_referrer?: boolean | null
@@ -11669,6 +11833,9 @@ export type Database = {
           last_gift_date?: string | null
           last_interaction_date?: string | null
           last_interaction_type?: string | null
+          last_lost_reason_id?: string | null
+          last_lost_reason_name?: string | null
+          last_responsavel_id?: string | null
           org_id?: string
           peak_months?: number[] | null
           peak_months_confidence?: number | null
@@ -11677,6 +11844,7 @@ export type Database = {
           prediction_confidence?: number | null
           preferred_duration_days?: number | null
           reactivation_score?: number | null
+          recent_interaction_warning?: boolean | null
           referral_count?: number | null
           score_breakdown?: Json | null
           total_completed_trips?: number | null
@@ -11697,6 +11865,7 @@ export type Database = {
           days_until_birthday?: number | null
           days_until_ideal_contact?: number | null
           gifts_sent_count?: number | null
+          has_sibling_open_card?: boolean | null
           ideal_contact_date?: string | null
           is_high_value?: boolean | null
           is_referrer?: boolean | null
@@ -11704,6 +11873,9 @@ export type Database = {
           last_gift_date?: string | null
           last_interaction_date?: string | null
           last_interaction_type?: string | null
+          last_lost_reason_id?: string | null
+          last_lost_reason_name?: string | null
+          last_responsavel_id?: string | null
           org_id?: string
           peak_months?: number[] | null
           peak_months_confidence?: number | null
@@ -11712,6 +11884,7 @@ export type Database = {
           prediction_confidence?: number | null
           preferred_duration_days?: number | null
           reactivation_score?: number | null
+          recent_interaction_warning?: boolean | null
           referral_count?: number | null
           score_breakdown?: Json | null
           total_completed_trips?: number | null
@@ -11742,7 +11915,118 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reactivation_patterns_last_lost_reason_id_fkey"
+            columns: ["last_lost_reason_id"]
+            isOneToOne: false
+            referencedRelation: "motivos_perda"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_patterns_last_responsavel_id_fkey"
+            columns: ["last_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_patterns_last_responsavel_id_fkey"
+            columns: ["last_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "reactivation_patterns_last_responsavel_id_fkey"
+            columns: ["last_responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "reactivation_patterns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reactivation_suppressions: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          note: string | null
+          org_id: string
+          reason: string
+          suppressed_until: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          reason: string
+          suppressed_until?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          reason?: string
+          suppressed_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reactivation_suppressions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactivation_suppressions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -12126,6 +12410,7 @@ export type Database = {
           order: number | null
           org_id: string
           proposal_min_status: string | null
+          required_team_role: string | null
           requirement_label: string | null
           requirement_type: string | null
           show_in_header: boolean | null
@@ -12148,6 +12433,7 @@ export type Database = {
           order?: number | null
           org_id?: string
           proposal_min_status?: string | null
+          required_team_role?: string | null
           requirement_label?: string | null
           requirement_type?: string | null
           show_in_header?: boolean | null
@@ -12170,6 +12456,7 @@ export type Database = {
           order?: number | null
           org_id?: string
           proposal_min_status?: string | null
+          required_team_role?: string | null
           requirement_label?: string | null
           requirement_type?: string | null
           show_in_header?: boolean | null
@@ -13171,6 +13458,298 @@ export type Database = {
           },
         ]
       }
+      trip_comments: {
+        Row: {
+          autor: string
+          autor_id: string | null
+          created_at: string
+          id: string
+          interno: boolean
+          item_id: string | null
+          org_id: string
+          texto: string
+          viagem_id: string
+        }
+        Insert: {
+          autor: string
+          autor_id?: string | null
+          created_at?: string
+          id?: string
+          interno?: boolean
+          item_id?: string | null
+          org_id?: string
+          texto: string
+          viagem_id: string
+        }
+        Update: {
+          autor?: string
+          autor_id?: string | null
+          created_at?: string
+          id?: string
+          interno?: boolean
+          item_id?: string | null
+          org_id?: string
+          texto?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_comments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "trip_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_comments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_comments_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_events: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          payload: Json
+          tipo: string
+          viagem_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payload?: Json
+          tipo: string
+          viagem_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payload?: Json
+          tipo?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_events_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_item_history: {
+        Row: {
+          autor: string | null
+          campo: string
+          created_at: string
+          id: string
+          item_id: string
+          org_id: string
+          papel: string | null
+          valor_anterior: Json | null
+          valor_novo: Json | null
+          viagem_id: string
+        }
+        Insert: {
+          autor?: string | null
+          campo: string
+          created_at?: string
+          id?: string
+          item_id: string
+          org_id?: string
+          papel?: string | null
+          valor_anterior?: Json | null
+          valor_novo?: Json | null
+          viagem_id: string
+        }
+        Update: {
+          autor?: string | null
+          campo?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          org_id?: string
+          papel?: string | null
+          valor_anterior?: Json | null
+          valor_novo?: Json | null
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_item_history_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "trip_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_item_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_items: {
+        Row: {
+          alternativas: Json
+          aprovado_em: string | null
+          aprovado_por: string | null
+          comercial: Json
+          created_at: string
+          criado_por: string | null
+          criado_por_papel: string | null
+          deleted_at: string | null
+          editado_por: string | null
+          editado_por_papel: string | null
+          id: string
+          operacional: Json
+          ordem: number
+          org_id: string
+          parent_id: string | null
+          status: Database["public"]["Enums"]["trip_item_status"]
+          tipo: Database["public"]["Enums"]["trip_item_tipo"]
+          updated_at: string
+          viagem_id: string
+        }
+        Insert: {
+          alternativas?: Json
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          comercial?: Json
+          created_at?: string
+          criado_por?: string | null
+          criado_por_papel?: string | null
+          deleted_at?: string | null
+          editado_por?: string | null
+          editado_por_papel?: string | null
+          id?: string
+          operacional?: Json
+          ordem?: number
+          org_id?: string
+          parent_id?: string | null
+          status?: Database["public"]["Enums"]["trip_item_status"]
+          tipo: Database["public"]["Enums"]["trip_item_tipo"]
+          updated_at?: string
+          viagem_id: string
+        }
+        Update: {
+          alternativas?: Json
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          comercial?: Json
+          created_at?: string
+          criado_por?: string | null
+          criado_por_papel?: string | null
+          deleted_at?: string | null
+          editado_por?: string | null
+          editado_por_papel?: string | null
+          id?: string
+          operacional?: Json
+          ordem?: number
+          org_id?: string
+          parent_id?: string | null
+          status?: Database["public"]["Enums"]["trip_item_status"]
+          tipo?: Database["public"]["Enums"]["trip_item_tipo"]
+          updated_at?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "trip_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_items_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_library_items: {
+        Row: {
+          comercial: Json
+          created_at: string
+          criado_por: string | null
+          id: string
+          is_shared: boolean
+          operacional: Json
+          org_id: string
+          tipo: Database["public"]["Enums"]["trip_item_tipo"]
+          titulo: string
+          updated_at: string
+          uso_count: number
+        }
+        Insert: {
+          comercial?: Json
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          is_shared?: boolean
+          operacional?: Json
+          org_id?: string
+          tipo: Database["public"]["Enums"]["trip_item_tipo"]
+          titulo: string
+          updated_at?: string
+          uso_count?: number
+        }
+        Update: {
+          comercial?: Json
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          is_shared?: boolean
+          operacional?: Json
+          org_id?: string
+          tipo?: Database["public"]["Enums"]["trip_item_tipo"]
+          titulo?: string
+          updated_at?: string
+          uso_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_library_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_plan_approvals: {
         Row: {
           approval_data: Json
@@ -13319,6 +13898,148 @@ export type Database = {
             columns: ["trip_plan_id"]
             isOneToOne: false
             referencedRelation: "proposal_trip_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viagens: {
+        Row: {
+          capa_url: string | null
+          card_id: string
+          confirmada_em: string | null
+          created_at: string
+          enviada_em: string | null
+          estado: Database["public"]["Enums"]["viagem_estado"]
+          id: string
+          org_id: string
+          pos_owner_id: string | null
+          public_token: string
+          subtitulo: string | null
+          titulo: string | null
+          total_aprovado: number
+          total_estimado: number
+          tp_owner_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          capa_url?: string | null
+          card_id: string
+          confirmada_em?: string | null
+          created_at?: string
+          enviada_em?: string | null
+          estado?: Database["public"]["Enums"]["viagem_estado"]
+          id?: string
+          org_id?: string
+          pos_owner_id?: string | null
+          public_token?: string
+          subtitulo?: string | null
+          titulo?: string | null
+          total_aprovado?: number
+          total_estimado?: number
+          tp_owner_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capa_url?: string | null
+          card_id?: string
+          confirmada_em?: string | null
+          created_at?: string
+          enviada_em?: string | null
+          estado?: Database["public"]["Enums"]["viagem_estado"]
+          id?: string
+          org_id?: string
+          pos_owner_id?: string | null
+          public_token?: string
+          subtitulo?: string | null
+          titulo?: string | null
+          total_aprovado?: number
+          total_estimado?: number
+          tp_owner_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viagens_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "viagens_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: true
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_pos_owner_id_fkey"
+            columns: ["pos_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_pos_owner_id_fkey"
+            columns: ["pos_owner_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "viagens_pos_owner_id_fkey"
+            columns: ["pos_owner_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_tp_owner_id_fkey"
+            columns: ["tp_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_tp_owner_id_fkey"
+            columns: ["tp_owner_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "viagens_tp_owner_id_fkey"
+            columns: ["tp_owner_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
           },
         ]
@@ -13731,7 +14452,6 @@ export type Database = {
           criar_card: boolean | null
           criar_contato: boolean | null
           default_owner_id: string | null
-          fase_label: string | null
           id: string
           org_id: string
           phase_id: string | null
@@ -13749,7 +14469,6 @@ export type Database = {
           criar_card?: boolean | null
           criar_contato?: boolean | null
           default_owner_id?: string | null
-          fase_label?: string | null
           id?: string
           org_id?: string
           phase_id?: string | null
@@ -13767,7 +14486,6 @@ export type Database = {
           criar_card?: boolean | null
           criar_contato?: boolean | null
           default_owner_id?: string | null
-          fase_label?: string | null
           id?: string
           org_id?: string
           phase_id?: string | null
@@ -13862,7 +14580,6 @@ export type Database = {
           ecko_agent_id: string | null
           error_message: string | null
           external_id: string | null
-          fase_label: string | null
           group_jid: string | null
           group_name: string | null
           has_error: boolean | null
@@ -13879,6 +14596,7 @@ export type Database = {
           organization: string | null
           organization_id: string | null
           origem: string | null
+          phase_id: string | null
           phone_number_id: string | null
           phone_number_label: string | null
           platform_id: string | null
@@ -13912,7 +14630,6 @@ export type Database = {
           ecko_agent_id?: string | null
           error_message?: string | null
           external_id?: string | null
-          fase_label?: string | null
           group_jid?: string | null
           group_name?: string | null
           has_error?: boolean | null
@@ -13929,6 +14646,7 @@ export type Database = {
           organization?: string | null
           organization_id?: string | null
           origem?: string | null
+          phase_id?: string | null
           phone_number_id?: string | null
           phone_number_label?: string | null
           platform_id?: string | null
@@ -13962,7 +14680,6 @@ export type Database = {
           ecko_agent_id?: string | null
           error_message?: string | null
           external_id?: string | null
-          fase_label?: string | null
           group_jid?: string | null
           group_name?: string | null
           has_error?: boolean | null
@@ -13979,6 +14696,7 @@ export type Database = {
           organization?: string | null
           organization_id?: string | null
           origem?: string | null
+          phase_id?: string | null
           phone_number_id?: string | null
           phone_number_label?: string | null
           platform_id?: string | null
@@ -14058,6 +14776,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_phases"
             referencedColumns: ["id"]
           },
           {
@@ -15588,6 +16313,10 @@ export type Database = {
           fixed_count: number
         }[]
       }
+      aprovar_item: {
+        Args: { p_item_id: string; p_token: string }
+        Returns: Json
+      }
       audit_contact_quality: {
         Args: { p_issue_types?: string[]; p_limit?: number }
         Returns: {
@@ -15697,7 +16426,16 @@ export type Database = {
         Returns: number
       }
       cleanup_net_http_response: { Args: never; Returns: undefined }
+      comentar_item: {
+        Args: { p_item_id: string; p_texto: string; p_token: string }
+        Returns: Json
+      }
       completar_sub_card: { Args: { p_sub_card_id: string }; Returns: Json }
+      complete_outbound_queue_item: {
+        Args: { p_error?: string; p_queue_id: string; p_status: string }
+        Returns: undefined
+      }
+      confirmar_viagem: { Args: { p_token: string }; Returns: Json }
       consolidate_contacts_execute: {
         Args: { p_batch?: string; p_limit?: number }
         Returns: Json
@@ -15769,9 +16507,17 @@ export type Database = {
       dispatch_automacao_trigger_temporal: { Args: never; Returns: undefined }
       dispatch_n8n_ai_extraction: { Args: never; Returns: undefined }
       emergency_stop_all_scheduled_jobs: { Args: never; Returns: number }
+      enqueue_test_outbound: {
+        Args: { p_agent_id: string; p_phone: string }
+        Returns: Json
+      }
       ensure_app_product_value: {
         Args: { p_value: string }
         Returns: undefined
+      }
+      escolher_alternativa: {
+        Args: { p_alternativa_id: string; p_item_id: string; p_token: string }
+        Returns: Json
       }
       evaluate_alert_condition: {
         Args: { p_card_id: string; p_condition: Json }
@@ -15799,6 +16545,7 @@ export type Database = {
       }
       fix_orphan_conversations: { Args: never; Returns: Json }
       fn_check_integration_health: { Args: never; Returns: Json }
+      fn_enqueue_idle_followups: { Args: never; Returns: Json }
       fn_roteamento_pos_venda_trips: { Args: never; Returns: Json }
       fn_roteamento_pos_venda_trips_diagnose: {
         Args: never
@@ -15894,6 +16641,16 @@ export type Database = {
       get_outbound_external_field_id: {
         Args: { p_integration_id: string; p_internal_field: string }
         Returns: string
+      }
+      get_outbound_queue_stats: {
+        Args: { p_agent_id?: string }
+        Returns: {
+          success_rate_7d: number
+          total_failed_today: number
+          total_pending: number
+          total_sent_today: number
+          total_skipped: number
+        }[]
       }
       get_outbound_setting: { Args: { p_key: string }; Returns: string }
       get_outbound_trigger_event_stats: {
@@ -16002,6 +16759,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_viagem_by_token: { Args: { p_token: string }; Returns: Json }
       get_whatsapp_conversation_messages: {
         Args: { p_contact_id: string; p_limit?: number }
         Returns: Json
@@ -16297,6 +17055,23 @@ export type Database = {
           phone_number_id: string
         }[]
       }
+      process_outbound_queue: {
+        Args: { p_limit?: number }
+        Returns: {
+          agent_id: string
+          card_id: string
+          contact_name: string
+          contact_phone: string
+          contato_id: string
+          first_message_config: Json
+          form_data: Json
+          interaction_mode: string
+          org_id: string
+          queue_id: string
+          trigger_metadata: Json
+          trigger_type: string
+        }[]
+      }
       process_pending_whatsapp_events: { Args: never; Returns: Json }
       process_whatsapp_raw_event: { Args: { event_id: string }; Returns: Json }
       process_whatsapp_raw_event_v2: {
@@ -16427,6 +17202,36 @@ export type Database = {
         Returns: Json
       }
       revoke_api_key: { Args: { p_key_id: string }; Returns: boolean }
+      rpc_reactivation_assign_bulk: {
+        Args: { p_contact_ids: string[]; p_responsavel_id: string }
+        Returns: number
+      }
+      rpc_reactivation_create_cards_bulk: {
+        Args: {
+          p_contact_ids: string[]
+          p_pipeline_id: string
+          p_stage_id: string
+          p_titulo_prefix?: string
+          p_vendas_owner_id?: string
+        }
+        Returns: {
+          card_id: string
+          contact_id: string
+        }[]
+      }
+      rpc_reactivation_suppress_bulk: {
+        Args: {
+          p_contact_ids: string[]
+          p_note?: string
+          p_reason: string
+          p_until?: string
+        }
+        Returns: number
+      }
+      rpc_reactivation_unsuppress_bulk: {
+        Args: { p_contact_ids: string[] }
+        Returns: number
+      }
       run_card_alerts_daily: { Args: never; Returns: Json }
       safe_log_trigger_error: {
         Args: {
@@ -16644,6 +17449,37 @@ export type Database = {
       requirement_type_enum: "field" | "proposal" | "task"
       tipo_pessoa_enum: "adulto" | "crianca"
       tipo_viajante_enum: "titular" | "acompanhante"
+      trip_item_status:
+        | "rascunho"
+        | "proposto"
+        | "aprovado"
+        | "recusado"
+        | "operacional"
+        | "vivido"
+        | "arquivado"
+      trip_item_tipo:
+        | "dia"
+        | "hotel"
+        | "voo"
+        | "transfer"
+        | "passeio"
+        | "refeicao"
+        | "seguro"
+        | "dica"
+        | "voucher"
+        | "contato"
+        | "texto"
+        | "checklist"
+      viagem_estado:
+        | "desenho"
+        | "em_recomendacao"
+        | "em_aprovacao"
+        | "confirmada"
+        | "em_montagem"
+        | "aguardando_embarque"
+        | "em_andamento"
+        | "pos_viagem"
+        | "concluida"
     }
     CompositeTypes: {
       jsonb_diff_record: {
@@ -16819,6 +17655,40 @@ export const Constants = {
       requirement_type_enum: ["field", "proposal", "task"],
       tipo_pessoa_enum: ["adulto", "crianca"],
       tipo_viajante_enum: ["titular", "acompanhante"],
+      trip_item_status: [
+        "rascunho",
+        "proposto",
+        "aprovado",
+        "recusado",
+        "operacional",
+        "vivido",
+        "arquivado",
+      ],
+      trip_item_tipo: [
+        "dia",
+        "hotel",
+        "voo",
+        "transfer",
+        "passeio",
+        "refeicao",
+        "seguro",
+        "dica",
+        "voucher",
+        "contato",
+        "texto",
+        "checklist",
+      ],
+      viagem_estado: [
+        "desenho",
+        "em_recomendacao",
+        "em_aprovacao",
+        "confirmada",
+        "em_montagem",
+        "aguardando_embarque",
+        "em_andamento",
+        "pos_viagem",
+        "concluida",
+      ],
     },
   },
 } as const

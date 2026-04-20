@@ -57,6 +57,7 @@ export interface AiAgent {
     phone_line_id: string
     ativa: boolean
     priority: number
+    routing_filter: { allowed_phones?: string[] } | null
     whatsapp_linha_config?: {
       phone_number_label: string | null
       phone_number_id: string | null
@@ -225,6 +226,58 @@ export function useTogglePhoneLineConfig(agentId: string | undefined) {
   })
 }
 
+// Atualiza o routing_filter de um vínculo agente↔linha.
+// Passar `{ allowed_phones: [...] }` para restringir a lista; passar null para desativar o filtro.
+export function useUpdatePhoneLineRoutingFilter(agentId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ configId, routingFilter }: {
+      configId: string
+      routingFilter: { allowed_phones: string[] } | null
+    }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('ai_agent_phone_line_config')
+        .update({ routing_filter: routingFilter })
+        .eq('id', configId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      if (agentId) {
+        queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, 'detail', agentId] })
+      }
+    },
+  })
+}
+
+export interface EnqueueTestOutboundResult {
+  ok: boolean
+  queue_id?: string
+  agent_nome?: string
+  agent_ativa?: boolean
+  phone?: string
+  note?: string
+  error?: string
+  hint?: string
+}
+
+// Chama o RPC enqueue_test_outbound para disparar manualmente uma primeira mensagem
+// de teste para um telefone específico. Requer contato + card já existentes na org.
+export function useEnqueueTestOutbound() {
+  return useMutation({
+    mutationFn: async ({ agentId, phone }: { agentId: string; phone: string }): Promise<EnqueueTestOutboundResult> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('enqueue_test_outbound', {
+        p_agent_id: agentId,
+        p_phone: phone,
+      })
+      if (error) throw error
+      return data as EnqueueTestOutboundResult
+    },
+  })
+}
+
 export function useAiAgentDetail(agentId: string | undefined) {
   return useQuery({
     queryKey: [...QUERY_KEY, 'detail', agentId],
@@ -236,7 +289,7 @@ export function useAiAgentDetail(agentId: string | undefined) {
         .select(`
           *,
           ai_agent_skills(id, skill_id, enabled, priority, config_override, ai_skills(*)),
-          ai_agent_phone_line_config(id, phone_line_id, ativa, priority, whatsapp_linha_config(phone_number_label, phone_number_id)),
+          ai_agent_phone_line_config(id, phone_line_id, ativa, priority, routing_filter, whatsapp_linha_config(phone_number_label, phone_number_id)),
           ai_agent_prompts(id, version, is_active, variant_name, is_variant, total_conversations, avg_resolution_rate, created_at),
           ativa_changed_by_profile:profiles!ai_agents_ativa_changed_by_fkey(id, nome)
         `)

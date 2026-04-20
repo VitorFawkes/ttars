@@ -740,15 +740,24 @@ export default function ImportacaoPosVendaPage() {
         },
     })
 
-    // Planner profiles for vendedor matching — cross-org via team_members
+    // Planner profiles for vendedor matching — cross-org via team_members.
+    // Resolvido por slug canônico da fase (pipeline_phases.slug = 'planner'), não por team.name,
+    // para funcionar em orgs que renomearam o time.
     const { data: plannerProfiles = [] } = useQuery({
         queryKey: ['planner-profiles'],
         queryFn: async () => {
-            // Todos os teams com name='Planner' (parent + children visíveis)
+            // Todas as fases com slug='planner' (uma por org); depois teams ligados a essas fases.
+            const { data: plannerPhases } = await supabase
+                .from('pipeline_phases')
+                .select('id')
+                .eq('slug', 'planner')
+            const phaseIds = (plannerPhases || []).map(p => p.id as string)
+            if (phaseIds.length === 0) return []
+
             const { data: plannerTeams } = await supabase
                 .from('teams')
                 .select('id')
-                .eq('name', 'Planner')
+                .in('phase_id', phaseIds)
             const teamIds = (plannerTeams || []).map(t => t.id as string)
             if (teamIds.length === 0) return []
 

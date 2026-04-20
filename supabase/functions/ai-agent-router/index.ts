@@ -372,6 +372,7 @@ async function findAgentForLine(
   phoneNumberLabel: string | undefined,
   phoneNumberId: string | undefined,
   messageText: string,
+  senderPhone: string | undefined,
 ): Promise<AgentConfig | null> {
   let lineQuery = supabase
     .from("whatsapp_linha_config")
@@ -395,6 +396,7 @@ async function findAgentForLine(
     .from("ai_agent_phone_line_config")
     .select(`
       priority,
+      routing_filter,
       ai_agents!inner(
         id, org_id, nome, tipo, modelo, temperature, max_tokens,
         system_prompt, persona, routing_criteria, escalation_rules,
@@ -416,16 +418,33 @@ async function findAgentForLine(
     return null;
   }
 
+  const normalizedSender = senderPhone ? normalizePhone(senderPhone) : "";
+
   for (const config of configs) {
     const agent = config.ai_agents as unknown as AgentConfig & { ativa?: boolean };
     if (!agent) continue;
-    // Double-check in code: if an agent is not active, block regardless of filter.
     if (agent.ativa === false) {
       console.log(
         `[ai-agent-router] blocked: ai_agents.ativa=false for agent ${agent.id} (${agent.nome})`,
       );
       continue;
     }
+
+    // routing_filter: allowlist de telefones. Quando presente, SÓ processa mensagens vindas
+    // de sender_phone nessa lista. Útil para testes isolados de agente em linha de produção
+    // (ex: testar Luna no TP aceitando só o telefone do dev). Sem filtro → comportamento normal.
+    const filter = (config as { routing_filter?: { allowed_phones?: string[] } | null }).routing_filter;
+    const allowed = filter?.allowed_phones;
+    if (allowed && allowed.length > 0) {
+      const allowedNormalized = allowed.map(normalizePhone);
+      if (!normalizedSender || !allowedNormalized.includes(normalizedSender)) {
+        console.log(
+          `[ai-agent-router] blocked by routing_filter: agent=${agent.nome} sender=${normalizedSender || "(none)"} allowed=${JSON.stringify(allowedNormalized)}`,
+        );
+        continue;
+      }
+    }
+
     if (matchesRoutingCriteria(agent.routing_criteria, messageText)) {
       return agent;
     }
@@ -2046,6 +2065,7 @@ serve(async (req) => {
       input.phone_number_label,
       input.phone_number_id,
       processedText,
+      input.contact_phone,
     );
 
     if (!agent) {

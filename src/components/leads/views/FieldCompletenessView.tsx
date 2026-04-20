@@ -20,6 +20,8 @@ import {
     type CardCompleteness,
 } from '@/hooks/analytics/useFieldCompleteness'
 import type { PipelinePhase, PipelineStage } from '@/types/pipeline'
+import { SystemPhase } from '@/types/pipeline'
+import { getPhaseLabel, getProfileGroupLabel } from '@/lib/pipeline/phaseLabels'
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -311,8 +313,9 @@ function FilterManager({ allColumns, filters, onChange }: {
 
 // ── Person Filter (by team member / owner) ────────────────────────────
 
-function PersonFilter({ profiles, selectedIds, onChange }: {
+function PersonFilter({ profiles, phases, selectedIds, onChange }: {
     profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    phases: PipelinePhase[]
     selectedIds: string[]
     onChange: (ids: string[]) => void
 }) {
@@ -323,11 +326,10 @@ function PersonFilter({ profiles, selectedIds, onChange }: {
         ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase()))
         : profiles
 
-    // Group by phase
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
+    // Group by phase — label vem de pipeline_phases do banco (phase.label → phase.name → team_name)
     const grouped = new Map<string, typeof profiles>()
     for (const p of filtered) {
-        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
+        const group = getProfileGroupLabel(phases, p.phase_slug, p.team_name)
         const arr = grouped.get(group) || []
         arr.push(p)
         grouped.set(group, arr)
@@ -417,14 +419,13 @@ const TASK_TYPES_LIST = [
 ] as const
 
 // Recipient mode: pode ser um papel do card ("dono_atual", "sdr", "planner", "pos_venda") ou "specific"
+// Os slugs sdr/planner/pos_venda são contrato lógico do SystemPhase — o LABEL renderizado vem do banco.
 type RecipientMode = 'dono_atual' | 'sdr' | 'planner' | 'pos_venda' | 'specific'
 
-const RECIPIENT_LABELS: Record<RecipientMode, string> = {
-    dono_atual: 'Dono atual do lead',
-    sdr: 'SDR do lead',
-    planner: 'T. Planner do lead',
-    pos_venda: 'Pós-Venda do lead',
-    specific: 'Pessoa específica',
+function getRecipientLabel(mode: RecipientMode, phases: PipelinePhase[]): string {
+    if (mode === 'dono_atual') return 'Dono atual do lead'
+    if (mode === 'specific') return 'Pessoa específica'
+    return `${getPhaseLabel(phases, mode)} do lead`
 }
 
 export interface BulkNotifyResult {
@@ -445,7 +446,7 @@ export interface BulkNotifyResult {
 }
 
 function RecipientSelector({
-    label, mode, specificId, onModeChange, onSpecificChange, profiles,
+    label, mode, specificId, onModeChange, onSpecificChange, profiles, phases,
 }: {
     label: string
     mode: RecipientMode
@@ -453,6 +454,7 @@ function RecipientSelector({
     onModeChange: (m: RecipientMode) => void
     onSpecificChange: (id: string) => void
     profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    phases: PipelinePhase[]
 }) {
     const [personSearch, setPersonSearch] = useState('')
 
@@ -460,10 +462,9 @@ function RecipientSelector({
         ? profiles.filter(p => (p.full_name || '').toLowerCase().includes(personSearch.toLowerCase()))
         : profiles
 
-    const phaseLabels: Record<string, string> = { sdr: 'SDR', planner: 'T. Planner', pos_venda: 'Pós-Venda' }
     const grouped = new Map<string, typeof profiles>()
     for (const p of filteredProfiles) {
-        const group = p.phase_slug ? (phaseLabels[p.phase_slug] || p.phase_slug) : 'Outros'
+        const group = getProfileGroupLabel(phases, p.phase_slug, p.team_name)
         const arr = grouped.get(group) || []
         arr.push(p)
         grouped.set(group, arr)
@@ -480,7 +481,7 @@ function RecipientSelector({
                     <button key={m} onClick={() => onModeChange(m)} className={cn(
                         'px-3 py-1.5 text-xs rounded-lg border transition-all',
                         mode === m ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
-                    )}>{RECIPIENT_LABELS[m]}</button>
+                    )}>{getRecipientLabel(m, phases)}</button>
                 ))}
             </div>
             {mode === 'specific' && (
@@ -506,15 +507,16 @@ function RecipientSelector({
                 </div>
             )}
             {mode !== 'specific' && mode !== 'dono_atual' && (
-                <p className="text-[11px] text-slate-400">Cada lead envia para seu respectivo {RECIPIENT_LABELS[mode].toLowerCase()}. Leads sem essa pessoa atribuída são ignorados.</p>
+                <p className="text-[11px] text-slate-400">Cada lead envia para seu respectivo {getRecipientLabel(mode, phases).toLowerCase()}. Leads sem essa pessoa atribuída são ignorados.</p>
             )}
         </div>
     )
 }
 
-function BulkNotifyModal({ cardCount, profiles, initialMode, onConfirm, onClose }: {
+function BulkNotifyModal({ cardCount, profiles, phases, initialMode, onConfirm, onClose }: {
     cardCount: number
     profiles: { id: string; full_name: string | null; phase_slug: string | null; team_name: string | null }[]
+    phases: PipelinePhase[]
     initialMode: 'task' | 'alert'
     onConfirm: (result: BulkNotifyResult) => void
     onClose: () => void
@@ -598,7 +600,7 @@ function BulkNotifyModal({ cardCount, profiles, initialMode, onConfirm, onClose 
                                 <label className="text-xs font-medium text-slate-500 mb-1 block">Título</label>
                                 <input type="text" value={taskTitulo} onChange={e => setTaskTitulo(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
                             </div>
-                            <RecipientSelector label="Responsável" mode={taskRecipientMode} specificId={taskSpecificId} onModeChange={setTaskRecipientMode} onSpecificChange={setTaskSpecificId} profiles={profiles} />
+                            <RecipientSelector label="Responsável" mode={taskRecipientMode} specificId={taskSpecificId} onModeChange={setTaskRecipientMode} onSpecificChange={setTaskSpecificId} profiles={profiles} phases={phases} />
                             <div className="flex gap-3">
                                 <div className="flex-1">
                                     <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo</label>
@@ -630,7 +632,7 @@ function BulkNotifyModal({ cardCount, profiles, initialMode, onConfirm, onClose 
                                 <label className="text-xs font-medium text-slate-500 mb-1 block">Mensagem</label>
                                 <textarea value={alertCorpo} onChange={e => setAlertCorpo(e.target.value)} rows={3} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none" />
                             </div>
-                            <RecipientSelector label="Enviar para" mode={alertRecipientMode} specificId={alertSpecificId} onModeChange={setAlertRecipientMode} onSpecificChange={setAlertSpecificId} profiles={profiles} />
+                            <RecipientSelector label="Enviar para" mode={alertRecipientMode} specificId={alertSpecificId} onModeChange={setAlertRecipientMode} onSpecificChange={setAlertSpecificId} profiles={profiles} phases={phases} />
                         </div>
                     )}
 
@@ -680,8 +682,9 @@ function StageMoveDropdown({ stages, onSelect, onClose }: {
 
 // ── Bulk Owner Modal ──────────────────────────────────────────────────
 
-function OwnerAssignModal({ cardCount, onConfirm, onClose }: {
+function OwnerAssignModal({ cardCount, phases, onConfirm, onClose }: {
     cardCount: number
+    phases: PipelinePhase[]
     onConfirm: (field: string, ownerId: string) => void
     onClose: () => void
 }) {
@@ -708,9 +711,9 @@ function OwnerAssignModal({ cardCount, onConfirm, onClose }: {
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Tipo de dono</label>
                             <select value={field} onChange={e => setField(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
                                 <option value="dono_atual_id">Dono Atual</option>
-                                <option value="sdr_owner_id">SDR</option>
-                                <option value="vendas_owner_id">T. Planner</option>
-                                <option value="pos_owner_id">Pós-Venda</option>
+                                <option value="sdr_owner_id">{getPhaseLabel(phases, SystemPhase.SDR)}</option>
+                                <option value="vendas_owner_id">{getPhaseLabel(phases, SystemPhase.PLANNER)}</option>
+                                <option value="pos_owner_id">{getPhaseLabel(phases, SystemPhase.POS_VENDA)}</option>
                             </select>
                         </div>
                         <div>
@@ -837,7 +840,7 @@ export default function FieldCompletenessView() {
         if (stagesInitRef.current) return
         if (!phases.length || !stages.length) return
         stagesInitRef.current = true
-        const posPhase = phases.find(p => p.slug === 'pos_venda')
+        const posPhase = phases.find(p => p.slug === SystemPhase.POS_VENDA)
         if (!posPhase) return
         const posStageIds = stages.filter(s => s.phase_id === posPhase.id).map(s => s.id)
         if (posStageIds.length > 0) {
@@ -1155,6 +1158,7 @@ export default function FieldCompletenessView() {
                 {/* Person filter */}
                 <PersonFilter
                     profiles={filterOptions?.profiles || []}
+                    phases={phases}
                     selectedIds={personFilter}
                     onChange={ids => { setPersonFilter(ids); setPage(0) }}
                 />
@@ -1284,8 +1288,8 @@ export default function FieldCompletenessView() {
             )}
 
             {/* Modals */}
-            {showNotifyModal && <BulkNotifyModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} initialMode={showNotifyModal} onConfirm={handleBulkNotify} onClose={() => setShowNotifyModal(false)} />}
-            {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
+            {showNotifyModal && <BulkNotifyModal cardCount={selectedIds.size} profiles={filterOptions?.profiles || []} phases={phases} initialMode={showNotifyModal} onConfirm={handleBulkNotify} onClose={() => setShowNotifyModal(false)} />}
+            {showOwnerModal && <OwnerAssignModal cardCount={selectedIds.size} phases={phases} onConfirm={handleBulkAssignOwner} onClose={() => setShowOwnerModal(false)} />}
         </div>
     )
 }

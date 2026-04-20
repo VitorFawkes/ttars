@@ -2,16 +2,16 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
-  MessageSquare, BarChart3, AlertTriangle, PowerOff, Phone,
+  MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
   GitBranch, Settings, Zap, Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Switch } from '@/components/ui/switch'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
-import { useAiAgentDetail, useTogglePhoneLineConfig } from '@/hooks/useAiAgents'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { PhoneLinesPanel } from '@/components/ai-agent/editor/PhoneLinesPanel'
 import { useAiAgentHubStats } from '@/hooks/useAiAgentHubStats'
 import { useAiAgentMetrics } from '@/hooks/useAiConversations'
 import { cn } from '@/lib/utils'
@@ -92,7 +92,6 @@ export default function AiAgentDetailPage() {
   const { slug: currentProduct } = useCurrentProductMeta()
 
   const { data: existingAgent, isLoading: loadingAgent } = useAiAgentDetail(isNew ? undefined : id)
-  const togglePhoneLine = useTogglePhoneLineConfig(isNew ? undefined : id)
 
   const [form, setForm] = useState<AgentEditorForm>(DEFAULT_FORM)
   const [activeTab, setActiveTab] = useState<string>('identidade')
@@ -402,57 +401,8 @@ export default function AiAgentDetailPage() {
         </section>
       )}
 
-      {!isNew && existingAgent && existingAgent.ai_agent_phone_line_config && existingAgent.ai_agent_phone_line_config.length > 0 && (
-        <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
-          <header className="flex items-center gap-2">
-            <Phone className="w-4 h-4 text-teal-500" />
-            <h3 className="text-sm font-semibold text-slate-900">Linhas WhatsApp que este agente atende</h3>
-          </header>
-
-          {!existingAgent.ativa && (
-            <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <PowerOff className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-red-700">Agente desligado — nenhuma mensagem é respondida mesmo com linhas ativas.</p>
-            </div>
-          )}
-          {existingAgent.ativa && existingAgent.ai_agent_phone_line_config.every(l => !l.ativa) && (
-            <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">Agente ligado, mas nenhuma linha está ativa.</p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {existingAgent.ai_agent_phone_line_config.map(line => (
-              <div key={line.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn('w-2 h-2 rounded-full flex-shrink-0', line.ativa && existingAgent.ativa ? 'bg-green-500' : 'bg-slate-300')} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {line.whatsapp_linha_config?.phone_number_label || 'Linha sem nome'}
-                    </p>
-                    {line.whatsapp_linha_config?.phone_number_id && (
-                      <p className="text-xs text-slate-500 truncate">ID: {line.whatsapp_linha_config.phone_number_id}</p>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  checked={line.ativa}
-                  disabled={togglePhoneLine.isPending}
-                  onCheckedChange={(v) => {
-                    togglePhoneLine.mutate(
-                      { configId: line.id, ativa: v },
-                      {
-                        onSuccess: () => toast.success(v ? 'Linha ativada' : 'Linha desativada'),
-                        onError: () => toast.error('Erro ao atualizar linha'),
-                      }
-                    )
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
+      {!isNew && existingAgent && (
+        <PhoneLinesPanel agent={existingAgent} />
       )}
 
       <AgentEditorLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>

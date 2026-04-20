@@ -14,11 +14,18 @@ import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { getPhaseLabel } from '@/lib/pipeline/phaseLabels'
+import { SystemPhase } from '@/types/pipeline'
 
+// Contrato com RPC analytics_team_performance: p_phase aceita 'SDR'|'Vendas'|'Pos-Venda'.
+// Esses valores são legado de cards.fase e não devem ser trocados sem refatorar a RPC.
+// O LABEL renderizado, porém, vem de pipeline_phases pelo slug canônico.
 const TABS = [
-    { key: 'SDR', label: 'SDR' },
-    { key: 'Vendas', label: 'Planner' },
-    { key: 'Pos-Venda', label: 'Pós-Venda' },
+    { key: 'SDR', slug: SystemPhase.SDR },
+    { key: 'Vendas', slug: SystemPhase.PLANNER },
+    { key: 'Pos-Venda', slug: SystemPhase.POS_VENDA },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -27,6 +34,9 @@ export default function TeamView() {
     const navigate = useNavigate()
     const { ownerId, setOwnerId } = useAnalyticsFilters()
     const drillDown = useDrillDownStore()
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: phases = [] } = usePipelinePhases(pipelineId ?? undefined)
+    const tabLabel = (slug: string) => getPhaseLabel(phases, slug)
     const [activeTab, setActiveTab] = useState<TabKey>('SDR')
     const { data: teamData, isLoading, error: teamError, refetch } = useTeamPerformance(activeTab)
 
@@ -90,7 +100,7 @@ export default function TeamView() {
                                 : 'text-slate-600 hover:bg-slate-50'
                         )}
                     >
-                        {tab.label}
+                        {tabLabel(tab.slug)}
                     </button>
                 ))}
             </div>
@@ -218,7 +228,7 @@ export default function TeamView() {
                                         member={m}
                                         isSelected={ownerId === m.user_id}
                                         onClick={() => drillDown.open({
-                                            label: `${m.user_nome} — ${TABS.find(t => t.key === activeTab)?.label ?? activeTab}`,
+                                            label: `${m.user_nome} — ${tabLabel(TABS.find(t => t.key === activeTab)?.slug ?? SystemPhase.SDR)}`,
                                             drillOwnerId: m.user_id,
                                             drillPhase: activeTab,
                                             drillSource: 'stage_entries',

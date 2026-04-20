@@ -7,6 +7,7 @@ import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import type { Database } from '../../database.types'
 import TaxaPlanejamentoCard from './TaxaPlanejamentoCard'
 import CardTravelers from './CardTravelers'
+import { getPhaseBadgeClass, legacyFaseToSlug } from '../../lib/pipeline/phaseLabels'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -53,14 +54,9 @@ export default function CardSidebar({ card }: CardSidebarProps) {
         enabled: !!card.pessoa_principal_id
     })
 
-    const phaseColors = {
-        'SDR': 'bg-blue-100 text-blue-700 border-blue-200',
-        'Planner': 'bg-purple-100 text-purple-700 border-purple-200',
-        'Pós-venda': 'bg-green-100 text-green-700 border-green-200',
-        'Outro': 'bg-gray-100 text-gray-700 border-gray-200'
-    }
-
-    // const productData = card.produto_data as any
+    // Cor da fase derivada do slug canônico; se o card só tiver `fase` (PT legado),
+    // normaliza via legacyFaseToSlug. Em orgs com fase renomeada cai em cor neutra.
+    const phaseSlug = card.phase_slug ?? legacyFaseToSlug(card.fase)
 
     return (
         <div className="space-y-4">
@@ -69,7 +65,7 @@ export default function CardSidebar({ card }: CardSidebarProps) {
                 <div className="flex items-center justify-between mb-2">
                     <span className={cn(
                         "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border",
-                        phaseColors[card.fase as keyof typeof phaseColors] || phaseColors['Outro']
+                        getPhaseBadgeClass(phaseSlug)
                     )}>
                         {card.fase}
                     </span>
@@ -147,7 +143,9 @@ export default function CardSidebar({ card }: CardSidebarProps) {
             {card.produto === 'TRIPS' && <TaxaPlanejamentoCard card={card} />}
 
             {/* Travelers */}
-            {card.produto === 'TRIPS' && <CardTravelers card={card as any} />}
+            {card.produto === 'TRIPS' && card.id && (
+                <CardTravelers card={{ id: card.id, produto_data: (card.produto_data as Record<string, unknown> | null) ?? null }} />
+            )}
 
             {/* Contact Info */}
             <div className="rounded-lg border bg-white p-4 shadow-sm">

@@ -25,6 +25,10 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { getPhaseLabel, getPhaseAbbr } from '@/lib/pipeline/phaseLabels'
+import { SystemPhase } from '@/types/pipeline'
 
 // ── Constants ──
 
@@ -34,24 +38,22 @@ type DealSortField = 'days_in_stage' | 'valor_total' | 'receita' | 'owner_nome'
 type OwnerSortField = 'total_cards' | 'total_value' | 'total_receita' | 'avg_age_days' | 'sla_breach'
 type ChartGroupBy = 'stage' | 'consultant'
 
+// Cores hex indexadas por slug vindo da RPC analytics_pipeline_current (usa 'pos-venda' com dash).
+// Slugs são contrato canônico; cores são estéticas e compartilhadas entre orgs.
 const PHASE_COLORS: Record<string, string> = {
     sdr: '#3b82f6',
     planner: '#8b5cf6',
     'pos-venda': '#10b981',
 }
 
-const PHASE_LABELS: Record<string, string> = {
-    sdr: 'SDR (Pré-Venda)',
-    planner: 'Planner (Venda)',
-    'pos-venda': 'Pós-Venda',
+// Mapeia slug da RPC → slug SystemPhase (normaliza dash vs underscore) para resolver label no banco
+function slugToSystemPhase(slug: string | null | undefined): string | null {
+    if (!slug) return null
+    if (slug === 'sdr') return SystemPhase.SDR
+    if (slug === 'planner') return SystemPhase.PLANNER
+    if (slug === 'pos-venda' || slug === 'pos_venda') return SystemPhase.POS_VENDA
+    return slug
 }
-
-const PHASE_FILTER_OPTIONS: { value: PhaseFilter; label: string }[] = [
-    { value: 'all', label: 'Todos' },
-    { value: 'sdr', label: 'SDR' },
-    { value: 'planner', label: 'Planner' },
-    { value: 'pos-venda', label: 'Pós-Venda' },
-]
 
 const TASK_TYPE_LABELS: Record<string, string> = {
     tarefa: 'Tarefa',
@@ -132,6 +134,22 @@ export default function PipelineCurrentView() {
     const drillDown = useDrillDownStore()
     const { profile } = useAuth()
     const { setActiveView, setDatePreset, ownerIds, setOwnerIds } = useAnalyticsFilters()
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: phases = [] } = usePipelinePhases(pipelineId ?? undefined)
+
+    // Label dinâmico a partir de pipeline_phases do banco; aceita tanto slug da RPC
+    // (pos-venda com dash) quanto slug canônico (pos_venda com underscore).
+    const phaseLabel = useCallback((slug: string | null | undefined) => {
+        const normalized = slugToSystemPhase(slug)
+        return getPhaseLabel(phases, normalized ?? slug ?? '')
+    }, [phases])
+
+    const PHASE_FILTER_OPTIONS: { value: PhaseFilter; label: string }[] = [
+        { value: 'all', label: 'Todos' },
+        { value: 'sdr', label: phaseLabel('sdr') },
+        { value: 'planner', label: phaseLabel('planner') },
+        { value: 'pos-venda', label: phaseLabel('pos-venda') },
+    ]
 
     // ── View-specific filter state ──
     const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all')
@@ -219,9 +237,9 @@ export default function PipelineCurrentView() {
             const avgDays = count > 0
                 ? +(filtered.reduce((sum, s) => sum + s.avg_days * s.card_count, 0) / count).toFixed(1)
                 : 0
-            return { slug, label: PHASE_LABELS[slug], color: PHASE_COLORS[slug], count, value, receita, avgDays }
+            return { slug, label: phaseLabel(slug), color: PHASE_COLORS[slug], count, value, receita, avgDays }
         })
-    }, [allStages])
+    }, [allStages, phaseLabel])
 
     // ── Unassigned count ──
     const unassignedCount = useMemo(() =>
@@ -446,7 +464,7 @@ export default function PipelineCurrentView() {
         isMonetary ? `${(v / 1000).toFixed(0)}k` : String(v)
 
     const tooltipFormatter = (value: number, name: string) =>
-        isMonetary ? [formatCurrency(value), PHASE_LABELS[name] || name] : [value, PHASE_LABELS[name] || name]
+        isMonetary ? [formatCurrency(value), phaseLabel(name) || name] : [value, phaseLabel(name) || name]
 
     return (
         <div className="space-y-5">
@@ -652,8 +670,8 @@ export default function PipelineCurrentView() {
                 description={chartGroupBy === 'stage'
                     ? (phaseFilter === 'all'
                         ? `Cards abertos por etapa — ${metric === 'cards' ? 'quantidade' : metric === 'faturamento' ? 'faturamento' : 'receita'}`
-                        : `Etapas de ${PHASE_LABELS[phaseFilter]}`)
-                    : `${metric === 'cards' ? 'Quantidade' : metric === 'faturamento' ? 'Faturamento' : 'Receita'} por consultor${phaseFilter !== 'all' ? ` em ${PHASE_LABELS[phaseFilter]}` : ''} — clique para filtrar`}
+                        : `Etapas de ${phaseLabel(phaseFilter)}`)
+                    : `${metric === 'cards' ? 'Quantidade' : metric === 'faturamento' ? 'Faturamento' : 'Receita'} por consultor${phaseFilter !== 'all' ? ` em ${phaseLabel(phaseFilter)}` : ''} — clique para filtrar`}
                 colSpan={2}
                 isLoading={isLoading}
                 actions={
@@ -876,7 +894,7 @@ export default function PipelineCurrentView() {
                     description={
                         phaseFilter === 'all'
                             ? `Por responsável — ${metric === 'cards' ? 'quantidade' : metric === 'faturamento' ? 'faturamento' : 'receita'}`
-                            : `${PHASE_LABELS[phaseFilter]} por responsável`
+                            : `${phaseLabel(phaseFilter)} por responsável`
                     }
                     isLoading={isLoading}
                 >
@@ -916,7 +934,7 @@ export default function PipelineCurrentView() {
             {/* ── Performance por Consultor ── */}
             <ChartCard
                 title="Performance por Consultor"
-                description={`${sortedOwners.length} consultores${phaseFilter !== 'all' ? ` em ${PHASE_LABELS[phaseFilter]}` : ''} — clique para filtrar`}
+                description={`${sortedOwners.length} consultores${phaseFilter !== 'all' ? ` em ${phaseLabel(phaseFilter)}` : ''} — clique para filtrar`}
                 colSpan={2}
                 isLoading={isLoading}
             >
@@ -1030,7 +1048,7 @@ export default function PipelineCurrentView() {
                             {sortedOwners.length === 0 && !isLoading && (
                                 <tr>
                                     <td colSpan={7} className="py-8 text-center text-slate-400">
-                                        Nenhum consultor com cards{phaseFilter !== 'all' ? ` em ${PHASE_LABELS[phaseFilter]}` : ''}
+                                        Nenhum consultor com cards{phaseFilter !== 'all' ? ` em ${phaseLabel(phaseFilter)}` : ''}
                                     </td>
                                 </tr>
                             )}
@@ -1394,7 +1412,7 @@ export default function PipelineCurrentView() {
                                                     className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold text-white shrink-0"
                                                     style={{ background: getPhaseColor(deal.fase_slug) }}
                                                 >
-                                                    {deal.fase_slug === 'sdr' ? 'SDR' : deal.fase_slug === 'planner' ? 'PLAN' : 'POS'}
+                                                    {getPhaseAbbr(phaseLabel(deal.fase_slug))}
                                                 </span>
                                                 <span className="text-slate-600 truncate max-w-[100px]" title={deal.stage_nome}>{deal.stage_nome}</span>
                                             </div>
@@ -1436,7 +1454,7 @@ export default function PipelineCurrentView() {
                             {sortedDeals.length === 0 && !isLoading && (
                                 <tr>
                                     <td colSpan={8} className="py-8 text-center text-slate-400">
-                                        Nenhum card em aberto{phaseFilter !== 'all' ? ` em ${PHASE_LABELS[phaseFilter]}` : ''}
+                                        Nenhum card em aberto{phaseFilter !== 'all' ? ` em ${phaseLabel(phaseFilter)}` : ''}
                                         {(debouncedMin || debouncedMax) ? ' nesta faixa de valor' : ''}
                                     </td>
                                 </tr>

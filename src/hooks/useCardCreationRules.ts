@@ -18,6 +18,10 @@ interface AllowedStage {
     ordem: number
     fase: string | null
     phase_id: string | null
+    phase_slug: string | null
+    phase_name: string | null
+    phase_order: number | null
+    phase_is_terminal: boolean | null
 }
 
 /**
@@ -120,7 +124,7 @@ export function useAllowedStages(product: string) {
                 .from('pipeline_stages')
                 .select(`
                     id, nome, ordem, fase, phase_id,
-                    pipeline_phases!pipeline_stages_phase_id_fkey(id, name, order_index),
+                    pipeline_phases!pipeline_stages_phase_id_fkey(id, name, slug, order_index, is_terminal_phase),
                     pipelines!pipeline_stages_pipeline_id_fkey!inner(produto)
                 `)
                 .eq('ativo', true)
@@ -137,7 +141,21 @@ export function useAllowedStages(product: string) {
                     const pb = (b.pipeline_phases as any)?.order_index ?? 999
                     return pa !== pb ? pa - pb : a.ordem - b.ordem
                 })
-                .map(s => ({ id: s.id, nome: s.nome, ordem: s.ordem, fase: s.fase, phase_id: s.phase_id })) as AllowedStage[]
+                .map(s => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join typing
+                    const phase = s.pipeline_phases as any
+                    return {
+                        id: s.id,
+                        nome: s.nome,
+                        ordem: s.ordem,
+                        fase: s.fase,
+                        phase_id: s.phase_id,
+                        phase_slug: phase?.slug ?? null,
+                        phase_name: phase?.name ?? null,
+                        phase_order: phase?.order_index ?? null,
+                        phase_is_terminal: phase?.is_terminal_phase ?? null,
+                    }
+                }) as AllowedStage[]
         },
         enabled: !!profile
     })

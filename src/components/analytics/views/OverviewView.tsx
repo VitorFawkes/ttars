@@ -23,6 +23,10 @@ import { useFunnelByOwner, type FunnelMetric } from '@/hooks/analytics/useFunnel
 import { useDrillDownStore, type DrillDownContext } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency, formatCurrencyFull } from '@/utils/whatsappFormatters'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { getPhaseColor, getPhaseLabel } from '@/lib/pipeline/phaseLabels'
+import { SystemPhase, type PipelinePhase } from '@/types/pipeline'
 
 /** Compute period end based on period_start + granularity */
 function getPeriodEnd(periodStart: string, granularity: string): string {
@@ -83,6 +87,8 @@ export default function OverviewView() {
     const navigate = useNavigate()
     const drillDown = useDrillDownStore()
     const { granularity } = useAnalyticsFilters()
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: phases = [] } = usePipelinePhases(pipelineId ?? undefined)
     const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useOverviewKpis()
     const { data: funnelData, isLoading: funnelLoading, error: funnelError, refetch: refetchFunnel } = useFunnelData()
     const { data: revenueData, isLoading: revenueLoading, error: revenueError, refetch: refetchRevenue } = useRevenueTimeseries()
@@ -287,19 +293,25 @@ export default function OverviewView() {
                             ))}
                         </div>
                         <div className="flex bg-slate-100 rounded-lg p-1">
-                            {(['all', 'sdr', 'planner', 'pos'] as const).map((m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => setViewMode(m)}
-                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                                        viewMode === m
-                                            ? 'bg-white text-slate-900 shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    {m === 'all' ? 'Todos' : m === 'pos' ? 'Pós-Venda' : m.toUpperCase()}
-                                </button>
-                            ))}
+                            {(['all', 'sdr', 'planner', 'pos'] as const).map((m) => {
+                                const label = m === 'all' ? 'Todos'
+                                    : m === 'sdr' ? getPhaseLabel(phases, SystemPhase.SDR)
+                                    : m === 'planner' ? getPhaseLabel(phases, SystemPhase.PLANNER)
+                                    : getPhaseLabel(phases, SystemPhase.POS_VENDA)
+                                return (
+                                    <button
+                                        key={m}
+                                        onClick={() => setViewMode(m)}
+                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                                            viewMode === m
+                                                ? 'bg-white text-slate-900 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                )
+                            })}
                         </div>
                     </div>
                 }
@@ -568,28 +580,43 @@ export default function OverviewView() {
                 description="Cards ativos por macro-fase no período selecionado"
                 isLoading={funnelLoading}
             >
-                <MacroFunnelSnapshot data={funnelData || []} onDrillDown={drillDown.open} />
+                <MacroFunnelSnapshot data={funnelData || []} phases={phases} onDrillDown={drillDown.open} />
             </ChartCard>
         </div>
     )
 }
 
-// Sub-component: Macro funnel snapshot (3 macro-stages)
-function MacroFunnelSnapshot({ data, onDrillDown }: { data: { stage_nome: string; fase: string; total_cards: number }[]; onDrillDown?: (ctx: DrillDownContext) => void }) {
-    const macroMap: Record<string, { label: string; color: string; count: number }> = {
-        'SDR': { label: 'Entrada (SDR)', color: '#3b82f6', count: 0 },
-        'Vendas': { label: 'Vendas (Planner)', color: '#8b5cf6', count: 0 },
-        'Pos-Venda': { label: 'Pós-Venda', color: '#10b981', count: 0 },
+// Sub-component: Macro funnel snapshot (3 macro-stages).
+// DÉBITO TÉCNICO: RPC analytics_funnel_live ainda retorna apenas `fase` (nome PT legado).
+// Normaliza o valor recebido para um dos 3 slugs canônicos (SDR/PLANNER/POS_VENDA) e renderiza
+// label/cor a partir de pipeline_phases do banco. Quando a RPC passar a retornar phase_slug,
+// substituir o `normalizeFaseToSlug` por leitura direta.
+function normalizeFaseToSlug(fase: string | null | undefined): string {
+    if (!fase) return SystemPhase.SDR
+    const f = fase.toLowerCase()
+    // Ordem importa: 'pré-venda'/'pre-venda' bate em SDR antes de 'venda' bater em PLANNER
+    if (f.includes('pré-venda') || f.includes('pre-venda') || f === 'sdr') return SystemPhase.SDR
+    if (f.includes('pós') || f.includes('pos')) return SystemPhase.POS_VENDA
+    if (f.includes('venda') || f.includes('planner')) return SystemPhase.PLANNER
+    return SystemPhase.SDR
+}
+
+function MacroFunnelSnapshot({ data, phases, onDrillDown }: { data: { stage_nome: string; fase: string; total_cards: number }[]; phases: PipelinePhase[]; onDrillDown?: (ctx: DrillDownContext) => void }) {
+    const slugs = [SystemPhase.SDR, SystemPhase.PLANNER, SystemPhase.POS_VENDA]
+    const macroMap: Record<string, { label: string; color: string; count: number; slug: string }> = {}
+    for (const slug of slugs) {
+        macroMap[slug] = {
+            label: getPhaseLabel(phases, slug),
+            color: getPhaseColor(slug).hex,
+            count: 0,
+            slug,
+        }
     }
 
     for (const stage of data) {
-        const fase = stage.fase || 'SDR'
-        // Normalize fase names
-        const key = fase.includes('Pos') || fase.includes('Pós') ? 'Pos-Venda'
-            : fase.includes('Venda') || fase.includes('Planner') ? 'Vendas'
-            : 'SDR'
-        if (macroMap[key]) {
-            macroMap[key].count += stage.total_cards
+        const slug = normalizeFaseToSlug(stage.fase)
+        if (macroMap[slug]) {
+            macroMap[slug].count += stage.total_cards
         }
     }
 
@@ -627,12 +654,10 @@ function MacroFunnelSnapshot({ data, onDrillDown }: { data: { stage_nome: string
                     cursor="pointer"
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onClick={(data: any) => {
-                        const label = data?.label || data?.payload?.label
-                        const phaseSlug = label?.includes('SDR') ? 'sdr'
-                            : label?.includes('Planner') || label?.includes('Vendas') ? 'planner'
-                            : label?.includes('Pós') ? 'pos-venda' : undefined
-                        if (onDrillDown && phaseSlug) {
-                            onDrillDown({ label: label || 'Fase', drillPhase: phaseSlug, drillSource: 'macro_funnel' })
+                        const payload = data?.payload || data
+                        const slug = payload?.slug
+                        if (onDrillDown && slug) {
+                            onDrillDown({ label: payload.label || 'Fase', drillPhase: slug, drillSource: 'macro_funnel' })
                         }
                     }}
                 >

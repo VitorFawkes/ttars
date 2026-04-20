@@ -13,12 +13,7 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
-
-const PHASE_COLORS: Record<string, string> = {
-    SDR: '#3b82f6',
-    Planner: '#8b5cf6',
-    'Pós-Venda': '#10b981',
-}
+import { getPhaseColor } from '@/lib/pipeline/phaseLabels'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function FunnelTooltip({ active, payload }: any) {
@@ -215,17 +210,12 @@ export default function SalesFunnelView() {
                                         }
                                     }}
                                 >
-                                    {chartData.map((entry, i) => {
-                                        const phaseLabel = entry.phase_slug?.toUpperCase() === 'SDR' ? 'SDR'
-                                            : entry.phase_slug?.toUpperCase() === 'PLANNER' ? 'Planner'
-                                            : 'Pós-Venda'
-                                        return (
-                                            <Cell
-                                                key={i}
-                                                fill={PHASE_COLORS[phaseLabel] || '#6366f1'}
-                                            />
-                                        )
-                                    })}
+                                    {chartData.map((entry, i) => (
+                                        <Cell
+                                            key={i}
+                                            fill={getPhaseColor(entry.phase_slug).hex}
+                                        />
+                                    ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>

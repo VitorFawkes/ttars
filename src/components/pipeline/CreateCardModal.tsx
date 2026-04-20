@@ -18,6 +18,8 @@ import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefin
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
 import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
+import { getPhaseColor, type PhaseColorTokens } from '../../lib/pipeline/phaseLabels'
+import { SystemPhase } from '../../types/pipeline'
 
 interface CreateCardModalProps {
     isOpen: boolean
@@ -32,6 +34,10 @@ interface AllowedStage {
     ordem: number
     fase: string | null
     phase_id: string | null
+    phase_slug: string | null
+    phase_name: string | null
+    phase_order: number | null
+    phase_is_terminal: boolean | null
 }
 
 interface QuickStageSelectorProps {
@@ -40,48 +46,53 @@ interface QuickStageSelectorProps {
     onSelect: (stageId: string) => void
     showMore: boolean
     onToggleMore: () => void
-    userPhase: string | null
+    userPhaseSlug: string | null
 }
 
-// Phase colors for visual differentiation
-const PHASE_COLORS: Record<string, { bg: string; border: string; text: string; activeBg: string }> = {
-    'SDR': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-100' },
-    'Planner': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', activeBg: 'bg-purple-100' },
-    'Pós-venda': { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-100' },
-    'default': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', activeBg: 'bg-slate-100' }
-}
+function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onToggleMore, userPhaseSlug }: QuickStageSelectorProps) {
+    const { primaryStages, primaryLabel, primaryColors, otherPhases, hasOtherPhases } = useMemo(() => {
+        // Agrupar por phase_id (invariante) e carregar nome/slug da fase a partir do próprio stage row
+        type PhaseGroup = {
+            phaseId: string
+            slug: string | null
+            label: string
+            order: number
+            terminal: boolean
+            stages: AllowedStage[]
+        }
+        const groupsMap = new Map<string, PhaseGroup>()
+        for (const s of stages) {
+            const key = s.phase_id ?? '__none__'
+            let g = groupsMap.get(key)
+            if (!g) {
+                g = {
+                    phaseId: key,
+                    slug: s.phase_slug,
+                    label: s.phase_name || s.fase || 'Outros',
+                    order: s.phase_order ?? 999,
+                    terminal: s.phase_is_terminal === true || s.phase_slug === SystemPhase.RESOLUCAO,
+                    stages: [],
+                }
+                groupsMap.set(key, g)
+            }
+            g.stages.push(s)
+        }
+        for (const g of groupsMap.values()) g.stages.sort((a, b) => a.ordem - b.ordem)
+        const groups = [...groupsMap.values()].sort((a, b) => a.order - b.order)
 
-function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onToggleMore, userPhase }: QuickStageSelectorProps) {
-    const { primaryStages, otherPhases, hasOtherPhases } = useMemo(() => {
-        const grouped = stages.reduce((acc, stage) => {
-            const phase = stage.fase || 'Outros'
-            if (!acc[phase]) acc[phase] = []
-            acc[phase].push(stage)
-            return acc
-        }, {} as Record<string, AllowedStage[]>)
+        const primaryGroup = userPhaseSlug ? groups.find(g => g.slug === userPhaseSlug) : undefined
+        const others = groups.filter(g => g !== primaryGroup && !g.terminal)
 
-        Object.values(grouped).forEach(group => group.sort((a, b) => a.ordem - b.ordem))
+        return {
+            primaryStages: primaryGroup?.stages ?? [],
+            primaryLabel: primaryGroup?.label ?? null,
+            primaryColors: getPhaseColor(primaryGroup?.slug ?? userPhaseSlug),
+            otherPhases: others,
+            hasOtherPhases: others.length > 0,
+        }
+    }, [stages, userPhaseSlug])
 
-        // User's phase stages shown prominently; filter out "Resolução" (Perdido etc.)
-        const primary = userPhase && grouped[userPhase]
-            ? grouped[userPhase]
-            : []
-
-        // Other phases in standard order, excluding user's phase and Resolução
-        const phaseOrder = ['SDR', 'Planner', 'Pós-venda']
-        const others: { phase: string; stages: AllowedStage[] }[] = []
-        const allPhases = [...phaseOrder, ...Object.keys(grouped).filter(p => !phaseOrder.includes(p))]
-
-        allPhases.forEach(phase => {
-            if (phase === userPhase || phase === 'Resolução' || !grouped[phase]) return
-            others.push({ phase, stages: grouped[phase] })
-        })
-
-        return { primaryStages: primary, otherPhases: others, hasOtherPhases: others.length > 0 }
-    }, [stages, userPhase])
-
-    const getPhaseColors = (phase: string) => PHASE_COLORS[phase] || PHASE_COLORS['default']
-    const userColors = getPhaseColors(userPhase || 'default')
+    const userColors: PhaseColorTokens = primaryColors
 
     return (
         <div className="space-y-3">
@@ -89,7 +100,7 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
             {primaryStages.length > 0 && (
                 <div className="space-y-2">
                     <p className={cn('text-xs font-medium', userColors.text)}>
-                        {userPhase}
+                        {primaryLabel}
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {primaryStages.map(stage => {
@@ -123,11 +134,12 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
                 (() => {
                     const sel = stages.find(s => s.id === selectedStageId)
                     if (!sel) return null
-                    const selColors = getPhaseColors(sel.fase || 'default')
+                    const selColors = getPhaseColor(sel.phase_slug)
+                    const selPhaseLabel = sel.phase_name || sel.fase || 'Outros'
                     return (
                         <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border ring-2 ring-offset-1 ring-indigo-500', selColors.activeBg, selColors.border)}>
                             <Check className="h-3.5 w-3.5 text-indigo-600" />
-                            <span className="text-xs font-medium text-slate-500">{sel.fase}</span>
+                            <span className="text-xs font-medium text-slate-500">{selPhaseLabel}</span>
                             <span className="text-sm font-medium text-slate-900">{sel.nome}</span>
                         </div>
                     )
@@ -154,13 +166,13 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
 
                     {showMore && (
                         <div className="space-y-3 pt-1 pl-2 border-l-2 border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                            {otherPhases.map(({ phase, stages: phaseStages }) => {
-                                const colors = getPhaseColors(phase)
+                            {otherPhases.map(g => {
+                                const colors = getPhaseColor(g.slug)
                                 return (
-                                    <div key={phase} className="space-y-1.5">
-                                        <p className={cn('text-xs font-medium', colors.text)}>{phase}</p>
+                                    <div key={g.phaseId} className="space-y-1.5">
+                                        <p className={cn('text-xs font-medium', colors.text)}>{g.label}</p>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {phaseStages.map(stage => {
+                                            {g.stages.map(stage => {
                                                 const isSelected = selectedStageId === stage.id
                                                 return (
                                                     <button
@@ -218,17 +230,17 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- team join pendente de types regeneration
         const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
         const isAdmin = profile?.is_admin === true
-        const effectivePhase = phaseSlug ?? (isAdmin ? 'planner' : undefined)
+        const effectivePhase = phaseSlug ?? (isAdmin ? SystemPhase.PLANNER : undefined)
         const userId = profile?.id || null
         const userName = profile?.nome || null
 
         return {
-            sdr_owner_id: effectivePhase === 'sdr' ? userId : null,
-            sdr_owner_nome: effectivePhase === 'sdr' ? userName : null,
-            vendas_owner_id: effectivePhase === 'planner' ? userId : null,
-            vendas_owner_nome: effectivePhase === 'planner' ? userName : null,
-            pos_owner_id: effectivePhase === 'pos_venda' ? userId : null,
-            pos_owner_nome: effectivePhase === 'pos_venda' ? userName : null,
+            sdr_owner_id: effectivePhase === SystemPhase.SDR ? userId : null,
+            sdr_owner_nome: effectivePhase === SystemPhase.SDR ? userName : null,
+            vendas_owner_id: effectivePhase === SystemPhase.PLANNER ? userId : null,
+            vendas_owner_nome: effectivePhase === SystemPhase.PLANNER ? userName : null,
+            pos_owner_id: effectivePhase === SystemPhase.POS_VENDA ? userId : null,
+            pos_owner_nome: effectivePhase === SystemPhase.POS_VENDA ? userName : null,
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any
     }, [(profile as any)?.team?.phase?.slug, profile?.is_admin, profile?.id, profile?.nome])
@@ -296,12 +308,24 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     // Get allowed stages for user's team
     const { allowedStages, isLoading: loadingStages, isAdmin } = useAllowedStages(formData.produto)
 
+    // Map slug → label construído a partir das fases referenciadas pelos stages carregados.
+    // Evita query extra a pipeline_phases quando allowedStages já traz o dado.
+    const phaseLabelBySlug = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const s of allowedStages) {
+            if (s.phase_slug && !map.has(s.phase_slug)) {
+                map.set(s.phase_slug, s.phase_name || s.fase || s.phase_slug)
+            }
+        }
+        return map
+    }, [allowedStages])
+    const labelForSlug = (slug: string, fallback: string) => phaseLabelBySlug.get(slug) || fallback
+
     // Determine user's phase for smart defaults
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userPhaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userPhaseId = (profile as any)?.team?.phase?.id as string | undefined
-    const userPhaseName = userPhaseSlug === 'sdr' ? 'SDR' : userPhaseSlug === 'planner' ? 'Planner' : userPhaseSlug === 'pos_venda' ? 'Pós-venda' : null
 
     // Derived: effective stage ID — picks the main working stage for the user's phase
     // For Planner: "Proposta em Construção" (2nd stage), not "Oportunidade" (entry stage from SDR)
@@ -315,7 +339,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 .sort((a, b) => a.ordem - b.ordem)
             if (phaseStages.length > 0) {
                 // Planner: skip entry stage (Oportunidade), pick the working stage
-                const idx = userPhaseSlug === 'planner' && phaseStages.length > 1 ? 1 : 0
+                const idx = userPhaseSlug === SystemPhase.PLANNER && phaseStages.length > 1 ? 1 : 0
                 return phaseStages[idx].id
             }
         }
@@ -457,8 +481,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
             // Step 1b: Insert assistant if selected
             if (assistenteId) {
-                const assistRole = userPhaseSlug === 'planner' ? 'assistente_planner'
-                    : userPhaseSlug === 'pos_venda' ? 'assistente_pos'
+                const assistRole = userPhaseSlug === SystemPhase.PLANNER ? 'assistente_planner'
+                    : userPhaseSlug === SystemPhase.POS_VENDA ? 'assistente_pos'
                     : 'apoio'
                 try {
                     const { data: { user } } = await supabase.auth.getUser()
@@ -518,7 +542,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 const obsKeys = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes', 'resumo_consultor', 'resumo_consultor_at']
                                 let changed = false
 
-                                if (userPhaseSlug !== 'sdr') {
+                                if (userPhaseSlug !== SystemPhase.SDR) {
                                     // Planner/Pós-venda: n8n wrote to produto_data → copy to briefing_inicial
                                     for (const [key, value] of Object.entries(pd)) {
                                         if (!obsKeys.includes(key) && value !== null && value !== undefined && (bi[key] === null || bi[key] === undefined)) {
@@ -711,7 +735,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     onSelect={(id) => setFormData({ ...formData, selectedStageId: id })}
                                     showMore={showMoreStages}
                                     onToggleMore={() => setShowMoreStages(!showMoreStages)}
-                                    userPhase={userPhaseName}
+                                    userPhaseSlug={userPhaseSlug ?? null}
                                 />
                             )}
 
@@ -732,14 +756,18 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             </h3>
 
                             {(() => {
-                                const effectivePhase = userPhaseSlug ?? (profile?.is_admin ? 'planner' : null)
+                                const effectivePhase = userPhaseSlug ?? (profile?.is_admin ? SystemPhase.PLANNER : null)
+
+                                const sdrLabel = labelForSlug(SystemPhase.SDR, 'SDR')
+                                const plannerLabel = labelForSlug(SystemPhase.PLANNER, 'Planner')
+                                const posLabel = labelForSlug(SystemPhase.POS_VENDA, 'Pós-venda')
 
                                 const allOwnerFields = [
-                                    { key: 'sdr', label: 'SDR Responsável', value: formData.sdr_owner_id, phaseSlug: 'sdr' as const, placeholder: 'Selecionar SDR',
+                                    { key: SystemPhase.SDR, label: `${sdrLabel} Responsável`, value: formData.sdr_owner_id, phaseSlug: SystemPhase.SDR, placeholder: `Selecionar ${sdrLabel}`,
                                       onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, sdr_owner_id: id, sdr_owner_nome: nome }) },
-                                    { key: 'planner', label: 'Planner Responsável', value: formData.vendas_owner_id, phaseSlug: 'planner' as const, placeholder: 'Selecionar Planner',
+                                    { key: SystemPhase.PLANNER, label: `${plannerLabel} Responsável`, value: formData.vendas_owner_id, phaseSlug: SystemPhase.PLANNER, placeholder: `Selecionar ${plannerLabel}`,
                                       onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, vendas_owner_id: id, vendas_owner_nome: nome }) },
-                                    { key: 'pos_venda', label: 'Pós-venda Responsável', value: formData.pos_owner_id, phaseSlug: 'pos_venda' as const, placeholder: 'Selecionar Pós-venda',
+                                    { key: SystemPhase.POS_VENDA, label: `${posLabel} Responsável`, value: formData.pos_owner_id, phaseSlug: SystemPhase.POS_VENDA, placeholder: `Selecionar ${posLabel}`,
                                       onChange: (id: string | null, nome: string | null) => setFormData({ ...formData, pos_owner_id: id, pos_owner_nome: nome }) },
                                 ]
 

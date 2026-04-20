@@ -23,6 +23,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getPhaseColor } from '@/lib/pipeline/phaseLabels';
 import { useCardContactNames, type ContactNameInfo } from '@/hooks/useCardContactNames';
 
 interface WhatsAppMessage {
@@ -41,18 +42,17 @@ interface WhatsAppMessage {
     error_message: string | null;
     created_at: string | null;
     sent_by_user_name: string | null;
-    fase_label: string | null;
+    phase_id: string | null;
+    phase?: { id: string; slug: string | null; label: string | null; name: string | null } | null;
     phone_number_label: string | null;
     is_group: boolean | null;
     group_jid: string | null;
     group_name: string | null;
 }
 
-const FASE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    'SDR': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-    'Planner': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-    'Pós-Venda': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-};
+function getPhaseBadgeLabel(message: WhatsAppMessage): string {
+    return message.phase?.label || message.phase?.name || '';
+}
 
 interface WhatsAppHistoryProps {
     contactId: string | null;
@@ -480,7 +480,7 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
             const query = (supabase
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('whatsapp_messages') as any)
-                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, fase_label, phone_number_label, is_group, group_jid, group_name')
+                .select('id, contact_id, card_id, body, direction, is_from_me, sender_name, message_type, media_url, media_content, status, has_error, error_message, created_at, sent_by_user_name, phase_id, phase:pipeline_phases(id, slug, label, name), phone_number_label, is_group, group_jid, group_name')
                 .order('created_at', { ascending: true })
                 .limit(200);
 
@@ -552,13 +552,13 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
     // Pre-compute which messages should show a fase change badge
     const faseChangeIds = new Set<string>();
     if (groupedMessages.length > 0) {
-        let prevFase: string | null = null;
+        let prevPhaseId: string | null = null;
         for (const group of groupedMessages) {
             for (const msg of group.messages) {
-                if (msg.fase_label && msg.fase_label !== prevFase) {
+                if (msg.phase_id && msg.phase_id !== prevPhaseId) {
                     faseChangeIds.add(msg.id);
                 }
-                if (msg.fase_label) prevFase = msg.fase_label;
+                if (msg.phase_id) prevPhaseId = msg.phase_id;
             }
         }
     }
@@ -648,8 +648,9 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
 
                             {/* Messages in group */}
                             {group.messages.map((message) => {
-                                const showFaseBadge = message.fase_label && faseChangeIds.has(message.id);
-                                const colors = message.fase_label ? FASE_COLORS[message.fase_label] : null;
+                                const phaseLabel = getPhaseBadgeLabel(message);
+                                const showFaseBadge = Boolean(phaseLabel) && faseChangeIds.has(message.id);
+                                const colors = message.phase?.slug ? getPhaseColor(message.phase.slug) : null;
                                 return (
                                     <div key={message.id}>
                                         {showFaseBadge && colors && (
@@ -658,7 +659,7 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
                                                     "px-2.5 py-0.5 rounded-full text-[10px] font-medium border",
                                                     colors.bg, colors.text, colors.border
                                                 )}>
-                                                    {message.fase_label}
+                                                    {phaseLabel}
                                                 </span>
                                             </div>
                                         )}
