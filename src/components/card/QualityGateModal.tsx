@@ -233,50 +233,62 @@ export default function QualityGateModal({
         [missingRequirements, satisfiedRoles]
     )
 
-    const assignOwnerMutation = useMutation({
-        mutationFn: async ({ role, userId }: { role: string; userId: string }) => {
-            const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[role]
-            if (!ownerCol) throw new Error(`Role desconhecida: ${role}`)
-            const { error } = await supabase.from('cards').update({ [ownerCol]: userId }).eq('id', cardId)
+    const saveAllMutation = useMutation({
+        mutationFn: async (entries: Array<{ role: string; userId: string }>) => {
+            if (entries.length === 0) return
+            const updates: Record<string, string> = {}
+            for (const { role, userId } of entries) {
+                const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[role]
+                if (!ownerCol) throw new Error(`Role desconhecida: ${role}`)
+                updates[ownerCol] = userId
+            }
+            const { error } = await supabase.from('cards').update(updates).eq('id', cardId)
             if (error) throw error
+            return entries.map(e => e.role)
         },
-        onSuccess: (_data, variables) => {
+        onSuccess: (savedRoles) => {
             queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             queryClient.invalidateQueries({ queryKey: ['card', cardId] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['card-team-roles', cardId] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
-            setPending(prev => {
-                const next = { ...prev }
-                delete next[variables.role]
-                return next
-            })
-            setExpandedRole(null)
-            setSatisfiedRoles(prev => {
-                const next = new Set(prev)
-                next.add(variables.role)
-                return next
-            })
 
-            // Se o que acabou de ser resolvido era a última pendência, prossegue com a mudança de etapa
+            const savedSet = new Set(savedRoles || [])
+            const nextSatisfied = new Set([...satisfiedRoles, ...savedSet])
+            setSatisfiedRoles(nextSatisfied)
+            setPending({})
+            setExpandedRole(null)
+
             const stillPending = missingRequirements.filter(r => {
                 if (r.type === 'team_member' && r.required_team_role) {
-                    return r.required_team_role !== variables.role && !satisfiedRoles.has(r.required_team_role)
+                    return !nextSatisfied.has(r.required_team_role)
                 }
                 return true
             })
 
             if (stillPending.length === 0) {
-                toast.success('Responsável salvo — movendo card…')
+                toast.success('Tudo certo — movendo card…')
                 onConfirm()
             } else {
-                toast.success('Responsável salvo')
+                toast.success(savedRoles && savedRoles.length > 1 ? 'Responsáveis salvos' : 'Responsável salvo')
             }
         },
         onError: (error: Error) => {
             toast.error('Erro ao salvar: ' + error.message)
         }
     })
+
+    const pendingEntries = Object.entries(pending).map(([role, sel]) => ({ role, userId: sel.userId }))
+    const hasPendingSelections = pendingEntries.length > 0
+    const isSaving = saveAllMutation.isPending
+
+    const handlePrimaryAction = () => {
+        if (hasPendingSelections) {
+            saveAllMutation.mutate(pendingEntries)
+        } else {
+            onClose()
+        }
+    }
 
     const grouped = new Map<string, MissingRequirement[]>()
     for (const req of unresolvedRequirements) {
@@ -320,7 +332,6 @@ export default function QualityGateModal({
                                             const role = item.required_team_role
                                             const isExpanded = expandedRole === role
                                             const pendingSel = pending[role]
-                                            const isSaving = assignOwnerMutation.isPending && assignOwnerMutation.variables?.role === role
                                             const roleLabel = TEAM_ROLE_LABEL[role] || ''
 
                                             return (
@@ -332,49 +343,29 @@ export default function QualityGateModal({
                                                         </div>
 
                                                         {pendingSel ? (
-                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-indigo-200 text-xs">
-                                                                    <div className="h-4 w-4 rounded-full bg-indigo-600 flex items-center justify-center">
-                                                                        <Check className="h-2.5 w-2.5 text-white" />
-                                                                    </div>
-                                                                    <span className="font-medium text-indigo-900 max-w-[120px] truncate">
-                                                                        {pendingSel.userName || 'Selecionado'}
-                                                                    </span>
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={isSaving}
-                                                                        onClick={() => {
-                                                                            setPending(prev => {
-                                                                                const next = { ...prev }
-                                                                                delete next[role]
-                                                                                return next
-                                                                            })
-                                                                        }}
-                                                                        className="ml-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                                                                        title="Desfazer"
-                                                                    >
-                                                                        <X className="h-3 w-3" />
-                                                                    </button>
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-indigo-200 text-xs flex-shrink-0">
+                                                                <div className="h-4 w-4 rounded-full bg-indigo-600 flex items-center justify-center">
+                                                                    <Check className="h-2.5 w-2.5 text-white" />
+                                                                </div>
+                                                                <span className="font-medium text-indigo-900 max-w-[140px] truncate">
+                                                                    {pendingSel.userName || 'Selecionado'}
                                                                 </span>
-                                                                <Button
-                                                                    size="sm"
+                                                                <button
+                                                                    type="button"
                                                                     disabled={isSaving}
-                                                                    onClick={() => assignOwnerMutation.mutate({ role, userId: pendingSel.userId })}
-                                                                    className="h-7 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                                                                    onClick={() => {
+                                                                        setPending(prev => {
+                                                                            const next = { ...prev }
+                                                                            delete next[role]
+                                                                            return next
+                                                                        })
+                                                                    }}
+                                                                    className="ml-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                                                                    title="Desfazer"
                                                                 >
-                                                                    {isSaving ? (
-                                                                        <>
-                                                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                                                            Salvando…
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <Check className="h-3 w-3" />
-                                                                            Salvar
-                                                                        </>
-                                                                    )}
-                                                                </Button>
-                                                            </div>
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            </span>
                                                         ) : (
                                                             <button
                                                                 type="button"
@@ -386,7 +377,7 @@ export default function QualityGateModal({
                                                                         : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-100'
                                                                 )}
                                                             >
-                                                                {isExpanded ? 'Fechar' : `Atribuir ${roleLabel}`}
+                                                                {isExpanded ? 'Fechar' : `Escolher ${roleLabel}`}
                                                             </button>
                                                         )}
                                                     </div>
@@ -436,11 +427,49 @@ export default function QualityGateModal({
                 <DialogFooter className="gap-2 sm:gap-0">
                     {context === 'card-detail' ? (
                         <Button
-                            onClick={onClose}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                            onClick={handlePrimaryAction}
+                            disabled={isSaving}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
                         >
-                            {remainingCount === 0 ? 'Fechar' : 'Entendi'}
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Salvando…
+                                </>
+                            ) : hasPendingSelections ? (
+                                <>
+                                    <Check className="h-3.5 w-3.5" />
+                                    Salvar
+                                </>
+                            ) : remainingCount === 0 ? (
+                                'Fechar'
+                            ) : (
+                                'Entendi'
+                            )}
                         </Button>
+                    ) : hasPendingSelections ? (
+                        <>
+                            <Button variant="outline" onClick={onClose} disabled={isSaving}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handlePrimaryAction}
+                                disabled={isSaving}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Salvando…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="h-3.5 w-3.5" />
+                                        Salvar
+                                    </>
+                                )}
+                            </Button>
+                        </>
                     ) : (
                         <>
                             <Button variant="outline" onClick={onClose}>
