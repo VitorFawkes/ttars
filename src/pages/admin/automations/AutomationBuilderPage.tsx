@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Zap, MessageSquare, CheckSquare, ArrowRightLeft, Layers,
   Sparkles, Check, ShieldCheck, AlertTriangle, PlayCircle, Tag as TagIcon, Bell,
+  Edit3, Webhook,
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
@@ -24,7 +25,7 @@ import { useCardTags } from '@/hooks/useCardTags'
 import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '@/hooks/useWhatsAppTemplates'
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
-  ACTION_TYPE_LABELS, EVENT_TYPE_LABELS,
+  ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS,
   type ActionType, type EventType, type RecipePreset,
 } from '@/lib/automation-recipes'
 
@@ -64,6 +65,12 @@ interface FormState {
   notify_user_id: string | null
   notify_title: string
   notify_body: string
+  // update_field
+  update_field_key: string | null
+  update_field_value: string
+  // trigger_n8n_webhook
+  webhook_url: string
+  webhook_include_contact: boolean
   // delay
   delay_minutes: number
   delay_type: 'business' | 'calendar'
@@ -95,6 +102,10 @@ const DEFAULT_FORM: FormState = {
   notify_user_id: null,
   notify_title: '',
   notify_body: '',
+  update_field_key: null,
+  update_field_value: '',
+  webhook_url: '',
+  webhook_include_contact: true,
   delay_minutes: 5,
   delay_type: 'business',
   is_active: false,
@@ -108,6 +119,8 @@ const ACTION_OPTIONS: Array<{ value: ActionType; label: string; desc: string; ic
   { value: 'add_tag', label: 'Adicionar tag', desc: 'Marcar o card com uma etiqueta', icon: TagIcon },
   { value: 'remove_tag', label: 'Remover tag', desc: 'Tirar uma etiqueta do card', icon: TagIcon },
   { value: 'notify_internal', label: 'Avisar o time', desc: 'Notificação no sino do app (não manda WhatsApp)', icon: Bell },
+  { value: 'update_field', label: 'Atualizar campo', desc: 'Muda valor de um campo do card (ex: status, prioridade)', icon: Edit3 },
+  { value: 'trigger_n8n_webhook', label: 'Disparar webhook', desc: 'Chama URL externa (ex: n8n) com dados do card', icon: Webhook },
 ]
 
 const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
@@ -629,6 +642,109 @@ function TagActionEditor({
   )
 }
 
+function UpdateFieldEditor({
+  form, setForm,
+}: {
+  form: FormState
+  setForm: (next: Partial<FormState>) => void
+}) {
+  const fieldMeta = UPDATE_FIELD_OPTIONS.find((f) => f.key === form.update_field_key)
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Qual campo atualizar</Label>
+        <Select
+          value={form.update_field_key || ''}
+          onChange={(v) => setForm({ update_field_key: v || null, update_field_value: '' })}
+          options={[
+            { value: '', label: 'Selecione o campo...' },
+            ...UPDATE_FIELD_OPTIONS.map((f) => ({ value: f.key, label: f.label })),
+          ]}
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          Só campos seguros aparecem aqui. Pra mudar etapa, use "Mudar etapa" — evita loop.
+        </p>
+      </div>
+
+      {form.update_field_key && (
+        <div>
+          <Label>Novo valor</Label>
+          {fieldMeta?.type === 'boolean' ? (
+            <Select
+              value={form.update_field_value}
+              onChange={(v) => setForm({ update_field_value: v })}
+              options={[
+                { value: '', label: 'Selecione...' },
+                { value: 'true', label: 'Sim' },
+                { value: 'false', label: 'Não' },
+              ]}
+            />
+          ) : fieldMeta?.options ? (
+            <Select
+              value={form.update_field_value}
+              onChange={(v) => setForm({ update_field_value: v })}
+              options={[
+                { value: '', label: 'Selecione...' },
+                ...fieldMeta.options.map((o) => ({ value: o, label: o })),
+              ]}
+            />
+          ) : (
+            <Input
+              type={fieldMeta?.type === 'number' ? 'number' : 'text'}
+              value={form.update_field_value}
+              onChange={(e) => setForm({ update_field_value: e.target.value })}
+              placeholder="Novo valor"
+            />
+          )}
+          <p className="text-xs text-slate-500 mt-1">
+            Se o campo já estiver com esse valor, a automação é pulada (evita loop).
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WebhookEditor({
+  form, setForm,
+}: {
+  form: FormState
+  setForm: (next: Partial<FormState>) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>URL do webhook</Label>
+        <Input
+          type="url"
+          value={form.webhook_url}
+          onChange={(e) => setForm({ webhook_url: e.target.value })}
+          placeholder="https://n8n.seusite.com/webhook/xxxx"
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          Vamos fazer POST nessa URL com os dados do card em JSON.
+        </p>
+      </div>
+      <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-3">
+        <div>
+          <Label className="text-sm">Incluir dados do contato titular</Label>
+          <p className="text-xs text-slate-500 mt-0.5">Nome, telefone e e-mail do titular do card.</p>
+        </div>
+        <Switch
+          checked={form.webhook_include_contact}
+          onCheckedChange={(v) => setForm({ webhook_include_contact: v })}
+        />
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded p-3">
+        <p className="text-xs text-amber-900">
+          <strong>Cuidado:</strong> webhook chamado a cada disparo da automação. Se falhar (timeout 8s ou 4xx/5xx),
+          a execução é marcada como erro e aparece em "Falhas recentes".
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function NotifyInternalEditor({
   form, setForm, users,
 }: {
@@ -703,6 +819,8 @@ interface SimulateResult {
   cadence?: { id: string; name: string; description: string | null }
   tag?: { id: string; name: string; color: string | null }
   notify?: { recipient_mode: string; title: string; body: string }
+  update_field?: { field_key: string; old_value?: unknown; new_value?: unknown; invalid?: boolean }
+  webhook?: { url_host: string; protocol: string }
 }
 
 function SimulatePanel({
@@ -775,6 +893,24 @@ function SimulatePanel({
         }
         actionConfig.title = form.notify_title
         actionConfig.body = form.notify_body
+      }
+      if (form.action_type === 'update_field') {
+        actionConfig.field_key = form.update_field_key
+        const fieldMeta = UPDATE_FIELD_OPTIONS.find((f) => f.key === form.update_field_key)
+        const raw = form.update_field_value
+        if (raw === '' || raw == null) {
+          actionConfig.value = null
+        } else if (fieldMeta?.type === 'number') {
+          actionConfig.value = Number(raw)
+        } else if (fieldMeta?.type === 'boolean') {
+          actionConfig.value = raw === 'true'
+        } else {
+          actionConfig.value = raw
+        }
+      }
+      if (form.action_type === 'trigger_n8n_webhook') {
+        actionConfig.url = form.webhook_url.trim()
+        actionConfig.include_contact = form.webhook_include_contact
       }
 
       const { data, error } = await supabase.functions.invoke('cadence-engine', {
@@ -938,10 +1074,47 @@ function SimulatePanel({
               </div>
             </div>
           )}
+
+          {result.action_type === 'update_field' && result.update_field && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Campo que seria atualizado</p>
+              <p className="text-sm text-slate-700">
+                <strong>{result.update_field.field_key}</strong>
+              </p>
+              <div className="text-xs text-slate-600 mt-1 grid grid-cols-2 gap-2">
+                <div className="bg-slate-50 border border-slate-200 rounded p-2">
+                  <span className="text-slate-500 uppercase tracking-wide text-[10px]">Antes</span>
+                  <div className="text-slate-700 mt-0.5">{formatFieldValue(result.update_field.old_value)}</div>
+                </div>
+                <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                  <span className="text-indigo-600 uppercase tracking-wide text-[10px]">Depois</span>
+                  <div className="text-indigo-900 mt-0.5">{formatFieldValue(result.update_field.new_value)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {result.action_type === 'trigger_n8n_webhook' && result.webhook && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Webhook que seria chamado</p>
+              <p className="text-sm text-slate-700">
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded">{result.webhook.protocol}//{result.webhook.url_host}</code>
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                POST JSON com dados do card e do contato titular.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
+}
+
+function formatFieldValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'Sim' : 'Não'
+  return String(v)
 }
 
 function EventConfigEditor({
@@ -1112,6 +1285,10 @@ export default function AutomationBuilderPage() {
         notify_user_id: cfg.user_id || null,
         notify_title: cfg.title || '',
         notify_body: cfg.body || '',
+        update_field_key: cfg.field_key || null,
+        update_field_value: cfg.value !== undefined && cfg.value !== null ? String(cfg.value) : '',
+        webhook_url: cfg.url || '',
+        webhook_include_contact: cfg.include_contact !== false,
         delay_minutes: data.delay_minutes ?? 5,
         delay_type: data.delay_type || 'business',
         is_active: data.is_active ?? false,
@@ -1149,6 +1326,10 @@ export default function AutomationBuilderPage() {
       notify_user_id: (recipe.preset.action_config?.user_id as string) || null,
       notify_title: (recipe.preset.action_config?.title as string) || '',
       notify_body: (recipe.preset.action_config?.body as string) || '',
+      update_field_key: (recipe.preset.action_config?.field_key as string) || null,
+      update_field_value: recipe.preset.action_config?.value != null ? String(recipe.preset.action_config.value) : '',
+      webhook_url: (recipe.preset.action_config?.url as string) || '',
+      webhook_include_contact: recipe.preset.action_config?.include_contact !== false,
     })
     setStep('editor')
   }
@@ -1170,6 +1351,18 @@ export default function AutomationBuilderPage() {
       if (!form.notify_title.trim()) return 'Escreva um título pra notificação'
       if (form.notify_recipient_mode === 'specific' && !form.notify_user_id) {
         return 'Selecione quem vai receber a notificação'
+      }
+    }
+    if (form.action_type === 'update_field' && !form.update_field_key) {
+      return 'Selecione o campo pra atualizar'
+    }
+    if (form.action_type === 'trigger_n8n_webhook') {
+      if (!form.webhook_url.trim()) return 'Informe a URL do webhook'
+      try {
+        const u = new URL(form.webhook_url.trim())
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') return 'URL precisa ser http(s)'
+      } catch {
+        return 'URL inválida'
       }
     }
     if ((form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage') && form.stage_ids.length === 0) {
@@ -1230,6 +1423,24 @@ export default function AutomationBuilderPage() {
         }
         actionConfig.title = form.notify_title.trim()
         actionConfig.body = form.notify_body.trim()
+      }
+      if (form.action_type === 'update_field') {
+        actionConfig.field_key = form.update_field_key
+        const fieldMeta = UPDATE_FIELD_OPTIONS.find((f) => f.key === form.update_field_key)
+        const raw = form.update_field_value
+        if (raw === '' || raw == null) {
+          actionConfig.value = null
+        } else if (fieldMeta?.type === 'number') {
+          actionConfig.value = Number(raw)
+        } else if (fieldMeta?.type === 'boolean') {
+          actionConfig.value = raw === 'true'
+        } else {
+          actionConfig.value = raw
+        }
+      }
+      if (form.action_type === 'trigger_n8n_webhook') {
+        actionConfig.url = form.webhook_url.trim()
+        actionConfig.include_contact = form.webhook_include_contact
       }
 
       const payload: Record<string, unknown> = {
@@ -1378,6 +1589,17 @@ export default function AutomationBuilderPage() {
                   <p>Título: {form.notify_title || '—'}</p>
                 </div>
               )}
+              {form.action_type === 'update_field' && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Campo: {UPDATE_FIELD_OPTIONS.find((f) => f.key === form.update_field_key)?.label || '—'}
+                  {form.update_field_value && <> → <strong>{form.update_field_value}</strong></>}
+                </p>
+              )}
+              {form.action_type === 'trigger_n8n_webhook' && (
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  Webhook: {form.webhook_url || '—'}
+                </p>
+              )}
             </div>
           </div>
 
@@ -1496,6 +1718,12 @@ export default function AutomationBuilderPage() {
           )}
           {form.action_type === 'notify_internal' && (
             <NotifyInternalEditor form={form} setForm={setForm} users={userOptions} />
+          )}
+          {form.action_type === 'update_field' && (
+            <UpdateFieldEditor form={form} setForm={setForm} />
+          )}
+          {form.action_type === 'trigger_n8n_webhook' && (
+            <WebhookEditor form={form} setForm={setForm} />
           )}
         </div>
       </div>

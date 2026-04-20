@@ -225,6 +225,42 @@ serve(async (req) => {
                     if (mode === 'specific' && !cfg.user_id) {
                         warnings.push('Destinatário específico não escolhido')
                     }
+                } else if (trigger.action_type === 'update_field') {
+                    const fieldKey = cfg.field_key as string | undefined
+                    const value = cfg.value
+                    if (!fieldKey) {
+                        warnings.push('Campo não selecionado')
+                    } else {
+                        const coerced = coerceFieldValue(fieldKey, value)
+                        if (!coerced.ok) {
+                            warnings.push(coerced.error)
+                            result.update_field = { field_key: fieldKey, new_value: value, invalid: true }
+                        } else {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const { data: cardFull } = await supabaseClient.from('cards').select(`id, ${fieldKey}`).eq('id', cardId).single()
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const currentValue = (cardFull as any)?.[fieldKey]
+                            result.update_field = { field_key: fieldKey, old_value: currentValue, new_value: coerced.value }
+                            if (currentValue === coerced.value) {
+                                warnings.push('Campo já está com esse valor — automação seria pulada (no-op)')
+                            }
+                        }
+                    }
+                } else if (trigger.action_type === 'trigger_n8n_webhook') {
+                    const webhookUrl = cfg.url as string | undefined
+                    if (!webhookUrl) {
+                        warnings.push('URL do webhook não definida')
+                    } else {
+                        try {
+                            const parsed = new URL(webhookUrl)
+                            result.webhook = { url_host: parsed.host, protocol: parsed.protocol }
+                            if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+                                warnings.push('URL deve ser http(s)')
+                            }
+                        } catch {
+                            warnings.push('URL inválida')
+                        }
+                    }
                 }
 
                 return new Response(JSON.stringify(result, null, 2), {
@@ -501,6 +537,10 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 result = await executeRemoveTagAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'notify_internal') {
                 result = await executeNotifyInternalAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'update_field') {
+                result = await executeUpdateFieldAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'trigger_n8n_webhook') {
+                result = await executeTriggerN8nWebhookAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -1413,6 +1453,240 @@ async function executeNotifyInternalAction(
     });
 
     return { notified: true, recipients_count: recipients.length };
+}
+
+// ============================================================================
+// Sprint 2 Actions Parte 2: update_field / trigger_n8n_webhook
+// ============================================================================
+
+// Whitelist de campos que automações podem atualizar diretamente no card.
+// Inclui tipo esperado — handler valida antes de escrever.
+// NÃO inclui: pipeline_stage_id (use change_stage), dono_atual_id, org_id,
+// campos de ownership, FKs sensíveis, datas de sistema.
+const UPDATE_FIELD_WHITELIST: Record<string, 'string' | 'number' | 'boolean' | 'date'> = {
+    status_comercial: 'string',
+    prioridade: 'string',
+    valor_estimado: 'number',
+    valor_final: 'number',
+    pronto_para_contrato: 'boolean',
+    pronto_para_erp: 'boolean',
+    cliente_recorrente: 'boolean',
+    condicoes_pagamento: 'string',
+    forma_pagamento: 'string',
+    estado_operacional: 'string',
+    codigo_cliente_erp: 'string',
+    codigo_projeto_erp: 'string',
+    taxa_status: 'string',
+    moeda: 'string',
+};
+
+function coerceFieldValue(
+    fieldKey: string,
+    rawValue: unknown
+): { ok: true; value: unknown } | { ok: false; error: string } {
+    const expected = UPDATE_FIELD_WHITELIST[fieldKey];
+    if (!expected) {
+        return { ok: false, error: `Campo não permitido: ${fieldKey}` };
+    }
+    if (rawValue === null || rawValue === '') {
+        return { ok: true, value: null };
+    }
+    if (expected === 'string') {
+        return { ok: true, value: String(rawValue) };
+    }
+    if (expected === 'number') {
+        const n = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+        if (Number.isNaN(n)) return { ok: false, error: `Valor inválido para ${fieldKey} (esperado número)` };
+        return { ok: true, value: n };
+    }
+    if (expected === 'boolean') {
+        if (typeof rawValue === 'boolean') return { ok: true, value: rawValue };
+        const s = String(rawValue).toLowerCase();
+        if (s === 'true' || s === '1' || s === 'sim') return { ok: true, value: true };
+        if (s === 'false' || s === '0' || s === 'nao' || s === 'não') return { ok: true, value: false };
+        return { ok: false, error: `Valor inválido para ${fieldKey} (esperado sim/não)` };
+    }
+    if (expected === 'date') {
+        return { ok: true, value: rawValue };
+    }
+    return { ok: false, error: `Tipo não suportado: ${expected}` };
+}
+
+async function executeUpdateFieldAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const fieldKey: string | undefined = config.field_key;
+    const rawValue: unknown = config.value;
+
+    if (!fieldKey) {
+        return { skipped: true, reason: 'no_field_key' };
+    }
+
+    const coerced = coerceFieldValue(fieldKey, rawValue);
+    if (!coerced.ok) {
+        throw new Error(`update_field: ${coerced.error}`);
+    }
+
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select(`id, ${fieldKey}`)
+        .eq("id", cardId)
+        .single();
+
+    if (!card) {
+        throw new Error(`Card not found: ${cardId}`);
+    }
+
+    // Dedup: se já está com o valor, pular
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentValue = (card as any)[fieldKey];
+    if (currentValue === coerced.value) {
+        return { skipped: true, reason: 'same_value' };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+        [fieldKey]: coerced.value,
+        updated_at: new Date().toISOString(),
+    };
+
+    const { error: updErr } = await supabaseClient
+        .from("cards")
+        .update(updatePayload)
+        .eq("id", cardId);
+
+    if (updErr) {
+        throw new Error(`update_field failed: ${updErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: 'entry_rule_field_updated',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            field_key: fieldKey,
+            old_value: currentValue,
+            new_value: coerced.value
+        },
+        action_taken: 'update_field',
+        action_result: { field_key: fieldKey }
+    });
+
+    return { updated: true, field_key: fieldKey, old_value: currentValue, new_value: coerced.value };
+}
+
+async function executeTriggerN8nWebhookAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const url: string | undefined = config.url;
+    const includeContact: boolean = config.include_contact !== false; // default true
+
+    if (!url) {
+        return { skipped: true, reason: 'no_url' };
+    }
+
+    // Validar URL (só https pra fora, http pra rede interna)
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error(`URL inválida: ${url}`);
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error(`URL deve ser http(s): ${parsed.protocol}`);
+    }
+
+    // Montar payload
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("id, titulo, produto, pipeline_stage_id, valor_estimado, valor_final, status_comercial, data_viagem_inicio, data_viagem_fim, dono_atual_id, org_id, created_at")
+        .eq("id", cardId)
+        .single();
+
+    if (!card) {
+        throw new Error(`Card not found: ${cardId}`);
+    }
+
+    let contact: any = null;
+    if (includeContact) {
+        const { data: cc } = await supabaseClient
+            .from('cards_contatos')
+            .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone, email )')
+            .eq('card_id', cardId)
+            .order('ordem', { ascending: true });
+        const principal = (cc || []).find((r: any) => r.tipo_viajante === 'titular') || (cc || [])[0];
+        contact = principal?.contatos || null;
+    }
+
+    const payload = {
+        event: {
+            type: 'automation.trigger',
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            event_type: trigger.event_type,
+            fired_at: new Date().toISOString(),
+        },
+        card,
+        contact,
+        extra: config.extra_payload || null,
+    };
+
+    // Execute POST — timeout de 8s via AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    let status = 0;
+    let responseBody = '';
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'WelcomeCRM-Automation/1.0',
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+        status = resp.status;
+        responseBody = (await resp.text()).slice(0, 500);
+        if (!resp.ok) {
+            throw new Error(`Webhook retornou ${status}: ${responseBody}`);
+        }
+    } catch (err: any) {
+        if (err.name === 'AbortError') {
+            throw new Error('Webhook timeout (8s)');
+        }
+        throw err;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: 'entry_rule_webhook_fired',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            url_host: parsed.host,
+            status
+        },
+        action_taken: 'trigger_n8n_webhook',
+        action_result: { status, response_preview: responseBody.slice(0, 200) }
+    });
+
+    return { fired: true, status, url_host: parsed.host };
 }
 
 // ============================================================================

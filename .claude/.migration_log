@@ -510,3 +510,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T01:42:42Z | supabase/migrations/20260419_remove_fase_label.sql | applied_to_prod
 2026-04-20T02:05:45Z | supabase/migrations/20260419b_report_fns_phase_id.sql | applied_to_prod
 2026-04-20T02:09:19Z | supabase/migrations/20260419b_automations_sprint2_actions.sql | applied_to_prod
+2026-04-20T02:16:53Z | supabase/migrations/20260419c_automations_sprint2_actions_part2.sql | applied_to_prod

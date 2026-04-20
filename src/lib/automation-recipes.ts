@@ -31,6 +31,34 @@ export type ActionType =
   | 'add_tag'
   | 'remove_tag'
   | 'notify_internal'
+  | 'update_field'
+  | 'trigger_n8n_webhook'
+
+/**
+ * Whitelist de campos do card que automações podem atualizar via `update_field`.
+ * Mantém em sincronia com UPDATE_FIELD_WHITELIST do cadence-engine.
+ */
+export const UPDATE_FIELD_OPTIONS: Array<{
+  key: string
+  label: string
+  type: 'string' | 'number' | 'boolean'
+  options?: string[]
+}> = [
+  { key: 'status_comercial', label: 'Status comercial', type: 'string' },
+  { key: 'prioridade', label: 'Prioridade', type: 'string', options: ['baixa', 'media', 'alta'] },
+  { key: 'valor_estimado', label: 'Valor estimado', type: 'number' },
+  { key: 'valor_final', label: 'Valor final (fechado)', type: 'number' },
+  { key: 'pronto_para_contrato', label: 'Pronto para contrato', type: 'boolean' },
+  { key: 'pronto_para_erp', label: 'Pronto para ERP', type: 'boolean' },
+  { key: 'cliente_recorrente', label: 'Cliente recorrente', type: 'boolean' },
+  { key: 'condicoes_pagamento', label: 'Condições de pagamento', type: 'string' },
+  { key: 'forma_pagamento', label: 'Forma de pagamento', type: 'string' },
+  { key: 'estado_operacional', label: 'Estado operacional', type: 'string' },
+  { key: 'codigo_cliente_erp', label: 'Código cliente ERP', type: 'string' },
+  { key: 'codigo_projeto_erp', label: 'Código projeto ERP', type: 'string' },
+  { key: 'taxa_status', label: 'Status da taxa', type: 'string' },
+  { key: 'moeda', label: 'Moeda', type: 'string' },
+]
 
 export type EventType =
   | 'card_created'
@@ -317,6 +345,8 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   add_tag: 'Adicionar tag ao card',
   remove_tag: 'Remover tag do card',
   notify_internal: 'Avisar alguém do time',
+  update_field: 'Atualizar campo do card',
+  trigger_n8n_webhook: 'Disparar webhook (n8n)',
 }
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
