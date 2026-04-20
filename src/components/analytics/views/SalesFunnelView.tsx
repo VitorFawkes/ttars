@@ -181,18 +181,18 @@ export default function SalesFunnelView() {
                             <BarChart
                                 data={chartData}
                                 layout="vertical"
-                                margin={{ left: 160, right: 100, top: 10, bottom: 10 }}
+                                margin={{ left: 10, right: 80, top: 10, bottom: 10 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                                 <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                 <YAxis
                                     dataKey="stage_nome"
                                     type="category"
-                                    width={150}
-                                    tick={{ fontSize: 10, fill: '#334155' }}
+                                    width={220}
+                                    tick={{ fontSize: 11, fill: '#334155' }}
                                     axisLine={false}
                                     tickLine={false}
-                                    tickFormatter={(v: string) => v.length > 20 ? v.slice(0, 19) + '…' : v}
+                                    interval={0}
                                 />
                                 <Tooltip content={<FunnelTooltip />} cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }} />
                                 <Bar
@@ -222,27 +222,34 @@ export default function SalesFunnelView() {
                             </BarChart>
                         </ResponsiveContainer>
 
-                        {/* Conversion % labels */}
-                        <div className="space-y-2 mt-4 px-2">
-                            {chartData.map((stage, i) => {
-                                const nextRate = stage.conversion_to_next
-                                if (nextRate === null || nextRate === undefined) return null
-                                return (
-                                    <div key={stage.stage_id} className="flex items-center justify-between text-xs">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="text-slate-600 truncate max-w-[180px]">{stage.stage_nome}</span>
-                                            <span className="text-slate-400">→</span>
-                                            <span className="text-slate-600 truncate max-w-[180px]">{chartData[i + 1]?.stage_nome}</span>
+                        {/* Variação entre etapas (não é conversão real — só delta de cards atuais) */}
+                        <div className="mt-4 px-2">
+                            <p className="text-[11px] text-slate-400 mb-2">
+                                Variação de cards entre etapas adjacentes (snapshot atual; não é taxa de conversão real)
+                            </p>
+                            <div className="space-y-1.5">
+                                {chartData.map((stage, i) => {
+                                    const nextRate = stage.conversion_to_next
+                                    if (nextRate === null || nextRate === undefined) return null
+                                    const delta = nextRate - 100  // +X% = mais cards na próxima; -X% = menos
+                                    const isSaudavel = nextRate >= 40 && nextRate <= 100
+                                    return (
+                                        <div key={stage.stage_id} className="flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className="text-slate-600 truncate max-w-[200px]">{stage.stage_nome}</span>
+                                                <span className="text-slate-400">→</span>
+                                                <span className="text-slate-600 truncate max-w-[200px]">{chartData[i + 1]?.stage_nome}</span>
+                                            </div>
+                                            <span className={cn(
+                                                'tabular-nums flex-shrink-0 ml-4 font-medium',
+                                                isSaudavel ? 'text-emerald-600' : delta < 0 ? 'text-slate-500' : 'text-indigo-600'
+                                            )}>
+                                                {delta >= 0 ? '+' : ''}{delta}%
+                                            </span>
                                         </div>
-                                        <span className={cn(
-                                            'font-semibold tabular-nums flex-shrink-0 ml-4',
-                                            nextRate >= 70 ? 'text-green-600' : nextRate >= 40 ? 'text-amber-600' : 'text-rose-600'
-                                        )}>
-                                            {nextRate}%
-                                        </span>
-                                    </div>
-                                )
-                            })}
+                                    )
+                                })}
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -314,11 +321,11 @@ export default function SalesFunnelView() {
                                 <YAxis
                                     dataKey="motivo"
                                     type="category"
-                                    width={120}
-                                    tick={{ fontSize: 10, fill: '#334155' }}
+                                    width={200}
+                                    tick={{ fontSize: 11, fill: '#334155' }}
                                     axisLine={false}
                                     tickLine={false}
-                                    tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '…' : v}
+                                    interval={0}
                                 />
                                 <Tooltip
                                     contentStyle={{

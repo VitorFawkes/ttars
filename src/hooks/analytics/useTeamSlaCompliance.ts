@@ -8,7 +8,8 @@ export interface TeamSlaRow {
     total_transicoes: number
     sla_cumpridas: number
     sla_violadas: number
-    compliance_rate: number
+    /** null quando nenhuma transição da pessoa tinha sla_hours configurado */
+    compliance_rate: number | null
     tempo_medio_horas: number
 }
 
