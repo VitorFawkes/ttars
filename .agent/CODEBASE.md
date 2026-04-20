@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-19
+> **Last Updated:** 2026-04-20
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 179 tabelas | 88 paginas | 143 hooks | 17 views | 564 components
+> **Stats:** 179 tabelas | 88 paginas | 144 hooks | 17 views | 564 components
 =======
-> **Stats:** 179 tabelas | 88 paginas | 143 hooks | 17 views | 564 components
+> **Stats:** 179 tabelas | 88 paginas | 144 hooks | 17 views | 564 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **143 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **144 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -201,6 +201,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
+| `useWhatsAppLinhas()` | `useWhatsAppLinhas.ts` |
 | `useWhatsAppTemplates()` | `useWhatsAppTemplates.ts` |
 
 #### Calendar
