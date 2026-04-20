@@ -13,6 +13,15 @@ import {
   Target,
   Layers,
   MessageCircle,
+  Plane,
+  Calendar,
+  Gift,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  Tag as TagIcon,
+  MessageSquarePlus,
+  Bell,
 } from 'lucide-react'
 
 export type ActionType =
@@ -169,7 +178,6 @@ export interface RecipePreset {
   /** Pré-preenchimento — o usuário ajusta depois */
   preset: {
     event_type: EventType
-    /** Config adicional do evento (ex: pattern e match_mode pra inbound_message_pattern) */
     event_config?: Record<string, unknown>
     action_type: ActionType
     action_config?: Record<string, unknown>
@@ -192,12 +200,100 @@ export const RECIPES: RecipePreset[] = [
     id: 'boas_vindas_card_criado',
     name: 'Boas-vindas ao novo lead',
     category: 'mensagem',
-    summary: 'Quando um card é criado, envia mensagem de boas-vindas para o contato.',
+    summary: 'Assim que um card é criado, dispara mensagem de boas-vindas. Sugere modelo Meta aprovado (wt_primeiro_contato001) para passar pela janela 24h.',
     icon: Sparkles,
     preset: {
       event_type: 'card_created',
       action_type: 'send_message',
       suggested_hsm_template: 'wt_primeiro_contato001',
+    },
+  },
+  {
+    id: 'lembrete_d7_antes_viagem',
+    name: 'Lembrete 7 dias antes da viagem',
+    category: 'mensagem',
+    summary: '7 dias antes da data de início da viagem, manda checklist. Precisa modelo Meta se a linha for oficial.',
+    icon: Plane,
+    product: 'TRIPS',
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'card.data_viagem_inicio', offset_days: -7 },
+      action_type: 'send_message',
+      suggested_message:
+        'Oi {{contact.nome}}! Faltam só 7 dias para sua viagem. Conferiu passaporte, seguro e tudo mais? Qualquer dúvida, chama!',
+    },
+  },
+  {
+    id: 'lembrete_d1_checkin',
+    name: 'Check-in D-1',
+    category: 'mensagem',
+    summary: 'Um dia antes da viagem, manda lembrete com documentos e contatos de emergência.',
+    icon: Calendar,
+    product: 'TRIPS',
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'card.data_viagem_inicio', offset_days: -1 },
+      action_type: 'send_message',
+      suggested_message:
+        'Oi {{contact.nome}}! Amanhã começa sua viagem 🎉 Leve passaporte/RG, voucher e nosso telefone de emergência. Boa viagem!',
+    },
+  },
+  {
+    id: 'follow_up_pos_viagem_d7',
+    name: 'Follow-up 7 dias depois da viagem',
+    category: 'mensagem',
+    summary: '7 dias depois da data de fim da viagem, pergunta como foi e pede avaliação.',
+    icon: MessageSquarePlus,
+    product: 'TRIPS',
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'card.data_viagem_fim', offset_days: 7 },
+      action_type: 'send_message',
+      suggested_message:
+        'Oi {{contact.nome}}! Como foi a viagem? Adoraríamos ouvir sua experiência ✨',
+    },
+  },
+  {
+    id: 'aniversario_cliente',
+    name: 'Aniversário do cliente',
+    category: 'mensagem',
+    summary: 'No aniversário do contato, envia parabéns. Escolha linha não-oficial pra texto livre, ou modelo aprovado pra linha oficial.',
+    icon: Gift,
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'contato.data_nascimento', offset_days: 0 },
+      action_type: 'send_message',
+      suggested_message:
+        'Feliz aniversário, {{contact.nome}}! 🎂 Que esse novo ciclo venha cheio de novas viagens e aventuras.',
+    },
+  },
+  {
+    id: 'cobrar_proposta_expirando',
+    name: 'Cobrar proposta no dia da validade',
+    category: 'mensagem',
+    summary: 'No dia em que a proposta expira (só se ainda não foi aceita), manda mensagem pedindo retorno.',
+    icon: AlertTriangle,
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'proposal.expires_at', offset_days: 0 },
+      action_type: 'send_message',
+      suggested_message:
+        'Oi {{contact.nome}}! Sua proposta expira hoje. Quer renovar ou alguma dúvida pra fechar? É só me responder.',
+    },
+  },
+  {
+    id: 'wedding_d60',
+    name: 'Wedding: contagem 60 dias',
+    category: 'mensagem',
+    summary: 'Faltando 60 dias pro casamento, envia checklist de preparativos.',
+    icon: Calendar,
+    product: 'WEDDING',
+    preset: {
+      event_type: 'time_offset_from_date',
+      event_config: { source: 'card.data_viagem_inicio', offset_days: -60 },
+      action_type: 'send_message',
+      suggested_message:
+        'Faltam 60 dias pro grande dia! Vamos alinhar os últimos detalhes? Me conta o que ainda está pendente.',
     },
   },
 
@@ -214,13 +310,71 @@ export const RECIPES: RecipePreset[] = [
       action_config: { target_stage_id: null },
     },
   },
+  {
+    id: 'tag_quando_ganho',
+    name: 'Marcar card ganho com tag',
+    category: 'pipeline',
+    summary: 'Quando o status comercial vira ganho, adiciona uma tag pra facilitar relatório.',
+    icon: TagIcon,
+    preset: {
+      event_type: 'field_changed',
+      event_config: { field: 'status_comercial', to_value: 'ganho' },
+      action_type: 'add_tag',
+      action_config: { tag_id: null },
+    },
+  },
+
+  // ─── TAREFA ──────────────────────────────────────────────────────────
+  {
+    id: 'sla_parado_em_etapa',
+    name: 'SLA: tarefa se card parado em etapa',
+    category: 'tarefa',
+    summary: 'Se o card ficar 5 dias parado nas etapas escolhidas, cria tarefa pro dono do card. Ajuste dias e etapas no formulário.',
+    icon: Clock,
+    preset: {
+      event_type: 'time_in_stage',
+      event_config: { days_in_stage: 5 },
+      action_type: 'create_task',
+      suggested_task_title: 'Ação urgente — card parado na etapa há 5 dias',
+    },
+  },
+  {
+    id: 'onboarding_pos_ganho',
+    name: 'Onboarding quando card vira ganho',
+    category: 'tarefa',
+    summary: 'Quando o status comercial vira ganho, cria tarefa de onboarding pro planner.',
+    icon: CheckCircle2,
+    preset: {
+      event_type: 'field_changed',
+      event_config: { field: 'status_comercial', to_value: 'ganho' },
+      action_type: 'create_task',
+      suggested_task_title: 'Iniciar onboarding do cliente ganho',
+    },
+  },
+  {
+    id: 'avisar_dono_sla',
+    name: 'Avisar dono quando SLA estourar',
+    category: 'tarefa',
+    summary: 'Se o card ficar parado muito tempo em etapa, avisa o dono pelo sino do app.',
+    icon: Bell,
+    preset: {
+      event_type: 'time_in_stage',
+      event_config: { days_in_stage: 5 },
+      action_type: 'notify_internal',
+      action_config: {
+        recipient_mode: 'card_owner',
+        title: 'Card parado há muito tempo',
+        body: 'O card {{card.titulo}} está parado na mesma etapa há 5 dias.',
+      },
+    },
+  },
 
   // ─── CADÊNCIA ────────────────────────────────────────────────────────
   {
     id: 'cadencia_prospeccao',
     name: 'Cadência de prospecção',
     category: 'cadencia',
-    summary: 'Quando o card entra em Leads, dispara cadência de prospecção SDR.',
+    summary: 'Quando o card é criado, dispara cadência de prospecção SDR. Escolha o template no formulário.',
     icon: Layers,
     preset: {
       event_type: 'card_created',
@@ -228,13 +382,25 @@ export const RECIPES: RecipePreset[] = [
       action_config: { target_template_id: null },
     },
   },
+  {
+    id: 'cadencia_pos_venda',
+    name: 'Cadência pós-venda ao entrar em etapa',
+    category: 'cadencia',
+    summary: 'Quando o card entra em determinada etapa de pós-venda, dispara cadência encadeada. Escolha a etapa e o template.',
+    icon: Layers,
+    preset: {
+      event_type: 'stage_enter',
+      action_type: 'start_cadence',
+      action_config: { target_template_id: null },
+    },
+  },
 
-  // ─── INBOUND MESSAGE PATTERN ─────────────────────────────────────────
+  // ─── RESPOSTA DO CLIENTE (inbound) ───────────────────────────────────
   {
     id: 'inbound_cancelar_avisa_dono',
     name: 'Cliente disse "cancelar" → avisa dono',
     category: 'tarefa',
-    summary: 'Se o cliente mandar uma mensagem com palavra de cancelamento, dispara notificação interna pro dono do card antes do agente IA responder.',
+    summary: 'Se o cliente mandar palavra de cancelamento, dispara notificação pro dono do card antes do agente IA responder.',
     icon: MessageCircle,
     preset: {
       event_type: 'inbound_message_pattern',
@@ -250,6 +416,46 @@ export const RECIPES: RecipePreset[] = [
         title: 'Cliente sinalizou cancelamento',
         body: 'O cliente do card {{card.titulo}} mandou uma mensagem indicando cancelamento. Confere antes que o agente IA responda.',
       },
+    },
+  },
+  {
+    id: 'inbound_atendente_humano',
+    name: 'Cliente pediu atendente humano',
+    category: 'tarefa',
+    summary: 'Se o cliente pedir pra falar com humano, avisa o dono e pausa o agente IA.',
+    icon: MessageCircle,
+    preset: {
+      event_type: 'inbound_message_pattern',
+      event_config: {
+        pattern: 'atendente|humano|pessoa de verdade|falar com alguém|falar com alguem',
+        match_mode: 'regex',
+        case_sensitive: false,
+        skip_ai: true,
+      },
+      action_type: 'notify_internal',
+      action_config: {
+        recipient_mode: 'card_owner',
+        title: 'Cliente pediu atendente humano',
+        body: 'No card {{card.titulo}} o cliente pediu pra falar com humano. Assume a conversa.',
+      },
+    },
+  },
+  {
+    id: 'inbound_confirmou_pagamento',
+    name: 'Cliente confirmou pagamento',
+    category: 'tarefa',
+    summary: 'Se o cliente mencionar que pagou/depositou/transferiu, cria tarefa pro financeiro conferir.',
+    icon: MessageCircle,
+    preset: {
+      event_type: 'inbound_message_pattern',
+      event_config: {
+        pattern: 'paguei|depositei|transferi|enviei o pix|já paguei|comprovante',
+        match_mode: 'regex',
+        case_sensitive: false,
+        skip_ai: false,
+      },
+      action_type: 'create_task',
+      suggested_task_title: 'Conferir pagamento informado pelo cliente',
     },
   },
 ]
