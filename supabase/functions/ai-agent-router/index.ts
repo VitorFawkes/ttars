@@ -195,6 +195,7 @@ function matchesRoutingCriteria(
   if (keywords && keywords.length > 0) {
     const lower = messageText.toLowerCase();
     if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) return true;
+    return false;
   }
   return true;
 }
@@ -1014,12 +1015,33 @@ const BUILT_IN_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  // Tool de scoring — so fica ATIVA se o agente tem ai_agent_scoring_config.enabled=true.
+  // Admin controla via UI (aba Pontuacao do AiAgentDetailPage). loadAgentTools checa e inclui condicionalmente.
+  {
+    type: "function",
+    function: {
+      name: "calculate_qualification_score",
+      description: "Calcula o score de qualificacao do lead com base nas regras configuradas pelo admin (região/orçamento/sinais ou outras dimensões custom). Use quando tiver coletado dados suficientes pra saber se o lead está pronto pra próximo passo. Retorna score, threshold, se qualificou e o detalhamento.",
+      parameters: {
+        type: "object",
+        properties: {
+          inputs: {
+            type: "object",
+            description: "Objeto com os valores coletados na conversa. Cada chave é o nome da dimensao (regiao, valor_convidado, etc) ou do campo booleano (viagem_internacional). Ex: {\"regiao\": \"Caribe\", \"valor_convidado\": 3200, \"viagem_internacional\": true}",
+            additionalProperties: true,
+          },
+        },
+        required: ["inputs"],
+      },
+    },
+  },
 ];
 
 async function loadAgentTools(
   supabase: SupabaseClient,
   agentId: string,
 ): Promise<ToolDefinition[]> {
+  // 1. Carrega skills ativas do agente (como antes)
   const { data, error } = await supabase
     .from("ai_agent_skills")
     .select("enabled, priority, ai_skills!inner(nome, ativa)")
@@ -1038,15 +1060,39 @@ async function loadAgentTools(
     if (skill?.ativa && skill.nome) enabledNames.add(skill.nome);
   }
 
-  if (enabledNames.size === 0) {
-    console.log(`[loadAgentTools] agente ${agentId} sem skills configuradas — fallback BUILT_IN_TOOLS`);
-    return BUILT_IN_TOOLS;
+  // 2. Checa se scoring esta ativo pro agente (generico, serve pra qualquer agente)
+  let scoringEnabled = false;
+  try {
+    const { data: scoringCfg, error: scoringErr } = await supabase
+      .from("ai_agent_scoring_config")
+      .select("enabled")
+      .eq("agent_id", agentId)
+      .maybeSingle();
+    if (!scoringErr && scoringCfg?.enabled === true) {
+      scoringEnabled = true;
+    }
+  } catch (e) {
+    // Tabela pode nao existir em alguns ambientes — ignora silenciosamente
+    console.warn(`[loadAgentTools] ai_agent_scoring_config check falhou:`, (e as Error).message);
   }
 
-  const filtered = BUILT_IN_TOOLS.filter((t) =>
-    t.function.name === "think" || enabledNames.has(t.function.name)
-  );
-  console.log(`[loadAgentTools] agente ${agentId}: ${filtered.length} tools ativas (${[...enabledNames].join(",")})`);
+  // 3. Se nao tem skills explicitamente configuradas, usa set completo
+  //    (so adiciona scoring se enabled=true, senao tira)
+  if (enabledNames.size === 0) {
+    console.log(`[loadAgentTools] agente ${agentId} sem skills configuradas — fallback BUILT_IN_TOOLS (scoring: ${scoringEnabled})`);
+    return BUILT_IN_TOOLS.filter((t) =>
+      t.function.name !== "calculate_qualification_score" || scoringEnabled
+    );
+  }
+
+  // 4. Filtro normal: think sempre disponivel, scoring so se enabled, resto por skill config
+  const filtered = BUILT_IN_TOOLS.filter((t) => {
+    if (t.function.name === "think") return true;
+    if (t.function.name === "calculate_qualification_score") return scoringEnabled;
+    return enabledNames.has(t.function.name);
+  });
+
+  console.log(`[loadAgentTools] agente ${agentId}: ${filtered.length} tools ativas (skills: ${[...enabledNames].join(",")}; scoring: ${scoringEnabled})`);
   return filtered;
 }
 
@@ -1204,6 +1250,35 @@ async function executeToolCall(
 
       case "think": {
         result = JSON.stringify({ thought_recorded: true });
+        break;
+      }
+
+      case "calculate_qualification_score": {
+        // Tool generica de scoring. Chama a RPC calculate_agent_qualification_score
+        // que le as regras de ai_agent_scoring_rules do agente, aplica aos inputs,
+        // e retorna {score, threshold, qualificado, breakdown}.
+        //
+        // Inputs esperados: { inputs: { dimensao1: valor, dimensao2: valor, ... } }
+        // Ex: { inputs: { regiao: "Caribe", valor_convidado: 3200, viagem_internacional: true } }
+        //
+        // Se scoring_config.enabled=false, RPC retorna {enabled: false} e agente entende
+        // que feature nao esta ativa — nao deve insistir em calcular.
+        try {
+          const inputs = (args.inputs ?? {}) as Record<string, unknown>;
+          const { data, error } = await supabase.rpc("calculate_agent_qualification_score", {
+            p_agent_id: agent.id,
+            p_inputs: inputs,
+          });
+          if (error) {
+            console.warn(`[calculate_qualification_score] RPC error:`, error.message);
+            result = JSON.stringify({ error: "Nao foi possivel calcular score no momento" });
+          } else {
+            result = JSON.stringify(data);
+          }
+        } catch (err) {
+          console.warn(`[calculate_qualification_score] exception:`, (err as Error).message);
+          result = JSON.stringify({ error: "Erro interno ao calcular score" });
+        }
         break;
       }
 
@@ -2457,12 +2532,15 @@ serve(async (req) => {
       .order("created_at", { ascending: true });
 
     if (buffered && buffered.length > 0) {
-      const newest = buffered[buffered.length - 1];
-      const ageMs = Date.now() - new Date(newest.created_at).getTime();
+      // Debounce baseado na OLDEST: quando a mensagem mais antiga do buffer passou
+      // do window, processa tudo junto (incluindo a recém-chegada). Antes usava
+      // newest, mas cada mensagem nova resetava o timer e o buffer nunca drenava.
+      const oldest = buffered[0];
+      const ageOldestMs = Date.now() - new Date(oldest.created_at).getTime();
 
-      if (ageMs < debounceMs) {
-        // Still within debounce window — don't process yet
-        console.log(`[debounce] ${buffered.length} msgs buffered, newest ${Math.round(ageMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
+      if (ageOldestMs < debounceMs) {
+        // Ainda dentro da janela de debounce — esperar próxima ou novo drain
+        console.log(`[debounce] ${buffered.length} msgs buffered, oldest ${Math.round(ageOldestMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
         return new Response(
           JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
