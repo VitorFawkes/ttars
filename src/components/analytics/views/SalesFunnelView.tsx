@@ -8,6 +8,7 @@ import KpiCard from '../KpiCard'
 import ChartCard from '../ChartCard'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
+import { useFunnelVelocity } from '@/hooks/analytics/useFunnelVelocity'
 import { useOverviewKpis, useRevenueTimeseries } from '@/hooks/analytics/useOverviewData'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
@@ -66,6 +67,7 @@ export default function SalesFunnelView() {
     const setActiveView = useAnalyticsFilters(s => s.setActiveView)
     const { data: kpiData, isLoading: kpiLoading, error: kpiError } = useOverviewKpis()
     const { data: funnelData, isLoading: funnelLoading, error: funnelError } = useFunnelConversion()
+    const { data: velocityData, isLoading: velocityLoading } = useFunnelVelocity()
     const { data: lossData, isLoading: lossLoading, error: lossError } = useLossReasons()
     const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useRevenueTimeseries()
     const drillDown = useDrillDownStore()
@@ -246,6 +248,49 @@ export default function SalesFunnelView() {
                 ) : (
                     <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">
                         Nenhum dado de funil disponível
+                    </div>
+                )}
+            </ChartCard>
+
+            {/* Zone 2b: Velocidade do Funil (mediana / p90 por etapa) */}
+            <ChartCard
+                title="Velocidade do funil"
+                description="Tempo típico que um card passa em cada etapa (com base nas saídas da etapa no período)"
+                isLoading={velocityLoading}
+            >
+                {(velocityData && velocityData.length > 0) ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
+                                <tr>
+                                    <th className="text-left py-2 px-3 font-medium">Etapa</th>
+                                    <th className="text-right py-2 px-3 font-medium">Cards atuais</th>
+                                    <th className="text-right py-2 px-3 font-medium">Passaram</th>
+                                    <th className="text-right py-2 px-3 font-medium">Mediana</th>
+                                    <th className="text-right py-2 px-3 font-medium">p90</th>
+                                    <th className="text-right py-2 px-3 font-medium">Média</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {velocityData.filter(r => r.cards_passaram > 0 || r.cards_atuais > 0).map((r) => (
+                                    <tr key={r.stage_id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-2 px-3 text-slate-900 truncate max-w-[240px]">{r.stage_nome}</td>
+                                        <td className="py-2 px-3 text-right text-slate-700 tabular-nums">{r.cards_atuais}</td>
+                                        <td className="py-2 px-3 text-right text-slate-500 tabular-nums">{r.cards_passaram}</td>
+                                        <td className="py-2 px-3 text-right text-indigo-600 tabular-nums font-medium">{r.mediana_dias > 0 ? `${r.mediana_dias}d` : '—'}</td>
+                                        <td className={cn(
+                                            'py-2 px-3 text-right tabular-nums font-medium',
+                                            r.p90_dias > 30 ? 'text-rose-600' : r.p90_dias > 14 ? 'text-amber-600' : 'text-violet-500'
+                                        )}>{r.p90_dias > 0 ? `${r.p90_dias}d` : '—'}</td>
+                                        <td className="py-2 px-3 text-right text-slate-500 tabular-nums">{r.media_dias > 0 ? `${r.media_dias}d` : '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="h-[160px] flex items-center justify-center text-sm text-slate-400">
+                        Ainda não há transições de etapa no período para calcular velocidade.
                     </div>
                 )}
             </ChartCard>

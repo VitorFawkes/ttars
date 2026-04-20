@@ -5,14 +5,18 @@ import {
     GitBranch,
     Users,
     PackageCheck,
+    HeartPulse,
+    LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-    { to: '/analytics/pipeline', icon: Activity, label: 'Pipeline Atual' },
-    { to: '/analytics/whatsapp', icon: MessageCircle, label: 'Conversas' },
+    { to: '/analytics/saude', icon: HeartPulse, label: 'Saúde' },
     { to: '/analytics/funnel', icon: GitBranch, label: 'Funil de Vendas' },
     { to: '/analytics/team', icon: Users, label: 'Equipe' },
+    { to: '/analytics/resumo', icon: LayoutDashboard, label: 'Resumo' },
+    { to: '/analytics/pipeline', icon: Activity, label: 'Pipeline ao vivo' },
+    { to: '/analytics/whatsapp', icon: MessageCircle, label: 'Conversas' },
     { to: '/analytics/operations', icon: PackageCheck, label: 'Operações' },
 ]
 

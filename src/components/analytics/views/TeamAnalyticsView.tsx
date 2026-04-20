@@ -12,6 +12,7 @@ import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
+import TeamLeaderboardSection from '@/components/analytics/equipe/TeamLeaderboardSection'
 
 type SortKey = 'user_nome' | 'active_cards' | 'won_cards' | 'conversion_rate' | 'total_receita' | 'ticket_medio' | 'ciclo_medio_dias'
 type PhaseFilter = 'sdr' | 'planner' | 'pos_venda'
@@ -132,6 +133,14 @@ export default function TeamAnalyticsView() {
                     onRetry={() => { refetchTeam(); taskStats.refetch?.() }}
                 />
             )}
+
+            {/* Ranking consolidado (1 linha por pessoa, somando todas as fases) */}
+            <TeamLeaderboardSection />
+
+            {/* Detalhes por fase abaixo */}
+            <div className="pt-2">
+                <h2 className="text-sm font-semibold text-slate-700 mb-3">Detalhes por fase</h2>
+            </div>
 
             {/* Zone 1: Phase Selector + KPI Cards */}
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-stretch">

@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-20
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 179 tabelas | 88 paginas | 145 hooks | 17 views | 566 components
+> **Stats:** 179 tabelas | 90 paginas | 145 hooks | 17 views | 569 components
 =======
-> **Stats:** 179 tabelas | 88 paginas | 145 hooks | 17 views | 566 components
+> **Stats:** 179 tabelas | 90 paginas | 145 hooks | 17 views | 569 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -393,7 +393,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **88 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **90 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -463,6 +463,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Step6_Escalation` | `src/pages/admin/wizard/Step6_Escalation.tsx` |
 | `Step7_PreviewDeploy` | `src/pages/admin/wizard/Step7_PreviewDeploy.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
+| `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
+| `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
 | `HelpCenter` | `src/pages/help/HelpCenter.tsx` |
 | `helpArticles` | `src/pages/help/helpArticles.tsx` |

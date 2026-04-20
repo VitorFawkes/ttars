@@ -26,6 +26,8 @@ import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
+import SaudeView from './pages/analytics/views/SaudeView'
+import ResumoView from './pages/analytics/views/ResumoView'
 import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
 import WhatsAppView from './components/analytics/views/WhatsAppView'
 import SalesFunnelView from './components/analytics/views/SalesFunnelView'
@@ -225,7 +227,9 @@ function App() {
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />}>
-                    <Route index element={<Navigate to="/analytics/pipeline" replace />} />
+                    <Route index element={<Navigate to="/analytics/saude" replace />} />
+                    <Route path="saude" element={<SaudeView />} />
+                    <Route path="resumo" element={<ResumoView />} />
                     <Route path="pipeline" element={<PipelineCurrentView />} />
                     <Route path="whatsapp" element={<WhatsAppView />} />
                     <Route path="funnel" element={<SalesFunnelView />} />
