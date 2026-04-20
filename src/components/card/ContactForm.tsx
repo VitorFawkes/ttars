@@ -119,7 +119,7 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
 
         try {
             // Build payload explicitly - do NOT spread formData as it may contain extra props (e.g., stats)
-            const dataToSave = {
+            const dataToSave: Record<string, unknown> = {
                 nome: formData.nome || null,
                 sobrenome: formData.sobrenome || null,
                 tipo_pessoa: formData.tipo_pessoa || 'adulto',
@@ -132,6 +132,16 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                 observacoes: formData.observacoes || null,
                 origem: formData.origem || null,
                 origem_detalhe: formData.origem_detalhe || null
+            }
+
+            // Marco A: se o operador editou nome/sobrenome em um contato existente,
+            // trava o campo para impedir que rotinas automáticas (Echo, IA) sobrescrevam.
+            if (contact?.id) {
+                const nomeChanged = (formData.nome || '').trim() !== (contact.nome || '').trim()
+                const sobrenomeChanged = (formData.sobrenome || '').trim() !== (contact.sobrenome || '').trim()
+                if (nomeChanged || sobrenomeChanged) {
+                    dataToSave.nome_locked_at = new Date().toISOString()
+                }
             }
 
             let result
