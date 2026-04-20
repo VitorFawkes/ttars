@@ -556,4 +556,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T21:23:59Z | supabase/migrations/20260422i_analytics_v2_backfill_entry_path.sql | applied_to_prod
 2026-04-20T21:24:14Z | supabase/migrations/20260422j_analytics_v2_backfill_first_response.sql | applied_to_prod
 2026-04-20T21:24:37Z | supabase/migrations/20260422k_analytics_v2_backfill_ganho_events.sql | applied_to_prod
-2026-04-20T21:22:45Z | supabase/migrations/20260422g_analytics_v2_triggers.sql | applied_to_prod
+2026-04-20T21:31:45Z | supabase/migrations/20260423a_analytics_v2_business_hours.sql | applied_to_prod
+2026-04-20T21:33:26Z | supabase/migrations/20260423b_analytics_v2_ganho_events_trigger.sql | applied_to_prod
+2026-04-20T21:36:55Z | supabase/migrations/20260423c_analytics_v2_helpers.sql | applied_to_prod
+2026-04-20T21:36:59Z | supabase/migrations/20260421h_ai_message_buffer_media_metadata.sql | applied_to_prod
+2026-04-20T21:39:38Z | supabase/migrations/20260423d_analytics_v2_rpcs.sql | applied_to_prod
