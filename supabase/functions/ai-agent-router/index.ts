@@ -1133,12 +1133,14 @@ async function executeToolCall(
           result = JSON.stringify({ error: "Sem card associado" });
           break;
         }
-        const { data: tagResult } = await supabase.rpc("agent_assign_tag", {
+        const { data: tagResult, error: tagErr } = await supabase.rpc("agent_assign_tag", {
           p_card_id: ctx.card_id,
           p_tag_name: args.tag_name as string,
           p_tag_color: (args.tag_color as string) || "#3B82F6",
         });
-        result = JSON.stringify(tagResult || { success: true });
+        result = tagErr
+          ? JSON.stringify({ error: tagErr.message })
+          : JSON.stringify(tagResult || { success: true });
         break;
       }
 
@@ -1147,12 +1149,14 @@ async function executeToolCall(
           result = JSON.stringify({ error: "Sem card associado" });
           break;
         }
-        const { data: handoffResult } = await supabase.rpc("agent_request_handoff", {
+        const { data: handoffResult, error: handoffErr } = await supabase.rpc("agent_request_handoff", {
           p_card_id: ctx.card_id,
           p_reason: args.reason as string,
           p_context_summary: args.context_summary as string,
         });
-        result = JSON.stringify(handoffResult || { success: true });
+        result = handoffErr
+          ? JSON.stringify({ error: handoffErr.message })
+          : JSON.stringify(handoffResult || { success: true });
         break;
       }
 
