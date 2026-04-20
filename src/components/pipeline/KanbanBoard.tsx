@@ -393,6 +393,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 targetPhaseId: handoffPhaseId,
                 targetPhaseName: targetPhase?.name || 'Nova Fase'
             })
+            if (tryAutoConfirmStageChange(cardId, handoffPhaseId)) return
             setStageChangeModalOpen(true)
             return
         }
@@ -483,6 +484,34 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         setActiveCard(null)
     }
 
+    // Mapa slug da fase → coluna de owner correspondente no card
+    const PHASE_SLUG_TO_OWNER_COL_KB: Record<string, 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id'> = {
+        sdr: 'sdr_owner_id',
+        planner: 'vendas_owner_id',
+        pos_venda: 'pos_owner_id',
+        concierge: 'concierge_owner_id',
+    }
+
+    /**
+     * Se a fase-destino já tem owner atribuído no card, pula o StageChangeModal
+     * e chama handleConfirmStageChange direto. Retorna true se auto-confirmou.
+     */
+    const tryAutoConfirmStageChange = (cardId: string, targetPhaseId?: string | null): boolean => {
+        if (!targetPhaseId) return false
+        const targetPhase = phasesData?.find(p => p.id === targetPhaseId)
+        const slug = targetPhase?.slug
+        if (!slug) return false
+        const col = PHASE_SLUG_TO_OWNER_COL_KB[slug]
+        if (!col) return false
+        const kbCard = allCards?.find(c => c.id === cardId)
+        if (!kbCard) return false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- acesso dinâmico por coluna
+        const autoOwnerId = (kbCard as any)[col] as string | null | undefined
+        if (!autoOwnerId) return false
+        handleConfirmStageChange(autoOwnerId)
+        return true
+    }
+
     const handleConfirmStageChange = (newOwnerId: string) => {
         if (pendingMove) {
             const isWinHandoff = pendingMove.targetStageName.startsWith('Ganho ')
@@ -547,7 +576,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 const autoOwnerId = targetSlug && autoAssignments ? autoAssignments[targetSlug] : undefined
                 if (autoOwnerId) {
                     handleConfirmStageChange(autoOwnerId)
-                } else {
+                } else if (!tryAutoConfirmStageChange(pendingMove.cardId, phaseId)) {
                     setStageChangeModalOpen(true)
                 }
             } else {
@@ -675,6 +704,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             targetPhaseId: nextPhase?.id,
             targetPhaseName: nextPhase?.name || nextPhaseCap?.slug || 'Próxima Fase'
         })
+        if (tryAutoConfirmStageChange(cardId, nextPhase?.id)) return
         setStageChangeModalOpen(true)
     }
 
@@ -708,6 +738,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             }
         }
 
+        if (tryAutoConfirmStageChange(pendingMove.cardId, pendingMove.targetPhaseId)) return
         setStageChangeModalOpen(true)
     }
 

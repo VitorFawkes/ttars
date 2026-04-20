@@ -692,6 +692,11 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 setShowStageDropdown(false)
                 return
             }
+            // Se o card já tem owner da fase-destino atribuído, pula o modal de responsável
+            if (tryAutoConfirmStageChange(handoffPhaseId)) {
+                setShowStageDropdown(false)
+                return
+            }
             setStageChangeModalOpen(true)
             setShowStageDropdown(false)
             return
@@ -726,6 +731,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
         // Se é handoff cross-phase ou win → abrir StageChangeModal em vez de mover direto
         if (pendingStageChange.targetPhaseId) {
+            if (tryAutoConfirmStageChange(pendingStageChange.targetPhaseId)) return
             setStageChangeModalOpen(true)
             return
         }
@@ -932,6 +938,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 setFieldConfirmationModalOpen(true)
                 return
             }
+            if (tryAutoConfirmStageChange(nextStage.phase_id)) return
             setStageChangeModalOpen(true)
         } else {
             marcarGanhoMutation.mutate(undefined)
@@ -970,6 +977,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             }
         }
 
+        if (tryAutoConfirmStageChange(pendingStageChange.targetPhaseId)) return
         setStageChangeModalOpen(true)
     }
 
@@ -1028,7 +1036,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 const autoOwnerId = targetSlug && autoAssignments ? autoAssignments[targetSlug] : undefined
                 if (autoOwnerId) {
                     handleConfirmStageChange(autoOwnerId)
-                } else {
+                } else if (!tryAutoConfirmStageChange(phaseId)) {
+                    // Fallback: se o card já tem owner persistido pra essa fase, usa ele
                     setStageChangeModalOpen(true)
                 }
             } else {
@@ -1036,6 +1045,32 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 setPendingStageChange(null)
             }
         }
+    }
+
+    // Mapa slug da fase → coluna de owner correspondente no card
+    const PHASE_SLUG_TO_OWNER_COL: Record<string, 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id'> = {
+        sdr: 'sdr_owner_id',
+        planner: 'vendas_owner_id',
+        pos_venda: 'pos_owner_id',
+        concierge: 'concierge_owner_id',
+    }
+
+    /**
+     * Se a fase-destino já tem owner atribuído no card, pula o StageChangeModal
+     * e chama handleConfirmStageChange direto. Retorna true se auto-confirmou.
+     */
+    const tryAutoConfirmStageChange = (targetPhaseId?: string | null): boolean => {
+        if (!targetPhaseId) return false
+        const targetPhase = phasesData?.find(p => p.id === targetPhaseId)
+        const slug = targetPhase?.slug
+        if (!slug) return false
+        const col = PHASE_SLUG_TO_OWNER_COL[slug]
+        if (!col) return false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- acesso dinâmico por coluna
+        const autoOwnerId = (card as any)[col] as string | null | undefined
+        if (!autoOwnerId) return false
+        handleConfirmStageChange(autoOwnerId)
+        return true
     }
 
     const handleConfirmStageChange = (newOwnerId: string) => {
