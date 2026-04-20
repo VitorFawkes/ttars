@@ -189,6 +189,42 @@ serve(async (req) => {
                     } else {
                         warnings.push('Nenhuma cadência selecionada')
                     }
+                } else if (trigger.action_type === 'add_tag' || trigger.action_type === 'remove_tag') {
+                    const tagId = cfg.tag_id as string | undefined
+                    if (!tagId) {
+                        warnings.push('Nenhuma tag selecionada')
+                    } else {
+                        const { data: tag } = await supabaseClient
+                            .from('card_tags').select('name, color').eq('id', tagId).single()
+                        result.tag = { id: tagId, name: tag?.name || '—', color: tag?.color || null }
+                        if (trigger.action_type === 'add_tag') {
+                            const { data: existing } = await supabaseClient
+                                .from('card_tag_assignments').select('id')
+                                .eq('card_id', cardId).eq('tag_id', tagId).maybeSingle()
+                            if (existing) warnings.push('Card já tem essa tag — automação seria pulada (no-op)')
+                        }
+                        if (trigger.action_type === 'remove_tag') {
+                            const { data: existing } = await supabaseClient
+                                .from('card_tag_assignments').select('id')
+                                .eq('card_id', cardId).eq('tag_id', tagId).maybeSingle()
+                            if (!existing) warnings.push('Card não tem essa tag — automação seria pulada (no-op)')
+                        }
+                    }
+                } else if (trigger.action_type === 'notify_internal') {
+                    const mode = (cfg.recipient_mode as string) || 'card_owner'
+                    const rawTitle = (cfg.title as string) || trigger.name || 'Automação'
+                    const rawBody = (cfg.body as string) || ''
+                    result.notify = {
+                        recipient_mode: mode,
+                        title: renderVars(rawTitle),
+                        body: renderVars(rawBody),
+                    }
+                    if (mode === 'card_owner' && !card.dono_atual_id) {
+                        warnings.push('Card sem dono definido — ninguém receberia a notificação')
+                    }
+                    if (mode === 'specific' && !cfg.user_id) {
+                        warnings.push('Destinatário específico não escolhido')
+                    }
                 }
 
                 return new Response(JSON.stringify(result, null, 2), {
@@ -459,6 +495,12 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 result = await executeSendMessageAction(supabaseClient, item.card_id, trigger);
             } else if (trigger.action_type === 'change_stage') {
                 result = await executeChangeStageAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'add_tag') {
+                result = await executeAddTagAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'remove_tag') {
+                result = await executeRemoveTagAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'notify_internal') {
+                result = await executeNotifyInternalAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -1182,6 +1224,195 @@ async function executeChangeStageAction(
     });
 
     return { moved: true, from_stage_id: card.pipeline_stage_id, to_stage_id: targetStageId };
+}
+
+// ============================================================================
+// Sprint 2 Actions: add_tag / remove_tag / notify_internal
+// ============================================================================
+
+async function executeAddTagAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const tagId: string | undefined = config.tag_id;
+
+    if (!tagId) {
+        return { skipped: true, reason: 'no_tag_id' };
+    }
+
+    // Dedup: se já tem a tag, pular
+    const { data: existing } = await supabaseClient
+        .from("card_tag_assignments")
+        .select("id")
+        .eq("card_id", cardId)
+        .eq("tag_id", tagId)
+        .maybeSingle();
+
+    if (existing) {
+        return { skipped: true, reason: 'already_tagged' };
+    }
+
+    const { error: insErr } = await supabaseClient
+        .from("card_tag_assignments")
+        .insert({
+            card_id: cardId,
+            tag_id: tagId,
+            org_id: orgId,
+            assigned_by: null,
+            assigned_at: new Date().toISOString(),
+        });
+
+    if (insErr) {
+        throw new Error(`add_tag failed: ${insErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: 'entry_rule_tag_added',
+        event_source: 'entry_trigger',
+        event_data: { trigger_id: trigger.id, trigger_name: trigger.name, tag_id: tagId },
+        action_taken: 'add_tag',
+        action_result: { tag_id: tagId }
+    });
+
+    return { added: true, tag_id: tagId };
+}
+
+async function executeRemoveTagAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const tagId: string | undefined = config.tag_id;
+
+    if (!tagId) {
+        return { skipped: true, reason: 'no_tag_id' };
+    }
+
+    const { data: existing } = await supabaseClient
+        .from("card_tag_assignments")
+        .select("id")
+        .eq("card_id", cardId)
+        .eq("tag_id", tagId)
+        .maybeSingle();
+
+    if (!existing) {
+        return { skipped: true, reason: 'tag_not_assigned' };
+    }
+
+    const { error: delErr } = await supabaseClient
+        .from("card_tag_assignments")
+        .delete()
+        .eq("card_id", cardId)
+        .eq("tag_id", tagId);
+
+    if (delErr) {
+        throw new Error(`remove_tag failed: ${delErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: 'entry_rule_tag_removed',
+        event_source: 'entry_trigger',
+        event_data: { trigger_id: trigger.id, trigger_name: trigger.name, tag_id: tagId },
+        action_taken: 'remove_tag',
+        action_result: { tag_id: tagId }
+    });
+
+    return { removed: true, tag_id: tagId };
+}
+
+async function executeNotifyInternalAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const recipientMode: string = (config.recipient_mode as string) || 'card_owner';
+    const specificUserId: string | undefined = config.user_id;
+    const rawTitle: string = (config.title as string) || trigger.name || 'Automação';
+    const rawBody: string = (config.body as string) || '';
+
+    // Resolver destinatários
+    const recipients: string[] = [];
+
+    const { data: card } = await supabaseClient
+        .from("cards")
+        .select("id, titulo, dono_atual_id")
+        .eq("id", cardId)
+        .single();
+
+    if (!card) {
+        throw new Error(`Card not found: ${cardId}`);
+    }
+
+    if (recipientMode === 'card_owner') {
+        if (card.dono_atual_id) recipients.push(card.dono_atual_id);
+    } else if (recipientMode === 'specific') {
+        if (specificUserId) recipients.push(specificUserId);
+    } else if (recipientMode === 'admins') {
+        const { data: admins } = await supabaseClient
+            .from("profiles")
+            .select("id")
+            .eq("is_admin", true);
+        for (const a of admins || []) {
+            if (a.id) recipients.push(a.id);
+        }
+    }
+
+    if (recipients.length === 0) {
+        return { skipped: true, reason: 'no_recipient' };
+    }
+
+    // Renderizar variáveis básicas
+    const renderVars = (s: string) => s.replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+    const title = renderVars(rawTitle).slice(0, 200);
+    const body = renderVars(rawBody).slice(0, 500);
+
+    const rows = recipients.map((userId) => ({
+        user_id: userId,
+        type: 'automation',
+        title,
+        body,
+        url: `/cards/${cardId}`,
+        card_id: cardId,
+        org_id: orgId,
+        metadata: { trigger_id: trigger.id, trigger_name: trigger.name, source: 'automation' },
+        read: false,
+    }));
+
+    const { error: insErr } = await supabaseClient
+        .from("notifications")
+        .insert(rows);
+
+    if (insErr) {
+        throw new Error(`notify_internal failed: ${insErr.message}`);
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: 'entry_rule_notified',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            recipient_mode: recipientMode,
+            recipients_count: recipients.length
+        },
+        action_taken: 'notify_internal',
+        action_result: { recipients_count: recipients.length }
+    });
+
+    return { notified: true, recipients_count: recipients.length };
 }
 
 // ============================================================================

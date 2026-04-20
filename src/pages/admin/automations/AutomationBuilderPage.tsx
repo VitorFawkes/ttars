@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Zap, MessageSquare, CheckSquare, ArrowRightLeft, Layers,
-  Sparkles, Check, ShieldCheck, AlertTriangle, PlayCircle,
+  Sparkles, Check, ShieldCheck, AlertTriangle, PlayCircle, Tag as TagIcon, Bell,
 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
@@ -20,6 +20,7 @@ import { useMensagemTemplates } from '@/hooks/useMensagemTemplates'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useUsers } from '@/hooks/useUsers'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useCardTags } from '@/hooks/useCardTags'
 import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '@/hooks/useWhatsAppTemplates'
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
@@ -56,6 +57,13 @@ interface FormState {
   target_stage_id: string | null
   // start_cadence
   target_cadence_template_id: string | null
+  // add_tag / remove_tag
+  tag_id: string | null
+  // notify_internal
+  notify_recipient_mode: 'card_owner' | 'specific' | 'admins'
+  notify_user_id: string | null
+  notify_title: string
+  notify_body: string
   // delay
   delay_minutes: number
   delay_type: 'business' | 'calendar'
@@ -82,6 +90,11 @@ const DEFAULT_FORM: FormState = {
   task_assign_to_user_id: null,
   target_stage_id: null,
   target_cadence_template_id: null,
+  tag_id: null,
+  notify_recipient_mode: 'card_owner',
+  notify_user_id: null,
+  notify_title: '',
+  notify_body: '',
   delay_minutes: 5,
   delay_type: 'business',
   is_active: false,
@@ -92,6 +105,9 @@ const ACTION_OPTIONS: Array<{ value: ActionType; label: string; desc: string; ic
   { value: 'create_task', label: 'Criar tarefa', desc: 'Tarefa na agenda de alguém do time', icon: CheckSquare },
   { value: 'change_stage', label: 'Mudar etapa', desc: 'Mover card para outra etapa do pipeline', icon: ArrowRightLeft },
   { value: 'start_cadence', label: 'Iniciar cadência', desc: 'Disparar série de tarefas encadeadas', icon: Layers },
+  { value: 'add_tag', label: 'Adicionar tag', desc: 'Marcar o card com uma etiqueta', icon: TagIcon },
+  { value: 'remove_tag', label: 'Remover tag', desc: 'Tirar uma etiqueta do card', icon: TagIcon },
+  { value: 'notify_internal', label: 'Avisar o time', desc: 'Notificação no sino do app (não manda WhatsApp)', icon: Bell },
 ]
 
 const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
@@ -580,6 +596,99 @@ function StartCadenceEditor({
   )
 }
 
+function TagActionEditor({
+  form, setForm, tags, mode,
+}: {
+  form: FormState
+  setForm: (next: Partial<FormState>) => void
+  tags: Array<{ id: string; name: string; color: string }>
+  mode: 'add' | 'remove'
+}) {
+  return (
+    <div className="space-y-3">
+      <Label>{mode === 'add' ? 'Tag pra adicionar ao card' : 'Tag pra tirar do card'}</Label>
+      <Select
+        value={form.tag_id || ''}
+        onChange={(v) => setForm({ tag_id: v || null })}
+        options={[
+          { value: '', label: 'Selecione a tag...' },
+          ...tags.map((t) => ({ value: t.id, label: t.name })),
+        ]}
+      />
+      <p className="text-xs text-slate-500">
+        {mode === 'add'
+          ? 'Evita duplicatas: se o card já tiver a tag, a automação é pulada.'
+          : 'Se o card não tiver essa tag, a automação é pulada automaticamente.'}
+      </p>
+      {tags.length === 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          Nenhuma tag cadastrada. Crie tags em Configurações → Tags antes de usar essa automação.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function NotifyInternalEditor({
+  form, setForm, users,
+}: {
+  form: FormState
+  setForm: (next: Partial<FormState>) => void
+  users: Array<{ id: string; nome_completo: string }>
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Quem recebe</Label>
+        <Select
+          value={form.notify_recipient_mode}
+          onChange={(v) => setForm({ notify_recipient_mode: v as 'card_owner' | 'specific' | 'admins' })}
+          options={[
+            { value: 'card_owner', label: 'Dono do card' },
+            { value: 'specific', label: 'Pessoa específica' },
+            { value: 'admins', label: 'Todos os admins' },
+          ]}
+        />
+      </div>
+      {form.notify_recipient_mode === 'specific' && (
+        <div>
+          <Label>Quem</Label>
+          <Select
+            value={form.notify_user_id || ''}
+            onChange={(v) => setForm({ notify_user_id: v || null })}
+            options={[
+              { value: '', label: 'Selecione...' },
+              ...users.map((u) => ({ value: u.id, label: u.nome_completo })),
+            ]}
+          />
+        </div>
+      )}
+      <div>
+        <Label>Título da notificação</Label>
+        <Input
+          value={form.notify_title}
+          onChange={(e) => setForm({ notify_title: e.target.value })}
+          placeholder="Ex: Card precisa de ação"
+          maxLength={200}
+        />
+      </div>
+      <div>
+        <Label>Detalhes (opcional)</Label>
+        <Textarea
+          value={form.notify_body}
+          onChange={(e) => setForm({ notify_body: e.target.value })}
+          placeholder="Ex: O card {{card.titulo}} está parado há 5 dias."
+          maxLength={500}
+          rows={3}
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          Você pode usar <code className="bg-slate-100 px-1 rounded">{'{{card.titulo}}'}</code> no título ou no detalhe.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 interface SimulateResult {
   action_type: string
   card?: { id: string; titulo: string } | null
@@ -592,6 +701,8 @@ interface SimulateResult {
   target_stage?: { id: string; nome: string }
   tasks?: Array<{ titulo: string; tipo: string; assign_to: string }>
   cadence?: { id: string; name: string; description: string | null }
+  tag?: { id: string; name: string; color: string | null }
+  notify?: { recipient_mode: string; title: string; body: string }
 }
 
 function SimulatePanel({
@@ -654,6 +765,17 @@ function SimulatePanel({
         }
       }
       if (form.action_type === 'change_stage') actionConfig.target_stage_id = form.target_stage_id
+      if (form.action_type === 'add_tag' || form.action_type === 'remove_tag') {
+        actionConfig.tag_id = form.tag_id
+      }
+      if (form.action_type === 'notify_internal') {
+        actionConfig.recipient_mode = form.notify_recipient_mode
+        if (form.notify_recipient_mode === 'specific' && form.notify_user_id) {
+          actionConfig.user_id = form.notify_user_id
+        }
+        actionConfig.title = form.notify_title
+        actionConfig.body = form.notify_body
+      }
 
       const { data, error } = await supabase.functions.invoke('cadence-engine', {
         body: {
@@ -783,6 +905,39 @@ function SimulatePanel({
               {result.cadence.description && <p className="text-xs text-slate-500 mt-1">{result.cadence.description}</p>}
             </div>
           )}
+
+          {(result.action_type === 'add_tag' || result.action_type === 'remove_tag') && result.tag && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">
+                Tag que seria {result.action_type === 'add_tag' ? 'adicionada' : 'removida'}
+              </p>
+              <div className="flex items-center gap-2">
+                {result.tag.color && (
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: result.tag.color }} />
+                )}
+                <span className="text-sm text-slate-700">{result.tag.name}</span>
+              </div>
+            </div>
+          )}
+
+          {result.action_type === 'notify_internal' && result.notify && (
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">
+                Notificação no sino
+              </p>
+              <p className="text-sm text-slate-500 mb-2">
+                Destinatário: {result.notify.recipient_mode === 'card_owner' ? 'Dono do card'
+                  : result.notify.recipient_mode === 'specific' ? 'Pessoa específica'
+                  : 'Todos os admins'}
+              </p>
+              <div className="bg-slate-50 border border-slate-200 rounded p-3">
+                <p className="text-sm font-semibold text-slate-900">{result.notify.title || '(sem título)'}</p>
+                {result.notify.body && (
+                  <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{result.notify.body}</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -877,6 +1032,7 @@ export default function AutomationBuilderPage() {
   const userOptions: Array<{ id: string; nome_completo: string }> = (users || []).map((u: { id: string; nome: string }) => ({ id: u.id, nome_completo: u.nome }))
   const { templates: messageTemplates } = useMensagemTemplates(currentProduct || undefined)
   const { data: waTemplates = [], isLoading: waTemplatesLoading } = useWhatsAppTemplates(null)
+  const { tags: cardTags } = useCardTags(currentProduct || undefined)
 
   const [step, setStep] = useState<Step>(isNew ? 'gallery' : 'editor')
   const [form, setFormState] = useState<FormState>(DEFAULT_FORM)
@@ -951,6 +1107,11 @@ export default function AutomationBuilderPage() {
         task_assign_to_user_id: data.task_configs?.[0]?.assign_to_user_id || null,
         target_stage_id: cfg.target_stage_id || null,
         target_cadence_template_id: data.target_template_id || null,
+        tag_id: cfg.tag_id || null,
+        notify_recipient_mode: (cfg.recipient_mode as 'card_owner' | 'specific' | 'admins') || 'card_owner',
+        notify_user_id: cfg.user_id || null,
+        notify_title: cfg.title || '',
+        notify_body: cfg.body || '',
         delay_minutes: data.delay_minutes ?? 5,
         delay_type: data.delay_type || 'business',
         is_active: data.is_active ?? false,
@@ -983,6 +1144,11 @@ export default function AutomationBuilderPage() {
       task_title: recipe.preset.suggested_task_title || '',
       target_stage_id: (recipe.preset.action_config?.target_stage_id as string) || null,
       target_cadence_template_id: (recipe.preset.action_config?.target_template_id as string) || null,
+      tag_id: (recipe.preset.action_config?.tag_id as string) || null,
+      notify_recipient_mode: (recipe.preset.action_config?.recipient_mode as 'card_owner' | 'specific' | 'admins') || 'card_owner',
+      notify_user_id: (recipe.preset.action_config?.user_id as string) || null,
+      notify_title: (recipe.preset.action_config?.title as string) || '',
+      notify_body: (recipe.preset.action_config?.body as string) || '',
     })
     setStep('editor')
   }
@@ -997,6 +1163,15 @@ export default function AutomationBuilderPage() {
     if (form.action_type === 'create_task' && !form.task_title.trim()) return 'Dê um título à tarefa'
     if (form.action_type === 'change_stage' && !form.target_stage_id) return 'Selecione a etapa alvo'
     if (form.action_type === 'start_cadence' && !form.target_cadence_template_id) return 'Selecione a cadência'
+    if ((form.action_type === 'add_tag' || form.action_type === 'remove_tag') && !form.tag_id) {
+      return 'Selecione a tag'
+    }
+    if (form.action_type === 'notify_internal') {
+      if (!form.notify_title.trim()) return 'Escreva um título pra notificação'
+      if (form.notify_recipient_mode === 'specific' && !form.notify_user_id) {
+        return 'Selecione quem vai receber a notificação'
+      }
+    }
     if ((form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage') && form.stage_ids.length === 0) {
       return 'Selecione ao menos uma etapa'
     }
@@ -1044,6 +1219,17 @@ export default function AutomationBuilderPage() {
       }
       if (form.action_type === 'start_cadence') {
         targetTemplateId = form.target_cadence_template_id
+      }
+      if (form.action_type === 'add_tag' || form.action_type === 'remove_tag') {
+        actionConfig.tag_id = form.tag_id
+      }
+      if (form.action_type === 'notify_internal') {
+        actionConfig.recipient_mode = form.notify_recipient_mode
+        if (form.notify_recipient_mode === 'specific' && form.notify_user_id) {
+          actionConfig.user_id = form.notify_user_id
+        }
+        actionConfig.title = form.notify_title.trim()
+        actionConfig.body = form.notify_body.trim()
       }
 
       const payload: Record<string, unknown> = {
@@ -1176,6 +1362,22 @@ export default function AutomationBuilderPage() {
                   Cadência: {cadenceTemplates.find((c) => c.id === form.target_cadence_template_id)?.name || '—'}
                 </p>
               )}
+              {(form.action_type === 'add_tag' || form.action_type === 'remove_tag') && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Tag: {cardTags.find((t) => t.id === form.tag_id)?.name || '—'}
+                </p>
+              )}
+              {form.action_type === 'notify_internal' && (
+                <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                  <p>Destinatário: {
+                    form.notify_recipient_mode === 'card_owner' ? 'Dono do card'
+                    : form.notify_recipient_mode === 'specific'
+                        ? (userOptions.find((u) => u.id === form.notify_user_id)?.nome_completo || '—')
+                    : 'Todos os admins'
+                  }</p>
+                  <p>Título: {form.notify_title || '—'}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1285,6 +1487,15 @@ export default function AutomationBuilderPage() {
           )}
           {form.action_type === 'start_cadence' && (
             <StartCadenceEditor form={form} setForm={setForm} cadenceTemplates={cadenceTemplates} />
+          )}
+          {form.action_type === 'add_tag' && (
+            <TagActionEditor form={form} setForm={setForm} tags={cardTags} mode="add" />
+          )}
+          {form.action_type === 'remove_tag' && (
+            <TagActionEditor form={form} setForm={setForm} tags={cardTags} mode="remove" />
+          )}
+          {form.action_type === 'notify_internal' && (
+            <NotifyInternalEditor form={form} setForm={setForm} users={userOptions} />
           )}
         </div>
       </div>

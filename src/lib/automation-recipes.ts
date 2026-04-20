@@ -19,9 +19,18 @@ import {
   Plane,
   Target,
   Layers,
+  Tag,
+  Bell,
 } from 'lucide-react'
 
-export type ActionType = 'send_message' | 'create_task' | 'change_stage' | 'start_cadence'
+export type ActionType =
+  | 'send_message'
+  | 'create_task'
+  | 'change_stage'
+  | 'start_cadence'
+  | 'add_tag'
+  | 'remove_tag'
+  | 'notify_internal'
 
 export type EventType =
   | 'card_created'
@@ -240,6 +249,37 @@ export const RECIPES: RecipePreset[] = [
       action_config: { target_template_id: null },
     },
   },
+
+  // ─── PIPELINE (tag + notify) ─────────────────────────────────────────
+  {
+    id: 'tag_quando_ganho',
+    name: 'Marcar card ganho com tag',
+    category: 'pipeline',
+    summary: 'Quando um card é ganho, adiciona uma tag pra facilitar relatório.',
+    icon: Tag,
+    preset: {
+      event_type: 'card_won',
+      action_type: 'add_tag',
+      action_config: { tag_id: null },
+    },
+  },
+  {
+    id: 'avisar_dono_sla',
+    name: 'Avisar dono quando SLA estourar',
+    category: 'tarefa',
+    summary: 'Se o card ficar parado muito tempo em etapa, avisa o dono pelo sino do app.',
+    icon: Bell,
+    preset: {
+      event_type: 'dias_no_stage',
+      event_config: { dias: 5 },
+      action_type: 'notify_internal',
+      action_config: {
+        recipient_mode: 'card_owner',
+        title: 'Card parado há muito tempo',
+        body: 'O card {{card.titulo}} está parado na mesma etapa há 5 dias.',
+      },
+    },
+  },
 ]
 
 export const RECIPE_CATEGORIES: Array<{ key: RecipePreset['category']; label: string; description: string }> = [
@@ -274,6 +314,9 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   create_task: 'Criar tarefa',
   change_stage: 'Mudar etapa',
   start_cadence: 'Iniciar cadência',
+  add_tag: 'Adicionar tag ao card',
+  remove_tag: 'Remover tag do card',
+  notify_internal: 'Avisar alguém do time',
 }
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
