@@ -55,15 +55,9 @@ function buildDecisionsBlock(agent: AgentConfig): string {
   return `\nDECISÕES INTELIGENTES HABILITADAS:\n${items}`;
 }
 
-function buildExtraPromptsBlock(agent: AgentConfig): string {
-  const extra = agent.prompts_extra ?? {};
-  const parts: string[] = [];
-  if (extra.context) parts.push(`CONTEXTO:\n${extra.context}`);
-  if (extra.data_update) parts.push(`ATUALIZAÇÃO DE DADOS:\n${extra.data_update}`);
-  if (extra.formatting) parts.push(`FORMATAÇÃO:\n${extra.formatting}`);
-  if (extra.validator) parts.push(`VALIDAÇÃO (auto-check):\n${extra.validator}`);
-  return parts.length > 0 ? `\n${parts.join("\n\n")}` : "";
-}
+// buildExtraPromptsBlock foi removido: misturava prompts de OUTROS agentes do
+// pipeline (backoffice/data/formatter/validator) no persona e poluía o prompt.
+// Cada agente do pipeline puxa seu prompts_extra dedicado no próprio step.
 
 interface AgentConfig {
   id: string;
@@ -1715,7 +1709,38 @@ async function runPersonaAgent(
   // C3 — sinais de handoff e decisões inteligentes (configuráveis por agente)
   const handoffBlock = buildHandoffBlock(agent);
   const decisionsBlock = buildDecisionsBlock(agent);
-  const extraPromptsBlock = buildExtraPromptsBlock(agent);
+  // prompts_extra.context/data_update/formatting/validator alimentam os AGENTES
+  // dedicados do pipeline (backoffice/data/formatter/validator). NÃO devem entrar
+  // no persona — misturar polui o prompt com instruções de outros passos.
+
+  // Processo do negócio em passos numerados (vem de business_config.process_steps)
+  const processStepsBlock = business?.process_steps && business.process_steps.length > 0
+    ? `\nNOSSO PROCESSO (nesta ordem):\n${business.process_steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`
+    : "";
+
+  // Papel do agente: deriva do process_steps — agente executa o passo 1 (qualificação),
+  // os demais passos são de outras pessoas (consultora, planner). Evita que o agente
+  // se confunda e diga "eu vou montar sua viagem" quando na verdade é SDR.
+  const rolePrinciple = business?.process_steps && business.process_steps.length > 1
+    ? `\nSEU PAPEL (regra de ouro):\nVocê executa APENAS o passo 1 ("${business.process_steps[0]}"). Os passos seguintes (${business.process_steps.slice(1, 3).join(", ")}...) são responsabilidade de outras pessoas no time (consultora/planner/especialista). Se o cliente perguntar "você que vai montar/fazer X?", deixe claro: o que é seu (qualificar, tirar dúvidas, agendar reunião) vs o que vem depois (consultora dedicada que desenha e opera a viagem). NUNCA prometa entregar algo que é do passo 2+.`
+    : "";
+
+  // Campos que o agente pode coletar/atualizar no contato (vem de business_config.contact_update_fields)
+  const contactUpdateFields = business?.contact_update_fields && business.contact_update_fields.length > 0
+    ? business.contact_update_fields.join(", ")
+    : "nome, sobrenome, email, cpf, passaporte, data_nascimento";
+
+  // Campos protegidos que NUNCA podem ser atualizados (vem de business_config.protected_fields)
+  const protectedFieldsBlock = business?.protected_fields && business.protected_fields.length > 0
+    ? `\nCAMPOS PROTEGIDOS (NUNCA atualizar): ${business.protected_fields.join(", ")}`
+    : "";
+
+  // Instruções customizadas do agente — system_prompt editado pelo admin no CRM.
+  // Vai como complemento ao persona dinâmico (regras finas de VIAJANTE, Club Med,
+  // scripts específicos que não couberam nos campos estruturados).
+  const customAgentInstructions = agent.system_prompt && agent.system_prompt.trim().length > 0
+    ? `\n## INSTRUÇÕES CUSTOMIZADAS DO AGENTE\n${agent.system_prompt.trim()}`
+    : "";
 
   const personaPrompt = `Voce e ${agent.nome}, ${agent.persona || "assistente"} da ${business?.company_name || "empresa"}.
 
@@ -1728,6 +1753,8 @@ Contexto:
 - Card ID: ${ctx.card_id || "(sem card)"}
 - Contato ID: ${ctx.contato_id}
 ${ctx.pessoa_principal_nome ? `- Nome principal: ${ctx.pessoa_principal_nome}` : ""}
+${rolePrinciple}
+${processStepsBlock}
 
 ${formDataText ? `DADOS JA PREENCHIDOS (NAO RE-PERGUNTE):\n${formDataText}\nSe ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
 
@@ -1756,8 +1783,9 @@ TOOLS DISPONIVEIS:
 - create_task: Use quando cliente CONFIRMAR horario de reuniao
 - assign_tag: Use para classificar o lead (ex: destino mencionado)
 - request_handoff: Use SOMENTE quando cliente insiste em humano ou reclamacao seria
-- update_contact: Use quando cliente fornecer dados pessoais (nome, email, CPF, passaporte, nascimento)
+- update_contact: Use quando cliente fornecer dados pessoais (${contactUpdateFields})
 - think: Use para planejar sua resposta antes de enviar (invisivel ao cliente)
+${protectedFieldsBlock}
 
 HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
@@ -1768,7 +1796,7 @@ NUNCA mencione IA, sistema, formulario, tools, regras internas.
 
 ${handoffBlock}
 ${decisionsBlock}
-${extraPromptsBlock}
+${customAgentInstructions}
 ${SALES_PLAYBOOK}
 
 CONSULTA OBRIGATÓRIA: antes de falar sobre serviços, taxa, prazos, destinos, pagamento ou tratar objeções, chame search_knowledge_base ANTES e responda em 1-2 frases sem copiar literal.
