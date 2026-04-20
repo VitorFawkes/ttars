@@ -25,9 +25,10 @@ import { useCardTags } from '@/hooks/useCardTags'
 import { useWhatsAppTemplates, parseTemplateBody, type WhatsAppTemplate } from '@/hooks/useWhatsAppTemplates'
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
-  ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS,
+  ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS, FIELD_CHANGED_OPTIONS,
   type ActionType, type EventType, type RecipePreset,
 } from '@/lib/automation-recipes'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 
 type Step = 'gallery' | 'editor' | 'review'
 
@@ -126,6 +127,10 @@ const ACTION_OPTIONS: Array<{ value: ActionType; label: string; desc: string; ic
 const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'card_created', label: EVENT_TYPE_LABELS.card_created },
   { value: 'stage_enter', label: EVENT_TYPE_LABELS.stage_enter },
+  { value: 'macro_stage_enter', label: EVENT_TYPE_LABELS.macro_stage_enter },
+  { value: 'field_changed', label: EVENT_TYPE_LABELS.field_changed },
+  { value: 'tag_added', label: EVENT_TYPE_LABELS.tag_added },
+  { value: 'tag_removed', label: EVENT_TYPE_LABELS.tag_removed },
   { value: 'dias_antes_viagem', label: EVENT_TYPE_LABELS.dias_antes_viagem },
   { value: 'dias_apos_viagem', label: EVENT_TYPE_LABELS.dias_apos_viagem },
   { value: 'aniversario_contato', label: EVENT_TYPE_LABELS.aniversario_contato },
@@ -1118,17 +1123,27 @@ function formatFieldValue(v: unknown): string {
 }
 
 function EventConfigEditor({
-  form, setForm, stages,
+  form, setForm, stages, phases, tags, pipelineId,
 }: {
   form: FormState
   setForm: (next: Partial<FormState>) => void
   stages: Array<{ id: string; nome: string }>
+  phases: Array<{ id: string; label: string }>
+  tags: Array<{ id: string; name: string; color: string | null }>
+  pipelineId: string | null | undefined
 }) {
   const needsStages = form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage'
   const needsDays =
     form.event_type === 'dias_antes_viagem' ||
     form.event_type === 'dias_apos_viagem' ||
     form.event_type === 'dias_no_stage'
+  const needsPhase = form.event_type === 'macro_stage_enter'
+  const needsField = form.event_type === 'field_changed'
+  const needsTag = form.event_type === 'tag_added' || form.event_type === 'tag_removed'
+
+  const selectedField = needsField
+    ? FIELD_CHANGED_OPTIONS.find((f) => f.key === (form.event_config.field as string))
+    : null
 
   return (
     <div className="space-y-3">
@@ -1185,6 +1200,84 @@ function EventConfigEditor({
           />
         </div>
       )}
+
+      {needsPhase && (
+        <div>
+          <Label>Em qual fase?</Label>
+          <Select
+            value={(form.event_config.phase_id as string) || ''}
+            onChange={(v) => setForm({ event_config: { ...form.event_config, phase_id: v || null } })}
+            options={[
+              { value: '', label: 'Qualquer fase' },
+              ...phases.map((p) => ({ value: p.id, label: p.label })),
+            ]}
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Dispara quando o card muda de uma etapa pra outra fase. Ex: entrar em Pós-venda.
+          </p>
+        </div>
+      )}
+
+      {needsField && (
+        <>
+          <div>
+            <Label>Qual campo?</Label>
+            <Select
+              value={(form.event_config.field as string) || ''}
+              onChange={(v) =>
+                setForm({
+                  event_config: { field: v || null, to_value: null },
+                })
+              }
+              options={[
+                { value: '', label: 'Selecione um campo' },
+                ...FIELD_CHANGED_OPTIONS.map((f) => ({ value: f.key, label: f.label })),
+              ]}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Dispara sempre que esse campo mudar (qualquer valor).
+            </p>
+          </div>
+
+          {selectedField?.allowedToValues && (
+            <div>
+              <Label>Só dispara se virar...</Label>
+              <Select
+                value={(form.event_config.to_value as string) || ''}
+                onChange={(v) =>
+                  setForm({
+                    event_config: { ...form.event_config, to_value: v || null },
+                  })
+                }
+                options={[
+                  { value: '', label: 'Qualquer valor novo' },
+                  ...selectedField.allowedToValues,
+                ]}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {needsTag && (
+        <div>
+          <Label>Qual tag?</Label>
+          <Select
+            value={(form.event_config.tag_id as string) || ''}
+            onChange={(v) => setForm({ event_config: { ...form.event_config, tag_id: v || null } })}
+            options={[
+              { value: '', label: 'Qualquer tag' },
+              ...tags.map((t) => ({ value: t.id, label: t.name })),
+            ]}
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            {form.event_type === 'tag_added'
+              ? 'Dispara quando a tag é colocada no card.'
+              : 'Dispara quando a tag é tirada do card.'}
+            {!pipelineId && ' Limite: pipeline não detectado.'}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -1201,6 +1294,11 @@ export default function AutomationBuilderPage() {
   const { slug: currentProduct, pipelineId } = useCurrentProductMeta()
   const { data: stagesData } = usePipelineStages(pipelineId || undefined)
   const stages: Array<{ id: string; nome: string }> = (stagesData || []).map((s) => ({ id: s.id, nome: s.nome }))
+  const { data: phasesData } = usePipelinePhases(pipelineId || undefined)
+  const phases: Array<{ id: string; label: string }> = (phasesData || []).map((p) => ({
+    id: p.id,
+    label: p.label || p.name || p.slug || 'Fase sem nome',
+  }))
   const { users } = useUsers()
   const userOptions: Array<{ id: string; nome_completo: string }> = (users || []).map((u: { id: string; nome: string }) => ({ id: u.id, nome_completo: u.nome }))
   const { templates: messageTemplates } = useMensagemTemplates(currentProduct || undefined)
@@ -1367,6 +1465,9 @@ export default function AutomationBuilderPage() {
     }
     if ((form.event_type === 'stage_enter' || form.event_type === 'dias_no_stage') && form.stage_ids.length === 0) {
       return 'Selecione ao menos uma etapa'
+    }
+    if (form.event_type === 'field_changed' && !form.event_config.field) {
+      return 'Selecione qual campo do card dispara a automação'
     }
     return null
   }
@@ -1542,6 +1643,22 @@ export default function AutomationBuilderPage() {
               {typeof form.event_config.dias === 'number' && (
                 <p className="text-xs text-slate-500 mt-1">Dias: {form.event_config.dias as number}</p>
               )}
+              {form.event_type === 'macro_stage_enter' && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Fase: {phases.find((p) => p.id === form.event_config.phase_id)?.label || 'Qualquer'}
+                </p>
+              )}
+              {form.event_type === 'field_changed' && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Campo: {FIELD_CHANGED_OPTIONS.find((f) => f.key === form.event_config.field)?.label || '—'}
+                  {form.event_config.to_value ? ` (vira: ${form.event_config.to_value as string})` : ''}
+                </p>
+              )}
+              {(form.event_type === 'tag_added' || form.event_type === 'tag_removed') && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Tag: {cardTags?.find((t) => t.id === form.event_config.tag_id)?.name || 'Qualquer'}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Faz o quê</p>
@@ -1680,7 +1797,14 @@ export default function AutomationBuilderPage() {
           <h2 className="text-sm font-semibold text-slate-900 mb-1">Quando</h2>
           <p className="text-xs text-slate-500">Qual evento dispara a automação</p>
         </div>
-        <EventConfigEditor form={form} setForm={setForm} stages={stages} />
+        <EventConfigEditor
+          form={form}
+          setForm={setForm}
+          stages={stages}
+          phases={phases}
+          tags={cardTags || []}
+          pipelineId={pipelineId}
+        />
       </div>
 
       {/* Faz o quê */}

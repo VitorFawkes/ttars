@@ -63,6 +63,10 @@ export const UPDATE_FIELD_OPTIONS: Array<{
 export type EventType =
   | 'card_created'
   | 'stage_enter'
+  | 'macro_stage_enter'
+  | 'field_changed'
+  | 'tag_added'
+  | 'tag_removed'
   | 'dias_antes_viagem'
   | 'dias_apos_viagem'
   | 'aniversario_contato'
@@ -70,6 +74,50 @@ export type EventType =
   | 'dias_no_stage'
   | 'card_won'
   | 'cron_roteamento'
+
+/**
+ * Whitelist de campos do card que podem disparar `field_changed`.
+ * Mantém em sincronia com a whitelist do DB trigger
+ * `process_cadence_entry_on_card_field_change`.
+ */
+export const FIELD_CHANGED_OPTIONS: Array<{
+  key: string
+  label: string
+  description?: string
+  allowedToValues?: Array<{ value: string; label: string }>
+}> = [
+  {
+    key: 'status_comercial',
+    label: 'Status comercial',
+    allowedToValues: [
+      { value: 'ganho', label: 'Virou ganho' },
+      { value: 'perdido', label: 'Virou perdido' },
+      { value: 'aberto', label: 'Voltou a aberto' },
+    ],
+  },
+  { key: 'valor_final', label: 'Valor final (fechado)' },
+  { key: 'valor_estimado', label: 'Valor estimado' },
+  { key: 'dono_atual_id', label: 'Dono do card' },
+  {
+    key: 'prioridade',
+    label: 'Prioridade',
+    allowedToValues: [
+      { value: 'baixa', label: 'Virou baixa' },
+      { value: 'media', label: 'Virou média' },
+      { value: 'alta', label: 'Virou alta' },
+    ],
+  },
+  {
+    key: 'pronto_para_contrato',
+    label: 'Pronto para contrato',
+    allowedToValues: [
+      { value: 'true', label: 'Marcado como pronto' },
+      { value: 'false', label: 'Desmarcado' },
+    ],
+  },
+  { key: 'taxa_status', label: 'Status da taxa' },
+  { key: 'data_viagem_inicio', label: 'Data da viagem' },
+]
 
 /**
  * Gatilhos "proativos" disparam SEM o cliente ter mandado mensagem recente.
@@ -352,6 +400,10 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   card_created: 'Card criado',
   stage_enter: 'Card entrou em etapa',
+  macro_stage_enter: 'Card entrou em fase',
+  field_changed: 'Campo do card mudou',
+  tag_added: 'Tag adicionada ao card',
+  tag_removed: 'Tag removida do card',
   dias_antes_viagem: 'X dias antes da viagem',
   dias_apos_viagem: 'X dias depois da viagem',
   aniversario_contato: 'Aniversário do contato',
