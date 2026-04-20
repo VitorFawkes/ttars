@@ -128,6 +128,13 @@ export default function SubCardsList({
                 </div>
             </div>
 
+            {/* Aviso quando a viagem ainda não está em Pós-venda */}
+            {!canCreate && fase !== 'pos_venda' && (
+                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    Sub-cards só podem ser criados depois que a viagem entra em <span className="font-medium text-gray-800">Pós-venda</span>.
+                </div>
+            )}
+
             {/* Value Composition */}
             {subCards.length > 0 && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5 text-xs">

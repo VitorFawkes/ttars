@@ -48,7 +48,7 @@ interface CancelSubCardResult {
  * Hook for managing sub-cards (novas vendas/mudanças que precisam de planejamento)
  *
  * Features:
- * - Create sub-cards from parent cards (any phase)
+ * - Create sub-cards from parent cards (apenas em Pós-venda)
  * - List sub-cards for a parent with progress info
  * - Cancel sub-cards
  * - Value aggregates automatically when sub-card enters Pós-venda
@@ -204,6 +204,7 @@ export function useSubCards(parentCardId?: string) {
     const canCreateSubCard = (card: {
         card_type?: string | null
         is_group_parent?: boolean | null
+        phase_slug?: string | null
     }) => {
         // Cannot be a sub-card itself
         if (card.card_type === 'sub_card') return false
@@ -211,6 +212,8 @@ export function useSubCards(parentCardId?: string) {
         if (card.card_type === 'future_opportunity') return false
         // Cannot be a group parent
         if (card.is_group_parent) return false
+        // Parent precisa estar em Pós-venda (slug 'pos_venda')
+        if (card.phase_slug !== undefined && card.phase_slug !== 'pos_venda') return false
         return true
     }
 

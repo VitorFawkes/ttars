@@ -526,3 +526,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T14:33:50Z | supabase/migrations/20260420b_sprint_b_whatsapp_line_required.sql | applied_to_prod
 2026-04-20T14:40:55Z | supabase/migrations/20260420f_echo_cards_listing_and_force_create.sql | applied_to_prod
 2026-04-20T14:44:04Z | supabase/migrations/20260420c_sprint_c_cadence_event_triggers_cross_org_guard.sql | applied_to_prod
+2026-04-20T14:46:31Z | supabase/migrations/20260420f_analytics_reform_foundation.sql | applied_to_prod
+2026-04-20T14:51:06Z | supabase/migrations/20260420d_criar_sub_card_bloqueia_fora_pos_venda.sql | applied_to_prod

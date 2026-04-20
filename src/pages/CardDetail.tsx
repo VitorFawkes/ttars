@@ -352,7 +352,8 @@ export default function CardDetail() {
                                 canCreate={canCreateSubCard({
                                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     card_type: (card as any).card_type,
-                                    is_group_parent: card.is_group_parent
+                                    is_group_parent: card.is_group_parent,
+                                    phase_slug: stageInfo?.phaseSlug
                                 })}
                                 fase={stageInfo?.phaseSlug}
                                 posOwnerId={card.pos_owner_id}
