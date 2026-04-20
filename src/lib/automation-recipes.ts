@@ -60,7 +60,26 @@ export type EventType =
   | 'tag_added'
   | 'tag_removed'
   | 'inbound_message_pattern'
+  | 'time_offset_from_date'
+  | 'time_in_stage'
   | 'cron_roteamento'
+
+/**
+ * Fontes de data para gatilhos time_offset_from_date.
+ * Mantém em sincronia com fn_enqueue_temporal_events() no banco.
+ */
+export type TimeOffsetSource =
+  | 'card.data_viagem_inicio'
+  | 'card.data_viagem_fim'
+  | 'contato.data_nascimento'
+  | 'proposal.expires_at'
+
+export const TIME_OFFSET_SOURCE_OPTIONS: Array<{ value: TimeOffsetSource; label: string }> = [
+  { value: 'card.data_viagem_inicio', label: 'Data de início da viagem' },
+  { value: 'card.data_viagem_fim', label: 'Data de término da viagem' },
+  { value: 'contato.data_nascimento', label: 'Aniversário do contato' },
+  { value: 'proposal.expires_at', label: 'Validade da proposta' },
+]
 
 /**
  * Modos de matching para gatilho `inbound_message_pattern`.
@@ -127,6 +146,8 @@ export const FIELD_CHANGED_OPTIONS: Array<{
  */
 export const PROACTIVE_EVENTS: Set<EventType> = new Set([
   'card_created',
+  'time_offset_from_date',
+  'time_in_stage',
 ])
 
 export function isProactiveEvent(event: EventType): boolean {
@@ -280,5 +301,7 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   tag_added: 'Tag adicionada ao card',
   tag_removed: 'Tag removida do card',
   inbound_message_pattern: 'Cliente respondeu com palavra-chave',
+  time_offset_from_date: 'Antes/depois de uma data',
+  time_in_stage: 'Card parado X dias em etapa',
   cron_roteamento: 'Roteamento automático diário',
 }

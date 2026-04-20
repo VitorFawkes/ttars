@@ -27,8 +27,8 @@ import { useWhatsAppLinhas, isOfficialMetaLine, type WhatsAppLinha } from '@/hoo
 import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
   ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS, FIELD_CHANGED_OPTIONS,
-  INBOUND_MATCH_MODE_OPTIONS,
-  type ActionType, type EventType, type InboundMatchMode, type RecipePreset,
+  INBOUND_MATCH_MODE_OPTIONS, TIME_OFFSET_SOURCE_OPTIONS,
+  type ActionType, type EventType, type InboundMatchMode, type RecipePreset, type TimeOffsetSource,
 } from '@/lib/automation-recipes'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 
@@ -134,6 +134,8 @@ const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'tag_added', label: EVENT_TYPE_LABELS.tag_added },
   { value: 'tag_removed', label: EVENT_TYPE_LABELS.tag_removed },
   { value: 'inbound_message_pattern', label: EVENT_TYPE_LABELS.inbound_message_pattern },
+  { value: 'time_offset_from_date', label: EVENT_TYPE_LABELS.time_offset_from_date },
+  { value: 'time_in_stage', label: EVENT_TYPE_LABELS.time_in_stage },
 ]
 
 const TASK_TIPO_OPTIONS = [
@@ -1168,11 +1170,13 @@ function EventConfigEditor({
   tags: Array<{ id: string; name: string; color: string | null }>
   pipelineId: string | null | undefined
 }) {
-  const needsStages = form.event_type === 'stage_enter'
+  const needsStages = form.event_type === 'stage_enter' || form.event_type === 'time_in_stage'
   const needsPhase = form.event_type === 'macro_stage_enter'
   const needsField = form.event_type === 'field_changed'
   const needsTag = form.event_type === 'tag_added' || form.event_type === 'tag_removed'
   const needsInboundPattern = form.event_type === 'inbound_message_pattern'
+  const needsTimeOffset = form.event_type === 'time_offset_from_date'
+  const needsTimeInStage = form.event_type === 'time_in_stage'
 
   const selectedField = needsField
     ? FIELD_CHANGED_OPTIONS.find((f) => f.key === (form.event_config.field as string))
@@ -1195,7 +1199,9 @@ function EventConfigEditor({
 
       {needsStages && (
         <div>
-          <Label>Em qual(is) etapa(s)?</Label>
+          <Label>
+            {needsTimeInStage ? 'Em qual(is) etapa(s) o card fica parado?' : 'Em qual(is) etapa(s)?'}
+          </Label>
           <div className="flex flex-wrap gap-2">
             {stages.map((s) => {
               const active = form.stage_ids.includes(s.id)
@@ -1365,6 +1371,80 @@ function EventConfigEditor({
             </div>
           </div>
         </>
+      )}
+
+      {needsTimeOffset && (
+        <div className="space-y-3">
+          <div>
+            <Label>Qual data é o ponto de partida?</Label>
+            <Select
+              value={(form.event_config.source as string) || ''}
+              onChange={(v) =>
+                setForm({ event_config: { ...form.event_config, source: v || null } })
+              }
+              options={[
+                { value: '', label: 'Selecione a data...' },
+                ...TIME_OFFSET_SOURCE_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
+              ]}
+            />
+          </div>
+          <div>
+            <Label>Quantos dias antes ou depois?</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={(form.event_config.offset_days as number) ?? 0}
+                onChange={(e) =>
+                  setForm({ event_config: { ...form.event_config, offset_days: Number(e.target.value) } })
+                }
+                className="w-32"
+              />
+              <span className="text-sm text-slate-500">
+                {(() => {
+                  const n = Number(form.event_config.offset_days ?? 0)
+                  if (n === 0) return '(no próprio dia)'
+                  if (n < 0) return `(${Math.abs(n)} dia${Math.abs(n) > 1 ? 's' : ''} antes)`
+                  return `(${n} dia${n > 1 ? 's' : ''} depois)`
+                })()}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Use número negativo para <strong>antes</strong> da data (ex: -7 = 7 dias antes). Positivo para <strong>depois</strong>. Zero = no próprio dia.
+            </p>
+          </div>
+          {Boolean(form.event_config.source) && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700">
+              <strong>Quando dispara:</strong>{' '}
+              {(() => {
+                const src = form.event_config.source as TimeOffsetSource
+                const srcLabel = TIME_OFFSET_SOURCE_OPTIONS.find((s) => s.value === src)?.label || src
+                const n = Number(form.event_config.offset_days ?? 0)
+                if (n === 0) return `No próprio dia da ${srcLabel.toLowerCase()}.`
+                if (n < 0) return `${Math.abs(n)} dia(s) antes da ${srcLabel.toLowerCase()}.`
+                return `${n} dia(s) depois da ${srcLabel.toLowerCase()}.`
+              })()}
+              {' '}Todos os dias às 9h, olha quais cards casam.
+            </div>
+          )}
+        </div>
+      )}
+
+      {needsTimeInStage && (
+        <div>
+          <Label>Quantos dias parado na etapa?</Label>
+          <Input
+            type="number"
+            min={1}
+            value={(form.event_config.days_in_stage as number) ?? 5}
+            onChange={(e) =>
+              setForm({ event_config: { ...form.event_config, days_in_stage: Number(e.target.value) } })
+            }
+            className="w-32"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Dispara se o card continua na mesma etapa por mais dias que o definido. Verificação diária às 9h.
+          </p>
+        </div>
       )}
     </div>
   )
@@ -1556,6 +1636,16 @@ export default function AutomationBuilderPage() {
     if (form.event_type === 'stage_enter' && form.stage_ids.length === 0) {
       return 'Selecione ao menos uma etapa'
     }
+    if (form.event_type === 'time_offset_from_date') {
+      if (!form.event_config.source) return 'Selecione qual data é o ponto de partida'
+      const off = Number(form.event_config.offset_days)
+      if (!Number.isFinite(off)) return 'Informe quantos dias antes ou depois'
+    }
+    if (form.event_type === 'time_in_stage') {
+      if (form.stage_ids.length === 0) return 'Selecione ao menos uma etapa parada'
+      const days = Number(form.event_config.days_in_stage)
+      if (!Number.isFinite(days) || days < 1) return 'Informe por quantos dias o card fica parado'
+    }
     if (form.event_type === 'field_changed' && !form.event_config.field) {
       return 'Selecione qual campo do card dispara a automação'
     }
@@ -1645,10 +1735,16 @@ export default function AutomationBuilderPage() {
         actionConfig.include_contact = form.webhook_include_contact
       }
 
+      // time_in_stage precisa de stage_ids dentro do event_config (fn_enqueue_temporal_events lê de lá).
+      const eventConfigPayload: Record<string, unknown> = { ...form.event_config }
+      if (form.event_type === 'time_in_stage') {
+        eventConfigPayload.stage_ids = form.stage_ids
+      }
+
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         event_type: form.event_type,
-        event_config: form.event_config,
+        event_config: eventConfigPayload,
         action_type: form.action_type,
         action_config: actionConfig,
         task_configs: taskConfigs,
