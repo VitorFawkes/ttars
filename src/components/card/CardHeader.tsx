@@ -1735,6 +1735,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     type: r.requirement_type,
                     label: r.label,
                     required_team_role: r.requirement_type === 'team_member' ? r.required_team_role : undefined,
+                    field_key: (r.requirement_type === 'field' || r.requirement_type === 'rule') && 'field_key' in r ? r.field_key : undefined,
                 }))}
                 onConfirm={handleConfirmQualityGate}
                 targetStageName={pendingStageChange?.targetStageName || currentStage?.nome || ''}

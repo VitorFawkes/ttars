@@ -414,7 +414,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div data-section="agenda_tarefas" className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-3 py-1.5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-gray-500" />

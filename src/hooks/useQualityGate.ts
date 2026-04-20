@@ -39,6 +39,7 @@ export interface MissingRequirement {
     label: string
     detail?: string  // e.g. "(concluída)", "Enviada", "2/3 recebidos"
     required_team_role?: TeamRole  // set when type === 'team_member', lets the modal render inline picker
+    field_key?: string | null  // para type 'field' e 'rule' — permite o modal navegar até a seção certa no card
 }
 
 interface ValidationResult {
@@ -198,7 +199,7 @@ export function useQualityGate(pipelineId?: string) {
             }
 
             if (!isValid) {
-                missing.push({ type: 'field', label: rule.label })
+                missing.push({ type: 'field', label: rule.label, field_key: rule.field_key })
             }
         }
 
@@ -333,7 +334,7 @@ export function useQualityGate(pipelineId?: string) {
                         detail = faltando.length > 0 ? `faltam: ${faltando.join(', ')}` : undefined
                     }
                 }
-                missing.push({ type: 'rule', label: rule.label, detail })
+                missing.push({ type: 'rule', label: rule.label, detail, field_key: rule.field_key })
             }
         }
 
@@ -449,7 +450,7 @@ export function useQualityGate(pipelineId?: string) {
                 }
 
                 if (!isValid) {
-                    missing.push({ type: 'field', label: rule.label })
+                    missing.push({ type: 'field', label: rule.label, field_key: rule.field_key })
                 }
             } else if (rule.requirement_type === 'rule') {
                 if (!rule.field_key) continue
@@ -459,11 +460,11 @@ export function useQualityGate(pipelineId?: string) {
                     const hasId = !!card.motivo_perda_id
                     const hasComment = !!card.motivo_perda_comentario && (card.motivo_perda_comentario as string).trim().length > 0
                     if (!hasId && !hasComment) {
-                        missing.push({ type: 'rule', label: rule.label })
+                        missing.push({ type: 'rule', label: rule.label, field_key: rule.field_key })
                     }
                 } else if (rule.field_key === 'contato_principal_required') {
                     if (!card.pessoa_principal_id) {
-                        missing.push({ type: 'rule', label: rule.label })
+                        missing.push({ type: 'rule', label: rule.label, field_key: rule.field_key })
                     }
                 }
                 // contato_principal_completo e contato_principal_basico NÃO são

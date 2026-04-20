@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import {
     AlertTriangle, ExternalLink, FileText, FileCheck, CheckCircle2,
     LayoutList, ShieldAlert, AlertCircle, UserCheck, Search, User,
-    Check, X, Loader2,
+    Check, X, Loader2, ArrowRight,
     type LucideIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -68,6 +68,36 @@ const TEAM_ROLE_LABEL: Record<string, string> = {
     planner: 'Planner',
     pos_venda: 'Pós-Venda',
     concierge: 'Concierge',
+}
+
+// Regras de sistema (rule.field_key) → seção no card
+const RULE_TO_SECTION: Record<string, string> = {
+    contato_principal_required: 'people',
+    contato_principal_completo: 'people',
+    contato_principal_basico: 'people',
+}
+
+// Tipo de requisito sem field_key → seção padrão
+const TYPE_TO_SECTION: Record<string, string> = {
+    proposal: 'proposta',
+    task: 'agenda_tarefas',
+    document: 'anexos',
+}
+
+function scrollAndHighlight(sectionKey: string): boolean {
+    const el = document.querySelector(`[data-section="${sectionKey}"]`) as HTMLElement | null
+    if (!el) return false
+    // Se a seção está collapsed (único filho é um button), expandir antes de rolar
+    const isCollapsed = el.children.length === 1 && el.children[0].tagName === 'BUTTON'
+    if (isCollapsed) (el.children[0] as HTMLElement).click()
+    setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        el.classList.add('ring-2', 'ring-indigo-400', 'ring-offset-2', 'rounded-xl', 'transition-all')
+        setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-indigo-400', 'ring-offset-2')
+        }, 2200)
+    }, isCollapsed ? 120 : 50)
+    return true
 }
 
 interface EligibleUser {
@@ -227,6 +257,48 @@ export default function QualityGateModal({
     const handleOpenCard = () => {
         onClose()
         navigate(`/cards/${cardId}`)
+    }
+
+    // Carrega o mapa field_key → section 1x (reaproveita cache entre abertas do modal)
+    const { data: fieldToSection } = useQuery<Record<string, string>>({
+        queryKey: ['quality-gate-field-sections'],
+        enabled: isOpen && context === 'card-detail',
+        staleTime: 1000 * 60 * 10,
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
+            const { data } = await (supabase.from('system_fields') as any)
+                .select('key, section')
+            const map: Record<string, string> = {}
+            for (const row of (data as Array<{ key: string; section: string | null }> | null) || []) {
+                if (row.key && row.section) map[row.key] = row.section
+            }
+            return map
+        }
+    })
+
+    const resolveSection = (req: MissingRequirement): string | null => {
+        if (req.type === 'team_member') return null // team_member tem fluxo próprio
+        if (req.type === 'field' && req.field_key) {
+            return fieldToSection?.[req.field_key] || null
+        }
+        if (req.type === 'rule' && req.field_key) {
+            return RULE_TO_SECTION[req.field_key] || null
+        }
+        return TYPE_TO_SECTION[req.type] || null
+    }
+
+    const canNavigate = context === 'card-detail'
+
+    const handleRowClick = (req: MissingRequirement) => {
+        if (!canNavigate) return
+        const section = resolveSection(req)
+        if (!section) return
+        onClose()
+        // pequeno delay pro modal desmontar antes do scroll
+        setTimeout(() => {
+            const ok = scrollAndHighlight(section)
+            if (!ok) toast.error('Não encontrei a seção. Role a página pra localizar.')
+        }, 150)
     }
 
     // Requisitos que ainda bloqueiam considerando o que já foi salvo localmente
@@ -406,6 +478,33 @@ export default function QualityGateModal({
                                                             }}
                                                         />
                                                     )}
+                                                </li>
+                                            )
+                                        }
+
+                                        const section = canNavigate ? resolveSection(item) : null
+                                        const isClickable = !!section
+
+                                        if (isClickable) {
+                                            return (
+                                                <li key={idx}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRowClick(item)}
+                                                        className={cn(
+                                                            'group w-full flex items-center gap-2 text-sm rounded-md px-2 py-1 -mx-2 transition-colors text-left',
+                                                            config.text,
+                                                            'hover:bg-white/60'
+                                                        )}
+                                                        title="Ir pra seção no card"
+                                                    >
+                                                        <span className={`w-1.5 h-1.5 ${config.dot} rounded-full flex-shrink-0`} />
+                                                        <span className="truncate flex-1">{item.label}</span>
+                                                        {item.detail && (
+                                                            <span className="text-xs opacity-70 flex-shrink-0">({item.detail})</span>
+                                                        )}
+                                                        <ArrowRight className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                                                    </button>
                                                 </li>
                                             )
                                         }
