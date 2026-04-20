@@ -2,9 +2,9 @@
  * useWhatsAppTemplates — lista templates HSM aprovados pela Meta, consumindo a
  * action `list_wa_templates` do edge function `cadence-engine`.
  *
- * Usado pelo builder de Automações quando o gatilho é proativo (card_created,
- * dias_antes_viagem, etc.) — nesses casos, texto livre pode ser dropado pelo
- * WhatsApp se estiver fora da janela 24h, e o jeito confiável é HSM.
+ * Usado pelo builder de Automações quando o gatilho é proativo (card_created) —
+ * nesses casos, texto livre pode ser dropado pelo WhatsApp se estiver fora da
+ * janela 24h, e o jeito confiável é HSM aprovado.
  */
 
 import { useQuery } from '@tanstack/react-query'
