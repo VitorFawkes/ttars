@@ -117,7 +117,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const displayNome = primary ? formatContactName(primary) : ''
 
     return (
-        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
+        <div data-section="people" className="rounded-lg border bg-white p-2.5 shadow-sm">
             <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Pessoas</h3>
 
             <div className="space-y-2">

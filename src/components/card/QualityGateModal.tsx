@@ -85,16 +85,32 @@ const TYPE_TO_SECTION: Record<string, string> = {
 }
 
 function scrollAndHighlight(sectionKey: string): boolean {
-    const el = document.querySelector(`[data-section="${sectionKey}"]`) as HTMLElement | null
+    // Tenta match exato primeiro; se não achar, tenta variantes expandidas por fase
+    // (ex: trip_info → trip_info:sdr, trip_info:planner — DynamicSectionsList as divide).
+    // Quando há várias variantes visíveis, prefere a que está mais próxima da
+    // viewport pra não rolar pra uma seção colapsada no fim da página.
+    const exact = document.querySelector(`[data-section="${sectionKey}"]`) as HTMLElement | null
+    let el: HTMLElement | null = exact
+    if (!el) {
+        const candidates = Array.from(document.querySelectorAll(`[data-section^="${sectionKey}:"]`)) as HTMLElement[]
+        if (candidates.length > 0) {
+            // Prefere o primeiro visível acima da dobra, senão o primeiro
+            const visibleInViewport = candidates.find(c => {
+                const r = c.getBoundingClientRect()
+                return r.top >= 0 && r.top < window.innerHeight
+            })
+            el = visibleInViewport || candidates[0]
+        }
+    }
     if (!el) return false
     // Se a seção está collapsed (único filho é um button), expandir antes de rolar
     const isCollapsed = el.children.length === 1 && el.children[0].tagName === 'BUTTON'
     if (isCollapsed) (el.children[0] as HTMLElement).click()
     setTimeout(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        el.classList.add('ring-2', 'ring-indigo-400', 'ring-offset-2', 'rounded-xl', 'transition-all')
+        el!.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        el!.classList.add('ring-2', 'ring-indigo-400', 'ring-offset-2', 'rounded-xl', 'transition-all')
         setTimeout(() => {
-            el.classList.remove('ring-2', 'ring-indigo-400', 'ring-offset-2')
+            el!.classList.remove('ring-2', 'ring-indigo-400', 'ring-offset-2')
         }, 2200)
     }, isCollapsed ? 120 : 50)
     return true
