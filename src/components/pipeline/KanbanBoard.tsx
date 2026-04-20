@@ -528,7 +528,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     }
 
-    const handleConfirmQualityGate = () => {
+    const handleConfirmQualityGate = (autoAssignments?: Record<string, string>) => {
         if (pendingMove) {
             // After filling fields, we still need to check if we need to change owner
             const targetStage = stages?.find((s) => s.id === pendingMove.stageId)
@@ -538,10 +538,18 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- target_phase_id pendente de regeneracao de types
             const phaseId = (targetStage as any)?.target_phase_id as string | null
             if (phaseId) {
-                // Open Owner Change Modal
+                // Open Owner Change Modal — OR skip se o usuário já escolheu o responsável
+                // da fase de destino no Quality Gate.
                 const targetPhase = phasesData?.find(p => p.id === phaseId)
                 setPendingMove(prev => prev ? { ...prev, targetPhaseId: phaseId, targetPhaseName: targetPhase?.name || 'Nova Fase' } : null)
-                setStageChangeModalOpen(true)
+
+                const targetSlug = targetPhase?.slug as string | undefined
+                const autoOwnerId = targetSlug && autoAssignments ? autoAssignments[targetSlug] : undefined
+                if (autoOwnerId) {
+                    handleConfirmStageChange(autoOwnerId)
+                } else {
+                    setStageChangeModalOpen(true)
+                }
             } else {
                 // Just move
                 moveCardMutation.mutate({ cardId: pendingMove.cardId, stageId: pendingMove.stageId })

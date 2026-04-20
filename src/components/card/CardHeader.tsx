@@ -998,7 +998,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         }
     })
 
-    const handleConfirmQualityGate = () => {
+    const handleConfirmQualityGate = (autoAssignments?: Record<string, string>) => {
         if (pendingStageChange) {
             setQualityGateModalOpen(false)
 
@@ -1021,7 +1021,16 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     targetPhaseId: phaseId,
                     targetPhaseName: targetPhase?.name || 'Nova Fase'
                 } : null)
-                setStageChangeModalOpen(true)
+
+                // Se o usuário já escolheu no Quality Gate o responsável da fase de destino,
+                // evita o 2º modal e usa essa pessoa como dono_atual_id direto.
+                const targetSlug = targetPhase?.slug as string | undefined
+                const autoOwnerId = targetSlug && autoAssignments ? autoAssignments[targetSlug] : undefined
+                if (autoOwnerId) {
+                    handleConfirmStageChange(autoOwnerId)
+                } else {
+                    setStageChangeModalOpen(true)
+                }
             } else {
                 updateStageMutation.mutate(pendingStageChange.stageId)
                 setPendingStageChange(null)

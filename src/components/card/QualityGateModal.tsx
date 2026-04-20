@@ -17,8 +17,13 @@ import type { MissingRequirement } from '../../hooks/useQualityGate'
 interface QualityGateModalProps {
     isOpen: boolean
     onClose: () => void
-    /** Chamado quando todos os requisitos foram satisfeitos — em card-detail/kanban isso dispara a mudança de etapa */
-    onConfirm: () => void
+    /**
+     * Chamado quando todos os requisitos foram satisfeitos — em card-detail/kanban isso
+     * dispara a mudança de etapa. Recebe opcionalmente o mapa de roles → userId que
+     * acabaram de ser atribuídos; o handler do pai pode usar para pular o modal de
+     * definição de responsável quando o role do destino já foi escolhido aqui.
+     */
+    onConfirm: (autoAssignments?: Record<string, string>) => void
     cardId: string
     targetStageName: string
     missingRequirements: MissingRequirement[]
@@ -214,8 +219,10 @@ export default function QualityGateModal({
     const queryClient = useQueryClient()
     const [expandedRole, setExpandedRole] = useState<string | null>(null)
     const [pending, setPending] = useState<Record<string, PendingSelection>>({})
-    // Roles que o usuário já atribuiu dentro deste modal (usado para auto-prosseguir)
-    const [satisfiedRoles, setSatisfiedRoles] = useState<Set<string>>(new Set())
+    // Atribuições confirmadas dentro deste modal (role → userId). Usado para:
+    // 1) esconder o requisito da lista depois de salvo
+    // 2) repassar pro onConfirm pra evitar 2º modal redundante
+    const [savedAssignments, setSavedAssignments] = useState<Record<string, string>>({})
 
     const handleOpenCard = () => {
         onClose()
@@ -226,16 +233,16 @@ export default function QualityGateModal({
     const unresolvedRequirements = useMemo(
         () => missingRequirements.filter(r => {
             if (r.type === 'team_member' && r.required_team_role) {
-                return !satisfiedRoles.has(r.required_team_role)
+                return !(r.required_team_role in savedAssignments)
             }
             return true
         }),
-        [missingRequirements, satisfiedRoles]
+        [missingRequirements, savedAssignments]
     )
 
     const saveAllMutation = useMutation({
         mutationFn: async (entries: Array<{ role: string; userId: string }>) => {
-            if (entries.length === 0) return
+            if (entries.length === 0) return []
             const updates: Record<string, string> = {}
             for (const { role, userId } of entries) {
                 const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[role]
@@ -244,33 +251,37 @@ export default function QualityGateModal({
             }
             const { error } = await supabase.from('cards').update(updates).eq('id', cardId)
             if (error) throw error
-            return entries.map(e => e.role)
+            return entries
         },
-        onSuccess: (savedRoles) => {
+        onSuccess: (savedEntries) => {
             queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             queryClient.invalidateQueries({ queryKey: ['card', cardId] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['card-team-roles', cardId] })
             queryClient.invalidateQueries({ queryKey: ['stage-requirements'] })
 
-            const savedSet = new Set(savedRoles || [])
-            const nextSatisfied = new Set([...satisfiedRoles, ...savedSet])
-            setSatisfiedRoles(nextSatisfied)
+            const savedMap: Record<string, string> = {}
+            for (const e of savedEntries || []) savedMap[e.role] = e.userId
+            const nextAssignments = { ...savedAssignments, ...savedMap }
+            setSavedAssignments(nextAssignments)
             setPending({})
             setExpandedRole(null)
 
             const stillPending = missingRequirements.filter(r => {
                 if (r.type === 'team_member' && r.required_team_role) {
-                    return !nextSatisfied.has(r.required_team_role)
+                    return !(r.required_team_role in nextAssignments)
                 }
                 return true
             })
 
             if (stillPending.length === 0) {
                 toast.success('Tudo certo — movendo card…')
-                onConfirm()
+                onConfirm(nextAssignments)
+                // Se o onConfirm do pai não fechar (ex: abriu via "Pendências" sem mover),
+                // fecha manualmente — a pendência foi resolvida, não faz sentido manter aberto
+                onClose()
             } else {
-                toast.success(savedRoles && savedRoles.length > 1 ? 'Responsáveis salvos' : 'Responsável salvo')
+                toast.success(savedEntries && savedEntries.length > 1 ? 'Responsáveis salvos' : 'Responsável salvo')
             }
         },
         onError: (error: Error) => {
