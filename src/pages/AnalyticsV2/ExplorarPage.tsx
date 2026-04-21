@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Search, Sparkles, Loader2, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Sparkles, Loader2, AlertCircle, Download, Save, Link2, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import WidgetCard from './WidgetCard'
+import { useSavedViews } from '@/hooks/analyticsV2/useSavedViews'
 
 interface InterpretedQuery {
   measure: string
@@ -27,12 +28,80 @@ interface ExplorerResponse {
   rows: QueryRow[]
 }
 
+interface PivotState {
+  measure: string
+  group_by: string
+  cross_with: string | null
+  from: string
+  to: string
+  viz: 'table' | 'bar' | 'line' | 'heatmap'
+}
+
 export default function ExplorarPage() {
   const [question, setQuestion] = useState('')
   const [interpreted, setInterpreted] = useState<InterpretedQuery | null>(null)
   const [rows, setRows] = useState<QueryRow[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [pivot, setPivot] = useState<PivotState>({
+    measure: 'count_cards',
+    group_by: 'stage',
+    cross_with: null,
+    from: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0],
+    viz: 'table',
+  })
+
+  const { save: saveView, views, delete: deleteView } = useSavedViews()
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [saveDescription, setSaveDescription] = useState('')
+  const [savingView, setSavingView] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const stateB64 = params.get('state')
+    if (stateB64) {
+      try {
+        const state = JSON.parse(atob(stateB64)) as PivotState
+        setPivot(state)
+      } catch {
+        // Ignorar se inválido
+      }
+    }
+  }, [])
+
+  async function executeQuery(
+    measure: string,
+    group_by: string,
+    cross_with: string | null,
+    from: string,
+    to: string
+  ) {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data: result, error: rpcErr } = await supabase.rpc('analytics_explorer_query', {
+        p_measure: measure,
+        p_group_by: group_by,
+        p_cross_with: cross_with,
+        p_filters: {},
+        p_from: from,
+        p_to: to,
+      } as never)
+      if (rpcErr) {
+        setError(`A consulta falhou: ${rpcErr.message}`)
+        return
+      }
+      const parsed = result as ExplorerResponse | null
+      setRows(parsed?.rows ?? [])
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function handleAsk() {
     const q = question.trim()
@@ -58,23 +127,102 @@ export default function ExplorarPage() {
       }
 
       const iq = body.query as InterpretedQuery
-      setInterpreted(iq)
 
-      const { data: result, error: rpcErr } = await supabase.rpc('analytics_explorer_query', {
-        p_measure: iq.measure,
-        p_group_by: iq.group_by,
-        p_cross_with: iq.cross_with,
-        p_filters: iq.filters,
-        p_from: iq.period.from,
-        p_to: iq.period.to,
-      } as never)
-      if (rpcErr) { setError(`A consulta falhou: ${rpcErr.message}`); return }
-      const parsed = result as ExplorerResponse | null
-      setRows(parsed?.rows ?? [])
+      if (iq.confidence < 0.5) {
+        setInterpreted(iq)
+        setError(
+          `Confiança baixa (${Math.round(iq.confidence * 100)}%). ` +
+          'Por favor, ajuste a consulta usando os controles de pivot abaixo.'
+        )
+        return
+      }
+
+      setInterpreted(iq)
+      setPivot({
+        measure: iq.measure,
+        group_by: iq.group_by,
+        cross_with: iq.cross_with,
+        from: iq.period.from,
+        to: iq.period.to,
+        viz: iq.viz as any,
+      })
+
+      await executeQuery(iq.measure, iq.group_by, iq.cross_with, iq.period.from, iq.period.to)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleExecutePivot() {
+    await executeQuery(pivot.measure, pivot.group_by, pivot.cross_with, pivot.from, pivot.to)
+  }
+
+  function downloadCSV() {
+    if (!rows || rows.length === 0) return
+
+    const headers = [
+      pivot.group_by,
+      pivot.cross_with ? pivot.cross_with : null,
+      pivot.measure,
+    ].filter(Boolean)
+
+    const csvRows = rows.map(r => [
+      escapeCSV(String(r.dim1 ?? '')),
+      pivot.cross_with ? escapeCSV(String(r.dim2 ?? '')) : null,
+      r.value ?? '',
+    ].filter(() => true))
+
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `explorar_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  function escapeCSV(str: string): string {
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
+
+  function shareLink() {
+    const stateB64 = btoa(JSON.stringify(pivot))
+    const url = new URL(window.location.href)
+    url.searchParams.set('state', stateB64)
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      alert('Link compartilhável copiado!')
+    })
+  }
+
+  async function handleSaveView() {
+    if (!saveName.trim()) {
+      setError('Nome da visão não pode estar vazio')
+      return
+    }
+    setSavingView(true)
+    try {
+      const success = await saveView(saveName, pivot, pivot.viz, saveDescription)
+      if (success) {
+        setSaveName('')
+        setSaveDescription('')
+        setShowSaveModal(false)
+      } else {
+        setError('Erro ao salvar visão')
+      }
+    } finally {
+      setSavingView(false)
     }
   }
 
@@ -83,12 +231,12 @@ export default function ExplorarPage() {
       <header>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">🔍 Explorar</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Faça uma pergunta em linguagem natural. A IA traduz pra uma consulta estruturada e você vê o resultado.
+          Faça uma pergunta ou configure manualmente os parâmetros de pivot.
         </p>
       </header>
 
       <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
-        <label className="text-xs font-medium text-slate-500 mb-2 block">Sua pergunta</label>
+        <label className="text-xs font-medium text-slate-500 mb-2 block">Sua pergunta (opcional)</label>
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
