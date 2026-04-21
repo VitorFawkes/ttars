@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-21
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 181 tabelas | 99 paginas | 147 hooks | 19 views | 570 components
+> **Stats:** 181 tabelas | 104 paginas | 147 hooks | 19 views | 570 components
 =======
-> **Stats:** 181 tabelas | 99 paginas | 147 hooks | 19 views | 570 components
+> **Stats:** 181 tabelas | 104 paginas | 147 hooks | 19 views | 570 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -395,18 +395,23 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **99 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **104 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
+| `AlertsPanel` | `src/pages/AnalyticsV2/AlertsPanel.tsx` |
 | `AnalyticsV2Page` | `src/pages/AnalyticsV2/AnalyticsV2Page.tsx` |
 | `AnalyticsV2Sidebar` | `src/pages/AnalyticsV2/AnalyticsV2Sidebar.tsx` |
+| `CardTimelineDrawer` | `src/pages/AnalyticsV2/CardTimelineDrawer.tsx` |
 | `ExplorarPage` | `src/pages/AnalyticsV2/ExplorarPage.tsx` |
 | `MeuPainelRedirect` | `src/pages/AnalyticsV2/MeuPainelRedirect.tsx` |
 | `UniversalFilterBar` | `src/pages/AnalyticsV2/UniversalFilterBar.tsx` |
 | `WidgetCard` | `src/pages/AnalyticsV2/WidgetCard.tsx` |
-| `ComingSoonDashboard` | `src/pages/AnalyticsV2/dashboards/ComingSoonDashboard.tsx` |
+| `ComercialDashboard` | `src/pages/AnalyticsV2/dashboards/ComercialDashboard.tsx` |
 | `DonoDashboard` | `src/pages/AnalyticsV2/dashboards/DonoDashboard.tsx` |
+| `PosDashboard` | `src/pages/AnalyticsV2/dashboards/PosDashboard.tsx` |
+| `SdrDashboard` | `src/pages/AnalyticsV2/dashboards/SdrDashboard.tsx` |
+| `VendasDashboard` | `src/pages/AnalyticsV2/dashboards/VendasDashboard.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |

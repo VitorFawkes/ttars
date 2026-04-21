@@ -36,7 +36,10 @@ import OperationsView from './components/analytics/views/OperationsView'
 import AnalyticsV2Page from './pages/AnalyticsV2/AnalyticsV2Page'
 import MeuPainelRedirect from './pages/AnalyticsV2/MeuPainelRedirect'
 import DonoDashboard from './pages/AnalyticsV2/dashboards/DonoDashboard'
-import ComingSoonDashboard from './pages/AnalyticsV2/dashboards/ComingSoonDashboard'
+import ComercialDashboard from './pages/AnalyticsV2/dashboards/ComercialDashboard'
+import VendasDashboard from './pages/AnalyticsV2/dashboards/VendasDashboard'
+import PosDashboard from './pages/AnalyticsV2/dashboards/PosDashboard'
+import SdrDashboard from './pages/AnalyticsV2/dashboards/SdrDashboard'
 import ExplorarPage from './pages/AnalyticsV2/ExplorarPage'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
@@ -248,10 +251,10 @@ function App() {
                   <Route path="/analytics/v2" element={<AnalyticsV2Page />}>
                     <Route index element={<MeuPainelRedirect />} />
                     <Route path="dono" element={<DonoDashboard />} />
-                    <Route path="comercial" element={<ComingSoonDashboard title="💼 Comercial" description="Macro SDR + Vendas com forecast e motivos de perda." />} />
-                    <Route path="vendas" element={<ComingSoonDashboard title="👥 Vendas (Travel Planner)" description="Conversão por Planner, estado das viagens fechadas, problemas no Pós." />} />
-                    <Route path="pos-venda" element={<ComingSoonDashboard title="🛠️ Pós-Venda" description="Prontidão operacional, partidas próximas, carga por Concierge." />} />
-                    <Route path="sdr" element={<ComingSoonDashboard title="📞 SDR" description="Taxa de handoff qualificado, SLA 1ª resposta e cadence compliance." />} />
+                    <Route path="comercial" element={<ComercialDashboard />} />
+                    <Route path="vendas" element={<VendasDashboard />} />
+                    <Route path="pos-venda" element={<PosDashboard />} />
+                    <Route path="sdr" element={<SdrDashboard />} />
                     <Route path="explorar" element={<ExplorarPage />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
