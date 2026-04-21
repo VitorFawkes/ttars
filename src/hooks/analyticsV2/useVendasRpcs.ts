@@ -3,6 +3,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
 import { useAnalyticsV2Filters, getRpcFiltersV1 } from './useAnalyticsV2Filters'
 
+// TODO: remover cast quando `npx supabase gen types` for rodado com as RPCs da migration 20260425c em prod
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+
 function useFilters() {
   return useAnalyticsV2Filters(useShallow(getRpcFiltersV1))
 }
@@ -14,7 +17,7 @@ export function useTripStates() {
   return useQuery({
     queryKey: ['av2', 'trip_states', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_trip_states', {
+      const { data, error } = await rpc('analytics_trip_states', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,
@@ -35,7 +38,7 @@ export function usePostIssues() {
   return useQuery({
     queryKey: ['av2', 'post_issues', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_post_issues', {
+      const { data, error } = await rpc('analytics_post_issues', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,
@@ -57,7 +60,7 @@ export function useReturnCustomers() {
   return useQuery({
     queryKey: ['av2', 'return_customers', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_return_customers', {
+      const { data, error } = await rpc('analytics_return_customers', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,
@@ -79,7 +82,7 @@ export function usePlannerOpenPortfolio() {
   return useQuery({
     queryKey: ['av2', 'planner_open_portfolio', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_planner_open_portfolio', {
+      const { data, error } = await rpc('analytics_planner_open_portfolio', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,
@@ -104,7 +107,7 @@ export function useOverdueTasksByOwner() {
   return useQuery({
     queryKey: ['av2', 'overdue_tasks_by_owner', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_overdue_tasks_by_owner', {
+      const { data, error } = await rpc('analytics_overdue_tasks_by_owner', {
         p_product: f.p_product,
       } as never)
       if (error) throw error
@@ -127,7 +130,7 @@ export function useLossReasonsByPlanner() {
   return useQuery({
     queryKey: ['av2', 'loss_reasons_by_planner', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_loss_reasons_by_planner', {
+      const { data, error } = await rpc('analytics_loss_reasons_by_planner', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,
@@ -151,7 +154,7 @@ export function useProposalToWinVelocity() {
   return useQuery({
     queryKey: ['av2', 'proposal_to_win_velocity', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_proposal_to_win_velocity', {
+      const { data, error } = await rpc('analytics_proposal_to_win_velocity', {
         p_from: f.p_date_start.slice(0, 10),
         p_to: f.p_date_end.slice(0, 10),
         p_product: f.p_product,

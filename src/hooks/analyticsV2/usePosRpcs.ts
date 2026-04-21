@@ -3,6 +3,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
 import { useAnalyticsV2Filters, getRpcFilters } from './useAnalyticsV2Filters'
 
+// TODO: remover cast quando `npx supabase gen types` rodar com as RPCs da migration 20260425d em prod
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+
 function useFilters() {
   return useAnalyticsV2Filters(useShallow(getRpcFilters))
 }
@@ -14,7 +17,7 @@ export function useUpcomingDepartures() {
   return useQuery({
     queryKey: ['av2', 'upcoming_departures', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_upcoming_departures', {
+      const { data, error } = await rpc('analytics_upcoming_departures', {
         p_product: f.p_product,
         p_origem: f.p_origem,
         p_destinos: f.p_destinos,
@@ -36,7 +39,7 @@ export function useCompletedTrips() {
   return useQuery({
     queryKey: ['av2', 'completed_trips', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_completed_trips', {
+      const { data, error } = await rpc('analytics_completed_trips', {
         p_from: f.p_from,
         p_to: f.p_to,
         p_product: f.p_product,
@@ -66,7 +69,7 @@ export function useTripTimeToReady() {
   return useQuery({
     queryKey: ['av2', 'trip_time_to_ready', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_trip_time_to_ready', {
+      const { data, error } = await rpc('analytics_trip_time_to_ready', {
         p_from: f.p_from,
         p_to: f.p_to,
         p_product: f.p_product,
@@ -100,7 +103,7 @@ export function useBottleneckByItem() {
   return useQuery({
     queryKey: ['av2', 'bottleneck_by_item', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_bottleneck_by_item', {
+      const { data, error } = await rpc('analytics_bottleneck_by_item', {
         p_from: f.p_from,
         p_to: f.p_to,
         p_product: f.p_product,
@@ -125,7 +128,7 @@ export function useReferralsPostTrip() {
   return useQuery({
     queryKey: ['av2', 'referrals_post_trip', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_referrals_post_trip', {
+      const { data, error } = await rpc('analytics_referrals_post_trip', {
         p_from: f.p_from,
         p_to: f.p_to,
         p_product: f.p_product,

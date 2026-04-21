@@ -293,3 +293,101 @@ export function useCardStageHistory(cardId: string | null) {
     staleTime: 30_000,
   })
 }
+
+// ========== Comercial Dashboard (migration 20260421i) ==========
+// TODO: remover cast `rpcComercial` quando tipos forem regenerados pós-promoção em prod
+const rpcComercial = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+
+export function useForecastPonderado() {
+  const f = useFilters()
+  return useQuery({
+    queryKey: ['av2', 'forecast_ponderado', f],
+    queryFn: async () => {
+      const { data, error } = await rpcComercial('analytics_forecast_ponderado', f)
+      if (error) throw error
+      return data as {
+        forecast_30d: number | null
+        forecast_60d: number | null
+        forecast_90d: number | null
+        by_stage: Array<Record<string, unknown>>
+      } | null
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useLossReasonsV2() {
+  const f = useFilters()
+  return useQuery({
+    queryKey: ['av2', 'loss_reasons_v2', f],
+    queryFn: async () => {
+      const { data, error } = await rpcComercial('analytics_loss_reasons_v2', f)
+      if (error) throw error
+      return data as {
+        total_lost: number
+        reasons: Array<{ reason: string; count: number; total_valor: number }>
+      } | null
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useConversionByTicket() {
+  const f = useFilters()
+  return useQuery({
+    queryKey: ['av2', 'conversion_by_ticket', f],
+    queryFn: async () => {
+      const { data, error } = await rpcComercial('analytics_conversion_by_ticket', f)
+      if (error) throw error
+      return data as {
+        data: Array<{
+          origem: string
+          total_leads: number
+          won: number
+          conversion_pct: number
+          avg_ticket: number
+        }>
+      } | null
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useStageVelocityPercentiles() {
+  const f = useFilters()
+  return useQuery({
+    queryKey: ['av2', 'stage_velocity_percentiles', f],
+    queryFn: async () => {
+      const { data, error } = await rpcComercial('analytics_stage_velocity_percentiles', f)
+      if (error) throw error
+      return data as {
+        stages: Array<{
+          stage_id: string
+          stage_name: string
+          card_count: number
+          p50_days: number
+          p75_days: number
+        }>
+      } | null
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useQualityScoreV2(ctx: 'sdr' | 'vendas' | 'pos' | 'dono' | 'comercial' = 'dono') {
+  const f = useFilters()
+  return useQuery({
+    queryKey: ['av2', 'quality_score_v2', f, ctx],
+    queryFn: async () => {
+      const { data, error } = await rpcComercial('analytics_quality_score_v2', { ...f, p_ctx: ctx })
+      if (error) throw error
+      return data as {
+        overall_avg_score: number | null
+        high_quality_count: number
+        high_quality_pct: number | null
+        total_cards: number
+      } | null
+    },
+    staleTime: 60_000,
+  })
+}

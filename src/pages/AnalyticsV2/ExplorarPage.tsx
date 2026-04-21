@@ -466,7 +466,7 @@ export default function ExplorarPage() {
               <div key={v.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group hover:bg-slate-100">
                 <button
                   onClick={() => {
-                    setPivot(v.query_spec)
+                    setPivot({ ...v.query_spec, cross_with: v.query_spec.cross_with ?? null, viz: v.viz })
                     handleExecutePivot()
                   }}
                   className="text-sm font-medium text-slate-900 hover:text-indigo-600 flex-1 text-left"

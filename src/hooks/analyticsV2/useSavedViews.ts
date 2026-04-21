@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+// TODO: remover cast quando `npx supabase gen types` rodar com as RPCs da migration 20260425f em prod
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+
 export interface SavedView {
   id: string
   name: string
@@ -41,12 +44,12 @@ export function useSavedViews(): UseSavedViewsResult {
     try {
       setLoading(true)
       setError(null)
-      const { data, error: err } = await supabase.rpc('list_analytics_views')
+      const { data, error: err } = await rpc('list_analytics_views')
       if (err) {
         setError(err.message)
         return
       }
-      setViews((data as SavedView[]) ?? [])
+      setViews(((data as unknown) as SavedView[]) ?? [])
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -61,7 +64,7 @@ export function useSavedViews(): UseSavedViewsResult {
     description?: string
   ): Promise<boolean> => {
     try {
-      const { error: err } = await supabase.rpc('save_analytics_view', {
+      const { error: err } = await rpc('save_analytics_view', {
         p_name: name,
         p_query_spec: querySpec,
         p_viz: viz,
@@ -81,7 +84,7 @@ export function useSavedViews(): UseSavedViewsResult {
 
   const deleteView = async (id: string): Promise<boolean> => {
     try {
-      const { error: err } = await supabase.rpc('delete_analytics_view', {
+      const { error: err } = await rpc('delete_analytics_view', {
         p_id: id,
       })
       if (err) {

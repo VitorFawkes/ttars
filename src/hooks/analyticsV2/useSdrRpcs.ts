@@ -3,6 +3,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
 import { useAnalyticsV2Filters, getRpcFilters } from './useAnalyticsV2Filters'
 
+// TODO: remover cast quando `npx supabase gen types` for rodado com as RPCs da migration 20260425e em prod
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+
 function useFilters() {
   return useAnalyticsV2Filters(useShallow(getRpcFilters))
 }
@@ -82,7 +85,7 @@ export function useSdrFollowThrough() {
   return useQuery({
     queryKey: ['av2', 'sdr_follow_through', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_sdr_follow_through', f as never)
+      const { data, error } = await rpc('analytics_sdr_follow_through', f as never)
       if (error) throw error
       return (data as SdrFollowThroughResponse[] | null)?.[0] ?? null
     },
@@ -95,7 +98,7 @@ export function useSdrAvgTicket() {
   return useQuery({
     queryKey: ['av2', 'sdr_avg_ticket', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_sdr_avg_ticket', f as never)
+      const { data, error } = await rpc('analytics_sdr_avg_ticket', f as never)
       if (error) throw error
       return (data as SdrAvgTicketResponse[] | null)?.[0] ?? null
     },
@@ -108,7 +111,7 @@ export function useSdrMeetings() {
   return useQuery({
     queryKey: ['av2', 'sdr_meetings', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_sdr_meetings', f as never)
+      const { data, error } = await rpc('analytics_sdr_meetings', f as never)
       if (error) throw error
       return (data as SdrMeetingsResponse[] | null)?.[0] ?? null
     },
@@ -121,7 +124,7 @@ export function useSdrLeadsBySource() {
   return useQuery({
     queryKey: ['av2', 'sdr_leads_by_source', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_sdr_leads_by_source', f as never)
+      const { data, error } = await rpc('analytics_sdr_leads_by_source', f as never)
       if (error) throw error
       return (data as SdrLeadsBySourceResponse[] | null)?.[0] ?? null
     },
@@ -134,7 +137,7 @@ export function useSdrSlaCompliancePct() {
   return useQuery({
     queryKey: ['av2', 'sdr_sla_compliance_pct', f],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('analytics_sdr_sla_compliance_pct', f as never)
+      const { data, error } = await rpc('analytics_sdr_sla_compliance_pct', f as never)
       if (error) throw error
       return (data as SdrSlaComplianceResponse[] | null)?.[0] ?? null
     },
