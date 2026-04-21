@@ -1,28 +1,37 @@
 import { NavLink } from 'react-router-dom'
 import { Crown, Briefcase, Users, Wrench, Phone, LineChart, Home, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAnalyticsV2Permissions } from '@/hooks/useAnalyticsV2Permissions'
 
 interface NavItem {
+  id: string
   to: string
   label: string
   icon: typeof Crown
   section: 'self' | 'personas' | 'tools'
 }
 
-const ITEMS: NavItem[] = [
-  { to: '/analytics/v2', label: 'Meu painel', icon: Home, section: 'self' },
-  { to: '/analytics/v2/dono', label: 'Dono', icon: Crown, section: 'personas' },
-  { to: '/analytics/v2/comercial', label: 'Comercial', icon: Briefcase, section: 'personas' },
-  { to: '/analytics/v2/vendas', label: 'Vendas', icon: Users, section: 'personas' },
-  { to: '/analytics/v2/pos-venda', label: 'Pós-Venda', icon: Wrench, section: 'personas' },
-  { to: '/analytics/v2/sdr', label: 'SDR', icon: Phone, section: 'personas' },
-  { to: '/analytics/v2/explorar', label: 'Explorar', icon: LineChart, section: 'tools' },
+const ALL_ITEMS: NavItem[] = [
+  { id: 'self', to: '/analytics/v2', label: 'Meu painel', icon: Home, section: 'self' },
+  { id: 'dono', to: '/analytics/v2/dono', label: 'Dono', icon: Crown, section: 'personas' },
+  { id: 'comercial', to: '/analytics/v2/comercial', label: 'Comercial', icon: Briefcase, section: 'personas' },
+  { id: 'vendas', to: '/analytics/v2/vendas', label: 'Vendas', icon: Users, section: 'personas' },
+  { id: 'pos-venda', to: '/analytics/v2/pos-venda', label: 'Pós-Venda', icon: Wrench, section: 'personas' },
+  { id: 'sdr', to: '/analytics/v2/sdr', label: 'SDR', icon: Phone, section: 'personas' },
+  { id: 'explorar', to: '/analytics/v2/explorar', label: 'Explorar', icon: LineChart, section: 'tools' },
 ]
 
 export default function AnalyticsV2Sidebar() {
-  const self = ITEMS.filter(i => i.section === 'self')
-  const personas = ITEMS.filter(i => i.section === 'personas')
-  const tools = ITEMS.filter(i => i.section === 'tools')
+  const { canSeeDashboards } = useAnalyticsV2Permissions()
+
+  // Filtrar itens: sempre mostrar "Meu painel" + Explorar, e dashboards permitidos
+  const visibleItems = ALL_ITEMS.filter(
+    item => item.section === 'self' || item.section === 'tools' || canSeeDashboards.includes(item.id)
+  )
+
+  const self = visibleItems.filter(i => i.section === 'self')
+  const personas = visibleItems.filter(i => i.section === 'personas')
+  const tools = visibleItems.filter(i => i.section === 'tools')
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-r border-slate-200 px-3 py-5 overflow-y-auto">

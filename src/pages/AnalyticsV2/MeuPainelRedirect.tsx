@@ -1,10 +1,11 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAnalyticsV2Permissions } from '@/hooks/useAnalyticsV2Permissions'
 
-// "Meu painel" adapta ao papel do usuário. Por enquanto (MVP Fase 3a) só Dono
-// está implementado — admin vai pra Dono, outros vão pra Comercial (placeholder).
+/**
+ * "Meu painel" adapta ao papel do usuário.
+ * Redireciona para o dashboard padrão baseado em role/fase.
+ */
 export default function MeuPainelRedirect() {
-  const { profile } = useAuth()
-  const target = profile?.is_admin ? '/analytics/v2/dono' : '/analytics/v2/comercial'
-  return <Navigate to={target} replace />
+  const { defaultDashboard } = useAnalyticsV2Permissions()
+  return <Navigate to={defaultDashboard} replace />
 }

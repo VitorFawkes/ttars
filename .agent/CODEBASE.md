@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-21
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 181 tabelas | 104 paginas | 147 hooks | 19 views | 570 components
+> **Stats:** 181 tabelas | 104 paginas | 148 hooks | 19 views | 570 components
 =======
-> **Stats:** 181 tabelas | 104 paginas | 147 hooks | 19 views | 570 components
+> **Stats:** 181 tabelas | 104 paginas | 148 hooks | 19 views | 570 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **147 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **148 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -202,6 +202,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Analytics
 | Hook | File |
 |------|------|
+| `useAnalyticsV2Permissions()` | `useAnalyticsV2Permissions.ts` |
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
 | `useWhatsAppLinhas()` | `useWhatsAppLinhas.ts` |
 | `useWhatsAppTemplates()` | `useWhatsAppTemplates.ts` |

@@ -1,10 +1,21 @@
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAnalyticsV2Permissions } from '@/hooks/useAnalyticsV2Permissions'
 import AnalyticsV2Sidebar from './AnalyticsV2Sidebar'
 import UniversalFilterBar from './UniversalFilterBar'
 
+/**
+ * AnalyticsV2Page — Layout principal com sidebar + filtros + outlet.
+ *
+ * Permissões:
+ * - Admin vê todos os dashboards
+ * - Operador vê apenas seu dashboard padrão (bloqueado acesso direto via URL a otros)
+ * - Se tentar acessar dashboard sem permissão, redireciona para dashboard permitido
+ */
 export default function AnalyticsV2Page() {
-  const { profile, loading } = useAuth()
+  const { loading } = useAuth()
+  const { canSeeDashboards, defaultDashboard } = useAnalyticsV2Permissions()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -14,8 +25,20 @@ export default function AnalyticsV2Page() {
     )
   }
 
-  if (!profile?.is_admin) {
-    return <Navigate to="/analytics" replace />
+  // Guard: verificar se a rota atual é permitida
+  // Extrair o dashboard da URL (ex: /analytics/v2/sdr → 'sdr')
+  const pathParts = location.pathname.split('/')
+  const currentDashboard = pathParts[pathParts.length - 1]
+
+  // Se está em /analytics/v2 (MeuPainelRedirect), deixa passar (vai redirecionar pro default)
+  // Se está em um dashboard específico, valida permissão
+  if (
+    currentDashboard &&
+    currentDashboard !== 'v2' &&
+    currentDashboard !== 'explorar' &&
+    !canSeeDashboards.includes(currentDashboard)
+  ) {
+    return <Navigate to={defaultDashboard} replace />
   }
 
   return (
