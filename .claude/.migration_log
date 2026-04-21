@@ -568,3 +568,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-21T14:43:46Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424a_analytics_v2_diagnosis_rpcs.sql | applied_to_prod
 2026-04-21T14:43:59Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424b_analytics_v2_outcome_rpcs.sql | applied_to_prod
 2026-04-21T14:44:14Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424c_analytics_v2_explorer.sql | applied_to_prod
+2026-04-21T14:49:56Z | supabase/migrations/20260424a_analytics_v2_diagnosis_rpcs.sql | applied_to_prod
+2026-04-21T14:50:06Z | supabase/migrations/20260424b_analytics_v2_outcome_rpcs.sql | applied_to_prod
+2026-04-21T14:50:16Z | supabase/migrations/20260424c_analytics_v2_explorer.sql | applied_to_prod
