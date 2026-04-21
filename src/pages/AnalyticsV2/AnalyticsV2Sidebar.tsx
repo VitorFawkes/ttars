@@ -12,13 +12,13 @@ interface NavItem {
 }
 
 const ALL_ITEMS: NavItem[] = [
-  { id: 'self', to: '/analytics/v2', label: 'Meu painel', icon: Home, section: 'self' },
-  { id: 'dono', to: '/analytics/v2/dono', label: 'Dono', icon: Crown, section: 'personas' },
-  { id: 'comercial', to: '/analytics/v2/comercial', label: 'Comercial', icon: Briefcase, section: 'personas' },
-  { id: 'vendas', to: '/analytics/v2/vendas', label: 'Vendas', icon: Users, section: 'personas' },
-  { id: 'pos-venda', to: '/analytics/v2/pos-venda', label: 'Pós-Venda', icon: Wrench, section: 'personas' },
-  { id: 'sdr', to: '/analytics/v2/sdr', label: 'SDR', icon: Phone, section: 'personas' },
-  { id: 'explorar', to: '/analytics/v2/explorar', label: 'Explorar', icon: LineChart, section: 'tools' },
+  { id: 'self', to: '/analytics', label: 'Meu painel', icon: Home, section: 'self' },
+  { id: 'dono', to: '/analytics/dono', label: 'Dono', icon: Crown, section: 'personas' },
+  { id: 'comercial', to: '/analytics/comercial', label: 'Comercial', icon: Briefcase, section: 'personas' },
+  { id: 'vendas', to: '/analytics/vendas', label: 'Vendas', icon: Users, section: 'personas' },
+  { id: 'pos-venda', to: '/analytics/pos-venda', label: 'Pós-Venda', icon: Wrench, section: 'personas' },
+  { id: 'sdr', to: '/analytics/sdr', label: 'SDR', icon: Phone, section: 'personas' },
+  { id: 'explorar', to: '/analytics/explorar', label: 'Explorar', icon: LineChart, section: 'tools' },
 ]
 
 export default function AnalyticsV2Sidebar() {
@@ -37,8 +37,7 @@ export default function AnalyticsV2Sidebar() {
     <aside className="w-56 flex-shrink-0 bg-white border-r border-slate-200 px-3 py-5 overflow-y-auto">
       <div className="flex items-center gap-2 px-2 mb-6">
         <Sparkles className="w-4 h-4 text-indigo-600" />
-        <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">Analytics v2</span>
-        <span className="ml-auto text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">Beta</span>
+        <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">Analytics</span>
       </div>
 
       <NavSection items={self} />
@@ -59,7 +58,7 @@ function NavSection({ items }: { items: NavItem[] }) {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/analytics/v2'}
+            end={item.to === '/analytics'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors',

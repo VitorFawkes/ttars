@@ -138,7 +138,7 @@ export default function FunnelView() {
                     color={bottleneckCount > 0 ? 'text-rose-600' : 'text-sky-600'}
                     bgColor={bottleneckCount > 0 ? 'bg-rose-50' : 'bg-sky-50'}
                     isLoading={funnelLoading}
-                    onClick={() => navigate('/analytics/sla')}
+                    onClick={() => navigate('/analytics/legacy/sla')}
                     clickHint="Ver SLA"
                 />
             </div>

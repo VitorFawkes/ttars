@@ -26,15 +26,15 @@ export default function AnalyticsV2Page() {
   }
 
   // Guard: verificar se a rota atual é permitida
-  // Extrair o dashboard da URL (ex: /analytics/v2/sdr → 'sdr')
+  // Extrair o dashboard da URL (ex: /analytics/sdr → 'sdr')
   const pathParts = location.pathname.split('/')
   const currentDashboard = pathParts[pathParts.length - 1]
 
-  // Se está em /analytics/v2 (MeuPainelRedirect), deixa passar (vai redirecionar pro default)
+  // Se está em /analytics (MeuPainelRedirect), deixa passar (vai redirecionar pro default)
   // Se está em um dashboard específico, valida permissão
   if (
     currentDashboard &&
-    currentDashboard !== 'v2' &&
+    currentDashboard !== 'analytics' &&
     currentDashboard !== 'explorar' &&
     !canSeeDashboards.includes(currentDashboard)
   ) {

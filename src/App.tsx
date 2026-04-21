@@ -235,20 +235,8 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
-                  <Route path="/analytics" element={<AnalyticsPage />}>
-                    <Route index element={<Navigate to="/analytics/saude" replace />} />
-                    <Route path="saude" element={<SaudeView />} />
-                    <Route path="resumo" element={<ResumoView />} />
-                    <Route path="pipeline" element={<PipelineCurrentView />} />
-                    <Route path="whatsapp" element={<WhatsAppView />} />
-                    <Route path="funnel" element={<SalesFunnelView />} />
-                    <Route path="team" element={<TeamAnalyticsView />} />
-                    <Route path="operations" element={<OperationsView />} />
-                    {/* Preenchimento movido para /leads?view=preenchimento */}
-                    <Route path="completeness" element={<Navigate to="/leads?view=preenchimento" replace />} />
-                  </Route>
-                  {/* Analytics v2 — feature flag admin, Fase 3 em entrega incremental */}
-                  <Route path="/analytics/v2" element={<AnalyticsV2Page />}>
+                  {/* Analytics — 5 dashboards por persona (Dono / Comercial / Vendas / Pós / SDR) + Explorar */}
+                  <Route path="/analytics" element={<AnalyticsV2Page />}>
                     <Route index element={<MeuPainelRedirect />} />
                     <Route path="dono" element={<DonoDashboard />} />
                     <Route path="comercial" element={<ComercialDashboard />} />
@@ -257,6 +245,20 @@ function App() {
                     <Route path="sdr" element={<SdrDashboard />} />
                     <Route path="explorar" element={<ExplorarPage />} />
                   </Route>
+                  {/* Legado — mantido temporariamente para bookmarks antigos */}
+                  <Route path="/analytics/legacy" element={<AnalyticsPage />}>
+                    <Route index element={<Navigate to="/analytics/legacy/saude" replace />} />
+                    <Route path="saude" element={<SaudeView />} />
+                    <Route path="resumo" element={<ResumoView />} />
+                    <Route path="pipeline" element={<PipelineCurrentView />} />
+                    <Route path="whatsapp" element={<WhatsAppView />} />
+                    <Route path="funnel" element={<SalesFunnelView />} />
+                    <Route path="team" element={<TeamAnalyticsView />} />
+                    <Route path="operations" element={<OperationsView />} />
+                    <Route path="completeness" element={<Navigate to="/leads?view=preenchimento" replace />} />
+                  </Route>
+                  {/* Redirect de /analytics/v2/* (rota temporária da Fase 3) para a nova raiz /analytics */}
+                  <Route path="/analytics/v2/*" element={<Navigate to="/analytics" replace />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />

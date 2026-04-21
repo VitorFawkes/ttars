@@ -11,13 +11,13 @@ import {
 import { cn } from '@/lib/utils'
 
 const navItems = [
-    { to: '/analytics/saude', icon: HeartPulse, label: 'Saúde' },
-    { to: '/analytics/funnel', icon: GitBranch, label: 'Funil de Vendas' },
-    { to: '/analytics/team', icon: Users, label: 'Equipe' },
-    { to: '/analytics/resumo', icon: LayoutDashboard, label: 'Resumo' },
-    { to: '/analytics/pipeline', icon: Activity, label: 'Pipeline ao vivo' },
-    { to: '/analytics/whatsapp', icon: MessageCircle, label: 'Conversas' },
-    { to: '/analytics/operations', icon: PackageCheck, label: 'Operações' },
+    { to: '/analytics/legacy/saude', icon: HeartPulse, label: 'Saúde' },
+    { to: '/analytics/legacy/funnel', icon: GitBranch, label: 'Funil de Vendas' },
+    { to: '/analytics/legacy/team', icon: Users, label: 'Equipe' },
+    { to: '/analytics/legacy/resumo', icon: LayoutDashboard, label: 'Resumo' },
+    { to: '/analytics/legacy/pipeline', icon: Activity, label: 'Pipeline ao vivo' },
+    { to: '/analytics/legacy/whatsapp', icon: MessageCircle, label: 'Conversas' },
+    { to: '/analytics/legacy/operations', icon: PackageCheck, label: 'Operações' },
 ]
 
 export default function AnalyticsSidebar() {

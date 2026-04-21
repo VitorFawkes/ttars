@@ -114,7 +114,7 @@ export default function TeamView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={isLoading}
-                    onClick={() => navigate('/analytics/overview')}
+                    onClick={() => navigate('/analytics/legacy/overview')}
                     clickHint="Ver overview"
                 />
                 <KpiCard
@@ -124,7 +124,7 @@ export default function TeamView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={isLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil"
                 />
                 <KpiCard
@@ -134,7 +134,7 @@ export default function TeamView() {
                     color="text-emerald-600"
                     bgColor="bg-emerald-50"
                     isLoading={isLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil"
                 />
                 <KpiCard
@@ -144,7 +144,7 @@ export default function TeamView() {
                     color="text-slate-700"
                     bgColor="bg-slate-100"
                     isLoading={isLoading}
-                    onClick={() => navigate('/analytics/financial')}
+                    onClick={() => navigate('/analytics/legacy/financial')}
                     clickHint="Ver financeiro"
                 />
                 <KpiCard

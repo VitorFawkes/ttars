@@ -175,7 +175,7 @@ export default function OverviewView() {
                     color="text-blue-600"
                     bgColor="bg-blue-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/team')}
+                    onClick={() => navigate('/analytics/legacy/team')}
                     clickHint="Ver por consultor"
                 />
                 <KpiCard
@@ -185,7 +185,7 @@ export default function OverviewView() {
                     color="text-emerald-600"
                     bgColor="bg-emerald-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
@@ -195,7 +195,7 @@ export default function OverviewView() {
                     color="text-indigo-600"
                     bgColor="bg-indigo-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
@@ -205,7 +205,7 @@ export default function OverviewView() {
                     color="text-purple-600"
                     bgColor="bg-purple-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
@@ -215,7 +215,7 @@ export default function OverviewView() {
                     color="text-green-600"
                     bgColor="bg-green-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
@@ -225,7 +225,7 @@ export default function OverviewView() {
                     color="text-cyan-600"
                     bgColor="bg-cyan-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/funnel')}
+                    onClick={() => navigate('/analytics/legacy/funnel')}
                     clickHint="Ver funil completo"
                 />
                 <KpiCard
@@ -235,7 +235,7 @@ export default function OverviewView() {
                     color="text-sky-600"
                     bgColor="bg-sky-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/operations')}
+                    onClick={() => navigate('/analytics/legacy/operations')}
                     clickHint="Ver operações"
                 />
                 <KpiCard
@@ -245,7 +245,7 @@ export default function OverviewView() {
                     color="text-teal-600"
                     bgColor="bg-teal-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/financial')}
+                    onClick={() => navigate('/analytics/legacy/financial')}
                     clickHint="Ver financeiro"
                 />
                 <KpiCard
@@ -255,7 +255,7 @@ export default function OverviewView() {
                     color="text-rose-600"
                     bgColor="bg-rose-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/financial')}
+                    onClick={() => navigate('/analytics/legacy/financial')}
                     clickHint="Ver financeiro"
                 />
                 <KpiCard
@@ -265,7 +265,7 @@ export default function OverviewView() {
                     color="text-orange-600"
                     bgColor="bg-orange-50"
                     isLoading={kpisLoading}
-                    onClick={() => navigate('/analytics/financial')}
+                    onClick={() => navigate('/analytics/legacy/financial')}
                     clickHint="Ver financeiro"
                 />
             </div>

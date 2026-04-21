@@ -18,11 +18,11 @@ interface AnalyticsV2Permissions {
  * - **Operador** (demais authenticated users) → vê só seu painel default + Explorar
  *
  * Dashboards mapeados por fase:
- * - sdr → /analytics/v2/sdr
- * - planner → /analytics/v2/vendas
- * - pos_venda → /analytics/v2/pos-venda
- * - comercial (custom) → /analytics/v2/comercial
- * - outro → /analytics/v2/dono (fallback, admin only)
+ * - sdr → /analytics/sdr
+ * - planner → /analytics/vendas
+ * - pos_venda → /analytics/pos-venda
+ * - comercial (custom) → /analytics/comercial
+ * - outro → /analytics/dono (fallback, admin only)
  */
 export function useAnalyticsV2Permissions(): AnalyticsV2Permissions {
   const { profile } = useAuth()
@@ -37,35 +37,35 @@ export function useAnalyticsV2Permissions(): AnalyticsV2Permissions {
   const isGestor = isAdmin
 
   // Mapear fase → dashboard padrão
-  let defaultDashboard = '/analytics/v2/dono'
+  let defaultDashboard = '/analytics/dono'
   let canSeeDashboards: string[] = []
 
   if (isAdmin) {
     // Admin vê tudo
     canSeeDashboards = ['dono', 'comercial', 'vendas', 'pos-venda', 'sdr', 'explorar']
-    defaultDashboard = '/analytics/v2/dono'
+    defaultDashboard = '/analytics/dono'
   } else {
     // Operador — mapear pela fase
     switch (phaseSlug) {
       case SystemPhase.SDR:
         canSeeDashboards = ['sdr', 'explorar']
-        defaultDashboard = '/analytics/v2/sdr'
+        defaultDashboard = '/analytics/sdr'
         break
 
       case SystemPhase.PLANNER:
         canSeeDashboards = ['vendas', 'explorar']
-        defaultDashboard = '/analytics/v2/vendas'
+        defaultDashboard = '/analytics/vendas'
         break
 
       case SystemPhase.POS_VENDA:
         canSeeDashboards = ['pos-venda', 'explorar']
-        defaultDashboard = '/analytics/v2/pos-venda'
+        defaultDashboard = '/analytics/pos-venda'
         break
 
       default:
-        // Fallback: usuário sem fase ou fase desconhecida → Explorar (evita loop de redirect em /analytics/v2)
+        // Fallback: usuário sem fase ou fase desconhecida → Explorar (evita loop de redirect em /analytics)
         canSeeDashboards = ['explorar']
-        defaultDashboard = '/analytics/v2/explorar'
+        defaultDashboard = '/analytics/explorar'
         break
     }
   }
