@@ -563,3 +563,13 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T21:39:38Z | supabase/migrations/20260423d_analytics_v2_rpcs.sql | applied_to_prod
 2026-04-20T21:42:45Z | supabase/migrations/20260421i_ai_message_buffer_auto_org_id.sql | applied_to_prod
 2026-04-21T14:22:50Z | supabase/migrations/20260423e_analytics_v2_rpcs_part2.sql | applied_to_prod
+2026-04-21T14:25:12Z | supabase/migrations/20260421j_process_whatsapp_raw_event_phase_id_refix.sql | applied_to_prod
+2026-04-21T14:41:06Z | supabase/migrations/20260421k_estela_paridade_router.sql | applied_to_prod
+2026-04-21T14:43:46Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424a_analytics_v2_diagnosis_rpcs.sql | applied_to_prod
+2026-04-21T14:43:59Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424b_analytics_v2_outcome_rpcs.sql | applied_to_prod
+2026-04-21T14:44:14Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260424c_analytics_v2_explorer.sql | applied_to_prod
+2026-04-21T14:49:56Z | supabase/migrations/20260424a_analytics_v2_diagnosis_rpcs.sql | applied_to_prod
+2026-04-21T14:50:06Z | supabase/migrations/20260424b_analytics_v2_outcome_rpcs.sql | applied_to_prod
+2026-04-21T14:50:16Z | supabase/migrations/20260424c_analytics_v2_explorer.sql | applied_to_prod
+2026-04-21T15:09:40Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260421h_cards_ai_pause_config.sql | applied_to_prod
+2026-04-21T15:30:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260421i_ai_agent_health_views.sql | applied_to_prod

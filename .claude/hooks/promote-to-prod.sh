@@ -36,6 +36,16 @@ if r.returncode != 0:
     exit(1)
 "
 
+# Teste de regras de negócio (BEGIN/ROLLBACK — não persiste dados)
+echo ""
+echo "Rodando teste de regras de negócio contra produção..."
+if ! bash "$SCRIPT_DIR/test-business-rules.sh" prod; then
+  echo ""
+  echo "ATENÇÃO: regras de negócio divergiram do esperado. Verifique antes de confirmar." >&2
+  echo "A mudança FOI APLICADA em produção — revise e decida se é intencional ou precisa corrigir." >&2
+  exit 1
+fi
+
 # Smoke test contra produção
 echo ""
 echo "Rodando smoke test contra produção..."

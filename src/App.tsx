@@ -33,6 +33,11 @@ import WhatsAppView from './components/analytics/views/WhatsAppView'
 import SalesFunnelView from './components/analytics/views/SalesFunnelView'
 import TeamAnalyticsView from './components/analytics/views/TeamAnalyticsView'
 import OperationsView from './components/analytics/views/OperationsView'
+import AnalyticsV2Page from './pages/AnalyticsV2/AnalyticsV2Page'
+import MeuPainelRedirect from './pages/AnalyticsV2/MeuPainelRedirect'
+import DonoDashboard from './pages/AnalyticsV2/dashboards/DonoDashboard'
+import ComingSoonDashboard from './pages/AnalyticsV2/dashboards/ComingSoonDashboard'
+import ExplorarPage from './pages/AnalyticsV2/ExplorarPage'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
@@ -101,6 +106,7 @@ import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
 import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
 import AiAgentConversationsPage from './pages/admin/AiAgentConversationsPage'
 import AiAgentAnalyticsPage from './pages/admin/AiAgentAnalyticsPage'
+import AiAgentHealthPage from './pages/admin/AiAgentHealthPage'
 import AiAgentBuilderWizard from './pages/admin/AiAgentBuilderWizard'
 import OutboundQueuePage from './pages/admin/OutboundQueuePage'
 import { lazy, Suspense } from 'react'
@@ -238,6 +244,16 @@ function App() {
                     {/* Preenchimento movido para /leads?view=preenchimento */}
                     <Route path="completeness" element={<Navigate to="/leads?view=preenchimento" replace />} />
                   </Route>
+                  {/* Analytics v2 — feature flag admin, Fase 3 em entrega incremental */}
+                  <Route path="/analytics/v2" element={<AnalyticsV2Page />}>
+                    <Route index element={<MeuPainelRedirect />} />
+                    <Route path="dono" element={<DonoDashboard />} />
+                    <Route path="comercial" element={<ComingSoonDashboard title="💼 Comercial" description="Macro SDR + Vendas com forecast e motivos de perda." />} />
+                    <Route path="vendas" element={<ComingSoonDashboard title="👥 Vendas (Travel Planner)" description="Conversão por Planner, estado das viagens fechadas, problemas no Pós." />} />
+                    <Route path="pos-venda" element={<ComingSoonDashboard title="🛠️ Pós-Venda" description="Prontidão operacional, partidas próximas, carga por Concierge." />} />
+                    <Route path="sdr" element={<ComingSoonDashboard title="📞 SDR" description="Taxa de handoff qualificado, SLA 1ª resposta e cadence compliance." />} />
+                    <Route path="explorar" element={<ExplorarPage />} />
+                  </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />
@@ -312,6 +328,7 @@ function App() {
                     <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
                     <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
+                    <Route path="ai-agents/health" element={<AiAgentHealthPage />} />
                     <Route path="ai-agents/outbound-queue" element={<OutboundQueuePage />} />
 
                     {/* Redirects legacy /settings/cadence → /settings/automations (Fase 2) */}

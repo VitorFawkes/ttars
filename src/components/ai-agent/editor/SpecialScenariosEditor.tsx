@@ -195,35 +195,6 @@ export function SpecialScenariosEditor({ value, onChange }: SpecialScenariosEdit
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Mensagem de handoff (opcional)</Label>
-            <Textarea
-              rows={2}
-              value={scenario.handoff_message ?? ''}
-              onChange={e => update(idx, { handoff_message: e.target.value || null })}
-              placeholder="Mensagem que o agente envia ao encerrar o cenário (ex: 'Um Planner especializado entrará em contato...')."
-            />
-          </div>
-
-          <details className="border-t border-slate-100 pt-2">
-            <summary className="text-xs text-slate-600 cursor-pointer hover:text-slate-900">
-              Funil simplificado (opcional) — substitui o funil principal quando este cenário ativa
-            </summary>
-            <div className="mt-2 space-y-1.5">
-              <Textarea
-                rows={3}
-                value={JSON.stringify(scenario.simplified_qualification ?? [], null, 2)}
-                onChange={e => {
-                  try {
-                    const parsed = JSON.parse(e.target.value || '[]')
-                    update(idx, { simplified_qualification: Array.isArray(parsed) && parsed.length > 0 ? parsed : null })
-                  } catch { /* ignora */ }
-                }}
-                className="font-mono text-xs"
-                placeholder={'[\n  { "question": "Qual resort?", "stage_key": "resort" }\n]'}
-              />
-            </div>
-          </details>
         </div>
       ))}
 

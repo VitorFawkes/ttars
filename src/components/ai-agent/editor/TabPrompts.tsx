@@ -20,36 +20,36 @@ type PromptKey = 'main' | 'context' | 'data_update' | 'formatting' | 'validator'
 
 const PROMPT_BLOCKS: Array<{ key: PromptKey; title: string; hint: string; placeholder: string; juliaDefault: string; juliaHint: string }> = [
   {
-    key: 'main', title: '1. Prompt principal',
-    hint: 'Comportamento, regras e papéis do agente. Base da personalidade.',
-    placeholder: 'Você é Julia, consultora de viagens da Welcome Viagens...',
+    key: 'main', title: '1. Instruções do agente (conversa com cliente)',
+    hint: 'Complementa os campos estruturados (Regras de negócio, Funil, Cenários). Use para VIAJANTE, scripts específicos e nuances que não cabem nos outros campos. Campos como taxa, processo e Club Med já viram prompt automaticamente — não precisa repetir aqui.',
+    placeholder: 'Ex: regras de VIAJANTE, script específico de Club Med, tom especial...',
     juliaDefault: JULIA_PROMPT_MAIN,
-    juliaHint: 'Persona Julia completa: regras de VIAJANTE, não-repetição de formulário, fluxo Club Med, critérios de qualificação e desqualificação, gates para apresentar taxa/reunião.',
+    juliaHint: 'Template completo estilo Julia: papel SDR vs Consultora, regras de VIAJANTE, não-repetição de formulário, fluxo Club Med, critérios de qualificação e desqualificação.',
   },
   {
-    key: 'context', title: '2. Prompt de contexto',
-    hint: 'Como consolidar ai_resumo e ai_contexto do card a partir do histórico. Corresponde ao agente "Atualiza Info Lead e Contexto" no fluxo antigo.',
+    key: 'context', title: '2. Prompt de contexto (atualiza ai_resumo/ai_contexto)',
+    hint: 'Usado APENAS pelo agente de backoffice que mantém o resumo e a cronologia do card atualizados. Não afeta a resposta ao cliente.',
     placeholder: 'Consolide o contexto do card olhando o histórico...',
     juliaDefault: JULIA_PROMPT_CONTEXT,
     juliaHint: 'Regras de o que entra/não entra em ai_resumo, cronologia em ai_contexto, regra VIAJANTE ([Viajante: X]).',
   },
   {
-    key: 'data_update', title: '3. Prompt de atualização de dados',
-    hint: 'Quais campos do CRM pode atualizar e com que nível de evidência. Corresponde ao "Atualiza dados" no fluxo antigo.',
+    key: 'data_update', title: '3. Prompt de atualização de dados (escrita no CRM)',
+    hint: 'Usado APENAS pelo agente que grava campos no card/contato. Não afeta a resposta ao cliente.',
     placeholder: 'Atualize apenas os campos listados em Contexto & Campos quando houver evidência clara...',
     juliaDefault: JULIA_PROMPT_DATA_UPDATE,
     juliaHint: 'Colunas permitidas, regras de estágio (Tentativa → Conectado → Reunião Agendada), normalização de CPF/data/email.',
   },
   {
-    key: 'formatting', title: '4. Prompt de formatação',
-    hint: 'Divisão em blocos, markdown de WhatsApp, regras de link. Corresponde ao "Format WhatsApp Messages" no fluxo antigo.',
+    key: 'formatting', title: '4. Prompt de formatação (quebra em blocos WhatsApp)',
+    hint: 'Usado APENAS pelo agente que divide a resposta em 1-3 blocos antes de enviar. Não afeta o que a IA fala, só como quebra.',
     placeholder: 'Divida a resposta em até 3 blocos. Use *negrito* para destaques...',
     juliaDefault: JULIA_PROMPT_FORMATTING,
     juliaHint: 'Regras de divisão em 3 blocos, markdown WhatsApp (*negrito*, ~tachado~, `link`), pergunta em bloco separado.',
   },
   {
-    key: 'validator', title: '5. Prompt do validador',
-    hint: 'Regras de bloqueio/correção antes de enviar. Corresponde ao "Validador" no fluxo antigo.',
+    key: 'validator', title: '5. Prompt do validador (revisão antes de enviar)',
+    hint: 'Usado APENAS pelo agente que revisa cada mensagem antes de mandar. As regras da aba "Regras do validador" já são enviadas automaticamente — use este campo só para instruções extras.',
     placeholder: 'Antes de liberar a resposta: verifique se não menciona que é IA...',
     juliaDefault: JULIA_PROMPT_VALIDATOR,
     juliaHint: 'Os 8 checks da Julia: menção a IA, inventar fatos, tom robótico, repetir apresentação, mencionar sistema, rejeitar cedo, "não trabalhamos isolado", Club Med taxa/reunião.',
@@ -102,8 +102,18 @@ export function TabPrompts({ form, setForm }: Props) {
           <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Prompts</h2>
         </header>
         <p className="text-sm text-slate-500 -mt-1">
-          Cinco blocos que formam a cabeça do agente. Cada bloco tem um papel claro — deixar o #1 completo e os outros vazios ainda funciona, mas você perde controle fino.
+          O prompt final é montado <strong>automaticamente</strong> a partir das outras abas (Identidade, Regras de negócio, Funil, Cenários, Handoff, Decisões, Ferramentas). Os cinco blocos abaixo são <strong>complementos</strong> — cada um entra num momento diferente do pipeline. Bloco #1 roda junto da resposta ao cliente; blocos #2-#5 rodam em agentes dedicados (backoffice, dados, formatação, validação).
         </p>
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-1">
+          <p className="font-medium">O que já está automático (não precisa repetir aqui):</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            <li>Nome, tipo e persona vão da aba <strong>Identidade</strong></li>
+            <li>Taxa, processo e metodologia vão da aba <strong>Regras de negócio</strong></li>
+            <li>Perguntas de qualificação vão da aba <strong>Funil de qualificação</strong></li>
+            <li>Club Med e outros cenários vão da aba <strong>Cenários especiais</strong></li>
+            <li>Sinais de handoff, decisões inteligentes e regras do validador vêm das suas respectivas abas</li>
+          </ul>
+        </div>
         <PromptVariablesPanel onInsert={insertAt} />
       </section>
 

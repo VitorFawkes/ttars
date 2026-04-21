@@ -604,6 +604,111 @@ export type Database = {
           },
         ]
       }
+      ai_agent_scoring_config: {
+        Row: {
+          agent_id: string
+          enabled: boolean
+          fallback_action: string | null
+          max_sinal_bonus: number | null
+          org_id: string
+          threshold_qualify: number
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          enabled?: boolean
+          fallback_action?: string | null
+          max_sinal_bonus?: number | null
+          org_id?: string
+          threshold_qualify?: number
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          enabled?: boolean
+          fallback_action?: string | null
+          max_sinal_bonus?: number | null
+          org_id?: string
+          threshold_qualify?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_scoring_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_scoring_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_scoring_rules: {
+        Row: {
+          agent_id: string
+          ativa: boolean | null
+          condition_type: string
+          condition_value: Json
+          created_at: string | null
+          dimension: string
+          id: string
+          label: string | null
+          ordem: number | null
+          org_id: string
+          updated_at: string | null
+          weight: number
+        }
+        Insert: {
+          agent_id: string
+          ativa?: boolean | null
+          condition_type: string
+          condition_value: Json
+          created_at?: string | null
+          dimension: string
+          id?: string
+          label?: string | null
+          ordem?: number | null
+          org_id?: string
+          updated_at?: string | null
+          weight: number
+        }
+        Update: {
+          agent_id?: string
+          ativa?: boolean | null
+          condition_type?: string
+          condition_value?: Json
+          created_at?: string | null
+          dimension?: string
+          id?: string
+          label?: string | null
+          ordem?: number | null
+          org_id?: string
+          updated_at?: string | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_scoring_rules_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_scoring_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_skills: {
         Row: {
           agent_id: string
@@ -900,6 +1005,7 @@ export type Database = {
           system_prompt_version: number | null
           temperature: number | null
           template_id: string | null
+          test_mode_phone_whitelist: string[] | null
           timings: Json | null
           tipo: string
           updated_at: string | null
@@ -942,6 +1048,7 @@ export type Database = {
           system_prompt_version?: number | null
           temperature?: number | null
           template_id?: string | null
+          test_mode_phone_whitelist?: string[] | null
           timings?: Json | null
           tipo: string
           updated_at?: string | null
@@ -984,6 +1091,7 @@ export type Database = {
           system_prompt_version?: number | null
           temperature?: number | null
           template_id?: string | null
+          test_mode_phone_whitelist?: string[] | null
           timings?: Json | null
           tipo?: string
           updated_at?: string | null
@@ -1515,8 +1623,10 @@ export type Database = {
           created_at: string | null
           echo_conversation_id: string | null
           id: string
+          media_url: string | null
           message_text: string
           message_type: string | null
+          metadata: Json | null
           org_id: string
           phone_number_id: string | null
           processed: boolean | null
@@ -1530,8 +1640,10 @@ export type Database = {
           created_at?: string | null
           echo_conversation_id?: string | null
           id?: string
+          media_url?: string | null
           message_text: string
           message_type?: string | null
+          metadata?: Json | null
           org_id?: string
           phone_number_id?: string | null
           processed?: boolean | null
@@ -1545,8 +1657,10 @@ export type Database = {
           created_at?: string | null
           echo_conversation_id?: string | null
           id?: string
+          media_url?: string | null
           message_text?: string
           message_type?: string | null
+          metadata?: Json | null
           org_id?: string
           phone_number_id?: string | null
           processed?: boolean | null
@@ -4346,6 +4460,7 @@ export type Database = {
           estado_operacional: string | null
           external_id: string | null
           external_source: string | null
+          first_response_at: string | null
           forma_pagamento: string | null
           ganho_planner: boolean | null
           ganho_planner_at: string | null
@@ -4359,6 +4474,7 @@ export type Database = {
           id: string
           indicado_por_id: string | null
           is_group_parent: boolean | null
+          lead_entry_path: string | null
           locked_fields: Json | null
           marketing_data: Json | null
           merge_config: Json | null
@@ -4382,9 +4498,11 @@ export type Database = {
           produto_data: Json | null
           pronto_para_contrato: boolean | null
           pronto_para_erp: boolean | null
+          quality_score_pct: number | null
           receita: number | null
           receita_source: string | null
           sdr_owner_id: string | null
+          stage_changed_at: string | null
           stage_entered_at: string | null
           status_comercial: string
           sub_card_agregado_em: string | null
@@ -4443,6 +4561,7 @@ export type Database = {
           estado_operacional?: string | null
           external_id?: string | null
           external_source?: string | null
+          first_response_at?: string | null
           forma_pagamento?: string | null
           ganho_planner?: boolean | null
           ganho_planner_at?: string | null
@@ -4456,6 +4575,7 @@ export type Database = {
           id?: string
           indicado_por_id?: string | null
           is_group_parent?: boolean | null
+          lead_entry_path?: string | null
           locked_fields?: Json | null
           marketing_data?: Json | null
           merge_config?: Json | null
@@ -4479,9 +4599,11 @@ export type Database = {
           produto_data?: Json | null
           pronto_para_contrato?: boolean | null
           pronto_para_erp?: boolean | null
+          quality_score_pct?: number | null
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          stage_changed_at?: string | null
           stage_entered_at?: string | null
           status_comercial?: string
           sub_card_agregado_em?: string | null
@@ -4540,6 +4662,7 @@ export type Database = {
           estado_operacional?: string | null
           external_id?: string | null
           external_source?: string | null
+          first_response_at?: string | null
           forma_pagamento?: string | null
           ganho_planner?: boolean | null
           ganho_planner_at?: string | null
@@ -4553,6 +4676,7 @@ export type Database = {
           id?: string
           indicado_por_id?: string | null
           is_group_parent?: boolean | null
+          lead_entry_path?: string | null
           locked_fields?: Json | null
           marketing_data?: Json | null
           merge_config?: Json | null
@@ -4576,9 +4700,11 @@ export type Database = {
           produto_data?: Json | null
           pronto_para_contrato?: boolean | null
           pronto_para_erp?: boolean | null
+          quality_score_pct?: number | null
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          stage_changed_at?: string | null
           stage_entered_at?: string | null
           status_comercial?: string
           sub_card_agregado_em?: string | null
@@ -5177,6 +5303,7 @@ export type Database = {
           monde_last_sync: string | null
           monde_person_id: string | null
           nome: string
+          nome_locked_at: string | null
           observacoes: string | null
           org_id: string
           origem: string | null
@@ -5217,6 +5344,7 @@ export type Database = {
           monde_last_sync?: string | null
           monde_person_id?: string | null
           nome: string
+          nome_locked_at?: string | null
           observacoes?: string | null
           org_id?: string
           origem?: string | null
@@ -5257,6 +5385,7 @@ export type Database = {
           monde_last_sync?: string | null
           monde_person_id?: string | null
           nome?: string
+          nome_locked_at?: string | null
           observacoes?: string | null
           org_id?: string
           origem?: string | null
@@ -9345,6 +9474,7 @@ export type Database = {
         Row: {
           active: boolean
           branding: Json | null
+          business_hours: Json | null
           created_at: string
           force_relogin_after: string | null
           id: string
@@ -9364,6 +9494,7 @@ export type Database = {
         Insert: {
           active?: boolean
           branding?: Json | null
+          business_hours?: Json | null
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -9383,6 +9514,7 @@ export type Database = {
         Update: {
           active?: boolean
           branding?: Json | null
+          business_hours?: Json | null
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -15850,8 +15982,36 @@ export type Database = {
       }
     }
     Functions: {
+      _a_ctx_owner_ok: {
+        Args: {
+          arr_ids: string[]
+          ctx: string
+          dono_id: string
+          pos_id: string
+          sdr_id: string
+          single_id: string
+          vendas_id: string
+        }
+        Returns: boolean
+      }
+      _a_destino_ok: {
+        Args: { arr_destinos: string[]; produto_data: Json }
+        Returns: boolean
+      }
+      _a_entry_path_ok: {
+        Args: { actual: string; wanted: string }
+        Returns: boolean
+      }
+      _a_origem_ok: {
+        Args: { actual: string; arr_origens: string[] }
+        Returns: boolean
+      }
       _a_owner_ok: {
         Args: { actual_id: string; arr_ids: string[]; single_id: string }
+        Returns: boolean
+      }
+      _a_phase_ok: {
+        Args: { arr_phase_slugs: string[]; stage_id: string }
         Returns: boolean
       }
       _a_tag_ok: {
@@ -15918,6 +16078,19 @@ export type Database = {
         Args: { p_agent_id: string; p_date?: string }
         Returns: undefined
       }
+      analytics_cadence_compliance: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       analytics_drill_down_cards: {
         Args: {
           p_date_end?: string
@@ -15960,6 +16133,44 @@ export type Database = {
           total_count: number
           valor_display: number
         }[]
+      }
+      analytics_dropped_balls: {
+        Args: {
+          p_limit?: number
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_threshold_business_minutes?: number
+        }
+        Returns: Json
+      }
+      analytics_explorer_query: {
+        Args: {
+          p_cross_with?: string
+          p_filters?: Json
+          p_from?: string
+          p_group_by: string
+          p_limit?: number
+          p_measure: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_explorer_schema: { Args: never; Returns: Json }
+      analytics_field_completeness: {
+        Args: {
+          p_ctx?: string
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
       }
       analytics_financial_breakdown: {
         Args: {
@@ -16027,6 +16238,34 @@ export type Database = {
           total_valor: number
         }[]
       }
+      analytics_funnel_conversion_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          avg_days_in_stage: number
+          current_count: number
+          ordem: number
+          p75_days_in_stage: number
+          phase_slug: string
+          receita_total: number
+          stage_id: string
+          stage_nome: string
+          total_valor: number
+        }[]
+      }
       analytics_funnel_live: {
         Args: {
           p_date_end?: string
@@ -16048,6 +16287,97 @@ export type Database = {
           valor_total: number
         }[]
       }
+      analytics_funnel_live_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          fase: string
+          ordem: number
+          receita_total: number
+          stage_id: string
+          stage_nome: string
+          total_cards: number
+          valor_total: number
+        }[]
+      }
+      analytics_funnel_velocity: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_atuais: number
+          cards_passaram: number
+          media_dias: number
+          mediana_dias: number
+          ordem: number
+          p90_dias: number
+          phase_slug: string
+          stage_id: string
+          stage_nome: string
+        }[]
+      }
+      analytics_funnel_velocity_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_atuais: number
+          cards_passaram: number
+          media_dias: number
+          mediana_dias: number
+          ordem: number
+          p90_dias: number
+          phase_slug: string
+          stage_id: string
+          stage_nome: string
+        }[]
+      }
+      analytics_handoff_speed: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_lead_entry_path_breakdown: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       analytics_loss_reasons: {
         Args: {
           p_date_end?: string
@@ -16055,6 +16385,28 @@ export type Database = {
           p_mode?: string
           p_owner_id?: string
           p_owner_ids?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          count: number
+          motivo: string
+          percentage: number
+        }[]
+      }
+      analytics_loss_reasons_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
           p_product?: string
           p_stage_id?: string
           p_tag_ids?: string[]
@@ -16091,6 +16443,24 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_overview_kpis_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: Json
+      }
       analytics_pipeline_current: {
         Args: {
           p_date_ref?: string
@@ -16099,6 +16469,33 @@ export type Database = {
           p_tag_ids?: string[]
           p_value_max?: number
           p_value_min?: number
+        }
+        Returns: Json
+      }
+      analytics_pipeline_current_v2: {
+        Args: {
+          p_date_ref?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+          p_value_max?: number
+          p_value_min?: number
+        }
+        Returns: Json
+      }
+      analytics_proposal_versions: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
         }
         Returns: Json
       }
@@ -16117,10 +16514,42 @@ export type Database = {
           total_contacts: number
         }[]
       }
+      analytics_retention_cohort_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cohort_month: string
+          month_offset: number
+          retained: number
+          retention_rate: number
+          total_contacts: number
+        }[]
+      }
       analytics_retention_kpis: {
         Args: {
           p_date_end?: string
           p_date_start?: string
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: Json
+      }
+      analytics_retention_kpis_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_phase_slugs?: string[]
           p_product?: string
           p_tag_ids?: string[]
         }
@@ -16162,6 +16591,101 @@ export type Database = {
           period_start: string
           total_receita: number
           total_valor: number
+        }[]
+      }
+      analytics_revenue_timeseries_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_granularity?: string
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          count_won: number
+          period: string
+          period_start: string
+          total_receita: number
+          total_valor: number
+        }[]
+      }
+      analytics_rework_rate: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_saude_list: {
+        Args: {
+          p_bucket: string
+          p_limit?: number
+          p_offset?: number
+          p_owner_ids?: string[]
+          p_sort_by?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          card_id: string
+          dias_parado: number
+          dono_atual_id: string
+          dono_atual_nome: string
+          horas_sla_excedidas: number
+          pessoa_nome: string
+          phase_slug: string
+          sla_hours: number
+          stage_entered_at: string
+          stage_id: string
+          stage_nome: string
+          titulo: string
+          total_count: number
+          updated_at: string
+          valor_display: number
+        }[]
+      }
+      analytics_saude_summary: {
+        Args: { p_owner_ids?: string[]; p_tag_ids?: string[] }
+        Returns: {
+          sem_atividade_14d: number
+          sem_atividade_30d: number
+          sem_atividade_7d: number
+          sem_briefing: number
+          sem_contato: number
+          sem_dono: number
+          sla_violado: number
+          tarefas_vencidas: number
+          total_abertos: number
+        }[]
+      }
+      analytics_saude_tarefas_vencidas: {
+        Args: { p_limit?: number; p_offset?: number; p_owner_ids?: string[] }
+        Returns: {
+          card_id: string
+          card_titulo: string
+          data_vencimento: string
+          dias_vencida: number
+          prioridade: string
+          responsavel_id: string
+          responsavel_nome: string
+          tarefa_id: string
+          tipo: string
+          titulo: string
+          total_count: number
         }[]
       }
       analytics_sla_summary: {
@@ -16207,6 +16731,82 @@ export type Database = {
           titulo: string
         }[]
       }
+      analytics_stage_conversion: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_task_completion_by_person: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_team_leaderboard: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_abertos: number
+          cards_envolvidos: number
+          cards_ganhos: number
+          cards_perdidos: number
+          fases: string[]
+          receita_total: number
+          tarefas_abertas: number
+          tarefas_vencidas: number
+          ticket_medio: number
+          user_avatar_url: string
+          user_id: string
+          user_nome: string
+          win_rate: number
+        }[]
+      }
+      analytics_team_leaderboard_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_abertos: number
+          cards_envolvidos: number
+          cards_ganhos: number
+          cards_perdidos: number
+          fases: string[]
+          receita_total: number
+          tarefas_abertas: number
+          tarefas_vencidas: number
+          ticket_medio: number
+          user_avatar_url: string
+          user_id: string
+          user_nome: string
+          win_rate: number
+        }[]
+      }
       analytics_team_performance: {
         Args: {
           p_date_end?: string
@@ -16234,6 +16834,74 @@ export type Database = {
           won_cards: number
         }[]
       }
+      analytics_team_performance_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          active_cards: number
+          ciclo_medio_dias: number
+          conversion_rate: number
+          lost_cards: number
+          open_cards: number
+          phase: string
+          ticket_medio: number
+          total_cards: number
+          total_receita: number
+          user_id: string
+          user_nome: string
+          won_cards: number
+        }[]
+      }
+      analytics_team_sla_compliance: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+        }
+        Returns: {
+          compliance_rate: number
+          sla_cumpridas: number
+          sla_violadas: number
+          tempo_medio_horas: number
+          total_transicoes: number
+          user_id: string
+          user_nome: string
+        }[]
+      }
+      analytics_team_sla_compliance_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+        }
+        Returns: {
+          compliance_rate: number
+          sla_cumpridas: number
+          sla_violadas: number
+          tempo_medio_horas: number
+          total_transicoes: number
+          user_id: string
+          user_nome: string
+        }[]
+      }
       analytics_top_destinations: {
         Args: {
           p_date_end?: string
@@ -16251,6 +16919,40 @@ export type Database = {
           receita_total: number
           total_cards: number
         }[]
+      }
+      analytics_top_destinations_v2: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_limit?: number
+          p_mode?: string
+          p_origem?: string[]
+          p_owner_context?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          destino: string
+          receita_total: number
+          total_cards: number
+        }[]
+      }
+      analytics_trip_readiness: {
+        Args: {
+          p_destinos?: string[]
+          p_max_days_ahead?: number
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+        }
+        Returns: Json
       }
       analytics_whatsapp_conversations: {
         Args: {
@@ -16294,6 +16996,19 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_whatsapp_speed_v2: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       analytics_whatsapp_v2: {
         Args: {
           p_from?: string
@@ -16302,6 +17017,16 @@ export type Database = {
           p_produto?: string
           p_tag_ids?: string[]
           p_to?: string
+        }
+        Returns: Json
+      }
+      apply_ai_conversation_extraction: {
+        Args: {
+          p_briefing_inicial?: Json
+          p_card_id: string
+          p_contact_fields?: Json
+          p_produto_data?: Json
+          p_viajantes?: Json
         }
         Returns: Json
       }
@@ -16347,6 +17072,11 @@ export type Database = {
         Returns: Json
       }
       bulk_import_financial_items: { Args: { p_cards: Json }; Returns: Json }
+      cadence_triggers_cross_org_count: { Args: never; Returns: number }
+      calculate_agent_qualification_score: {
+        Args: { p_agent_id: string; p_inputs: Json }
+        Returns: Json
+      }
       calculate_business_due_date: {
         Args: {
           p_allowed_weekdays?: number[]
@@ -16466,6 +17196,7 @@ export type Database = {
         Args: {
           p_agent_email?: string
           p_conversation_id: string
+          p_force_create?: boolean
           p_name: string
           p_phone: string
           p_phone_number_id?: string
@@ -16544,8 +17275,17 @@ export type Database = {
         }
       }
       fix_orphan_conversations: { Args: never; Returns: Json }
+      fn_business_minutes_between: {
+        Args: { p_a: string; p_b: string; p_org_id?: string }
+        Returns: number
+      }
+      fn_card_stage_history: {
+        Args: { p_card_id: string; p_limit?: number }
+        Returns: Json
+      }
       fn_check_integration_health: { Args: never; Returns: Json }
       fn_enqueue_idle_followups: { Args: never; Returns: Json }
+      fn_enqueue_temporal_events: { Args: never; Returns: number }
       fn_roteamento_pos_venda_trips: { Args: never; Returns: Json }
       fn_roteamento_pos_venda_trips_diagnose: {
         Args: never
@@ -16773,6 +17513,10 @@ export type Database = {
       is_admin_or_manager: { Args: never; Returns: boolean }
       is_gestor: { Args: never; Returns: boolean }
       is_manager_or_admin: { Args: never; Returns: boolean }
+      is_official_meta_phone: {
+        Args: { p_phone_number_id: string }
+        Returns: boolean
+      }
       is_operational: { Args: never; Returns: boolean }
       is_org_active: { Args: { p_org_id: string }; Returns: boolean }
       is_org_admin: {
@@ -16780,11 +17524,16 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_proactive_event_type: {
+        Args: { p_event_type: string }
+        Returns: boolean
+      }
       is_proposal_flight_sold: {
         Args: { p_flight_id: string }
         Returns: boolean
       }
       is_proposal_item_sold: { Args: { p_item_id: string }; Returns: boolean }
+      is_weak_contact_name: { Args: { p_nome: string }; Returns: boolean }
       jsonb_get_path: { Args: { data: Json; path: string }; Returns: string }
       julia_assign_tag: {
         Args: { p_card_id: string; p_tag_color?: string; p_tag_name: string }
@@ -16825,6 +17574,15 @@ export type Database = {
           last_toggled_at: string
           last_toggled_by: string
         }[]
+      }
+      listar_cards_abertos_do_contato_echo: {
+        Args: {
+          p_conversation_id?: string
+          p_phone: string
+          p_phone_number_id?: string
+          p_phone_number_label?: string
+        }
+        Returns: Json
       }
       marcar_ganho: {
         Args: {
@@ -17355,6 +18113,10 @@ export type Database = {
         }
         Returns: Json
       }
+      update_contato_principal_from_ai_extraction: {
+        Args: { p_card_id: string; p_contact_id: string; p_fields: Json }
+        Returns: Json
+      }
       update_user_email: {
         Args: { p_new_email: string; p_user_id: string }
         Returns: undefined
@@ -17372,6 +18134,10 @@ export type Database = {
           skipped_count: number
           updated_count: number
         }[]
+      }
+      upsert_viajantes_from_ai_extraction: {
+        Args: { p_card_id: string; p_viajantes: Json }
+        Returns: Json
       }
       validate_api_key: {
         Args: { p_key: string }

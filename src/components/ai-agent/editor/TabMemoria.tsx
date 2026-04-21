@@ -1,7 +1,6 @@
 import { Database } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/Select'
 import type { AgentEditorForm } from './types'
 
 interface Props {
@@ -10,6 +9,10 @@ interface Props {
 }
 
 export function TabMemoria({ form, setForm }: Props) {
+  const mc = form.memory_config as unknown as Record<string, unknown>
+  const maxHistory = Number(mc.max_history_turns ?? 30)
+  const shortTerm = Number(mc.short_term_turns ?? 10)
+
   return (
     <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-5">
       <header className="flex items-center gap-2">
@@ -17,49 +20,44 @@ export function TabMemoria({ form, setForm }: Props) {
         <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Memória</h2>
       </header>
       <p className="text-sm text-slate-500 -mt-2">
-        Como o agente lembra das conversas anteriores. A Julia hoje usa janela de 20 mensagens por sessão (telefone + card).
+        Quantas mensagens anteriores o agente carrega e quais vão no prompt principal. Valores altos aumentam contexto mas sobem o custo por turno.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Tipo de memória</Label>
-          <Select
-            value={form.memory_config.tipo}
-            onChange={(v: string) => setForm(f => ({ ...f, memory_config: { ...f.memory_config, tipo: v as 'buffer_window' | 'vector' } }))}
-            options={[
-              { value: 'buffer_window', label: 'Janela (últimas N mensagens)' },
-              { value: 'vector', label: 'Vetorial (busca semântica)' },
-            ]}
+          <Label>Histórico total (turnos)</Label>
+          <Input
+            type="number" min="1" max="200"
+            value={maxHistory}
+            onChange={e => setForm(f => ({
+              ...f,
+              memory_config: {
+                ...(f.memory_config as object),
+                max_history_turns: parseInt(e.target.value) || 30,
+              } as AgentEditorForm['memory_config'],
+            }))}
           />
           <p className="text-[11px] text-slate-400">
-            Janela é o padrão. Vetorial exige índice ativo e custo maior por mensagem.
+            Total de turnos recuperados do banco. Default 30.
           </p>
         </div>
         <div className="space-y-2">
-          <Label>Tamanho da janela</Label>
+          <Label>Janela curta (turnos recentes)</Label>
           <Input
-            type="number" min="1" max="200"
-            value={form.memory_config.window_size}
-            onChange={e => setForm(f => ({ ...f, memory_config: { ...f.memory_config, window_size: parseInt(e.target.value) || 20 } }))}
+            type="number" min="1" max="50"
+            value={shortTerm}
+            onChange={e => setForm(f => ({
+              ...f,
+              memory_config: {
+                ...(f.memory_config as object),
+                short_term_turns: parseInt(e.target.value) || 10,
+              } as AgentEditorForm['memory_config'],
+            }))}
           />
           <p className="text-[11px] text-slate-400">
-            Quantas mensagens recentes o agente carrega a cada turno.
+            Sub-slice que vai no "histórico compacto" (pro prompt principal, mais barato). Default 10.
           </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Chave de sessão</Label>
-        <Input
-          value={form.memory_config.session_key_template}
-          onChange={e => setForm(f => ({ ...f, memory_config: { ...f.memory_config, session_key_template: e.target.value } }))}
-          placeholder="{{telefone}}|{{card_id}}"
-          className="font-mono text-sm"
-        />
-        <p className="text-[11px] text-slate-400">
-          Define o escopo da memória. Ex: <code>{'{{telefone}}|{{card_id}}'}</code> = memória separada por card.
-          <code>{'{{telefone}}'}</code> = memória global do contato.
-        </p>
       </div>
     </section>
   )

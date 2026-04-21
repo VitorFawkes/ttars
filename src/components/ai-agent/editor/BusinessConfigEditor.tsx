@@ -1,12 +1,11 @@
-import { Settings, Building2, DollarSign, BookOpen, Calendar, Users2, AlertTriangle, Plus, Trash2, Boxes, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Settings, Building2, DollarSign, BookOpen, Users2, AlertTriangle, Plus, Trash2, Boxes, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import type { BusinessConfigInput, AgentTone, PricingModel, FeeTiming, CalendarSystem, BusinessCustomBlock } from '@/hooks/useAgentBusinessConfig'
+import type { BusinessConfigInput, AgentTone, PricingModel, FeeTiming, BusinessCustomBlock } from '@/hooks/useAgentBusinessConfig'
 
 const TONE_OPTIONS: Array<{ value: AgentTone; label: string }> = [
   { value: 'formal', label: 'Formal (empresarial, respeitoso)' },
@@ -31,14 +30,6 @@ const FEE_TIMING_OPTIONS: Array<{ value: FeeTiming; label: string }> = [
   { value: 'after_qualification', label: 'Depois de qualificar' },
   { value: 'at_commitment', label: 'Quando cliente já confirmou interesse' },
   { value: 'never', label: 'Nunca (sem taxa)' },
-]
-
-const CALENDAR_OPTIONS: Array<{ value: CalendarSystem; label: string }> = [
-  { value: 'supabase_rpc', label: 'Interno (agent_check_calendar)' },
-  { value: 'calendly', label: 'Calendly' },
-  { value: 'google', label: 'Google Calendar' },
-  { value: 'n8n', label: 'Via n8n' },
-  { value: 'none', label: 'Sem agendamento' },
 ]
 
 export interface BusinessConfigEditorProps {
@@ -80,31 +71,12 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
             <p className="text-xs text-slate-500">Identidade que o agente apresenta ao cliente.</p>
           </div>
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Nome da empresa</Label>
-            <Input
-              value={value.company_name ?? ''}
-              onChange={e => patch({ company_name: e.target.value || null })}
-              placeholder="Welcome Trips"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Idioma</Label>
-            <Input
-              value={value.language ?? 'pt-BR'}
-              onChange={e => patch({ language: e.target.value || null })}
-              placeholder="pt-BR"
-            />
-          </div>
-        </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">Descrição curta da empresa</Label>
-          <Textarea
-            rows={2}
-            value={value.company_description ?? ''}
-            onChange={e => patch({ company_description: e.target.value || null })}
-            placeholder="O que sua empresa faz, em 1-2 frases."
+          <Label className="text-xs text-slate-600">Nome da empresa</Label>
+          <Input
+            value={value.company_name ?? ''}
+            onChange={e => patch({ company_name: e.target.value || null })}
+            placeholder="Welcome Trips"
           />
         </div>
         <div className="space-y-1.5">
@@ -197,70 +169,34 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
         </div>
       </section>
 
-      {/* Calendário */}
-      <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
-        <header className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-sky-500" />
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">Calendário</h3>
-            <p className="text-xs text-slate-500">De onde o agente busca horários livres para reunião.</p>
-          </div>
-        </header>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">Sistema de calendário</Label>
-          <Select
-            value={value.calendar_system ?? 'supabase_rpc'}
-            onChange={(v: string) => patch({ calendar_system: v as CalendarSystem })}
-            options={CALENDAR_OPTIONS}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-slate-600">Configuração (JSON)</Label>
-          <Textarea
-            rows={3}
-            value={JSON.stringify(value.calendar_config ?? {}, null, 2)}
-            onChange={e => {
-              try { patch({ calendar_config: JSON.parse(e.target.value || '{}') }) } catch { /* deixa usuário corrigir */ }
-            }}
-            className="font-mono text-xs"
-            placeholder={'{\n  "rpc_name": "agent_check_calendar"\n}'}
-          />
-        </div>
-      </section>
-
       {/* Contatos secundários */}
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
         <header className="flex items-center gap-2">
           <Users2 className="w-5 h-5 text-purple-500" />
           <div>
             <h3 className="text-base font-semibold text-slate-900">Contatos secundários</h3>
-            <p className="text-xs text-slate-500">Quando o agente pode falar com outras pessoas além do titular (ex: viajantes, convidados).</p>
+            <p className="text-xs text-slate-500">Quando o agente fala com outras pessoas além do titular (viajantes, convidados, acompanhantes). Deixe o nome do papel em branco se o agente não precisa disso.</p>
           </div>
         </header>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={value.has_secondary_contacts ?? false}
-            onCheckedChange={v => patch({ has_secondary_contacts: v })}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-slate-600">Nome do papel (visível no prompt)</Label>
+          <Input
+            value={value.secondary_contact_role_name ?? ''}
+            onChange={e => patch({
+              secondary_contact_role_name: e.target.value,
+              has_secondary_contacts: Boolean(e.target.value?.trim()),
+            })}
+            placeholder="viajante, acompanhante, convidado, paciente…"
           />
-          <span className="text-sm text-slate-700">Habilitar contatos secundários</span>
+          <p className="text-[11px] text-slate-400">O router usa esse termo ao se dirigir ao contato secundário no prompt (ex: "COMPORTAMENTO ACOMPANHANTE: …").</p>
         </div>
-        {value.has_secondary_contacts && (
-          <>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-slate-600">Nome do papel</Label>
-              <Input
-                value={value.secondary_contact_role_name ?? 'traveler'}
-                onChange={e => patch({ secondary_contact_role_name: e.target.value })}
-                placeholder="traveler, convidado, paciente…"
-              />
-            </div>
-            <StringArrayInput
-              label="Campos que secundários podem fornecer"
-              value={value.secondary_contact_fields ?? []}
-              onChange={next => patch({ secondary_contact_fields: next })}
-              placeholder={'cpf\npassaporte\ndata_nascimento'}
-            />
-          </>
+        {value.secondary_contact_role_name?.trim() && (
+          <StringArrayInput
+            label="Campos que secundários podem fornecer"
+            value={value.secondary_contact_fields ?? []}
+            onChange={next => patch({ secondary_contact_fields: next })}
+            placeholder={'cpf\npassaporte\ndata_nascimento'}
+          />
         )}
       </section>
 

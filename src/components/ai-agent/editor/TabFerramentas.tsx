@@ -1,12 +1,10 @@
-import { useMemo, useState } from 'react'
-import { Wrench, Plus, ShieldCheck, ChevronUp, ChevronDown, Settings2 } from 'lucide-react'
+import { useMemo } from 'react'
+import { Wrench, Plus, ShieldCheck, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useNavigate } from 'react-router-dom'
 import { useAiSkills, type AiSkill } from '@/hooks/useAiSkills'
-import { cn } from '@/lib/utils'
 import type { AgentEditorForm } from './types'
 
 interface Props {
@@ -17,7 +15,6 @@ interface Props {
 export function TabFerramentas({ form, setForm }: Props) {
   const navigate = useNavigate()
   const { skills } = useAiSkills()
-  const [overrideOpen, setOverrideOpen] = useState<string | null>(null)
 
   const skillsById = useMemo(() => {
     const map = new Map<string, AiSkill>()
@@ -47,24 +44,6 @@ export function TabFerramentas({ form, setForm }: Props) {
     })
   }
 
-  const setOverride = (skillId: string, raw: string) => {
-    setForm(f => {
-      const next = { ...(f.skill_config_overrides ?? {}) }
-      const trimmed = raw.trim()
-      if (!trimmed || trimmed === '{}') {
-        delete next[skillId]
-      } else {
-        try {
-          const parsed = JSON.parse(trimmed)
-          if (parsed && typeof parsed === 'object') {
-            next[skillId] = parsed as Record<string, unknown>
-          }
-        } catch { /* aguarda JSON válido */ }
-      }
-      return { ...f, skill_config_overrides: next }
-    })
-  }
-
   return (
     <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-5">
       <header className="flex items-center justify-between">
@@ -79,7 +58,7 @@ export function TabFerramentas({ form, setForm }: Props) {
         </Button>
       </header>
       <p className="text-sm text-slate-500 -mt-2">
-        Skills são as ferramentas que o agente pode usar durante a conversa (verificar agenda, criar tarefa, passar para humano, etc). Reordene para mudar a prioridade. Clique em <Settings2 className="w-3 h-3 inline" /> para sobrescrever configuração padrão de uma skill específica.
+        Skills são as ferramentas que o agente pode usar durante a conversa (verificar agenda, criar tarefa, passar para humano, etc). Reordene para mudar a prioridade.
       </p>
 
       {/* Skills atribuídas (ordenáveis) */}
@@ -89,9 +68,6 @@ export function TabFerramentas({ form, setForm }: Props) {
           {assigned.map((skillId, idx) => {
             const skill = skillsById.get(skillId)
             if (!skill) return null
-            const override = form.skill_config_overrides?.[skillId]
-            const hasOverride = override && Object.keys(override).length > 0
-            const isExpanded = overrideOpen === skillId
             return (
               <div key={skillId} className="border border-indigo-200 bg-indigo-50/40 rounded-lg">
                 <div className="flex items-start gap-2 p-3">
@@ -112,39 +88,12 @@ export function TabFerramentas({ form, setForm }: Props) {
                     <div className="flex gap-1 mt-1">
                       <Badge variant="outline" className="text-xs">{skill.categoria}</Badge>
                       <Badge variant="outline" className="text-xs">{skill.tipo}</Badge>
-                      {hasOverride && <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-200">config customizada</Badge>}
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setOverrideOpen(isExpanded ? null : skillId)}
-                      className={cn('h-8 w-8 p-0', hasOverride && 'text-amber-600')}
-                      title="Sobrescrever config da skill"
-                    >
-                      <Settings2 className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => toggleAssign(skillId)} className="text-red-500 hover:bg-red-50 h-8 w-8 p-0">
-                      ×
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => toggleAssign(skillId)} className="text-red-500 hover:bg-red-50 h-8 w-8 p-0">
+                    ×
+                  </Button>
                 </div>
-                {isExpanded && (
-                  <div className="border-t border-indigo-100 p-3 space-y-1.5 bg-white">
-                    <Label className="text-xs text-slate-600">Override de configuração (JSON, merge sobre o default)</Label>
-                    <Textarea
-                      rows={4}
-                      defaultValue={JSON.stringify(override ?? {}, null, 2)}
-                      onChange={e => setOverride(skillId, e.target.value)}
-                      className="font-mono text-xs"
-                      placeholder={'{\n  "timeout_ms": 5000\n}'}
-                    />
-                    <p className="text-[11px] text-slate-400">
-                      Deixe <code>{'{}'}</code> ou vazio para usar a configuração padrão da skill.
-                    </p>
-                  </div>
-                )}
               </div>
             )
           })}

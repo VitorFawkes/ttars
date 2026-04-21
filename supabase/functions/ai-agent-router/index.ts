@@ -37,6 +37,17 @@ interface IncomingMessage {
 }
 
 // C3 — blocos dinâmicos injetados no prompt a partir da config do agente
+// Devolve o label visível do papel secundário (ex: "viajante" em Trips,
+// "acompanhante"/"convidado" em Wedding). Lê business.secondary_contact_role_name
+// com fallback "viajante" — mantido em pt-BR porque todo o prompt está em pt-BR.
+// Internamente o código continua usando a string "traveler" como identificador
+// técnico (decoupled do label visível pra não quebrar queries/filters existentes).
+function secondaryRoleLabel(business: BusinessConfig | null | undefined): string {
+  const raw = business?.secondary_contact_role_name?.trim();
+  if (raw && raw !== "traveler") return raw;
+  return "viajante";
+}
+
 function buildHandoffBlock(agent: AgentConfig): string {
   const signals = agent.handoff_signals?.filter(s => s.enabled) ?? [];
   if (signals.length === 0) return "";
@@ -55,15 +66,9 @@ function buildDecisionsBlock(agent: AgentConfig): string {
   return `\nDECISÕES INTELIGENTES HABILITADAS:\n${items}`;
 }
 
-function buildExtraPromptsBlock(agent: AgentConfig): string {
-  const extra = agent.prompts_extra ?? {};
-  const parts: string[] = [];
-  if (extra.context) parts.push(`CONTEXTO:\n${extra.context}`);
-  if (extra.data_update) parts.push(`ATUALIZAÇÃO DE DADOS:\n${extra.data_update}`);
-  if (extra.formatting) parts.push(`FORMATAÇÃO:\n${extra.formatting}`);
-  if (extra.validator) parts.push(`VALIDAÇÃO (auto-check):\n${extra.validator}`);
-  return parts.length > 0 ? `\n${parts.join("\n\n")}` : "";
-}
+// buildExtraPromptsBlock foi removido: misturava prompts de OUTROS agentes do
+// pipeline (backoffice/data/formatter/validator) no persona e poluía o prompt.
+// Cada agente do pipeline puxa seu prompts_extra dedicado no próprio step.
 
 interface AgentConfig {
   id: string;
@@ -89,6 +94,15 @@ interface AgentConfig {
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
   timings?: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
+  test_mode_phone_whitelist?: string[] | null;
+  multimodal_config?: { audio?: boolean; image?: boolean; pdf?: boolean } | null;
+  handoff_actions?: {
+    change_stage_id?: string | null;
+    apply_tag?: { color?: string; name?: string } | null;
+    notify_responsible?: boolean;
+    transition_message?: string | null;
+    pause_permanently?: boolean;
+  } | null;
 }
 
 interface BusinessCustomBlock {
@@ -170,6 +184,10 @@ interface ConversationContext {
   sdr_owner_id: string | null;
   pessoa_principal_nome: string | null;
   form_data: Record<string, string>;
+  // Set by executeToolCall when request_handoff is invoked; main loop
+  // reads this to apply handoff_actions (stage change, tag, notification,
+  // transition_message override).
+  handoff_triggered?: boolean;
 }
 
 interface BackofficeOutput {
@@ -199,6 +217,7 @@ function matchesRoutingCriteria(
   if (keywords && keywords.length > 0) {
     const lower = messageText.toLowerCase();
     if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) return true;
+    return false;
   }
   return true;
 }
@@ -332,7 +351,16 @@ async function processMediaInline(
   messageType: string,
   mediaUrl: string,
   originalText: string,
+  multimodalConfig?: { audio?: boolean; image?: boolean; pdf?: boolean } | null,
 ): Promise<string> {
+  // Respeitar toggles do multimodal_config do agente quando fornecido.
+  // Se desligado, retorna placeholder sem chamar OpenAI (economiza tokens + evita leak).
+  if (multimodalConfig) {
+    if (messageType === "audio" && multimodalConfig.audio === false) return originalText || "[Áudio recebido — processamento desabilitado]";
+    if (messageType === "image" && multimodalConfig.image === false) return originalText || "[Imagem recebida — processamento desabilitado]";
+    if (messageType === "document" && multimodalConfig.pdf === false) return originalText || "[Documento recebido — processamento desabilitado]";
+  }
+
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) {
     console.warn("[processMediaInline] No OPENAI_API_KEY, using placeholder");
@@ -403,7 +431,9 @@ async function findAgentForLine(
         memory_config, fallback_message, fallback_agent_id,
         n8n_webhook_url, template_id, is_template_based, ativa,
         handoff_signals, intelligent_decisions, prompts_extra,
-        pipeline_models, timings, validator_rules
+        pipeline_models, timings, validator_rules,
+        test_mode_phone_whitelist, multimodal_config,
+        handoff_actions
       )
     `)
     .in("phone_line_id", lineIds)
@@ -717,7 +747,12 @@ async function buildConversationContext(
   conversationId: string,
   contactId: string,
   agentConfig: { business: BusinessConfig | null },
+  memoryConfig?: Record<string, unknown> | null,
 ): Promise<ConversationContext> {
+  // memory_config do agente: max_history_turns (limite total) e short_term_turns
+  // (window do compacto). Defaults batem com comportamento legado (50/8).
+  const maxHistoryTurns = (memoryConfig?.max_history_turns as number) ?? 50;
+  const shortTermTurns = (memoryConfig?.short_term_turns as number) ?? 8;
   // Carregar mensagens WhatsApp do contato (como Julia faz)
   const { data: contact } = await supabase
     .from("contatos")
@@ -725,26 +760,33 @@ async function buildConversationContext(
     .eq("id", contactId)
     .single();
 
-  // Buscar card ativo
+  // Buscar card ativo. Colunas reais: pessoa_principal_id (não contato_principal_id),
+  // dono_atual_id/sdr_owner_id (não responsavel_id); não existe cards.status (usar estado_operacional).
   const { data: cards } = await supabase
     .from("cards")
-    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, responsavel_id, produto_data")
-    .eq("contato_principal_id", contactId)
-    .in("status", ["aberto", "novo"])
+    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional")
+    .eq("pessoa_principal_id", contactId)
+    .is("archived_at", null)
+    .is("deleted_at", null)
+    .neq("estado_operacional", "encerrado")
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const card = cards?.[0] || null;
+  const cardRow = cards?.[0] || null;
+  const card = cardRow
+    ? { ...cardRow, responsavel_id: cardRow.dono_atual_id || cardRow.sdr_owner_id || null }
+    : null;
 
-  // Buscar historico de turns da conversa AI
+  // Buscar historico de turns da conversa AI — limite respeitado de memory_config
   const { data: turns } = await supabase
     .from("ai_conversation_turns")
     .select("role, content, created_at")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .limit(50);
+    .order("created_at", { ascending: false })
+    .limit(maxHistoryTurns);
 
-  const msgs = turns || [];
+  // Reverter para ordem cronológica ascending (limit pegou os mais recentes)
+  const msgs = (turns || []).reverse();
 
   // Formatar historico (como Julia: "DD/MM/YY_HH:MM_[who]: [msg]")
   const historico = msgs
@@ -756,7 +798,7 @@ async function buildConversationContext(
     })
     .join("\n");
 
-  const historico_compacto = msgs.slice(-8)
+  const historico_compacto = msgs.slice(-shortTermTurns)
     .map((m) => {
       const who = m.role === "user" ? "lead" : "owner";
       return `[${who}]: ${m.content}`;
@@ -996,12 +1038,33 @@ const BUILT_IN_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  // Tool de scoring — so fica ATIVA se o agente tem ai_agent_scoring_config.enabled=true.
+  // Admin controla via UI (aba Pontuacao do AiAgentDetailPage). loadAgentTools checa e inclui condicionalmente.
+  {
+    type: "function",
+    function: {
+      name: "calculate_qualification_score",
+      description: "Calcula o score de qualificacao do lead com base nas regras configuradas pelo admin (região/orçamento/sinais ou outras dimensões custom). Use quando tiver coletado dados suficientes pra saber se o lead está pronto pra próximo passo. Retorna score, threshold, se qualificou e o detalhamento.",
+      parameters: {
+        type: "object",
+        properties: {
+          inputs: {
+            type: "object",
+            description: "Objeto com os valores coletados na conversa. Cada chave é o nome da dimensao (regiao, valor_convidado, etc) ou do campo booleano (viagem_internacional). Ex: {\"regiao\": \"Caribe\", \"valor_convidado\": 3200, \"viagem_internacional\": true}",
+            additionalProperties: true,
+          },
+        },
+        required: ["inputs"],
+      },
+    },
+  },
 ];
 
 async function loadAgentTools(
   supabase: SupabaseClient,
   agentId: string,
 ): Promise<ToolDefinition[]> {
+  // 1. Carrega skills ativas do agente (como antes)
   const { data, error } = await supabase
     .from("ai_agent_skills")
     .select("enabled, priority, ai_skills!inner(nome, ativa)")
@@ -1020,16 +1083,117 @@ async function loadAgentTools(
     if (skill?.ativa && skill.nome) enabledNames.add(skill.nome);
   }
 
-  if (enabledNames.size === 0) {
-    console.log(`[loadAgentTools] agente ${agentId} sem skills configuradas — fallback BUILT_IN_TOOLS`);
-    return BUILT_IN_TOOLS;
+  // 2. Checa se scoring esta ativo pro agente (generico, serve pra qualquer agente)
+  let scoringEnabled = false;
+  try {
+    const { data: scoringCfg, error: scoringErr } = await supabase
+      .from("ai_agent_scoring_config")
+      .select("enabled")
+      .eq("agent_id", agentId)
+      .maybeSingle();
+    if (!scoringErr && scoringCfg?.enabled === true) {
+      scoringEnabled = true;
+    }
+  } catch (e) {
+    // Tabela pode nao existir em alguns ambientes — ignora silenciosamente
+    console.warn(`[loadAgentTools] ai_agent_scoring_config check falhou:`, (e as Error).message);
   }
 
-  const filtered = BUILT_IN_TOOLS.filter((t) =>
-    t.function.name === "think" || enabledNames.has(t.function.name)
-  );
-  console.log(`[loadAgentTools] agente ${agentId}: ${filtered.length} tools ativas (${[...enabledNames].join(",")})`);
+  // 3. Se nao tem skills explicitamente configuradas, usa set completo
+  //    (so adiciona scoring se enabled=true, senao tira)
+  if (enabledNames.size === 0) {
+    console.log(`[loadAgentTools] agente ${agentId} sem skills configuradas — fallback BUILT_IN_TOOLS (scoring: ${scoringEnabled})`);
+    return BUILT_IN_TOOLS.filter((t) =>
+      t.function.name !== "calculate_qualification_score" || scoringEnabled
+    );
+  }
+
+  // 4. Filtro normal: think sempre disponivel, scoring so se enabled, resto por skill config
+  const filtered = BUILT_IN_TOOLS.filter((t) => {
+    if (t.function.name === "think") return true;
+    if (t.function.name === "calculate_qualification_score") return scoringEnabled;
+    return enabledNames.has(t.function.name);
+  });
+
+  console.log(`[loadAgentTools] agente ${agentId}: ${filtered.length} tools ativas (skills: ${[...enabledNames].join(",")}; scoring: ${scoringEnabled})`);
   return filtered;
+}
+
+// Aplica as handoff_actions configuradas no agente quando request_handoff é chamada.
+// Cada ação é best-effort: falhas individuais são logadas mas não abortam o fluxo,
+// pois o handoff principal (ai_responsavel='humano') já foi registrado pela RPC.
+// A mensagem de transição fica guardada no ctx para o formatter usar como override.
+async function applyHandoffActions(
+  supabase: SupabaseClient,
+  agent: AgentConfig,
+  ctx: ConversationContext,
+): Promise<void> {
+  const actions = agent.handoff_actions;
+  if (!actions || !ctx.card_id) {
+    ctx.handoff_triggered = true;
+    return;
+  }
+
+  ctx.handoff_triggered = true;
+
+  // 1. Mover card para etapa configurada
+  if (actions.change_stage_id) {
+    const { error: stageErr } = await supabase
+      .from("cards")
+      .update({ pipeline_stage_id: actions.change_stage_id, updated_at: new Date().toISOString() })
+      .eq("id", ctx.card_id);
+    if (stageErr) {
+      console.warn(`[handoff_actions] change_stage_id failed:`, stageErr.message);
+    } else {
+      console.log(`[handoff_actions] card ${ctx.card_id} moved to stage ${actions.change_stage_id}`);
+    }
+  }
+
+  // 2. Aplicar tag
+  if (actions.apply_tag?.name) {
+    const { error: tagErr } = await supabase.rpc("agent_assign_tag", {
+      p_card_id: ctx.card_id,
+      p_tag_name: actions.apply_tag.name,
+      p_tag_color: actions.apply_tag.color || "#f59e0b",
+    });
+    if (tagErr) {
+      console.warn(`[handoff_actions] apply_tag failed:`, tagErr.message);
+    } else {
+      console.log(`[handoff_actions] tag "${actions.apply_tag.name}" applied to card ${ctx.card_id}`);
+    }
+  }
+
+  // 3. Notificar o responsável
+  if (actions.notify_responsible && ctx.sdr_owner_id) {
+    const { error: notifErr } = await supabase.from("notifications").insert({
+      user_id: ctx.sdr_owner_id,
+      type: "ai_handoff",
+      title: `${agent.nome} pediu handoff`,
+      body: `Conversa com ${ctx.contact_name || "contato"} precisa de humano no card "${ctx.card_titulo || ctx.card_id}".`,
+      card_id: ctx.card_id,
+      org_id: agent.org_id,
+      metadata: { source: "ai_agent_router", agent_id: agent.id },
+    });
+    if (notifErr) {
+      console.warn(`[handoff_actions] notify_responsible failed:`, notifErr.message);
+    }
+  }
+
+  // 4. Pause permanently — marcar no card via flag em ai_pause_config (se coluna existir).
+  //    Atualmente ai_responsavel='humano' já pausa o agente até alguém zerar. Se a empresa
+  //    quer pause permanente, gravamos a flag para evitar que um fluxo automático
+  //    (ex: novo card) reative o agente sem intervenção humana.
+  if (actions.pause_permanently) {
+    const { error: pauseErr } = await supabase
+      .from("cards")
+      .update({
+        ai_pause_config: { permanent: true, reason: "handoff_permanent", paused_at: new Date().toISOString() },
+      })
+      .eq("id", ctx.card_id);
+    if (pauseErr && !pauseErr.message.includes("ai_pause_config")) {
+      console.warn(`[handoff_actions] pause_permanently failed:`, pauseErr.message);
+    }
+  }
 }
 
 async function executeToolCall(
@@ -1038,6 +1202,7 @@ async function executeToolCall(
   args: Record<string, unknown>,
   ctx: ConversationContext,
   agent: AgentConfig,
+  business?: BusinessConfig | null,
 ): Promise<string> {
   const startTime = Date.now();
   let result = "";
@@ -1089,7 +1254,10 @@ async function executeToolCall(
       }
 
       case "check_calendar": {
-        const { data: calResult } = await supabase.rpc("agent_check_calendar", {
+        // calendar_config.rpc_name permite trocar a RPC sem editar código (ex: novo provider)
+        const calendarRpc = (business?.calendar_config as { rpc_name?: string } | undefined)?.rpc_name
+          || "agent_check_calendar";
+        const { data: calResult } = await supabase.rpc(calendarRpc, {
           p_owner_id: ctx.sdr_owner_id,
           p_date_from: args.date_from as string,
           p_date_to: args.date_to as string,
@@ -1125,12 +1293,14 @@ async function executeToolCall(
           result = JSON.stringify({ error: "Sem card associado" });
           break;
         }
-        const { data: tagResult } = await supabase.rpc("agent_assign_tag", {
+        const { data: tagResult, error: tagErr } = await supabase.rpc("agent_assign_tag", {
           p_card_id: ctx.card_id,
           p_tag_name: args.tag_name as string,
           p_tag_color: (args.tag_color as string) || "#3B82F6",
         });
-        result = JSON.stringify(tagResult || { success: true });
+        result = tagErr
+          ? JSON.stringify({ error: tagErr.message })
+          : JSON.stringify(tagResult || { success: true });
         break;
       }
 
@@ -1139,12 +1309,22 @@ async function executeToolCall(
           result = JSON.stringify({ error: "Sem card associado" });
           break;
         }
-        const { data: handoffResult } = await supabase.rpc("agent_request_handoff", {
+        const { data: handoffResult, error: handoffErr } = await supabase.rpc("agent_request_handoff", {
           p_card_id: ctx.card_id,
           p_reason: args.reason as string,
           p_context_summary: args.context_summary as string,
         });
-        result = JSON.stringify(handoffResult || { success: true });
+        result = handoffErr
+          ? JSON.stringify({ error: handoffErr.message })
+          : JSON.stringify(handoffResult || { success: true });
+
+        // Aplicar handoff_actions configuradas (safety net). Falhas individuais
+        // são logadas mas não interrompem — handoff principal já foi registrado
+        // e ai_responsavel='humano' pausa o agente.
+        const ok = !handoffErr && (handoffResult as { success?: boolean } | null)?.success !== false;
+        if (ok) {
+          await applyHandoffActions(supabase, agent, ctx);
+        }
         break;
       }
 
@@ -1178,6 +1358,35 @@ async function executeToolCall(
 
       case "think": {
         result = JSON.stringify({ thought_recorded: true });
+        break;
+      }
+
+      case "calculate_qualification_score": {
+        // Tool generica de scoring. Chama a RPC calculate_agent_qualification_score
+        // que le as regras de ai_agent_scoring_rules do agente, aplica aos inputs,
+        // e retorna {score, threshold, qualificado, breakdown}.
+        //
+        // Inputs esperados: { inputs: { dimensao1: valor, dimensao2: valor, ... } }
+        // Ex: { inputs: { regiao: "Caribe", valor_convidado: 3200, viagem_internacional: true } }
+        //
+        // Se scoring_config.enabled=false, RPC retorna {enabled: false} e agente entende
+        // que feature nao esta ativa — nao deve insistir em calcular.
+        try {
+          const inputs = (args.inputs ?? {}) as Record<string, unknown>;
+          const { data, error } = await supabase.rpc("calculate_agent_qualification_score", {
+            p_agent_id: agent.id,
+            p_inputs: inputs,
+          });
+          if (error) {
+            console.warn(`[calculate_qualification_score] RPC error:`, error.message);
+            result = JSON.stringify({ error: "Nao foi possivel calcular score no momento" });
+          } else {
+            result = JSON.stringify(data);
+          }
+        } catch (err) {
+          console.warn(`[calculate_qualification_score] exception:`, (err as Error).message);
+          result = JSON.stringify({ error: "Erro interno ao calcular score" });
+        }
         break;
       }
 
@@ -1222,6 +1431,7 @@ async function callLLMWithTools(
   tools: ToolDefinition[],
   ctx: ConversationContext,
   agent: AgentConfig,
+  business?: BusinessConfig | null,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -1289,7 +1499,7 @@ async function callLLMWithTools(
 
       console.log(`[callLLMWithTools] Tool call: ${fnName}(${JSON.stringify(fnArgs).substring(0, 200)})`);
 
-      const toolResult = await executeToolCall(supabase, fnName, fnArgs, ctx, agent);
+      const toolResult = await executeToolCall(supabase, fnName, fnArgs, ctx, agent, business);
 
       messages.push({
         role: "tool",
@@ -1330,6 +1540,8 @@ async function runBackofficeAgent(
   // Agent.prompts_extra.context tem prioridade (paridade Julia).
   // Se vazio, cai no hardcoded default.
   const customContext = agent.prompts_extra?.context;
+  const roleLabel = secondaryRoleLabel(business);
+  const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
   const dataBlock = `
 
 ## Dados deste turno (injetados pelo runtime)
@@ -1338,6 +1550,7 @@ async function runBackofficeAgent(
 - ai_contexto atual: ${ctx.ai_contexto || "(vazio)"}
 - Papel do remetente (contact_role): ${ctx.contact_role}
 - Nome: ${ctx.contact_name}
+- Label do papel secundário: "${roleLabel}" (use esse termo ao referir-se a quem não é o cliente principal)
 
 Responda SEMPRE em JSON único conforme a saída pedida acima.`;
 
@@ -1355,7 +1568,7 @@ Dados:
 REGRAS:
 1. Atualize ai_resumo APENAS com fatos EXPLICITAMENTE ditos pelo cliente
 2. Atualize ai_contexto com sequencia cronologica dos eventos
-3. Se contact_role = "traveler": prefixe com [Viajante: ${ctx.contact_name}]
+3. Se contact_role = "traveler": prefixe com [${roleLabelCap}: ${ctx.contact_name}]
 4. NUNCA invente, infira ou assuma
 5. Se nada mudou, mantenha textos identicos ao atual
 6. Em primeiro contato generico: NAO altere ai_resumo, apenas ai_contexto
@@ -1462,13 +1675,30 @@ async function runDataAgentLLM(
     .map((s) => `  - "${s.advance_to_stage_id}" (${s.stage_name}${s.advance_condition ? `, condicao: ${s.advance_condition}` : ""})`)
     .join("\n");
 
-  const allowedCardFields = isTraveler
+  // Só campos que REALMENTE existem no schema atual de cards.
+  // Dados como destino, número de viajantes, orçamento bruto, ocasião → vão em ai_resumo/ai_contexto
+  // (texto livre), não em colunas dedicadas — valor_estimado e produto_data são protected_fields
+  // e só a consultora humana edita depois do briefing.
+  const baseAllowedCardFields = isTraveler
     ? ["ai_resumo", "ai_contexto"]
-    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "destino", "data_ida", "data_volta", "numero_viajantes", "orcamento_estimado", "ocasiao_especial", "observacoes_ia"];
+    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "data_viagem_inicio", "data_viagem_fim"];
 
-  const allowedContactFields = isTraveler
+  // Se admin configurou auto_update_fields, restringir ainda mais (interseção)
+  const autoUpdateFields = business?.auto_update_fields || [];
+  const allowedCardFields = autoUpdateFields.length > 0
+    ? baseAllowedCardFields.filter((f) => autoUpdateFields.includes(f))
+    : baseAllowedCardFields;
+
+  // contact_update_fields do business_config se configurado, senão default razoável
+  const configContactFields = business?.contact_update_fields || [];
+  const defaultContactFields = isTraveler
     ? ["cpf", "passaporte", "data_nascimento", "email", "observacoes"]
     : ["nome", "sobrenome", "email", "cpf", "passaporte", "data_nascimento", "observacoes"];
+  const allowedContactFields = configContactFields.length > 0
+    ? (isTraveler
+        ? configContactFields.filter((f) => ["cpf","passaporte","data_nascimento","email","observacoes"].includes(f))
+        : configContactFields)
+    : defaultContactFields;
 
   const customData = agent.prompts_extra?.data_update;
   const dataBlock = `
@@ -1498,7 +1728,7 @@ Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}
 ## Contexto
 - Card ID: ${ctx.card_id}
 - Contato ID: ${ctx.contato_id}
-- Role: ${isTraveler ? "traveler (viajante — NAO avance stage, NAO edite titulo, so dados pessoais do viajante)" : "primary"}
+- Role: ${isTraveler ? `traveler (${secondaryRoleLabel(business)} — NAO avance stage, NAO edite titulo, so dados pessoais do ${secondaryRoleLabel(business)})` : "primary"}
 - Stage atual: ${ctx.pipeline_stage_id || "(nao definido)"}
 - ai_resumo atual: ${backoffice.ai_resumo || "(vazio)"}
 - ai_contexto atual: ${backoffice.ai_contexto || "(vazio)"}
@@ -1525,10 +1755,9 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - titulo (so se primary): "Viagem [Destino] - [Nome]". Ex: "Viagem Italia - Joao". Nao atualizar se ja tem titulo compativel.
 - cpf: so digitos, 11 caracteres.
 - passaporte: alfanumerico uppercase.
-- data_nascimento / data_ida / data_volta: YYYY-MM-DD.
-- numero_viajantes: inteiro.
-- orcamento_estimado: inteiro em BRL (aceitar "k" = mil).
+- data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
 - nome/sobrenome: primeira letra maiuscula.
+- Destino, número de viajantes, orcamento bruto, ocasião → NÃO têm coluna dedicada. Grave em ai_resumo/ai_contexto como texto livre; a consultora humana registra valores estruturados depois do briefing.
 
 ### Avanco de stage (so se NAO for traveler)
 - Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
@@ -1703,7 +1932,38 @@ async function runPersonaAgent(
   // C3 — sinais de handoff e decisões inteligentes (configuráveis por agente)
   const handoffBlock = buildHandoffBlock(agent);
   const decisionsBlock = buildDecisionsBlock(agent);
-  const extraPromptsBlock = buildExtraPromptsBlock(agent);
+  // prompts_extra.context/data_update/formatting/validator alimentam os AGENTES
+  // dedicados do pipeline (backoffice/data/formatter/validator). NÃO devem entrar
+  // no persona — misturar polui o prompt com instruções de outros passos.
+
+  // Processo do negócio em passos numerados (vem de business_config.process_steps)
+  const processStepsBlock = business?.process_steps && business.process_steps.length > 0
+    ? `\nNOSSO PROCESSO (nesta ordem):\n${business.process_steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`
+    : "";
+
+  // Papel do agente: deriva do process_steps — agente executa o passo 1 (qualificação),
+  // os demais passos são de outras pessoas (consultora, planner). Evita que o agente
+  // se confunda e diga "eu vou montar sua viagem" quando na verdade é SDR.
+  const rolePrinciple = business?.process_steps && business.process_steps.length > 1
+    ? `\nSEU PAPEL (regra de ouro):\nVocê executa APENAS o passo 1 ("${business.process_steps[0]}"). Os passos seguintes (${business.process_steps.slice(1, 3).join(", ")}...) são responsabilidade de outras pessoas no time (consultora/planner/especialista). Se o cliente perguntar "você que vai montar/fazer X?", deixe claro: o que é seu (qualificar, tirar dúvidas, agendar reunião) vs o que vem depois (consultora dedicada que desenha e opera a viagem). NUNCA prometa entregar algo que é do passo 2+.`
+    : "";
+
+  // Campos que o agente pode coletar/atualizar no contato (vem de business_config.contact_update_fields)
+  const contactUpdateFields = business?.contact_update_fields && business.contact_update_fields.length > 0
+    ? business.contact_update_fields.join(", ")
+    : "nome, sobrenome, email, cpf, passaporte, data_nascimento";
+
+  // Campos protegidos que NUNCA podem ser atualizados (vem de business_config.protected_fields)
+  const protectedFieldsBlock = business?.protected_fields && business.protected_fields.length > 0
+    ? `\nCAMPOS PROTEGIDOS (NUNCA atualizar): ${business.protected_fields.join(", ")}`
+    : "";
+
+  // Instruções customizadas do agente — system_prompt editado pelo admin no CRM.
+  // Vai como complemento ao persona dinâmico (regras finas de VIAJANTE, Club Med,
+  // scripts específicos que não couberam nos campos estruturados).
+  const customAgentInstructions = agent.system_prompt && agent.system_prompt.trim().length > 0
+    ? `\n## INSTRUÇÕES CUSTOMIZADAS DO AGENTE\n${agent.system_prompt.trim()}`
+    : "";
 
   const personaPrompt = `Voce e ${agent.nome}, ${agent.persona || "assistente"} da ${business?.company_name || "empresa"}.
 
@@ -1716,15 +1976,21 @@ Contexto:
 - Card ID: ${ctx.card_id || "(sem card)"}
 - Contato ID: ${ctx.contato_id}
 ${ctx.pessoa_principal_nome ? `- Nome principal: ${ctx.pessoa_principal_nome}` : ""}
+${rolePrinciple}
+${processStepsBlock}
 
 ${formDataText ? `DADOS JA PREENCHIDOS (NAO RE-PERGUNTE):\n${formDataText}\nSe ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
 
-${backoffice.detected_role === "traveler" ? `COMPORTAMENTO TRAVELER:
-1. Cumprimente pelo nome do viajante
-2. Referencie "a viagem com ${ctx.pessoa_principal_nome}"
+${backoffice.detected_role === "traveler" ? (() => {
+  const roleLabel = secondaryRoleLabel(business);
+  const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
+  return `COMPORTAMENTO ${roleLabel.toUpperCase()}:
+1. Cumprimente pelo nome do ${roleLabel}
+2. Referencie "a ${business?.company_name?.toLowerCase().includes("wedding") ? "celebração" : "viagem"} com ${ctx.pessoa_principal_nome}"
 3. NUNCA peca taxa/pagamento/reuniao
 4. PODE coletar: ${business?.secondary_contact_fields?.join(", ") || "passaporte, CPF, data nascimento"}
-5. NUNCA desqualifique traveler` : ""}
+5. NUNCA desqualifique ${roleLabelCap}`;
+})() : ""}
 
 ${business?.methodology_text ? `O QUE OFERECEMOS:\n${business.methodology_text}` : ""}
 
@@ -1744,8 +2010,9 @@ TOOLS DISPONIVEIS:
 - create_task: Use quando cliente CONFIRMAR horario de reuniao
 - assign_tag: Use para classificar o lead (ex: destino mencionado)
 - request_handoff: Use SOMENTE quando cliente insiste em humano ou reclamacao seria
-- update_contact: Use quando cliente fornecer dados pessoais (nome, email, CPF, passaporte, nascimento)
+- update_contact: Use quando cliente fornecer dados pessoais (${contactUpdateFields})
 - think: Use para planejar sua resposta antes de enviar (invisivel ao cliente)
+${protectedFieldsBlock}
 
 HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
@@ -1756,7 +2023,7 @@ NUNCA mencione IA, sistema, formulario, tools, regras internas.
 
 ${handoffBlock}
 ${decisionsBlock}
-${extraPromptsBlock}
+${customAgentInstructions}
 ${SALES_PLAYBOOK}
 
 CONSULTA OBRIGATÓRIA: antes de falar sobre serviços, taxa, prazos, destinos, pagamento ou tratar objeções, chame search_knowledge_base ANTES e responda em 1-2 frases sem copiar literal.
@@ -1773,14 +2040,20 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
       };
     });
 
-  // Use tool calling for template-based agents
+  // Use tool calling for template-based agents.
+  // pipeline_models.main permite override de modelo/temp/max_tokens só pra etapa
+  // do persona — útil quando admin quer modelo mais inteligente só pra resposta
+  // ao cliente sem afetar context/data agents (que rodam em modelos baratos).
+  const personaModel = agent.pipeline_models?.main?.model || agent.modelo;
+  const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
+  const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
   const tools = await loadAgentTools(supabase, agent.id);
   return callLLMWithTools(
     supabase,
-    agent.modelo, agent.temperature, agent.max_tokens,
+    personaModel, personaTemp, personaMaxTok,
     personaPrompt, userMessage, history,
     tools,
-    ctx, agent,
+    ctx, agent, business,
   );
 }
 
@@ -1868,19 +2141,17 @@ SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 // 11. Pipeline Step: Formatter (split WhatsApp messages)
 // ---------------------------------------------------------------------------
 
-function formatWhatsAppMessages(text: string, maxBlocks = 3): string[] {
+// Heurística: fallback quando LLM formatter não está configurado ou falha
+function formatWhatsAppMessagesHeuristic(text: string, maxBlocks = 3): string[] {
   const cap = Math.max(1, Math.min(maxBlocks, 10));
 
-  // Se ja e curto, envia como esta
   if (text.length < 300) return [text.trim()];
 
-  // Tentar dividir por paragrafos (dupla quebra de linha)
   const paragraphs = text.split(/\n\n+/).filter((p) => p.trim());
   if (paragraphs.length >= 2 && paragraphs.length <= cap) {
     return paragraphs.map((p) => p.trim());
   }
 
-  // Se muitos paragrafos, agrupar em ate cap mensagens
   if (paragraphs.length > cap) {
     const perMsg = Math.ceil(paragraphs.length / cap);
     const msgs: string[] = [];
@@ -1890,17 +2161,81 @@ function formatWhatsAppMessages(text: string, maxBlocks = 3): string[] {
     return msgs.slice(0, cap);
   }
 
-  // Dividir por sentencas
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
   if (sentences.length <= cap) return sentences.map((s) => s.trim());
 
-  // Agrupar sentencas em ate cap mensagens
   const perMsg = Math.ceil(sentences.length / Math.min(cap, Math.ceil(sentences.length / 2)));
   const msgs: string[] = [];
   for (let i = 0; i < sentences.length; i += perMsg) {
     msgs.push(sentences.slice(i, i + perMsg).join(" ").trim());
   }
   return msgs.slice(0, cap);
+}
+
+// LLM formatter — paridade com "Format WhatsApp Messages" da Julia no n8n.
+// Divide em blocos naturais respeitando o prompt custom (prompts_extra.formatting)
+// e o model/temp de pipeline_models.formatter. Mantém markdown WhatsApp e quebra
+// perguntas em bloco separado. Se prompt custom for muito curto ou LLM falhar,
+// cai no heurístico.
+async function formatWhatsAppMessages(
+  text: string,
+  maxBlocks = 3,
+  agent?: AgentConfig,
+): Promise<string[]> {
+  const cap = Math.max(1, Math.min(maxBlocks, 10));
+
+  if (!text || !text.trim()) return [];
+  if (text.length < 150) return [text.trim()];
+
+  const customFormatter = agent?.prompts_extra?.formatting;
+  const formatterModel = agent?.pipeline_models?.formatter?.model;
+
+  const shouldUseLLM =
+    (customFormatter && customFormatter.trim().length > 80)
+    || !!formatterModel;
+
+  if (!shouldUseLLM) {
+    return formatWhatsAppMessagesHeuristic(text, cap);
+  }
+
+  const defaultFormatterPrompt = `Você divide respostas prontas em até ${cap} blocos naturais pra WhatsApp, sem alterar o conteúdo.
+
+REGRA DE OURO: NUNCA altere o texto. Só divida e aplique markdown do WhatsApp.
+
+Regras:
+1. Máximo ${cap} blocos — cada um legível, sem parágrafo longo.
+2. Se tiver pergunta no final, ela vai em bloco separado.
+3. Dentro de cada bloco: quebras de linha após pontuação pra separar ideias.
+4. Markdown WhatsApp: *negrito* (nunca **), ~tachado~, _itálico_ raro, \`link\`.
+5. Jamais deixe bloco vazio.
+
+Saída OBRIGATÓRIA em JSON:
+{ "messages": ["bloco1", "bloco2", "bloco3"] }
+
+Retorne APENAS o JSON. Nada mais.`;
+
+  const promptBody = customFormatter && customFormatter.trim().length > 80
+    ? customFormatter
+        .replace(/\{\{\s*cap\s*\}\}/g, String(cap))
+    : defaultFormatterPrompt;
+
+  const model = formatterModel || agent?.modelo || "gpt-4.1-mini";
+  const temperature = agent?.pipeline_models?.formatter?.temperature ?? 0.3;
+  const maxTokens = agent?.pipeline_models?.formatter?.max_tokens ?? 1024;
+
+  try {
+    const { response } = await callLLM(model, temperature, maxTokens, promptBody, text);
+    const cleaned = response.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    const msgs = parsed.messages;
+    if (Array.isArray(msgs) && msgs.length > 0 && msgs.every((m) => typeof m === "string" && m.trim().length > 0)) {
+      return msgs.slice(0, cap).map((m: string) => m.trim());
+    }
+    console.warn("[formatter] LLM returned invalid shape, using heuristic fallback");
+  } catch (err) {
+    console.warn("[formatter] LLM error, using heuristic fallback:", err);
+  }
+  return formatWhatsAppMessagesHeuristic(text, cap);
 }
 
 // ---------------------------------------------------------------------------
@@ -1915,6 +2250,7 @@ async function sendResponse(
   messages: string[],
   phoneNumberId?: string,
   typingDelayMs = 1500,
+  testWhitelist?: string[] | null,
 ): Promise<void> {
   const echoApiUrl = Deno.env.get("ECHO_API_URL");
   const echoApiKey = Deno.env.get("ECHO_API_KEY");
@@ -1927,6 +2263,32 @@ async function sendResponse(
 
   const resolvedPhoneId = phoneNumberId || defaultPhoneId;
   const normalizedPhone = contactPhone.replace(/\D/g, "");
+
+  if (testWhitelist && testWhitelist.length > 0) {
+    const normalizedWhitelist = testWhitelist.map((p) => p.replace(/\D/g, ""));
+    if (!normalizedWhitelist.includes(normalizedPhone)) {
+      console.warn(
+        `[sendResponse] BLOCKED by test_mode_phone_whitelist: to=${normalizedPhone} allowed=${JSON.stringify(normalizedWhitelist)}`,
+      );
+      await supabase.from("whatsapp_messages").insert({
+        contact_id: contactId,
+        card_id: cardId || null,
+        body: messages.join("\n\n"),
+        direction: "outbound",
+        is_from_me: true,
+        type: "text",
+        status: "blocked_test_mode",
+        sender_phone: normalizedPhone,
+        sent_by_user_name: "Luna IA (blocked)",
+        metadata: {
+          source: "ai_agent",
+          blocked_reason: "test_mode_phone_whitelist",
+          allowed_phones: normalizedWhitelist,
+        },
+      });
+      return;
+    }
+  }
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -2206,13 +2568,9 @@ serve(async (req) => {
       );
     }
 
-    // Processar mídia (áudio/imagem/documento) se aplicável
+    // Placeholder temporário — agente é encontrado com isso antes de processar mídia,
+    // para que multimodal_config do agente possa ser respeitado no processamento.
     let processedText = messageTypeToPlaceholder(input.message_type, input.message_text);
-
-    if (input.media_url && input.message_type && input.message_type !== "text") {
-      processedText = await processMediaInline(input.message_type, input.media_url, input.message_text);
-      console.log(`[main] Media processed: ${input.message_type} → ${processedText.substring(0, 100)}...`);
-    }
 
     // ── 1. Encontrar agente ──
     const agent = await findAgentForLine(
@@ -2222,6 +2580,17 @@ serve(async (req) => {
       processedText,
       input.contact_phone,
     );
+
+    // Processar mídia (áudio/imagem/documento) se aplicável — respeitando multimodal_config do agente
+    if (input.media_url && input.message_type && input.message_type !== "text") {
+      processedText = await processMediaInline(
+        input.message_type,
+        input.media_url,
+        input.message_text,
+        agent?.multimodal_config,
+      );
+      console.log(`[main] Media processed: ${input.message_type} → ${processedText.substring(0, 100)}...`);
+    }
 
     if (!agent) {
       return new Response(
@@ -2278,12 +2647,15 @@ serve(async (req) => {
       .order("created_at", { ascending: true });
 
     if (buffered && buffered.length > 0) {
-      const newest = buffered[buffered.length - 1];
-      const ageMs = Date.now() - new Date(newest.created_at).getTime();
+      // Debounce baseado na OLDEST: quando a mensagem mais antiga do buffer passou
+      // do window, processa tudo junto (incluindo a recém-chegada). Antes usava
+      // newest, mas cada mensagem nova resetava o timer e o buffer nunca drenava.
+      const oldest = buffered[0];
+      const ageOldestMs = Date.now() - new Date(oldest.created_at).getTime();
 
-      if (ageMs < debounceMs) {
-        // Still within debounce window — don't process yet
-        console.log(`[debounce] ${buffered.length} msgs buffered, newest ${Math.round(ageMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
+      if (ageOldestMs < debounceMs) {
+        // Ainda dentro da janela de debounce — esperar próxima ou novo drain
+        console.log(`[debounce] ${buffered.length} msgs buffered, oldest ${Math.round(ageOldestMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
         return new Response(
           JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -2297,10 +2669,15 @@ serve(async (req) => {
           processedText = combined;
           console.log(`[debounce] Combined ${buffered.length} messages into one (${combined.length} chars)`);
         }
-        // Process media from the last media message in buffer
+        // Process media from the last media message in buffer (respeita multimodal_config)
         const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
         if (lastMedia) {
-          const mediaContent = await processMediaInline(lastMedia.message_type, lastMedia.media_url, lastMedia.message_text);
+          const mediaContent = await processMediaInline(
+            lastMedia.message_type,
+            lastMedia.media_url,
+            lastMedia.message_text,
+            agent.multimodal_config,
+          );
           processedText = processedText + "\n" + mediaContent;
         }
       }
@@ -2322,7 +2699,7 @@ serve(async (req) => {
 
     // ── 6. Build context (paridade com "Historico Texto") ──
     const ctx = await buildConversationContext(
-      supabase, conversationId, contactId, agentConfig,
+      supabase, conversationId, contactId, agentConfig, agent.memory_config,
     );
 
     // ── 6b. Inbound pattern matcher (regra determinística antes da IA) ──
@@ -2355,8 +2732,8 @@ serve(async (req) => {
     const typingDelayMs = Math.round((agent.timings?.typing_delay_seconds ?? 1.5) * 1000);
 
     if (escalated) {
-      const msgs = formatWhatsAppMessages(escalationMsg, maxBlocks);
-      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs);
+      const msgs = await formatWhatsAppMessages(escalationMsg, maxBlocks, agent);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -2369,31 +2746,112 @@ serve(async (req) => {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let messages: string[] = [];
+    let pipelineFellBack = false;
+    let pipelineErrorDetails: string | null = null;
 
-    // ── Step 1: Backoffice Agent ──
-    const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
+    try {
+      // ── Step 1: Backoffice Agent ──
+      const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
 
-    // ── Step 2: Data Agent ──
-    await runDataAgent(
-      supabase, agent, ctx, backoffice,
-      agentConfig.business, agentConfig.qualification,
-    );
+      // ── Step 2: Data Agent ──
+      await runDataAgent(
+        supabase, agent, ctx, backoffice,
+        agentConfig.business, agentConfig.qualification,
+      );
 
-    // ── Step 3: Persona Agent (com tool calling) ──
-    const personaResult = await runPersonaAgent(
-      supabase, agent, ctx, backoffice,
-      agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
-      processedText,
-    );
-    const rawResponse = personaResult.response;
-    totalInputTokens += personaResult.inputTokens;
-    totalOutputTokens += personaResult.outputTokens;
+      // ── Step 3: Persona Agent (com tool calling) ──
+      const personaResult = await runPersonaAgent(
+        supabase, agent, ctx, backoffice,
+        agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
+        processedText,
+      );
+      const rawResponse = personaResult.response;
+      totalInputTokens += personaResult.inputTokens;
+      totalOutputTokens += personaResult.outputTokens;
 
-    // ── Step 4: Validator ──
-    const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
+      // ── Step 4: Validator ──
+      const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
 
-    // ── Step 5: Formatter ──
-    const messages = formatWhatsAppMessages(validatedResponse, maxBlocks);
+      // ── Step 5: Formatter ──
+      messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
+
+      // Override: se handoff_actions.transition_message está configurada e o agente
+      // chamou request_handoff neste turno, substituímos a resposta do LLM pela
+      // mensagem de transição customizada. Evita que o agente invente algo logo
+      // antes de passar pro humano.
+      if (ctx.handoff_triggered && agent.handoff_actions?.transition_message?.trim()) {
+        messages = [agent.handoff_actions.transition_message.trim()];
+        console.log(`[main] handoff transition_message override applied for agent ${agent.nome}`);
+      }
+    } catch (pipelineErr) {
+      pipelineErrorDetails = String(pipelineErr);
+      console.error(`[pipeline] fatal error in agent ${agent.nome}:`, pipelineErr);
+
+      // ── Fallback Chain ──
+      // 1. fallback_agent_id: tenta rodar o pipeline com outro agente (uma vez).
+      // 2. fallback_message: envia essa mensagem direto.
+      // 3. Default: mensagem genérica de segurança + dispara handoff para humano.
+      const fallbackAgentId = agent.fallback_agent_id;
+      if (fallbackAgentId && fallbackAgentId !== agent.id) {
+        console.log(`[fallback] trying fallback_agent_id=${fallbackAgentId}`);
+        try {
+          const { data: fbAgentRow } = await supabase
+            .from("ai_agents")
+            .select(
+              "id, org_id, nome, tipo, modelo, temperature, max_tokens, system_prompt, persona, " +
+              "routing_criteria, escalation_rules, memory_config, fallback_message, fallback_agent_id, " +
+              "n8n_webhook_url, template_id, is_template_based, ativa, handoff_signals, " +
+              "intelligent_decisions, prompts_extra, pipeline_models, timings, validator_rules, " +
+              "test_mode_phone_whitelist, multimodal_config, handoff_actions",
+            )
+            .eq("id", fallbackAgentId)
+            .eq("ativa", true)
+            .maybeSingle();
+          if (fbAgentRow) {
+            const fbAgent = fbAgentRow as AgentConfig;
+            const fbConfig = await loadAgentConfig(supabase, fbAgent.id, fbAgent);
+            const fbBackoffice = await runBackofficeAgent(fbAgent, ctx, fbConfig.business);
+            const fbPersona = await runPersonaAgent(
+              supabase, fbAgent, ctx, fbBackoffice,
+              fbConfig.business, fbConfig.qualification, fbConfig.scenarios,
+              processedText,
+            );
+            totalInputTokens += fbPersona.inputTokens;
+            totalOutputTokens += fbPersona.outputTokens;
+            const fbValidated = await runValidator(fbAgent, fbPersona.response, ctx, fbConfig.scenarios);
+            messages = await formatWhatsAppMessages(fbValidated, maxBlocks, fbAgent);
+            pipelineFellBack = true;
+            console.log(`[fallback] fallback_agent_id=${fbAgent.nome} succeeded`);
+          } else {
+            console.warn(`[fallback] fallback_agent_id=${fallbackAgentId} não encontrado ou inativo`);
+          }
+        } catch (fbErr) {
+          console.error(`[fallback] fallback_agent_id=${fallbackAgentId} também falhou:`, fbErr);
+        }
+      }
+
+      // Se ainda não temos mensagens (fallback_agent_id vazio ou também falhou)
+      if (messages.length === 0) {
+        const fbMsg = agent.fallback_message?.trim()
+          || "Desculpe, tive um problema aqui agora. Um humano vai te responder em instantes.";
+        messages = [fbMsg];
+        pipelineFellBack = true;
+        console.log(`[fallback] using fallback_message (length=${fbMsg.length})`);
+
+        // Dispara handoff silencioso — o card fica com ai_responsavel='humano'
+        // para alguém do time assumir.
+        if (ctx.card_id) {
+          await supabase.rpc("agent_request_handoff", {
+            p_card_id: ctx.card_id,
+            p_reason: "agente_sem_resposta",
+            p_context_summary: `Fallback disparado após erro no pipeline: ${pipelineErrorDetails?.substring(0, 200) || ""}`,
+          }).then(({ error }) => {
+            if (error) console.warn(`[fallback] handoff RPC failed:`, error.message);
+          });
+        }
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
 
@@ -2419,7 +2877,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
 
     return new Response(
       JSON.stringify({
@@ -2429,6 +2887,9 @@ serve(async (req) => {
         pipeline: agent.is_template_based ? "v2_5step" : "v1_single",
         messages_sent: messages.length,
         tokens: { input: totalInputTokens, output: totalOutputTokens },
+        fell_back: pipelineFellBack,
+        error_details: pipelineFellBack ? pipelineErrorDetails : undefined,
+        handoff_triggered: ctx.handoff_triggered || false,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
