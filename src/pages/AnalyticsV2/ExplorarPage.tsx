@@ -66,6 +66,8 @@ export default function ExplorarPage() {
       try {
         const state = JSON.parse(atob(stateB64)) as PivotState
         setPivot(state)
+        // Auto-executa ao abrir link compartilhado
+        void executeQuery(state.measure, state.group_by, state.cross_with, state.from, state.to)
       } catch {
         // Ignorar se inválido
       }
@@ -144,7 +146,7 @@ export default function ExplorarPage() {
         cross_with: iq.cross_with,
         from: iq.period.from,
         to: iq.period.to,
-        viz: iq.viz as any,
+        viz: iq.viz as PivotState['viz'],
       })
 
       await executeQuery(iq.measure, iq.group_by, iq.cross_with, iq.period.from, iq.period.to)
@@ -171,8 +173,8 @@ export default function ExplorarPage() {
     const csvRows = rows.map(r => [
       escapeCSV(String(r.dim1 ?? '')),
       pivot.cross_with ? escapeCSV(String(r.dim2 ?? '')) : null,
-      r.value ?? '',
-    ].filter(() => true))
+      escapeCSV(String(r.value ?? '')),
+    ].filter((v): v is string => v !== null))
 
     const csvContent = [
       headers.join(','),
@@ -361,7 +363,7 @@ export default function ExplorarPage() {
             <label className="text-xs font-medium text-slate-500 mb-1 block">Visualização</label>
             <select
               value={pivot.viz}
-              onChange={e => setPivot({ ...pivot, viz: e.target.value as any })}
+              onChange={e => setPivot({ ...pivot, viz: e.target.value as PivotState['viz'] })}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
             >
               <option value="table">Tabela</option>

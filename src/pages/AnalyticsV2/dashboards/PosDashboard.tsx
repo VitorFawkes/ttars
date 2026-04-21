@@ -26,10 +26,19 @@ export default function PosDashboard() {
   const { data: tasks } = useTaskCompletionByPerson()
   const { data: dropped } = useDroppedBalls(240)
 
-  const summary = readiness?.summary ?? { total_trips: 0, at_risk: 0, avg_readiness_pct: null, fully_ready: 0 }
-  const trips = (readiness?.trips ?? []) as Array<Record<string, unknown>>
+  const summary = useMemo(
+    () => readiness?.summary ?? { total_trips: 0, at_risk: 0, avg_readiness_pct: null, fully_ready: 0 },
+    [readiness],
+  )
+  const trips = useMemo(
+    () => (readiness?.trips ?? []) as Array<Record<string, unknown>>,
+    [readiness],
+  )
   const byPerson = (field?.by_person ?? []) as Array<{ user_id: string; user_name: string; cards: number; avg_score: number }>
-  const people = (tasks ?? []) as Array<Record<string, unknown>>
+  const people = useMemo(
+    () => (tasks ?? []) as Array<Record<string, unknown>>,
+    [tasks],
+  )
   const droppedCards = (dropped?.cards ?? []) as Array<Record<string, unknown>>
 
   const atRiskTrips = useMemo(() => trips.filter(t => t.at_risk === true), [trips])

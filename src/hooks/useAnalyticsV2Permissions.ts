@@ -63,9 +63,9 @@ export function useAnalyticsV2Permissions(): AnalyticsV2Permissions {
         break
 
       default:
-        // Fallback: usuário sem fase ou fase desconhecida → Dono (visibilidade reduzida)
+        // Fallback: usuário sem fase ou fase desconhecida → Explorar (evita loop de redirect em /analytics/v2)
         canSeeDashboards = ['explorar']
-        defaultDashboard = '/analytics/v2' // Meu painel adaptativo
+        defaultDashboard = '/analytics/v2/explorar'
         break
     }
   }

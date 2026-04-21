@@ -222,7 +222,7 @@ export default function VendasDashboard() {
                   <div className="text-sm text-slate-600 font-medium capitalize">{estado.replace(/_/g, ' ')}</div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="text-lg font-semibold text-slate-900">{(info as any).count}</div>
+                      <div className="text-lg font-semibold text-slate-900">{(info as { count: number }).count}</div>
                       <div className="text-xs text-slate-400">viagens</div>
                     </div>
                   </div>

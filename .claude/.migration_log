@@ -573,3 +573,12 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-21T14:50:16Z | supabase/migrations/20260424c_analytics_v2_explorer.sql | applied_to_prod
 2026-04-21T15:09:40Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260421h_cards_ai_pause_config.sql | applied_to_prod
 2026-04-21T15:30:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260421i_ai_agent_health_views.sql | applied_to_prod
+2026-04-21T20:19:10Z | supabase/migrations/20260421h_analytics_v2_dono_widgets.sql | applied_to_prod
+2026-04-21T20:19:24Z | supabase/migrations/20260421i_analytics_v2_comercial_widgets.sql | applied_to_prod
+2026-04-21T20:19:38Z | supabase/migrations/20260421l_analytics_v2_vendas_widgets.sql | applied_to_prod
+2026-04-21T20:19:51Z | supabase/migrations/20260425a_dono_widgets_rpcs.sql | applied_to_prod
+2026-04-21T20:20:12Z | supabase/migrations/20260425b_analytics_targets_table.sql | applied_to_prod
+2026-04-21T20:20:25Z | supabase/migrations/20260425c_vendas_widgets.sql | applied_to_prod
+2026-04-21T20:20:41Z | supabase/migrations/20260425d_pos_widgets.sql | applied_to_prod
+2026-04-21T20:20:53Z | supabase/migrations/20260425e_sdr_widgets.sql | applied_to_prod
+2026-04-21T20:21:07Z | supabase/migrations/20260425f_analytics_saved_views.sql | applied_to_prod

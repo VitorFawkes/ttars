@@ -169,7 +169,8 @@ export function useFieldCompleteness(ctx: 'sdr' | 'vendas' | 'pos' | 'dono' = 'd
 
 export function useLeadEntryPathBreakdown() {
   const f = useFilters()
-  const { p_lead_entry_path: _drop, ...filtered } = f
+  const { p_lead_entry_path: _unused, ...filtered } = f
+  void _unused
   return useQuery({
     queryKey: ['av2', 'lead_entry_path_breakdown', filtered],
     queryFn: async () => {
@@ -324,7 +325,6 @@ export function useLossReasonsV2() {
       const { data, error } = await rpcComercial('analytics_loss_reasons_v2', f)
       if (error) throw error
       return data as {
-        total_lost: number
         reasons: Array<{ reason: string; count: number; total_valor: number }>
       } | null
     },
@@ -341,8 +341,8 @@ export function useConversionByTicket() {
       if (error) throw error
       return data as {
         data: Array<{
-          origem: string
-          total_leads: number
+          source: string
+          total: number
           won: number
           conversion_pct: number
           avg_ticket: number
