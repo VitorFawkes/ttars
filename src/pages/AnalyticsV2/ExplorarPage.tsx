@@ -153,8 +153,135 @@ export default function ExplorarPage() {
         </div>
       )}
 
+      <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-slate-900 mb-4">Pivot Manual</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Métrica</label>
+            <select
+              value={pivot.measure}
+              onChange={e => setPivot({ ...pivot, measure: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="count_cards"># de cards</option>
+              <option value="sum_revenue">Receita total</option>
+              <option value="avg_ticket">Ticket médio</option>
+              <option value="count_ganho_sdr"># handoffs SDR</option>
+              <option value="count_ganho_planner"># ganhos Planner</option>
+              <option value="conversion_planner_pct">% conversão</option>
+              <option value="avg_quality_score">Score qualidade médio</option>
+              <option value="avg_days_to_planner_win">Dias até ganho</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Agrupar por</label>
+            <select
+              value={pivot.group_by}
+              onChange={e => setPivot({ ...pivot, group_by: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="stage">Etapa</option>
+              <option value="owner">Dono</option>
+              <option value="sdr_owner">SDR</option>
+              <option value="planner_owner">Planner</option>
+              <option value="phase">Seção</option>
+              <option value="origem">Origem</option>
+              <option value="destino">Destino</option>
+              <option value="month">Mês</option>
+              <option value="week">Semana</option>
+              <option value="day">Dia</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Cruzar com</label>
+            <select
+              value={pivot.cross_with ?? ''}
+              onChange={e => setPivot({ ...pivot, cross_with: e.target.value || null })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="">— Nenhum —</option>
+              <option value="stage">Etapa</option>
+              <option value="owner">Dono</option>
+              <option value="origem">Origem</option>
+              <option value="month">Mês</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Visualização</label>
+            <select
+              value={pivot.viz}
+              onChange={e => setPivot({ ...pivot, viz: e.target.value as any })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="table">Tabela</option>
+              <option value="bar">Gráfico de barras</option>
+              <option value="line">Linha</option>
+              <option value="heatmap">Heatmap</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">De</label>
+            <input
+              type="date"
+              value={pivot.from}
+              onChange={e => setPivot({ ...pivot, from: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Até</label>
+            <input
+              type="date"
+              value={pivot.to}
+              onChange={e => setPivot({ ...pivot, to: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleExecutePivot}
+          disabled={loading}
+          className="w-full px-4 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
+          Executar
+        </button>
+      </div>
+
       {rows && (
         <WidgetCard title="Resultado" subtitle={`${rows.length} ${rows.length === 1 ? 'linha' : 'linhas'}`}>
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={downloadCSV}
+              disabled={rows.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
+            <button
+              onClick={shareLink}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100"
+            >
+              <Link2 className="w-4 h-4" />
+              Compartilhar
+            </button>
+            <button
+              onClick={() => setShowSaveModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100"
+            >
+              <Save className="w-4 h-4" />
+              Salvar visão
+            </button>
+          </div>
+
           {rows.length === 0 ? (
             <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem resultados para esta consulta</div>
           ) : (
@@ -162,16 +289,16 @@ export default function ExplorarPage() {
               <table className="w-full text-sm">
                 <thead className="text-slate-500 text-xs">
                   <tr className="border-b border-slate-100">
-                    <th className="text-left py-2 font-medium">{interpreted?.group_by ?? 'dim1'}</th>
-                    {interpreted?.cross_with && <th className="text-left py-2 font-medium">{interpreted.cross_with}</th>}
-                    <th className="text-right py-2 font-medium">{interpreted?.measure ?? 'value'}</th>
+                    <th className="text-left py-2 font-medium">{pivot.group_by}</th>
+                    {pivot.cross_with && <th className="text-left py-2 font-medium">{pivot.cross_with}</th>}
+                    <th className="text-right py-2 font-medium">{pivot.measure}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={i} className="border-b border-slate-50 last:border-0">
                       <td className="py-2 font-medium text-slate-900">{String(r.dim1 ?? '—')}</td>
-                      {interpreted?.cross_with && <td className="py-2 text-slate-600">{String(r.dim2 ?? '—')}</td>}
+                      {pivot.cross_with && <td className="py-2 text-slate-600">{String(r.dim2 ?? '—')}</td>}
                       <td className="py-2 text-right text-slate-700 tabular-nums">
                         {r.value == null ? '—' : typeof r.value === 'number' ? r.value.toLocaleString('pt-BR') : r.value}
                       </td>
@@ -182,6 +309,69 @@ export default function ExplorarPage() {
             </div>
           )}
         </WidgetCard>
+      )}
+
+      {views.length > 0 && (
+        <WidgetCard title="Visões Salvas" subtitle={`${views.length} ${views.length === 1 ? 'visão' : 'visões'}`}>
+          <div className="space-y-2">
+            {views.map(v => (
+              <div key={v.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group hover:bg-slate-100">
+                <button
+                  onClick={() => {
+                    setPivot(v.query_spec)
+                    handleExecutePivot()
+                  }}
+                  className="text-sm font-medium text-slate-900 hover:text-indigo-600 flex-1 text-left"
+                >
+                  {v.name}
+                </button>
+                <button
+                  onClick={() => deleteView(v.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
+                >
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </WidgetCard>
+      )}
+
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 rounded-lg">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Salvar Visão</h2>
+            <input
+              type="text"
+              value={saveName}
+              onChange={e => setSaveName(e.target.value)}
+              placeholder="Nome da visão"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <input
+              type="text"
+              value={saveDescription}
+              onChange={e => setSaveDescription(e.target.value)}
+              placeholder="Descrição (opcional)"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveView}
+                disabled={savingView || !saveName.trim()}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {savingView ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

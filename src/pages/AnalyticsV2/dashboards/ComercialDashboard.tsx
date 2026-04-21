@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DollarSign, Target, TrendingUp, Clock, AlertTriangle, Zap, Users } from 'lucide-react'
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ScatterChart, Scatter,
 } from 'recharts'
 import KpiCard from '@/components/analytics/KpiCard'
 import WidgetCard from '../WidgetCard'
@@ -9,7 +9,9 @@ import AlertsPanel, { type AlertItem } from '../AlertsPanel'
 import CardTimelineDrawer from '../CardTimelineDrawer'
 import {
   useOverviewKpisV2, useRevenueTimeseriesV2, useStageConversion, useReworkRate,
-  useHandoffSpeed, useWhatsappSpeedV2, useDroppedBalls,
+  useHandoffSpeed, useWhatsappSpeedV2, useDroppedBalls, useCadenceCompliance,
+  useForecastPonderado, useLossReasonsV2, useConversionByTicket,
+  useStageVelocityPercentiles, useQualityScoreV2,
 } from '@/hooks/analyticsV2/useAnalyticsV2Rpcs'
 import { useAnalyticsV2Filters } from '@/hooks/analyticsV2/useAnalyticsV2Filters'
 
@@ -43,6 +45,12 @@ export default function ComercialDashboard() {
   const { data: handoff } = useHandoffSpeed()
   const { data: whatsapp } = useWhatsappSpeedV2()
   const { data: dropped } = useDroppedBalls(240)
+  const { data: forecast } = useForecastPonderado()
+  const { data: lossReasons } = useLossReasonsV2()
+  const { data: convByTicket } = useConversionByTicket()
+  const { data: stageVelocity } = useStageVelocityPercentiles()
+  const { data: cadence } = useCadenceCompliance()
+  const { data: qualityScore } = useQualityScoreV2('comercial')
 
   const chartData = useMemo(() => (timeseries ?? []).map(p => ({
     period: p.period,
@@ -314,6 +322,173 @@ export default function ComercialDashboard() {
               </tbody>
             </table>
           </div>
+        )}
+      </WidgetCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <WidgetCard title="Forecast ponderado" subtitle="Probabilidade × valor por etapa">
+          {forecast ? (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <div>
+                  <p className="text-xs text-slate-500">30 dias</p>
+                  <p className="text-lg font-semibold text-slate-900">{formatBRL(forecast.forecast_30d as number)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">60 dias</p>
+                  <p className="text-lg font-semibold text-slate-900">{formatBRL(forecast.forecast_60d as number)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">90 dias</p>
+                  <p className="text-lg font-semibold text-slate-900">{formatBRL(forecast.forecast_90d as number)}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-24 flex items-center justify-center text-sm text-slate-400">Sem dados</div>
+          )}
+        </WidgetCard>
+
+        <WidgetCard title="Motivos de perda" subtitle="Distribuição de cards perdidos">
+          {lossReasons?.reasons && lossReasons.reasons.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-slate-500">
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-2 font-medium">Motivo</th>
+                    <th className="text-right py-2 font-medium">Qtd</th>
+                    <th className="text-right py-2 font-medium">%</th>
+                    <th className="text-right py-2 font-medium">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lossReasons.reasons.slice(0, 8).map((row, i) => {
+                    const total = lossReasons.reasons.reduce((s, r) => s + (r.count ?? 0), 0)
+                    const pct = total > 0 ? ((row.count ?? 0) / total) * 100 : 0
+                    return (
+                      <tr key={i} className="border-b border-slate-50 last:border-0">
+                        <td className="py-2 text-slate-900 font-medium">{String(row.reason ?? '—')}</td>
+                        <td className="py-2 text-right text-slate-600">{String(row.count ?? 0)}</td>
+                        <td className="py-2 text-right text-slate-600">{pct.toFixed(1)}%</td>
+                        <td className="py-2 text-right text-slate-600">{formatBRL(row.total_valor as number)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-56 flex items-center justify-center text-sm text-slate-400">Sem perdas no período</div>
+          )}
+        </WidgetCard>
+      </div>
+
+      <WidgetCard title="Conversão × Ticket por fonte" subtitle="Scatter: x=conversão%, y=ticket médio, tamanho=volume">
+        {convByTicket?.data && convByTicket.data.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <ScatterChart margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="conversion_pct" name="Conversão %" type="number" tick={{ fontSize: 12, fill: '#64748b' }} stroke="#cbd5e1" />
+              <YAxis dataKey="avg_ticket" name="Ticket médio" type="number" tick={{ fontSize: 12, fill: '#64748b' }} stroke="#cbd5e1"
+                tickFormatter={(v) => new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(v as number)} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}
+                cursor={{ strokeDasharray: '3 3' }}
+                formatter={(v: number, n: string) => {
+                  if (n === 'avg_ticket') return [formatBRL(v), 'Ticket médio']
+                  if (n === 'conversion_pct') return [formatPct(v), 'Conversão']
+                  return [String(v), String(n)]
+                }}
+              />
+              <Scatter name="Fontes" dataKey="won" data={convByTicket.data} fill="#6366f1" />
+            </ScatterChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-80 flex items-center justify-center text-sm text-slate-400">Sem dados de conversão</div>
+        )}
+      </WidgetCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <WidgetCard title="Velocidade por etapa (P50/P75)" subtitle="Mediana e 75º percentil de dias em cada etapa">
+          {stageVelocity?.stages && stageVelocity.stages.length > 0 ? (
+            <div className="space-y-3">
+              {stageVelocity.stages.slice(0, 8).map(s => (
+                <div key={s.stage_id}>
+                  <div className="flex justify-between mb-1">
+                    <p className="text-xs font-medium text-slate-700">{s.stage_name}</p>
+                    <p className="text-xs text-slate-500">{s.card_count} cards</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <div className="bg-indigo-100 rounded px-2 py-1 text-center text-xs">
+                        <p className="text-slate-600">P50</p>
+                        <p className="font-semibold text-indigo-700">{s.p50_days.toFixed(1)}d</p>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="bg-indigo-200 rounded px-2 py-1 text-center text-xs">
+                        <p className="text-slate-600">P75</p>
+                        <p className="font-semibold text-indigo-900">{s.p75_days.toFixed(1)}d</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-56 flex items-center justify-center text-sm text-slate-400">Sem movimentos no período</div>
+          )}
+        </WidgetCard>
+
+        <WidgetCard title="Cadência compliance" subtitle="% de passos executados no prazo">
+          {cadence ? (
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs text-slate-500">Compliance geral</p>
+                <p className="text-2xl font-bold text-slate-900">{formatPct(cadence.overall?.compliance_pct as number)}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {cadence.overall?.first_try_pct != null ? `${Number(cadence.overall.first_try_pct).toFixed(0)}% na 1ª tentativa` : '—'}
+                </p>
+              </div>
+              {cadence.by_template && cadence.by_template.length > 0 && (
+                <div className="border-t border-slate-100 pt-3">
+                  <p className="text-xs font-medium text-slate-700 mb-2">Por template</p>
+                  <div className="space-y-2">
+                    {(cadence.by_template as Array<Record<string, unknown>>).slice(0, 5).map((t, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span className="text-slate-600">{String(t.template_name ?? '—')}</span>
+                        <span className="font-medium text-slate-900">{formatPct(t.compliance_pct as number | null)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-56 flex items-center justify-center text-sm text-slate-400">Sem dados de cadência</div>
+          )}
+        </WidgetCard>
+      </div>
+
+      <WidgetCard title="Quality score global" subtitle="Média ponderada da completude de campos e validações">
+        {qualityScore ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-4xl font-bold text-indigo-600">{Number(qualityScore.overall_avg_score).toFixed(0)}</p>
+              <p className="text-sm text-slate-600">Score médio %</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-emerald-600">{qualityScore.high_quality_count}</p>
+              <p className="text-sm text-slate-600">Cards alta qualidade</p>
+              <p className="text-xs text-slate-500 mt-1">{formatPct(qualityScore.high_quality_pct as number)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-slate-600">{qualityScore.total_cards}</p>
+              <p className="text-sm text-slate-600">Total cards</p>
+            </div>
+          </div>
+        ) : (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem dados de qualidade</div>
         )}
       </WidgetCard>
 
