@@ -15,9 +15,13 @@ export interface PipelineModelConfig {
 export type PipelineModelKey = 'main' | 'formatter' | 'validator' | 'context' | 'data'
 
 export interface MemoryConfig {
-  tipo: 'buffer_window' | 'vector'
-  session_key_template: string
-  window_size: number
+  // Campos efetivamente consumidos pelo ai-agent-router (linhas 754-755 do router).
+  max_history_turns?: number
+  short_term_turns?: number
+  // Campos legacy mantidos só para não quebrar writes de registros antigos.
+  tipo?: 'buffer_window' | 'vector'
+  session_key_template?: string
+  window_size?: number
 }
 
 export interface MultimodalConfig {
@@ -173,9 +177,8 @@ export const DEFAULT_PIPELINE_MODELS: Record<PipelineModelKey, PipelineModelConf
 }
 
 export const DEFAULT_MEMORY: MemoryConfig = {
-  tipo: 'buffer_window',
-  session_key_template: '{{telefone}}|{{card_id}}',
-  window_size: 20,
+  max_history_turns: 30,
+  short_term_turns: 10,
 }
 
 export const DEFAULT_MULTIMODAL: MultimodalConfig = {

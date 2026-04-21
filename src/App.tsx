@@ -106,6 +106,7 @@ import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
 import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
 import AiAgentConversationsPage from './pages/admin/AiAgentConversationsPage'
 import AiAgentAnalyticsPage from './pages/admin/AiAgentAnalyticsPage'
+import AiAgentHealthPage from './pages/admin/AiAgentHealthPage'
 import AiAgentBuilderWizard from './pages/admin/AiAgentBuilderWizard'
 import OutboundQueuePage from './pages/admin/OutboundQueuePage'
 import { lazy, Suspense } from 'react'
@@ -327,6 +328,7 @@ function App() {
                     <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />
                     <Route path="ai-agents/analytics" element={<AiAgentAnalyticsPage />} />
+                    <Route path="ai-agents/health" element={<AiAgentHealthPage />} />
                     <Route path="ai-agents/outbound-queue" element={<OutboundQueuePage />} />
 
                     {/* Redirects legacy /settings/cadence → /settings/automations (Fase 2) */}

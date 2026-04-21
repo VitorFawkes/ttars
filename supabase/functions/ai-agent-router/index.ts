@@ -37,6 +37,17 @@ interface IncomingMessage {
 }
 
 // C3 — blocos dinâmicos injetados no prompt a partir da config do agente
+// Devolve o label visível do papel secundário (ex: "viajante" em Trips,
+// "acompanhante"/"convidado" em Wedding). Lê business.secondary_contact_role_name
+// com fallback "viajante" — mantido em pt-BR porque todo o prompt está em pt-BR.
+// Internamente o código continua usando a string "traveler" como identificador
+// técnico (decoupled do label visível pra não quebrar queries/filters existentes).
+function secondaryRoleLabel(business: BusinessConfig | null | undefined): string {
+  const raw = business?.secondary_contact_role_name?.trim();
+  if (raw && raw !== "traveler") return raw;
+  return "viajante";
+}
+
 function buildHandoffBlock(agent: AgentConfig): string {
   const signals = agent.handoff_signals?.filter(s => s.enabled) ?? [];
   if (signals.length === 0) return "";
@@ -85,6 +96,13 @@ interface AgentConfig {
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null;
   test_mode_phone_whitelist?: string[] | null;
   multimodal_config?: { audio?: boolean; image?: boolean; pdf?: boolean } | null;
+  handoff_actions?: {
+    change_stage_id?: string | null;
+    apply_tag?: { color?: string; name?: string } | null;
+    notify_responsible?: boolean;
+    transition_message?: string | null;
+    pause_permanently?: boolean;
+  } | null;
 }
 
 interface BusinessCustomBlock {
@@ -166,6 +184,10 @@ interface ConversationContext {
   sdr_owner_id: string | null;
   pessoa_principal_nome: string | null;
   form_data: Record<string, string>;
+  // Set by executeToolCall when request_handoff is invoked; main loop
+  // reads this to apply handoff_actions (stage change, tag, notification,
+  // transition_message override).
+  handoff_triggered?: boolean;
 }
 
 interface BackofficeOutput {
@@ -410,7 +432,8 @@ async function findAgentForLine(
         n8n_webhook_url, template_id, is_template_based, ativa,
         handoff_signals, intelligent_decisions, prompts_extra,
         pipeline_models, timings, validator_rules,
-        test_mode_phone_whitelist, multimodal_config
+        test_mode_phone_whitelist, multimodal_config,
+        handoff_actions
       )
     `)
     .in("phone_line_id", lineIds)
@@ -1096,6 +1119,83 @@ async function loadAgentTools(
   return filtered;
 }
 
+// Aplica as handoff_actions configuradas no agente quando request_handoff é chamada.
+// Cada ação é best-effort: falhas individuais são logadas mas não abortam o fluxo,
+// pois o handoff principal (ai_responsavel='humano') já foi registrado pela RPC.
+// A mensagem de transição fica guardada no ctx para o formatter usar como override.
+async function applyHandoffActions(
+  supabase: SupabaseClient,
+  agent: AgentConfig,
+  ctx: ConversationContext,
+): Promise<void> {
+  const actions = agent.handoff_actions;
+  if (!actions || !ctx.card_id) {
+    ctx.handoff_triggered = true;
+    return;
+  }
+
+  ctx.handoff_triggered = true;
+
+  // 1. Mover card para etapa configurada
+  if (actions.change_stage_id) {
+    const { error: stageErr } = await supabase
+      .from("cards")
+      .update({ pipeline_stage_id: actions.change_stage_id, updated_at: new Date().toISOString() })
+      .eq("id", ctx.card_id);
+    if (stageErr) {
+      console.warn(`[handoff_actions] change_stage_id failed:`, stageErr.message);
+    } else {
+      console.log(`[handoff_actions] card ${ctx.card_id} moved to stage ${actions.change_stage_id}`);
+    }
+  }
+
+  // 2. Aplicar tag
+  if (actions.apply_tag?.name) {
+    const { error: tagErr } = await supabase.rpc("agent_assign_tag", {
+      p_card_id: ctx.card_id,
+      p_tag_name: actions.apply_tag.name,
+      p_tag_color: actions.apply_tag.color || "#f59e0b",
+    });
+    if (tagErr) {
+      console.warn(`[handoff_actions] apply_tag failed:`, tagErr.message);
+    } else {
+      console.log(`[handoff_actions] tag "${actions.apply_tag.name}" applied to card ${ctx.card_id}`);
+    }
+  }
+
+  // 3. Notificar o responsável
+  if (actions.notify_responsible && ctx.sdr_owner_id) {
+    const { error: notifErr } = await supabase.from("notifications").insert({
+      user_id: ctx.sdr_owner_id,
+      type: "ai_handoff",
+      title: `${agent.nome} pediu handoff`,
+      body: `Conversa com ${ctx.contact_name || "contato"} precisa de humano no card "${ctx.card_titulo || ctx.card_id}".`,
+      card_id: ctx.card_id,
+      org_id: agent.org_id,
+      metadata: { source: "ai_agent_router", agent_id: agent.id },
+    });
+    if (notifErr) {
+      console.warn(`[handoff_actions] notify_responsible failed:`, notifErr.message);
+    }
+  }
+
+  // 4. Pause permanently — marcar no card via flag em ai_pause_config (se coluna existir).
+  //    Atualmente ai_responsavel='humano' já pausa o agente até alguém zerar. Se a empresa
+  //    quer pause permanente, gravamos a flag para evitar que um fluxo automático
+  //    (ex: novo card) reative o agente sem intervenção humana.
+  if (actions.pause_permanently) {
+    const { error: pauseErr } = await supabase
+      .from("cards")
+      .update({
+        ai_pause_config: { permanent: true, reason: "handoff_permanent", paused_at: new Date().toISOString() },
+      })
+      .eq("id", ctx.card_id);
+    if (pauseErr && !pauseErr.message.includes("ai_pause_config")) {
+      console.warn(`[handoff_actions] pause_permanently failed:`, pauseErr.message);
+    }
+  }
+}
+
 async function executeToolCall(
   supabase: SupabaseClient,
   toolName: string,
@@ -1217,6 +1317,14 @@ async function executeToolCall(
         result = handoffErr
           ? JSON.stringify({ error: handoffErr.message })
           : JSON.stringify(handoffResult || { success: true });
+
+        // Aplicar handoff_actions configuradas (safety net). Falhas individuais
+        // são logadas mas não interrompem — handoff principal já foi registrado
+        // e ai_responsavel='humano' pausa o agente.
+        const ok = !handoffErr && (handoffResult as { success?: boolean } | null)?.success !== false;
+        if (ok) {
+          await applyHandoffActions(supabase, agent, ctx);
+        }
         break;
       }
 
@@ -1432,6 +1540,8 @@ async function runBackofficeAgent(
   // Agent.prompts_extra.context tem prioridade (paridade Julia).
   // Se vazio, cai no hardcoded default.
   const customContext = agent.prompts_extra?.context;
+  const roleLabel = secondaryRoleLabel(business);
+  const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
   const dataBlock = `
 
 ## Dados deste turno (injetados pelo runtime)
@@ -1440,6 +1550,7 @@ async function runBackofficeAgent(
 - ai_contexto atual: ${ctx.ai_contexto || "(vazio)"}
 - Papel do remetente (contact_role): ${ctx.contact_role}
 - Nome: ${ctx.contact_name}
+- Label do papel secundário: "${roleLabel}" (use esse termo ao referir-se a quem não é o cliente principal)
 
 Responda SEMPRE em JSON único conforme a saída pedida acima.`;
 
@@ -1457,7 +1568,7 @@ Dados:
 REGRAS:
 1. Atualize ai_resumo APENAS com fatos EXPLICITAMENTE ditos pelo cliente
 2. Atualize ai_contexto com sequencia cronologica dos eventos
-3. Se contact_role = "traveler": prefixe com [Viajante: ${ctx.contact_name}]
+3. Se contact_role = "traveler": prefixe com [${roleLabelCap}: ${ctx.contact_name}]
 4. NUNCA invente, infira ou assuma
 5. Se nada mudou, mantenha textos identicos ao atual
 6. Em primeiro contato generico: NAO altere ai_resumo, apenas ai_contexto
@@ -1617,7 +1728,7 @@ Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}
 ## Contexto
 - Card ID: ${ctx.card_id}
 - Contato ID: ${ctx.contato_id}
-- Role: ${isTraveler ? "traveler (viajante — NAO avance stage, NAO edite titulo, so dados pessoais do viajante)" : "primary"}
+- Role: ${isTraveler ? `traveler (${secondaryRoleLabel(business)} — NAO avance stage, NAO edite titulo, so dados pessoais do ${secondaryRoleLabel(business)})` : "primary"}
 - Stage atual: ${ctx.pipeline_stage_id || "(nao definido)"}
 - ai_resumo atual: ${backoffice.ai_resumo || "(vazio)"}
 - ai_contexto atual: ${backoffice.ai_contexto || "(vazio)"}
@@ -1870,12 +1981,16 @@ ${processStepsBlock}
 
 ${formDataText ? `DADOS JA PREENCHIDOS (NAO RE-PERGUNTE):\n${formDataText}\nSe ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
 
-${backoffice.detected_role === "traveler" ? `COMPORTAMENTO TRAVELER:
-1. Cumprimente pelo nome do viajante
-2. Referencie "a viagem com ${ctx.pessoa_principal_nome}"
+${backoffice.detected_role === "traveler" ? (() => {
+  const roleLabel = secondaryRoleLabel(business);
+  const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
+  return `COMPORTAMENTO ${roleLabel.toUpperCase()}:
+1. Cumprimente pelo nome do ${roleLabel}
+2. Referencie "a ${business?.company_name?.toLowerCase().includes("wedding") ? "celebração" : "viagem"} com ${ctx.pessoa_principal_nome}"
 3. NUNCA peca taxa/pagamento/reuniao
 4. PODE coletar: ${business?.secondary_contact_fields?.join(", ") || "passaporte, CPF, data nascimento"}
-5. NUNCA desqualifique traveler` : ""}
+5. NUNCA desqualifique ${roleLabelCap}`;
+})() : ""}
 
 ${business?.methodology_text ? `O QUE OFERECEMOS:\n${business.methodology_text}` : ""}
 
@@ -2631,31 +2746,112 @@ serve(async (req) => {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let messages: string[] = [];
+    let pipelineFellBack = false;
+    let pipelineErrorDetails: string | null = null;
 
-    // ── Step 1: Backoffice Agent ──
-    const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
+    try {
+      // ── Step 1: Backoffice Agent ──
+      const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
 
-    // ── Step 2: Data Agent ──
-    await runDataAgent(
-      supabase, agent, ctx, backoffice,
-      agentConfig.business, agentConfig.qualification,
-    );
+      // ── Step 2: Data Agent ──
+      await runDataAgent(
+        supabase, agent, ctx, backoffice,
+        agentConfig.business, agentConfig.qualification,
+      );
 
-    // ── Step 3: Persona Agent (com tool calling) ──
-    const personaResult = await runPersonaAgent(
-      supabase, agent, ctx, backoffice,
-      agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
-      processedText,
-    );
-    const rawResponse = personaResult.response;
-    totalInputTokens += personaResult.inputTokens;
-    totalOutputTokens += personaResult.outputTokens;
+      // ── Step 3: Persona Agent (com tool calling) ──
+      const personaResult = await runPersonaAgent(
+        supabase, agent, ctx, backoffice,
+        agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
+        processedText,
+      );
+      const rawResponse = personaResult.response;
+      totalInputTokens += personaResult.inputTokens;
+      totalOutputTokens += personaResult.outputTokens;
 
-    // ── Step 4: Validator ──
-    const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
+      // ── Step 4: Validator ──
+      const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
 
-    // ── Step 5: Formatter ──
-    const messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
+      // ── Step 5: Formatter ──
+      messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
+
+      // Override: se handoff_actions.transition_message está configurada e o agente
+      // chamou request_handoff neste turno, substituímos a resposta do LLM pela
+      // mensagem de transição customizada. Evita que o agente invente algo logo
+      // antes de passar pro humano.
+      if (ctx.handoff_triggered && agent.handoff_actions?.transition_message?.trim()) {
+        messages = [agent.handoff_actions.transition_message.trim()];
+        console.log(`[main] handoff transition_message override applied for agent ${agent.nome}`);
+      }
+    } catch (pipelineErr) {
+      pipelineErrorDetails = String(pipelineErr);
+      console.error(`[pipeline] fatal error in agent ${agent.nome}:`, pipelineErr);
+
+      // ── Fallback Chain ──
+      // 1. fallback_agent_id: tenta rodar o pipeline com outro agente (uma vez).
+      // 2. fallback_message: envia essa mensagem direto.
+      // 3. Default: mensagem genérica de segurança + dispara handoff para humano.
+      const fallbackAgentId = agent.fallback_agent_id;
+      if (fallbackAgentId && fallbackAgentId !== agent.id) {
+        console.log(`[fallback] trying fallback_agent_id=${fallbackAgentId}`);
+        try {
+          const { data: fbAgentRow } = await supabase
+            .from("ai_agents")
+            .select(
+              "id, org_id, nome, tipo, modelo, temperature, max_tokens, system_prompt, persona, " +
+              "routing_criteria, escalation_rules, memory_config, fallback_message, fallback_agent_id, " +
+              "n8n_webhook_url, template_id, is_template_based, ativa, handoff_signals, " +
+              "intelligent_decisions, prompts_extra, pipeline_models, timings, validator_rules, " +
+              "test_mode_phone_whitelist, multimodal_config, handoff_actions",
+            )
+            .eq("id", fallbackAgentId)
+            .eq("ativa", true)
+            .maybeSingle();
+          if (fbAgentRow) {
+            const fbAgent = fbAgentRow as AgentConfig;
+            const fbConfig = await loadAgentConfig(supabase, fbAgent.id, fbAgent);
+            const fbBackoffice = await runBackofficeAgent(fbAgent, ctx, fbConfig.business);
+            const fbPersona = await runPersonaAgent(
+              supabase, fbAgent, ctx, fbBackoffice,
+              fbConfig.business, fbConfig.qualification, fbConfig.scenarios,
+              processedText,
+            );
+            totalInputTokens += fbPersona.inputTokens;
+            totalOutputTokens += fbPersona.outputTokens;
+            const fbValidated = await runValidator(fbAgent, fbPersona.response, ctx, fbConfig.scenarios);
+            messages = await formatWhatsAppMessages(fbValidated, maxBlocks, fbAgent);
+            pipelineFellBack = true;
+            console.log(`[fallback] fallback_agent_id=${fbAgent.nome} succeeded`);
+          } else {
+            console.warn(`[fallback] fallback_agent_id=${fallbackAgentId} não encontrado ou inativo`);
+          }
+        } catch (fbErr) {
+          console.error(`[fallback] fallback_agent_id=${fallbackAgentId} também falhou:`, fbErr);
+        }
+      }
+
+      // Se ainda não temos mensagens (fallback_agent_id vazio ou também falhou)
+      if (messages.length === 0) {
+        const fbMsg = agent.fallback_message?.trim()
+          || "Desculpe, tive um problema aqui agora. Um humano vai te responder em instantes.";
+        messages = [fbMsg];
+        pipelineFellBack = true;
+        console.log(`[fallback] using fallback_message (length=${fbMsg.length})`);
+
+        // Dispara handoff silencioso — o card fica com ai_responsavel='humano'
+        // para alguém do time assumir.
+        if (ctx.card_id) {
+          await supabase.rpc("agent_request_handoff", {
+            p_card_id: ctx.card_id,
+            p_reason: "agente_sem_resposta",
+            p_context_summary: `Fallback disparado após erro no pipeline: ${pipelineErrorDetails?.substring(0, 200) || ""}`,
+          }).then(({ error }) => {
+            if (error) console.warn(`[fallback] handoff RPC failed:`, error.message);
+          });
+        }
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
 
@@ -2691,6 +2887,9 @@ serve(async (req) => {
         pipeline: agent.is_template_based ? "v2_5step" : "v1_single",
         messages_sent: messages.length,
         tokens: { input: totalInputTokens, output: totalOutputTokens },
+        fell_back: pipelineFellBack,
+        error_details: pipelineFellBack ? pipelineErrorDetails : undefined,
+        handoff_triggered: ctx.handoff_triggered || false,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

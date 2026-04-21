@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-21
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 181 tabelas | 98 paginas | 146 hooks | 17 views | 570 components
+> **Stats:** 181 tabelas | 99 paginas | 147 hooks | 19 views | 570 components
 =======
-> **Stats:** 181 tabelas | 98 paginas | 146 hooks | 17 views | 570 components
+> **Stats:** 181 tabelas | 99 paginas | 147 hooks | 19 views | 570 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **146 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **147 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -182,6 +182,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtract()` | `useAIExtract.ts` |
 | `useAIExtraction()` | `useAIExtraction.ts` |
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
+| `useAiAgentHealth()` | `useAiAgentHealth.ts` |
 | `useAiAgentHubStats()` | `useAiAgentHubStats.ts` |
 | `useAiAgents()` | `useAiAgents.ts` |
 | `useAiConversations()` | `useAiConversations.ts` |
@@ -394,7 +395,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **98 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **99 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -433,6 +434,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AiAgentBuilderWizard` | `src/pages/admin/AiAgentBuilderWizard.tsx` |
 | `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
 | `AiAgentDetailPage` | `src/pages/admin/AiAgentDetailPage.tsx` |
+| `AiAgentHealthPage` | `src/pages/admin/AiAgentHealthPage.tsx` |
 | `AiAgentListPage` | `src/pages/admin/AiAgentListPage.tsx` |
 | `AiKnowledgeBasePage` | `src/pages/admin/AiKnowledgeBasePage.tsx` |
 | `AiSkillManagerPage` | `src/pages/admin/AiSkillManagerPage.tsx` |
