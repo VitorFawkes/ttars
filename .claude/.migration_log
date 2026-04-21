@@ -561,3 +561,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-20T21:36:55Z | supabase/migrations/20260423c_analytics_v2_helpers.sql | applied_to_prod
 2026-04-20T21:36:59Z | supabase/migrations/20260421h_ai_message_buffer_media_metadata.sql | applied_to_prod
 2026-04-20T21:39:38Z | supabase/migrations/20260423d_analytics_v2_rpcs.sql | applied_to_prod
+2026-04-20T21:42:45Z | supabase/migrations/20260421i_ai_message_buffer_auto_org_id.sql | applied_to_prod
+2026-04-21T14:22:50Z | supabase/migrations/20260423e_analytics_v2_rpcs_part2.sql | applied_to_prod
