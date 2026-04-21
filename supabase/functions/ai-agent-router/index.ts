@@ -759,17 +759,17 @@ async function buildConversationContext(
   // Carregar mensagens WhatsApp do contato (como Julia faz)
   const { data: contact } = await supabase
     .from("contatos")
-    .select("id, nome, sobrenome, email, cpf, passaporte, data_nascimento, pessoa_principal_id")
+    .select("id, nome, sobrenome, email, cpf, passaporte, data_nascimento")
     .eq("id", contactId)
     .single();
 
-  // Buscar card ativo. Colunas reais: pessoa_principal_id (não contato_principal_id),
-  // dono_atual_id/sdr_owner_id (não responsavel_id); não existe cards.status (usar estado_operacional).
-  // ai_responsavel + ai_pause_config são lidos pelo main handler pra decidir se
-  // o pipeline deve rodar (se humano assumiu ou pausou permanentemente → skip).
-  const { data: cards } = await supabase
+  // Detectar contato + papel: tenta primeiro como contato PRINCIPAL do card
+  // (cards.pessoa_principal_id). Se não achar, busca como SECUNDÁRIO via junction
+  // cards_contatos (schema real — `contatos` não tem coluna pessoa_principal_id).
+  // Essa detecção define contactRole="primary"|"traveler" usado pelo prompt.
+  const { data: primaryCards } = await supabase
     .from("cards")
-    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional, ai_responsavel, ai_pause_config")
+    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional, ai_responsavel, ai_pause_config, pessoa_principal_id")
     .eq("pessoa_principal_id", contactId)
     .is("archived_at", null)
     .is("deleted_at", null)
@@ -777,7 +777,33 @@ async function buildConversationContext(
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const cardRow = cards?.[0] || null;
+  let cardRow = primaryCards?.[0] || null;
+  let contactRole = "primary";
+
+  if (!cardRow) {
+    const { data: junction } = await supabase
+      .from("cards_contatos")
+      .select("card_id")
+      .eq("contato_id", contactId)
+      .limit(10);
+    const secondaryCardIds = (junction || []).map((j: { card_id: string }) => j.card_id);
+    if (secondaryCardIds.length > 0) {
+      const { data: secCards } = await supabase
+        .from("cards")
+        .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional, ai_responsavel, ai_pause_config, pessoa_principal_id")
+        .in("id", secondaryCardIds)
+        .is("archived_at", null)
+        .is("deleted_at", null)
+        .neq("estado_operacional", "encerrado")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (secCards && secCards.length > 0) {
+        cardRow = secCards[0];
+        contactRole = "traveler";
+      }
+    }
+  }
+
   const card = cardRow
     ? { ...cardRow, responsavel_id: cardRow.dono_atual_id || cardRow.sdr_owner_id || null }
     : null;
@@ -826,19 +852,15 @@ async function buildConversationContext(
   const meetingRegex = /agendad|confirmad|reunião marcada|horário combinado/i;
   const meetingDetected = recentBotMsgs.some((m) => meetingRegex.test(m.content));
 
-  // Detectar contact_role
-  let contactRole = "primary";
-  if (contact?.pessoa_principal_id && contact.pessoa_principal_id !== contact.id) {
-    contactRole = "traveler";
-  }
-
-  // Buscar pessoa principal nome (se traveler)
+  // contactRole foi detectado acima (primary vs traveler via junction cards_contatos).
+  // Se traveler, buscar o nome do contato principal do card (cards.pessoa_principal_id).
   let pessoaPrincipalNome: string | null = null;
-  if (contactRole === "traveler" && contact?.pessoa_principal_id) {
+  const cardPrincipalId = (card as { pessoa_principal_id?: string } | null)?.pessoa_principal_id;
+  if (contactRole === "traveler" && cardPrincipalId) {
     const { data: principal } = await supabase
       .from("contatos")
       .select("nome, sobrenome")
-      .eq("id", contact.pessoa_principal_id)
+      .eq("id", cardPrincipalId)
       .single();
     if (principal) {
       pessoaPrincipalNome = [principal.nome, principal.sobrenome].filter(Boolean).join(" ");
