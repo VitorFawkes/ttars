@@ -83,7 +83,6 @@ interface AgentConfig {
   escalation_rules: Array<Record<string, unknown>>;
   memory_config: Record<string, unknown>;
   fallback_message: string | null;
-  fallback_agent_id: string | null;
   n8n_webhook_url: string | null;
   template_id: string | null;
   is_template_based: boolean;
@@ -428,7 +427,7 @@ async function findAgentForLine(
       ai_agents!inner(
         id, org_id, nome, tipo, modelo, temperature, max_tokens,
         system_prompt, persona, routing_criteria, escalation_rules,
-        memory_config, fallback_message, fallback_agent_id,
+        memory_config, fallback_message,
         n8n_webhook_url, template_id, is_template_based, ativa,
         handoff_signals, intelligent_decisions, prompts_extra,
         pipeline_models, timings, validator_rules,
@@ -2788,68 +2787,24 @@ serve(async (req) => {
       pipelineErrorDetails = String(pipelineErr);
       console.error(`[pipeline] fatal error in agent ${agent.nome}:`, pipelineErr);
 
-      // ── Fallback Chain ──
-      // 1. fallback_agent_id: tenta rodar o pipeline com outro agente (uma vez).
-      // 2. fallback_message: envia essa mensagem direto.
-      // 3. Default: mensagem genérica de segurança + dispara handoff para humano.
-      const fallbackAgentId = agent.fallback_agent_id;
-      if (fallbackAgentId && fallbackAgentId !== agent.id) {
-        console.log(`[fallback] trying fallback_agent_id=${fallbackAgentId}`);
-        try {
-          const { data: fbAgentRow } = await supabase
-            .from("ai_agents")
-            .select(
-              "id, org_id, nome, tipo, modelo, temperature, max_tokens, system_prompt, persona, " +
-              "routing_criteria, escalation_rules, memory_config, fallback_message, fallback_agent_id, " +
-              "n8n_webhook_url, template_id, is_template_based, ativa, handoff_signals, " +
-              "intelligent_decisions, prompts_extra, pipeline_models, timings, validator_rules, " +
-              "test_mode_phone_whitelist, multimodal_config, handoff_actions",
-            )
-            .eq("id", fallbackAgentId)
-            .eq("ativa", true)
-            .maybeSingle();
-          if (fbAgentRow) {
-            const fbAgent = fbAgentRow as AgentConfig;
-            const fbConfig = await loadAgentConfig(supabase, fbAgent.id, fbAgent);
-            const fbBackoffice = await runBackofficeAgent(fbAgent, ctx, fbConfig.business);
-            const fbPersona = await runPersonaAgent(
-              supabase, fbAgent, ctx, fbBackoffice,
-              fbConfig.business, fbConfig.qualification, fbConfig.scenarios,
-              processedText,
-            );
-            totalInputTokens += fbPersona.inputTokens;
-            totalOutputTokens += fbPersona.outputTokens;
-            const fbValidated = await runValidator(fbAgent, fbPersona.response, ctx, fbConfig.scenarios);
-            messages = await formatWhatsAppMessages(fbValidated, maxBlocks, fbAgent);
-            pipelineFellBack = true;
-            console.log(`[fallback] fallback_agent_id=${fbAgent.nome} succeeded`);
-          } else {
-            console.warn(`[fallback] fallback_agent_id=${fallbackAgentId} não encontrado ou inativo`);
-          }
-        } catch (fbErr) {
-          console.error(`[fallback] fallback_agent_id=${fallbackAgentId} também falhou:`, fbErr);
-        }
-      }
+      // ── Fallback de emergência ──
+      // Envia a fallback_message do próprio agente (ou genérica) e dispara
+      // handoff silencioso. Não há "agente de backup" — cada agente vive na
+      // sua org/produto e não faz sentido roteamento cross-agent.
+      const fbMsg = agent.fallback_message?.trim()
+        || "Desculpe, tive um problema aqui agora. Um humano vai te responder em instantes.";
+      messages = [fbMsg];
+      pipelineFellBack = true;
+      console.log(`[fallback] using fallback_message (length=${fbMsg.length})`);
 
-      // Se ainda não temos mensagens (fallback_agent_id vazio ou também falhou)
-      if (messages.length === 0) {
-        const fbMsg = agent.fallback_message?.trim()
-          || "Desculpe, tive um problema aqui agora. Um humano vai te responder em instantes.";
-        messages = [fbMsg];
-        pipelineFellBack = true;
-        console.log(`[fallback] using fallback_message (length=${fbMsg.length})`);
-
-        // Dispara handoff silencioso — o card fica com ai_responsavel='humano'
-        // para alguém do time assumir.
-        if (ctx.card_id) {
-          await supabase.rpc("agent_request_handoff", {
-            p_card_id: ctx.card_id,
-            p_reason: "agente_sem_resposta",
-            p_context_summary: `Fallback disparado após erro no pipeline: ${pipelineErrorDetails?.substring(0, 200) || ""}`,
-          }).then(({ error }) => {
-            if (error) console.warn(`[fallback] handoff RPC failed:`, error.message);
-          });
-        }
+      if (ctx.card_id) {
+        await supabase.rpc("agent_request_handoff", {
+          p_card_id: ctx.card_id,
+          p_reason: "agente_sem_resposta",
+          p_context_summary: `Fallback disparado após erro no pipeline: ${pipelineErrorDetails?.substring(0, 200) || ""}`,
+        }).then(({ error }) => {
+          if (error) console.warn(`[fallback] handoff RPC failed:`, error.message);
+        });
       }
     }
 
