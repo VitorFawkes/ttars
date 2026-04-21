@@ -191,6 +191,11 @@ interface ConversationContext {
   // reads this to apply handoff_actions (stage change, tag, notification,
   // transition_message override).
   handoff_triggered?: boolean;
+  // G5 fix — acumula nomes de tools chamadas neste turno (search_knowledge_base,
+  // check_calendar, create_task, assign_tag, request_handoff, update_contact,
+  // think, calculate_qualification_score). Populado por executeToolCall, lido
+  // pelo main handler no insert em ai_conversation_turns.skills_used.
+  skills_used_this_turn?: string[];
 }
 
 interface BackofficeOutput {
@@ -214,10 +219,15 @@ function normalizePhone(phone: string): string {
 function matchesRoutingCriteria(
   criteria: Record<string, unknown>,
   messageText: string,
+  messageType?: string,
 ): boolean {
   if (!criteria || Object.keys(criteria).length === 0) return true;
   const keywords = criteria.keywords as string[] | undefined;
   if (keywords && keywords.length > 0) {
+    // G2: mídias não-texto (áudio/imagem/documento/vídeo/localização/sticker) passam
+    // direto do routing por keyword — o placeholder "[Áudio recebido...]" nunca casaria
+    // com keywords típicas tipo "cotação/orçamento" e a mensagem cairia em no_agent_configured.
+    if (messageType && messageType !== "text") return true;
     const lower = messageText.toLowerCase();
     if (keywords.some((kw) => lower.includes(kw.toLowerCase()))) return true;
     return false;
@@ -404,6 +414,7 @@ async function findAgentForLine(
   phoneNumberId: string | undefined,
   messageText: string,
   senderPhone: string | undefined,
+  messageType?: string,
 ): Promise<AgentConfig | null> {
   let lineQuery = supabase
     .from("whatsapp_linha_config")
@@ -478,11 +489,120 @@ async function findAgentForLine(
       }
     }
 
-    if (matchesRoutingCriteria(agent.routing_criteria, messageText)) {
+    if (matchesRoutingCriteria(agent.routing_criteria, messageText, messageType)) {
       return agent;
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// G1 fix — achar agente por conversa ativa antes de checar keywords.
+//
+// Motivo: `findAgentForLine` checa `routing_criteria.keywords` em TODA mensagem.
+// Em follow-ups ("Paris", "sim", "500 reais"), o cliente não repete "cotação" e a
+// mensagem cai em `no_agent_configured`. Julia (n8n) não tinha esse problema porque
+// fazia routing só na primeira msg e daí em diante seguia o mesmo fluxo.
+//
+// Solução: se o telefone já tem uma `ai_conversations` ativa/waiting (atualizada
+// nas últimas 24h) com `current_agent_id` conhecido, carregar esse agente direto
+// e pular a checagem de keyword. Respeita routing_filter por linha (para não
+// vazar em ambiente de teste).
+// ---------------------------------------------------------------------------
+async function findAgentByActiveConversation(
+  supabase: SupabaseClient,
+  senderPhone: string | undefined,
+  phoneNumberId: string | undefined,
+): Promise<AgentConfig | null> {
+  if (!senderPhone || !phoneNumberId) return null;
+  const normalized = normalizePhone(senderPhone);
+  if (!normalized) return null;
+
+  // 1. Achar contatos pelo telefone (pode haver em múltiplas orgs — filtramos depois)
+  const { data: contacts } = await supabase
+    .from("contatos")
+    .select("id, org_id")
+    .eq("telefone", normalized)
+    .limit(10);
+
+  if (!contacts || contacts.length === 0) return null;
+  const contactIds = contacts.map((c: { id: string }) => c.id);
+
+  // 2. Conversa ativa para esse contato + linha, atualizada nas últimas 24h
+  const cutoff = new Date(Date.now() - 24 * 3_600_000).toISOString();
+  const { data: convs } = await supabase
+    .from("ai_conversations")
+    .select("current_agent_id, updated_at, phone_number_id, org_id")
+    .in("contact_id", contactIds)
+    .in("status", ["active", "waiting"])
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  if (!convs || convs.length === 0) return null;
+
+  // Preferir conversa na mesma linha. Tolera conversas legadas sem phone_number_id.
+  const candidate =
+    convs.find((c: { phone_number_id?: string | null }) => c.phone_number_id === phoneNumberId)
+    || convs.find((c: { phone_number_id?: string | null }) => !c.phone_number_id);
+
+  if (!candidate?.current_agent_id) return null;
+
+  // 3. Carregar agente completo + config da linha (respeitar routing_filter e ativa)
+  const { data: agentRow } = await supabase
+    .from("ai_agents")
+    .select(`
+      id, org_id, nome, tipo, modelo, temperature, max_tokens,
+      system_prompt, persona, routing_criteria, escalation_rules,
+      memory_config, fallback_message,
+      n8n_webhook_url, template_id, is_template_based, ativa,
+      handoff_signals, intelligent_decisions, prompts_extra,
+      pipeline_models, timings, validator_rules,
+      test_mode_phone_whitelist, multimodal_config,
+      handoff_actions
+    `)
+    .eq("id", candidate.current_agent_id)
+    .eq("ativa", true)
+    .maybeSingle();
+
+  if (!agentRow) return null;
+
+  // 4. Validar que a linha está ligada nesse agente e respeitar routing_filter
+  const { data: lineRow } = await supabase
+    .from("whatsapp_linha_config")
+    .select("id")
+    .eq("phone_number_id", phoneNumberId)
+    .eq("ativo", true)
+    .maybeSingle();
+
+  if (!lineRow) return null;
+
+  const { data: phoneLine } = await supabase
+    .from("ai_agent_phone_line_config")
+    .select("routing_filter, ativa")
+    .eq("phone_line_id", lineRow.id)
+    .eq("agent_id", agentRow.id)
+    .eq("ativa", true)
+    .maybeSingle();
+
+  if (!phoneLine) return null;
+
+  const filter = (phoneLine as { routing_filter?: { allowed_phones?: string[] } | null }).routing_filter;
+  const allowed = filter?.allowed_phones;
+  if (allowed && allowed.length > 0) {
+    const allowedNormalized = allowed.map(normalizePhone);
+    if (!allowedNormalized.includes(normalized)) {
+      console.log(
+        `[findAgentByActiveConversation] sender ${normalized} blocked by routing_filter for agent ${agentRow.id}`,
+      );
+      return null;
+    }
+  }
+
+  console.log(
+    `[findAgentByActiveConversation] matched active conversation for ${normalized} → agent ${agentRow.nome} (bypass keyword)`,
+  );
+  return agentRow as unknown as AgentConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -1247,6 +1367,12 @@ async function executeToolCall(
   const startTime = Date.now();
   let result = "";
 
+  // G5: registrar tool chamada no ctx para persistir em ai_conversation_turns.skills_used
+  if (!ctx.skills_used_this_turn) ctx.skills_used_this_turn = [];
+  if (!ctx.skills_used_this_turn.includes(toolName)) {
+    ctx.skills_used_this_turn.push(toolName);
+  }
+
   try {
     switch (toolName) {
       case "search_knowledge_base": {
@@ -1356,8 +1482,69 @@ async function executeToolCall(
       }
 
       case "request_handoff": {
+        // G4 fix — quando lead ainda não tem card, o handoff antes falhava silenciosamente
+        // com `{"error":"Sem card associado"}` e o LLM mandava "vou verificar e te retorno"
+        // sem ninguém ser notificado. Agora: sinaliza `ctx.handoff_triggered=true` mesmo sem
+        // card, para o transition_message / fallback pegarem, e marca a conversa para
+        // humano cuidar.
         if (!ctx.card_id) {
-          result = JSON.stringify({ error: "Sem card associado" });
+          const reason = (args.reason as string) || "pedido_humano_sem_card";
+          const summary = (args.context_summary as string) || "Agente pediu handoff mas lead ainda não tem card.";
+          console.warn(
+            `[request_handoff] sem card associado — escalando via conversation. agent=${agent.nome} contact=${ctx.contato_id}`,
+          );
+
+          // Marcar ctx pra transition_message/override kick in
+          ctx.handoff_triggered = true;
+
+          // Marcar a conversa como "aguardando humano" para não continuar respondendo
+          // automático. Campos: status=waiting, escalation_reason, escalation_at.
+          try {
+            await supabase
+              .from("ai_conversations")
+              .update({
+                status: "waiting",
+                escalation_reason: reason,
+                escalation_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("contact_id", ctx.contato_id)
+              .eq("current_agent_id", agent.id)
+              .in("status", ["active", "waiting"]);
+          } catch (convErr) {
+            console.warn(`[request_handoff] conversation escalation update failed:`, convErr);
+          }
+
+          // Se o agente configurou notify_responsible, tentar notificar algum admin/SDR da org
+          if (agent.handoff_actions?.notify_responsible) {
+            try {
+              const { data: admins } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("org_id", agent.org_id)
+                .eq("is_admin", true)
+                .limit(5);
+              if (admins && admins.length > 0) {
+                const notifications = admins.map((a: { id: string }) => ({
+                  user_id: a.id,
+                  type: "ai_handoff",
+                  title: `${agent.nome} pediu handoff (sem card)`,
+                  body: `Contato ${ctx.contact_name || "desconhecido"} pediu humano antes de criar card. Motivo: ${reason}`,
+                  org_id: agent.org_id,
+                  metadata: { source: "ai_agent_router", agent_id: agent.id, context_summary: summary },
+                }));
+                await supabase.from("notifications").insert(notifications);
+              }
+            } catch (notifErr) {
+              console.warn(`[request_handoff] admin notify failed:`, notifErr);
+            }
+          }
+
+          result = JSON.stringify({
+            success: true,
+            escalated_via: "conversation",
+            note: "Handoff registrado na conversa. Card será criado pelo humano ao assumir.",
+          });
           break;
         }
         const { data: handoffResult, error: handoffErr } = await supabase.rpc("agent_request_handoff", {
@@ -2193,6 +2380,44 @@ SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 // ---------------------------------------------------------------------------
 
 // Heurística: fallback quando LLM formatter não está configurado ou falha
+// G6 fix — LLM às vezes retorna strings com `\n` literal (dois caracteres: barra
+// + "n") em vez de quebra de linha real. Acontece quando o modelo serializa JSON
+// manualmente ou quando um stage faz JSON.stringify duplicado. Converte de volta
+// pra \n real antes de salvar/enviar.
+function normalizeWhatsAppText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"');
+}
+
+// G3 sanity — detecta output "lixo" do LLM (ex: "ok=true", "null", "{}") que
+// vazaria como resposta final pro cliente. Critério conservador: mensagem curta
+// sem espaço E sem pontuação comum de fim de frase é quase certo ser corrupção
+// de debug/metadata. Quando retorna true, o main handler descarta e usa
+// fallback_message + handoff silencioso.
+function looksLikeCorruptedOutput(messages: string[]): boolean {
+  if (!messages || messages.length === 0) return true;
+  const joined = messages.join(" ").trim();
+  if (!joined) return true;
+  // "ok=true", "null", "true", "{}", "[]", "undefined", "200" etc.
+  if (joined.length < 30 && !/\s/.test(joined) && !/[.!?,;:]/.test(joined)) {
+    return true;
+  }
+  // Padrões clássicos de debug que nunca deveriam sair
+  const debugPatterns = [
+    /^ok\s*[=:]\s*true$/i,
+    /^(null|undefined|true|false|nan)$/i,
+    /^\{\s*\}$/,
+    /^\[\s*\]$/,
+    /^\d+$/, // só números
+  ];
+  if (debugPatterns.some((p) => p.test(joined))) return true;
+  return false;
+}
+
 function formatWhatsAppMessagesHeuristic(text: string, maxBlocks = 3): string[] {
   const cap = Math.max(1, Math.min(maxBlocks, 10));
 
@@ -2280,7 +2505,7 @@ Retorne APENAS o JSON. Nada mais.`;
     const parsed = JSON.parse(cleaned);
     const msgs = parsed.messages;
     if (Array.isArray(msgs) && msgs.length > 0 && msgs.every((m) => typeof m === "string" && m.trim().length > 0)) {
-      return msgs.slice(0, cap).map((m: string) => m.trim());
+      return msgs.slice(0, cap).map((m: string) => normalizeWhatsAppText(m).trim());
     }
     console.warn("[formatter] LLM returned invalid shape, using heuristic fallback");
   } catch (err) {
@@ -2342,7 +2567,10 @@ async function sendResponse(
   }
 
   for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
+    // G6 defense-in-depth: garantir quebras de linha reais em qualquer
+    // msg que tenha escapado dos filtros anteriores (ex: fallback_message
+    // com `\n` literal escrito pelo admin).
+    const msg = normalizeWhatsAppText(messages[i]);
     if (!msg.trim()) continue;
 
     try {
@@ -2623,14 +2851,26 @@ serve(async (req) => {
     // para que multimodal_config do agente possa ser respeitado no processamento.
     let processedText = messageTypeToPlaceholder(input.message_type, input.message_text);
 
-    // ── 1. Encontrar agente ──
-    const agent = await findAgentForLine(
+    // ── 1a. Tentar achar agente por conversa ativa (bypass keyword — G1) ──
+    // Evita que follow-ups sem palavra-chave ("Paris", "sim", "amanhã") caiam em
+    // no_agent_configured depois que o cliente já começou a falar com um agente.
+    let agent = await findAgentByActiveConversation(
       supabase,
-      input.phone_number_label,
-      input.phone_number_id,
-      processedText,
       input.contact_phone,
+      input.phone_number_id,
     );
+
+    // ── 1b. Fallback: routing por keywords/filtros (primeira mensagem ou conversa expirada) ──
+    if (!agent) {
+      agent = await findAgentForLine(
+        supabase,
+        input.phone_number_label,
+        input.phone_number_id,
+        processedText,
+        input.contact_phone,
+        input.message_type, // G2: permite mídia passar sem keyword
+      );
+    }
 
     // Processar mídia (áudio/imagem/documento) se aplicável — respeitando multimodal_config do agente
     if (input.media_url && input.message_type && input.message_type !== "text") {
@@ -2847,6 +3087,16 @@ serve(async (req) => {
       // ── Step 5: Formatter ──
       messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
 
+      // G3 sanity check — se o formatter (ou qualquer LLM upstream) retornou output
+      // corrompido (tipo "ok=true", "null", "{}"), descartar e cair em fallback_message.
+      // Loga o raw pra facilitar root cause depois.
+      if (looksLikeCorruptedOutput(messages)) {
+        console.warn(
+          `[main] corrupted formatter output detected, using fallback. raw_formatter_output="${(messages || []).join("|").substring(0, 300)}", raw_persona_response="${(rawResponse || "").substring(0, 300)}", raw_validator_response="${(validatedResponse || "").substring(0, 300)}"`,
+        );
+        throw new Error("corrupted_formatter_output");
+      }
+
       // Override: se handoff_actions.transition_message está configurada e o agente
       // chamou request_handoff neste turno, substituímos a resposta do LLM pela
       // mensagem de transição customizada. Evita que o agente invente algo logo
@@ -2882,7 +3132,7 @@ serve(async (req) => {
 
     // ═══════════════════════════════════════════════════════════════════
 
-    // Salvar resposta como turn
+    // Salvar resposta como turn (G5: popular skills_used + is_fallback)
     const fullResponse = messages.join("\n\n");
     await supabase.from("ai_conversation_turns").insert({
       conversation_id: conversationId,
@@ -2891,6 +3141,8 @@ serve(async (req) => {
       agent_id: agent.id,
       input_tokens: totalInputTokens,
       output_tokens: totalOutputTokens,
+      skills_used: ctx.skills_used_this_turn || [],
+      is_fallback: pipelineFellBack,
     });
 
     // Atualizar contadores
