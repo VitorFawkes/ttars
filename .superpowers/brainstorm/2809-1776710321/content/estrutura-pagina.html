@@ -1,0 +1,122 @@
+<h2>Como a página de Analytics se organiza</h2>
+<p class="subtitle">3 abordagens — cada uma resolve o problema de um jeito. Analisa os wireframes e me diz qual faz mais sentido. Posso combinar pedaços se você quiser.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="opt_a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none">
+        <div class="mockup-header">Abordagem A — Uma página, seletor de visão</div>
+        <div class="mockup-body">
+          <div class="mock-nav" style="font-size:11px">Período · <strong style="color:#4f46e5">Visão: Dono ▾</strong> · Tags · Donos</div>
+          <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">KPI 1</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">KPI 2</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">KPI 3</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">KPI 4</div>
+          </div>
+          <div class="placeholder" style="margin-top:6px;min-height:70px;font-size:10px">Gráfico principal</div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">Widget A</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">Widget B</div>
+          </div>
+          <div style="margin-top:10px;font-size:10px;color:#64748b"><em>As mesmas abas embaixo (Funil, Operações...) pra drill.</em></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Uma página, trocador de visão</h3>
+      <p style="color:#16a34a"><strong>✓ Pros:</strong> Mudança mais leve no código atual. User escolhe "Visão: Dono/Comercial/Vendas/Pós/SDR" no topo e a página se reorganiza. Continua com as abas de drill como hoje.</p>
+      <p style="color:#dc2626"><strong>✗ Contras:</strong> Muita lógica de estado; seletor pode virar "gimmick" se as visões não diferem tanto. Admin e operador dividem a mesma tela — pode confundir.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="opt_b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none">
+        <div class="mockup-header">Abordagem B — Dashboard dedicado por persona</div>
+        <div class="mockup-body">
+          <div style="display:flex">
+            <div class="mock-sidebar" style="width:100px;font-size:10px">
+              📊 Dono<br>
+              💼 Comercial<br>
+              👥 Vendas<br>
+              🛠️ Pós<br>
+              📞 SDR<br>
+              🔍 Explorar
+            </div>
+            <div style="flex:1;padding-left:8px">
+              <div style="font-size:11px;font-weight:600;margin-bottom:6px">Dashboard: Dono ✨</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <div class="placeholder" style="flex:1;min-height:40px;font-size:10px">Receita MoM</div>
+                <div class="placeholder" style="flex:1;min-height:40px;font-size:10px">Retenção</div>
+                <div class="placeholder" style="flex:1;min-height:40px;font-size:10px">NPS</div>
+              </div>
+              <div class="placeholder" style="margin-top:4px;min-height:55px;font-size:10px">Receita 12m + forecast</div>
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <div class="placeholder" style="flex:1;min-height:40px;font-size:10px">Mix canal</div>
+                <div class="placeholder" style="flex:1;min-height:40px;font-size:10px">Top indicadores</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Dashboard dedicado por persona</h3>
+      <p style="color:#16a34a"><strong>✓ Pros:</strong> Cada tela é <em>decisiva</em> — sem blob genérico. User logado vai direto pro seu. Métricas curadas, alertas relevantes, nada de ruído. Sênior.</p>
+      <p style="color:#dc2626"><strong>✗ Contras:</strong> Refatoração maior — 5 dashboards + 1 Explorar. Alguma duplicação de widget entre personas (ex: receita aparece em 3 lugares). Precisa lógica pra admin trocar de visão.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="opt_c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none">
+        <div class="mockup-header">Abordagem C — Home inteligente + Explorar (recomendada)</div>
+        <div class="mockup-body">
+          <div class="mock-nav" style="font-size:11px"><strong>🏠 Home</strong> · 🔍 Explorar</div>
+          <div style="font-size:10px;color:#64748b;margin-top:4px">Home adapta pro seu papel. Admin pode trocar persona.</div>
+          <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px;background:#eef2ff;border-color:#c7d2fe">🎯 Métrica-norte</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">Sub-métrica 1</div>
+            <div class="placeholder" style="flex:1;min-height:50px;font-size:10px">Sub-métrica 2</div>
+          </div>
+          <div class="placeholder" style="margin-top:6px;min-height:50px;font-size:10px;background:#fef3c7;border-color:#fde68a">⚠️ Alertas automáticos (quando algo saiu do esperado)</div>
+          <div class="placeholder" style="margin-top:6px;min-height:60px;font-size:10px">Gráfico principal do papel</div>
+          <div style="margin-top:10px;font-size:10px;color:#64748b"><em>Aba "Explorar" = ferramenta livre de slice-and-dice pra quem quiser ir fundo.</em></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Home inteligente + Explorar <strong style="color:#4f46e5">(minha recomendação)</strong></h3>
+      <p style="color:#16a34a"><strong>✓ Pros:</strong> User cai direto no que importa pra ele. Home tem métrica-norte + alertas + gráfico-chave (tudo numa scroll). "Explorar" é a válvula pra análise livre (mantém a potência do Analytics atual). Admin troca persona no topo.</p>
+      <p style="color:#dc2626"><strong>✗ Contras:</strong> Precisa definir o que cada papel vê na home de forma opinionada (você vai ter que decidir comigo). Quem quer comparar Pós de ontem com Pós de 3 meses atrás vai pra "Explorar" — 1 clique a mais.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:30px">
+  <div class="label">O que muda em cada abordagem na prática</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Comum aos 3 (já decidido)</h4>
+      <ul>
+        <li>Isolamento por org (TRIPS/Wedding) mantém como está</li>
+        <li>Filtros contextuais (período/dono/tag) ficam no topo</li>
+        <li>"Modo" (Entrada / Coorte / Ganho) continua existindo — explicado melhor pro usuário</li>
+        <li>NPS fica de fora do v1 e vira projeto próprio em seguida</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Decisão que muda TUDO</h4>
+      <ul>
+        <li><strong>A:</strong> Mesma tela, trocador de visão</li>
+        <li><strong>B:</strong> Tela dedicada por papel</li>
+        <li><strong>C:</strong> Home adaptativa + Explorar livre</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Clica na que faz mais sentido — ou me diz no chat se quer uma mistura.</p>

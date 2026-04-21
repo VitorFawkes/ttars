@@ -1,0 +1,229 @@
+<h2>Seção 2 — Os 5 dashboards em detalhe</h2>
+<p class="subtitle">Cada dashboard tem: métrica-norte + camada outcome (resultado) + camada diagnóstico (processo) + alertas. Me diz o que tirar/adicionar.</p>
+
+<!-- DONO -->
+<div class="section">
+  <div class="label">👑 Dashboard do Dono</div>
+  <div class="mockup" style="border-color:#fde68a;background:#fffbeb">
+    <div class="mockup-header" style="background:#fef3c7">Defaults: Período=Último trimestre · Fase=Todas · Lente=Eventos · Ponto=Qualquer ganho</div>
+    <div class="mockup-body">
+      <div style="background:#4f46e5;color:white;padding:12px;border-radius:8px;margin-bottom:10px">
+        <strong style="font-size:13px">🎯 MÉTRICA-NORTE:</strong> Receita realizada do trimestre vs meta · Variação MoM e YoY
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <strong style="color:#059669">Outcome (resultados)</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Receita MoM + YoY (linha + comparativo ano anterior)</li>
+            <li>Ticket médio — tendência 12m</li>
+            <li><strong>Taxa de retorno</strong> (% clientes que voltaram)</li>
+            <li>Mix de canais (concentração de risco)</li>
+            <li>Mix de destinos top 5</li>
+            <li>Top 10 clientes-indicadores (ranking)</li>
+            <li>NPS médio <em>(placeholder v3)</em></li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#0369a1">Diagnóstico (processo)</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Funil end-to-end macro (leads → entregues)</li>
+            <li>Saúde geral: cards ativos por fase</li>
+            <li>Velocidade total do ciclo (lead → entrega)</li>
+            <li>Concentração de risco (top 3 canais = ?%)</li>
+            <li>Quality score global</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px;margin-top:12px">
+        <strong style="color:#991b1b">⚠️ Alertas:</strong>
+        <span style="font-size:12px">Receita ↓ &gt;15% MoM · Fonte dominante perdendo peso · Retenção caindo · Aumento de detratores (NPS v3)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMERCIAL -->
+<div class="section">
+  <div class="label">💼 Dashboard Comercial (macro SDR+Vendas)</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-header" style="background:#e0e7ff">Defaults: Período=Últ. 30 dias · Fase=Todas · Lente=Eventos · Ponto=Qualquer ganho</div>
+    <div class="mockup-body">
+      <div style="background:#4f46e5;color:white;padding:12px;border-radius:8px;margin-bottom:10px">
+        <strong style="font-size:13px">🎯 MÉTRICA-NORTE:</strong> Receita vs meta mensal · Forecast ponderado 60d
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <strong style="color:#059669">Outcome</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Receita realizada vs meta</li>
+            <li>Forecast ponderado 30/60/90d (por probabilidade de etapa)</li>
+            <li>Conversão fim-a-fim (lead novo → viagem fechada)</li>
+            <li>Ticket médio por período</li>
+            <li>Faturamento vs receita (comissão)</li>
+            <li>Motivos de perda (pie)</li>
+            <li>Conversão por fonte × ticket (tabela)</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#0369a1">Diagnóstico</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Funil completo (cada etapa + % conversão A→B)</li>
+            <li>Onde vaza mais (maior drop por etapa)</li>
+            <li>Velocidade por etapa p50/p75 (onde trava)</li>
+            <li>Rework rate por etapa (cards que voltaram)</li>
+            <li>Quality score médio do funil</li>
+            <li>Tempo de 1ª resposta por fonte</li>
+            <li>Cadence compliance global (% no prazo)</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px;margin-top:12px">
+        <strong style="color:#991b1b">⚠️ Alertas:</strong>
+        <span style="font-size:12px">Funil encolhendo em fase X · Ciclo médio ↑ · Fonte caindo &gt;20% · Rework rate &gt;N%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VENDAS -->
+<div class="section">
+  <div class="label">👥 Dashboard Vendas (Travel Planner)</div>
+  <div class="mockup" style="border-color:#bbf7d0;background:#f0fdf4">
+    <div class="mockup-header" style="background:#dcfce7">Defaults: Período=Últ. 30 dias · Fase=Vendas · Lente=Eventos · Ponto=Planner fechou</div>
+    <div class="mockup-body">
+      <div style="background:#4f46e5;color:white;padding:12px;border-radius:8px;margin-bottom:10px">
+        <strong style="font-size:13px">🎯 MÉTRICA-NORTE:</strong> Cards fechados no período · Receita do time · Win rate
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <strong style="color:#059669">Outcome</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li># cards fechados (ganho_planner) — total + por Planner</li>
+            <li>Ticket médio por Planner</li>
+            <li><strong>Estado das viagens fechadas</strong> (onde estão hoje: em_montagem, em_andamento, concluída, cancelada)</li>
+            <li><strong>Problemas no Pós vindos desse time</strong> (% com tarefa vencida no pós)</li>
+            <li><strong>Retorno pós-viagem</strong> (% clientes que voltaram)</li>
+            <li>NPS das viagens fechadas <em>(v3)</em></li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#0369a1">Diagnóstico</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Conversão Proposta→Ganho por Planner</li>
+            <li>Tempo médio Proposta→Ganho por Planner</li>
+            <li><strong># versões até aprovar</strong> por Planner (qualidade de proposta)</li>
+            <li>Variação de preço entre 1ª versão e aprovada</li>
+            <li>Motivos de perda por Planner</li>
+            <li>Carteira aberta por Planner (# cards ativos)</li>
+            <li>Tarefas vencidas do time · tipo que mais atrasa</li>
+            <li>Quality score (campos preenchidos) por Planner</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px;margin-top:12px">
+        <strong style="color:#991b1b">⚠️ Alertas:</strong>
+        <span style="font-size:12px">Planner com conversão &lt;N% · Proposta parada &gt;14d · Motivo "preço" concentrado · Planner com rework alto · Quality score baixo</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POS -->
+<div class="section">
+  <div class="label">🛠️ Dashboard Pós-Venda</div>
+  <div class="mockup" style="border-color:#fed7aa;background:#fff7ed">
+    <div class="mockup-header" style="background:#ffedd5">Defaults: Período=Próx. 30 dias · Fase=Pós · Lente=Snapshot · Ponto=Entrega concluída</div>
+    <div class="mockup-body">
+      <div style="background:#4f46e5;color:white;padding:12px;border-radius:8px;margin-bottom:10px">
+        <strong style="font-size:13px">🎯 MÉTRICA-NORTE:</strong> Prontidão operacional das viagens de partida próxima (% itens prontos 7d antes)
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <strong style="color:#059669">Outcome</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li>Distribuição de viagens por estado (em_montagem / aguardando / em_andamento / pos_viagem / concluida)</li>
+            <li>Viagens partindo próx 7 / 14 / 30d</li>
+            <li>Viagens concluídas no período</li>
+            <li>NPS médio das viagens entregues <em>(v3)</em></li>
+            <li>% clientes que voltaram após viagem</li>
+            <li>% indicações geradas (cliente indicou alguém após viagem)</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#0369a1">Diagnóstico</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li><strong>Lista de viagens em risco</strong> (parte &lt;7d + itens operacionais pendentes)</li>
+            <li>Prontidão % por viagem iminente (prods_ready/prods_total)</li>
+            <li>Tempo médio Ganho→Pronto</li>
+            <li>Tarefas vencidas por Concierge · por tipo</li>
+            <li>Carga por Concierge (# viagens em_andamento paralelas)</li>
+            <li>Gargalo por tipo de item (hotel vs voo vs passeio)</li>
+            <li>Quality score do time pós</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px;margin-top:12px">
+        <strong style="color:#991b1b">⚠️ Alertas:</strong>
+        <span style="font-size:12px">Viagem parte em &lt;7d com voucher pendente · Concierge com &gt;N em_andamento · Tipo de tarefa acumulando · Cluster de NPS detrator (v3)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SDR -->
+<div class="section">
+  <div class="label">📞 Dashboard SDR</div>
+  <div class="mockup" style="border-color:#bae6fd;background:#f0f9ff">
+    <div class="mockup-header" style="background:#e0f2fe">Defaults: Período=Últ. 7 dias · Fase=Pré-Venda · Lente=Eventos · Ponto=SDR handoff</div>
+    <div class="mockup-body">
+      <div style="background:#4f46e5;color:white;padding:12px;border-radius:8px;margin-bottom:10px">
+        <strong style="font-size:13px">🎯 MÉTRICA-NORTE:</strong> Taxa de handoff qualificado (leads → ganho_sdr) + SLA 1ª resposta
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <strong style="color:#059669">Outcome</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li># handoffs (ganho_sdr) no período — total + por SDR</li>
+            <li><strong>% dos handoffs que viraram venda</strong> (conversion downstream) — qualidade da qualificação</li>
+            <li>Ticket médio das vendas que o SDR originou</li>
+            <li># reuniões marcadas · no-show rate</li>
+            <li>Leads por fonte (qual canal traz lead bom)</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#0369a1">Diagnóstico</strong>
+          <ul style="font-size:12px;margin-top:6px">
+            <li><strong>Tempo de 1ª resposta por SDR</strong> (FRT)</li>
+            <li>SLA compliance (% respondendo &lt;1h · &lt;5min)</li>
+            <li>Leads "morrendo" sem resposta &gt;5 dias</li>
+            <li>Cadence compliance (% passos no prazo vs pulados)</li>
+            <li>Produtividade: tarefas concluídas por SDR · on-time %</li>
+            <li>Quality score: briefing preenchido · campos obrigatórios</li>
+            <li>Handoff speed (ganho_sdr → 1ª msg do Planner)</li>
+          </ul>
+        </div>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px;margin-top:12px">
+        <strong style="color:#991b1b">⚠️ Alertas:</strong>
+        <span style="font-size:12px">SLA 1ª resposta &gt;2h · Cadência com &gt;N passos pulados · Lead parado &gt;5d · SDR com FRT alto · Briefing em branco em &gt;30% dos cards</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:30px">
+  <div class="label">Drill-down transversal — vale pra todos os dashboards</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>Em qualquer widget, clique abre drill-down:</strong></p>
+      <ul style="font-size:12px">
+        <li>Lista de cards que compõem a métrica</li>
+        <li>Clique num card → <strong>timeline completa</strong> (fn_card_stage_history): todas as fases por que passou, tempo em cada, quem era dono, tarefas, problemas</li>
+        <li>Botão "exportar CSV" pra análise offline</li>
+        <li>Botão "compartilhar view" (URL com todos filtros aplicados)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">5 dashboards mapeados. Me diz o que falta, o que sobra, ou se quer ir pra Seção 3 (Explorar tab).</p>

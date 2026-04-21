@@ -1,0 +1,206 @@
+<h2>Seção 4 — Fundações Backend (v2)</h2>
+<p class="subtitle">O que precisa ser construído, corrigido ou estendido no banco pra o v2 funcionar. Dividido em 8 blocos.</p>
+
+<div class="section">
+  <div class="label">Bloco 1 — Novos filtros universais (nas RPCs)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Toda RPC de analytics passa a aceitar esses parâmetros (com defaults NULL pra compatibilidade):</p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
+            <th style="text-align:left;padding:6px">Parâmetro</th>
+            <th style="text-align:left;padding:6px">Tipo</th>
+            <th style="text-align:left;padding:6px">Filtra por</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:6px"><code>p_origem[]</code></td><td style="padding:6px">TEXT[]</td><td style="padding:6px">cards.origem</td></tr>
+          <tr><td style="padding:6px"><code>p_phase_slugs[]</code></td><td style="padding:6px">TEXT[]</td><td style="padding:6px">pipeline_phases.slug (via JOIN)</td></tr>
+          <tr><td style="padding:6px"><code>p_lead_entry_path</code></td><td style="padding:6px">TEXT</td><td style="padding:6px">cards.lead_entry_path (coluna nova)</td></tr>
+          <tr><td style="padding:6px"><code>p_destinos[]</code></td><td style="padding:6px">TEXT[]</td><td style="padding:6px">produto_data.destinos array</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px">RPCs afetadas (existentes a estender): <code>analytics_funnel_conversion</code>, <code>analytics_funnel_live</code>, <code>analytics_funnel_velocity</code>, <code>analytics_loss_reasons</code>, <code>analytics_overview_kpis</code>, <code>analytics_revenue_timeseries</code>, <code>analytics_team_performance</code>, <code>analytics_team_sla_compliance</code>, <code>analytics_top_destinations</code>, <code>analytics_retention_cohort</code>, <code>analytics_retention_kpis</code>, <code>analytics_pipeline_live</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 2 — Correção do bug de atribuição</div>
+  <div class="mockup" style="border-color:#fecaca;background:#fef2f2">
+    <div class="mockup-body">
+      <p>Hoje: RPCs usam <code>dono_atual_id</code> (erra quando card muda de fase). Correção:</p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px">
+        <thead>
+          <tr style="background:white;border-bottom:1px solid #fecaca">
+            <th style="text-align:left;padding:6px">Métrica</th>
+            <th style="text-align:left;padding:6px">Campo correto</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:6px">Métricas do SDR</td><td style="padding:6px"><code>sdr_owner_id</code></td></tr>
+          <tr><td style="padding:6px">Métricas do Planner</td><td style="padding:6px"><code>vendas_owner_id</code></td></tr>
+          <tr><td style="padding:6px">Métricas do Concierge/Pós</td><td style="padding:6px"><code>pos_owner_id</code></td></tr>
+          <tr><td style="padding:6px">"Dono agora" (operacional)</td><td style="padding:6px"><code>dono_atual_id</code> (mantém)</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px">RPCs a corrigir: <code>analytics_team_performance</code>, <code>analytics_team_leaderboard</code>, <code>analytics_team_sla_compliance</code>, mais qualquer uso de <code>_a_owner_ok(dono_atual_id, ...)</code> pra ranking histórico.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 3 — Novas RPCs (13)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:6px">#</th>
+            <th style="text-align:left;padding:6px">RPC</th>
+            <th style="text-align:left;padding:6px">Responde a</th>
+            <th style="text-align:left;padding:6px">Pilar</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">1</td><td style="padding:6px"><code>analytics_stage_conversion</code></td><td style="padding:6px">% real A→B por etapa</td><td style="padding:6px">Conversão</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">2</td><td style="padding:6px"><code>fn_card_stage_history</code></td><td style="padding:6px">Timeline completa por card</td><td style="padding:6px">Drill-down</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">3</td><td style="padding:6px"><code>analytics_rework_rate</code></td><td style="padding:6px">% cards com volta</td><td style="padding:6px">Conversão</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">4</td><td style="padding:6px"><code>analytics_task_completion_by_person</code></td><td style="padding:6px">Produtividade (# concluídas, on-time %)</td><td style="padding:6px">Tarefas</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">5</td><td style="padding:6px"><code>analytics_cadence_compliance</code></td><td style="padding:6px">% passos executados no prazo</td><td style="padding:6px">Tarefas</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">6</td><td style="padding:6px"><code>analytics_field_completeness</code></td><td style="padding:6px">Quality score por pessoa/fase</td><td style="padding:6px">Preenchimento</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">7</td><td style="padding:6px"><code>analytics_trip_readiness</code></td><td style="padding:6px">Prontidão operacional por viagem</td><td style="padding:6px">Pós</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">8</td><td style="padding:6px"><code>analytics_proposal_versions</code></td><td style="padding:6px">N versões até aprovar</td><td style="padding:6px">Vendas</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">9</td><td style="padding:6px"><code>analytics_handoff_speed</code></td><td style="padding:6px">Tempo ganho_sdr → 1ª msg Planner</td><td style="padding:6px">Resposta</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">10</td><td style="padding:6px"><code>analytics_whatsapp_speed_v2</code></td><td style="padding:6px">FRT com business-hours + per-source</td><td style="padding:6px">Resposta</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">11</td><td style="padding:6px"><code>analytics_dropped_balls</code></td><td style="padding:6px">Clientes sem resposta há &gt; N horas</td><td style="padding:6px">Resposta</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">12</td><td style="padding:6px"><code>analytics_explorer_query</code></td><td style="padding:6px">Pivot dinâmico (medida × dim × dim)</td><td style="padding:6px">Explorar</td></tr>
+          <tr><td style="padding:6px">13</td><td style="padding:6px"><code>analytics_lead_entry_path_breakdown</code></td><td style="padding:6px">Conversion por entry path (SDR/Direct/Retorno/Indicação)</td><td style="padding:6px">Aquisição</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 4 — Mudanças de schema (colunas e tipos novos)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:6px">Objeto</th>
+            <th style="text-align:left;padding:6px">Tipo</th>
+            <th style="text-align:left;padding:6px">Responsável por preencher</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px"><code>cards.quality_score_pct</code></td><td style="padding:6px">INT 0-100</td><td style="padding:6px">Trigger (recalcula on update)</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px"><code>cards.lead_entry_path</code></td><td style="padding:6px">ENUM (full_funnel, direct_planner, returning, referred)</td><td style="padding:6px">Trigger on INSERT (deriva de origem + sdr_owner_id + contato histórico)</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px"><code>cards.first_response_at</code></td><td style="padding:6px">TIMESTAMPTZ</td><td style="padding:6px">Trigger on whatsapp_messages INSERT outbound</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px"><code>activities</code> tipos novos</td><td style="padding:6px">'ganho_sdr_event', 'ganho_planner_event', 'ganho_pos_event'</td><td style="padding:6px">RPC marcar_ganho (adicionar INSERT)</td></tr>
+          <tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px"><code>activities.metadata.is_rework</code></td><td style="padding:6px">BOOLEAN</td><td style="padding:6px">Trigger stage_changed (compara ordens)</td></tr>
+          <tr><td style="padding:6px"><code>task_tipo</code> ENUM</td><td style="padding:6px">Enum hardening</td><td style="padding:6px">Migration one-shot (converter free-text → enum)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 5 — Indices novos</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Pra cross-cutting ser rápido (crítico pra UX):</p>
+      <ul style="font-size:11px;font-family:monospace">
+        <li><code>cards(org_id, origem, pipeline_stage_id)</code></li>
+        <li><code>cards(org_id, sdr_owner_id, ganho_sdr_at)</code> WHERE sdr_owner_id IS NOT NULL</li>
+        <li><code>cards(org_id, vendas_owner_id, ganho_planner_at)</code> WHERE vendas_owner_id IS NOT NULL</li>
+        <li><code>cards(org_id, pos_owner_id, ganho_pos_at)</code> WHERE pos_owner_id IS NOT NULL</li>
+        <li><code>cards(org_id, lead_entry_path, pipeline_stage_id)</code></li>
+        <li><code>cards(org_id, pipeline_stage_id, stage_entered_at)</code></li>
+        <li><code>tarefas(org_id, responsavel_id, status, data_vencimento)</code> WHERE status != 'concluida'</li>
+        <li><code>activities(card_id, tipo, created_at)</code> composto</li>
+        <li>GIN em <code>produto_data->'destinos'</code> pra filtrar destino rápido</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 6 — Business hours (SLA realista)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Hoje SLA é wall-clock (conta noite e fim de semana). Correção:</p>
+      <ul style="font-size:12px">
+        <li>Coluna <code>organizations.business_hours</code> (JSONB): <code>{start:"09:00", end:"18:00", timezone:"America/Sao_Paulo", work_days:[1,2,3,4,5]}</code></li>
+        <li>Função SQL <code>fn_business_minutes_between(a TIMESTAMPTZ, b TIMESTAMPTZ, org_id UUID)</code> — retorna minutos úteis entre 2 timestamps</li>
+        <li>Usar em: SLA de etapa, FRT (WhatsApp), handoff speed, dropped balls</li>
+        <li>Fallback pra wall-clock se business_hours não configurado</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 7 — Infraestrutura de IA (pro Explorar)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Edge functions novas:</p>
+      <ul style="font-size:12px">
+        <li><code>analytics-ai-interpret</code> — recebe texto do user, chama Claude/GPT com tool-use, retorna JSON estruturado <code>{measure, groupBy, crossWith, filters, viz, confidence}</code></li>
+        <li><code>analytics-audio-transcribe</code> (v2.5) — Whisper API, recebe áudio, retorna transcrição</li>
+      </ul>
+      <p style="margin-top:10px">Tool schema pra LLM:</p>
+      <ul style="font-size:11px;font-family:monospace">
+        <li>Tool <code>measure_enum</code>: receita, ticket_medio, num_cards, num_ganhos, conversao_pct, velocity_dias, quality_score, tempo_resposta, tarefas_concluidas</li>
+        <li>Tool <code>dimension_enum</code>: origem, destino, fase, etapa, planner, sdr, concierge, mes, tag, entry_path</li>
+        <li>Tool <code>filter_enum</code>: período, fase, dono, tag, origem, destino, entry_path</li>
+        <li>Tool <code>viz_enum</code>: tabela, linha, barra, heatmap</li>
+      </ul>
+      <p style="margin-top:10px">Integra na infra IA existente (mesma plumbing de Julia/Luna/extração).</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Bloco 8 — Backfill (popular dado histórico nos campos novos)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Campos novos em <code>cards</code> precisam ser preenchidos pra cards existentes — senão analytics fica com dado vazio em histórico.</p>
+      <ul style="font-size:12px">
+        <li><code>quality_score_pct</code> → UPDATE em lote (batch de 1000 cards por vez)</li>
+        <li><code>lead_entry_path</code> → derivar: origem=indicacao → 'referred', contato tem ganho prévio → 'returning', sdr_owner_id IS NULL → 'direct_planner', senão 'full_funnel'</li>
+        <li><code>first_response_at</code> → para cards com whatsapp_messages existentes, preencher com MIN(created_at) WHERE direction='outbound'</li>
+        <li><code>activities</code> backfill de ganho_*_event → inserir 1 evento por card que já tem ganho_*_at preenchido</li>
+      </ul>
+      <p style="margin-top:10px">Migrations de backfill separadas (uma por campo) pra poder executar com segurança + rollback.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:30px">
+  <div class="label">Resumo do escopo backend v2</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px">
+        <tr><td style="padding:4px"><strong>Bloco 1</strong> — Filtros universais em 12 RPCs existentes</td><td style="text-align:right;padding:4px">~2 dias</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 2</strong> — Correção attribution bug (5 RPCs)</td><td style="text-align:right;padding:4px">~1 dia</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 3</strong> — 13 novas RPCs</td><td style="text-align:right;padding:4px">~6 dias</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 4</strong> — Schema changes + triggers</td><td style="text-align:right;padding:4px">~2 dias</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 5</strong> — Indices novos + testes de performance</td><td style="text-align:right;padding:4px">~1 dia</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 6</strong> — Business hours</td><td style="text-align:right;padding:4px">~1 dia</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 7</strong> — AI edge function (Explorar IA)</td><td style="text-align:right;padding:4px">~2 dias</td></tr>
+        <tr><td style="padding:4px"><strong>Bloco 8</strong> — Backfill de dado histórico</td><td style="text-align:right;padding:4px">~1 dia</td></tr>
+        <tr style="border-top:2px solid #c7d2fe;font-weight:600"><td style="padding:6px">Subtotal backend</td><td style="text-align:right;padding:6px">~16 dias</td></tr>
+        <tr><td style="padding:4px">+ Frontend (6 telas, filtros, drill-downs, Explorar UI)</td><td style="text-align:right;padding:4px">~10-12 dias</td></tr>
+        <tr><td style="padding:4px">+ Testes E2E, QA, ajustes</td><td style="text-align:right;padding:4px">~3-4 dias</td></tr>
+        <tr style="border-top:2px solid #c7d2fe;font-weight:600;color:#4338ca"><td style="padding:6px">Total v2 estimado</td><td style="text-align:right;padding:6px">~30 dias úteis</td></tr>
+      </table>
+      <p style="margin-top:10px;font-size:11px;color:#64748b"><em>Estimativa conservadora. Pode baixar se alguns blocos entrarem em paralelo (frontend começa enquanto backend termina RPCs simples).</em></p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Fundações mapeadas. Me confirma o escopo ou ajusta antes de eu ir pra Seção 5 (rollout e sequenciamento).</p>

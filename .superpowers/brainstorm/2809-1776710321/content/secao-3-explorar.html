@@ -1,0 +1,138 @@
+<h2>Seção 3 — Aba Explorar (análise livre)</h2>
+<p class="subtitle">Pra quando a pergunta específica não cabe num dashboard curado. Tipo pivot table do CRM.</p>
+
+<div class="section">
+  <div class="label">Propósito</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Dashboards curados respondem <strong>perguntas conhecidas</strong> (métrica-norte, alertas, outcomes de cada papel). A aba Explorar responde <strong>perguntas novas</strong>:</p>
+      <ul style="font-size:12px">
+        <li>"Qual destino tem maior ticket mas pior NPS?"</li>
+        <li>"Motivo de perda cruzado com fonte × Planner"</li>
+        <li>"Tarefas vencidas por tipo × pessoa × mês"</li>
+        <li>"Velocidade de cada etapa por SDR"</li>
+        <li>"Quality score por fase × por fonte"</li>
+        <li>"Conversão Proposta→Ganho por destino"</li>
+      </ul>
+      <p style="margin-top:8px">É análise ad-hoc, só pra leitura (nunca escreve). Quem tem acesso: dono/admin + gestores. Operador não precisa disso na rotina.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Layout — mental model: pivot table</div>
+  <div class="mockup">
+    <div class="mockup-header">Wireframe da aba Explorar</div>
+    <div class="mockup-body">
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        <!-- Filter bar universal (same as dashboards) -->
+        <div style="background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:10px;font-size:11px">
+          📅 Últ. 90 dias · Fase: Todas · Dono: Todos · + Mais filtros ▾ &nbsp;&nbsp;<span style="float:right">🔗 Compartilhar · ↺ Limpar</span>
+        </div>
+        <!-- Query builder -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px;background:#eef2ff;border-radius:8px">
+          <div>
+            <div style="font-size:11px;color:#4338ca;font-weight:600;margin-bottom:4px">📊 O que medir</div>
+            <div style="background:white;border:1px solid #c7d2fe;padding:6px;border-radius:6px;font-size:11px">
+              Conversão ▾<br>
+              <span style="color:#64748b;font-size:10px">(# cards · # ganhos · receita · ticket médio · velocity · conversão · quality score · tempo resposta · tarefas concluídas)</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#4338ca;font-weight:600;margin-bottom:4px">📐 Agrupar por (linhas)</div>
+            <div style="background:white;border:1px solid #c7d2fe;padding:6px;border-radius:6px;font-size:11px">
+              Origem ▾<br>
+              <span style="color:#64748b;font-size:10px">(fonte · destino · fase · etapa · Planner · SDR · mês · tag · entry path)</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#4338ca;font-weight:600;margin-bottom:4px">🔀 Cruzar com (colunas)</div>
+            <div style="background:white;border:1px solid #c7d2fe;padding:6px;border-radius:6px;font-size:11px">
+              Destino ▾<br>
+              <span style="color:#64748b;font-size:10px">(opcional — deixa em branco pra visão simples)</span>
+            </div>
+          </div>
+        </div>
+        <!-- Visualization tabs -->
+        <div style="display:flex;gap:4px;margin-top:10px;font-size:11px">
+          <div style="padding:6px 10px;background:#4f46e5;color:white;border-radius:4px">📊 Tabela</div>
+          <div style="padding:6px 10px;background:#f1f5f9;border-radius:4px">📈 Linha</div>
+          <div style="padding:6px 10px;background:#f1f5f9;border-radius:4px">📉 Barra</div>
+          <div style="padding:6px 10px;background:#f1f5f9;border-radius:4px">🗺️ Heatmap</div>
+        </div>
+        <!-- Result placeholder -->
+        <div class="placeholder" style="margin-top:10px;min-height:80px;font-size:11px">Tabela/gráfico do resultado cruzando Origem × Destino × Conversão</div>
+        <!-- Action -->
+        <div style="margin-top:10px;font-size:11px;display:flex;gap:6px">
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">💾 Salvar como view</div>
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">📥 Exportar CSV</div>
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">🔗 Gerar link</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Templates de partida (acelera uso)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Ao entrar no Explorar, user vê 2 opções: começar do zero, ou usar um template. Templates comuns:</p>
+      <ul style="font-size:12px">
+        <li><strong>Conversão por fonte</strong> — origem × conversão × ticket</li>
+        <li><strong>Top destinos por receita</strong> — destino × receita × # viagens</li>
+        <li><strong>Velocidade por etapa × pessoa</strong> — stage × owner × dias p75</li>
+        <li><strong>Motivos de perda cruzado</strong> — motivo × Planner × destino</li>
+        <li><strong>Tarefas por tipo × pessoa × período</strong> — tipo × responsável × mês</li>
+        <li><strong>Quality score por fase × pessoa</strong> — fase × owner × % preenchimento</li>
+        <li><strong>FRT por SDR × fonte</strong> — SDR × origem × tempo médio resposta</li>
+        <li><strong>Coorte de entrada</strong> — mês de entrada × % convertido até hoje</li>
+      </ul>
+      <p style="margin-top:10px">User escolhe template, carrega a configuração, aí customiza (muda filtros, troca agrupamento, etc).</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Limites e regras</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>O que PODE</h4>
+      <ul>
+        <li>Cruzar até 2 dimensões (linha × coluna)</li>
+        <li>Usar qualquer filtro universal (+ Mais filtros abre todos)</li>
+        <li>Trocar visualização (tabela / linha / barra / heatmap)</li>
+        <li>Salvar "minha view" (cada user tem as dele)</li>
+        <li>Compartilhar link (URL com config)</li>
+        <li>Exportar CSV</li>
+        <li>Drill-down em qualquer célula (abre lista de cards)</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>O que NÃO pode (intencionalmente)</h4>
+      <ul>
+        <li>Escrever dado (sempre read-only)</li>
+        <li>Queries custom em SQL (muda escopo do projeto)</li>
+        <li>Cruzar &gt;2 dimensões (cognitivamente pesado; dashboards curados já resolvem)</li>
+        <li>Acesso de operador comum (restrito a dono/admin + gestores)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Performance</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Queries ad-hoc podem ser pesadas. Proteções:</p>
+      <ul style="font-size:12px">
+        <li>Período máximo: últimos 24 meses (força limite se período pedido for maior)</li>
+        <li>Limite de resultados: 1000 linhas por pivot (mostra aviso "refinar filtros")</li>
+        <li>Cache de queries repetidas por 5 min (user que abre a mesma view não reprocessa)</li>
+        <li>Indexes pensados pros cruzamentos mais comuns (origem × stage, owner × stage, destino × período)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Aba Explorar mapeada. Me diz se tem ajuste ou avança pra Seção 4 (fundações backend — escopo técnico e rollout).</p>

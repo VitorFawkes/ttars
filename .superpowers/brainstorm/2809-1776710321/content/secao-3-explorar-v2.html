@@ -1,0 +1,162 @@
+<h2>Seção 3 v2 — Explorar híbrido (IA + Pivot manual)</h2>
+<p class="subtitle">Dois caminhos na mesma tela. IA baixa a barreira, pivot dá controle. Ponto-chave: a IA preenche o pivot <strong>visivelmente</strong> — sem caixa-preta.</p>
+
+<div class="section">
+  <div class="label">Layout unificado</div>
+  <div class="mockup">
+    <div class="mockup-header">Uma tela, dois caminhos convergentes</div>
+    <div class="mockup-body">
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        <!-- Filter bar universal -->
+        <div style="background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:10px;font-size:11px">
+          📅 Últ. 90 dias · Fase: Todas · + Mais filtros ▾
+        </div>
+
+        <!-- AI input on top -->
+        <div style="background:linear-gradient(135deg,#eef2ff 0%,#ede9fe 100%);border:1px solid #c7d2fe;padding:14px;border-radius:8px;margin-bottom:10px">
+          <div style="font-size:11px;color:#4338ca;font-weight:600;margin-bottom:6px">✨ Pergunta do seu jeito</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div style="flex:1;background:white;border:1px solid #c7d2fe;padding:10px;border-radius:6px;font-size:12px;color:#64748b;font-style:italic">
+              "quais destinos deram mais receita nos últimos 3 meses agrupado por Planner?"
+            </div>
+            <div style="background:#4f46e5;color:white;padding:10px;border-radius:50%;font-size:14px">🎤</div>
+            <div style="background:#4f46e5;color:white;padding:8px 14px;border-radius:6px;font-size:11px">Perguntar</div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:#4338ca">
+            💡 Pode digitar ou gravar áudio. A IA vai preencher o painel abaixo e executar.
+          </div>
+        </div>
+
+        <!-- AI interpretation (when activated) -->
+        <div style="background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:6px;margin-bottom:10px;font-size:11px">
+          <strong>🔍 Entendi assim:</strong> medir <strong>Receita</strong>, agrupar por <strong>Destino × Planner</strong>, filtrar <strong>período=Últ 3 meses</strong>, ordenar por receita desc.<br>
+          <span style="color:#92400e">Confiança: alta. <em>Se não for isso, ajuste no painel abaixo e reexecute.</em></span>
+        </div>
+
+        <!-- Pivot manual (always visible, editable) -->
+        <div style="border:1px solid #cbd5e1;border-radius:8px;padding:10px">
+          <div style="font-size:11px;color:#475569;font-weight:600;margin-bottom:6px">🔧 Painel de análise (editável)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div>
+              <div style="font-size:10px;color:#64748b;margin-bottom:3px">O que medir</div>
+              <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:6px;border-radius:4px;font-size:11px">Receita ▾</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#64748b;margin-bottom:3px">Agrupar por</div>
+              <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:6px;border-radius:4px;font-size:11px">Destino ▾</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#64748b;margin-bottom:3px">Cruzar com</div>
+              <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:6px;border-radius:4px;font-size:11px">Planner ▾</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;margin-top:8px;font-size:11px">
+            <div style="padding:4px 8px;background:#4f46e5;color:white;border-radius:4px">📊 Tabela</div>
+            <div style="padding:4px 8px;background:#f1f5f9;border-radius:4px">📈 Linha</div>
+            <div style="padding:4px 8px;background:#f1f5f9;border-radius:4px">📉 Barra</div>
+            <div style="padding:4px 8px;background:#f1f5f9;border-radius:4px">🗺️ Heatmap</div>
+            <div style="margin-left:auto;padding:4px 8px;background:#4f46e5;color:white;border-radius:4px">▶ Executar</div>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div class="placeholder" style="margin-top:10px;min-height:80px;font-size:11px">Resultado — Tabela/gráfico</div>
+
+        <!-- Actions -->
+        <div style="margin-top:10px;font-size:11px;display:flex;gap:6px">
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">💾 Salvar view</div>
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">📥 CSV</div>
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">🔗 Compartilhar</div>
+          <div style="padding:6px 10px;background:white;border:1px solid #cbd5e1;border-radius:4px">💬 Refinar <em>(follow-up IA)</em></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Como a IA é transparente (não é caixa-preta)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <ol style="font-size:12px">
+        <li><strong>User pergunta</strong> (texto ou áudio). Se áudio, Whisper transcreve.</li>
+        <li><strong>IA interpreta</strong> e retorna JSON estruturado: <code>{measure, groupBy, crossWith, filters, viz}</code>.</li>
+        <li><strong>Exibe "Entendi assim"</strong> em destaque amarelo (visível, não escondido).</li>
+        <li><strong>Preenche o painel pivot</strong> automaticamente com esses valores.</li>
+        <li><strong>Executa e renderiza</strong> — user vê resultado + interpretação lado a lado.</li>
+        <li><strong>Se errou</strong>: user tweaka o painel pivot manualmente e reexecuta. O pivot é a fonte de verdade.</li>
+        <li><strong>Se quiser refinar</strong>: botão "💬 Refinar" abre follow-up ("agora só Planner João", "troca pra Ticket médio em vez de Receita") — multi-turn conversacional.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Arquitetura técnica (resumo honesto)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p><strong>IA NÃO gera SQL direto</strong> (perigoso — alucinação, permissões, performance). Em vez disso: tool-use.</p>
+      <ul style="font-size:12px">
+        <li><strong>Tools expostos pra IA:</strong> as RPCs de analytics + descrição de parâmetros e dimensões válidas</li>
+        <li><strong>LLM escolhe tool + preenche args</strong> (text-to-tool, não text-to-SQL)</li>
+        <li><strong>Validação server-side:</strong> args são validados antes de executar RPC</li>
+        <li><strong>RLS</strong> continua protegendo dado (IA não pode burlar permissão)</li>
+        <li><strong>Fallback:</strong> se IA não tem confiança, retorna mensagem "Não entendi — monte no painel manualmente"</li>
+      </ul>
+      <p style="margin-top:10px">Pilhas candidatas: Claude/GPT com tool-use + Whisper pra áudio. Você já tem infra de IA (Luna, Julia, extração), então plumbing existe.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Trade-offs honestos pro escopo do v2</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Ganhos</h4>
+      <ul>
+        <li>Barreira de uso zero (Vitor e gestores podem perguntar sem aprender pivot)</li>
+        <li>Áudio é mobile-friendly (perguntar "no carro" voltando de cliente)</li>
+        <li>Consistente com resto do CRM (Julia/Luna)</li>
+        <li>Pivot manual fica como fallback + power-user tool</li>
+        <li>Transparência (user sempre vê a interpretação)</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Custos / riscos</h4>
+      <ul>
+        <li>+1 componente IA pra manter (prompt engineering, tool schemas, testes)</li>
+        <li>Custo por query (LLM + Whisper) — $0,01-0,05/pergunta, pequeno mas real</li>
+        <li>Latência (2-5s vs 0.5s do pivot manual)</li>
+        <li>Alucinação: precisa UX que deixa claro quando IA errou</li>
+        <li>Escopo v2 cresce — estimo +3-5 dias a mais que o Explorar manual puro</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Proposta de faseamento</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>V2 (esta entrega):</strong></p>
+      <ul style="font-size:12px">
+        <li>✅ Pivot manual completo (templates, filtros, visualizações)</li>
+        <li>✅ IA texto (digitar pergunta → interpreta → preenche pivot → executa)</li>
+        <li>✅ "Entendi assim" visível (transparência)</li>
+        <li>✅ Tool-use architecture (seguro)</li>
+      </ul>
+      <p style="margin-top:8px"><strong>V2.5 (incremento rápido):</strong></p>
+      <ul style="font-size:12px">
+        <li>🎤 Áudio (Whisper)</li>
+        <li>💬 Refinar (multi-turn follow-up)</li>
+      </ul>
+      <p style="margin-top:8px"><strong>V3 (futuro):</strong></p>
+      <ul style="font-size:12px">
+        <li>IA proativa (sugere "você deveria olhar isso aqui" baseado em alertas)</li>
+        <li>Drill direto em dashboards via IA ("me mostra Pós com origem Travel Planner")</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Dois caminhos coexistindo, pivot sempre visível, IA preenche em cima. Confirma que é isso ou ajusta?</p>

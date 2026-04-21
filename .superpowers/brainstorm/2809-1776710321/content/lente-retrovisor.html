@@ -1,0 +1,146 @@
+<h2>A Lente que eu tinha faltado — "Meu trabalho, seguido em frente"</h2>
+<p class="subtitle">Você acabou de revelar uma camada crucial. O dashboard de cada persona NÃO é "o que está na minha fase" — é "os cards que eu toquei, seguindo até hoje, mesmo que já estejam em outra fase".</p>
+
+<div class="section">
+  <div class="label">Exemplo concreto — Dashboard Vendas (Travel Planner)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p><strong>Visão que você pediu:</strong> "os cards que eu, como Planner, fechei em Outubro" — e o que aconteceu com eles até hoje.</p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:12px">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:8px">Métrica que aparece</th>
+            <th style="text-align:left;padding:8px">O que mostra</th>
+            <th style="text-align:left;padding:8px">De onde vem o dado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px">50 cards fechados</td>
+            <td style="padding:8px">Cards onde eu era vendas_owner_id e fechei (ganho_planner) em Out</td>
+            <td style="padding:8px">cards.vendas_owner_id + ganho_planner_at</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;background:#fef3c7">
+            <td style="padding:8px"><strong>Estado atual desses 50 hoje</strong></td>
+            <td style="padding:8px">22 em preparação · 15 em viagem · 10 já concluídos · 3 cancelados após fechar</td>
+            <td style="padding:8px">viagens.estado + cards.status_comercial</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;background:#fef3c7">
+            <td style="padding:8px"><strong>Receita realizada vs prometida</strong></td>
+            <td style="padding:8px">R$ 180K aprovado na minha proposta; R$ 165K efetivamente faturado após ajustes pós</td>
+            <td style="padding:8px">viagens.total_aprovado vs recebido real</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;background:#fef3c7">
+            <td style="padding:8px"><strong>Problemas no Pós</strong></td>
+            <td style="padding:8px">3 dos meus 50 tiveram incidente de prontidão (voucher atrasado, app incompleto). Quais? Quem era Concierge? </td>
+            <td style="padding:8px">tarefas.status + trip_items.status + viagens.estado</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;background:#fef3c7">
+            <td style="padding:8px"><strong>NPS das viagens concluídas</strong></td>
+            <td style="padding:8px">Dos 10 concluídos, 7 responderam NPS, média 9.2</td>
+            <td style="padding:8px"><em>futuro (v3 de NPS)</em></td>
+          </tr>
+          <tr>
+            <td style="padding:8px"><strong>Retorno pós-viagem</strong></td>
+            <td style="padding:8px">2 clientes dos 10 concluídos já abriram novo card (repeat)</td>
+            <td style="padding:8px">contatos → cards count</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px;color:#4338ca"><strong>Chave:</strong> o dashboard acompanha os cards <em>MEUS</em> através de TODA a jornada, não para quando o card sai da minha fase.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Esse princípio aplica a todas as personas</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:8px">Persona</th>
+            <th style="text-align:left;padding:8px">Âncora (cards "meus")</th>
+            <th style="text-align:left;padding:8px">O que vê em frente</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px"><strong>📞 SDR</strong></td>
+            <td style="padding:8px">sdr_owner_id = eu/time</td>
+            <td style="padding:8px">% que virou ganho no Planner · ticket médio das viagens que fechei o SDR · tempo do meu handoff até venda · destino dos leads que qualifiquei</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px"><strong>👥 Vendas</strong></td>
+            <td style="padding:8px">vendas_owner_id = eu/time</td>
+            <td style="padding:8px">estado das viagens que fechei · problemas no Pós · NPS final · receita realizada vs prometida · retorno pós-viagem</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px"><strong>🛠️ Pós (preparação)</strong></td>
+            <td style="padding:8px">dono da tarefa de preparação = eu/time</td>
+            <td style="padding:8px">viagens que entreguei · NPS delas · clientes que voltaram · indicações geradas</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px"><strong>🛎️ Concierge</strong></td>
+            <td style="padding:8px">concierge_id / pos_owner_id = eu/time</td>
+            <td style="padding:8px">viagens que acompanhei · NPS · reclamações em viagem · retorno</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px"><strong>💼 Comercial macro</strong></td>
+            <td style="padding:8px">todo o time comercial</td>
+            <td style="padding:8px">safras por mês · maturação · concentração de canal/destino · outcome Pós</td>
+          </tr>
+          <tr>
+            <td style="padding:8px"><strong>👑 Dono</strong></td>
+            <td style="padding:8px">org inteira</td>
+            <td style="padding:8px">tendência global · retenção · NPS · saúde integrada</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Implicação pro desenho das 3 lentes</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>A Lente "Coorte" agora tem 2 modos de âncora:</strong></p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <div style="flex:1;min-width:220px;background:white;border:1px solid #cbd5e1;padding:12px;border-radius:8px">
+          <strong>⏱️ Coorte por entrada</strong>
+          <p style="margin-top:6px;font-size:12px;color:#475569">Cards que entraram na fase X entre Y e Z. Trajetória até hoje.<br><em>Ex: "Safra de leads de Outubro" — maturação da safra.</em></p>
+        </div>
+        <div style="flex:1;min-width:220px;background:#fef3c7;border:1px solid #fde68a;padding:12px;border-radius:8px">
+          <strong>👤 Coorte por responsável</strong> ← <span style="color:#d97706">NOVA</span>
+          <p style="margin-top:6px;font-size:12px;color:#475569">Cards onde [eu/time] foi owner em alguma fase. Trajetória até hoje, mesmo que já tenham saído da minha fase.<br><em>Ex: "Os cards que eu fechei como Planner" — meu retrovisor.</em></p>
+        </div>
+      </div>
+      <p style="margin-top:12px"><strong>As 3 lentes finais ficam:</strong></p>
+      <ul>
+        <li>📅 <strong>Eventos no período</strong> — "o que aconteceu entre X e Y"</li>
+        <li>🌱 <strong>Coorte</strong> — âncora em <em>entrada</em> OU em <em>responsável</em> · trajetória forward</li>
+        <li>📸 <strong>Snapshot agora</strong> — "o que está aberto"</li>
+      </ul>
+      <p style="margin-top:10px">Na prática, o dashboard de cada persona <strong>default já vem em "Coorte por responsável"</strong>, filtrado pelo owner do user. Isso dá exatamente o retrovisor que você descreveu. Mas em 1 clique dá pra trocar pra "Eventos" ou "Snapshot" se quiser outra leitura.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Por que isso é poderoso (insight sênior)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Com essa lente, cada operador/gestor consegue responder perguntas <strong>de responsabilidade</strong> — que nenhum dashboard tradicional responde:</p>
+      <ul>
+        <li><strong>SDR:</strong> "Meus leads convertem bem? Ou o Planner está reclamando com razão?"</li>
+        <li><strong>Planner:</strong> "As viagens que eu fecho dão problema no Pós? Meu cliente volta?"</li>
+        <li><strong>Pós:</strong> "As viagens que eu entrego geram retorno e indicação? Ou saem e somem?"</li>
+        <li><strong>Gestor:</strong> "Qual Planner fecha viagem que o Pós sofre pra entregar? (alerta de venda mal feita)"</li>
+      </ul>
+      <p style="margin-top:10px">Essas perguntas existem em <strong>toda</strong> operação e quase nenhum CRM mostra. Você está pedindo algo que eleva o nível do Analytics.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Confirma que entendi? Essa "Coorte por responsável" é o que você quis dizer com "continuar vendo o restante do que aconteceu"?</p>

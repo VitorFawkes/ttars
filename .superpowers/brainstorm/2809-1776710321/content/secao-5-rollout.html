@@ -1,0 +1,172 @@
+<h2>Seção 5 — Rollout, Sequenciamento e Riscos</h2>
+<p class="subtitle">Como entregar o v2 em fases, manter o Analytics atual funcionando em paralelo, e mitigar risco.</p>
+
+<div class="section">
+  <div class="label">Ordem de entrega — 5 fases</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:8px">Fase</th>
+            <th style="text-align:left;padding:8px">Dura</th>
+            <th style="text-align:left;padding:8px">Entrega</th>
+            <th style="text-align:left;padding:8px">Visível pra user?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px"><strong>0 — Preparação silenciosa</strong></td>
+            <td style="padding:8px">2 dias</td>
+            <td style="padding:8px">Schema changes (novos campos), indices, triggers, backfill histórico</td>
+            <td style="padding:8px">❌ Não (invisível)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px"><strong>1 — Fundação de dados</strong></td>
+            <td style="padding:8px">5 dias</td>
+            <td style="padding:8px">12 RPCs estendidas (filtros universais) + correção attribution bug + eventos ganho em activities + business hours</td>
+            <td style="padding:8px">❌ Não (APIs internas)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px"><strong>2 — Novas RPCs</strong></td>
+            <td style="padding:8px">6 dias</td>
+            <td style="padding:8px">13 RPCs novas + IA edge function + testes de performance</td>
+            <td style="padding:8px">❌ Não (APIs internas)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px"><strong>3 — Frontend</strong></td>
+            <td style="padding:8px">10-12 dias</td>
+            <td style="padding:8px">5 dashboards persona + barra de filtros + Explorar (pivot + IA) + drill-down transversal</td>
+            <td style="padding:8px">⚠️ Feature flag: só admin vê</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px"><strong>4 — Beta com você + ajustes</strong></td>
+            <td style="padding:8px">3-4 dias</td>
+            <td style="padding:8px">Você usa por 1 semana, coleta feedback, ajusta widgets que ficaram estranhos, valida números</td>
+            <td style="padding:8px">✅ Sim, só você</td>
+          </tr>
+          <tr>
+            <td style="padding:8px"><strong>5 — Liberação geral + cleanup</strong></td>
+            <td style="padding:8px">2-3 dias</td>
+            <td style="padding:8px">Ativar pra gestores → operadores. Depois de 2 sem estáveis, desligar Analytics antigo. Remover RPCs legadas em 1 mês.</td>
+            <td style="padding:8px">✅ Sim, todos</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px;color:#4338ca"><strong>Analytics antigo continua funcionando durante todas as fases.</strong> Só é desligado depois que o novo está provado em produção.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Estratégia de não-quebrar Analytics atual</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <ul style="font-size:12px">
+        <li><strong>RPCs estendidas mantêm assinatura retrocompatível</strong> — novos parâmetros com DEFAULT NULL, código antigo continua chamando sem quebrar</li>
+        <li><strong>RPCs corrigidas (attribution) ganham nova versão</strong> <code>_v2</code> — a antiga permanece, frontend novo usa a nova, frontend antigo usa a antiga até migrar</li>
+        <li><strong>Feature flag na rota</strong> — <code>/analytics</code> continua apontando pro antigo; <code>/analytics/v2</code> pro novo. Ao final, redirect do antigo pro novo</li>
+        <li><strong>Dashboards antigos mantidos como pages</strong> até desligamento final (user pode comparar novo vs antigo)</li>
+        <li><strong>Testes E2E cobrindo os 2 em paralelo</strong> durante a transição</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Convivência com modelo legado (proposals vs viagens)</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p>Modelo novo (<code>viagens</code>/<code>trip_items</code>) ainda está em adoção; modelo antigo (<code>proposals</code>/<code>proposal_items</code>) ainda existe pra cards antigos.</p>
+      <ul style="font-size:12px">
+        <li>RPCs de prontidão e versões (<code>analytics_trip_readiness</code>, <code>analytics_proposal_versions</code>) <strong>tentam viagens primeiro</strong></li>
+        <li>Fallback pra <code>proposal_trip_plans</code> se card não tem viagem ativa</li>
+        <li>Nenhum card fica sem dado; mas analytics sinaliza visualmente cards "modelo legado" pra o gestor saber que a informação vem de fonte menos rica</li>
+        <li>Quando 100% dos cards migrarem pro novo modelo (projeto paralelo do Travel Planner), removemos o fallback</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Testes e qualidade</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <ul style="font-size:12px">
+        <li><strong>Unit/SQL tests</strong> — cada RPC nova ganha caso em <code>business-rules.test.sql</code> (a suite já existe e roda antes de promote)</li>
+        <li><strong>E2E Playwright</strong> — fluxos críticos: login → dashboard persona → aplicar filtro → drill-down → Explorar IA → export CSV</li>
+        <li><strong>Performance tests</strong> — toda RPC nova precisa retornar em &lt; 2s p95 com 50K cards (teste contra staging com seed realista)</li>
+        <li><strong>Canary numérico</strong> — na Fase 4 (beta), você valida se os números do v2 batem com o Analytics antigo em métricas compartilhadas (ex: receita fechada no mês). Se divergir, investigar antes de liberar</li>
+        <li><strong>Regression suite</strong> — Analytics antigo continua com testes E2E até o desligamento (impede quebra acidental)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Riscos e mitigações</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#fef2f2;border-bottom:1px solid #fecaca">
+            <th style="text-align:left;padding:6px">Risco</th>
+            <th style="text-align:left;padding:6px">Mitigação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #fecaca"><td style="padding:6px">Queries do Explorar pesadas → app lento</td><td style="padding:6px">Indices específicos + cache 5 min + limite 1000 linhas + período máx 24m</td></tr>
+          <tr style="border-bottom:1px solid #fecaca"><td style="padding:6px">IA interpreta errado → gestor lê número errado</td><td style="padding:6px">"Entendi assim" sempre visível + pivot editável sempre + confidence score</td></tr>
+          <tr style="border-bottom:1px solid #fecaca"><td style="padding:6px">Correção attribution muda números históricos → gestor estranha</td><td style="padding:6px">Nota explicativa na tela: "Rankings agora consideram o dono da fase correta (antes usava dono atual — incorreto)"</td></tr>
+          <tr style="border-bottom:1px solid #fecaca"><td style="padding:6px">Backfill gera load pesado no banco em produção</td><td style="padding:6px">Executar em batches de 1K, off-hours, com pausas. Um campo por vez</td></tr>
+          <tr style="border-bottom:1px solid #fecaca"><td style="padding:6px">Feature flag esquecido → operador vê sem querer</td><td style="padding:6px">Flag controlada por role no <code>profiles.is_admin</code> + checklist de liberação</td></tr>
+          <tr><td style="padding:6px">Custo IA descontrolado</td><td style="padding:6px">Rate limit: 30 queries/user/hora inicialmente. Cache de interpretações repetidas.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">V3 NPS — próximo projeto (outline, não entra no v2)</div>
+  <div class="mockup" style="border-color:#fde68a;background:#fffbeb">
+    <div class="mockup-body">
+      <p>NPS é projeto próprio. Escopo estimado ~5-7 dias:</p>
+      <ul style="font-size:12px">
+        <li>Tabelas <code>nps_requests</code> + <code>nps_responses</code></li>
+        <li>Edge function de envio automático N dias após retorno (usa <code>data_viagem_fim</code>)</li>
+        <li>Página pública <code>/nps/{token}</code> pra cliente responder (sem login)</li>
+        <li>Cadência de follow-up se não responder em X dias</li>
+        <li>Widgets já reservados nos dashboards v2 (placeholders viram dados reais)</li>
+        <li>Analytics de NPS por Planner, destino, período, correlação com retorno</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Resumo final do escopo v2</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>Entrega:</strong></p>
+      <ul style="font-size:12px">
+        <li>5 dashboards dedicados por persona (Dono, Comercial, Vendas, Pós, SDR)</li>
+        <li>Barra de filtros universais (7 filtros + Modo/Lente)</li>
+        <li>Aba Explorar híbrida (pivot + IA texto transparente)</li>
+        <li>Drill-down transversal com timeline por card</li>
+        <li>Fundação backend (12 RPCs estendidas, 5 corrigidas, 13 novas, business hours, 2 edge functions IA)</li>
+        <li>Feature flag + rollout seguro mantendo Analytics antigo durante transição</li>
+      </ul>
+      <p><strong>Não entrega (fica pra depois):</strong></p>
+      <ul style="font-size:12px">
+        <li>NPS completo (tabela + envio + captura + analytics) — V3</li>
+        <li>Áudio no Explorar + refinar multi-turn — V2.5</li>
+        <li>IA proativa / drill em dashboards via IA — V3</li>
+        <li>Email/telefone SLA — requer instrumentação nova, projeto futuro</li>
+      </ul>
+      <p style="margin-top:10px;color:#4338ca"><strong>Estimativa:</strong> ~30 dias úteis, 5 fases, rollout com feature flag, manutenção de compatibilidade total com Analytics antigo durante transição.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Fechamos o desenho. Próximo passo: escrevo o spec completo em arquivo Markdown (<code>docs/superpowers/specs/</code>), e aí você lê tranquilo, ajusta se precisar, e aprova.</p>

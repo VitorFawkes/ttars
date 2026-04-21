@@ -1,0 +1,53 @@
+<h2>Pós-Venda desmembrado</h2>
+<p class="subtitle">Três sub-funções distintas com métricas diferentes. Marque as que existem de verdade na operação de vocês, e me diga no chat se tem mais ou se alguma não é assim.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="pos_prep" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>🛠️ Preparação / Operacional</h3>
+      <p><strong>Faz:</strong> emite voucher, monta o app da viagem, organiza documentação, fecha checklist pré-embarque.</p>
+      <p><strong>Janela:</strong> do Ganho até o cliente embarcar.</p>
+      <p><strong>Métrica-norte:</strong> <em>% de viagens 100% prontas N dias antes da partida</em> (ex: 7 dias).</p>
+      <p><strong>Acompanha:</strong> tempo Ganho→Pronto · tarefas de preparação vencidas · viagens em atraso de montagem (partida próxima + itens pendentes) · produtividade por operador (quantas viagens cada um monta).</p>
+      <p><strong>Alerta:</strong> viagem parte em &lt;7d e tem voucher/app pendente · lote de tarefas operacionais vencidas no mesmo tipo (ex: 10 vouchers de hotel pendentes).</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="pos_concierge" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>🛎️ Concierge</h3>
+      <p><strong>Faz:</strong> reservas finas (restaurante, passeio, experiência), atendimento ao cliente durante a viagem, solução de imprevistos em tempo real.</p>
+      <p><strong>Janela:</strong> a partir do Ganho até o retorno do cliente (inclui "em_andamento").</p>
+      <p><strong>Métrica-norte:</strong> <em>Qualidade de atendimento durante a viagem</em> (NPS específico de Concierge + tempo médio de resposta a pedido em viagem).</p>
+      <p><strong>Acompanha:</strong> # reservas por viagem · tempo médio de resposta durante viagem · chamados abertos em viagem · Concierges com carga alta (# viagens em_andamento simultâneas).</p>
+      <p><strong>Alerta:</strong> cliente em viagem com pedido aberto sem resposta · Concierge com &gt;N viagens em_andamento.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="pos_relac" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>💌 Relacionamento / Pós-Viagem</h3>
+      <p><strong>Faz:</strong> envia pesquisa NPS após retorno, colhe feedback, aciona cliente pra próxima viagem, nutre relacionamento, identifica potencial de indicação.</p>
+      <p><strong>Janela:</strong> do retorno em diante.</p>
+      <p><strong>Métrica-norte:</strong> <em>NPS médio</em> + <em>taxa de recompra em 12 meses</em>.</p>
+      <p><strong>Acompanha:</strong> viagens concluídas sem NPS coletado · % detratores vs promotores · tempo entre viagem e próxima compra · clientes prontos pra reativar (ex: &gt;180 dias desde última viagem + promotor).</p>
+      <p><strong>Alerta:</strong> viagem terminou há &gt;X dias sem pesquisa enviada · cliente virou detrator · cluster de detratores no mesmo Planner/destino.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="pos_outro" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>❓ Tem outra sub-função?</h3>
+      <p>Ex: Financeiro/Faturamento do Pós (emite NF, acompanha pagamento parcelado), Suporte 24h (plantão durante viagem), Qualidade (auditoria do que o Planner vendeu vs o que foi entregue).</p>
+      <p><strong>Se existir, me conta no chat qual é e o que ela faz.</strong></p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px">Questão importante: dentro do time de Pós-Venda, essas sub-funções são <strong>pessoas diferentes</strong> (sub-times) ou <strong>chapéus que as mesmas pessoas vestem</strong> em momentos diferentes?</p>

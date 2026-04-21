@@ -7,6 +7,10 @@ import {
   useOverviewKpisV2, useProposalVersions, useFieldCompleteness, useStageConversion,
   useHandoffSpeed, useReworkRate,
 } from '@/hooks/analyticsV2/useAnalyticsV2Rpcs'
+import {
+  useTripStates, usePostIssues, useReturnCustomers, usePlannerOpenPortfolio,
+  useOverdueTasksByOwner, useLossReasonsByPlanner, useProposalToWinVelocity,
+} from '@/hooks/analyticsV2/useVendasRpcs'
 import { useAnalyticsV2Filters } from '@/hooks/analyticsV2/useAnalyticsV2Filters'
 
 function formatBRL(v: number | null | undefined): string {
@@ -28,6 +32,13 @@ export default function VendasDashboard() {
   const { data: stageConv, isLoading: loadingSc } = useStageConversion()
   const { data: handoff } = useHandoffSpeed()
   const { data: rework } = useReworkRate()
+  const { data: tripStates } = useTripStates()
+  const { data: postIssues } = usePostIssues()
+  const { data: returnCustomers } = useReturnCustomers()
+  const { data: openPortfolio } = usePlannerOpenPortfolio()
+  const { data: overdueTasks } = useOverdueTasksByOwner()
+  const { data: lossReasons } = useLossReasonsByPlanner()
+  const { data: propToWinVel } = useProposalToWinVelocity()
 
   const byPlanner = (proposals?.by_planner ?? []) as Array<Record<string, unknown>>
   const byPerson = (field?.by_person ?? []) as Array<{ user_id: string; user_name: string; cards: number; avg_score: number }>
@@ -199,6 +210,174 @@ export default function VendasDashboard() {
         <KpiCard title="Handoffs recebidos" value={String(handoff?.summary?.total_handoffs ?? '—')} icon={Users}
           color="text-slate-600" bgColor="bg-slate-100" />
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <WidgetCard title="Estado das Viagens Fechadas" subtitle="Distribuição por status">
+          {!tripStates ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Carregando…</div>
+          ) : (
+            <div className="space-y-3">
+              {tripStates.by_estado && Object.entries(tripStates.by_estado).map(([estado, info]) => (
+                <div key={estado} className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600 font-medium capitalize">{estado.replace(/_/g, ' ')}</div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-slate-900">{(info as any).count}</div>
+                      <div className="text-xs text-slate-400">viagens</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </WidgetCard>
+
+        <WidgetCard title="Problemas no Pós-Venda" subtitle="% cards fechados com tarefas vencidas">
+          {!postIssues ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Carregando…</div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-baseline gap-2">
+                <div className="text-4xl font-bold text-slate-900">{postIssues.issue_pct ?? '—'}%</div>
+                <div className="text-sm text-slate-500">de {postIssues.total_closed} fechados</div>
+              </div>
+              <div className="text-sm text-slate-600">
+                <span className="font-medium">{postIssues.with_issues}</span> cards com problemas
+              </div>
+            </div>
+          )}
+        </WidgetCard>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <WidgetCard title="Retorno Pós-Viagem (Repeat)" subtitle="Clientes que voltaram para nova viagem">
+          {!returnCustomers ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Carregando…</div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-baseline gap-2">
+                <div className="text-4xl font-bold text-slate-900">{returnCustomers.total_returning}</div>
+                <div className="text-sm text-slate-500">clientes retornando</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-50 p-2 rounded">
+                  <div className="text-xs text-slate-500">Compras médias</div>
+                  <div className="text-lg font-semibold text-slate-900">{returnCustomers.avg_repeat_count?.toFixed(1)}</div>
+                </div>
+                <div className="bg-slate-50 p-2 rounded">
+                  <div className="text-xs text-slate-500">Dias até retorno</div>
+                  <div className="text-lg font-semibold text-slate-900">{returnCustomers.avg_days_to_repeat?.toFixed(0)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </WidgetCard>
+
+        <WidgetCard title="Carteira Aberta por Planner" subtitle="Cards ativos não ganhos / não perdidos">
+          {!openPortfolio || openPortfolio.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem carteira aberta</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-slate-500">
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-2 font-medium">Planner</th>
+                    <th className="text-right py-2 font-medium">Cards</th>
+                    <th className="text-right py-2 font-medium">Total</th>
+                    <th className="text-right py-2 font-medium">Dias</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openPortfolio.slice(0, 8).map((p, i) => (
+                    <tr key={i} className="border-b border-slate-50 last:border-0">
+                      <td className="py-2 font-medium text-slate-900 truncate">{p.planner_name}</td>
+                      <td className="py-2 text-right text-slate-600">{p.open_count}</td>
+                      <td className="py-2 text-right text-slate-600">{formatBRL(p.total_estimado)}</td>
+                      <td className="py-2 text-right text-slate-600">{p.avg_days_open?.toFixed(0) ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </WidgetCard>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <WidgetCard title="Tarefas Vencidas do Time" subtitle="Por responsável">
+          {!overdueTasks || overdueTasks.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem tarefas vencidas</div>
+          ) : (
+            <div className="space-y-2">
+              {overdueTasks.slice(0, 10).map((o, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-32 text-xs text-slate-700 truncate" title={o.owner_name}>{o.owner_name}</div>
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-semibold text-red-600">{o.overdue_count}</span>
+                      <span className="text-xs text-slate-500">vencidas</span>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      Antiga: {o.oldest_overdue_days?.toFixed(0)}d | Média: {o.average_overdue_days?.toFixed(1)}d
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </WidgetCard>
+
+        <WidgetCard title="Motivos de Perda por Planner" subtitle="Breakdown de cards perdidos">
+          {!lossReasons || lossReasons.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem perdas registradas</div>
+          ) : (
+            <div className="space-y-3">
+              {lossReasons.slice(0, 8).map((p, i) => (
+                <div key={i} className="border-b border-slate-100 last:border-0 pb-3 last:pb-0">
+                  <div className="text-sm font-medium text-slate-900 mb-2">{p.planner_name}</div>
+                  <div className="space-y-1">
+                    {Object.entries(p.reasons as Record<string, number>).map(([reason, count]) => (
+                      <div key={reason} className="flex justify-between text-xs">
+                        <span className="text-slate-600 truncate" title={reason}>{reason}</span>
+                        <span className="font-semibold text-slate-900">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </WidgetCard>
+      </div>
+
+      <WidgetCard title="Tempo Proposta → Ganho por Planner" subtitle="Mediana e p75 de dias entre envio e fechamento">
+        {!propToWinVel || propToWinVel.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400">Sem dados de propostas</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-slate-500">
+                <tr className="border-b border-slate-100">
+                  <th className="text-left py-2 font-medium">Planner</th>
+                  <th className="text-right py-2 font-medium">Mediana</th>
+                  <th className="text-right py-2 font-medium">p75</th>
+                  <th className="text-right py-2 font-medium">Amostra</th>
+                </tr>
+              </thead>
+              <tbody>
+                {propToWinVel.map((p, i) => (
+                  <tr key={i} className="border-b border-slate-50 last:border-0">
+                    <td className="py-2 font-medium text-slate-900 truncate">{p.planner_name}</td>
+                    <td className="py-2 text-right text-slate-600">{p.median_days?.toFixed(0) ?? '—'}d</td>
+                    <td className="py-2 text-right text-slate-600">{p.p75_days?.toFixed(0) ?? '—'}d</td>
+                    <td className="py-2 text-right text-slate-600">{p.sample_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </WidgetCard>
     </div>
   )
 }

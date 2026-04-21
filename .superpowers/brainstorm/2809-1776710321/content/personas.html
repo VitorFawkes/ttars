@@ -1,0 +1,79 @@
+<h2>Quem lê o Analytics e que decisão toma</h2>
+<p class="subtitle">5 personas candidatas. Cada uma tem uma decisão-chave, uma métrica-norte e o que precisa ver pra decidir. Clica nas que existem de verdade na operação do Welcome Trips hoje (multi-seleção).</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="p_sdr" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>👤 Gestor do SDR</h3>
+      <p><strong>Decide:</strong> quem treinar, quanto time ter, quando mudar o script de qualificação.</p>
+      <p><strong>Métrica-norte:</strong> <em>Taxa de handoff qualificado</em> — de cada 100 leads que entram, quantos o SDR qualifica e o Planner aceita trabalhar.</p>
+      <p><strong>Acompanha:</strong> SLA de 1ª resposta · Leads qualificados por SDR · Reuniões marcadas · No-show rate · Produtividade individual.</p>
+      <p><strong>Alerta:</strong> SLA de 1ª resposta &gt; 2h · Lead "morrendo" na qualificação &gt; 5 dias · Planner recusando lead do SDR X.</p>
+      <p><strong>Horizonte:</strong> semana.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="p_vendas" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>👤 Gestor de Vendas (Planners)</h3>
+      <p><strong>Decide:</strong> como redistribuir carteira, quem coach em negociação, mudar comissão, especializar Planner por destino.</p>
+      <p><strong>Métrica-norte:</strong> <em>Receita fechada do time vs meta</em> + win rate.</p>
+      <p><strong>Acompanha:</strong> Win rate por Planner · Ticket médio · Tempo Proposta→Ganho · # versões até aprovar · Motivos de perda por Planner · Carteira aberta por Planner (# cards ativos).</p>
+      <p><strong>Alerta:</strong> Planner com conversão abaixo de N% · Proposta parada há &gt;14 dias · Motivo "preço" concentrado num Planner.</p>
+      <p><strong>Horizonte:</strong> mês.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="p_pos" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>👤 Gestor do Pós-Venda (Concierge)</h3>
+      <p><strong>Decide:</strong> contratar mais Concierge, ajustar playbook, escalar viagem em risco, onde gargala a operação.</p>
+      <p><strong>Métrica-norte:</strong> <em>Prontidão operacional das viagens iminentes</em> (% de itens operacionais prontos 7 dias antes da partida).</p>
+      <p><strong>Acompanha:</strong> Viagens por estado (em_montagem / aguardando_embarque / em_andamento) · Tarefas pós-venda vencidas por Concierge · Carga por Concierge (# viagens paralelas) · Tempo Ganho→Pronto · NPS médio.</p>
+      <p><strong>Alerta:</strong> Viagem parte em &lt;7d com voucher pendente · Concierge com &gt;N viagens paralelas · NPS detrator.</p>
+      <p><strong>Horizonte:</strong> hoje + 30 dias.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="p_comercial" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>👤 Gestor Comercial Macro</h3>
+      <p><strong>Decide:</strong> onde alocar esforço (SDR vs Planner), qual canal investir, ajustar meta do trimestre.</p>
+      <p><strong>Métrica-norte:</strong> <em>Receita realizada vs meta</em> + forecast ponderado dos próximos 60 dias.</p>
+      <p><strong>Acompanha:</strong> Funil completo SDR+Vendas (onde vaza mais) · Conversão por fonte · Ticket por fonte · Coorte de entrada por mês · Mix de canais · Top destinos por receita · Sazonalidade.</p>
+      <p><strong>Alerta:</strong> Fonte principal caindo MoM · Ciclo médio aumentando · Funil encolhendo em alguma fase.</p>
+      <p><strong>Horizonte:</strong> mês + trimestre.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="p_dono" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>👤 Dono do Negócio (você)</h3>
+      <p><strong>Decide:</strong> estratégia de mercado, investimento em canal, contratar, abrir destino novo.</p>
+      <p><strong>Métrica-norte:</strong> <em>Receita mensal</em> (MoM / YoY) + taxa de retenção + NPS.</p>
+      <p><strong>Acompanha:</strong> Receita MoM/YoY · % de vendas vindas de retorno vs aquisição nova · NPS geral · Mix de canais (não depender de 1 só) · Mix de destinos (não concentrar risco) · Top indicadores (clientes que mais trazem outros).</p>
+      <p><strong>Alerta:</strong> Queda &gt;15% MoM · Retenção caindo · Canal dominante perdendo peso · Aumento de detratores.</p>
+      <p><strong>Horizonte:</strong> trimestre + ano.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="p_mkt" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>👤 Marketing / Gestor de Aquisição <em>(se existir)</em></h3>
+      <p><strong>Decide:</strong> onde aumentar investimento em mídia, qual campanha renovar, qual canal matar.</p>
+      <p><strong>Métrica-norte:</strong> <em>CAC por canal</em> + ROI por campanha.</p>
+      <p><strong>Acompanha:</strong> Leads por UTM campaign/source/medium · Conversão por campanha · Ticket por campanha · Tempo do clique ao fechamento.</p>
+      <p><strong>Observação:</strong> só faz sentido se vocês têm investimento em mídia paga hoje. Se for o Vitor mesmo fazendo isso de vez em quando, vira sub-vista do Comercial.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:28px">Marque só as que <strong>existem de verdade hoje</strong> no Welcome Trips. Tamanho de time, papel acumulado (ex: "o mesmo cara é Vendas e Comercial") — me conta no chat.</p>
