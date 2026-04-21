@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-20
+> **Last Updated:** 2026-04-21
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 179 tabelas | 90 paginas | 145 hooks | 17 views | 569 components
+> **Stats:** 181 tabelas | 98 paginas | 146 hooks | 17 views | 570 components
 =======
-> **Stats:** 179 tabelas | 90 paginas | 145 hooks | 17 views | 569 components
+> **Stats:** 181 tabelas | 98 paginas | 146 hooks | 17 views | 570 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -173,7 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **145 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **146 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -233,6 +233,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
+| `useAgentScoring()` | `useAgentScoring.ts` |
 | `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentSpecialScenarios()` | `useAgentSpecialScenarios.ts` |
 | `useAgentTemplates()` | `useAgentTemplates.ts` |
@@ -393,10 +394,18 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **90 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **98 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
+| `AnalyticsV2Page` | `src/pages/AnalyticsV2/AnalyticsV2Page.tsx` |
+| `AnalyticsV2Sidebar` | `src/pages/AnalyticsV2/AnalyticsV2Sidebar.tsx` |
+| `ExplorarPage` | `src/pages/AnalyticsV2/ExplorarPage.tsx` |
+| `MeuPainelRedirect` | `src/pages/AnalyticsV2/MeuPainelRedirect.tsx` |
+| `UniversalFilterBar` | `src/pages/AnalyticsV2/UniversalFilterBar.tsx` |
+| `WidgetCard` | `src/pages/AnalyticsV2/WidgetCard.tsx` |
+| `ComingSoonDashboard` | `src/pages/AnalyticsV2/dashboards/ComingSoonDashboard.tsx` |
+| `DonoDashboard` | `src/pages/AnalyticsV2/dashboards/DonoDashboard.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |

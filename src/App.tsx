@@ -33,6 +33,11 @@ import WhatsAppView from './components/analytics/views/WhatsAppView'
 import SalesFunnelView from './components/analytics/views/SalesFunnelView'
 import TeamAnalyticsView from './components/analytics/views/TeamAnalyticsView'
 import OperationsView from './components/analytics/views/OperationsView'
+import AnalyticsV2Page from './pages/AnalyticsV2/AnalyticsV2Page'
+import MeuPainelRedirect from './pages/AnalyticsV2/MeuPainelRedirect'
+import DonoDashboard from './pages/AnalyticsV2/dashboards/DonoDashboard'
+import ComingSoonDashboard from './pages/AnalyticsV2/dashboards/ComingSoonDashboard'
+import ExplorarPage from './pages/AnalyticsV2/ExplorarPage'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
@@ -237,6 +242,16 @@ function App() {
                     <Route path="operations" element={<OperationsView />} />
                     {/* Preenchimento movido para /leads?view=preenchimento */}
                     <Route path="completeness" element={<Navigate to="/leads?view=preenchimento" replace />} />
+                  </Route>
+                  {/* Analytics v2 — feature flag admin, Fase 3 em entrega incremental */}
+                  <Route path="/analytics/v2" element={<AnalyticsV2Page />}>
+                    <Route index element={<MeuPainelRedirect />} />
+                    <Route path="dono" element={<DonoDashboard />} />
+                    <Route path="comercial" element={<ComingSoonDashboard title="💼 Comercial" description="Macro SDR + Vendas com forecast e motivos de perda." />} />
+                    <Route path="vendas" element={<ComingSoonDashboard title="👥 Vendas (Travel Planner)" description="Conversão por Planner, estado das viagens fechadas, problemas no Pós." />} />
+                    <Route path="pos-venda" element={<ComingSoonDashboard title="🛠️ Pós-Venda" description="Prontidão operacional, partidas próximas, carga por Concierge." />} />
+                    <Route path="sdr" element={<ComingSoonDashboard title="📞 SDR" description="Taxa de handoff qualificado, SLA 1ª resposta e cadence compliance." />} />
+                    <Route path="explorar" element={<ExplorarPage />} />
                   </Route>
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
