@@ -225,6 +225,13 @@ export type Database = {
             foreignKeyName: "ai_agent_business_config_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: true
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_business_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -259,6 +266,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_kb_links_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_kb_links_agent_id_fkey"
             columns: ["agent_id"]
@@ -311,6 +325,13 @@ export type Database = {
           priority?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_bases_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_knowledge_bases_agent_id_fkey"
             columns: ["agent_id"]
@@ -412,6 +433,13 @@ export type Database = {
             foreignKeyName: "ai_agent_metrics_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_metrics_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -446,6 +474,13 @@ export type Database = {
           routing_filter?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_phone_line_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_phone_line_config_agent_id_fkey"
             columns: ["agent_id"]
@@ -515,6 +550,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_prompts_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_prompts_agent_id_fkey"
             columns: ["agent_id"]
@@ -599,6 +641,13 @@ export type Database = {
             foreignKeyName: "ai_agent_qualification_flow_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_qualification_flow_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -633,6 +682,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_scoring_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_scoring_config_agent_id_fkey"
             columns: ["agent_id"]
@@ -697,6 +753,13 @@ export type Database = {
             foreignKeyName: "ai_agent_scoring_rules_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_scoring_rules_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -738,6 +801,13 @@ export type Database = {
           skill_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_skills_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_skills_agent_id_fkey"
             columns: ["agent_id"]
@@ -811,8 +881,22 @@ export type Database = {
             foreignKeyName: "ai_agent_special_scenarios_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_target_agent_id_fkey"
+            columns: ["target_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
           },
           {
             foreignKeyName: "ai_agent_special_scenarios_target_agent_id_fkey"
@@ -944,6 +1028,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_wizard_drafts_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
           {
             foreignKeyName: "ai_agent_wizard_drafts_agent_id_fkey"
             columns: ["agent_id"]
@@ -1144,6 +1235,13 @@ export type Database = {
             foreignKeyName: "ai_agents_fallback_agent_id_fkey"
             columns: ["fallback_agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agents_fallback_agent_id_fkey"
+            columns: ["fallback_agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1261,6 +1359,13 @@ export type Database = {
             foreignKeyName: "ai_conversation_turns_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_turns_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1348,6 +1453,13 @@ export type Database = {
             foreignKeyName: "ai_conversations_current_agent_id_fkey"
             columns: ["current_agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_current_agent_id_fkey"
+            columns: ["current_agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1378,6 +1490,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_primary_agent_id_fkey"
+            columns: ["primary_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
           },
           {
             foreignKeyName: "ai_conversations_primary_agent_id_fkey"
@@ -1747,6 +1866,13 @@ export type Database = {
             foreignKeyName: "ai_outbound_queue_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_outbound_queue_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1857,6 +1983,13 @@ export type Database = {
             foreignKeyName: "ai_skill_usage_logs_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_skill_usage_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1949,6 +2082,112 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_skills_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_saved_views: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          query_spec: Json
+          updated_at: string
+          user_id: string
+          viz: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id?: string
+          query_spec: Json
+          updated_at?: string
+          user_id: string
+          viz?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          query_spec?: Json
+          updated_at?: string
+          user_id?: string
+          viz?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_saved_views_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "analytics_saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_targets: {
+        Row: {
+          created_at: string | null
+          id: string
+          metric_key: string
+          month: string
+          org_id: string
+          produto: string
+          target_value: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metric_key: string
+          month: string
+          org_id: string
+          produto: string
+          target_value: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metric_key?: string
+          month?: string
+          org_id?: string
+          produto?: string
+          target_value?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_targets_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4430,6 +4669,7 @@ export type Database = {
       cards: {
         Row: {
           ai_contexto: string | null
+          ai_pause_config: Json | null
           ai_responsavel: string | null
           ai_resumo: string | null
           archived_at: string | null
@@ -4531,6 +4771,7 @@ export type Database = {
         }
         Insert: {
           ai_contexto?: string | null
+          ai_pause_config?: Json | null
           ai_responsavel?: string | null
           ai_resumo?: string | null
           archived_at?: string | null
@@ -4632,6 +4873,7 @@ export type Database = {
         }
         Update: {
           ai_contexto?: string | null
+          ai_pause_config?: Json | null
           ai_responsavel?: string | null
           ai_resumo?: string | null
           archived_at?: string | null
@@ -12876,6 +13118,65 @@ export type Database = {
           },
         ]
       }
+      stage_win_probability: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          pipeline_id: string
+          probability: number
+          stage_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          pipeline_id: string
+          probability: number
+          stage_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          pipeline_id?: string
+          probability?: number
+          stage_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_win_probability_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_win_probability_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_win_probability_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_win_probability_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
+          },
+        ]
+      }
       sub_card_sync_log: {
         Row: {
           action: string
@@ -15195,6 +15496,49 @@ export type Database = {
       }
     }
     Views: {
+      ai_agent_health_stats: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          agent_turns_24h: number | null
+          agent_turns_7d: number | null
+          ativa: boolean | null
+          conversations_24h: number | null
+          escalated_24h: number | null
+          input_tokens_24h: number | null
+          input_tokens_7d: number | null
+          org_id: string | null
+          output_tokens_24h: number | null
+          output_tokens_7d: number | null
+          tool_calls_24h: number | null
+          tool_failures_24h: number | null
+          tool_success_rate_pct: number | null
+          user_turns_24h: number | null
+          user_turns_7d: number | null
+          whatsapp_blocked_test_24h: number | null
+          whatsapp_failed_24h: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_recent_errors: {
+        Row: {
+          agent_id: string | null
+          created_at: string | null
+          details: Json | null
+          error_message: string | null
+          error_source: string | null
+          rn: number | null
+        }
+        Relationships: []
+      }
       integration_conflicts_summary: {
         Row: {
           actual_stage_id: string | null
@@ -16078,6 +16422,17 @@ export type Database = {
         Args: { p_agent_id: string; p_date?: string }
         Returns: undefined
       }
+      analytics_bottleneck_by_item: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       analytics_cadence_compliance: {
         Args: {
           p_destinos?: string[]
@@ -16091,6 +16446,71 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_carteira_aberta_planner: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_completed_trips: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_conversion_by_ticket: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_customer_retention:
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_lead_entry_path?: string
+              p_origem?: string[]
+              p_owner_id?: string
+              p_owner_ids?: string[]
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_tag_ids?: string[]
+              p_to?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_lead_entry_path?: string
+              p_origem?: string[]
+              p_owner_id?: string
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
       analytics_drill_down_cards: {
         Args: {
           p_date_end?: string
@@ -16191,6 +16611,19 @@ export type Database = {
           ticket_medio: number
           valor_final_sum: number
         }[]
+      }
+      analytics_forecast_ponderado: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
       }
       analytics_funnel_by_owner: {
         Args: {
@@ -16395,27 +16828,59 @@ export type Database = {
           percentage: number
         }[]
       }
-      analytics_loss_reasons_v2: {
+      analytics_loss_reasons_by_planner: {
+        Args: { p_from?: string; p_product?: string; p_to?: string }
+        Returns: Json
+      }
+      analytics_loss_reasons_v2:
+        | {
+            Args: {
+              p_date_end?: string
+              p_date_start?: string
+              p_destinos?: string[]
+              p_lead_entry_path?: string
+              p_mode?: string
+              p_origem?: string[]
+              p_owner_context?: string
+              p_owner_id?: string
+              p_owner_ids?: string[]
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_stage_id?: string
+              p_tag_ids?: string[]
+            }
+            Returns: {
+              count: number
+              motivo: string
+              percentage: number
+            }[]
+          }
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_lead_entry_path?: string
+              p_limit?: number
+              p_origem?: string[]
+              p_owner_id?: string
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
+      analytics_motivos_perda_planner: {
         Args: {
-          p_date_end?: string
-          p_date_start?: string
           p_destinos?: string[]
+          p_from?: string
           p_lead_entry_path?: string
-          p_mode?: string
           p_origem?: string[]
-          p_owner_context?: string
           p_owner_id?: string
-          p_owner_ids?: string[]
           p_phase_slugs?: string[]
           p_product?: string
-          p_stage_id?: string
-          p_tag_ids?: string[]
+          p_to?: string
         }
-        Returns: {
-          count: number
-          motivo: string
-          percentage: number
-        }[]
+        Returns: Json
       }
       analytics_operations_summary: {
         Args: {
@@ -16428,6 +16893,10 @@ export type Database = {
           p_stage_id?: string
           p_tag_ids?: string[]
         }
+        Returns: Json
+      }
+      analytics_overdue_tasks_by_owner: {
+        Args: { p_product?: string }
         Returns: Json
       }
       analytics_overview_kpis: {
@@ -16488,6 +16957,36 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_planner_open_portfolio: {
+        Args: { p_from?: string; p_product?: string; p_to?: string }
+        Returns: Json
+      }
+      analytics_post_issues: {
+        Args: {
+          p_from?: string
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_problemas_no_pos: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_proposal_to_win_velocity: {
+        Args: { p_from?: string; p_product?: string; p_to?: string }
+        Returns: Json
+      }
       analytics_proposal_versions: {
         Args: {
           p_destinos?: string[]
@@ -16497,6 +16996,47 @@ export type Database = {
           p_product?: string
           p_to?: string
         }
+        Returns: Json
+      }
+      analytics_quality_score_global:
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_lead_entry_path?: string
+              p_origem?: string[]
+              p_owner_id?: string
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_date_end?: string
+              p_date_start?: string
+              p_owner_id?: string
+              p_product?: string
+            }
+            Returns: Json
+          }
+      analytics_quality_score_v2: {
+        Args: {
+          p_ctx?: string
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_referrals_post_trip: {
+        Args: { p_from?: string; p_product?: string; p_to?: string }
         Returns: Json
       }
       analytics_retention_cohort: {
@@ -16555,6 +17095,23 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_retorno_pos_viagem: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_return_customers: {
+        Args: { p_from?: string; p_product?: string; p_to?: string }
+        Returns: Json
+      }
       analytics_revenue_by_product: {
         Args: {
           p_date_end?: string
@@ -16573,6 +17130,29 @@ export type Database = {
           valor_total: number
         }[]
       }
+      analytics_revenue_mom_yoy:
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_lead_entry_path?: string
+              p_origem?: string[]
+              p_owner_id?: string
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_date_end?: string
+              p_date_start?: string
+              p_owner_id?: string
+              p_product?: string
+            }
+            Returns: Json
+          }
       analytics_revenue_timeseries: {
         Args: {
           p_date_end?: string
@@ -16624,6 +17204,16 @@ export type Database = {
           p_from?: string
           p_lead_entry_path?: string
           p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_risk_concentration: {
+        Args: {
+          p_from?: string
           p_owner_id?: string
           p_phase_slugs?: string[]
           p_product?: string
@@ -16688,6 +17278,107 @@ export type Database = {
           total_count: number
         }[]
       }
+      analytics_sdr_avg_ticket: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          avg_ticket: number
+          by_sdr: Json
+          total_revenue: number
+          total_sold_cards: number
+        }[]
+      }
+      analytics_sdr_follow_through: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          by_sdr: Json
+          follow_through_pct: number
+          handoffs_won: number
+          total_handoffs: number
+        }[]
+      }
+      analytics_sdr_leads_by_source: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          sources: Json
+          total_leads: number
+        }[]
+      }
+      analytics_sdr_meetings: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          by_sdr: Json
+          completion_rate_pct: number
+          meetings_completed: number
+          meetings_no_show: number
+          meetings_scheduled: number
+          no_show_rate_pct: number
+        }[]
+      }
+      analytics_sdr_sla_compliance_pct: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_destinos?: string[]
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          buckets: Json
+          over_5h_pct: number
+          total_messages: number
+          under_1h_pct: number
+          under_5h_pct: number
+          under_5min_pct: number
+        }[]
+      }
       analytics_sla_summary: {
         Args: {
           p_date_end?: string
@@ -16732,6 +17423,32 @@ export type Database = {
         }[]
       }
       analytics_stage_conversion: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_stage_velocity_percentiles: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_tarefas_vencidas_time: {
         Args: {
           p_destinos?: string[]
           p_from?: string
@@ -16902,6 +17619,18 @@ export type Database = {
           user_nome: string
         }[]
       }
+      analytics_tempo_proposta_ganho: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
       analytics_top_destinations: {
         Args: {
           p_date_end?: string
@@ -16943,6 +17672,32 @@ export type Database = {
           total_cards: number
         }[]
       }
+      analytics_top_referrers:
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_limit?: number
+              p_origem?: string[]
+              p_owner_ids?: string[]
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_destinos?: string[]
+              p_from?: string
+              p_limit?: number
+              p_origem?: string[]
+              p_phase_slugs?: string[]
+              p_product?: string
+              p_to?: string
+            }
+            Returns: Json
+          }
       analytics_trip_readiness: {
         Args: {
           p_destinos?: string[]
@@ -16951,6 +17706,48 @@ export type Database = {
           p_owner_id?: string
           p_phase_slugs?: string[]
           p_product?: string
+        }
+        Returns: Json
+      }
+      analytics_trip_states: {
+        Args: {
+          p_from?: string
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_trip_time_to_ready: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_product?: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      analytics_upcoming_departures: {
+        Args: {
+          p_destinos?: string[]
+          p_origem?: string[]
+          p_owner_id?: string
+          p_product?: string
+        }
+        Returns: Json
+      }
+      analytics_viagens_estado: {
+        Args: {
+          p_destinos?: string[]
+          p_from?: string
+          p_lead_entry_path?: string
+          p_origem?: string[]
+          p_owner_id?: string
+          p_phase_slugs?: string[]
+          p_product?: string
+          p_to?: string
         }
         Returns: Json
       }
@@ -17225,6 +18022,7 @@ export type Database = {
         Returns: Json
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      delete_analytics_view: { Args: { p_id: string }; Returns: boolean }
       delete_user: { Args: { user_id: string }; Returns: undefined }
       describe_table: {
         Args: { p_table: string }
@@ -17556,6 +18354,18 @@ export type Database = {
         Returns: {
           row_estimate: number
           table_name: string
+        }[]
+      }
+      list_analytics_views: {
+        Args: never
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          query_spec: Json
+          updated_at: string
+          viz: string
         }[]
       }
       list_scheduled_jobs_with_status: {
@@ -18005,6 +18815,15 @@ export type Database = {
           nome: string
           sobrenome: string
         }[]
+      }
+      save_analytics_view: {
+        Args: {
+          p_description?: string
+          p_name: string
+          p_query_spec: Json
+          p_viz?: string
+        }
+        Returns: Json
       }
       save_client_selection: {
         Args: {
