@@ -183,6 +183,10 @@ interface ConversationContext {
   sdr_owner_id: string | null;
   pessoa_principal_nome: string | null;
   form_data: Record<string, string>;
+  // Indica se um humano assumiu (ai_responsavel='humano') ou se o card tem
+  // pausa permanente ligada. Main handler usa pra skip pipeline.
+  card_paused: boolean;
+  card_paused_reason: 'human_handling' | 'pause_permanently' | null;
   // Set by executeToolCall when request_handoff is invoked; main loop
   // reads this to apply handoff_actions (stage change, tag, notification,
   // transition_message override).
@@ -761,9 +765,11 @@ async function buildConversationContext(
 
   // Buscar card ativo. Colunas reais: pessoa_principal_id (não contato_principal_id),
   // dono_atual_id/sdr_owner_id (não responsavel_id); não existe cards.status (usar estado_operacional).
+  // ai_responsavel + ai_pause_config são lidos pelo main handler pra decidir se
+  // o pipeline deve rodar (se humano assumiu ou pausou permanentemente → skip).
   const { data: cards } = await supabase
     .from("cards")
-    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional")
+    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional, ai_responsavel, ai_pause_config")
     .eq("pessoa_principal_id", contactId)
     .is("archived_at", null)
     .is("deleted_at", null)
@@ -849,6 +855,17 @@ async function buildConversationContext(
     }
   }
 
+  // Flags de pausa: humano assumiu OU pause_permanently foi ligado por handoff anterior.
+  // Prioridade: pause_permanently (mais explícito) > human_handling.
+  const pausePermanent = Boolean(
+    (card as { ai_pause_config?: { permanent?: boolean } } | null)?.ai_pause_config?.permanent,
+  );
+  const humanHandling = (card as { ai_responsavel?: string } | null)?.ai_responsavel === "humano";
+  const cardPaused = Boolean(card && (pausePermanent || humanHandling));
+  const cardPausedReason: 'human_handling' | 'pause_permanently' | null = pausePermanent
+    ? 'pause_permanently'
+    : humanHandling ? 'human_handling' : null;
+
   return {
     historico,
     historico_compacto,
@@ -869,6 +886,8 @@ async function buildConversationContext(
     card_titulo: card?.titulo || null,
     pipeline_stage_id: card?.pipeline_stage_id || null,
     ai_resumo: card?.ai_resumo || "",
+    card_paused: cardPaused,
+    card_paused_reason: cardPausedReason,
     ai_contexto: card?.ai_contexto || "",
     sdr_owner_id: card?.responsavel_id || null,
     pessoa_principal_nome: pessoaPrincipalNome,
@@ -1253,6 +1272,17 @@ async function executeToolCall(
       }
 
       case "check_calendar": {
+        // Guard: card sem dono → a RPC responderia "Consultor" genérico e
+        // o agente ofereceria horários de ninguém. Melhor parar aqui, instruir
+        // o agente a não prometer horário e pedir handoff pra que um humano
+        // assuma o card antes de marcar reunião.
+        if (!ctx.sdr_owner_id) {
+          result = JSON.stringify({
+            error: "no_owner_assigned",
+            guidance: "Este card ainda não tem um consultor responsável. Não prometa horário nem proponha reunião agora. Colete contexto do cliente e peça handoff (request_handoff) para que alguém do time assuma e marque a reunião depois.",
+          });
+          break;
+        }
         // calendar_config.rpc_name permite trocar a RPC sem editar código (ex: novo provider)
         const calendarRpc = (business?.calendar_config as { rpc_name?: string } | undefined)?.rpc_name
           || "agent_check_calendar";
@@ -2700,6 +2730,26 @@ serve(async (req) => {
     const ctx = await buildConversationContext(
       supabase, conversationId, contactId, agentConfig, agent.memory_config,
     );
+
+    // ── 6a. Pause guard: humano assumiu ou pause_permanently ligado ──
+    // O user-turn já foi salvo acima pra preservar histórico. Aqui paramos
+    // o pipeline pra não gastar tokens nem gerar resposta enquanto humano
+    // está cuidando (ou handoff_actions.pause_permanently=true).
+    if (ctx.card_paused) {
+      console.log(
+        `[main] skip pipeline — card ${ctx.card_id} paused (reason=${ctx.card_paused_reason})`,
+      );
+      return new Response(
+        JSON.stringify({
+          handled: true,
+          agent: agent.nome,
+          paused: true,
+          reason: ctx.card_paused_reason,
+          conversation_id: conversationId,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // ── 6b. Inbound pattern matcher (regra determinística antes da IA) ──
     if (ctx.card_id) {
