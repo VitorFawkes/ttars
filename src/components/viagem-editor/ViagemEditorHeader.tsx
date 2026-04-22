@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { ArrowLeft, Check, Copy, ExternalLink, Link2, Send, Users } from 'lucide-react'
+import { ArrowLeft, Check, Copy, ExternalLink, Link2, Package, Send, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import type { ViagemInternaRow } from '@/hooks/viagem/useViagemInterna'
 import { useEnviarViagem } from '@/hooks/viagem/useViagemInterna'
+import CreateSubCardModal from '@/components/card/CreateSubCardModal'
 
 const ESTADO_LABEL: Record<string, string> = {
   desenho: 'Desenho',
@@ -51,10 +52,19 @@ export function ViagemEditorHeader({ viagem, context, cardTitulo, onAtrelarClick
   const navigate = useNavigate()
   const enviarViagem = useEnviarViagem()
   const [copied, setCopied] = useState(false)
+  const [subCardOpen, setSubCardOpen] = useState(false)
 
   const label = ESTADO_LABEL[viagem.estado] ?? viagem.estado
   const color = ESTADO_COLOR[viagem.estado] ?? 'bg-slate-100 text-slate-700'
   const url = publicUrl(viagem.public_token)
+
+  // Sub-card só faz sentido após o aceite (ciclo pós-venda) e quando a viagem
+  // tem card. O CLAUDE.md diz: "Creation: only from cards in Pós-venda".
+  const podeAbrirSubCard =
+    !!viagem.card_id &&
+    ['confirmada', 'em_montagem', 'aguardando_embarque', 'em_andamento'].includes(
+      viagem.estado,
+    )
 
   const handleBack = () => {
     if (context === 'card' && viagem.card_id) {
@@ -177,7 +187,33 @@ export function ViagemEditorHeader({ viagem, context, cardTitulo, onAtrelarClick
                 : 'Enviar ao cliente'}
           </Button>
         )}
+
+        {podeAbrirSubCard && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSubCardOpen(true)}
+            className="gap-1"
+            title="Abrir sub-card para fechar mudança ou venda adicional"
+          >
+            <Package className="h-3.5 w-3.5" />
+            Abrir sub-card
+          </Button>
+        )}
       </div>
+
+      {podeAbrirSubCard && viagem.card_id && (
+        <CreateSubCardModal
+          isOpen={subCardOpen}
+          onClose={() => setSubCardOpen(false)}
+          parentCardId={viagem.card_id}
+          parentTitle={viagem.titulo || cardTitulo || 'Viagem'}
+          onCreated={(subCardId) => {
+            toast.success('Sub-card criado')
+            navigate(`/cards/${subCardId}`)
+          }}
+        />
+      )}
     </div>
   )
 }
