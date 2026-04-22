@@ -4,6 +4,7 @@ import { ViagemArvore } from './ViagemArvore'
 import { ViagemItemEditor } from './ViagemItemEditor'
 import { ViagemPreview } from './ViagemPreview'
 import { ViagemEditorHeader } from './ViagemEditorHeader'
+import { InboxPVPanel } from './InboxPVPanel'
 import type { ViagemInternaRow, TripItemInterno } from '@/hooks/viagem/useViagemInterna'
 import { useCreateTripItem, useDeleteTripItem, useHidratarViagem } from '@/hooks/viagem/useViagemInterna'
 
@@ -81,6 +82,13 @@ export function ViagemEditorLayout({ viagem, items, context, cardTitulo, onAtrel
         context={context}
         cardTitulo={cardTitulo}
         onAtrelarClick={onAtrelarClick}
+      />
+
+      <InboxPVPanel
+        viagemId={viagem.id}
+        items={items}
+        viagemEstado={viagem.estado}
+        onFocusItem={setSelectedId}
       />
 
       <div className="flex min-h-0 flex-1">

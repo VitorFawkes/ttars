@@ -377,9 +377,14 @@ export function useUpdateTripItem() {
   return useMutation({
     mutationFn: async (input: UpdateTripItemInput) => {
       const { id, editado_por_papel, ...patch } = input
+      const { data: { user } } = await supabase.auth.getUser()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from('trip_items') as any)
-        .update({ ...patch, editado_por_papel: editado_por_papel ?? 'pv' })
+        .update({
+          ...patch,
+          editado_por_papel: editado_por_papel ?? 'pv',
+          editado_por: user?.id ?? null,
+        })
         .eq('id', id)
         .select('*')
         .single()

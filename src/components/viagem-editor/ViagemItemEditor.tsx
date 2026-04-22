@@ -3,9 +3,12 @@ import { Hotel, Plane, Car, MapPin, UtensilsCrossed, ShieldCheck, Lightbulb, Fil
 import type { TripItemTipo, TripItemStatus } from '@/types/viagem'
 import type { TripItemInterno } from '@/hooks/viagem/useViagemInterna'
 import { useUpdateTripItem } from '@/hooks/viagem/useViagemInterna'
+import { useTripItemHistory } from '@/hooks/viagem/useTripItemHistory'
 import { ComentariosPanel } from './ComentariosPanel'
 import { AlternativasEditor } from './AlternativasEditor'
 import { FotosUploader } from './FotosUploader'
+import { HistoricoDrawer, HistoricoFooterTrigger } from './HistoricoDrawer'
+import { VoucherUploader } from './VoucherUploader'
 
 const TIPO_LABEL: Record<TripItemTipo, string> = {
   dia: 'Dia',
@@ -56,11 +59,17 @@ interface Props {
 export function ViagemItemEditor({ item }: Props) {
   const hasOperacional = item.tipo !== 'dia'
   const [activeTab, setActiveTab] = useState<Tab>(hasOperacional ? 'operacional' : 'comercial')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const updateItem = useUpdateTripItem()
+  const { data: history = [] } = useTripItemHistory(item.id)
 
   const Icon = TIPO_ICON[item.tipo] ?? FileText
   const op = item.operacional as Record<string, string | number | null>
   const com = item.comercial as Record<string, string | number | null>
+
+  const lastEdited = history[0]
+    ? { at: history[0].created_at, papel: history[0].papel, autor_nome: history[0].autor_nome }
+    : null
 
   const saveOperacional = (patch: Record<string, unknown>) => {
     updateItem.mutate({
@@ -132,6 +141,18 @@ export function ViagemItemEditor({ item }: Props) {
           <ComentariosPanel viagemId={item.viagem_id} itemId={item.id} />
         )}
       </div>
+
+      <HistoricoFooterTrigger
+        itemId={item.id}
+        lastEdited={lastEdited}
+        onOpen={() => setHistoryOpen(true)}
+      />
+
+      <HistoricoDrawer
+        itemId={item.id}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   )
 }
@@ -214,6 +235,8 @@ function OperacionalForm({
 
   return (
     <div>
+      <VoucherUploader item={item} />
+
       <FieldRow label="Fornecedor">
         <TextInput
           value={String(op.fornecedor ?? '')}
