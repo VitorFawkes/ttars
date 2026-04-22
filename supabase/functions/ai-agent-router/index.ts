@@ -191,6 +191,11 @@ interface ConversationContext {
   sdr_owner_id: string | null;
   pessoa_principal_nome: string | null;
   form_data: Record<string, string>;
+  // Raw produto_data do card (todos os mkt_*, utm_*, etc). Usado pela
+  // interpolação de variáveis do system_prompt quando business.form_data_fields
+  // não está populado — garante que {{mkt_destino}} etc sejam substituídas
+  // mesmo sem configuração explícita no business_config.
+  produto_data_raw?: Record<string, unknown>;
   // Indica se um humano assumiu (ai_responsavel='humano') ou se o card tem
   // pausa permanente ligada. Main handler usa pra skip pipeline.
   card_paused: boolean;
@@ -307,14 +312,17 @@ async function transcribeAudio(base64: string, mimeType: string, apiKey: string)
 }
 
 async function analyzeImage(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  // Paridade Julia: gpt-4o com detail "high" (nó "Analyze Image with Vision").
+  // gpt-4.1-mini é visivelmente pior em descrição de imagens complexas;
+  // gpt-4o é o modelo multimodal de referência da OpenAI.
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: [
         { type: "text", text: MEDIA_IMAGE_PROMPT },
-        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
+        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" } },
       ] }],
       max_completion_tokens: 1000,
       temperature: 0.1,
@@ -1042,6 +1050,9 @@ async function buildConversationContext(
     sdr_owner_id: card?.responsavel_id || null,
     pessoa_principal_nome: pessoaPrincipalNome,
     form_data: formData,
+    produto_data_raw: (card?.produto_data && typeof card.produto_data === "object")
+      ? card.produto_data as Record<string, unknown>
+      : undefined,
   };
 }
 
@@ -2216,6 +2227,109 @@ async function applyScenarioActions(
 // 9. Pipeline Step: Persona Agent
 // ---------------------------------------------------------------------------
 
+// Interpola variáveis estilo `{{var}}` ou `{{obj.campo}}` em prompts Julia-style.
+// Faz a ponte entre o system_prompt herdado da Julia (que usa essas variáveis) e
+// o runtime da Luna. Variável não mapeada vira string vazia — mais seguro que
+// deixar o literal `{{x}}` ir pro LLM (condicionais tipo "Se X TEM valor" do
+// system_prompt Julia se comportam corretamente quando a substituição é vazia).
+function interpolatePromptVariables(
+  template: string,
+  vars: {
+    ctx: ConversationContext;
+    userMessage?: string;
+    backoffice?: BackofficeOutput;
+    business?: BusinessConfig | null;
+    agent?: AgentConfig;
+    extra?: Record<string, string>;
+  },
+): string {
+  if (!template) return "";
+  const { ctx, userMessage = "", backoffice, business, agent, extra = {} } = vars;
+
+  // Hoje em pt-BR (TZ São Paulo)
+  const nowBR = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+  // produto_data_raw é usado como fallback quando form_data está vazio
+  // (acontece se business.form_data_fields não foi populado)
+  const pd = ctx.produto_data_raw || {};
+  const formOrPd = (key: string): string => {
+    const fromForm = ctx.form_data?.[key];
+    if (fromForm) return fromForm;
+    const fromPd = pd[key];
+    if (fromPd !== undefined && fromPd !== null) return String(fromPd);
+    return "";
+  };
+
+  const map: Record<string, string> = {
+    // Data/hora
+    "data_atual": nowBR,
+    "now": nowBR,
+
+    // Mensagens
+    "ultima_mensagem_lead": userMessage,
+    "mensagem_proposta": extra.mensagem_proposta || "",
+
+    // Histórico
+    "historico_compacto": ctx.historico_compacto || "",
+    "historico": ctx.historico || "",
+
+    // Card / IA
+    "card.ai_contexto": backoffice?.ai_contexto || ctx.ai_contexto || "",
+    "card.ai_resumo": backoffice?.ai_resumo || ctx.ai_resumo || "",
+    "ai_contexto": backoffice?.ai_contexto || ctx.ai_contexto || "",
+    "ai_resumo": backoffice?.ai_resumo || ctx.ai_resumo || "",
+    "card.id": ctx.card_id || "",
+    "card.titulo": ctx.card_titulo || "",
+    "card.produto": formOrPd("produto") || extra.produto || "",
+    "card.pipeline_stage_id": ctx.pipeline_stage_id || "",
+    "nome_card": ctx.card_titulo || "",
+    "produto": formOrPd("produto") || extra.produto || "",
+
+    // Contato
+    "contato.nome": ctx.contact_name || "",
+    "contato.id": ctx.contato_id || "",
+    "contato.email": ctx.contact_email || "",
+    "Nome": ctx.contact_name || "",
+    "nome": ctx.contact_name || "",
+    "Telefone": extra.telefone || "",
+
+    // Papéis / conversação
+    "contact_role": ctx.contact_role || "",
+    "pessoa_principal_nome": ctx.pessoa_principal_nome || "",
+    "is_primeiro_contato": String(ctx.is_primeiro_contato ?? false),
+    "turn_count": String(ctx.turn_count ?? 0),
+
+    // SDR / responsável
+    "sdr_owner_id": ctx.sdr_owner_id || "",
+
+    // Negócio
+    "company_name": business?.company_name || "",
+    "agent.nome": agent?.nome || "",
+    "agent.persona": agent?.persona || "",
+
+    // Marketing / formulário (Julia-style)
+    "mkt_destino": formOrPd("mkt_destino"),
+    "mkt_buscando_para_viagem": formOrPd("mkt_buscando_para_viagem"),
+    "mkt_quem_vai_viajar_junto": formOrPd("mkt_quem_vai_viajar_junto"),
+    "mkt_pretende_viajar_tempo": formOrPd("mkt_pretende_viajar_tempo"),
+    "mkt_pretende_viajar_quando": formOrPd("mkt_pretende_viajar_quando"),
+    "mkt_hospedagem_contratada": formOrPd("mkt_hospedagem_contratada"),
+    "mkt_valor_por_pessoa_viagem": formOrPd("mkt_valor_por_pessoa_viagem"),
+    "mkt_mensagem_personalizada_formulario": formOrPd("mkt_mensagem_personalizada_formulario"),
+    "utm_source": formOrPd("utm_source"),
+    "utm_medium": formOrPd("utm_medium"),
+    "utm_campaign": formOrPd("utm_campaign"),
+  };
+
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key: string) => {
+    if (key in map) return map[key];
+    // Fallback: tenta form_data / produto_data direto (para chaves que o admin
+    // adicionou no prompt mas não estão no mapa acima).
+    const fallback = formOrPd(key);
+    return fallback;
+  });
+}
+
 async function runPersonaAgent(
   supabase: SupabaseClient,
   agent: AgentConfig,
@@ -2249,6 +2363,84 @@ async function runPersonaAgent(
     );
   }
 
+  // --- MODO A: Julia Mirror ---
+  // Quando o agente tem system_prompt rico (>500 chars, escrito Julia-style),
+  // ele é a FONTE DE VERDADE do comportamento. Blocos dinâmicos do builder
+  // são pulados pra evitar duplicação (prompt final ~50% menor, sem conteúdo
+  // redundante confundindo o LLM). Tools, contexto runtime e traveler override
+  // entram como complemento mínimo.
+  const rawSystemPrompt = agent.system_prompt?.trim() || "";
+  const hasRichSystemPrompt = agent.is_template_based && rawSystemPrompt.length > 500;
+
+  if (hasRichSystemPrompt) {
+    const interpolatedSystemPrompt = interpolatePromptVariables(rawSystemPrompt, {
+      ctx,
+      userMessage,
+      backoffice,
+      business,
+      agent,
+    });
+
+    // Traveler override: aplicado DEPOIS do system_prompt pra ter prioridade.
+    // Se o system_prompt já cobre viajante (Julia cobre), reforça em runtime
+    // com os nomes detectados pelo Backoffice (detected_role pode sobrepor
+    // contact_role raw do ctx, ex: quando histórico revela papel diferente).
+    let travelerOverride = "";
+    if (backoffice.detected_role === "traveler") {
+      const roleLabel = secondaryRoleLabel(business);
+      travelerOverride = `\n\n---\n## OVERRIDE RUNTIME — VIAJANTE DETECTADO\nO remetente é ${roleLabel} (${ctx.contact_name}), não o titular. Titular: ${ctx.pessoa_principal_nome || "(sem titular identificado)"}.\nAplique as regras de VIAJANTE do seu prompt: cumprimente o viajante, referencie a viagem com o titular, NUNCA peça taxa/pagamento/reunião, direcione ao titular para valores. Pode coletar dados pessoais do viajante (passaporte, CPF, data nascimento, preferências).`;
+    }
+
+    const personaPromptJulia = `${interpolatedSystemPrompt}${travelerOverride}
+
+---
+## CONTEXTO RUNTIME (referência — não repita para o cliente)
+- Card ID: ${ctx.card_id || "(sem card)"}
+- Contato ID: ${ctx.contato_id}
+- Stage atual: ${ctx.pipeline_stage_id || "(não definido)"}
+- Turn count: ${ctx.turn_count}
+
+---
+## FERRAMENTAS DISPONÍVEIS
+- search_knowledge_base: Consulta base de conhecimento da empresa. Use ANTES de falar sobre serviços, taxa, prazos, destinos, pagamento ou objeções.
+- check_calendar: Verifica horários disponíveis da consultora responsável pelo card.
+- create_task: Cria tarefa/reunião no CRM quando cliente confirma dia e horário.
+- assign_tag: Atribui tag ao card (ex: "Club Med") pra classificar o lead.
+- request_handoff: Solicita humano quando cliente insiste, reclamação séria ou situação irresolvível.
+- update_contact: Atualiza dados pessoais do contato (nome, sobrenome, email, cpf, passaporte, data_nascimento).
+- think: Raciocínio interno, invisível ao cliente, pra planejar resposta.
+
+SAÍDA: APENAS texto WhatsApp pronto para enviar ao cliente. Sem prefixos, sem aspas, sem JSON.`;
+
+    const historyJulia = ctx.historico_compacto.split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const isLead = line.includes("[lead]:");
+        return {
+          role: isLead ? "user" : "assistant",
+          content: line.replace(/\[(?:lead|owner)\]:\s*/, ""),
+        };
+      });
+
+    const personaModelJulia = agent.pipeline_models?.main?.model || agent.modelo;
+    const personaTempJulia = agent.pipeline_models?.main?.temperature ?? agent.temperature;
+    const personaMaxTokJulia = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
+    const toolsJulia = await loadAgentTools(supabase, agent.id);
+
+    return callLLMWithTools(
+      supabase,
+      personaModelJulia, personaTempJulia, personaMaxTokJulia,
+      personaPromptJulia, userMessage, historyJulia,
+      toolsJulia,
+      ctx, agent, business,
+    );
+  }
+
+  // --- MODO B: Builder dinâmico (legado/fallback) ---
+  // Para agentes sem system_prompt rico — monta prompt a partir de business_config,
+  // qualification_flow, scenarios, intelligent_decisions, etc. Preserva retrocompat
+  // pra agentes construídos via UI sem herdar um system_prompt Julia-style.
+  //
   // Template-based: montar prompt completo + tool calling
   // Frente E — Smart qualification: skip stages whose mapped field already has data.
   // Fonte combinada: form_data persistido (produto_data) + qualification_signals inferidos
@@ -2506,10 +2698,11 @@ async function runValidator(
     : '';
 
   const validatorPrompt = customValidator && customValidator.trim().length > 80
-    ? customValidator
-        .replace('{{mensagem_proposta}}', response)
-        .replace('{{contato.nome}}', ctx.contact_name || '(sem nome)')
-        .replace('{{is_primeiro_contato}}', String(ctx.is_primeiro_contato))
+    ? interpolatePromptVariables(customValidator, {
+        ctx,
+        agent,
+        extra: { mensagem_proposta: response },
+      })
       + rulesBlock
       + (activeScenarioChecks ? `\n## Cenários especiais deste agente\n${activeScenarioChecks}\n` : '')
       + `\n\nSe TUDO OK: retorne o texto ORIGINAL sem alterações.\nSe precisa correção: retorne apenas o texto CORRIGIDO.\nSAÍDA: apenas o texto final. Nada mais.`
