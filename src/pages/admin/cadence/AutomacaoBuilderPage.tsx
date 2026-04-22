@@ -37,7 +37,16 @@ import {
     formatDueOffset,
 } from './lib/dueOffsetCodec';
 
-type EventType = 'card_created' | 'stage_enter';
+type EventType =
+    | 'card_created'
+    | 'stage_enter'
+    | 'viagem.enviada'
+    | 'viagem.confirmada'
+    | 'viagem.item_aprovado'
+    | 'viagem.voucher_adicionado'
+    | 'viagem.comentario_cliente'
+    | 'viagem.nps_respondido'
+    | 'time_offset_from_date';
 
 interface AutomationForm {
     name: string;
@@ -46,11 +55,29 @@ interface AutomationForm {
     event_type: EventType;
     stage_ids: string[];
     respect_business_hours: boolean;
+    /** Para time_offset_from_date: fonte da data (card.data_viagem_inicio, viagem.embarque_inicio, etc) */
+    time_source: string;
+    /** Para time_offset_from_date: deslocamento (ex: -7 = 7 dias antes, 1 = 1 dia depois) */
+    offset_days: number;
 }
 
 const eventOptions: { value: EventType; label: string }[] = [
     { value: 'stage_enter', label: 'Card movido para uma etapa' },
     { value: 'card_created', label: 'Card criado' },
+    { value: 'viagem.enviada', label: 'Viagem enviada ao cliente (TP)' },
+    { value: 'viagem.confirmada', label: 'Cliente confirmou a viagem' },
+    { value: 'viagem.item_aprovado', label: 'Cliente aprovou um item da viagem' },
+    { value: 'viagem.voucher_adicionado', label: 'Voucher anexado a um item' },
+    { value: 'viagem.comentario_cliente', label: 'Cliente comentou' },
+    { value: 'viagem.nps_respondido', label: 'Cliente respondeu o NPS' },
+    { value: 'time_offset_from_date', label: 'Antes ou depois de uma data-chave' },
+];
+
+const timeSourceOptions: { value: string; label: string }[] = [
+    { value: 'viagem.embarque_inicio', label: 'Data de embarque da viagem' },
+    { value: 'card.data_viagem_inicio', label: 'Data de início (campo do card)' },
+    { value: 'card.data_viagem_fim', label: 'Data de retorno (campo do card)' },
+    { value: 'contato.data_nascimento', label: 'Aniversário do contato' },
 ];
 
 /**
@@ -140,9 +167,11 @@ export default function AutomacaoBuilderPage() {
         name: initialRecipe?.suggested_name || '',
         description: initialRecipe?.summary || '',
         is_active: false,
-        event_type: initialRecipe?.event_type || 'stage_enter',
+        event_type: (initialRecipe?.event_type as EventType) || 'stage_enter',
         stage_ids: [],
         respect_business_hours: true,
+        time_source: 'viagem.embarque_inicio',
+        offset_days: -7,
     });
     const [blocks, setBlocks] = useState<Block[]>(
         initialRecipe
@@ -218,6 +247,8 @@ export default function AutomacaoBuilderPage() {
                     event_type: (triggerRow?.event_type as EventType) || 'stage_enter',
                     stage_ids: triggerRow?.applicable_stage_ids || [],
                     respect_business_hours: tpl.respect_business_hours ?? true,
+                    time_source: triggerRow?.event_config?.source || 'viagem.embarque_inicio',
+                    offset_days: triggerRow?.event_config?.offset_days ?? -7,
                 });
                 setTriggerId(triggerRow?.id || null);
 
@@ -548,7 +579,7 @@ export default function AutomacaoBuilderPage() {
             }
 
             // Gravar trigger (start_cadence)
-            const triggerPayload = {
+            const triggerPayload: Record<string, unknown> = {
                 name: form.name,
                 event_type: form.event_type,
                 applicable_stage_ids: form.event_type === 'stage_enter' ? form.stage_ids : null,
@@ -559,6 +590,12 @@ export default function AutomacaoBuilderPage() {
                 delay_minutes: 0,
                 delay_type: 'business',
             };
+            if (form.event_type === 'time_offset_from_date') {
+                triggerPayload.event_config = {
+                    source: form.time_source,
+                    offset_days: form.offset_days,
+                };
+            }
 
             if (triggerId) {
                 /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
@@ -760,6 +797,54 @@ export default function AutomacaoBuilderPage() {
                                         options={[{ value: '', label: 'Selecionar…' }, ...stageOptions]}
                                     />
                                 </div>
+                            )}
+                            {form.event_type === 'time_offset_from_date' && (
+                                <>
+                                    <div>
+                                        <Label className="text-xs">Data de referência</Label>
+                                        <Select
+                                            value={form.time_source}
+                                            onChange={(v) =>
+                                                setForm({ ...form, time_source: v })
+                                            }
+                                            options={timeSourceOptions}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <Label className="text-xs">Quando disparar</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                type="number"
+                                                value={Math.abs(form.offset_days)}
+                                                onChange={(e) => {
+                                                    const n = Number(e.target.value) || 0
+                                                    const sign = form.offset_days < 0 ? -1 : 1
+                                                    setForm({ ...form, offset_days: n * sign })
+                                                }}
+                                                className="w-24"
+                                            />
+                                            <span className="text-sm text-slate-600">dias</span>
+                                            <Select
+                                                value={form.offset_days <= 0 ? 'antes' : 'depois'}
+                                                onChange={(v) => {
+                                                    const abs = Math.abs(form.offset_days) || 1
+                                                    setForm({
+                                                        ...form,
+                                                        offset_days: v === 'antes' ? -abs : abs,
+                                                    })
+                                                }}
+                                                options={[
+                                                    { value: 'antes', label: 'antes' },
+                                                    { value: 'depois', label: 'depois' },
+                                                ]}
+                                            />
+                                            <span className="text-sm text-slate-500">da data</span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] text-slate-400">
+                                            Roda uma vez por dia de manhã (fuso São Paulo).
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
