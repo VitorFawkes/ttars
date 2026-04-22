@@ -147,9 +147,10 @@ export function SpecialScenariosEditor({ value, onChange, pipelineId, produto }:
                 placeholder="Ex: Validar presença dos decisores e sugerir incluir os pais numa videoconferência com a Planner. Registrar no campo do CRM correspondente."
                 pipelineId={pipelineId}
                 produto={produto}
+                enabledTypes={['field', 'tag', 'stage']}
               />
               <p className="text-[11px] text-slate-400">
-                Use linguagem natural — o agente IA lê isso como instrução. Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[10px]">@</kbd> para buscar e inserir um campo do CRM direto no texto. Só campos liberados em <strong>Regras de negócio &gt; Campos atualizáveis</strong> serão efetivamente atualizados pelo agente.
+                Escreva em linguagem natural. Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[10px]">@</kbd> pra inserir campo, tag ou etapa — cada um aparece com uma cor diferente.
               </p>
             </div>
 

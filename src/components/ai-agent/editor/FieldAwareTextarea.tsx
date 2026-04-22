@@ -1,6 +1,13 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Database, Tag, Wrench, MoveRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useCRMFields, type FieldScope, type CRMField } from './CRMFieldPicker'
+import type { FieldScope } from './CRMFieldPicker'
+import {
+  useAutocompleteEntities,
+  entityToInsertString,
+  type EntityType,
+  type AutocompleteEntity,
+} from './useAutocompleteEntities'
 
 export interface FieldAwareTextareaProps {
   value: string
@@ -9,23 +16,20 @@ export interface FieldAwareTextareaProps {
   rows?: number
   pipelineId?: string
   produto?: string
+  agentId?: string
+  /** Tipos habilitados no autocomplete. Default: só campos. */
+  enabledTypes?: EntityType[]
   scope?: FieldScope
   className?: string
-  /** Caractere que dispara o autocomplete (default '@'). */
   trigger?: string
-  /** Callback quando o textarea ganha foco — usado pra saber qual bloco está ativo em abas com múltiplos campos. */
   onFocus?: () => void
 }
 
 export interface FieldAwareTextareaHandle {
-  /** Insere texto na posição do cursor (ou no fim se não focado). */
   insertAtCursor: (text: string) => void
   focus: () => void
 }
 
-// Estilo de caixa compartilhado. Fonte/padding/border-width/wrapping têm que
-// bater byte-a-byte entre textarea e mirror pra alinhar pixel-perfect. Só a
-// COR da borda difere: mirror = transparente (invisível), textarea = slate-200.
 const BOX_STYLE: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: '0.875rem',
@@ -40,17 +44,17 @@ const BOX_STYLE: React.CSSProperties = {
   margin: 0,
   boxSizing: 'border-box',
 }
-
 const MIRROR_STYLE: React.CSSProperties = { ...BOX_STYLE, borderColor: 'transparent' }
 const TEXTAREA_STYLE: React.CSSProperties = { ...BOX_STYLE, borderColor: 'rgb(226, 232, 240)' }
 
-/**
- * Textarea com autocomplete de campos do CRM e destaque visual.
- * - Digitar `@` abre a lista filtrável; selecionar insere a key.
- * - Campos reconhecidos (ex: ww_sdr_ajuda_familia) ficam destacados
- *   como chip colorido enquanto você digita.
- * - O valor reportado continua texto plano — destaque é só visual.
- */
+// Paleta por tipo — mesmos tons em dropdown, mirror e legendas.
+const TYPE_STYLES: Record<EntityType, { chip: string; icon: React.ComponentType<{ className?: string }>; label: string; dot: string }> = {
+  field: { chip: 'bg-indigo-100 text-indigo-800', icon: Database, label: 'Campo', dot: 'text-indigo-500' },
+  tag: { chip: 'bg-pink-100 text-pink-800', icon: Tag, label: 'Tag', dot: 'text-pink-500' },
+  skill: { chip: 'bg-emerald-100 text-emerald-800', icon: Wrench, label: 'Skill', dot: 'text-emerald-600' },
+  stage: { chip: 'bg-amber-100 text-amber-800', icon: MoveRight, label: 'Etapa', dot: 'text-amber-600' },
+}
+
 export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwareTextareaProps>(function FieldAwareTextarea({
   value,
   onChange,
@@ -58,6 +62,8 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
   rows = 3,
   pipelineId,
   produto,
+  agentId,
+  enabledTypes = ['field'],
   scope = 'any',
   className,
   trigger = '@',
@@ -68,10 +74,22 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
   const [cursor, setCursor] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
-  const { fields, isLoading } = useCRMFields({ scope, pipelineId, produto })
 
-  const keySet = useMemo(() => new Set(fields.map(f => f.key)), [fields])
-  const tokens = useMemo(() => tokenize(value, keySet), [value, keySet])
+  const { entities, isLoading } = useAutocompleteEntities({
+    enabledTypes,
+    pipelineId,
+    produto,
+    agentId,
+    fieldScope: scope,
+  })
+
+  const knownTokens = useMemo(() => {
+    const fields = new Set<string>()
+    for (const e of entities) if (e.type === 'field') fields.add(e.id)
+    return fields
+  }, [entities])
+
+  const tokens = useMemo(() => tokenize(value, knownTokens), [value, knownTokens])
 
   const mention = useMemo(() => {
     if (cursor === null || dismissed) return null
@@ -81,18 +99,19 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
   const matches = useMemo(() => {
     if (!mention) return []
     const term = mention.query.trim().toLowerCase()
-    if (!term) return fields.slice(0, 50)
-    return fields
+    if (!term) return entities.slice(0, 80)
+    return entities
       .filter(
-        f =>
-          f.label.toLowerCase().includes(term) ||
-          f.key.toLowerCase().includes(term) ||
-          f.sectionLabel.toLowerCase().includes(term),
+        e =>
+          e.label.toLowerCase().includes(term) ||
+          e.id.toLowerCase().includes(term) ||
+          e.section.toLowerCase().includes(term) ||
+          (e.sublabel?.toLowerCase().includes(term) ?? false),
       )
-      .slice(0, 50)
-  }, [fields, mention])
+      .slice(0, 80)
+  }, [entities, mention])
 
-  const groups = useMemo(() => groupFields(matches), [matches])
+  const groups = useMemo(() => groupEntities(matches), [matches])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset highlight ao mudar query é UI-local
@@ -121,12 +140,13 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
     setCursor(e.currentTarget.selectionStart ?? e.currentTarget.value.length)
   }
 
-  const commitField = (field: CRMField) => {
+  const commitEntity = (entity: AutocompleteEntity) => {
     if (!mention) return
     const before = value.slice(0, mention.anchor)
     const after = value.slice(mention.anchor + trigger.length + mention.query.length)
+    const insertCore = entityToInsertString(entity)
     const needsSpaceAfter = after.length > 0 && !/^\s/.test(after)
-    const inserted = `${field.key}${needsSpaceAfter ? '' : ' '}`
+    const inserted = `${insertCore}${needsSpaceAfter ? '' : ' '}`
     const next = before + inserted + after
     const nextCursor = before.length + inserted.length
     onChange(next)
@@ -149,16 +169,14 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
       setHighlightIdx(i => (i - 1 + matches.length) % matches.length)
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault()
-      const field = matches[highlightIdx]
-      if (field) commitField(field)
+      const entity = matches[highlightIdx]
+      if (entity) commitEntity(entity)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setDismissed(true)
     }
   }
 
-  // API imperativa pra telas com múltiplos campos (ex: TabPrompts) inserirem
-  // texto via botão de variáveis. Precisa vir ANTES do return.
   useImperativeHandle(forwardedRef, () => ({
     insertAtCursor: (text: string) => {
       const ta = textareaRef.current
@@ -178,8 +196,6 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
 
   return (
     <div className={cn('relative', className)}>
-      {/* Mirror: desenha o texto com chips destacados. Fica POR BAIXO do
-          textarea (que tem texto transparente, cursor visível). */}
       <div
         ref={mirrorRef}
         aria-hidden
@@ -189,26 +205,19 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
         {tokens.length === 0 ? (
           <span className="text-slate-400">{placeholder}</span>
         ) : (
-          tokens.map((t, i) =>
-            t.isField ? (
-              // IMPORTANTE: sem padding/border/font diferente — qualquer coisa
-              // que mude a largura do texto desalinha o mirror do textarea.
-              // Background + cor só.
-              <span key={i} className="rounded-sm bg-indigo-100 text-indigo-800">
+          tokens.map((t, i) => {
+            if (t.kind === 'plain') return <span key={i}>{t.text}</span>
+            const style = TYPE_STYLES[t.entityType]
+            return (
+              <span key={i} className={cn('rounded-sm', style.chip)}>
                 {t.text}
               </span>
-            ) : (
-              <span key={i}>{t.text}</span>
-            ),
-          )
+            )
+          })
         )}
-        {/* Força nova linha no fim se o texto termina com \n (o mirror não
-            renderiza a linha extra sozinho como o textarea faz). */}
         {value.endsWith('\n') && <span>{'​'}</span>}
       </div>
 
-      {/* Textarea: texto transparente (só caret visível), placeholder
-          transparente (o mirror mostra o placeholder). */}
       <textarea
         ref={textareaRef}
         value={value}
@@ -217,8 +226,8 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
         onKeyDown={handleKeyDown}
         onKeyUp={syncCursor}
         onClick={syncCursor}
-        onBlur={() => setTimeout(() => setCursor(null), 150)}
         onFocus={onFocus}
+        onBlur={() => setTimeout(() => setCursor(null), 150)}
         rows={rows}
         placeholder={placeholder}
         spellCheck={false}
@@ -227,45 +236,58 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
       />
 
       {mention && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[280px] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
           {isLoading ? (
-            <div className="p-4 text-center text-xs text-slate-400">Carregando campos...</div>
+            <div className="p-4 text-center text-xs text-slate-400">Carregando...</div>
           ) : matches.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-400">
-              Nenhum campo corresponde a &ldquo;{mention.query}&rdquo;.
+              Nenhum item corresponde a &ldquo;{mention.query}&rdquo;.
             </div>
           ) : (
-            groups.map(group => (
-              <div key={group.sectionLabel}>
-                <div className="sticky top-0 z-[1] border-b border-slate-100 bg-slate-50/95 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
-                  {group.sectionLabel}
+            groups.map(group => {
+              const style = TYPE_STYLES[group.type]
+              const Icon = style.icon
+              return (
+                <div key={group.section}>
+                  <div className="sticky top-0 z-[1] flex items-center gap-1.5 border-b border-slate-100 bg-slate-50/95 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
+                    <Icon className={cn('h-3 w-3', style.dot)} />
+                    {group.section}
+                  </div>
+                  {group.items.map(entity => {
+                    const flatIdx = matches.indexOf(entity)
+                    const isActive = flatIdx === highlightIdx
+                    return (
+                      <button
+                        key={`${entity.type}:${entity.id}`}
+                        type="button"
+                        onMouseDown={e => {
+                          e.preventDefault()
+                          commitEntity(entity)
+                        }}
+                        onMouseEnter={() => setHighlightIdx(flatIdx)}
+                        className={cn(
+                          'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
+                          isActive ? 'bg-indigo-50' : 'hover:bg-slate-50',
+                        )}
+                      >
+                        <span className={cn('flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm', style.chip)}>
+                          <Icon className="h-3 w-3" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm text-slate-900">{entity.label}</div>
+                          {entity.sublabel && (
+                            <div className="truncate font-mono text-[11px] text-slate-400">{entity.sublabel}</div>
+                          )}
+                        </div>
+                        <span className="flex-shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-slate-500">
+                          {style.label}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
-                {group.items.map(field => {
-                  const flatIdx = matches.indexOf(field)
-                  const isActive = flatIdx === highlightIdx
-                  return (
-                    <button
-                      key={field.key}
-                      type="button"
-                      onMouseDown={e => {
-                        e.preventDefault()
-                        commitField(field)
-                      }}
-                      onMouseEnter={() => setHighlightIdx(flatIdx)}
-                      className={cn(
-                        'flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors',
-                        isActive ? 'bg-indigo-50' : 'hover:bg-slate-50',
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-slate-900">{field.label}</div>
-                        <div className="truncate font-mono text-[11px] text-slate-400">{field.key}</div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       )}
@@ -273,39 +295,64 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
   )
 })
 
-interface Token {
-  text: string
-  isField: boolean
-}
+// ---------- helpers ----------
+
+type Token =
+  | { kind: 'plain'; text: string }
+  | { kind: 'entity'; entityType: EntityType; text: string }
 
 /**
- * Quebra o texto em tokens. Sequências que batem exatamente com uma key
- * de campo do CRM viram tokens marcados como isField=true.
+ * Tokeniza o texto em pedaços, detectando:
+ * - Identificadores word-like que batem exatamente com uma key de campo conhecida.
+ * - Tokens estruturados `@[tag:...]`, `@[skill:...]`, `@[etapa:...]`.
  */
-function tokenize(value: string, keySet: Set<string>): Token[] {
+function tokenize(value: string, fieldKeys: Set<string>): Token[] {
   if (!value) return []
-  const parts = value.split(/([A-Za-z_][A-Za-z0-9_]{2,})/g)
   const out: Token[] = []
-  for (const p of parts) {
-    if (p === '') continue
-    out.push({ text: p, isField: keySet.has(p) })
+  // Regex combina: (1) tokens @[tipo:valor] estruturados; (2) identificadores word-like
+  const re = /(@\[(?:tag|skill|etapa):[^\]]+\])|([A-Za-z_][A-Za-z0-9_]{2,})/g
+  let cursor = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(value)) !== null) {
+    if (m.index > cursor) {
+      out.push({ kind: 'plain', text: value.slice(cursor, m.index) })
+    }
+    const matched = m[0]
+    if (m[1]) {
+      // @[tipo:valor]
+      const prefix = matched.slice(2).split(':')[0]
+      const entityType: EntityType = prefix === 'tag' ? 'tag' : prefix === 'skill' ? 'skill' : 'stage'
+      out.push({ kind: 'entity', entityType, text: matched })
+    } else if (m[2] && fieldKeys.has(m[2])) {
+      out.push({ kind: 'entity', entityType: 'field', text: matched })
+    } else {
+      out.push({ kind: 'plain', text: matched })
+    }
+    cursor = m.index + matched.length
   }
+  if (cursor < value.length) out.push({ kind: 'plain', text: value.slice(cursor) })
   return out
 }
 
 interface Group {
-  sectionLabel: string
-  items: CRMField[]
+  section: string
+  type: EntityType
+  items: AutocompleteEntity[]
 }
 
-function groupFields(fields: CRMField[]): Group[] {
-  const map = new Map<string, CRMField[]>()
-  for (const f of fields) {
-    const arr = map.get(f.sectionLabel) ?? []
-    arr.push(f)
-    map.set(f.sectionLabel, arr)
+function groupEntities(entities: AutocompleteEntity[]): Group[] {
+  const map = new Map<string, Group>()
+  for (const e of entities) {
+    const existing = map.get(e.section)
+    if (existing) {
+      existing.items.push(e)
+    } else {
+      map.set(e.section, { section: e.section, type: e.type, items: [e] })
+    }
   }
-  return Array.from(map.entries()).map(([sectionLabel, items]) => ({ sectionLabel, items }))
+  // Ordem fixa por tipo: campos → tags → skills → etapas
+  const typeOrder: EntityType[] = ['field', 'tag', 'skill', 'stage']
+  return Array.from(map.values()).sort((a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type))
 }
 
 function detectMention(
