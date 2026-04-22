@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useOrg } from '../contexts/OrgContext'
 import type { Database, Json } from '../database.types'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
@@ -36,19 +37,27 @@ interface SectionFieldConfigRow {
  *   (necessário no Pipeline Studio admin). Em telas de produto, SEMPRE passe pipelineId.
  */
 export function useFieldConfig(pipelineId?: string) {
+    const { org } = useOrg()
+    const currentOrgId = org?.id
+
     // Fetch System Fields (The Dictionary)
+    // Filtra pelo workspace atual: system_fields é per-org com seed, e a RLS
+    // libera leitura também do account pai (Welcome Group) como template master.
+    // Sem o filtro, cada campo aparece N vezes (uma por org visível).
     const { data: systemFields, isLoading: loadingFields } = useQuery({
-        queryKey: ['system-fields-config'],
+        queryKey: ['system-fields-config', currentOrgId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('system_fields')
                 .select('*')
                 .eq('active', true)
+                .eq('org_id', currentOrgId!)
                 .order('section')
                 .order('order_index')
                 .order('label')
             return data as SystemField[]
         },
+        enabled: !!currentOrgId,
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
