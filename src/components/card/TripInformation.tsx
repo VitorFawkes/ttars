@@ -234,10 +234,12 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         return getVisibleFields(targetStageId, 'trip_info')
     }, [viewModeStageId, card.pipeline_stage_id, getVisibleFields])
 
-    // Total de Faturamento (Produto - Vendas) — usado pelo botão "Copiar de" em Orçamento Previsto
-    // Mesma queryKey do FinanceiroWidget para aproveitar cache
+    // Total de Faturamento (Produto - Vendas) — usado pelo botão "Copiar de" em Orçamento Previsto.
+    // IMPORTANTE: queryKey dedicado — FinanceiroWidget usa ['financial-items', cardId] com select
+    // completo; se compartilharmos a key com um select parcial, poluímos o cache e o FinanceiroWidget
+    // renderiza "Produto" (fornecedor/description viram undefined).
     const { data: financialItemsSaleValues = [] } = useQuery({
-        queryKey: ['financial-items', card.id],
+        queryKey: ['financial-items-total', card.id],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from('card_financial_items') as any)
