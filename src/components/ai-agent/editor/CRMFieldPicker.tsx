@@ -65,7 +65,7 @@ function typeBadge(t: string) {
   return TYPE_BADGES[t] ?? { label: t, cls: 'bg-slate-100 text-slate-500' }
 }
 
-function useCRMFields({
+export function useCRMFields({
   scope = 'any',
   pipelineId,
   produto,

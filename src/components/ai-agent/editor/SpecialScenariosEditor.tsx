@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { TagPicker, StagePicker } from './pickers'
+import { FieldAwareTextarea } from './FieldAwareTextarea'
 import type { SpecialScenarioInput } from '@/hooks/useAgentSpecialScenarios'
 
 export interface SpecialScenariosEditorProps {
@@ -139,14 +140,16 @@ export function SpecialScenariosEditor({ value, onChange, pipelineId, produto }:
             {/* ── Bloco: Ajuste no comportamento ── */}
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">Como o agente deve responder neste cenário (instruções injetadas no prompt)</Label>
-              <Textarea
+              <FieldAwareTextarea
                 rows={3}
                 value={scenario.response_adjustment ?? ''}
-                onChange={e => update(idx, { response_adjustment: e.target.value || null })}
-                placeholder="Ex: Validar presença dos decisores e sugerir incluir os pais numa videoconferência com o Planner. Registrar em ww_sdr_ajuda_familia."
+                onChange={v => update(idx, { response_adjustment: v || null })}
+                placeholder="Ex: Validar presença dos decisores e sugerir incluir os pais numa videoconferência com a Planner. Registrar no campo do CRM correspondente."
+                pipelineId={pipelineId}
+                produto={produto}
               />
               <p className="text-[11px] text-slate-400">
-                Use linguagem natural — o agente IA lê isso como instrução. Se mencionar um campo do CRM, certifique-se de que ele está liberado em <strong>Regras de negócio &gt; Campos atualizáveis</strong>.
+                Use linguagem natural — o agente IA lê isso como instrução. Para referenciar campos do CRM, use o botão <strong>&ldquo;Inserir campo do CRM&rdquo;</strong> em vez de digitar. Só campos liberados em <strong>Regras de negócio &gt; Campos atualizáveis</strong> serão efetivamente atualizados.
               </p>
             </div>
 
