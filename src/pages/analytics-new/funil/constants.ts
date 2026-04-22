@@ -1,7 +1,8 @@
 import { SystemPhase } from '@/types/pipeline'
 
 export type FunnelMetric = 'cards' | 'faturamento' | 'receita'
-export type FunnelMode = 'entries' | 'stage_entry' | 'ganho_sdr' | 'ganho_planner' | 'ganho_total'
+/** Modos de análise — mesmos nomes usados no resto do app (GlobalControls legacy). */
+export type FunnelMode = 'entries' | 'ganho_sdr' | 'ganho_planner' | 'ganho_total'
 
 export const PHASE_COLORS: Record<string, string> = {
   sdr: '#3b82f6',
@@ -38,12 +39,21 @@ export function relativeDelta(current: number, previous: number): number | null 
   return ((current - previous) / previous) * 100
 }
 
+/** Labels em português dos modos — iguais aos do GlobalControls legacy. */
 export const MODE_LABELS: Record<FunnelMode, string> = {
-  entries: 'Entraram no pipeline',
-  stage_entry: 'Entraram numa etapa específica',
-  ganho_sdr: 'Ganhos SDR',
-  ganho_planner: 'Ganhos Planner',
-  ganho_total: 'Ganhos (total)',
+  entries: 'Entradas por Etapa',
+  ganho_sdr: 'Ganho SDR',
+  ganho_planner: 'Ganho Planner',
+  ganho_total: 'Ganho Total',
+}
+
+/** Explicação curta abaixo do label (tooltip). */
+export const MODE_HINTS: Record<FunnelMode, string> = {
+  entries:
+    'Cards que entraram em cada etapa no período (por criação ou por transição de outra etapa)',
+  ganho_sdr: 'Cards marcados como ganhos SDR no período',
+  ganho_planner: 'Cards marcados como ganhos Planner no período',
+  ganho_total: 'Todos os cards ganhos no período (SDR + Planner)',
 }
 
 export const METRIC_LABELS: Record<FunnelMetric, string> = {

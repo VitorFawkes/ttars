@@ -15,7 +15,8 @@ function durationBadge(days: number): string {
 }
 
 export default function FunnelVelocityTable({ isLoading, rows }: Props) {
-  const sorted = [...rows].sort((a, b) => a.ordem - b.ordem)
+  // `rows` já vem ordenado pelo FunnelView (ordem canônica do pipeline_stages).
+  const sorted = rows
 
   return (
     <ChartCard

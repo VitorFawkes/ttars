@@ -1,7 +1,7 @@
 import { Calendar, Repeat, User as UserIcon, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DatePreset } from '@/hooks/analytics/useAnalyticsFilters'
-import type { FunnelMetric, FunnelMode } from './constants'
+import { MODE_LABELS, MODE_HINTS, type FunnelMetric, type FunnelMode } from './constants'
 
 export interface StageOption {
   id: string
@@ -42,9 +42,10 @@ const DATE_OPTIONS: { value: DatePreset; label: string }[] = [
 ]
 
 const MODE_OPTIONS: { value: FunnelMode; label: string; hint: string }[] = [
-  { value: 'entries', label: 'Novos leads', hint: 'Cards criados no período' },
-  { value: 'stage_entry', label: 'Entraram em etapa', hint: 'Passaram por qualquer etapa' },
-  { value: 'ganho_total', label: 'Ganhos', hint: 'Somente cards ganhos' },
+  { value: 'entries', label: MODE_LABELS.entries, hint: MODE_HINTS.entries },
+  { value: 'ganho_total', label: MODE_LABELS.ganho_total, hint: MODE_HINTS.ganho_total },
+  { value: 'ganho_sdr', label: MODE_LABELS.ganho_sdr, hint: MODE_HINTS.ganho_sdr },
+  { value: 'ganho_planner', label: MODE_LABELS.ganho_planner, hint: MODE_HINTS.ganho_planner },
 ]
 
 function formatShortDate(iso: string): string {

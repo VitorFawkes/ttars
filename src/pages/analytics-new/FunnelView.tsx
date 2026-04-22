@@ -39,12 +39,20 @@ export default function FunnelView() {
     [pipelineStages]
   )
 
-  // Ordem da etapa raiz selecionada (se null, considera a partir da primeira)
-  const rootStageOrdem = useMemo(() => {
+  // Índice da etapa raiz dentro do array do Pipeline Studio (ordem canônica).
+  // null = do começo.
+  const rootStageIndex = useMemo(() => {
     if (!state.rootStageId) return null
-    const found = stageOptions.find(s => s.id === state.rootStageId)
-    return found?.ordem ?? null
+    const idx = stageOptions.findIndex(s => s.id === state.rootStageId)
+    return idx >= 0 ? idx : null
   }, [state.rootStageId, stageOptions])
+
+  // Mapa stage_id → índice na ordem canônica do Pipeline Studio.
+  const stageOrderMap = useMemo(() => {
+    const m = new Map<string, number>()
+    stageOptions.forEach((s, idx) => m.set(s.id, idx))
+    return m
+  }, [stageOptions])
 
   const profileId = profile?.id ?? null
   const isMyFunnel = !!(profileId && ownerIds.length === 1 && ownerIds[0] === profileId)
@@ -87,26 +95,30 @@ export default function FunnelView() {
     refetch,
   } = useFunnelData(funnelParams, state.compareEnabled)
 
-  // Aplica filtro "Desde etapa X"
-  const conversion = useMemo(
-    () =>
-      rootStageOrdem == null
-        ? rawConversion
-        : rawConversion.filter(s => (s.ordem ?? 0) >= rootStageOrdem),
-    [rawConversion, rootStageOrdem]
+  // Ordena rows pela ordem canônica do Pipeline Studio (etapas não mapeadas vão no fim)
+  // e recorta a partir da etapa raiz selecionada.
+  const sortByCanonicalOrder = useCallback(
+    <T extends { stage_id: string }>(rows: T[]): T[] => {
+      const ordered = [...rows].sort((a, b) => {
+        const ia = stageOrderMap.get(a.stage_id) ?? Number.MAX_SAFE_INTEGER
+        const ib = stageOrderMap.get(b.stage_id) ?? Number.MAX_SAFE_INTEGER
+        return ia - ib
+      })
+      if (rootStageIndex == null) return ordered
+      return ordered.filter(r => {
+        const idx = stageOrderMap.get(r.stage_id)
+        return idx != null && idx >= rootStageIndex
+      })
+    },
+    [stageOrderMap, rootStageIndex]
   )
-  const previousConversion = useMemo(() => {
-    if (!rawPreviousConversion) return null
-    if (rootStageOrdem == null) return rawPreviousConversion
-    return rawPreviousConversion.filter(s => (s.ordem ?? 0) >= rootStageOrdem)
-  }, [rawPreviousConversion, rootStageOrdem])
-  const velocity = useMemo(
-    () =>
-      rootStageOrdem == null
-        ? rawVelocity
-        : rawVelocity.filter(s => (s.ordem ?? 0) >= rootStageOrdem),
-    [rawVelocity, rootStageOrdem]
+
+  const conversion = useMemo(() => sortByCanonicalOrder(rawConversion), [rawConversion, sortByCanonicalOrder])
+  const previousConversion = useMemo(
+    () => (rawPreviousConversion ? sortByCanonicalOrder(rawPreviousConversion) : null),
+    [rawPreviousConversion, sortByCanonicalOrder]
   )
+  const velocity = useMemo(() => sortByCanonicalOrder(rawVelocity), [rawVelocity, sortByCanonicalOrder])
 
   const handleStageDrill = useCallback(
     (stageId: string, stageName: string) => {

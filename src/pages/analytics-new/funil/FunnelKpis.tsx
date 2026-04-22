@@ -19,14 +19,13 @@ interface Props {
   compareEnabled: boolean
 }
 
+// `stages` já vem ordenado pelo FunnelView (ordem canônica do pipeline_stages).
 function topOf(stages: FunnelStageData[]): FunnelStageData | null {
-  if (!stages.length) return null
-  return [...stages].sort((a, b) => a.ordem - b.ordem)[0]
+  return stages[0] ?? null
 }
 
 function bottomOf(stages: FunnelStageData[]): FunnelStageData | null {
-  if (!stages.length) return null
-  return [...stages].sort((a, b) => b.ordem - a.ordem)[0]
+  return stages.length ? stages[stages.length - 1] : null
 }
 
 function totalValor(stages: FunnelStageData[]): number {
