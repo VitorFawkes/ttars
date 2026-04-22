@@ -1,15 +1,22 @@
 import { SystemPhase } from '@/types/pipeline'
 
-// RPC `analytics_funnel_conversion` só retorna `current_count` e `total_valor`.
-// Receita não existe nessa RPC — por isso só duas métricas.
-export type FunnelMetric = 'cards' | 'faturamento'
-/** Modos de análise — mesmos nomes usados no resto do app (GlobalControls legacy). */
-export type FunnelMode = 'entries' | 'ganho_sdr' | 'ganho_planner' | 'ganho_total'
+// Métrica 3-way (plano mestre princípio #4). A RPC v3 retorna os três campos.
+export type FunnelMetric = 'cards' | 'faturamento' | 'receita'
+
+// Referência do eixo temporal (plano mestre princípio #3).
+export type DateRef = 'stage' | 'created'
+
+// Status dos cards (plano mestre princípio #5). Dimensão separada da Referência.
+export type FunnelStatus = 'all' | 'open' | 'won' | 'lost'
+
+// Sub-filtro de ganhos: quando status === 'won', por quem fechou.
+export type GanhoFase = 'any' | 'sdr' | 'planner' | 'pos'
 
 export const PHASE_COLORS: Record<string, string> = {
   sdr: '#3b82f6',
   planner: '#8b5cf6',
   'pos-venda': '#10b981',
+  pos_venda: '#10b981',
 }
 
 export function getPhaseColor(slug: string | null | undefined): string {
@@ -41,24 +48,49 @@ export function relativeDelta(current: number, previous: number): number | null 
   return ((current - previous) / previous) * 100
 }
 
-/** Labels em português dos modos — iguais aos do GlobalControls legacy. */
-export const MODE_LABELS: Record<FunnelMode, string> = {
-  entries: 'Entradas por Etapa',
-  ganho_sdr: 'Ganho SDR',
-  ganho_planner: 'Ganho Planner',
-  ganho_total: 'Ganho Total',
-}
-
-/** Explicação curta abaixo do label (tooltip). */
-export const MODE_HINTS: Record<FunnelMode, string> = {
-  entries:
-    'Cards que entraram em cada etapa no período (por criação ou por transição de outra etapa)',
-  ganho_sdr: 'Cards marcados como ganhos SDR no período',
-  ganho_planner: 'Cards marcados como ganhos Planner no período',
-  ganho_total: 'Todos os cards ganhos no período (SDR + Planner)',
-}
-
 export const METRIC_LABELS: Record<FunnelMetric, string> = {
   cards: 'Qtd',
   faturamento: 'Fat.',
+  receita: 'Receita',
+}
+
+export const STATUS_LABELS: Record<FunnelStatus, string> = {
+  all: 'Todos',
+  open: 'Abertos',
+  won: 'Ganhos',
+  lost: 'Perdidos',
+}
+
+export const STATUS_HINTS: Record<FunnelStatus, string> = {
+  all: 'Inclui abertos, ganhos e perdidos',
+  open: 'Cards ainda ativos no pipeline',
+  won: 'Cards marcados como ganho',
+  lost: 'Cards marcados como perdido',
+}
+
+export const GANHO_FASE_LABELS: Record<GanhoFase, string> = {
+  any: 'Qualquer',
+  sdr: 'SDR',
+  planner: 'Planner',
+  pos: 'Pós',
+}
+
+/** Traduz FunnelStatus para o array `p_status` aceito pela RPC v3. NULL = todos. */
+export function statusToRpcArray(status: FunnelStatus): string[] | null {
+  switch (status) {
+    case 'open':
+      return ['aberto']
+    case 'won':
+      return ['ganho']
+    case 'lost':
+      return ['perdido']
+    case 'all':
+    default:
+      return null
+  }
+}
+
+/** Traduz GanhoFase para `p_ganho_fase`. 'any' => NULL (qualquer). */
+export function ganhoFaseToRpc(fase: GanhoFase): string | null {
+  return fase === 'any' ? null : fase
 }

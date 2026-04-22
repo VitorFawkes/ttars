@@ -1,17 +1,25 @@
 import { useState } from 'react'
-import type { FunnelMetric, FunnelMode } from './constants'
+import type { DateRef, FunnelMetric, FunnelStatus, GanhoFase } from './constants'
 
-/** State local dos filtros da página /analytics/funil (não compartilhado com outras páginas). */
+/**
+ * State local dos filtros da página /analytics/funil (não compartilhado entre páginas).
+ * Filtros de Período, Produto, Owner e Tags vêm do Zustand global `useAnalyticsFilters`.
+ */
 export function useFunnelPageState() {
-  const [mode, setMode] = useState<FunnelMode>('entries')
+  const [dateRef, setDateRef] = useState<DateRef>('stage')
+  const [status, setStatus] = useState<FunnelStatus>('all')
+  const [ganhoFase, setGanhoFase] = useState<GanhoFase>('any')
   const [metric, setMetric] = useState<FunnelMetric>('cards')
   const [compareEnabled, setCompareEnabled] = useState(false)
-  // null = primeira etapa do pipeline; caso contrário vira o "topo" do funil
   const [rootStageId, setRootStageId] = useState<string | null>(null)
 
   return {
-    mode,
-    setMode,
+    dateRef,
+    setDateRef,
+    status,
+    setStatus,
+    ganhoFase,
+    setGanhoFase,
     metric,
     setMetric,
     compareEnabled,

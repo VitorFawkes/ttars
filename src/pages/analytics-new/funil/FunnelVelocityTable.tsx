@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import ChartCard from '@/components/analytics/ChartCard'
 import { cn } from '@/lib/utils'
 import type { FunnelVelocityRow } from '@/hooks/analytics/useFunnelVelocity'
@@ -8,20 +10,85 @@ interface Props {
   rows: FunnelVelocityRow[]
 }
 
+type SortKey = 'stage' | 'cards_passaram' | 'cards_atuais' | 'mediana_dias' | 'p90_dias' | 'media_dias'
+type SortDir = 'asc' | 'desc'
+
 function durationBadge(days: number): string {
   if (days > 30) return 'text-rose-600 font-semibold'
   if (days > 14) return 'text-amber-600 font-semibold'
   return 'text-slate-700'
 }
 
+interface SortHeaderProps {
+  label: string
+  sortKey: SortKey
+  currentKey: SortKey | null
+  dir: SortDir
+  onToggle: (k: SortKey) => void
+  align?: 'left' | 'right'
+  title?: string
+}
+
+function SortHeader({ label, sortKey, currentKey, dir, onToggle, align = 'right', title }: SortHeaderProps) {
+  const active = currentKey === sortKey
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(sortKey)}
+      title={title}
+      className={cn(
+        'inline-flex items-center gap-1 text-slate-500 font-medium hover:text-slate-700',
+        align === 'right' ? 'justify-end' : 'justify-start',
+        active && 'text-slate-700'
+      )}
+    >
+      {label}
+      {active ? (
+        dir === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />
+      ) : (
+        <ArrowUpDown className="w-3 h-3 text-slate-300" />
+      )}
+    </button>
+  )
+}
+
 export default function FunnelVelocityTable({ isLoading, rows }: Props) {
-  // `rows` já vem ordenado pelo FunnelView (ordem canônica do pipeline_stages).
-  const sorted = rows
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) {
+      setSortDir(d => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(k)
+      setSortDir('desc')
+    }
+  }
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return rows // ordem canônica da RPC
+    const copy = [...rows]
+    copy.sort((a, b) => {
+      let va: number | string
+      let vb: number | string
+      if (sortKey === 'stage') {
+        va = a.stage_nome
+        vb = b.stage_nome
+      } else {
+        va = Number(a[sortKey]) || 0
+        vb = Number(b[sortKey]) || 0
+      }
+      if (va < vb) return sortDir === 'desc' ? 1 : -1
+      if (va > vb) return sortDir === 'desc' ? -1 : 1
+      return 0
+    })
+    return copy
+  }, [rows, sortKey, sortDir])
 
   return (
     <ChartCard
       title="Velocidade por etapa"
-      description="Quantos cards passaram e quanto tempo ficaram em cada etapa"
+      description="Quantos cards passaram e quanto tempo ficaram em cada etapa — clique nos cabeçalhos pra ordenar"
       colSpan={2}
       isLoading={isLoading}
     >
@@ -29,12 +96,65 @@ export default function FunnelVelocityTable({ isLoading, rows }: Props) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-200">
-              <th className="text-left py-2.5 pr-3 text-slate-500 font-medium">Etapa</th>
-              <th className="text-right py-2.5 px-2 text-slate-500 font-medium">Passaram</th>
-              <th className="text-right py-2.5 px-2 text-slate-500 font-medium">Atuais</th>
-              <th className="text-right py-2.5 px-2 text-slate-500 font-medium">Mediana</th>
-              <th className="text-right py-2.5 px-2 text-slate-500 font-medium">p90</th>
-              <th className="text-right py-2.5 px-2 text-slate-500 font-medium">Média</th>
+              <th className="text-left py-2.5 pr-3">
+                <SortHeader
+                  label="Etapa"
+                  sortKey="stage"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                  align="left"
+                />
+              </th>
+              <th className="text-right py-2.5 px-2">
+                <SortHeader
+                  label="Passaram"
+                  sortKey="cards_passaram"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                  title="Cards que saíram dessa etapa no período"
+                />
+              </th>
+              <th className="text-right py-2.5 px-2">
+                <SortHeader
+                  label="Atuais"
+                  sortKey="cards_atuais"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                  title="Cards parados nessa etapa agora"
+                />
+              </th>
+              <th className="text-right py-2.5 px-2">
+                <SortHeader
+                  label="Mediana"
+                  sortKey="mediana_dias"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                  title="p50 dos dias em etapa — metade dos cards passou em até X dias"
+                />
+              </th>
+              <th className="text-right py-2.5 px-2">
+                <SortHeader
+                  label="p90"
+                  sortKey="p90_dias"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                  title="p90 dos dias em etapa — 9 em cada 10 cards passaram em até X dias"
+                />
+              </th>
+              <th className="text-right py-2.5 px-2">
+                <SortHeader
+                  label="Média"
+                  sortKey="media_dias"
+                  currentKey={sortKey}
+                  dir={sortDir}
+                  onToggle={toggleSort}
+                />
+              </th>
             </tr>
           </thead>
           <tbody>

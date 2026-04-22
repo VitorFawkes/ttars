@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 184 tabelas | 137 paginas | 148 hooks | 19 views | 580 components
+> **Stats:** 184 tabelas | 138 paginas | 148 hooks | 19 views | 581 components
 
 ---
 
@@ -392,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **137 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **138 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -500,6 +500,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FunnelLossReasons` | `src/pages/analytics-new/funil/FunnelLossReasons.tsx` |
 | `FunnelVelocityTable` | `src/pages/analytics-new/funil/FunnelVelocityTable.tsx` |
 | `FunnelVisual` | `src/pages/analytics-new/funil/FunnelVisual.tsx` |
+| `MultiPickerPopover` | `src/pages/analytics-new/funil/MultiPickerPopover.tsx` |
 | `PipelineAgingHeatmap` | `src/pages/analytics-new/pipeline/PipelineAgingHeatmap.tsx` |
 | `PipelineFilterPanel` | `src/pages/analytics-new/pipeline/PipelineFilterPanel.tsx` |
 | `PipelineKpis` | `src/pages/analytics-new/pipeline/PipelineKpis.tsx` |

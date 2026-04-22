@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import ChartCard from '@/components/analytics/ChartCard'
 import { cn } from '@/lib/utils'
 import type { LossReason } from '@/hooks/analytics/useFunnelConversion'
@@ -8,17 +9,28 @@ interface Props {
   onReasonDrill: (reason: string) => void
 }
 
+/** Severidade visual por fatia: >= 25% (dominante), 10-24% (médio), < 10% (leve). */
+function severityClasses(pct: number): string {
+  if (pct >= 25) return 'bg-rose-500 group-hover:bg-rose-600'
+  if (pct >= 10) return 'bg-rose-400 group-hover:bg-rose-500'
+  return 'bg-rose-300 group-hover:bg-rose-400'
+}
+
 export default function FunnelLossReasons({ isLoading, reasons, onReasonDrill }: Props) {
-  const sorted = [...reasons].sort((a, b) => b.count - a.count)
-  const top = sorted.slice(0, 8)
-  const maxCount = top[0]?.count ?? 0
+  const { top, totalCount, maxCount } = useMemo(() => {
+    const sorted = [...reasons].sort((a, b) => b.count - a.count)
+    const top = sorted.slice(0, 8)
+    const totalCount = reasons.reduce((s, r) => s + r.count, 0)
+    const maxCount = top[0]?.count ?? 0
+    return { top, totalCount, maxCount }
+  }, [reasons])
 
   return (
     <ChartCard
       title="Motivos de perda"
       description={
         top.length > 0
-          ? `Top ${top.length} motivos — clique para ver os cards perdidos`
+          ? `Top ${top.length} de ${totalCount.toLocaleString('pt-BR')} perdidos no período — clique para ver os cards`
           : 'Sem perdas no período'
       }
       isLoading={isLoading}
@@ -54,8 +66,8 @@ export default function FunnelLossReasons({ isLoading, reasons, onReasonDrill }:
               <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className={cn(
-                    'h-full rounded-full bg-rose-400 transition-all',
-                    'group-hover:bg-rose-500'
+                    'h-full rounded-full transition-all',
+                    severityClasses(r.percentage)
                   )}
                   style={{ width: `${barWidth}%` }}
                 />

@@ -2,13 +2,13 @@ import { useMemo } from 'react'
 import ChartCard from '@/components/analytics/ChartCard'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
-import type { FunnelStageData } from '@/hooks/analytics/useFunnelConversion'
 import { getPhaseColor, relativeDelta, type FunnelMetric } from './constants'
+import type { FunnelStageV3 } from './useFunnelData'
 
 interface Props {
   isLoading: boolean
-  stages: FunnelStageData[]
-  previousStages: FunnelStageData[] | null
+  stages: FunnelStageV3[]
+  previousStages: FunnelStageV3[] | null
   metric: FunnelMetric
   compareEnabled: boolean
   onStageDrill: (stageId: string, stageName: string) => void
@@ -23,12 +23,16 @@ interface RowData {
   pctFromRoot: number
   convFromPrev: number | null
   deltaVsPeriod: number | null
+  acumulado: number
+  p50: number
+  p75: number
   isRoot: boolean
 }
 
-function getValueForMetric(stage: FunnelStageData, metric: FunnelMetric): number {
-  if (metric === 'cards') return stage.current_count
-  return stage.total_valor || 0
+function getValueForMetric(stage: FunnelStageV3, metric: FunnelMetric): number {
+  if (metric === 'cards') return stage.period_count
+  if (metric === 'receita') return stage.period_receita || 0
+  return stage.period_valor || 0
 }
 
 function formatValue(v: number, metric: FunnelMetric): string {
@@ -68,42 +72,56 @@ export default function FunnelVisual({
 }: Props) {
   const rows = useMemo<RowData[]>(() => {
     if (!stages.length) return []
-    // IMPORTANTE: a ordem de `stages` já vem correta do FunnelView (pelo pipeline_stages
-    // canônico). NÃO reordenar aqui.
+
+    // Ordem já vem correta da RPC v3 (pp.order_index, s.ordem).
     const sorted = stages
 
+    // Baseline da largura: valor do topo (primeira etapa).
+    // Funil verdadeiro converge — downstream ≤ topo. Se não for o caso (dados inesperados),
+    // a barra é capada em 100% para não estourar o layout.
     const rootValue = getValueForMetric(sorted[0], metric) || 0
-    // Baseline da largura: MAX entre os visíveis (evita barras estourando quando
-    // etapas downstream têm mais cards que o topo)
-    const maxValue = Math.max(...sorted.map(s => getValueForMetric(s, metric)), 1)
 
-    const prevByStage = new Map<string, FunnelStageData>()
+    const prevByStage = new Map<string, FunnelStageV3>()
     if (previousStages) for (const p of previousStages) prevByStage.set(p.stage_id, p)
 
+    let acumulado = 0
     return sorted.map((s, idx) => {
       const value = getValueForMetric(s, metric)
+      acumulado += value
+
       const prevInFunnel = idx > 0 ? sorted[idx - 1] : null
       const prevValueInFunnel = prevInFunnel ? getValueForMetric(prevInFunnel, metric) : null
 
       const periodPrev = prevByStage.get(s.stage_id)
       const periodPrevValue = periodPrev ? getValueForMetric(periodPrev, metric) : null
 
+      const widthPct = rootValue > 0 ? Math.min(100, (value / rootValue) * 100) : 0
+
       return {
         stage_id: s.stage_id,
         stage_nome: s.stage_nome,
         phase_slug: s.phase_slug,
         value,
-        widthPct: maxValue > 0 ? Math.max(4, (value / maxValue) * 100) : 0,
+        widthPct,
         pctFromRoot: rootValue > 0 ? (value / rootValue) * 100 : 0,
         convFromPrev:
           prevValueInFunnel != null && prevValueInFunnel > 0
             ? (value / prevValueInFunnel) * 100
             : null,
         deltaVsPeriod: periodPrevValue != null ? relativeDelta(value, periodPrevValue) : null,
+        acumulado,
+        p50: s.p50_days_in_stage ?? 0,
+        p75: s.p75_days_in_stage ?? 0,
         isRoot: idx === 0,
       }
     })
   }, [stages, previousStages, metric])
+
+  // Layout de colunas: Etapa · Barra · %topo · Conv etapa · p50/p75 · [vs anterior]
+  const gridCols = compareEnabled
+    ? 'minmax(200px, 240px) minmax(320px, 1fr) 78px 96px 96px 88px'
+    : 'minmax(200px, 240px) minmax(320px, 1fr) 78px 96px 96px'
+  const colSpan = compareEnabled ? 6 : 5
 
   return (
     <ChartCard
@@ -118,21 +136,16 @@ export default function FunnelVisual({
     >
       {rows.length === 0 && !isLoading && (
         <div className="py-12 px-6 text-center text-slate-400 text-sm">
-          Sem dados no período. Ajuste filtros ou escolha outra etapa raiz.
+          Sem dados para os filtros atuais. Troque o período, a Referência (Na Etapa/Criação)
+          ou o Status para ver outro recorte.
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="px-4 pb-4">
-          {/* Grid com 4 colunas (5 com compare):
-              Etapa · Barra (flex 1fr) · % topo · Conv etapa · [vs anterior] */}
+        <div className="px-4 pb-4 overflow-x-auto">
           <div
-            className="grid gap-x-3 text-xs items-center"
-            style={{
-              gridTemplateColumns: compareEnabled
-                ? 'minmax(200px, 240px) minmax(400px, 1fr) 80px 120px 100px'
-                : 'minmax(200px, 240px) minmax(400px, 1fr) 80px 120px',
-            }}
+            className="grid gap-x-3 text-xs items-center min-w-[800px]"
+            style={{ gridTemplateColumns: gridCols }}
           >
             {/* Cabeçalho */}
             <div className="text-slate-500 font-medium py-2.5">Etapa</div>
@@ -147,7 +160,13 @@ export default function FunnelVisual({
               className="text-slate-500 font-medium py-2.5 text-right whitespace-nowrap"
               title="Conversão da etapa imediatamente anterior pra essa"
             >
-              Conversão etapa
+              Conv. etapa
+            </div>
+            <div
+              className="text-slate-500 font-medium py-2.5 text-right whitespace-nowrap"
+              title="Mediana (p50) / percentil 75 (p75) de dias que um card leva passando pela etapa"
+            >
+              Tempo p50/p75
             </div>
             {compareEnabled && (
               <div
@@ -158,15 +177,16 @@ export default function FunnelVisual({
               </div>
             )}
 
-            {/* Separador full-width */}
+            {/* Separador */}
             <div
               className="border-b border-slate-200"
-              style={{ gridColumn: `span ${compareEnabled ? 5 : 4}` }}
+              style={{ gridColumn: `span ${colSpan}` }}
             />
 
             {/* Linhas */}
             {rows.map(row => {
               const color = getPhaseColor(row.phase_slug)
+              const isEmpty = row.value === 0
               return (
                 <div
                   key={row.stage_id}
@@ -206,18 +226,36 @@ export default function FunnelVisual({
                   {/* Barra */}
                   <div className="py-2.5 group-hover:bg-slate-50/70">
                     <div className="relative h-7 bg-slate-100 rounded-md overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-md transition-all group-hover:brightness-110"
-                        style={{
-                          width: `${row.widthPct}%`,
-                          background: color,
-                          minWidth: '44px',
-                        }}
-                      />
-                      <div className="absolute inset-0 flex items-center px-3">
-                        <span className="text-white text-xs font-semibold tabular-nums drop-shadow-sm">
+                      {!isEmpty && (
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-md transition-all group-hover:brightness-110"
+                          style={{
+                            width: `${Math.max(row.widthPct, 1)}%`,
+                            background: color,
+                            minWidth: '40px',
+                          }}
+                        />
+                      )}
+                      <div className="absolute inset-0 flex items-center px-3 justify-between gap-3">
+                        <span
+                          className={cn(
+                            'text-xs font-semibold tabular-nums drop-shadow-sm truncate',
+                            isEmpty ? 'text-slate-400' : 'text-white'
+                          )}
+                        >
                           {formatValue(row.value, metric)}
                         </span>
+                        {metric !== 'cards' && row.acumulado !== row.value && (
+                          <span
+                            className={cn(
+                              'text-[10px] tabular-nums whitespace-nowrap',
+                              isEmpty ? 'text-slate-300' : 'text-white/80'
+                            )}
+                            title="Acumulado até essa etapa"
+                          >
+                            Σ {formatCurrency(row.acumulado)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -228,12 +266,7 @@ export default function FunnelVisual({
                   </div>
 
                   {/* Conversão etapa */}
-                  <div
-                    className={cn(
-                      'py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70',
-                      !compareEnabled && '-mr-2 pr-2 rounded-r'
-                    )}
-                  >
+                  <div className="py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70">
                     {row.convFromPrev == null ? (
                       <span className="text-slate-300 text-[11px]">—</span>
                     ) : (
@@ -250,6 +283,24 @@ export default function FunnelVisual({
                     )}
                   </div>
 
+                  {/* p50 / p75 dias */}
+                  <div
+                    className={cn(
+                      'py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70 tabular-nums',
+                      !compareEnabled && '-mr-2 pr-2 rounded-r'
+                    )}
+                  >
+                    {row.p50 === 0 && row.p75 === 0 ? (
+                      <span className="text-slate-300 text-[11px]">—</span>
+                    ) : (
+                      <span className="text-[11px] text-slate-600">
+                        <span className="font-semibold text-slate-700">{row.p50.toFixed(1)}d</span>
+                        <span className="text-slate-300 mx-0.5">·</span>
+                        <span className="text-slate-500">{row.p75.toFixed(1)}d</span>
+                      </span>
+                    )}
+                  </div>
+
                   {/* vs anterior */}
                   {compareEnabled && (
                     <div className="py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70 -mr-2 pr-2 rounded-r">
@@ -260,7 +311,7 @@ export default function FunnelVisual({
                   {/* Separador entre linhas */}
                   <div
                     className="border-b border-slate-50"
-                    style={{ gridColumn: `span ${compareEnabled ? 5 : 4}` }}
+                    style={{ gridColumn: `span ${colSpan}` }}
                   />
                 </div>
               )

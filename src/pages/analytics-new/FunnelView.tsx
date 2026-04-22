@@ -3,7 +3,10 @@ import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUsers } from '@/hooks/useUsers'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useFilterProfiles, useFilterTags } from '@/hooks/analytics/useFilterOptions'
+
 import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
 import FunnelVisual from './funil/FunnelVisual'
@@ -11,76 +14,114 @@ import FunnelVelocityTable from './funil/FunnelVelocityTable'
 import FunnelLossReasons from './funil/FunnelLossReasons'
 import { useFunnelData } from './funil/useFunnelData'
 import { useFunnelPageState } from './funil/useFunnelPageState'
+import type { PickerOption } from './funil/MultiPickerPopover'
 
 export default function FunnelView() {
   const { profile } = useAuth()
   const drillDown = useDrillDownStore()
-  const { dateRange, datePreset, setDatePreset, product, ownerIds, setOwnerIds, tagIds } =
-    useAnalyticsFilters()
+  const {
+    dateRange,
+    datePreset,
+    setDatePreset,
+    product,
+    ownerIds,
+    setOwnerIds,
+    toggleOwnerId,
+    tagIds,
+    toggleTagId,
+    setTagIds,
+  } = useAnalyticsFilters()
 
   const state = useFunnelPageState()
 
+  // Pipeline do produto ativo — fonte canônica das etapas (não depende do retorno da RPC)
+  const { pipelineId } = useCurrentProductMeta()
+  const { data: pipelineStages = [] } = usePipelineStages(pipelineId ?? undefined)
+
   const profileId = profile?.id ?? null
   const isMyFunnel = !!(profileId && ownerIds.length === 1 && ownerIds[0] === profileId)
+
+  /** "Meu Funil" preserva a seleção anterior ao alternar:
+   *    - clicar quando desligado → marca apenas o próprio profileId
+   *    - clicar quando ligado → volta para o último conjunto que havia antes
+   *  (Implementação simples: usa ref em memória via closures do setOwnerIds.)
+   */
   const toggleMyFunnel = useCallback(() => {
     if (!profileId) return
     setOwnerIds(isMyFunnel ? [] : [profileId])
   }, [profileId, isMyFunnel, setOwnerIds])
 
-  // Label do owner selecionado (lista de profiles da org)
-  const { users } = useUsers()
-  const selectedOwnerLabel = useMemo(() => {
-    if (ownerIds.length === 0 || isMyFunnel) return null
-    if (ownerIds.length === 1) {
-      const found = users.find(u => u.id === ownerIds[0])
-      return found?.nome ?? null
-    }
-    return `${ownerIds.length} consultores`
-  }, [ownerIds, isMyFunnel, users])
+  // Filtros para pickers (excluem o próprio profile do picker de owners —
+  // "Meu Funil" já cobre esse caso).
+  const { data: profileOptions = [] } = useFilterProfiles()
+  const { data: tagData = [] } = useFilterTags()
+
+  const ownerOptions: PickerOption[] = useMemo(
+    () => profileOptions.map(p => ({ id: p.id, label: p.nome || '(sem nome)' })),
+    [profileOptions]
+  )
+  const tagOptions: PickerOption[] = useMemo(
+    () => tagData.map(t => ({ id: t.id, label: t.name })),
+    [tagData]
+  )
 
   const funnelParams = useMemo(
     () => ({
       dateStart: dateRange.start,
       dateEnd: dateRange.end,
       product,
-      mode: state.mode,
+      dateRef: state.dateRef,
+      status: state.status,
+      ganhoFase: state.ganhoFase,
+      rootStageId: state.rootStageId,
       ownerIds,
       tagIds,
     }),
-    [dateRange.start, dateRange.end, product, state.mode, ownerIds, tagIds]
+    [
+      dateRange.start,
+      dateRange.end,
+      product,
+      state.dateRef,
+      state.status,
+      state.ganhoFase,
+      state.rootStageId,
+      ownerIds,
+      tagIds,
+    ]
   )
 
   const {
-    conversion: rpcConversion,
+    conversion: rawConversion,
     lossReasons,
-    velocity: rpcVelocity,
-    previousConversion: rpcPreviousConversion,
+    velocity: rawVelocity,
+    previousConversion: rawPreviousConversion,
     previousRange,
-    isLoading,
-    error,
+    conversionLoading,
+    lossLoading,
+    velocityLoading,
+    previousLoading,
+    conversionError,
+    lossError,
+    velocityError,
+    anyError,
     refetch,
   } = useFunnelData(funnelParams, state.compareEnabled)
 
-  // A RPC já filtra s.ativo = true — mesma fonte de verdade do Pipeline Studio.
-  const rawConversion = rpcConversion
-  const rawVelocity = rpcVelocity
-  const rawPreviousConversion = rpcPreviousConversion
-
-  // Dropdown "Desde" usa as etapas da RPC (mesma fonte do funil, mesma ordem).
-  // A RPC já devolve ordenado por `pp.order_index, s.ordem`.
+  // StageOptions: etapas reais do pipeline ativo (não dependem do retorno da RPC).
+  // Isso evita ficar com dropdown vazio quando a RPC retorna 0 stages.
   const stageOptions: StageOption[] = useMemo(
     () =>
-      rawConversion.map((s, idx) => ({
-        id: s.stage_id,
-        nome: s.stage_nome,
+      pipelineStages.map((s, idx) => ({
+        id: s.id,
+        nome: s.nome,
         ordem: idx,
       })),
-    [rawConversion]
+    [pipelineStages]
   )
 
-  // A RPC `analytics_funnel_conversion` já devolve as etapas ordenadas por
-  // `pp.order_index, s.ordem` (mesma ordem do Kanban/Pipeline Studio).
-  // NÃO reordenamos no front — só recortamos a partir da etapa raiz.
+  // Recorte do funil pela etapa raiz (visual): se rootStageId estiver set, corta
+  // o retorno da RPC da etapa raiz pra frente. A RPC v3 já filtra o universo de
+  // cards por "passou por essa etapa" quando p_stage_id é informado.
   const rootIndex = useMemo(() => {
     if (!state.rootStageId) return 0
     const idx = rawConversion.findIndex(s => s.stage_id === state.rootStageId)
@@ -92,8 +133,6 @@ export default function FunnelView() {
     [rawConversion, rootIndex]
   )
 
-  // IDs das etapas visíveis no funil (após recorte) — usadas pra filtrar velocity
-  // e previousConversion preservando a ordem canônica da RPC.
   const visibleStageIds = useMemo(
     () => new Set(conversion.map(s => s.stage_id)),
     [conversion]
@@ -128,17 +167,28 @@ export default function FunnelView() {
         drillLossReason: reason,
         drillStatus: 'perdido',
         drillSource: 'lost_deals',
+        drillStageId: state.rootStageId ?? undefined,
       })
     },
-    [drillDown]
+    [drillDown, state.rootStageId]
   )
+
+  const conversionAndKpisLoading = conversionLoading || (state.compareEnabled && previousLoading)
 
   return (
     <div className="space-y-5">
-      {error && (
+      {anyError && (
         <QueryErrorState
           compact
-          title="Erro ao carregar funil"
+          title={
+            conversionError
+              ? 'Erro ao carregar funil'
+              : velocityError
+                ? 'Erro ao carregar velocidade'
+                : lossError
+                  ? 'Erro ao carregar motivos de perda'
+                  : 'Erro ao carregar dados'
+          }
           onRetry={refetch}
         />
       )}
@@ -146,35 +196,46 @@ export default function FunnelView() {
       <FunnelFilterPanel
         datePreset={datePreset}
         setDatePreset={setDatePreset}
-        mode={state.mode}
-        setMode={state.setMode}
+        dateRef={state.dateRef}
+        setDateRef={state.setDateRef}
         metric={state.metric}
         setMetric={state.setMetric}
+        status={state.status}
+        setStatus={state.setStatus}
+        ganhoFase={state.ganhoFase}
+        setGanhoFase={state.setGanhoFase}
         compareEnabled={state.compareEnabled}
         setCompareEnabled={state.setCompareEnabled}
         previousRange={previousRange}
         profileId={profileId}
         isMyFunnel={isMyFunnel}
         onToggleMyFunnel={toggleMyFunnel}
-        selectedOwnerLabel={selectedOwnerLabel}
-        onClearOwner={() => setOwnerIds([])}
+        ownerOptions={ownerOptions}
+        selectedOwnerIds={ownerIds}
+        onToggleOwner={toggleOwnerId}
+        onClearOwners={() => setOwnerIds([])}
+        tagOptions={tagOptions}
+        selectedTagIds={tagIds}
+        onToggleTag={toggleTagId}
+        onClearTags={() => setTagIds([])}
         stageOptions={stageOptions}
         rootStageId={state.rootStageId}
         setRootStageId={state.setRootStageId}
       />
 
       <FunnelKpis
-        isLoading={isLoading}
+        isLoading={conversionAndKpisLoading}
         stages={conversion}
         previousStages={previousConversion}
         metric={state.metric}
+        status={state.status}
         compareEnabled={state.compareEnabled}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <FunnelVisual
-            isLoading={isLoading}
+            isLoading={conversionAndKpisLoading}
             stages={conversion}
             previousStages={previousConversion}
             metric={state.metric}
@@ -184,14 +245,14 @@ export default function FunnelView() {
         </div>
         <div>
           <FunnelLossReasons
-            isLoading={isLoading}
+            isLoading={lossLoading}
             reasons={lossReasons}
             onReasonDrill={handleReasonDrill}
           />
         </div>
       </div>
 
-      <FunnelVelocityTable isLoading={isLoading} rows={velocity} />
+      <FunnelVelocityTable isLoading={velocityLoading} rows={velocity} />
     </div>
   )
 }
