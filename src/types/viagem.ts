@@ -66,6 +66,12 @@ export interface TripComment {
   id: string
   item_id: string | null
   autor: TripItemAutor
+  /** UUID do passageiro (trip_participants.id) quando autor='client' */
+  autor_id?: string | null
+  /** Nome do passageiro (se identificado); só para autor='client' */
+  autor_nome?: string | null
+  /** Relação do passageiro (marido, esposa, etc) */
+  autor_relacao?: string | null
   texto: string
   created_at: string
 }

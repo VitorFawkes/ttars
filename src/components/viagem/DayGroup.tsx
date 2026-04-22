@@ -11,6 +11,7 @@ interface DayGroupProps {
   approvingItemId?: string | null
   isCommenting?: boolean
   readOnly?: boolean
+  selfParticipantId?: string | null
 }
 
 export function DayGroup({
@@ -22,6 +23,7 @@ export function DayGroup({
   approvingItemId,
   isCommenting,
   readOnly,
+  selfParticipantId,
 }: DayGroupProps) {
   const dayComercial = group.day.comercial as Record<string, string | undefined>
   const titulo = dayComercial.titulo ?? `Dia ${group.day.ordem + 1}`
@@ -57,6 +59,7 @@ export function DayGroup({
             isApproving={approvingItemId === item.id}
             isCommenting={isCommenting}
             readOnly={readOnly}
+            selfParticipantId={selfParticipantId}
           />
         ))}
 

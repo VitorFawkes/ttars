@@ -7,6 +7,8 @@ import { CountdownView } from './CountdownView'
 import { TravelView } from './TravelView'
 import { MemoryView } from './MemoryView'
 import { OfflineBanner } from './OfflineBanner'
+import { ParticipantGate } from './ParticipantGate'
+import { useParticipant } from '@/hooks/viagem/useParticipant'
 
 interface ViagemClientePageProps {
   viagem: Viagem
@@ -36,6 +38,29 @@ export function ViagemClientePage({
   token,
 }: ViagemClientePageProps) {
   const view = ESTADO_TO_VIEW[viagem.estado]
+  const { participant, ready, refresh } = useParticipant(viagem.id)
+
+  // Gate aparece em estados onde o passageiro interage ativamente:
+  // decisão, preparação, contagem e em andamento. Nos estados iniciais
+  // ("preparando") e de memória, não bloqueia.
+  const precisaIdentificar =
+    !participant &&
+    ready &&
+    ['decision', 'preparation', 'countdown', 'travel'].includes(view)
+
+  if (precisaIdentificar) {
+    return (
+      <ParticipantGate
+        viagemId={viagem.id}
+        token={token}
+        tpNome={viagem.tp?.nome ?? null}
+        onIdentified={() => {
+          // Gate já gravou em localStorage; re-ler para rerender desta página.
+          refresh()
+        }}
+      />
+    )
+  }
 
   return (
     <div className="min-h-dvh bg-slate-50">

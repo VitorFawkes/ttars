@@ -5,6 +5,7 @@ import { ContactCard } from './ContactCard'
 import { CommentThread } from './CommentThread'
 import { StickyFooter } from './StickyFooter'
 import { useViagemMutations } from '@/hooks/viagem/useViagemMutations'
+import { useParticipant } from '@/hooks/viagem/useParticipant'
 import { useState } from 'react'
 
 interface DecisionViewProps {
@@ -23,10 +24,12 @@ export function DecisionView({
   token,
 }: DecisionViewProps) {
   const { aprovarItem, escolherAlternativa, comentar, confirmarViagem } = useViagemMutations(token)
+  const { participant } = useParticipant(viagem.id)
   const [showViagemComments, setShowViagemComments] = useState(false)
 
   const viagemComments = comments.filter((c) => c.item_id === null)
   const approvingItemId = aprovarItem.isPending ? (aprovarItem.variables as string) : null
+  const participantId = participant?.id ?? null
 
   return (
     <div className="space-y-4 pb-28">
@@ -46,10 +49,11 @@ export function DecisionView({
             escolherAlternativa.mutate({ itemId, alternativaId: altId })
           }
           onComment={(itemId, texto) =>
-            comentar.mutate({ itemId, texto })
+            comentar.mutate({ itemId, texto, participantId })
           }
           approvingItemId={approvingItemId}
           isCommenting={comentar.isPending}
+          selfParticipantId={participantId}
         />
       ))}
 
@@ -64,10 +68,11 @@ export function DecisionView({
             escolherAlternativa.mutate({ itemId, alternativaId: altId })
           }
           onComment={(itemId, texto) =>
-            comentar.mutate({ itemId, texto })
+            comentar.mutate({ itemId, texto, participantId })
           }
           isApproving={approvingItemId === item.id}
           isCommenting={comentar.isPending}
+          selfParticipantId={participantId}
         />
       ))}
 
@@ -83,9 +88,10 @@ export function DecisionView({
         {showViagemComments && (
           <CommentThread
             comments={viagemComments}
-            onComment={(texto) => comentar.mutate({ itemId: null, texto })}
+            onComment={(texto) => comentar.mutate({ itemId: null, texto, participantId })}
             isSubmitting={comentar.isPending}
             placeholder="Fale com sua Travel Planner..."
+            selfParticipantId={participantId}
           />
         )}
       </div>

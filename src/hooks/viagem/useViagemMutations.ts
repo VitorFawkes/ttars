@@ -49,14 +49,17 @@ export function useViagemMutations(token: string | undefined) {
     mutationFn: async ({
       itemId,
       texto,
+      participantId,
     }: {
       itemId: string | null
       texto: string
+      participantId?: string | null
     }) => {
       const { data, error } = await rpc('comentar_item', {
         p_token: token!,
         p_item_id: itemId,
         p_texto: texto,
+        p_participant_id: participantId ?? null,
       })
       if (error) throw error
       return data
