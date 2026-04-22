@@ -71,6 +71,22 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
     const { data: phasesData } = usePipelinePhases(pipelineId);
     const phases = phasesData || [];
 
+    // Milestone keys already used in this pipeline (for datalist suggestions)
+    const { data: pipelineStagesAll } = useQuery({
+        queryKey: ['pipeline-stages-milestones', pipelineId],
+        queryFn: async () => {
+            if (!pipelineId) return [];
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('id, nome, milestone_key')
+                .eq('pipeline_id', pipelineId)
+                .not('milestone_key', 'is', null);
+            return data ?? [];
+        },
+        enabled: isOpen && !!pipelineId
+    });
+    const milestoneOptions = (pipelineStagesAll ?? []).filter(s => s.id !== stage?.id);
+
     // --- Mutations ---
     const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -86,6 +102,9 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 ativo: data.ativo,
                 is_won: data.is_won,
                 is_lost: data.is_lost,
+                is_sdr_won: data.is_sdr_won,
+                is_planner_won: data.is_planner_won,
+                is_pos_won: data.is_pos_won,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
                 milestone_key: (data as any).milestone_key || null,
             };
@@ -281,23 +300,67 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                 </select>
                             </div>
 
+                            {/* Comportamento no funil */}
+                            <div className="border-t border-gray-200 pt-4">
+                                <h3 className="text-sm font-semibold text-gray-800 mb-1">Comportamento no funil</h3>
+                                <p className="text-xs text-gray-500 mb-3">Define o que acontece quando um card entra nesta etapa.</p>
+                                <div className="space-y-2">
+                                    {([
+                                        { key: 'is_won' as const, label: 'Marca ganho', desc: 'Registra a venda como ganha' },
+                                        { key: 'is_lost' as const, label: 'Marca perda', desc: 'Registra o card como perdido' },
+                                        { key: 'is_sdr_won' as const, label: 'Ganho SDR', desc: 'Milestone de qualificação (fim da fase SDR)' },
+                                        { key: 'is_planner_won' as const, label: 'Ganho Closer / Planner', desc: 'Milestone de contrato (fim da fase de fechamento)' },
+                                        { key: 'is_pos_won' as const, label: 'Ganho Pós-venda', desc: 'Milestone final (fim da fase de pós-venda)' },
+                                    ] as const).map(({ key, label, desc }) => (
+                                        <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            <div>
+                                                <span className="text-sm font-medium text-gray-900">{label}</span>
+                                                <p className="text-xs text-gray-500">{desc}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, [key]: !formData[key] })}
+                                                className={cn(
+                                                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
+                                                    formData[key] ? "bg-indigo-600" : "bg-gray-300"
+                                                )}
+                                            >
+                                                <span className={cn(
+                                                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                                    formData[key] ? "translate-x-6" : "translate-x-1"
+                                                )} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* Milestone para Analytics */}
                             <div className="border-t border-gray-200 pt-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Milestone Analytics</label>
                                 <p className="text-xs text-gray-500 mb-3">
-                                    Vincula esta etapa a um KPI de conversão no Analytics. Cada milestone pode ser atribuído a apenas um stage ativo.
+                                    Vincula esta etapa a um KPI de conversão no Analytics. Cada milestone pode ser atribuído a apenas um stage ativo por pipeline.
                                 </p>
-                                <select
+                                <datalist id="milestone-options">
+                                    {milestoneOptions.map(s => (
+                                        <option key={s.id} value={s.milestone_key ?? ''}>
+                                            {s.nome}
+                                        </option>
+                                    ))}
+                                </datalist>
+                                <input
+                                    type="text"
+                                    list="milestone-options"
                                     value={(formData as Record<string, unknown>).milestone_key as string || ''}
                                     onChange={e => setFormData({ ...formData, milestone_key: e.target.value || null } as typeof formData)}
+                                    placeholder="Ex: ww_contrato_assinado (vazio = nenhum)"
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                >
-                                    <option value="">Nenhum</option>
-                                    <option value="taxa_paga">% Taxa Paga</option>
-                                    <option value="briefing">% Oportunidade</option>
-                                    <option value="proposta">% Proposta Enviada</option>
-                                    <option value="ganho_planner">% Ganho Planner</option>
-                                </select>
+                                />
+                                {milestoneOptions.length > 0 && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Valores existentes: {milestoneOptions.map(s => s.milestone_key).join(', ')}
+                                    </p>
+                                )}
                             </div>
 
                             <button

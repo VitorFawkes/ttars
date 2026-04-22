@@ -127,8 +127,8 @@ export default function CreateSubCardModal({
                     )}>
                         <p>
                             {isAddition
-                                ? 'Um novo card será criado no Planner para esta venda. O valor será agregado ao card principal quando entrar em Pós-venda.'
-                                : 'Um novo card será criado no Planner para replanejar a mudança. O Pós-venda será notificado automaticamente.'
+                                ? 'Um novo card de planejamento será criado para acompanhar esta venda. O valor será agregado ao card principal quando concluído.'
+                                : 'Um novo card de planejamento será criado para acompanhar a mudança. O responsável pelo Pós-venda será notificado automaticamente.'
                             }
                         </p>
                     </div>
