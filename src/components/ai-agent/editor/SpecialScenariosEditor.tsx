@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Lightbulb, Plus, Trash2, ChevronUp, ChevronDown, Sparkles, Tag, MoveRight, Bell } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { TagPicker, StagePicker } from './pickers'
-import type { SpecialScenarioInput, ScenarioTriggerType } from '@/hooks/useAgentSpecialScenarios'
-
-const TRIGGER_OPTIONS: Array<{ value: ScenarioTriggerType; label: string }> = [
-  { value: 'keyword', label: 'Palavras-chave na mensagem' },
-  { value: 'tag', label: 'Tag já aplicada ao card' },
-  { value: 'field_value', label: 'Valor de um campo' },
-  { value: 'intent', label: 'Intenção detectada' },
-  { value: 'custom', label: 'Customizado (JSON livre)' },
-]
+import type { SpecialScenarioInput } from '@/hooks/useAgentSpecialScenarios'
 
 export interface SpecialScenariosEditorProps {
   value: SpecialScenarioInput[]
@@ -30,8 +21,8 @@ export interface SpecialScenariosEditorProps {
 function emptyScenario(): SpecialScenarioInput {
   return {
     scenario_name: '',
-    trigger_type: 'keyword',
-    trigger_config: { keywords: [] },
+    trigger_type: 'intent',
+    trigger_config: {},
     trigger_description: null,
     response_adjustment: '',
     simplified_qualification: null,
@@ -84,7 +75,6 @@ export function SpecialScenariosEditor({ value, onChange, pipelineId, produto }:
       )}
 
       {local.map((scenario, idx) => {
-        const hasKeywords = ((scenario.trigger_config.keywords as string[] | undefined) ?? []).length > 0
         const hasDescription = (scenario.trigger_description?.trim().length ?? 0) > 0
 
         return (
@@ -127,63 +117,21 @@ export function SpecialScenariosEditor({ value, onChange, pipelineId, produto }:
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-600">Em linguagem natural (recomendado — match semântico pelo LLM)</Label>
+                <Label className="text-xs text-slate-600">Descreva em linguagem natural quando este cenário deve ativar</Label>
                 <Textarea
-                  rows={2}
+                  rows={3}
                   value={scenario.trigger_description ?? ''}
                   onChange={e => update(idx, { trigger_description: e.target.value || null })}
                   placeholder="Ex: quando o casal menciona que a família, pais ou sogros estão ajudando a pagar, bancando ou co-financiando a viagem"
                 />
                 <p className="text-[11px] text-slate-400">
-                  Funciona melhor que palavras-chave porque entende variações (&ldquo;meu pai paga&rdquo;, &ldquo;papai vai bancar&rdquo;, &ldquo;mamãe está ajudando&rdquo;).
+                  O agente entende variações naturais (&ldquo;meu pai paga&rdquo;, &ldquo;papai vai bancar&rdquo;, &ldquo;mamãe está ajudando&rdquo;). Seja específico sobre a situação — o agente decide pelo contexto da conversa.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
-                <div className="md:col-span-2 space-y-1.5">
-                  <Label className="text-xs text-slate-600">Palavras-chave específicas (opcional, garante match literal)</Label>
-                  {scenario.trigger_type === 'keyword' ? (
-                    <Input
-                      value={((scenario.trigger_config.keywords as string[]) ?? []).join(', ')}
-                      onChange={e => {
-                        const kws = e.target.value.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
-                        update(idx, { trigger_config: { keywords: kws } })
-                      }}
-                      placeholder="meu pai paga, minha mãe ajuda, sogros pagam"
-                    />
-                  ) : scenario.trigger_type === 'tag' ? (
-                    <Input
-                      value={(scenario.trigger_config.tag_name as string) ?? ''}
-                      onChange={e => update(idx, { trigger_config: { tag_name: e.target.value } })}
-                      placeholder="nome da tag"
-                    />
-                  ) : (
-                    <Textarea
-                      rows={2}
-                      value={JSON.stringify(scenario.trigger_config ?? {}, null, 2)}
-                      onChange={e => {
-                        try { update(idx, { trigger_config: JSON.parse(e.target.value || '{}') }) } catch { /* ignora até JSON válido */ }
-                      }}
-                      className="font-mono text-xs"
-                    />
-                  )}
-                  <p className="text-[11px] text-slate-400">
-                    Quando alguma palavra bater, o runtime aplica as ações automáticas abaixo sem depender do LLM.
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-600">Tipo do gatilho</Label>
-                  <Select
-                    value={scenario.trigger_type}
-                    onChange={(v: string) => update(idx, { trigger_type: v as ScenarioTriggerType })}
-                    options={TRIGGER_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              {!hasKeywords && !hasDescription && (
+              {!hasDescription && (
                 <div className="rounded bg-amber-50 border border-amber-200 p-2 text-[11px] text-amber-800">
-                  Preencha ao menos uma das duas formas — sem gatilho, o cenário nunca dispara.
+                  Descreva quando este cenário deve ativar — sem descrição, o cenário nunca dispara.
                 </div>
               )}
             </div>
@@ -219,14 +167,14 @@ export function SpecialScenariosEditor({ value, onChange, pipelineId, produto }:
               </label>
             </div>
 
-            {/* ── Bloco: Ações automáticas (runtime executa, não depende do LLM) ── */}
+            {/* ── Bloco: Ações automáticas (agente executa via tool calling) ── */}
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-3">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                 <Label className="text-xs font-semibold text-emerald-800">Ações automáticas quando o cenário dispara</Label>
               </div>
               <p className="text-[11px] text-emerald-700 -mt-1">
-                O runtime aplica sozinho ao detectar <strong>palavra-chave</strong> na mensagem (o match semântico por linguagem natural não dispara ação, só ajusta a resposta).
+                O agente aplica essas ações quando identificar que o cenário se encaixa na conversa, com base na descrição acima.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -295,7 +243,7 @@ export function SpecialScenariosSection(props: SpecialScenariosEditorProps) {
 
       <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
         <p className="text-xs text-purple-900">
-          <strong>Como funciona:</strong> cenários com prioridade maior são verificados primeiro. A descrição em linguagem natural é avaliada semanticamente pelo agente. As ações automáticas (tag, etapa, notificação) disparam quando alguma palavra-chave bate literalmente.
+          <strong>Como funciona:</strong> o agente lê cada cenário junto com a conversa e decide qual se aplica pelo contexto. Cenários com prioridade maior são avaliados primeiro. Quando um cenário se aplica, o agente ajusta a resposta e dispara as ações configuradas (tag, etapa, notificação).
         </p>
       </div>
 
