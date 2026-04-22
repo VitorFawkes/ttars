@@ -19,6 +19,7 @@ import MondeNumbersBadge from './MondeNumbersBadge'
 import { FieldLockButton } from '../card/FieldLockButton'
 import { FieldCopyButton } from '../card/FieldCopyButton'
 import { useFieldLock } from '../../hooks/useFieldLock'
+import { useOrg } from '../../contexts/OrgContext'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
 
@@ -215,17 +216,22 @@ const formatBudget = (value: number) => {
 }
 
 const LossReasonSelector = ({ value, onChange }: { value: any, onChange?: (val: any) => void }) => {
+    const { org } = useOrg()
+    const activeOrgId = org?.id
     const { data: reasons = [] } = useQuery({
-        queryKey: ['loss-reasons', 'active'],
+        queryKey: ['loss-reasons', 'active', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return []
             const { data, error } = await supabase
                 .from('motivos_perda')
                 .select('*')
                 .eq('ativo', true)
+                .eq('org_id', activeOrgId)
                 .order('nome')
             if (error) throw error
             return data
-        }
+        },
+        enabled: !!activeOrgId,
     })
 
     return (
@@ -835,6 +841,39 @@ export default function UniversalFieldRenderer({
         )
     })()
 
+    // Copy button for Orçamento Previsto — copia o total de Faturamento (card_financial_items.sale_value)
+    const budgetCopyButton = (() => {
+        if (field.key !== 'orcamento' || field.type !== 'smart_budget') return null
+        if (!extraData?.onFieldSave) return null
+        const total = Number(extraData.financialItemsTotal) || 0
+        const viajantes = Number(extraData.quantidadeViajantes) || 0
+        const currency = (v: number) => new Intl.NumberFormat('pt-BR', {
+            style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0
+        }).format(v)
+        return (
+            <FieldCopyButton
+                sourceLabel="Faturamento de Produto - Vendas"
+                onCopy={() => {
+                    if (total <= 0) return
+                    const porPessoa = viajantes > 0 ? Math.round(total / viajantes) : undefined
+                    const display = porPessoa
+                        ? `${currency(total)} (${currency(porPessoa)}/pessoa)`
+                        : currency(total)
+                    extraData.onFieldSave(field.key, {
+                        tipo: 'total',
+                        valor: total,
+                        quantidade_viajantes: viajantes || undefined,
+                        total_calculado: total,
+                        por_pessoa_calculado: porPessoa,
+                        display,
+                    })
+                }}
+                disabled={total <= 0}
+                size="sm"
+            />
+        )
+    })()
+
     // 1. Specialized Fields
     if (field.key === 'motivo') {
         return <FieldCard icon={Tag} iconColor="bg-purple-100 text-purple-600" label={field.label} value={value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
@@ -944,7 +983,7 @@ export default function UniversalFieldRenderer({
     if (field.type === 'smart_budget') {
         const orcamentoValue = value as OrcamentoViagem | null
         const displayVal = orcamentoValue?.display || null
-        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        return <FieldCard icon={DollarSign} iconColor="bg-green-100 text-green-600" label={field.label} value={displayVal} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} copyButton={budgetCopyButton} />
     }
 
     // 2. Generic Fields
