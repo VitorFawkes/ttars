@@ -146,7 +146,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/ai-knowledge-bases" icon={BookOpen} label="Bases de Conhecimento" />
                             <NavItem to="/settings/ai-agents/analytics" icon={BarChart3} label="Analytics IA" />
                             <NavItem to="/settings/ai-agents/outbound-queue" icon={Send} label="Fila de Envios" />
-                            <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações" />
+                            <NavItem to="/settings/customization/notifications" icon={Bell} label="Notificações da empresa" />
                             <NavItem to="/settings/customization/alert-rules" icon={AlertTriangle} label="Alertas de Cards" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />
                             <NavItem to="/settings/customization/loss-reasons" icon={XCircle} label="Motivos de Perda" />
