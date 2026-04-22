@@ -217,6 +217,29 @@ if [ "$STAGING_MODE" = "false" ]; then
     echo "  FAIL: $CROSS_ORG cadence_event_triggers com FK cross-org — rodar auditoria" >&2
     FAILED=$((FAILED + 1))
   fi
+
+  # ── Account/Workspace isolation: slugs duplicados em pipeline_phases ──
+  # Conta linhas em pipeline_phases que colidem por slug dentro da mesma
+  # família hierárquica (account + workspaces filhos). Esperado: 0 após a
+  # limpeza do Balde (ii) do plano de separação account/workspace. Enquanto
+  # Welcome Group tiver resíduos de pipeline_phases, este teste emite WARN —
+  # vira FAIL quando a limpeza terminar.
+  TOTAL=$((TOTAL + 1))
+  DUP_SLUGS=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/pipeline_phases_duplicate_slugs_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$DUP_SLUGS" ] || ! echo "$DUP_SLUGS" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: pipeline_phases_duplicate_slugs_count → resposta inesperada: $DUP_SLUGS" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$DUP_SLUGS" != "0" ]; then
+    echo "  WARN: $DUP_SLUGS pipeline_phases com slug duplicado dentro da mesma família de account — rodar limpeza Balde (ii)" >&2
+  fi
 fi
 
 # ── M1: Travel Planner tables (só após promoção para produção) ──

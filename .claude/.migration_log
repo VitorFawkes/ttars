@@ -594,3 +594,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T15:04:41Z | supabase/migrations/20260422f_wedding_funnel_correction.sql | applied_to_prod
 2026-04-22T15:22:19Z | supabase/migrations/20260422a_criar_sub_card_fallback_sem_planner.sql | applied_to_prod
 2026-04-22T15:24:05Z | supabase/migrations/20260422b_sub_card_default_stage_wedding.sql | applied_to_prod
+2026-04-22T17:04:43Z | supabase/migrations/20260426b_account_workspace_guards.sql | applied_to_prod
+2026-04-22T17:04:43Z | supabase/migrations/20260426c_provision_workspace_seed_system_fields.sql | applied_to_prod

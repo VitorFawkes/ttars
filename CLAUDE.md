@@ -157,11 +157,21 @@ O CRM tem **duas categorias** de tabela:
    - `integration_outbox` — fila técnica polimórfica (service_role only)
    - `webhook_logs` — log cru de webhooks para debug de plataforma
    - `ai_extraction_field_config` — config de campos de extração IA
-   - `system_fields` — definição dos campos de sistema (PK=key)
    - `destinations` — híbrido: catálogo base compartilhado + destinos custom por org
    - `organizations`, `org_members`, `platform_audit_log` — infra de tenancy
 
    **REGRA:** se a tabela está nessa lista, **NÃO** adicionar org_id. RLS acessa via `service_role` ou policy pública de leitura. Se precisa expor para o frontend, criar RPC `SECURITY DEFINER` que filtra conforme necessário.
+
+3. **Per-org com seed no onboarding (catálogos replicados):** tabelas cujo conteúdo é genericamente o mesmo entre empresas-clientes, mas vive amarrado à org por isolamento RLS. `provision_workspace` semeia a partir da account "Welcome Group" (fonte de verdade).
+
+   - `system_fields` — catálogo de campos do CRM. Filtrado por `produto_exclusivo` no seed (workspace TRIPS recebe só os campos TRIPS + universais). Fonte: migration `20260426c_provision_workspace_seed_system_fields.sql`.
+   - `stage_section_config` — visibilidade de seções por etapa. Seed marca as 4 seções default como visíveis em todas as etapas.
+
+   **REGRA:** ao adicionar uma nova tabela nessa categoria, estender `provision_workspace` para replicar o seed. Sem isso, toda empresa-cliente nova nasce com a tabela vazia.
+
+4. **Per-org de configuração de pipeline:** pertencem sempre ao workspace, nunca à account. Incluem `pipelines`, `pipeline_phases`, `pipeline_stages`, `stage_field_config`, `stage_section_config` (config per workspace), `section_field_config`, `stage_field_confirmations`, `ai_agents`, `ai_agent_kb_links`, `ai_agent_knowledge_bases`, `cadence_templates`, `cadence_steps`, `cadence_event_triggers`, `automation_flows`, `products`, `teams`, `departments`, `roles`, `sections`.
+
+   Account (parent_org_id IS NULL) **não deve ter nenhuma linha dessas tabelas**. O hook `pipeline_phases_duplicate_slugs_count` (criado em `20260426b_account_workspace_guards.sql`) e o smoke test detectam regressão.
 
 ### Policy RLS — regra de ouro
 
@@ -242,6 +252,8 @@ Filtrar **dados** (cards, contatos) NÃO é suficiente. Hooks que retornam confi
 3. JOIN correto: `pipeline_stages.pipeline_id → pipelines.id` (NÃO via `pipeline_phases` — phases não tem `pipeline_id`)
 4. Milestone lookups: filtrar por `s.pipeline_id` para evitar conflito entre `taxa_paga` (TRIPS) e `ww_taxa_paga` (WEDDING)
 5. Valor para cards abertos: `COALESCE(c.valor_final, c.valor_estimado, 0)`
+6. **Lookups por slug/milestone_key NUNCA podem usar só `slug = 'x' LIMIT 1`** — hoje a account "Welcome Group" tem resíduos em `pipeline_phases`/`pipeline_stages` com slugs canônicos (planner, sdr, pos_venda, taxa_paga) que colidem com os dos workspaces filhos. Sempre filtrar por `pipeline_id` (via card pai ou RPC param) ou por `org_id + produto`. Exemplo correto: `SELECT ph.id FROM pipeline_phases ph JOIN pipeline_stages s ON s.phase_id = ph.id WHERE ph.slug = 'planner' AND s.pipeline_id = v_pipeline_id LIMIT 1`. Ver plano `~/.claude/plans/investiga-o-separa-o-entre-account-stateless-gizmo.md`.
+7. **RPCs `SECURITY DEFINER` que fazem DELETE/UPDATE em tabela por-org** DEVEM validar que o registro-alvo pertence a `requesting_org_id()` antes da mutação. Modelo em `replace_cadence_steps` (migration `20260426b_account_workspace_guards.sql`).
 
 ---
 

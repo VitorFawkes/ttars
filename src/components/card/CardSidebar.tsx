@@ -39,12 +39,17 @@ export default function CardSidebar({ card }: CardSidebarProps) {
         queryFn: async () => {
             if (!card.pessoa_principal_id) return { count: 0, trips: [] }
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from('cards')
                 .select('id, titulo, created_at, status_comercial')
                 .eq('pessoa_principal_id', card.pessoa_principal_id)
                 .neq('id', card.id!) // Exclude current card
-                .eq('produto', 'TRIPS')
+
+            if (card.produto) {
+                query = query.eq('produto', card.produto)
+            }
+
+            const { data, error } = await query
                 .order('created_at', { ascending: false })
                 .limit(5)
 
