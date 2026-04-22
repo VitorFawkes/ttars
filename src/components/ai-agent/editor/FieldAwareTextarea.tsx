@@ -145,8 +145,11 @@ export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwar
     const before = value.slice(0, mention.anchor)
     const after = value.slice(mention.anchor + trigger.length + mention.query.length)
     const insertCore = entityToInsertString(entity)
-    const needsSpaceAfter = after.length > 0 && !/^\s/.test(after)
-    const inserted = `${insertCore}${needsSpaceAfter ? '' : ' '}`
+    // Adiciona espaço depois do token a não ser que o próximo caractere
+    // já seja whitespace. Pro fim do texto (after vazio) adiciona também,
+    // pra o usuário continuar digitando sem precisar apertar espaço.
+    const needsSpaceAfter = !/^\s/.test(after)
+    const inserted = `${insertCore}${needsSpaceAfter ? ' ' : ''}`
     const next = before + inserted + after
     const nextCursor = before.length + inserted.length
     onChange(next)
