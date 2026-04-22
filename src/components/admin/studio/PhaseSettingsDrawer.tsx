@@ -11,6 +11,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
+    type DragEndEvent,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -100,6 +101,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
 
     useEffect(() => {
         if (phase) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setPhaseConfig({
                 supports_win: phase.supports_win ?? false,
                 win_action: phase.win_action ?? 'advance_to_next',
@@ -129,6 +131,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         queryKey: ['pipeline-card-settings', phase?.name],
         queryFn: async () => {
             if (!phase?.name) return null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase.from('pipeline_card_settings') as any)
                 .select('*')
                 .eq('fase', phase.name)
@@ -163,6 +166,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 ['destinos', 'epoca_viagem', 'orcamento'].forEach(f => initialVisible.add(f));
             }
 
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setOrderedFields(initialOrder);
             setVisibleFields(initialVisible);
         }
@@ -173,18 +177,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         mutationFn: async () => {
             if (!phase?.name) return;
 
-            const payload = {
-                fase: phase.name,
-                campos_kanban: Array.from(visibleFields),
-                ordem_kanban: orderedFields,
-                updated_at: new Date().toISOString()
-            };
-
-            const { error: cardSettingsError } = await (supabase.from('pipeline_card_settings') as any)
-                .upsert(payload, { onConflict: 'fase' });
-
-            if (cardSettingsError) throw cardSettingsError;
-
+            // 1. Salvar regras de ganho na pipeline_phases (feature nova)
             const { error: phaseError } = await supabase
                 .from('pipeline_phases')
                 .update({
@@ -195,6 +188,28 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 .eq('id', phase.id);
 
             if (phaseError) throw phaseError;
+
+            // 2. Salvar campos do Kanban em pipeline_card_settings
+            //    Tabela não tem unique em `fase` (existem duplicatas) — fazer UPDATE por id ou INSERT.
+            const basePayload = {
+                fase: phase.name,
+                campos_kanban: Array.from(visibleFields),
+                ordem_kanban: orderedFields,
+                updated_at: new Date().toISOString()
+            };
+
+            if (settings?.id) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase.from('pipeline_card_settings') as any)
+                    .update(basePayload)
+                    .eq('id', settings.id);
+                if (error) throw error;
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase.from('pipeline_card_settings') as any)
+                    .insert(basePayload);
+                if (error) throw error;
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-card-settings'] });
@@ -203,13 +218,13 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
             alert('Configurações salvas com sucesso!');
             onClose();
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
             console.error(err);
             alert('Erro ao salvar: ' + err.message);
         }
     });
 
-    const handleDragEnd = (event: any) => {
+    const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (active.id !== over.id) {
             setOrderedFields((items) => {
