@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
 import { useCRMFields, type FieldScope, type CRMField } from './CRMFieldPicker'
@@ -13,8 +12,22 @@ export interface FieldAwareTextareaProps {
   produto?: string
   scope?: FieldScope
   className?: string
+  /** Caractere que dispara o autocomplete (default '@'). */
+  trigger?: string
 }
 
+interface MentionState {
+  /** Posicao do trigger no `value`. */
+  anchor: number
+  /** Texto digitado depois do trigger (termo de busca). */
+  query: string
+}
+
+/**
+ * Textarea com autocomplete de campos do CRM.
+ * Ao digitar `@`, abre uma lista filtravel logo abaixo do textarea.
+ * Selecionar substitui `@query` pela `key` do campo.
+ */
 export function FieldAwareTextarea({
   value,
   onChange,
@@ -24,128 +37,146 @@ export function FieldAwareTextarea({
   produto,
   scope = 'any',
   className,
+  trigger = '@',
 }: FieldAwareTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
+  const [mention, setMention] = useState<MentionState | null>(null)
+  const [highlightIdx, setHighlightIdx] = useState(0)
   const { fields, isLoading } = useCRMFields({ scope, pipelineId, produto })
 
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-        setSearch('')
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  const matches = useMemo(() => {
+    if (!mention) return []
+    const term = mention.query.trim().toLowerCase()
+    if (!term) return fields.slice(0, 50)
+    return fields
+      .filter(
+        f =>
+          f.label.toLowerCase().includes(term) ||
+          f.key.toLowerCase().includes(term) ||
+          f.sectionLabel.toLowerCase().includes(term),
+      )
+      .slice(0, 50)
+  }, [fields, mention])
+
+  const groups = useMemo(() => groupFields(matches), [matches])
 
   useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 30)
-  }, [open])
+    setHighlightIdx(0)
+  }, [mention?.query])
 
-  const groups = useMemo(() => groupByLabel(fields, search), [fields, search])
+  const detectMention = (text: string, cursor: number): MentionState | null => {
+    const before = text.slice(0, cursor)
+    const escapedTrigger = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(?:^|\\s)${escapedTrigger}([\\w.]*)$`)
+    const match = regex.exec(before)
+    if (!match) return null
+    const anchor = cursor - match[1].length - trigger.length
+    return { anchor, query: match[1] }
+  }
 
-  const insertField = (field: CRMField) => {
-    const textarea = textareaRef.current
-    const selStart = textarea?.selectionStart ?? value.length
-    const selEnd = textarea?.selectionEnd ?? value.length
-    const before = value.slice(0, selStart)
-    const after = value.slice(selEnd)
-    const needsSpaceBefore = before.length > 0 && !/\s$/.test(before)
-    const needsSpaceAfter = after.length > 0 && !/^\s/.test(after)
-    const insert = `${needsSpaceBefore ? ' ' : ''}${field.key}${needsSpaceAfter ? ' ' : ''}`
-    const next = before + insert + after
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = e.target.value
     onChange(next)
-    setOpen(false)
-    setSearch('')
+    const cursor = e.target.selectionStart ?? next.length
+    setMention(detectMention(next, cursor))
+  }
+
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Escape') return
+    const cursor = e.currentTarget.selectionStart ?? value.length
+    setMention(detectMention(value, cursor))
+  }
+
+  const commitField = (field: CRMField) => {
+    if (!mention) return
+    const before = value.slice(0, mention.anchor)
+    const after = value.slice(mention.anchor + trigger.length + mention.query.length)
+    const needsSpaceAfter = after.length > 0 && !/^\s/.test(after)
+    const inserted = `${field.key}${needsSpaceAfter ? '' : ' '}`
+    const next = before + inserted + after
+    onChange(next)
+    setMention(null)
     requestAnimationFrame(() => {
-      if (!textarea) return
-      const pos = before.length + insert.length
-      textarea.focus()
-      textarea.setSelectionRange(pos, pos)
+      const ta = textareaRef.current
+      if (!ta) return
+      const pos = before.length + inserted.length
+      ta.focus()
+      ta.setSelectionRange(pos, pos)
     })
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mention || matches.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightIdx(i => (i + 1) % matches.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIdx(i => (i - 1 + matches.length) % matches.length)
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      const field = matches[highlightIdx]
+      if (field) commitField(field)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setMention(null)
+    }
+  }
+
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       <Textarea
         ref={textareaRef}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={handleChange}
+        onKeyUp={handleKeyUp}
+        onKeyDown={handleKeyDown}
+        onBlur={() => setTimeout(() => setMention(null), 150)}
         placeholder={placeholder}
         rows={rows}
       />
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(o => !o)}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-        >
-          <Plus className="h-3 w-3" />
-          Inserir campo do CRM
-        </button>
-      </div>
 
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-[320px] max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
-          <div className="border-b border-slate-100 p-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar campo..."
-                className="h-8 w-full rounded-md border border-slate-200 bg-white pl-8 pr-8 text-sm placeholder:text-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+      {mention && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[280px] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+          {isLoading ? (
+            <div className="p-4 text-center text-xs text-slate-400">Carregando campos...</div>
+          ) : matches.length === 0 ? (
+            <div className="p-4 text-center text-xs text-slate-400">
+              Nenhum campo corresponde a &ldquo;{mention.query}&rdquo;.
             </div>
-          </div>
-
-          <div className="max-h-[320px] overflow-y-auto">
-            {isLoading ? (
-              <div className="p-4 text-center text-xs text-slate-400">Carregando campos...</div>
-            ) : groups.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400">
-                Nenhum campo encontrado para &ldquo;{search}&rdquo;.
-              </div>
-            ) : (
-              groups.map(group => (
-                <div key={group.sectionLabel}>
-                  <div className="sticky top-0 z-[1] border-b border-slate-100 bg-slate-50/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
-                    {group.sectionLabel}
-                  </div>
-                  {group.items.map(field => (
+          ) : (
+            groups.map(group => (
+              <div key={group.sectionLabel}>
+                <div className="sticky top-0 z-[1] border-b border-slate-100 bg-slate-50/95 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
+                  {group.sectionLabel}
+                </div>
+                {group.items.map(field => {
+                  const flatIdx = matches.indexOf(field)
+                  const isActive = flatIdx === highlightIdx
+                  return (
                     <button
                       key={field.key}
                       type="button"
-                      onClick={() => insertField(field)}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-indigo-50"
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        commitField(field)
+                      }}
+                      onMouseEnter={() => setHighlightIdx(flatIdx)}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors',
+                        isActive ? 'bg-indigo-50' : 'hover:bg-slate-50',
+                      )}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-slate-900">{field.label}</div>
+                        <div className="truncate text-sm text-slate-900">{field.label}</div>
                         <div className="truncate font-mono text-[11px] text-slate-400">{field.key}</div>
                       </div>
                     </button>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
+                  )
+                })}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
@@ -157,19 +188,9 @@ interface Group {
   items: CRMField[]
 }
 
-function groupByLabel(fields: CRMField[], search: string): Group[] {
-  const term = search.trim().toLowerCase()
-  const filtered = term
-    ? fields.filter(
-        f =>
-          f.label.toLowerCase().includes(term) ||
-          f.key.toLowerCase().includes(term) ||
-          f.sectionLabel.toLowerCase().includes(term),
-      )
-    : fields
-
+function groupFields(fields: CRMField[]): Group[] {
   const map = new Map<string, CRMField[]>()
-  for (const f of filtered) {
+  for (const f of fields) {
     const arr = map.get(f.sectionLabel) ?? []
     arr.push(f)
     map.set(f.sectionLabel, arr)
