@@ -278,6 +278,39 @@ Deploy: `export $(grep -v '^#' .env | xargs) && node scripts/create-n8n-{nome}.j
 - **Handoff**: `pipeline_stages.target_phase_id` (UUID FK, NÃO `target_role` string)
 - **Role legacy**: CONGELADO — sync via trigger `trg_sync_role_from_team`. AuthContext traz joins: `profile.team.phase`
 
+## Queries comuns multi-tenant (OBRIGATÓRIO ler antes de mexer em usuários)
+
+**Armadilha:** a tabela `profiles` tem coluna `org_id`, mas em workspace filho ela aponta para a **account pai**, não para o workspace ativo. Usar `.eq('org_id', activeOrgId)` em workspace filho retorna lista vazia (ou só profiles criados direto no workspace, como Test User).
+
+**Listar usuários (consultores, donos, owners) de um workspace:**
+```ts
+// ✅ CORRETO — via org_members (tabela de membership)
+const { data } = await supabase
+  .from('org_members')
+  .select('user_id, profiles!inner(id, nome, active)')
+  .eq('org_id', workspaceId)
+// filtrar active != false no cliente
+```
+
+```ts
+// ❌ ERRADO — profiles.org_id aponta pra account, não pro workspace
+const { data } = await supabase
+  .from('profiles').select('id, nome')
+  .eq('org_id', workspaceId)  // retorna [] em workspace filho
+```
+
+**Quem pertence a quê:**
+- `profiles.org_id` → **account pai** (Welcome Group). É onde o usuário "mora".
+- `org_members(user_id, org_id, role)` → **vínculo** usuário ↔ workspace. Use isso pra listar membros de um workspace específico.
+- `teams.org_id` → **workspace**. Times vivem no workspace, não na account.
+- `profiles.team_id` → liga profile a time do workspace atual.
+
+**Hook pronto:** `useFilterProfiles()` em `src/hooks/analytics/useFilterOptions.ts` usa o padrão correto desde 2026-04-22. Reusar em vez de recriar.
+
+**Exceção — telas de admin de plataforma** (`src/pages/platform/*`, `src/pages/admin/studio/`): podem consultar `profiles.org_id` diretamente porque operam na account. Fora disso, sempre `org_members`.
+
+O hook `.claude/hooks/check-before-done.sh` bloqueia commit que contenha `.from('profiles').eq('org_id', ...)` fora dessas exceções.
+
 ---
 
 ## Antes de Modificar Código

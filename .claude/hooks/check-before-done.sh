@@ -69,6 +69,47 @@ if [ -n "$ISOLATION_VIOLATIONS" ]; then
   exit 2
 fi
 
+# ── Multi-tenant: listar usuários via org_members, não profiles.org_id ──
+# Armadilha recorrente: profiles.org_id aponta pra account pai em workspace filho.
+# Qualquer `.from('profiles').eq('org_id', ...)` fora de admin de plataforma
+# vaza lista vazia em workspace filho. Use org_members JOIN profiles.
+# Bug canônico: filtro Consultores em /analytics/funil só mostrando "Test User" (2026-04-22).
+MT_EXCLUDE_PATTERN="src/pages/platform/|src/pages/admin/|src/hooks/usePlatformAdmin\.ts|src/hooks/useOrganizations\.ts|src/hooks/useOrgMembers\.ts|src/hooks/useOrgSwitch\.ts|src/contexts/OrgContext\.tsx|__tests__"
+MT_VIOLATIONS=""
+for f in $CHANGED_FILES; do
+  echo "$f" | grep -qE "$MT_EXCLUDE_PATTERN" && continue
+  # awk: detecta `.from('profiles')` seguido de `.eq('org_id', ...)` em até 6 linhas
+  MATCH=$(awk '
+    /\.from\(["'\''"]profiles["'\''"]\)/ { from_line=NR; hit_from=1; next }
+    hit_from && NR - from_line <= 6 {
+      if ($0 ~ /\.eq\(["'\''"]org_id["'\''"]/) {
+        print from_line ":" $0
+        hit_from=0
+      }
+    }
+    hit_from && NR - from_line > 6 { hit_from=0 }
+  ' "$f" 2>/dev/null | head -3)
+  if [ -n "$MATCH" ]; then
+    MT_VIOLATIONS=$(printf "%s\n  %s:\n%s" "$MT_VIOLATIONS" "$f" "$(echo "$MATCH" | sed 's/^/    /')")
+  fi
+done
+if [ -n "$MT_VIOLATIONS" ]; then
+  echo "" >&2
+  echo "BLOQUEADO: Multi-tenant — listagem de usuários via profiles.org_id:" >&2
+  echo "$MT_VIOLATIONS" >&2
+  echo "" >&2
+  echo "Em workspace filho, profiles.org_id aponta pra account pai, não pro workspace." >&2
+  echo "Use org_members pra listar membros do workspace:" >&2
+  echo "" >&2
+  echo "  supabase.from('org_members')" >&2
+  echo "    .select('user_id, profiles!inner(id, nome, active)')" >&2
+  echo "    .eq('org_id', workspaceId)" >&2
+  echo "" >&2
+  echo "Hook pronto: useFilterProfiles() em src/hooks/analytics/useFilterOptions.ts" >&2
+  echo "Ver CLAUDE.md → 'Queries comuns multi-tenant'" >&2
+  exit 2
+fi
+
 # Verificar se arquivos novos foram criados em diretórios-chave
 # Se sim, CODEBASE.md deve ter sido atualizado (via npm run sync:fix)
 NEW_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '^src/(hooks|pages|components)/.*\.(ts|tsx)$')
