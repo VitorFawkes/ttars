@@ -278,7 +278,7 @@ export function QualificationFlowSection(props: QualificationFlowEditorProps) {
             <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Funil de qualificação</h2>
             <p className="text-sm text-slate-500 mt-0.5">
               {enabled > 0
-                ? `${enabled} pergunta${enabled > 1 ? 's' : ''} na ordem. O agente segue a ordem e pula quando o campo já foi preenchido.`
+                ? `${enabled} pergunta${enabled > 1 ? 's' : ''} configurada${enabled > 1 ? 's' : ''}. O agente segue a ordem, pode agrupar perguntas relacionadas e pula quando o campo já foi preenchido.`
                 : 'Defina as perguntas que o agente faz antes de agendar reunião.'}
             </p>
           </div>
@@ -287,7 +287,7 @@ export function QualificationFlowSection(props: QualificationFlowEditorProps) {
 
       <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3">
         <p className="text-xs text-indigo-900">
-          <strong>Como funciona:</strong> uma pergunta por vez, na ordem. Se o cliente já preencheu o campo selecionado, a pergunta é pulada. Use <em>Opções de resposta</em> para faixas predefinidas (ex: orçamento).
+          <strong>Como funciona:</strong> o agente segue a ordem das perguntas, pulando as que o cliente já respondeu ou que já estão preenchidas no card. Pode agrupar perguntas próximas numa mesma mensagem quando fizer sentido (ex: destino + período). Use <em>Opções de resposta</em> para faixas predefinidas (ex: orçamento).
         </p>
       </div>
 

@@ -2319,7 +2319,7 @@ async function runPersonaAgent(
   const SALES_PLAYBOOK = `
 ## Biblioteca de técnicas (aplicar sempre que couber)
 
-### SPIN (uma pergunta por vez)
+### SPIN (pergunta certa no momento certo)
 - Se ainda não conhece o processo/contexto do cliente: pergunta de **Situação** ("como vocês se organizam hoje pra X?").
 - Se já tem situação mas sem dor declarada: pergunta de **Problema** ("o que mais te incomoda nisso hoje?").
 - Se há dor declarada: peça **Implicação concreta** ("e isso acaba afetando o que?") e costure dor + impacto em 1 linha.
@@ -2328,7 +2328,7 @@ async function runPersonaAgent(
 ### Antipadrões (EVITE sempre)
 - **Justificar pergunta.** Em vez de "Pra te ajudar melhor, como vocês...", faça "Como vocês..." direto.
 - **Inferir causa não dita.** Em vez de "Imagino que isso te atrapalhe muito", pergunte "Onde isso mais aperta?".
-- **Empilhar perguntas.** Uma pergunta única e clara por mensagem.
+- **Empilhar perguntas desconexas.** Agrupar 2 perguntas relacionadas na mesma mensagem (ex: "destino e período?") é OK. O que não pode é jogar 3+ perguntas soltas sobre temas diferentes de uma vez.
 - **Prometer solução antes da dor.** Não diga "podemos resolver isso" antes de entender problema e impacto.
 - **Fechamento frouxo.** Não pergunte "qual horário prefere?". Use slots reais via check_calendar.
 - **Pressão.** Se o lead não quiser seguir, agradeça e encerre sem insistir.
@@ -2413,7 +2413,7 @@ ${business?.methodology_text ? `O QUE OFERECEMOS:\n${business.methodology_text}`
 
 ${customBlocksText}
 
-${qualStages ? `AINDA PERGUNTAR (so o que falta — ja filtrado pelo runtime):\n${qualStages}\nRegras: (1) Responda primeiro o que o cliente pediu em 1-2 frases. (2) Depois faca UMA unica pergunta que avance o proximo gap. (3) Se o cliente respondeu varios dados de uma vez, acuse recebido sem re-perguntar e va direto pro proximo gap. (4) Se o bloco "JA SABEMOS" cobriu tudo, pule qualificacao e apresente processo.` : ""}
+${qualStages ? `AINDA PERGUNTAR (so o que falta — ja filtrado pelo runtime):\n${qualStages}\nRegras: (1) Responda primeiro o que o cliente pediu em 1-2 frases. (2) Depois avance o proximo gap com uma pergunta objetiva; se dois gaps sao proximos (ex: destino + periodo, viajantes + ocasiao) pode agrupar numa pergunta so. Evite jogar 3+ perguntas soltas. (3) Se o cliente respondeu varios dados de uma vez, acuse recebido sem re-perguntar e va direto pro proximo gap. (4) Se o bloco "JA SABEMOS" cobriu tudo, pule qualificacao e apresente processo.` : ""}
 
 ${feeMsg && business?.fee_presentation_timing !== "never" ? `TAXA: ${feeMsg}\nApresentar: ${business?.fee_presentation_timing || "after_qualification"}` : ""}
 
@@ -2525,7 +2525,7 @@ Analise a resposta abaixo e verifique:
 6. Rejeita/desqualifica lead na primeira mensagem ou sem investigar? → BLOQUEIA (na duvida, avançar)
 7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer só isso? → CORRIJA
 8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
-9. Empilha 2+ perguntas na mesma mensagem? → CORRIJA pra UMA pergunta só
+9. Empilha 3+ perguntas soltas sobre temas diferentes na mesma mensagem? → CORRIJA mantendo no máximo 2 perguntas relacionadas
 ${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
 ${rulesBlock}
 RESPOSTA a validar:

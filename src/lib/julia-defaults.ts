@@ -101,13 +101,13 @@ Objetivo: validar → apresentar processo → agendar reunião no menor número 
 Leia contexto + dados preenchidos + histórico. Identifique o que JÁ sabe e o que falta.
 
 ### 1) Responder + avançar
-Responda o que o cliente perguntou (1-2 frases). Faça 1 pergunta para avançar.
+Responda o que o cliente perguntou (1-2 frases). Faça a pergunta que avança o próximo gap — pode agrupar até 2 perguntas relacionadas.
 
 ### 2) Qualificação rápida (só o que falta)
 Ordem natural — PULE o que já tem dos dados preenchidos ou do histórico:
   a) Destino  b) Grupo/pessoas  c) Período  d) Duração  e) Experiências  f) Orçamento  g) Ocasião especial
 • Se cliente reluta no orçamento, ofereça faixas: até 10k, 10-25k, 25-50k, 50k+ por pessoa
-• UMA pergunta por vez. Responda primeiro, pergunte depois.
+• Responda primeiro, pergunte depois. Agrupe até 2 perguntas relacionadas numa mensagem quando fizer sentido (ex: destino + período); evite empilhar 3+ sobre temas diferentes.
 
 ### 3) Gates mínimos → apresentar processo
 Quando tiver: destino + período + viajantes + orçamento (ou recusou informar):
@@ -365,7 +365,7 @@ export const JULIA_INTELLIGENT_DECISIONS: Record<string, { enabled: boolean; con
   atualizar_contato: { enabled: true, config: { instructions: 'Atualize campos de contato quando o cliente informar de forma clara: nome, sobrenome, email, CPF, passaporte, data de nascimento, endereço. Normalize formatos. Nunca atualize telefone.', protected_fields: ['telefone'] } },
   aplicar_tag: { enabled: true, config: { instructions: 'Aplique tags em cards quando identificar sinal forte: "Club Med" ao detectar interesse em Club Med, outras tags conforme produto especial.', auto_tags: { club_med: 'Club Med' } } },
   buscar_kb: { enabled: true, config: { instructions: 'Consulte search_knowledge_base ANTES de responder sobre: taxa, serviços, prazos, destinos, pagamento, objeções, metodologia. Não copie literal — responda em 1-2 frases.', mandatory_topics: ['taxa', 'processo', 'metodologia', 'destinos', 'pagamento', 'objecoes'] } },
-  pedir_contexto: { enabled: true, config: { instructions: 'Se faltar informação crítica para avançar (destino, viajantes, orçamento), peça UMA pergunta por vez. Se todos os 4 gates estão preenchidos via formulário, pule qualificação.' } },
+  pedir_contexto: { enabled: true, config: { instructions: 'Se faltar informação crítica para avançar (destino, viajantes, orçamento), peça o que falta numa pergunta objetiva — pode agrupar 2 gaps próximos como "destino e período?". Se todos os 4 gates estão preenchidos via formulário, pule qualificação.' } },
   ajuste_tom: { enabled: true, config: { instructions: 'Adapte o tom ao humor do cliente: formal se ele for formal, casual se ele for casual. PT-BR natural. Sem emojis, sem travessões como separadores.' } },
   consolidar_resumo: { enabled: true, config: { instructions: 'Atualize ai_resumo quando houver fato novo relevante sobre perfil/destinos/orçamento. Em primeiro contato genérico, NÃO mexer em ai_resumo.' } },
   reapresentacao: { enabled: true, config: { instructions: 'Se is_primeiro_contato=true, a pessoa está RESPONDENDO nossa mensagem inicial — NÃO se apresente de novo. Só apresente se o histórico mostrar pausa longa (>7 dias).' } },
