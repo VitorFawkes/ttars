@@ -3,6 +3,9 @@ import { Hotel, Plane, Car, MapPin, UtensilsCrossed, ShieldCheck, Lightbulb, Fil
 import type { TripItemTipo, TripItemStatus } from '@/types/viagem'
 import type { TripItemInterno } from '@/hooks/viagem/useViagemInterna'
 import { useUpdateTripItem } from '@/hooks/viagem/useViagemInterna'
+import { ComentariosPanel } from './ComentariosPanel'
+import { AlternativasEditor } from './AlternativasEditor'
+import { FotosUploader } from './FotosUploader'
 
 const TIPO_LABEL: Record<TripItemTipo, string> = {
   dia: 'Dia',
@@ -44,14 +47,15 @@ const STATUS_OPTIONS: { value: TripItemStatus; label: string }[] = [
   { value: 'arquivado', label: 'Arquivado' },
 ]
 
-type Tab = 'operacional' | 'comercial'
+type Tab = 'comercial' | 'operacional' | 'comentarios'
 
 interface Props {
   item: TripItemInterno
 }
 
 export function ViagemItemEditor({ item }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>(item.tipo === 'dia' ? 'comercial' : 'operacional')
+  const hasOperacional = item.tipo !== 'dia'
+  const [activeTab, setActiveTab] = useState<Tab>(hasOperacional ? 'operacional' : 'comercial')
   const updateItem = useUpdateTripItem()
 
   const Icon = TIPO_ICON[item.tipo] ?? FileText
@@ -78,7 +82,6 @@ export function ViagemItemEditor({ item }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Item header */}
       <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
           <Icon className="h-4 w-4 text-indigo-600" />
@@ -100,35 +103,60 @@ export function ViagemItemEditor({ item }: Props) {
         </select>
       </div>
 
-      {/* Tabs */}
-      {item.tipo !== 'dia' && (
-        <div className="flex border-b border-slate-200">
-          {(['operacional', 'comercial'] as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-xs font-medium capitalize transition ${
-                activeTab === tab
-                  ? 'border-b-2 border-indigo-600 text-indigo-600'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {tab === 'operacional' ? 'Operacional' : 'Comercial'}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex border-b border-slate-200">
+        {hasOperacional && (
+          <TabButton active={activeTab === 'operacional'} onClick={() => setActiveTab('operacional')}>
+            Operacional
+          </TabButton>
+        )}
+        <TabButton active={activeTab === 'comercial'} onClick={() => setActiveTab('comercial')}>
+          Comercial
+        </TabButton>
+        <TabButton active={activeTab === 'comentarios'} onClick={() => setActiveTab('comentarios')}>
+          Comentários
+        </TabButton>
+      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {(activeTab === 'operacional' && item.tipo !== 'dia') ? (
-          <OperacionalForm item={item} op={op} onSave={saveOperacional} saving={updateItem.isPending} />
-        ) : (
-          <ComercialForm item={item} com={com} onSave={saveComercial} saving={updateItem.isPending} />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {activeTab === 'operacional' && hasOperacional && (
+          <div className="flex-1 overflow-y-auto p-4">
+            <OperacionalForm item={item} op={op} onSave={saveOperacional} saving={updateItem.isPending} />
+          </div>
+        )}
+        {activeTab === 'comercial' && (
+          <div className="flex-1 overflow-y-auto p-4">
+            <ComercialForm item={item} com={com} onSave={saveComercial} saving={updateItem.isPending} />
+          </div>
+        )}
+        {activeTab === 'comentarios' && (
+          <ComentariosPanel viagemId={item.viagem_id} itemId={item.id} />
         )}
       </div>
     </div>
+  )
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2 text-xs font-medium transition ${
+        active
+          ? 'border-b-2 border-indigo-600 text-indigo-600'
+          : 'text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -259,6 +287,10 @@ function ComercialForm({
   onSave: (patch: Record<string, unknown>) => void
   saving: boolean
 }) {
+  const fotos = Array.isArray((item.comercial as { fotos?: unknown }).fotos)
+    ? ((item.comercial as { fotos?: string[] }).fotos as string[])
+    : []
+
   return (
     <div>
       <FieldRow label="Título">
@@ -288,6 +320,25 @@ function ComercialForm({
           placeholder="Descrição visível ao cliente..."
         />
       </FieldRow>
+
+      {item.tipo !== 'dia' && (
+        <FieldRow label="Fotos">
+          <FotosUploader
+            viagemId={item.viagem_id}
+            itemId={item.id}
+            fotos={fotos}
+            onChange={(novasFotos) => onSave({ fotos: novasFotos })}
+          />
+        </FieldRow>
+      )}
+
+      {item.tipo !== 'dia' && (
+        <FieldRow label="Alternativas (cliente escolhe entre)">
+          <AlternativasEditor
+            item={item}
+          />
+        </FieldRow>
+      )}
 
       {saving && (
         <p className="text-center text-xs text-slate-400">Salvando...</p>

@@ -408,3 +408,66 @@ export function useDeleteTripItem() {
     },
   })
 }
+
+interface ReorderTripItemsInput {
+  viagem_id: string
+  updates: { id: string; ordem: number; parent_id?: string | null }[]
+}
+
+export function useReorderTripItems() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: ReorderTripItemsInput) => {
+      await Promise.all(
+        input.updates.map(async (u) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase.from('trip_items') as any)
+            .update({
+              ordem: u.ordem,
+              ...(u.parent_id !== undefined ? { parent_id: u.parent_id } : {}),
+            })
+            .eq('id', u.id)
+          if (error) throw error
+        }),
+      )
+      return input
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['viagem-interna'] })
+    },
+  })
+}
+
+interface EnviarViagemResult {
+  id: string
+  estado: ViagemEstado
+  enviada_em: string
+  public_token: string
+  itens_promovidos: number
+}
+
+export function useEnviarViagem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (viagemId: string): Promise<EnviarViagemResult> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('enviar_viagem_ao_cliente', {
+        p_viagem_id: viagemId,
+      })
+      if (error) throw error
+      return data as EnviarViagemResult
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['viagem-interna'] })
+      toast.success('Viagem enviada ao cliente', {
+        description: result.itens_promovidos > 0
+          ? `${result.itens_promovidos} itens novos visíveis ao cliente.`
+          : 'Link do cliente atualizado.',
+      })
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar viagem'
+      toast.error(msg)
+    },
+  })
+}

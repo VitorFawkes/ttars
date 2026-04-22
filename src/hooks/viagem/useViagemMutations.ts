@@ -75,10 +75,24 @@ export function useViagemMutations(token: string | undefined) {
     onSuccess: invalidate,
   })
 
+  const registrarNps = useMutation({
+    mutationFn: async ({ nota, comentario }: { nota: number; comentario?: string }) => {
+      const { data, error } = await rpc('registrar_nps', {
+        p_token: token!,
+        p_nota: nota,
+        p_comentario: comentario ?? null,
+      })
+      if (error) throw error
+      return data
+    },
+    onSuccess: invalidate,
+  })
+
   return {
     aprovarItem,
     escolherAlternativa,
     comentar,
     confirmarViagem,
+    registrarNps,
   }
 }
