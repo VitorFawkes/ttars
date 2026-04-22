@@ -611,3 +611,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T18:04:32Z | supabase/migrations/20260422c_drill_down_honor_date_ref.sql | applied_to_prod
 2026-04-22T18:05:57Z | supabase/migrations/20260428b_fix_fn_enqueue_temporal_events_contato_join.sql | applied_to_prod
 2026-04-22T18:06:28Z | supabase/migrations/20260422c_drill_down_honor_date_ref.sql | applied_to_prod
+2026-04-22T18:07:13Z | supabase/migrations/20260428c_fix_fn_enqueue_contato_ordem.sql | applied_to_prod
