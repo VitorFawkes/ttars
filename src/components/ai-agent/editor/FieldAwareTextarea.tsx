@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Textarea } from '@/components/ui/textarea'
 import { useCRMFields, type FieldScope, type CRMField } from './CRMFieldPicker'
 
 export interface FieldAwareTextareaProps {
@@ -16,10 +15,28 @@ export interface FieldAwareTextareaProps {
   trigger?: string
 }
 
+// Estilo compartilhado por textarea e mirror. Tem que ser idêntico byte-a-byte
+// pra alinhar pixel-perfect (fonte, tamanho, line-height, padding, border).
+const SHARED_TEXT_STYLE: React.CSSProperties = {
+  fontFamily: 'inherit',
+  fontSize: '0.875rem',
+  lineHeight: '1.375rem',
+  padding: '0.5rem 0.75rem',
+  border: '1px solid transparent',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  minHeight: '60px',
+  margin: 0,
+  boxSizing: 'border-box',
+  borderRadius: '0.375rem',
+}
+
 /**
- * Textarea com autocomplete de campos do CRM.
- * Ao digitar `@` no textarea, abre uma lista filtrável logo abaixo, navegável
- * por setas/Enter/Esc. Ao selecionar, a `key` do campo substitui `@query`.
+ * Textarea com autocomplete de campos do CRM e destaque visual.
+ * - Digitar `@` abre a lista filtrável; selecionar insere a key.
+ * - Campos reconhecidos (ex: ww_sdr_ajuda_familia) ficam destacados
+ *   como chip colorido enquanto você digita.
+ * - O valor reportado continua texto plano — destaque é só visual.
  */
 export function FieldAwareTextarea({
   value,
@@ -33,12 +50,14 @@ export function FieldAwareTextarea({
   trigger = '@',
 }: FieldAwareTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Cursor é a única fonte de verdade sobre "onde o usuário está".
-  // Combinado com `value` (prop), derivamos a menção ativa.
+  const mirrorRef = useRef<HTMLDivElement>(null)
   const [cursor, setCursor] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
   const { fields, isLoading } = useCRMFields({ scope, pipelineId, produto })
+
+  const keySet = useMemo(() => new Set(fields.map(f => f.key)), [fields])
+  const tokens = useMemo(() => tokenize(value, keySet), [value, keySet])
 
   const mention = useMemo(() => {
     if (cursor === null || dismissed) return null
@@ -61,16 +80,20 @@ export function FieldAwareTextarea({
 
   const groups = useMemo(() => groupFields(matches), [matches])
 
-  // Quando a query muda, volta a highlight pra primeira.
   useEffect(() => {
     setHighlightIdx(0)
   }, [mention?.query])
 
-  // Se o dropdown foi dispensado (Esc), reabre quando o usuário mexer no @.
   useEffect(() => {
-    if (!dismissed) return
-    if (mention === null) setDismissed(false)
+    if (dismissed && mention === null) setDismissed(false)
   }, [mention, dismissed])
+
+  const syncScroll = () => {
+    if (mirrorRef.current && textareaRef.current) {
+      mirrorRef.current.scrollTop = textareaRef.current.scrollTop
+      mirrorRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value)
@@ -120,16 +143,51 @@ export function FieldAwareTextarea({
 
   return (
     <div className={cn('relative', className)}>
-      <Textarea
+      {/* Mirror: desenha o texto com chips destacados. Fica POR BAIXO do
+          textarea (que tem texto transparente, cursor visível). */}
+      <div
+        ref={mirrorRef}
+        aria-hidden
+        className="pointer-events-none absolute inset-0 overflow-hidden text-slate-900"
+        style={SHARED_TEXT_STYLE}
+      >
+        {tokens.length === 0 ? (
+          <span className="text-slate-400">{placeholder}</span>
+        ) : (
+          tokens.map((t, i) =>
+            t.isField ? (
+              // IMPORTANTE: sem padding/border/font diferente — qualquer coisa
+              // que mude a largura do texto desalinha o mirror do textarea.
+              // Background + cor só.
+              <span key={i} className="rounded-sm bg-indigo-100 text-indigo-800">
+                {t.text}
+              </span>
+            ) : (
+              <span key={i}>{t.text}</span>
+            ),
+          )
+        )}
+        {/* Força nova linha no fim se o texto termina com \n (o mirror não
+            renderiza a linha extra sozinho como o textarea faz). */}
+        {value.endsWith('\n') && <span>{'​'}</span>}
+      </div>
+
+      {/* Textarea: texto transparente (só caret visível), placeholder
+          transparente (o mirror mostra o placeholder). */}
+      <textarea
         ref={textareaRef}
         value={value}
         onChange={handleChange}
+        onScroll={syncScroll}
+        onKeyDown={handleKeyDown}
         onKeyUp={syncCursor}
         onClick={syncCursor}
-        onKeyDown={handleKeyDown}
         onBlur={() => setTimeout(() => setCursor(null), 150)}
-        placeholder={placeholder}
         rows={rows}
+        placeholder={placeholder}
+        spellCheck={false}
+        className="relative block w-full resize-y border border-slate-200 bg-transparent text-transparent caret-slate-900 placeholder:text-transparent focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
+        style={SHARED_TEXT_STYLE}
       />
 
       {mention && (
@@ -177,6 +235,26 @@ export function FieldAwareTextarea({
       )}
     </div>
   )
+}
+
+interface Token {
+  text: string
+  isField: boolean
+}
+
+/**
+ * Quebra o texto em tokens. Sequências que batem exatamente com uma key
+ * de campo do CRM viram tokens marcados como isField=true.
+ */
+function tokenize(value: string, keySet: Set<string>): Token[] {
+  if (!value) return []
+  const parts = value.split(/([A-Za-z_][A-Za-z0-9_]{2,})/g)
+  const out: Token[] = []
+  for (const p of parts) {
+    if (p === '') continue
+    out.push({ text: p, isField: keySet.has(p) })
+  }
+  return out
 }
 
 interface Group {
