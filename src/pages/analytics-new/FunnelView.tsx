@@ -155,9 +155,10 @@ export default function FunnelView() {
         label: stageName,
         drillStageId: stageId,
         drillSource: 'stage_entries',
+        drillDateRef: state.dateRef,
       })
     },
-    [drillDown]
+    [drillDown, state.dateRef]
   )
 
   const handleReasonDrill = useCallback(
@@ -168,9 +169,10 @@ export default function FunnelView() {
         drillStatus: 'perdido',
         drillSource: 'lost_deals',
         drillStageId: state.rootStageId ?? undefined,
+        drillDateRef: state.dateRef,
       })
     },
-    [drillDown, state.rootStageId]
+    [drillDown, state.rootStageId, state.dateRef]
   )
 
   const conversionAndKpisLoading = conversionLoading || (state.compareEnabled && previousLoading)

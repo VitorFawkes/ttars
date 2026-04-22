@@ -19,6 +19,8 @@ export interface DrillDownContext {
     drillPeriodEnd?: string
     drillDestino?: string
     excludeTerminal?: boolean
+    /** Referência temporal para honrar na RPC de drill (Funil v3). 'stage' | 'created'. */
+    drillDateRef?: 'stage' | 'created'
 }
 
 export interface DrillDownCard {
@@ -92,7 +94,8 @@ export function useAnalyticsDrillDownQuery() {
             dateRange.start, dateRange.end, product, mode, stageId, ownerId, ownerIds, tagIds,
             context?.drillSource, context?.drillStageId, context?.drillOwnerId,
             context?.drillLossReason, context?.drillStatus, context?.drillPhase,
-            context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino, context?.excludeTerminal,
+            context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino,
+            context?.excludeTerminal, context?.drillDateRef,
             sortBy, sortDir, page,
         ],
         queryFn: async () => {
@@ -120,6 +123,7 @@ export function useAnalyticsDrillDownQuery() {
                 p_offset: page * PAGE_SIZE,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
+                p_date_ref: context?.drillDateRef ?? 'stage',
             })
             if (error) throw error
             const rows = (data as unknown as DrillDownCard[]) || []
