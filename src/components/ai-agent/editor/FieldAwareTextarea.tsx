@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useCRMFields, type FieldScope, type CRMField } from './CRMFieldPicker'
 
@@ -13,6 +13,14 @@ export interface FieldAwareTextareaProps {
   className?: string
   /** Caractere que dispara o autocomplete (default '@'). */
   trigger?: string
+  /** Callback quando o textarea ganha foco — usado pra saber qual bloco está ativo em abas com múltiplos campos. */
+  onFocus?: () => void
+}
+
+export interface FieldAwareTextareaHandle {
+  /** Insere texto na posição do cursor (ou no fim se não focado). */
+  insertAtCursor: (text: string) => void
+  focus: () => void
 }
 
 // Estilo de caixa compartilhado. Fonte/padding/border-width/wrapping têm que
@@ -43,7 +51,7 @@ const TEXTAREA_STYLE: React.CSSProperties = { ...BOX_STYLE, borderColor: 'rgb(22
  *   como chip colorido enquanto você digita.
  * - O valor reportado continua texto plano — destaque é só visual.
  */
-export function FieldAwareTextarea({
+export const FieldAwareTextarea = forwardRef<FieldAwareTextareaHandle, FieldAwareTextareaProps>(function FieldAwareTextarea({
   value,
   onChange,
   placeholder,
@@ -53,7 +61,8 @@ export function FieldAwareTextarea({
   scope = 'any',
   className,
   trigger = '@',
-}: FieldAwareTextareaProps) {
+  onFocus,
+}: FieldAwareTextareaProps, forwardedRef) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const [cursor, setCursor] = useState<number | null>(null)
@@ -86,10 +95,12 @@ export function FieldAwareTextarea({
   const groups = useMemo(() => groupFields(matches), [matches])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset highlight ao mudar query é UI-local
     setHighlightIdx(0)
   }, [mention?.query])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-limpa dismiss quando o usuário sai do contexto do @
     if (dismissed && mention === null) setDismissed(false)
   }, [mention, dismissed])
 
@@ -146,6 +157,25 @@ export function FieldAwareTextarea({
     }
   }
 
+  // API imperativa pra telas com múltiplos campos (ex: TabPrompts) inserirem
+  // texto via botão de variáveis. Precisa vir ANTES do return.
+  useImperativeHandle(forwardedRef, () => ({
+    insertAtCursor: (text: string) => {
+      const ta = textareaRef.current
+      const start = ta?.selectionStart ?? value.length
+      const end = ta?.selectionEnd ?? value.length
+      const next = value.slice(0, start) + text + value.slice(end)
+      onChange(next)
+      requestAnimationFrame(() => {
+        if (!ta) return
+        ta.focus()
+        const pos = start + text.length
+        ta.setSelectionRange(pos, pos)
+      })
+    },
+    focus: () => textareaRef.current?.focus(),
+  }), [value, onChange])
+
   return (
     <div className={cn('relative', className)}>
       {/* Mirror: desenha o texto com chips destacados. Fica POR BAIXO do
@@ -188,6 +218,7 @@ export function FieldAwareTextarea({
         onKeyUp={syncCursor}
         onClick={syncCursor}
         onBlur={() => setTimeout(() => setCursor(null), 150)}
+        onFocus={onFocus}
         rows={rows}
         placeholder={placeholder}
         spellCheck={false}
@@ -240,7 +271,7 @@ export function FieldAwareTextarea({
       )}
     </div>
   )
-}
+})
 
 interface Token {
   text: string
