@@ -2,9 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { viagemKeys } from './useViagem'
 
-// RPCs do Marco 1 ainda não estão em database.types.ts — cast necessário
+// RPCs do Marco 1 ainda não estão em database.types.ts — cast necessário.
+// Usamos um helper em vez de `const rpc = supabase.rpc` porque assinar
+// `supabase.rpc` como referência perde o `this` interno e quebra chamadas
+// com erro "Cannot read properties of undefined (reading 'rest')".
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rpc = supabase.rpc as any
+const rpc = (name: string, args: Record<string, unknown>) => (supabase.rpc as any)(name, args)
 
 export function useViagemMutations(token: string | undefined) {
   const queryClient = useQueryClient()

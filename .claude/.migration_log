@@ -615,3 +615,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T18:26:39Z | supabase/migrations/20260429a_travel_planner_bloco_e_sub_card_items.sql | applied_to_staging
 2026-04-22T18:30:01Z | supabase/migrations/20260429a_travel_planner_bloco_e_sub_card_items.sql | applied_to_prod
 2026-04-22T18:41:48Z | supabase/migrations/20260430a_travel_planner_bloco_f1_passageiros.sql | applied_to_staging
+2026-04-22T19:06:51Z | supabase/migrations/20260501a_travel_planner_bloco_c_polimento.sql | applied_to_staging
+2026-04-22T19:23:39Z | supabase/migrations/20260501b_fix_get_viagem_by_token_null_tp_pv.sql | applied_to_staging
