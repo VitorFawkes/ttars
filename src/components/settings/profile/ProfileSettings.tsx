@@ -97,7 +97,7 @@ export default function ProfileSettings() {
                     </TabsTrigger>
                     <TabsTrigger value="notifications" className="gap-2">
                         <BellRing className="w-4 h-4" />
-                        Notificações
+                        Minhas notificações
                     </TabsTrigger>
                 </TabsList>
 
