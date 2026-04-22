@@ -45,6 +45,7 @@ const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
   proposal: { label: 'Proposta', color: 'bg-blue-100 text-blue-700' },
   financeiro: { label: 'Produto-Vendas', color: 'bg-emerald-100 text-emerald-700' },
   library: { label: 'Biblioteca', color: 'bg-violet-100 text-violet-700' },
+  sub_card: { label: 'Sub-card', color: 'bg-amber-100 text-amber-800' },
 }
 
 const STATUS_DOT: Record<TripItemStatus, string> = {

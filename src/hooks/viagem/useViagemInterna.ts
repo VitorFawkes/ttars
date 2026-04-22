@@ -34,7 +34,7 @@ export interface TripItemInterno {
   comercial: Record<string, unknown>
   operacional: Record<string, unknown>
   alternativas: TripItemAlternativa[]
-  source_type: 'manual' | 'proposal' | 'financeiro' | 'library' | null
+  source_type: 'manual' | 'proposal' | 'financeiro' | 'library' | 'sub_card' | null
   source_id: string | null
   aprovado_em: string | null
   aprovado_por: 'client' | 'tp' | 'pv' | null
