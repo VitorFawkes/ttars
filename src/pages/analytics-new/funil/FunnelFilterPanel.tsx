@@ -1,7 +1,13 @@
-import { Calendar, Repeat, User as UserIcon } from 'lucide-react'
+import { Calendar, Repeat, User as UserIcon, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DatePreset } from '@/hooks/analytics/useAnalyticsFilters'
 import type { FunnelMetric, FunnelMode } from './constants'
+
+export interface StageOption {
+  id: string
+  nome: string
+  ordem: number
+}
 
 interface Props {
   datePreset: DatePreset
@@ -19,6 +25,11 @@ interface Props {
   onToggleMyFunnel: () => void
   selectedOwnerLabel: string | null
   onClearOwner: () => void
+
+  /** Todas as etapas do pipeline do produto atual (ordenadas por ordem). */
+  stageOptions: StageOption[]
+  rootStageId: string | null
+  setRootStageId: (id: string | null) => void
 }
 
 const DATE_OPTIONS: { value: DatePreset; label: string }[] = [
@@ -59,7 +70,11 @@ export default function FunnelFilterPanel({
   onToggleMyFunnel,
   selectedOwnerLabel,
   onClearOwner,
+  stageOptions,
+  rootStageId,
+  setRootStageId,
 }: Props) {
+  const hasStages = stageOptions.length > 0
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-3 flex-wrap bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
@@ -143,6 +158,31 @@ export default function FunnelFilterPanel({
             ))}
           </div>
         </div>
+
+        {hasStages && (
+          <>
+            <div className="w-px h-6 bg-slate-200" />
+            {/* Etapa raiz (topo do funil) */}
+            <div className="flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                Desde
+              </span>
+              <select
+                value={rootStageId ?? ''}
+                onChange={e => setRootStageId(e.target.value || null)}
+                className="h-8 px-2 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 outline-none max-w-[220px]"
+              >
+                <option value="">Primeira etapa</option>
+                {stageOptions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
 
         <div className="flex-1" />
 

@@ -89,10 +89,18 @@ export default function FunnelKpis({
 
   const monetary = metric !== 'cards'
 
+  // Nome curto da etapa (trunca em 24 chars pra caber no KPI)
+  const shortName = (n: string | undefined, max = 24) =>
+    !n ? '' : n.length > max ? n.slice(0, max - 1) + '…' : n
+  const conversionTitle =
+    top && bot
+      ? `Conversão ${shortName(top.stage_nome, 14)} → ${shortName(bot.stage_nome, 14)}`
+      : 'Conversão do funil'
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       <KpiCard
-        title="Entraram no funil"
+        title={top ? `Entraram em "${shortName(top.stage_nome, 18)}"` : 'Entraram no funil'}
         value={totalEntered.toLocaleString('pt-BR')}
         icon={Briefcase}
         color="text-blue-600"
@@ -101,7 +109,7 @@ export default function FunnelKpis({
         subtitle={formatDelta(deltaEntered)}
       />
       <KpiCard
-        title="Chegaram ao fim"
+        title={bot ? `Chegaram em "${shortName(bot.stage_nome, 18)}"` : 'Chegaram ao fim'}
         value={totalFinished.toLocaleString('pt-BR')}
         icon={Trophy}
         color="text-emerald-600"
@@ -110,7 +118,7 @@ export default function FunnelKpis({
         subtitle={formatDelta(deltaFinished)}
       />
       <KpiCard
-        title="Taxa de conversão"
+        title={conversionTitle}
         value={`${conversionRate.toFixed(1)}%`}
         icon={Target}
         color="text-indigo-600"
