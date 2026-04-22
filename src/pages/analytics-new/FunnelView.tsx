@@ -4,8 +4,10 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUsers } from '@/hooks/useUsers'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 
-import FunnelFilterPanel from './funil/FunnelFilterPanel'
+import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
 import FunnelVisual from './funil/FunnelVisual'
 import FunnelVelocityTable from './funil/FunnelVelocityTable'
@@ -20,6 +22,29 @@ export default function FunnelView() {
     useAnalyticsFilters()
 
   const state = useFunnelPageState()
+
+  // Lista de etapas do pipeline ativo — alimenta o seletor "Desde" e filtra o funil
+  const { pipelineId } = useCurrentProductMeta()
+  const { data: pipelineStages = [] } = usePipelineStages(pipelineId ?? undefined)
+
+  const stageOptions: StageOption[] = useMemo(
+    () =>
+      [...pipelineStages]
+        .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+        .map(s => ({
+          id: s.id,
+          nome: s.nome,
+          ordem: s.ordem ?? 0,
+        })),
+    [pipelineStages]
+  )
+
+  // Ordem da etapa raiz selecionada (se null, considera a partir da primeira)
+  const rootStageOrdem = useMemo(() => {
+    if (!state.rootStageId) return null
+    const found = stageOptions.find(s => s.id === state.rootStageId)
+    return found?.ordem ?? null
+  }, [state.rootStageId, stageOptions])
 
   const profileId = profile?.id ?? null
   const isMyFunnel = !!(profileId && ownerIds.length === 1 && ownerIds[0] === profileId)
@@ -52,15 +77,36 @@ export default function FunnelView() {
   )
 
   const {
-    conversion,
+    conversion: rawConversion,
     lossReasons,
-    velocity,
-    previousConversion,
+    velocity: rawVelocity,
+    previousConversion: rawPreviousConversion,
     previousRange,
     isLoading,
     error,
     refetch,
   } = useFunnelData(funnelParams, state.compareEnabled)
+
+  // Aplica filtro "Desde etapa X"
+  const conversion = useMemo(
+    () =>
+      rootStageOrdem == null
+        ? rawConversion
+        : rawConversion.filter(s => (s.ordem ?? 0) >= rootStageOrdem),
+    [rawConversion, rootStageOrdem]
+  )
+  const previousConversion = useMemo(() => {
+    if (!rawPreviousConversion) return null
+    if (rootStageOrdem == null) return rawPreviousConversion
+    return rawPreviousConversion.filter(s => (s.ordem ?? 0) >= rootStageOrdem)
+  }, [rawPreviousConversion, rootStageOrdem])
+  const velocity = useMemo(
+    () =>
+      rootStageOrdem == null
+        ? rawVelocity
+        : rawVelocity.filter(s => (s.ordem ?? 0) >= rootStageOrdem),
+    [rawVelocity, rootStageOrdem]
+  )
 
   const handleStageDrill = useCallback(
     (stageId: string, stageName: string) => {
@@ -110,6 +156,9 @@ export default function FunnelView() {
         onToggleMyFunnel={toggleMyFunnel}
         selectedOwnerLabel={selectedOwnerLabel}
         onClearOwner={() => setOwnerIds([])}
+        stageOptions={stageOptions}
+        rootStageId={state.rootStageId}
+        setRootStageId={state.setRootStageId}
       />
 
       <FunnelKpis
@@ -127,6 +176,7 @@ export default function FunnelView() {
             stages={conversion}
             previousStages={previousConversion}
             metric={state.metric}
+            compareEnabled={state.compareEnabled}
             onStageDrill={handleStageDrill}
           />
         </div>

@@ -6,6 +6,8 @@ export function useFunnelPageState() {
   const [mode, setMode] = useState<FunnelMode>('entries')
   const [metric, setMetric] = useState<FunnelMetric>('cards')
   const [compareEnabled, setCompareEnabled] = useState(false)
+  // null = primeira etapa do pipeline; caso contrário vira o "topo" do funil
+  const [rootStageId, setRootStageId] = useState<string | null>(null)
 
   return {
     mode,
@@ -14,6 +16,8 @@ export function useFunnelPageState() {
     setMetric,
     compareEnabled,
     setCompareEnabled,
+    rootStageId,
+    setRootStageId,
   }
 }
 
