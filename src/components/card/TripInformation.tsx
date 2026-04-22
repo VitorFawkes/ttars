@@ -3,7 +3,7 @@ import { Tag, Check, Plane, FileCheck, Loader2, X, ChevronDown, ChevronUp } from
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 
 import { supabase } from '../../lib/supabase'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '../../lib/utils'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
@@ -234,6 +234,22 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
         return getVisibleFields(targetStageId, 'trip_info')
     }, [viewModeStageId, card.pipeline_stage_id, getVisibleFields])
 
+    // Total de Faturamento (Produto - Vendas) — usado pelo botão "Copiar de" em Orçamento Previsto
+    // Mesma queryKey do FinanceiroWidget para aproveitar cache
+    const { data: financialItemsSaleValues = [] } = useQuery({
+        queryKey: ['financial-items', card.id],
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from('card_financial_items') as any)
+                .select('sale_value')
+                .eq('card_id', card.id)
+            if (error) throw error
+            return (data || []) as { sale_value: number | null }[]
+        },
+        enabled: !!card.id,
+    })
+    const financialItemsTotal = financialItemsSaleValues.reduce((sum, i) => sum + (Number(i.sale_value) || 0), 0)
+
     // Split fields into primary and secondary
     const primaryFields = useMemo(() => visibleFields.filter(f => !f.isSecondary), [visibleFields])
     const secondaryFields = useMemo(() => visibleFields.filter(f => f.isSecondary), [visibleFields])
@@ -406,7 +422,13 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                             field.key === 'numero_venda_monde' ? activeData :
                             (field.key === 'data_exata_da_viagem' || field.key === 'epoca_viagem')
                                 ? { produto_data: activeData, onFieldSave: (key: string, val: unknown) => updateCardMutation.mutate({ fieldKey: key, fieldValue: val }) }
-                                : undefined
+                                : field.key === 'orcamento'
+                                    ? {
+                                        financialItemsTotal,
+                                        quantidadeViajantes: Number(activeData?.quantidade_viajantes) || 0,
+                                        onFieldSave: (key: string, val: unknown) => updateCardMutation.mutate({ fieldKey: key, fieldValue: val })
+                                    }
+                                    : undefined
                         }
                     />
                 )
