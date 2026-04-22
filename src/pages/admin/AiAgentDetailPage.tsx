@@ -420,7 +420,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
         {activeTab === 'handoff' && <TabHandoff form={form} setForm={setFormWrapper} />}
-        {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} />}
+        {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'validador' && !isN8n && <TabValidatorRules form={form} setForm={setFormWrapper} />}
         {activeTab === 'ativacao' && (
           <TabAtivacao
