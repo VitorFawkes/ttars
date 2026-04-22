@@ -597,3 +597,10 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T17:04:43Z | supabase/migrations/20260426b_account_workspace_guards.sql | applied_to_prod
 2026-04-22T17:04:43Z | supabase/migrations/20260426c_provision_workspace_seed_system_fields.sql | applied_to_prod
 2026-04-22T17:09:36Z | supabase/migrations/20260427a_travel_planner_marco2b_envio_e_nps.sql | applied_to_staging
+2026-04-22T17:15:15Z | supabase/migrations/20260427a_travel_planner_marco2b_envio_e_nps.sql | applied_to_prod
+2026-04-22T17:25:32Z | supabase/migrations/20260426g_system_fields_per_org_pk.sql | applied_to_prod
+2026-04-22T17:25:56Z | supabase/migrations/20260426e_cleanup_account_orphans.sql | applied_to_prod
+2026-04-22T17:27:40Z | supabase/migrations/20260426e_cleanup_account_orphans.sql | applied_to_prod
+2026-04-22T17:27:46Z | supabase/migrations/20260422a_analytics_funil_v3.sql | applied_to_prod
+2026-04-22T17:28:15Z | supabase/migrations/20260426f_account_workspace_structural_guards.sql | applied_to_prod
+2026-04-22T17:28:28Z | supabase/migrations/20260422a_analytics_funil_v3.sql | applied_to_prod
