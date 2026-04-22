@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone, MapPin } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -1742,6 +1742,18 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 <Megaphone className="h-3.5 w-3.5" />
                                 <span className="hidden sm:inline">Alertar</span>
                             </Button>
+                            {(card.produto === 'TRIPS' || !card.produto) && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/cards/${card.id}/viagem`)}
+                                    className="gap-1.5 text-indigo-700 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300"
+                                    title="Abrir página da viagem"
+                                >
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Página da Viagem</span>
+                                </Button>
+                            )}
                             <ActionButtons card={card} />
                         </div>
                     </div>

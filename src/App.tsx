@@ -13,6 +13,9 @@ import Dashboard from './pages/Dashboard'
 import InvitePage from './pages/InvitePage'
 import Pipeline from './pages/Pipeline'
 import CardDetail from './pages/CardDetail'
+import CardViagem from './pages/CardViagem'
+import ViagemStandalone from './pages/ViagemStandalone'
+import ViagensPage from './pages/ViagensPage'
 import CardByConversation from './pages/CardByConversation'
 import CreateCardFromEcho from './pages/CreateCardFromEcho'
 import Cards from './pages/Cards'
@@ -231,7 +234,10 @@ function App() {
                   <Route path="/cards/convo/:conversationId" element={<CardByConversation />} />
                   <Route path="/cards/echo/criar/:conversationId" element={<CreateCardFromEcho />} />
                   <Route path="/cards/:id" element={<CardDetail />} />
+                  <Route path="/cards/:id/viagem" element={<CardViagem />} />
                   <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
+                  <Route path="/viagens" element={<ViagensPage />} />
+                  <Route path="/viagens/:id" element={<ViagemStandalone />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
                   <Route path="/importacao-pos-venda" element={<ImportacaoPosVendaPage />} />
                   <Route path="/presentes" element={<PresentesHubPage />} />
