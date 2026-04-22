@@ -4,8 +4,6 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUsers } from '@/hooks/useUsers'
-import { usePipelineStages } from '@/hooks/usePipelineStages'
-import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 
 import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
@@ -22,37 +20,6 @@ export default function FunnelView() {
     useAnalyticsFilters()
 
   const state = useFunnelPageState()
-
-  // Lista de etapas do pipeline ativo — alimenta o seletor "Desde" e filtra o funil
-  const { pipelineId } = useCurrentProductMeta()
-  const { data: pipelineStages = [] } = usePipelineStages(pipelineId ?? undefined)
-
-  const stageOptions: StageOption[] = useMemo(
-    () =>
-      [...pipelineStages]
-        .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
-        .map(s => ({
-          id: s.id,
-          nome: s.nome,
-          ordem: s.ordem ?? 0,
-        })),
-    [pipelineStages]
-  )
-
-  // Índice da etapa raiz dentro do array do Pipeline Studio (ordem canônica).
-  // null = do começo.
-  const rootStageIndex = useMemo(() => {
-    if (!state.rootStageId) return null
-    const idx = stageOptions.findIndex(s => s.id === state.rootStageId)
-    return idx >= 0 ? idx : null
-  }, [state.rootStageId, stageOptions])
-
-  // Mapa stage_id → índice na ordem canônica do Pipeline Studio.
-  const stageOrderMap = useMemo(() => {
-    const m = new Map<string, number>()
-    stageOptions.forEach((s, idx) => m.set(s.id, idx))
-    return m
-  }, [stageOptions])
 
   const profileId = profile?.id ?? null
   const isMyFunnel = !!(profileId && ownerIds.length === 1 && ownerIds[0] === profileId)
@@ -95,30 +62,49 @@ export default function FunnelView() {
     refetch,
   } = useFunnelData(funnelParams, state.compareEnabled)
 
-  // Ordena rows pela ordem canônica do Pipeline Studio (etapas não mapeadas vão no fim)
-  // e recorta a partir da etapa raiz selecionada.
-  const sortByCanonicalOrder = useCallback(
-    <T extends { stage_id: string }>(rows: T[]): T[] => {
-      const ordered = [...rows].sort((a, b) => {
-        const ia = stageOrderMap.get(a.stage_id) ?? Number.MAX_SAFE_INTEGER
-        const ib = stageOrderMap.get(b.stage_id) ?? Number.MAX_SAFE_INTEGER
-        return ia - ib
-      })
-      if (rootStageIndex == null) return ordered
-      return ordered.filter(r => {
-        const idx = stageOrderMap.get(r.stage_id)
-        return idx != null && idx >= rootStageIndex
-      })
-    },
-    [stageOrderMap, rootStageIndex]
+  // Dropdown "Desde" usa as etapas da RPC (mesma fonte do funil, mesma ordem).
+  // A RPC já devolve ordenado por `pp.order_index, s.ordem`.
+  const stageOptions: StageOption[] = useMemo(
+    () =>
+      rawConversion.map((s, idx) => ({
+        id: s.stage_id,
+        nome: s.stage_nome,
+        ordem: idx,
+      })),
+    [rawConversion]
   )
 
-  const conversion = useMemo(() => sortByCanonicalOrder(rawConversion), [rawConversion, sortByCanonicalOrder])
-  const previousConversion = useMemo(
-    () => (rawPreviousConversion ? sortByCanonicalOrder(rawPreviousConversion) : null),
-    [rawPreviousConversion, sortByCanonicalOrder]
+  // A RPC `analytics_funnel_conversion` já devolve as etapas ordenadas por
+  // `pp.order_index, s.ordem` (mesma ordem do Kanban/Pipeline Studio).
+  // NÃO reordenamos no front — só recortamos a partir da etapa raiz.
+  const rootIndex = useMemo(() => {
+    if (!state.rootStageId) return 0
+    const idx = rawConversion.findIndex(s => s.stage_id === state.rootStageId)
+    return idx >= 0 ? idx : 0
+  }, [state.rootStageId, rawConversion])
+
+  const conversion = useMemo(
+    () => (rootIndex === 0 ? rawConversion : rawConversion.slice(rootIndex)),
+    [rawConversion, rootIndex]
   )
-  const velocity = useMemo(() => sortByCanonicalOrder(rawVelocity), [rawVelocity, sortByCanonicalOrder])
+
+  // IDs das etapas visíveis no funil (após recorte) — usadas pra filtrar velocity
+  // e previousConversion preservando a ordem canônica da RPC.
+  const visibleStageIds = useMemo(
+    () => new Set(conversion.map(s => s.stage_id)),
+    [conversion]
+  )
+
+  const previousConversion = useMemo(() => {
+    if (!rawPreviousConversion) return null
+    if (state.rootStageId == null) return rawPreviousConversion
+    return rawPreviousConversion.filter(s => visibleStageIds.has(s.stage_id))
+  }, [rawPreviousConversion, visibleStageIds, state.rootStageId])
+
+  const velocity = useMemo(() => {
+    if (state.rootStageId == null) return rawVelocity
+    return rawVelocity.filter(s => visibleStageIds.has(s.stage_id))
+  }, [rawVelocity, visibleStageIds, state.rootStageId])
 
   const handleStageDrill = useCallback(
     (stageId: string, stageName: string) => {
