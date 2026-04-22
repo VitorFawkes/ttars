@@ -590,3 +590,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T14:45:46Z | supabase/migrations/20260422c_wedding_funnel_rebuild.sql | applied_to_prod
 2026-04-22T14:45:59Z | supabase/migrations/20260422d_wedding_planning_fields.sql | applied_to_prod
 2026-04-22T14:46:13Z | supabase/migrations/20260422e_wedding_stage_configs.sql | applied_to_prod
+2026-04-22T14:51:03Z | supabase/migrations/20260426a_travel_planner_viagem_opcional_e_hidratacao.sql | applied_to_prod
