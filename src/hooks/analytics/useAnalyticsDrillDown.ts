@@ -19,8 +19,14 @@ export interface DrillDownContext {
     drillPeriodEnd?: string
     drillDestino?: string
     excludeTerminal?: boolean
-    /** Referência temporal para honrar na RPC de drill (Funil v3). 'stage' | 'created'. */
+    /** Referência temporal (Funil v3). 'stage' | 'created'. */
     drillDateRef?: 'stage' | 'created'
+    /** Etapa raiz do Funil v3 ("Desde X"): só cards que passaram por essa etapa. */
+    drillRootStageId?: string
+    /** Status filter do Funil v3. NULL = todos. Ex: ['aberto']/['ganho']/['perdido']. */
+    drillStatusArray?: string[]
+    /** Sub-filtro de ganhos do Funil v3: 'sdr'|'planner'|'pos'. */
+    drillGanhoFase?: 'sdr' | 'planner' | 'pos'
 }
 
 export interface DrillDownCard {
@@ -96,6 +102,7 @@ export function useAnalyticsDrillDownQuery() {
             context?.drillLossReason, context?.drillStatus, context?.drillPhase,
             context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino,
             context?.excludeTerminal, context?.drillDateRef,
+            context?.drillRootStageId, context?.drillStatusArray, context?.drillGanhoFase,
             sortBy, sortDir, page,
         ],
         queryFn: async () => {
@@ -124,6 +131,11 @@ export function useAnalyticsDrillDownQuery() {
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_date_ref: context?.drillDateRef ?? 'stage',
+                p_drill_root_stage_id: context?.drillRootStageId ?? null,
+                p_drill_status_array: context?.drillStatusArray && context.drillStatusArray.length > 0
+                    ? context.drillStatusArray
+                    : null,
+                p_drill_ganho_fase: context?.drillGanhoFase ?? null,
             })
             if (error) throw error
             const rows = (data as unknown as DrillDownCard[]) || []
