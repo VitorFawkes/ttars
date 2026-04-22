@@ -226,13 +226,12 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (active.id !== over.id) {
-            setOrderedFields((items) => {
-                const oldIndex = items.indexOf(active.id);
-                const newIndex = items.indexOf(over.id);
-                return arrayMove(items, oldIndex, newIndex);
-            });
-        }
+        if (!over || active.id === over.id) return;
+        setOrderedFields((items) => {
+            const oldIndex = items.indexOf(String(active.id));
+            const newIndex = items.indexOf(String(over.id));
+            return arrayMove(items, oldIndex, newIndex);
+        });
     };
 
     const toggleVisibility = (fieldKey: string) => {
