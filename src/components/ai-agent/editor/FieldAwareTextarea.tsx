@@ -15,21 +15,26 @@ export interface FieldAwareTextareaProps {
   trigger?: string
 }
 
-// Estilo compartilhado por textarea e mirror. Tem que ser idêntico byte-a-byte
-// pra alinhar pixel-perfect (fonte, tamanho, line-height, padding, border).
-const SHARED_TEXT_STYLE: React.CSSProperties = {
+// Estilo de caixa compartilhado. Fonte/padding/border-width/wrapping têm que
+// bater byte-a-byte entre textarea e mirror pra alinhar pixel-perfect. Só a
+// COR da borda difere: mirror = transparente (invisível), textarea = slate-200.
+const BOX_STYLE: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: '0.875rem',
   lineHeight: '1.375rem',
   padding: '0.5rem 0.75rem',
-  border: '1px solid transparent',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderRadius: '0.375rem',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
   minHeight: '60px',
   margin: 0,
   boxSizing: 'border-box',
-  borderRadius: '0.375rem',
 }
+
+const MIRROR_STYLE: React.CSSProperties = { ...BOX_STYLE, borderColor: 'transparent' }
+const TEXTAREA_STYLE: React.CSSProperties = { ...BOX_STYLE, borderColor: 'rgb(226, 232, 240)' }
 
 /**
  * Textarea com autocomplete de campos do CRM e destaque visual.
@@ -149,7 +154,7 @@ export function FieldAwareTextarea({
         ref={mirrorRef}
         aria-hidden
         className="pointer-events-none absolute inset-0 overflow-hidden text-slate-900"
-        style={SHARED_TEXT_STYLE}
+        style={MIRROR_STYLE}
       >
         {tokens.length === 0 ? (
           <span className="text-slate-400">{placeholder}</span>
@@ -186,8 +191,8 @@ export function FieldAwareTextarea({
         rows={rows}
         placeholder={placeholder}
         spellCheck={false}
-        className="relative block w-full resize-y border border-slate-200 bg-transparent text-transparent caret-slate-900 placeholder:text-transparent focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
-        style={SHARED_TEXT_STYLE}
+        className="relative block w-full resize-y bg-transparent text-transparent caret-slate-900 placeholder:text-transparent focus-visible:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-100"
+        style={TEXTAREA_STYLE}
       />
 
       {mention && (
