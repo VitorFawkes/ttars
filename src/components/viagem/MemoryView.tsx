@@ -1,17 +1,34 @@
 import { Heart } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Viagem, DayGroupData, TripItem, TripComment } from '@/types/viagem'
 import { DayGroup } from './DayGroup'
 import { ItemCard } from './ItemCard'
 import { NPSForm } from './NPSForm'
+import { useViagemMutations } from '@/hooks/viagem/useViagemMutations'
 
 interface MemoryViewProps {
   viagem: Viagem
   days: DayGroupData[]
   orphans: TripItem[]
   comments: TripComment[]
+  token: string
 }
 
-export function MemoryView({ viagem, days, orphans, comments }: MemoryViewProps) {
+export function MemoryView({ viagem, days, orphans, comments, token }: MemoryViewProps) {
+  const { registrarNps } = useViagemMutations(token)
+
+  const handleNpsSubmit = (nota: number, comentario: string) => {
+    registrarNps.mutate(
+      { nota, comentario },
+      {
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : 'Não conseguimos registrar sua resposta'
+          toast.error(msg)
+        },
+      },
+    )
+  }
+
   return (
     <div className="space-y-4 pb-8">
       {/* Thank you banner */}
@@ -26,7 +43,9 @@ export function MemoryView({ viagem, days, orphans, comments }: MemoryViewProps)
       </div>
 
       {/* NPS */}
-      {viagem.estado === 'pos_viagem' && <NPSForm />}
+      {(viagem.estado === 'pos_viagem' || viagem.estado === 'concluida') && (
+        <NPSForm onSubmit={handleNpsSubmit} />
+      )}
 
       {/* Timeline as memory */}
       {days.map((group) => (

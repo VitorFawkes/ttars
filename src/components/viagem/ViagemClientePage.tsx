@@ -104,6 +104,7 @@ export function ViagemClientePage({
               days={days}
               orphans={orphans}
               comments={comments}
+              token={token}
             />
           )}
         </div>

@@ -596,3 +596,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T15:24:05Z | supabase/migrations/20260422b_sub_card_default_stage_wedding.sql | applied_to_prod
 2026-04-22T17:04:43Z | supabase/migrations/20260426b_account_workspace_guards.sql | applied_to_prod
 2026-04-22T17:04:43Z | supabase/migrations/20260426c_provision_workspace_seed_system_fields.sql | applied_to_prod
+2026-04-22T17:09:36Z | supabase/migrations/20260427a_travel_planner_marco2b_envio_e_nps.sql | applied_to_staging
