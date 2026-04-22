@@ -94,6 +94,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
     const [orderedFields, setOrderedFields] = useState<string[]>([]);
     const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
     const [phaseConfig, setPhaseConfig] = useState({
+        active: true,
         supports_win: false,
         win_action: 'advance_to_next' as string,
         owner_label: '',
@@ -103,6 +104,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         if (phase) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setPhaseConfig({
+                active: phase.active ?? true,
                 supports_win: phase.supports_win ?? false,
                 win_action: phase.win_action ?? 'advance_to_next',
                 owner_label: phase.owner_label ?? '',
@@ -177,10 +179,11 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         mutationFn: async () => {
             if (!phase?.name) return;
 
-            // 1. Salvar regras de ganho na pipeline_phases (feature nova)
+            // 1. Salvar regras de ganho + flag ativa na pipeline_phases
             const { error: phaseError } = await supabase
                 .from('pipeline_phases')
                 .update({
+                    active: phaseConfig.active,
                     supports_win: phaseConfig.supports_win,
                     win_action: phaseConfig.win_action || null,
                     owner_label: phaseConfig.owner_label || null,
@@ -263,6 +266,32 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
+                    {/* Fase ativa/inativa */}
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-3">Visibilidade</h3>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                                <span className="text-sm font-medium text-gray-900">Fase ativa</span>
+                                <p className="text-xs text-gray-500">
+                                    Quando desativada, some do Kanban, Funil e Analytics. As etapas continuam no banco — é só esconder, não apagar.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPhaseConfig(prev => ({ ...prev, active: !prev.active }))}
+                                className={cn(
+                                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-3",
+                                    phaseConfig.active ? "bg-indigo-600" : "bg-gray-300"
+                                )}
+                            >
+                                <span className={cn(
+                                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                    phaseConfig.active ? "translate-x-6" : "translate-x-1"
+                                )} />
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Win / Ganho configuration */}
                     <div className="mb-6">
                         <h3 className="text-sm font-semibold text-gray-800 mb-3">Regras de Ganho</h3>

@@ -88,11 +88,16 @@ export default function PhaseColumn({
         )
     }
 
+    const isInactive = phase.active === false
+
     return (
         <div
             ref={setNodeRef}
             style={style}
-            className="flex flex-col h-full w-[300px] bg-gray-50/50 rounded-xl border border-gray-200 flex-shrink-0"
+            className={cn(
+                "flex flex-col h-full w-[300px] bg-gray-50/50 rounded-xl border border-gray-200 flex-shrink-0",
+                isInactive && "opacity-60 border-dashed"
+            )}
         >
             {/* Header */}
             <div
@@ -113,8 +118,13 @@ export default function PhaseColumn({
                         <GripVertical className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-sm text-gray-900 truncate uppercase tracking-wide">
+                        <span className="font-bold text-sm text-gray-900 truncate uppercase tracking-wide flex items-center gap-1.5">
                             {phase.name}
+                            {isInactive && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-200 text-slate-600 normal-case tracking-wider">
+                                    inativa
+                                </span>
+                            )}
                         </span>
                         <span className="text-[10px] text-gray-500">
                             {stages.length} etapas
