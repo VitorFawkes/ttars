@@ -4,7 +4,9 @@ import type { Viagem, DayGroupData, TripItem, TripComment } from '@/types/viagem
 import { DayGroup } from './DayGroup'
 import { ItemCard } from './ItemCard'
 import { NPSForm } from './NPSForm'
+import { FotoShare } from './FotoShare'
 import { useViagemMutations } from '@/hooks/viagem/useViagemMutations'
+import { useParticipant } from '@/hooks/viagem/useParticipant'
 
 interface MemoryViewProps {
   viagem: Viagem
@@ -16,6 +18,7 @@ interface MemoryViewProps {
 
 export function MemoryView({ viagem, days, orphans, comments, token }: MemoryViewProps) {
   const { registrarNps } = useViagemMutations(token)
+  const { participant } = useParticipant(viagem.id)
 
   const handleNpsSubmit = (nota: number, comentario: string) => {
     registrarNps.mutate(
@@ -46,6 +49,14 @@ export function MemoryView({ viagem, days, orphans, comments, token }: MemoryVie
       {(viagem.estado === 'pos_viagem' || viagem.estado === 'concluida') && (
         <NPSForm onSubmit={handleNpsSubmit} />
       )}
+
+      {/* Álbum permanente */}
+      <FotoShare
+        token={token}
+        viagemId={viagem.id}
+        participantId={participant?.id ?? null}
+        variant="album"
+      />
 
       {/* Timeline as memory */}
       {days.map((group) => (

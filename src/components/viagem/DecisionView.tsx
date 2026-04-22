@@ -33,9 +33,9 @@ export function DecisionView({
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Travel Planner contact */}
+      {/* Travel Planner contact (primary durante decisão) */}
       {viagem.tp && (
-        <ContactCard owner={viagem.tp} role="tp" />
+        <ContactCard owner={viagem.tp} role="tp" variant="primary" viagemTitulo={viagem.titulo} />
       )}
 
       {/* Days timeline */}

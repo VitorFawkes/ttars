@@ -39,6 +39,8 @@ export interface ViagemOwner {
   id: string
   nome: string
   avatar_url: string | null
+  email?: string | null
+  telefone?: string | null
 }
 
 export interface TripItemAlternativa {

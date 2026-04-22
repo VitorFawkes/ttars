@@ -8,6 +8,8 @@ import { TravelView } from './TravelView'
 import { MemoryView } from './MemoryView'
 import { OfflineBanner } from './OfflineBanner'
 import { ParticipantGate } from './ParticipantGate'
+import { FloatingChatButton } from './FloatingChatButton'
+import { PWAInstallHint } from './PWAInstallHint'
 import { useParticipant } from '@/hooks/viagem/useParticipant'
 
 interface ViagemClientePageProps {
@@ -102,6 +104,7 @@ export function ViagemClientePage({
               days={days}
               orphans={orphans}
               comments={comments}
+              token={token}
             />
           )}
 
@@ -111,6 +114,7 @@ export function ViagemClientePage({
               days={days}
               orphans={orphans}
               comments={comments}
+              token={token}
             />
           )}
 
@@ -120,6 +124,7 @@ export function ViagemClientePage({
               days={days}
               orphans={orphans}
               comments={comments}
+              token={token}
             />
           )}
 
@@ -134,6 +139,19 @@ export function ViagemClientePage({
           )}
         </div>
       </div>
+
+      {/* Botão flutuante "Conversar com a equipe" — disponível em todos os
+          estados ativos com passageiro identificado */}
+      {participant && ['decision', 'preparation', 'countdown', 'travel'].includes(view) && (
+        <FloatingChatButton
+          token={token}
+          comments={comments}
+          participantId={participant.id}
+        />
+      )}
+
+      {/* Sugestão de instalar como PWA (só em mobile) */}
+      <PWAInstallHint />
     </div>
   )
 }

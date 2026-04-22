@@ -4,12 +4,15 @@ import { CountdownBanner } from './CountdownBanner'
 import { DayGroup } from './DayGroup'
 import { ItemCard } from './ItemCard'
 import { EmergencyContacts } from './EmergencyContacts'
+import { ChecklistPreEmbarque } from './ChecklistPreEmbarque'
+import { useParticipant } from '@/hooks/viagem/useParticipant'
 
 interface CountdownViewProps {
   viagem: Viagem
   days: DayGroupData[]
   orphans: TripItem[]
   comments: TripComment[]
+  token: string
 }
 
 /**
@@ -36,17 +39,25 @@ function getDepartureDate(days: DayGroupData[], orphans: TripItem[]): string | n
   return candidatas[0]
 }
 
-export function CountdownView({ viagem, days, orphans, comments }: CountdownViewProps) {
+export function CountdownView({ viagem, days, orphans, comments, token }: CountdownViewProps) {
   const departureDate = useMemo(
     () => getDepartureDate(days, orphans),
     [days, orphans],
   )
+  const { participant } = useParticipant(viagem.id)
 
   return (
     <div className="space-y-4 pb-8">
       <CountdownBanner targetDate={departureDate} />
 
-      <EmergencyContacts tp={viagem.tp} pv={viagem.pv} />
+      <EmergencyContacts tp={viagem.tp} pv={viagem.pv} viagemTitulo={viagem.titulo} />
+
+      {participant && (
+        <ChecklistPreEmbarque
+          token={token}
+          participantId={participant.id}
+        />
+      )}
 
       {days.map((group) => (
         <DayGroup

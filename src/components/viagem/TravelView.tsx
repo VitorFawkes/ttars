@@ -3,15 +3,20 @@ import type { Viagem, DayGroupData, TripItem, TripComment } from '@/types/viagem
 import { DayGroup } from './DayGroup'
 import { ItemCard } from './ItemCard'
 import { EmergencyContacts } from './EmergencyContacts'
+import { FotoShare } from './FotoShare'
+import { useParticipant } from '@/hooks/viagem/useParticipant'
 
 interface TravelViewProps {
   viagem: Viagem
   days: DayGroupData[]
   orphans: TripItem[]
   comments: TripComment[]
+  token: string
 }
 
-export function TravelView({ viagem, days, orphans, comments }: TravelViewProps) {
+export function TravelView({ viagem, days, orphans, comments, token }: TravelViewProps) {
+  const { participant } = useParticipant(viagem.id)
+
   return (
     <div className="space-y-4 pb-8">
       {/* Today banner */}
@@ -23,7 +28,14 @@ export function TravelView({ viagem, days, orphans, comments }: TravelViewProps)
         </p>
       </div>
 
-      <EmergencyContacts tp={viagem.tp} pv={viagem.pv} />
+      <EmergencyContacts tp={viagem.tp} pv={viagem.pv} viagemTitulo={viagem.titulo} />
+
+      <FotoShare
+        token={token}
+        viagemId={viagem.id}
+        participantId={participant?.id ?? null}
+        variant="compact"
+      />
 
       {days.map((group) => (
         <DayGroup
