@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { SingleFieldPicker, type CRMField } from './CRMFieldPicker'
 import type { QualificationStageInput, DisqualificationTrigger } from '@/hooks/useAgentQualificationFlow'
 
 const ADVANCE_OPTIONS = [
@@ -21,7 +22,9 @@ export interface QualificationFlowEditorProps {
   value: QualificationStageInput[]
   onChange: (next: QualificationStageInput[]) => void
   pipelineId?: string
-  /** Cards de campo do CRM que podem receber respostas (ex: mkt_destino) */
+  /** Slug do produto (TRIPS, WEDDING) para filtrar os campos disponíveis. */
+  produto?: string
+  /** @deprecated antes era usado para popular Select. Hoje o SingleFieldPicker carrega os campos do CRM real. */
   fieldOptions?: Array<{ value: string; label: string }>
 }
 
@@ -41,8 +44,21 @@ function emptyStage(order: number): QualificationStageInput {
   }
 }
 
-export function QualificationFlowEditor({ value, onChange, pipelineId, fieldOptions }: QualificationFlowEditorProps) {
+export function QualificationFlowEditor({ value, onChange, pipelineId, produto, fieldOptions }: QualificationFlowEditorProps) {
   const { data: stages } = usePipelineStages(pipelineId)
+
+  // Retrocompat: se alguém ainda passa fieldOptions, converte em extraFields do picker
+  // para que essas chaves apareçam no topo da lista com uma seção "Personalizados".
+  const extraFields: CRMField[] | undefined = fieldOptions && fieldOptions.length > 0
+    ? fieldOptions.map(o => ({
+        key: o.value,
+        label: o.label,
+        type: 'text',
+        section: '__custom_options',
+        sectionLabel: 'Personalizados',
+        origin: 'card' as const,
+      }))
+    : undefined
   const [local, setLocal] = useState<QualificationStageInput[]>(value)
 
   useEffect(() => { setLocal(value) }, [value])
@@ -131,20 +147,16 @@ export function QualificationFlowEditor({ value, onChange, pipelineId, fieldOpti
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">Campo do card que recebe a resposta</Label>
-              {fieldOptions && fieldOptions.length > 0 ? (
-                <Select
-                  value={stage.maps_to_field ?? ''}
-                  onChange={(v: string) => update(idx, { maps_to_field: v || null })}
-                  options={[{ value: '', label: '—' }, ...fieldOptions]}
-                />
-              ) : (
-                <Input
-                  value={stage.maps_to_field ?? ''}
-                  onChange={e => update(idx, { maps_to_field: e.target.value || null })}
-                  placeholder="mkt_destino"
-                  className="font-mono text-sm"
-                />
-              )}
+              <SingleFieldPicker
+                value={stage.maps_to_field ?? null}
+                onChange={(v) => update(idx, { maps_to_field: v || null })}
+                scope="card"
+                pipelineId={pipelineId}
+                produto={produto}
+                extraFields={extraFields}
+                allowCustom
+                placeholder="Escolha onde salvar esta resposta"
+              />
             </div>
           </div>
 

@@ -9,6 +9,8 @@ import {
   type BusinessConfigInput,
   type BusinessConfig,
 } from '@/hooks/useAgentBusinessConfig'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useProducts } from '@/hooks/useProducts'
 
 interface Props {
   agentId: string | undefined
@@ -42,8 +44,13 @@ function fromRemote(c: BusinessConfig | null): BusinessConfigInput {
 
 export function TabRegrasNegocio({ agentId }: Props) {
   const { config, isLoading, upsert } = useAgentBusinessConfig(agentId)
+  const { data: agent } = useAiAgentDetail(agentId)
+  const { products } = useProducts()
   const [local, setLocal] = useState<BusinessConfigInput>(DEFAULT_BUSINESS_CONFIG)
   const [dirty, setDirty] = useState(false)
+
+  const agentProduto = (agent as { produto?: string } | undefined)?.produto
+  const pipelineId = products.find(p => p.slug === agentProduto)?.pipeline_id ?? undefined
 
   // Carrega local a partir do servidor (derive-from-props). Após save, React Query invalida
   // e re-sincroniza. Pattern estabelecida no AiAgentDetailPage desta mesma pasta.
@@ -89,7 +96,12 @@ export function TabRegrasNegocio({ agentId }: Props) {
 
   return (
     <div className="space-y-4">
-      <BusinessConfigEditor value={local} onChange={handleChange} />
+      <BusinessConfigEditor
+        value={local}
+        onChange={handleChange}
+        pipelineId={pipelineId}
+        produto={agentProduto}
+      />
 
       <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-slate-50/90 backdrop-blur py-3 -mx-6 px-6 border-t border-slate-200">
         {dirty && <span className="text-xs text-amber-600">• alterações não salvas</span>}

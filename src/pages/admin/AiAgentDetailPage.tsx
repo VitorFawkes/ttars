@@ -417,7 +417,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
         {activeTab === 'teste' && !isN8n && <TabTeste agentId={isNew ? undefined : id} />}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
-        {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} />}
+        {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
         {activeTab === 'handoff' && <TabHandoff form={form} setForm={setFormWrapper} />}
         {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} />}

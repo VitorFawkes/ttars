@@ -5,6 +5,7 @@ import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { MultiFieldPicker } from './CRMFieldPicker'
 import type { BusinessConfigInput, AgentTone, PricingModel, FeeTiming, BusinessCustomBlock } from '@/hooks/useAgentBusinessConfig'
 
 const TONE_OPTIONS: Array<{ value: AgentTone; label: string }> = [
@@ -35,6 +36,10 @@ const FEE_TIMING_OPTIONS: Array<{ value: FeeTiming; label: string }> = [
 export interface BusinessConfigEditorProps {
   value: BusinessConfigInput
   onChange: (next: BusinessConfigInput) => void
+  /** Pipeline do agente para filtrar os campos do CRM disponíveis. */
+  pipelineId?: string
+  /** Slug do produto do agente (TRIPS, WEDDING) — filtra seções. */
+  produto?: string
 }
 
 function StringArrayInput({ label, value, onChange, placeholder }: {
@@ -57,7 +62,45 @@ function StringArrayInput({ label, value, onChange, placeholder }: {
   )
 }
 
-export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorProps) {
+function FieldPickerBlock({
+  label,
+  hint,
+  value,
+  onChange,
+  scope,
+  pipelineId,
+  produto,
+  allowCustom,
+  placeholder,
+}: {
+  label: string
+  hint?: string
+  value: string[]
+  onChange: (next: string[]) => void
+  scope: 'card' | 'contact' | 'any'
+  pipelineId?: string
+  produto?: string
+  allowCustom?: boolean
+  placeholder?: string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-slate-600">{label}</Label>
+      <MultiFieldPicker
+        value={value}
+        onChange={onChange}
+        scope={scope}
+        pipelineId={pipelineId}
+        produto={produto}
+        allowCustom={allowCustom}
+        placeholder={placeholder ?? 'Escolha um ou mais campos'}
+      />
+      {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
+export function BusinessConfigEditor({ value, onChange, pipelineId, produto }: BusinessConfigEditorProps) {
   const patch = (p: Partial<BusinessConfigInput>) => onChange({ ...value, ...p })
 
   return (
@@ -140,31 +183,44 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
           </div>
         </header>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <StringArrayInput
-            label="Campos de formulário do marketing (para regra NO-REPEAT)"
+          <FieldPickerBlock
+            label="Campos de formulário do marketing"
+            hint="Campos que o lead já preencheu no site/landing — o agente não pergunta de novo."
             value={value.form_data_fields ?? []}
             onChange={next => patch({ form_data_fields: next })}
-            placeholder={'mkt_destino\nmkt_quem_vai_viajar_junto\nmkt_valor_por_pessoa_viagem'}
+            scope="card"
+            pipelineId={pipelineId}
+            produto={produto}
+            allowCustom
           />
-          <StringArrayInput
+          <FieldPickerBlock
             label="Campos de contato que podem ser atualizados"
+            hint="O agente pode escrever nesses campos do contato quando o cliente confirmar."
             value={value.contact_update_fields ?? []}
             onChange={next => patch({ contact_update_fields: next })}
-            placeholder={'nome\nsobrenome\nemail\ncpf'}
+            scope="contact"
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <StringArrayInput
+          <FieldPickerBlock
             label="Campos do card atualizáveis automaticamente"
+            hint="Campos do card que o agente pode escrever sem confirmação (ex: resumo, contexto)."
             value={value.auto_update_fields ?? []}
             onChange={next => patch({ auto_update_fields: next })}
-            placeholder={'titulo\nai_resumo\nai_contexto\npipeline_stage_id'}
+            scope="card"
+            pipelineId={pipelineId}
+            produto={produto}
+            allowCustom
           />
-          <StringArrayInput
-            label="Campos PROTEGIDOS (nunca atualizar)"
+          <FieldPickerBlock
+            label="Campos protegidos (nunca atualizar)"
+            hint="Campos que o agente nunca pode sobrescrever, mesmo que peça."
             value={value.protected_fields ?? []}
             onChange={next => patch({ protected_fields: next })}
-            placeholder={'pessoa_principal_id\nproduto_data\nvalor_estimado\ncontato.telefone'}
+            scope="any"
+            pipelineId={pipelineId}
+            produto={produto}
+            allowCustom
           />
         </div>
       </section>
@@ -191,11 +247,12 @@ export function BusinessConfigEditor({ value, onChange }: BusinessConfigEditorPr
           <p className="text-[11px] text-slate-400">O router usa esse termo ao se dirigir ao contato secundário no prompt (ex: "COMPORTAMENTO ACOMPANHANTE: …").</p>
         </div>
         {value.secondary_contact_role_name?.trim() && (
-          <StringArrayInput
+          <FieldPickerBlock
             label="Campos que secundários podem fornecer"
+            hint="Dados do contato secundário (ex: viajante, convidado) que o agente pode pedir e salvar."
             value={value.secondary_contact_fields ?? []}
             onChange={next => patch({ secondary_contact_fields: next })}
-            placeholder={'cpf\npassaporte\ndata_nascimento'}
+            scope="contact"
           />
         )}
       </section>

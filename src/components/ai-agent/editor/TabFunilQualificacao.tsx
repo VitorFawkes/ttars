@@ -86,6 +86,7 @@ export function TabFunilQualificacao({ agentId }: Props) {
         value={local}
         onChange={handleChange}
         pipelineId={pipelineId}
+        produto={agentProduto}
       />
 
       <div className="flex items-center justify-end gap-3">

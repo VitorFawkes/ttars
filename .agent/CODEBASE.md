@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-21
+> **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 181 tabelas | 104 paginas | 148 hooks | 19 views | 570 components
+> **Stats:** 184 tabelas | 104 paginas | 148 hooks | 19 views | 571 components
 =======
-> **Stats:** 181 tabelas | 104 paginas | 148 hooks | 19 views | 570 components
+> **Stats:** 184 tabelas | 104 paginas | 148 hooks | 19 views | 571 components
 >>>>>>> feat/c2-editor-abas
 
 ---
