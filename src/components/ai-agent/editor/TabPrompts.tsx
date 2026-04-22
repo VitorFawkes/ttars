@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { PromptVariablesPanel } from './PromptVariablesPanel'
 import { FieldAwareTextarea, type FieldAwareTextareaHandle } from './FieldAwareTextarea'
-import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useProducts } from '@/hooks/useProducts'
 import type { AgentEditorForm } from './types'
 import {
   JULIA_PROMPT_MAIN, JULIA_PROMPT_CONTEXT, JULIA_PROMPT_DATA_UPDATE,
@@ -15,6 +16,7 @@ import {
 interface Props {
   form: AgentEditorForm
   setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
+  agentId?: string
 }
 
 type PromptKey = 'main' | 'context' | 'data_update' | 'formatting' | 'validator'
@@ -57,12 +59,16 @@ const PROMPT_BLOCKS: Array<{ key: PromptKey; title: string; hint: string; placeh
   },
 ]
 
-export function TabPrompts({ form, setForm }: Props) {
+export function TabPrompts({ form, setForm, agentId }: Props) {
   const refs = useRef<Record<string, FieldAwareTextareaHandle | null>>({})
   const focusedKey = useRef<PromptKey>('main')
 
-  // Pipeline + produto do contexto atual, pra alimentar o autocomplete @ de campos do CRM.
-  const { slug: produto, pipelineId } = useCurrentProductMeta()
+  // Pipeline + produto do próprio agente (não do contexto da sessão), pra garantir
+  // que o @-autocomplete sempre mostre os campos corretos do produto do agente.
+  const { data: agent } = useAiAgentDetail(agentId)
+  const { products } = useProducts()
+  const produto = (agent as { produto?: string } | undefined)?.produto
+  const pipelineId = products.find(p => p.slug === produto)?.pipeline_id ?? undefined
 
   const getValue = (key: PromptKey) => {
     if (key === 'main') return form.system_prompt
@@ -139,7 +145,7 @@ export function TabPrompts({ form, setForm }: Props) {
             placeholder={block.placeholder}
             rows={block.key === 'main' ? 12 : 6}
             pipelineId={pipelineId}
-            produto={produto ?? undefined}
+            produto={produto}
             className="font-mono"
           />
           <p className="text-[11px] text-slate-400">
