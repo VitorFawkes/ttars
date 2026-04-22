@@ -14,7 +14,9 @@ A Welcome Weddings é a divisão de destination wedding do grupo Welcome. Planej
 
 ## O funil de Weddings (2026-04-22)
 
-O funil tem **16 etapas** divididas em 3 macro-áreas + resolução, com 3 donos diferentes por fase.
+O funil tem **14 etapas** divididas em 3 macro-áreas, com 3 donos diferentes por fase.
+
+**Perdido e Ganho são STATUS do card, não etapas.** Isso segue o mesmo padrão do Trips: quando um casamento é perdido, o card ganha `status_comercial='perdido'` + `motivo_perda_id` (pela RPC `mover_card`), mas fica onde está — não se move pra uma etapa "Perdido". O Kanban filtra por status e não mostra cards perdidos por default. Quando é ganho, os flags de milestone (`ganho_sdr`, `ganho_planner`, `ganho_pos`) no card registram o ganho — não é uma etapa "Ganho".
 
 ### Princípio fundamental
 
@@ -49,22 +51,21 @@ Dono: **Wedding Planner** (pessoa diferente do Closer)
 
 | # | Etapa | O que significa |
 |---|-------|-----------------|
-| 3.1 | Boas-vindas & Questionário | Kit de onboarding + questionário profundo |
+| 3.1 | Boas-vindas e Questionário | Kit de onboarding + questionário profundo |
 | 3.2 | Concepção | Conceito, paleta, mood, estilo definidos |
 | 3.3 | Fornecedores em Contratação | Venue, buffet, foto, vídeo, DJ, decor, flores, bolo, cerimonialista |
-| 3.4 | Convidados & Logística | Lista fechando, RSVP abrindo, hospedagem e transfer |
+| 3.4 | Convidados e Logística | Lista fechando, RSVP abrindo, hospedagem e transfer |
 | 3.5 | Pré-evento (últimos 60 dias) | Cronograma, ensaio, logística dia D |
-| 3.6 | Casamento Realizado ⭐ | Cerimônia aconteceu (`ww_casamento_realizado`) |
+| 3.6 | Casamento Realizado | Cerimônia aconteceu (etapa operacional, sem flag de ganho) |
 | 3.7 | Pós-casamento | Fotos/vídeos entregues, NPS coletado, lua de mel cross-Trips se aplicável |
 
-### Área 4 — Resolução
+### Status de resolução (NÃO são etapas)
 
-| # | Etapa | Quando |
-|---|-------|--------|
-| 4.1 | Perdido | Saiu antes de assinar contrato (com motivo de perda) |
-| 4.2 | Cancelado | Contrato assinado mas casamento não vai acontecer (noivado desfeito, força maior) |
-
-**Não existe "Pausado".** Se casal suspende, fica com o Wedding Planner e o dono avalia caso a caso.
+| Status | Como marca |
+|--------|------------|
+| Perdido | `cards.status_comercial = 'perdido'` + `motivo_perda_id` preenchido. Card fica na etapa em que estava quando virou perdido. Kanban não mostra por default. |
+| Cancelado | Caso especial de perdido pós-contrato (noivado desfeito, força maior). Mesmo mecanismo: `status_comercial='perdido'` + motivo de perda específico. |
+| Pausado | Não existe. Se casal suspende, Wedding Planner marca tag e acompanha manualmente. |
 
 ---
 
