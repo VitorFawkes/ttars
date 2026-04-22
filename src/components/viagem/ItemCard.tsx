@@ -50,6 +50,7 @@ interface ItemCardProps {
   isApproving?: boolean
   isCommenting?: boolean
   readOnly?: boolean
+  selfParticipantId?: string | null
 }
 
 export function ItemCard({
@@ -61,6 +62,7 @@ export function ItemCard({
   isApproving,
   isCommenting,
   readOnly,
+  selfParticipantId,
 }: ItemCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [showComments, setShowComments] = useState(false)
@@ -190,6 +192,7 @@ export function ItemCard({
             comments={itemComments}
             onComment={(texto) => onComment(item.id, texto)}
             isSubmitting={isCommenting}
+            selfParticipantId={selfParticipantId}
           />
         )}
       </div>
