@@ -60,30 +60,45 @@ export default function FunnelView() {
   const { data: teamData = [] } = useFilterTeams()
   const { data: tagData = [] } = useFilterTags()
 
-  // Owners em seções: Times (expandem para membros ao marcar) + Pessoas (individuais).
+  // Owners agrupados: cada time vira uma seção. Primeira opção da seção é o time
+  // inteiro (marca todos os membros); abaixo vêm as pessoas individualmente.
+  // Pessoas sem time (ou com team_id apontando pra time de outro workspace) caem
+  // numa seção final "Sem time".
   const ownerSections: PickerSection[] = useMemo(() => {
+    const profileMap = new Map(profileOptions.map(p => [p.id, p.nome || '(sem nome)']))
     const sections: PickerSection[] = []
-    if (teamData.length > 0) {
+    const accountedIds = new Set<string>()
+
+    for (const team of teamData) {
+      const members = team.memberIds
+        .filter(id => profileMap.has(id))
+        .map(id => ({ id, label: profileMap.get(id)! }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+      if (members.length === 0) continue
+      members.forEach(m => accountedIds.add(m.id))
+
       sections.push({
-        label: 'Times',
-        options: teamData.map(t => ({
-          id: `team:${t.id}`,
-          label: t.name,
-          badge: `${t.memberIds.length}`,
-          expandTo: t.memberIds,
-          matchByExpand: true,
-        })),
+        label: team.name,
+        options: [
+          {
+            id: `team:${team.id}`,
+            label: `Todos de ${team.name}`,
+            badge: `${members.length}`,
+            expandTo: members.map(m => m.id),
+            matchByExpand: true,
+          },
+          ...members,
+        ],
       })
     }
-    if (profileOptions.length > 0) {
-      sections.push({
-        label: 'Pessoas',
-        options: profileOptions.map(p => ({
-          id: p.id,
-          label: p.nome || '(sem nome)',
-        })),
-      })
+
+    const orphan = profileOptions
+      .filter(p => !accountedIds.has(p.id))
+      .map(p => ({ id: p.id, label: p.nome || '(sem nome)' }))
+    if (orphan.length > 0) {
+      sections.push({ label: 'Sem time', options: orphan })
     }
+
     return sections
   }, [teamData, profileOptions])
 

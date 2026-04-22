@@ -162,14 +162,18 @@ export default function MultiPickerPopover({
                     {sec.label}
                   </div>
                 )}
-                {sec.options.map(o => {
+                {sec.options.map((o, oIdx) => {
                   const checked = isOptionChecked(o)
+                  const isGroupToggle = oIdx === 0 && !!o.expandTo && o.expandTo.length > 0
                   return (
                     <button
                       key={o.id}
                       type="button"
                       onClick={() => onToggle(o.id, o.expandTo)}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                      className={cn(
+                        'flex items-center gap-2 w-full py-1.5 text-left text-xs hover:bg-slate-50',
+                        isGroupToggle ? 'px-3 font-medium text-slate-700' : 'pl-7 pr-3 text-slate-600'
+                      )}
                     >
                       <span
                         className={cn(
@@ -179,11 +183,16 @@ export default function MultiPickerPopover({
                       >
                         {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                       </span>
-                      <span className="truncate text-slate-700 flex-1" title={o.label}>
+                      <span className="truncate flex-1" title={o.label}>
                         {o.label}
                       </span>
                       {o.badge && (
-                        <span className="text-[10px] font-medium text-slate-400 tabular-nums shrink-0">
+                        <span
+                          className={cn(
+                            'text-[10px] tabular-nums shrink-0',
+                            isGroupToggle ? 'font-semibold text-indigo-500' : 'font-medium text-slate-400'
+                          )}
+                        >
                           {o.badge}
                         </span>
                       )}
