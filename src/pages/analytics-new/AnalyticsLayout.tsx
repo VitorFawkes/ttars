@@ -1,7 +1,18 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import AnalyticsSidebar from './AnalyticsSidebar'
+import AnalyticsDrillDownDrawer from '@/components/analytics/AnalyticsDrillDownDrawer'
+import { useProductContext } from '@/hooks/useProductContext'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 
 export default function AnalyticsLayout() {
+  const { currentProduct } = useProductContext()
+  const setProduct = useAnalyticsFilters(s => s.setProduct)
+
+  useEffect(() => {
+    setProduct(currentProduct)
+  }, [currentProduct, setProduct])
+
   return (
     <div className="flex w-full h-full bg-slate-50">
       <AnalyticsSidebar />
@@ -10,6 +21,7 @@ export default function AnalyticsLayout() {
           <Outlet />
         </div>
       </div>
+      <AnalyticsDrillDownDrawer />
     </div>
   )
 }
