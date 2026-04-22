@@ -19,6 +19,7 @@ import FunnelLossReasons from './funil/FunnelLossReasons'
 import { useFunnelData } from './funil/useFunnelData'
 import { useFunnelPageState } from './funil/useFunnelPageState'
 import type { PickerOption, PickerSection } from './funil/MultiPickerPopover'
+import { ganhoFaseToRpc, statusToRpcArray } from './funil/constants'
 
 export default function FunnelView() {
   const { profile } = useAuth()
@@ -211,14 +212,19 @@ export default function FunnelView() {
 
   const handleStageDrill = useCallback(
     (stageId: string, stageName: string) => {
+      const statusArray = statusToRpcArray(state.status)
+      const ganhoFase = ganhoFaseToRpc(state.ganhoFase)
       drillDown.open({
         label: stageName,
         drillStageId: stageId,
         drillSource: 'stage_entries',
         drillDateRef: state.dateRef,
+        drillRootStageId: state.rootStageId ?? undefined,
+        drillStatusArray: statusArray ?? undefined,
+        drillGanhoFase: (ganhoFase as 'sdr' | 'planner' | 'pos' | null) ?? undefined,
       })
     },
-    [drillDown, state.dateRef]
+    [drillDown, state.dateRef, state.rootStageId, state.status, state.ganhoFase]
   )
 
   const handleReasonDrill = useCallback(
@@ -230,6 +236,7 @@ export default function FunnelView() {
         drillSource: 'lost_deals',
         drillStageId: state.rootStageId ?? undefined,
         drillDateRef: state.dateRef,
+        drillRootStageId: state.rootStageId ?? undefined,
       })
     },
     [drillDown, state.rootStageId, state.dateRef]
