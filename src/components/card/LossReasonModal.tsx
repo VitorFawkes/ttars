@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useOrg } from '@/contexts/OrgContext';
 import { AlertTriangle, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +64,8 @@ export default function LossReasonModal({
     // 1. Get Governance Rules for this stage
     const { pipelineId } = useCurrentProductMeta();
     const { getFieldConfig } = useFieldConfig(pipelineId);
+    const { org } = useOrg();
+    const activeOrgId = org?.id;
 
     // Check requirements
     const motivoConfig = getFieldConfig(targetStageId, 'motivo_perda_id');
@@ -71,19 +74,21 @@ export default function LossReasonModal({
     const isMotivoRequired = motivoConfig?.isRequired ?? false; // Default false if not configured
     const isComentarioRequired = comentarioConfig?.isRequired ?? false;
 
-    // 2. Fetch Active Loss Reasons
+    // 2. Fetch Active Loss Reasons (isolado por workspace)
     const { data: reasons, isLoading } = useQuery({
-        queryKey: ['loss-reasons-active'],
+        queryKey: ['loss-reasons-active', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return [];
             const { data, error } = await supabase
                 .from('motivos_perda')
                 .select('id, nome')
                 .eq('ativo', true)
+                .eq('org_id', activeOrgId)
                 .order('nome');
             if (error) throw error;
             return data;
         },
-        enabled: isOpen
+        enabled: isOpen && !!activeOrgId
     });
 
     // Detect if selected reason is "Oportunidade Futura"

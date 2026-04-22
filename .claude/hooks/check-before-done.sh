@@ -69,6 +69,57 @@ if [ -n "$ISOLATION_VIOLATIONS" ]; then
   exit 2
 fi
 
+# ── Isolamento por workspace: listagens de tabelas por-org SEM filtro org_id ──
+# Diretiva Vitor 2026-04-22: TODO lugar mostra só o do workspace. Detecta
+# `.from('<tabela>')` sem `.eq('org_id', ...)` em até 8 linhas de distância para
+# tabelas críticas que causam vazamento cross-workspace. Ignora lookups por id único
+# (`.eq('id', ...).single()`), chains de `.update(...).eq('id', ...)` (mutations
+# específicas não precisam de org filter), e pages de admin de plataforma.
+WS_TABLES="teams|departments|motivos_perda|card_tags|pipelines|cadence_templates|ai_agents|automation_flows"
+WS_EXCLUDE="src/pages/platform/|__tests__|\.migration"
+WS_VIOLATIONS=""
+for f in $CHANGED_FILES; do
+  echo "$f" | grep -qE "$WS_EXCLUDE" && continue
+  # awk: se .from('tabela_critica') aparece, procura em até 8 linhas:
+  #   - um .eq('org_id', ...) → OK
+  #   - um .eq('id', ...) (lookup por id) → OK
+  #   - .update/.delete/.upsert + .eq → OK (mutation específica)
+  # Se nenhum desses match → violação
+  MATCH=$(awk -v tables="$WS_TABLES" '
+    BEGIN { re = "\\.from\\([\"'\''](" tables ")[\"'\'']\\)" }
+    $0 ~ re { from_line=NR; hit=1; context=""; next }
+    hit {
+      context = context $0 "\n"
+      if ($0 ~ /\.eq\([\"'\''](org_id|id)[\"'\'']/) { hit=0; next }
+      if ($0 ~ /\.(update|delete|upsert|insert)\(/) { hit=0; next }
+      if (NR - from_line >= 8) {
+        if (hit) print from_line
+        hit=0
+      }
+    }
+  ' "$f" 2>/dev/null | head -3)
+  if [ -n "$MATCH" ]; then
+    for line in $MATCH; do
+      SNIPPET=$(sed -n "${line},$((line+2))p" "$f" 2>/dev/null | tr '\n' ' ' | head -c 140)
+      WS_VIOLATIONS=$(printf "%s\n  %s:%s — %s" "$WS_VIOLATIONS" "$f" "$line" "$SNIPPET")
+    done
+  fi
+done
+if [ -n "$WS_VIOLATIONS" ]; then
+  echo "" >&2
+  echo "BLOQUEADO: Listagem de tabela por-org sem filtro de workspace:" >&2
+  echo "$WS_VIOLATIONS" >&2
+  echo "" >&2
+  echo "Toda tabela por-org (teams, departments, motivos_perda, card_tags, pipelines,"  >&2
+  echo "cadence_templates, ai_agents, automation_flows, ...) DEVE filtrar por workspace:" >&2
+  echo "" >&2
+  echo "  const { org } = useOrg()" >&2
+  echo "  supabase.from('teams').select('*').eq('org_id', org?.id)" >&2
+  echo "" >&2
+  echo "Ver CLAUDE.md → 'Isolamento por workspace'." >&2
+  exit 2
+fi
+
 # ── Multi-tenant: listar usuários via org_members, não profiles.org_id ──
 # Armadilha recorrente: profiles.org_id aponta pra account pai em workspace filho.
 # Qualquer `.from('profiles').eq('org_id', ...)` fora de admin de plataforma

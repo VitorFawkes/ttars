@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import { useOrg } from '../../contexts/OrgContext'
 import { toast } from 'sonner'
 import {
     Package,
@@ -89,17 +90,22 @@ const emptyForm: ProductFormState = {
 
 export default function ProductsManagement() {
     const queryClient = useQueryClient()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
 
     const { data: products, isLoading } = useQuery<ProductRow[]>({
-        queryKey: ['products', 'admin'],
+        queryKey: ['products', 'admin', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return []
             const { data, error } = await supabase
                 .from('products')
                 .select('*')
+                .eq('org_id', activeOrgId)
                 .order('display_order')
             if (error) throw error
             return (data ?? []) as ProductRow[]
         },
+        enabled: !!activeOrgId,
     })
 
     const [showModal, setShowModal] = useState(false)

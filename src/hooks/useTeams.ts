@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '@/contexts/OrgContext';
 
 export interface Team {
     id: string;
@@ -50,10 +51,13 @@ export interface UpdateTeamData extends Partial<CreateTeamData> {
  */
 export function useTeams() {
     const queryClient = useQueryClient();
+    const { org } = useOrg();
+    const activeOrgId = org?.id;
 
     const teamsQuery = useQuery({
-        queryKey: ['teams'],
+        queryKey: ['teams', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return [];
             const { data, error } = await supabase
                 .from('teams')
                 .select(`
@@ -62,18 +66,21 @@ export function useTeams() {
                     leader:profiles!teams_leader_id_fkey(id, nome, email),
                     phase:pipeline_phases(id, name, slug, color, order_index)
                 `)
+                .eq('org_id', activeOrgId)
                 .order('name');
 
             if (error) throw error;
             return data as Team[];
         },
         staleTime: 5 * 60 * 1000, // 5 minutes
+        enabled: !!activeOrgId,
     });
 
     const teamsWithCountQuery = useQuery({
-        queryKey: ['teams', 'with-count'],
+        queryKey: ['teams', 'with-count', activeOrgId],
         queryFn: async () => {
-            // Get teams with member counts
+            if (!activeOrgId) return [];
+            // Get teams with member counts — isolado por workspace
             const { data: teams, error: teamsError } = await supabase
                 .from('teams')
                 .select(`
@@ -82,40 +89,43 @@ export function useTeams() {
                     leader:profiles!teams_leader_id_fkey(id, nome, email),
                     phase:pipeline_phases(id, name, slug, color, order_index)
                 `)
+                .eq('org_id', activeOrgId)
                 .order('name');
 
             if (teamsError) throw teamsError;
 
-            // Get member counts per team
-            const { data: counts, error: countsError } = await supabase
-                .from('profiles')
-                .select('team_id')
-                .not('team_id', 'is', null);
+            // Conta membros via org_members do workspace (não profiles.org_id, que aponta
+            // pra account pai no multi-tenant). Ver memory/feedback_multi_tenant_org_members.md
+            const { data: members, error: membersErr } = await supabase
+                .from('org_members')
+                .select('user_id, profiles!inner(team_id)')
+                .eq('org_id', activeOrgId);
 
-            if (countsError) throw countsError;
+            if (membersErr) throw membersErr;
 
-            // Aggregate counts
             const countMap: Record<string, number> = {};
-            counts?.forEach(p => {
-                if (p.team_id) {
-                    countMap[p.team_id] = (countMap[p.team_id] || 0) + 1;
-                }
-            });
+            type MemberRow = { user_id: string; profiles: { team_id: string | null } | null }
+            for (const m of (members as unknown as MemberRow[]) || []) {
+                const teamId = m.profiles?.team_id
+                if (teamId) countMap[teamId] = (countMap[teamId] || 0) + 1
+            }
 
-            // Merge counts into teams
             return (teams as Team[]).map(t => ({
                 ...t,
                 member_count: countMap[t.id] || 0,
             }));
         },
-        staleTime: 2 * 60 * 1000, // 2 minutes
+        staleTime: 2 * 60 * 1000,
+        enabled: !!activeOrgId,
     });
 
     const createTeam = useMutation({
         mutationFn: async (data: CreateTeamData) => {
+            if (!activeOrgId) throw new Error('Workspace ativo não encontrado');
             const { data: result, error } = await supabase
                 .from('teams')
                 .insert({
+                    org_id: activeOrgId,
                     name: data.name,
                     description: data.description || null,
                     department_id: data.department_id || null,

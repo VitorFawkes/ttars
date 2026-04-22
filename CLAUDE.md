@@ -278,6 +278,43 @@ Deploy: `export $(grep -v '^#' .env | xargs) && node scripts/create-n8n-{nome}.j
 - **Handoff**: `pipeline_stages.target_phase_id` (UUID FK, NÃO `target_role` string)
 - **Role legacy**: CONGELADO — sync via trigger `trg_sync_role_from_team`. AuthContext traz joins: `profile.team.phase`
 
+## Isolamento por workspace (OBRIGATÓRIO — SEMPRE filtrar)
+
+**Regra inviolável:** toda tela/hook/query que roda dentro de um workspace DEVE mostrar SOMENTE dados daquele workspace. Sem exceção. Isso vale para admin, analytics, pickers, dropdowns, contadores — qualquer lugar que o usuário vê dentro do app.
+
+**Por quê:** RLS de algumas tabelas (`teams`, `departments`, etc.) ainda é permissiva (permite ler workspace + account pai por compatibilidade antiga). Sem filtro explícito no frontend, o usuário dentro de `Welcome Trips` acaba vendo times/motivos/tags/usuários da `Welcome Group` (conta-mãe), da `Welcome Weddings`, da `Welcome Courses`, e de orgs de teste.
+
+**Como aplicar:**
+```ts
+// ✅ CORRETO
+const { org } = useOrg()
+const activeOrgId = org?.id
+const { data } = useQuery({
+  queryKey: ['teams', activeOrgId],
+  queryFn: async () => {
+    if (!activeOrgId) return []
+    return supabase.from('teams').select('*').eq('org_id', activeOrgId)
+  },
+  enabled: !!activeOrgId,
+})
+```
+
+```ts
+// ❌ ERRADO — vaza cross-workspace via RLS permissiva
+supabase.from('teams').select('*').order('name')
+```
+
+Mutations devem setar `org_id` explicitamente no insert.
+
+**Lista de tabelas por-org que SEMPRE precisam de `.eq('org_id', activeOrgId)` em listagens:** `teams`, `departments`, `motivos_perda`, `card_tags`, `products`, `pipelines`, `pipeline_stages`, `pipeline_phases`, `sections`, `system_fields`, `cadence_templates`, `cadence_steps`, `ai_agents`, `ai_knowledge_bases`, `automation_flows`, `cards`, `activities`, etc. — qualquer tabela que tenha coluna `org_id`.
+
+**Exceções onde é OK listar sem filtro:**
+- `/src/pages/platform/*` (admin de plataforma, opera cross-org por desenho)
+- RPCs `SECURITY DEFINER` que já usam `requesting_org_id()` internamente
+- Lookups por id único (`.eq('id', X).single()`) — RLS já barra
+
+O hook `.claude/hooks/check-before-done.sh` bloqueia commit com listagens suspeitas dessas tabelas fora das exceções.
+
 ## Queries comuns multi-tenant (OBRIGATÓRIO ler antes de mexer em usuários)
 
 **Armadilha:** a tabela `profiles` tem coluna `org_id`, mas em workspace filho ela aponta para a **account pai**, não para o workspace ativo. Usar `.eq('org_id', activeOrgId)` em workspace filho retorna lista vazia (ou só profiles criados direto no workspace, como Test User).

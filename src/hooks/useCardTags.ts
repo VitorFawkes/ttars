@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useOrg } from '../contexts/OrgContext'
 
 export interface CardTag {
     id: string
@@ -18,20 +19,25 @@ export interface CardTag {
 
 export function useCardTags(produto?: string) {
     const queryClient = useQueryClient()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
 
     const { data: tags = [], isLoading } = useQuery({
-        queryKey: ['card-tags', produto ?? 'all'],
+        queryKey: ['card-tags', activeOrgId, produto ?? 'all'],
         queryFn: async () => {
+            if (!activeOrgId) return []
             const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (supabase as any)
                 .from('card_tags')
                 .select('*')
                 .eq('is_active', true)
+                .eq('org_id', activeOrgId)
                 .order('name')
             if (error) throw error
             return data as CardTag[]
         },
         staleTime: 5 * 60 * 1000, // 5 min
+        enabled: !!activeOrgId,
     })
 
     const filtered = produto
@@ -40,10 +46,11 @@ export function useCardTags(produto?: string) {
 
     const createTag = useMutation({
         mutationFn: async (input: { name: string; color: string; description?: string; produto?: string }) => {
+            if (!activeOrgId) throw new Error('Workspace ativo não encontrado')
             const { data, error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (supabase as any)
                 .from('card_tags')
-                .insert(input)
+                .insert({ ...input, org_id: activeOrgId })
                 .select()
                 .single()
             if (error) throw error

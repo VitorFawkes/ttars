@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useOrg } from '@/contexts/OrgContext';
 import { toast } from 'sonner';
 import {
     XCircle,
@@ -22,31 +23,38 @@ import { cn } from '@/lib/utils';
 
 export default function LossReasonManagement() {
     const queryClient = useQueryClient();
+    const { org } = useOrg();
+    const activeOrgId = org?.id;
     const [newReason, setNewReason] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
 
-    // Fetch Loss Reasons
+    // Fetch Loss Reasons (isolado por workspace)
     const { data: reasons, isLoading } = useQuery({
-        queryKey: ['loss-reasons'],
+        queryKey: ['loss-reasons', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return [];
             const { data, error } = await supabase
                 .from('motivos_perda')
                 .select('*')
+                .eq('org_id', activeOrgId)
                 .order('nome');
             if (error) throw error;
             return data;
-        }
+        },
+        enabled: !!activeOrgId,
     });
 
     // Create Mutation
     const createMutation = useMutation({
         mutationFn: async (nome: string) => {
             if (!nome.trim()) throw new Error("O nome não pode estar vazio");
+            if (!activeOrgId) throw new Error("Workspace ativo não encontrado");
 
             const { error } = await supabase
                 .from('motivos_perda')
                 .insert([{
+                    org_id: activeOrgId,
                     nome: nome.trim(),
                     ativo: true
                 }]);

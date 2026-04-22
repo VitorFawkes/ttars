@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useOrg } from '@/contexts/OrgContext'
 
 export interface Department {
     id: string
@@ -29,22 +30,29 @@ function slugify(text: string): string {
 
 export function useDepartments() {
     const queryClient = useQueryClient()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
 
     const query = useQuery<Department[]>({
-        queryKey: ['departments'],
+        queryKey: ['departments', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return []
             const { data, error } = await supabase
                 .from('departments')
                 .select('*')
+                .eq('org_id', activeOrgId)
                 .order('name')
             if (error) throw error
             return (data ?? []) as Department[]
         },
+        enabled: !!activeOrgId,
     })
 
     const createMutation = useMutation({
         mutationFn: async (input: DepartmentInput) => {
+            if (!activeOrgId) throw new Error('Workspace ativo não encontrado')
             const payload = {
+                org_id: activeOrgId,
                 name: input.name.trim(),
                 slug: input.slug?.trim() || slugify(input.name),
                 description: input.description?.trim() || null,

@@ -47,9 +47,12 @@ import { RoleManagement } from '../../components/admin/roles/RoleManagement';
 import { TeamManagement } from '../../components/admin/teams/TeamManagement';
 import { useRoles } from '../../hooks/useRoles';
 import { useUsers } from '../../hooks/useUsers';
+import { useOrg } from '../../contexts/OrgContext';
 
 export default function UserManagement() {
     const { profile } = useAuth();
+    const { org } = useOrg();
+    const activeOrgId = org?.id;
     const { toast } = useToast();
     const { users, isLoading: loading, refetch: refetchUsers, toggleUserStatus, deleteUser, resetPassword } = useUsers();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,11 +75,18 @@ export default function UserManagement() {
 
     useEffect(() => {
         fetchTeams();
-    }, []);
+    }, [activeOrgId]);
 
     const fetchTeams = async () => {
+        if (!activeOrgId) {
+            setTeams([]);
+            return;
+        }
         try {
-            const { data, error } = await supabase.from('teams').select('*');
+            const { data, error } = await supabase
+                .from('teams')
+                .select('*')
+                .eq('org_id', activeOrgId);
             if (error) throw error;
             setTeams(data || []);
         } catch (error) {

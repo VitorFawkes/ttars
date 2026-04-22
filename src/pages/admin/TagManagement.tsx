@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useOrg } from '@/contexts/OrgContext'
 import { toast } from 'sonner'
 import { Tag, Plus, Pencil, Trash2, Loader2, Check } from 'lucide-react'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
@@ -42,6 +43,8 @@ const emptyForm: TagFormState = { name: '', color: '#6366f1', description: '', p
 
 export default function TagManagement() {
     const queryClient = useQueryClient()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
     const { tags, isLoading } = useCardTags()
     const PRODUTO_OPTIONS = useProdutoOptions()
     const { data: usageCounts = {} } = useCardTagUsageCounts()
@@ -75,8 +78,9 @@ export default function TagManagement() {
                 const { error } = await (supabase as unknown as any).from('card_tags').update(payload).eq('id', editingTag.id)
                 if (error) throw error
             } else {
+                if (!activeOrgId) throw new Error('Workspace ativo não encontrado')
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase as unknown as any).from('card_tags').insert(payload)
+                const { error } = await (supabase as unknown as any).from('card_tags').insert({ ...payload, org_id: activeOrgId })
                 if (error) throw error
             }
         },

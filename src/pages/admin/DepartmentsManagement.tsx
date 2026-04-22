@@ -25,6 +25,7 @@ import {
 } from '../../components/ui/alert-dialog'
 import { useDepartments, type Department } from '../../hooks/useDepartments'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrg } from '../../contexts/OrgContext'
 
 interface DepartmentFormState {
     name: string
@@ -47,6 +48,8 @@ function slugify(text: string): string {
 
 export default function DepartmentsManagement() {
     const { profile } = useAuth()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
     const { departments, isLoading, createDepartment, updateDepartment, deleteDepartment, isMutating } = useDepartments()
 
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -55,13 +58,15 @@ export default function DepartmentsManagement() {
     const [slugEdited, setSlugEdited] = useState(false)
     const [deleteCandidate, setDeleteCandidate] = useState<Department | null>(null)
 
-    // Contagem de times por department
+    // Contagem de times por department (isolado por workspace)
     const { data: teamCounts } = useQuery<Record<string, number>>({
-        queryKey: ['department-team-counts'],
+        queryKey: ['department-team-counts', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return {}
             const { data, error } = await supabase
                 .from('teams')
                 .select('department_id')
+                .eq('org_id', activeOrgId)
             if (error) throw error
             const counts: Record<string, number> = {}
             for (const t of data ?? []) {
@@ -70,6 +75,7 @@ export default function DepartmentsManagement() {
             }
             return counts
         },
+        enabled: !!activeOrgId,
     })
 
     const isAdmin = profile?.is_admin === true
