@@ -873,6 +873,16 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
 
+### 16.4 Pickers Reutilizaveis (ai-agent/editor)
+
+| Componente | Arquivo | Uso |
+|------------|---------|-----|
+| `CRMFieldPicker` | `src/components/ai-agent/editor/CRMFieldPicker.tsx` | Selecao de campos do CRM (single/multi) com busca e agrupamento |
+| `SearchPicker` | `src/components/ai-agent/editor/pickers.tsx` | Base generica single-select com busca |
+| `TagPicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de tag existente com criacao inline |
+| `AgentPicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de outro agente IA da org |
+| `StagePicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de etapa do pipeline |
+
 
 
 
