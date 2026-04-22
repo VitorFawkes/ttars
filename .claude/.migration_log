@@ -605,3 +605,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T17:28:15Z | supabase/migrations/20260426f_account_workspace_structural_guards.sql | applied_to_prod
 2026-04-22T17:28:28Z | supabase/migrations/20260422a_analytics_funil_v3.sql | applied_to_prod
 2026-04-22T17:29:58Z | supabase/migrations/20260422a_analytics_funil_v3.sql | applied_to_prod
+2026-04-22T17:54:56Z | supabase/migrations/20260422b_analytics_funil_v3_fix_created_cohort.sql | applied_to_prod
