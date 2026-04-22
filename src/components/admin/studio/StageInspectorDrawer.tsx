@@ -53,9 +53,13 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
     });
 
     // Filter fields to only those belonging to sections of the current product
+    // AND respecting produto_exclusivo (null = shared, else must match currentProduct)
     const fields = allFields?.filter(f => {
-        if (!f.section) return true
-        return productSections.some(s => s.key === f.section)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
+        const exclusivo = (f as any).produto_exclusivo as string | null | undefined;
+        if (exclusivo && exclusivo !== currentProduct) return false;
+        if (!f.section) return true;
+        return productSections.some(s => s.key === f.section);
     });
 
     const { data: configs } = useQuery({
