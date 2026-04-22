@@ -14,11 +14,17 @@ export interface SpecialScenario {
   scenario_name: string
   trigger_type: ScenarioTriggerType
   trigger_config: Record<string, unknown>
+  /** Frente B — regra em linguagem natural para match semântico no prompt */
+  trigger_description: string | null
   response_adjustment: string | null
   simplified_qualification: SimplifiedStage[] | null
   skip_fee_presentation: boolean
   skip_meeting_scheduling: boolean
   auto_assign_tag: string | null
+  /** Frente C — etapa destino quando cenário dispara (runtime aplica auto) */
+  auto_transition_stage_id: string | null
+  /** Frente C — notifica responsável do card quando cenário dispara */
+  auto_notify_responsible: boolean
   handoff_message: string | null
   target_agent_id: string | null
   enabled: boolean

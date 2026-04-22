@@ -147,14 +147,22 @@ interface QualificationStage {
 }
 
 interface SpecialScenario {
+  id?: string;
+  agent_id?: string;
   scenario_name: string;
   trigger_type: string;
   trigger_config: Record<string, unknown>;
+  /** Frente B — regra em linguagem natural para match semântico */
+  trigger_description: string | null;
   response_adjustment: string | null;
   simplified_qualification: QualificationStage[] | null;
   skip_fee_presentation: boolean;
   skip_meeting_scheduling: boolean;
   auto_assign_tag: string | null;
+  /** Frente C — etapa destino quando cenário dispara (runtime aplica automaticamente) */
+  auto_transition_stage_id: string | null;
+  /** Frente C — notifica o responsável pelo card quando cenário dispara */
+  auto_notify_responsible: boolean;
   handoff_message: string | null;
   target_agent_id: string | null;
 }
@@ -1850,6 +1858,18 @@ Resposta OBRIGATORIA em JSON:
 // 8. Pipeline Step: Data Agent
 // ---------------------------------------------------------------------------
 
+/**
+ * Resultado do Data Agent consumido pelo Persona Agent.
+ *
+ * qualificationSignals: inferências do LLM sobre o histórico recente, mesmo
+ * quando o Data Agent não tem certeza pra persistir. Permite o Persona pular
+ * perguntas cuja resposta já está na conversa mas ainda não virou campo
+ * persistido (gap que existia antes da Frente E).
+ */
+export interface DataAgentResult {
+  qualificationSignals: Record<string, string>;
+}
+
 async function runDataAgent(
   supabase: SupabaseClient,
   agent: AgentConfig,
@@ -1857,8 +1877,8 @@ async function runDataAgent(
   backoffice: BackofficeOutput,
   business: BusinessConfig | null,
   qualification: QualificationStage[],
-): Promise<void> {
-  if (!agent.is_template_based || !ctx.card_id) return;
+): Promise<DataAgentResult> {
+  if (!agent.is_template_based || !ctx.card_id) return { qualificationSignals: {} };
 
   // 1. Sempre aplicar mudanças de resumo/contexto do backoffice (determinístico)
   if (backoffice.mudancas.ai_resumo || backoffice.mudancas.ai_contexto) {
@@ -1886,12 +1906,13 @@ async function runDataAgent(
     }
   }
 
-  // 3. Data Agent LLM — extrai dados estruturados da conversa (paridade com "Atualiza dados" da Julia).
+  // 3. Data Agent LLM — extrai dados estruturados + sinais de qualificação.
   // Se viajante, só atualiza dados pessoais do próprio viajante (não avança stage, não edita titulo).
   try {
-    await runDataAgentLLM(supabase, agent, ctx, backoffice, business, qualification);
+    return await runDataAgentLLM(supabase, agent, ctx, backoffice, business, qualification);
   } catch (err) {
     console.error("[runDataAgentLLM] error (non-fatal):", err);
+    return { qualificationSignals: {} };
   }
 }
 
@@ -1902,8 +1923,8 @@ async function runDataAgentLLM(
   backoffice: BackofficeOutput,
   business: BusinessConfig | null,
   qualification: QualificationStage[],
-): Promise<void> {
-  if (!ctx.card_id) return;
+): Promise<DataAgentResult> {
+  if (!ctx.card_id) return { qualificationSignals: {} };
 
   const isTraveler = backoffice.detected_role === "traveler";
   const protectedFields = business?.protected_fields || ["pessoa_principal_id", "produto_data", "valor_estimado", "created_at", "created_by"];
@@ -1913,19 +1934,19 @@ async function runDataAgentLLM(
     .map((s) => `  - "${s.advance_to_stage_id}" (${s.stage_name}${s.advance_condition ? `, condicao: ${s.advance_condition}` : ""})`)
     .join("\n");
 
-  // Só campos que REALMENTE existem no schema atual de cards.
-  // Dados como destino, número de viajantes, orçamento bruto, ocasião → vão em ai_resumo/ai_contexto
-  // (texto livre), não em colunas dedicadas — valor_estimado e produto_data são protected_fields
-  // e só a consultora humana edita depois do briefing.
-  const baseAllowedCardFields = isTraveler
-    ? ["ai_resumo", "ai_contexto"]
-    : ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id", "data_viagem_inicio", "data_viagem_fim"];
-
-  // Se admin configurou auto_update_fields, restringir ainda mais (interseção)
+  // ── Frente A: whitelist dinâmica ──
+  // Fonte única: auto_update_fields do business_config (o admin seleciona pelo picker).
+  // Default sugerido só quando admin não configurou nada. RPC agent_update_card_data_v2
+  // valida de novo contra system_fields e protected_fields antes de escrever.
   const autoUpdateFields = business?.auto_update_fields || [];
-  const allowedCardFields = autoUpdateFields.length > 0
-    ? baseAllowedCardFields.filter((f) => autoUpdateFields.includes(f))
-    : baseAllowedCardFields;
+  const defaultSugestao = ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id"];
+  const configuredCardFields = autoUpdateFields.length > 0 ? autoUpdateFields : defaultSugestao;
+
+  // Traveler hard-lock: mesmo que admin tenha liberado titulo/stage, viajante não pode mexer.
+  const travelerAllowed = new Set(["ai_resumo", "ai_contexto"]);
+  const allowedCardFields = isTraveler
+    ? configuredCardFields.filter((f) => travelerAllowed.has(f))
+    : configuredCardFields;
 
   // contact_update_fields do business_config se configurado, senão default razoável
   const configContactFields = business?.contact_update_fields || [];
@@ -1957,7 +1978,7 @@ ${stagesOpts || "(nenhum stage configurado)"}
 - Histórico:
 ${ctx.historico_compacto}
 
-Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}, "reasoning": "..." }`;
+Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}, "qualification_signals": {...}, "reasoning": "..." }`;
 
   const prompt = customData && customData.trim().length > 80
     ? customData + dataBlock
@@ -1995,39 +2016,54 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - passaporte: alfanumerico uppercase.
 - data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
 - nome/sobrenome: primeira letra maiuscula.
-- Destino, número de viajantes, orcamento bruto, ocasião → NÃO têm coluna dedicada. Grave em ai_resumo/ai_contexto como texto livre; a consultora humana registra valores estruturados depois do briefing.
+- Campos dinamicos permitidos em "Campos permitidos no card" (ex: mkt_destino, ww_sdr_ajuda_familia): grave quando o cliente indicou explicitamente.
 
 ### Avanco de stage (so se NAO for traveler)
 - Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
 - Se ja ha sinal deterministico que avançou, NAO tente avançar de novo.
 
+### qualification_signals (Frente E — sinais para o Persona nao re-perguntar)
+Alem do que vai ser GRAVADO, liste aqui sinais inferidos do historico mesmo quando
+a certeza nao e suficiente pra gravar. Isso ajuda o Persona a nao re-perguntar o
+que o cliente ja mencionou.
+- Chave = nome do campo do CRM (ex: "mkt_destino", "mkt_pretende_viajar_quando").
+- Valor = string breve do que o cliente indicou (ex: "Japão", "março de 2027").
+- So inclua se houve menção clara. Deixe {} se nada.
+
 ## Saida (JSON exato)
 {
   "card_patch": { "<campo>": <valor> } ou {},
   "contact_patch": { "<campo>": <valor> } ou {},
+  "qualification_signals": { "<campo>": "<valor breve>" } ou {},
   "reasoning": "<1 frase explicando por que atualizou ou por que nao>"
 }
 
-Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios.`;
+Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios (qualification_signals ainda pode ter sinais).`;
 
   const dataModel = agent.pipeline_models?.data?.model || agent.modelo;
   const dataTemp = agent.pipeline_models?.data?.temperature ?? 0.1;
   const dataMaxTok = agent.pipeline_models?.data?.max_tokens ?? 800;
 
-  let parsed: { card_patch?: Record<string, unknown>; contact_patch?: Record<string, unknown>; reasoning?: string };
+  let parsed: {
+    card_patch?: Record<string, unknown>;
+    contact_patch?: Record<string, unknown>;
+    qualification_signals?: Record<string, string>;
+    reasoning?: string;
+  };
   try {
     const { response } = await callLLM(dataModel, dataTemp, dataMaxTok, prompt, ctx.historico_compacto || "(sem historico)");
     parsed = JSON.parse(response.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
   } catch (err) {
     console.warn("[runDataAgentLLM] parse failed:", err);
-    return;
+    return { qualificationSignals: {} };
   }
 
   const cardPatch = parsed.card_patch || {};
   const contactPatch = parsed.contact_patch || {};
+  const qualificationSignals = (parsed.qualification_signals || {}) as Record<string, string>;
 
   if (Object.keys(cardPatch).length > 0) {
-    // Filtrar campos bloqueados localmente antes do RPC
+    // Filtrar campos bloqueados localmente antes do RPC (defesa em profundidade)
     if (isTraveler) {
       delete (cardPatch as Record<string, unknown>).pipeline_stage_id;
       delete (cardPatch as Record<string, unknown>).titulo;
@@ -2035,12 +2071,22 @@ Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios
     const { data: updateResult, error: updateErr } = await supabase.rpc("agent_update_card_data", {
       p_card_id: ctx.card_id,
       p_patch: cardPatch,
+      p_allowed_fields: allowedCardFields,
       p_protected_fields: protectedFields,
     });
     if (updateErr) {
       console.warn("[runDataAgentLLM] card update rpc error:", updateErr.message);
     } else {
-      console.log(`[runDataAgentLLM] card updated:`, JSON.stringify(updateResult));
+      const r = updateResult as { ok?: boolean; updated_top?: string[]; updated_produto_data?: string[]; blocked?: Array<{ field: string; reason: string }> } | null;
+      const top = r?.updated_top || [];
+      const pd = r?.updated_produto_data || [];
+      const blocked = r?.blocked || [];
+      if (top.length + pd.length > 0) {
+        console.log(`[runDataAgentLLM] card updated: top=${top.join(",")} produto_data=${pd.join(",")}`);
+      }
+      if (blocked.length > 0) {
+        console.warn(`[runDataAgentLLM] blocked updates:`, JSON.stringify(blocked));
+      }
     }
   }
 
@@ -2060,6 +2106,110 @@ Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios
   if (parsed.reasoning) {
     console.log(`[runDataAgentLLM] reasoning: ${parsed.reasoning}`);
   }
+
+  if (Object.keys(qualificationSignals).length > 0) {
+    console.log(`[runDataAgentLLM] signals:`, JSON.stringify(qualificationSignals));
+  }
+
+  return { qualificationSignals };
+}
+
+// ---------------------------------------------------------------------------
+// 8b. Frente C — executar ações automáticas de cenários antes do Persona
+// ---------------------------------------------------------------------------
+// Detecção determinística baseada em keyword literal. Se qualquer keyword do
+// cenário bate na mensagem atual do usuário (case-insensitive), executamos
+// as ações configuradas (auto_assign_tag, auto_transition_stage_id,
+// auto_notify_responsible) via RPC/update direto — sem depender do LLM chamar
+// tools no meio da resposta. O prompt do Persona ainda recebe scenarioText
+// pra ajustar o tom; as ações são redundantes/idempotentes.
+//
+// trigger_description (Frente B) é avaliada só pelo LLM no Persona — não
+// disparamos ações determinísticas só por descrição semântica pra evitar
+// falsos positivos sem sinal literal.
+// ---------------------------------------------------------------------------
+
+async function applyScenarioActions(
+  supabase: SupabaseClient,
+  ctx: ConversationContext,
+  scenarios: SpecialScenario[],
+  userMessage: string,
+  orgId: string | null,
+): Promise<void> {
+  if (!ctx.card_id || !userMessage || scenarios.length === 0) return;
+
+  const lowerMsg = userMessage.toLowerCase();
+  const triggered: SpecialScenario[] = [];
+
+  for (const s of scenarios) {
+    const keywords = (s.trigger_config?.keywords as string[] | undefined) || [];
+    const matched = keywords.some((k) => {
+      const trimmed = k.trim().toLowerCase();
+      return trimmed.length > 2 && lowerMsg.includes(trimmed);
+    });
+    if (matched) triggered.push(s);
+  }
+
+  if (triggered.length === 0) return;
+
+  for (const s of triggered) {
+    console.log(`[scenario] matched "${s.scenario_name}" — applying actions`);
+
+    if (s.auto_assign_tag) {
+      try {
+        const { error } = await supabase.rpc("julia_assign_tag", {
+          p_card_id: ctx.card_id,
+          p_tag_name: s.auto_assign_tag,
+          p_tag_color: "#6366f1",
+        });
+        if (error) console.warn(`[scenario.tag] "${s.auto_assign_tag}" error:`, error.message);
+        else console.log(`[scenario.tag] applied "${s.auto_assign_tag}"`);
+      } catch (err) {
+        console.warn("[scenario.tag] exception:", err);
+      }
+    }
+
+    if (s.auto_transition_stage_id) {
+      try {
+        const { error } = await supabase
+          .from("cards")
+          .update({
+            pipeline_stage_id: s.auto_transition_stage_id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ctx.card_id);
+        if (error) console.warn(`[scenario.stage] error:`, error.message);
+        else console.log(`[scenario.stage] transitioned to ${s.auto_transition_stage_id}`);
+      } catch (err) {
+        console.warn("[scenario.stage] exception:", err);
+      }
+    }
+
+    if (s.auto_notify_responsible) {
+      try {
+        const { data: card } = await supabase
+          .from("cards")
+          .select("dono_atual_id, titulo")
+          .eq("id", ctx.card_id)
+          .maybeSingle();
+        const ownerId = (card as { dono_atual_id?: string } | null)?.dono_atual_id;
+        if (ownerId) {
+          await supabase.from("notifications").insert({
+            user_id: ownerId,
+            org_id: orgId,
+            card_id: ctx.card_id,
+            type: "ai_scenario",
+            title: `Cenário do agente disparado: ${s.scenario_name}`,
+            body: `Card "${(card as { titulo?: string } | null)?.titulo || ctx.card_id}" — ${s.scenario_name}`,
+            metadata: { scenario_name: s.scenario_name, scenario_id: s.id },
+          });
+          console.log(`[scenario.notify] notified owner ${ownerId}`);
+        }
+      } catch (err) {
+        console.warn("[scenario.notify] exception:", err);
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2075,6 +2225,7 @@ async function runPersonaAgent(
   qualification: QualificationStage[],
   scenarios: SpecialScenario[],
   userMessage: string,
+  qualificationSignals: Record<string, string> = {},
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   // Para agentes nao-template, usar o system_prompt original (v1 behavior — sem tools)
   if (!agent.is_template_based) {
@@ -2099,10 +2250,19 @@ async function runPersonaAgent(
   }
 
   // Template-based: montar prompt completo + tool calling
-  // Smart qualification: skip stages whose mapped field already has data
+  // Frente E — Smart qualification: skip stages whose mapped field already has data.
+  // Fonte combinada: form_data persistido (produto_data) + qualification_signals inferidos
+  // do histórico da conversa pelo Data Agent. Isso resolve o caso "cliente disse Japão
+  // mas ainda não foi gravado no card, e mesmo assim agente não re-pergunta".
+  const knownValues: Record<string, string> = { ...ctx.form_data };
+  for (const [k, v] of Object.entries(qualificationSignals)) {
+    if (v && typeof v === "string" && v.trim().length > 0 && !knownValues[k]) {
+      knownValues[k] = v;
+    }
+  }
   const activeQualification = qualification.filter((stage) => {
     if (!stage.maps_to_field || !stage.skip_if_filled) return true;
-    const fieldValue = ctx.form_data[stage.maps_to_field];
+    const fieldValue = knownValues[stage.maps_to_field];
     return !fieldValue || fieldValue.trim() === "";
   });
 
@@ -2115,22 +2275,41 @@ async function runPersonaAgent(
     .map((d) => `- ${d.trigger}: "${d.message}"`)
     .join("\n");
 
+  // Frente B — match semântico por trigger_description (complementa keyword).
+  // Se o admin preencheu trigger_description em linguagem natural, o LLM avalia
+  // semanticamente; keyword serve como âncora de alta confiança.
   const scenarioText = scenarios
     .map((s) => {
-      const keywords = (s.trigger_config?.keywords as string[])?.join(", ") || s.scenario_name;
-      let text = `Se detectar "${keywords}": ${s.response_adjustment || ""}`;
+      const keywords = ((s.trigger_config?.keywords as string[] | undefined) || []).join(", ");
+      const description = (s.trigger_description || "").trim();
+      let trigger: string;
+      if (keywords && description) {
+        trigger = `Quando detectar "${keywords}" OU semanticamente "${description}"`;
+      } else if (description) {
+        trigger = `Quando detectar semanticamente "${description}"`;
+      } else if (keywords) {
+        trigger = `Se detectar "${keywords}"`;
+      } else {
+        trigger = `No cenário "${s.scenario_name}"`;
+      }
+      let text = `${trigger}: ${s.response_adjustment || ""}`;
       if (s.skip_fee_presentation) text += " NAO apresente taxa.";
       if (s.skip_meeting_scheduling) text += " NAO agende reuniao.";
-      if (s.auto_assign_tag) text += ` Use assign_tag("${s.auto_assign_tag}").`;
-      if (s.handoff_message) text += ` Use request_handoff se necessário.`;
       return text;
     })
     .join("\n");
 
-  const formDataText = Object.entries(ctx.form_data)
-    .filter(([, v]) => v)
-    .map(([k, v]) => `- ${k}: ${v}`)
-    .join("\n");
+  // Frente E — bloco "JÁ SABEMOS": combina form_data persistido + signals inferidos
+  // pelo Data Agent do histórico. Persona usa pra NÃO re-perguntar o que cliente
+  // já indicou, mesmo que ainda não tenha virado campo gravado.
+  const knownEntries: Array<[string, string]> = [];
+  for (const [k, v] of Object.entries(ctx.form_data)) {
+    if (v) knownEntries.push([k, v as string]);
+  }
+  for (const [k, v] of Object.entries(qualificationSignals)) {
+    if (v && !ctx.form_data[k]) knownEntries.push([k, `${v} (inferido da conversa)`]);
+  }
+  const formDataText = knownEntries.map(([k, v]) => `- ${k}: ${v}`).join("\n");
 
   const feeMsg = buildFeeMessage(business);
   const customBlocksText = buildCustomBlocksText(business);
@@ -2217,7 +2396,7 @@ ${ctx.pessoa_principal_nome ? `- Nome principal: ${ctx.pessoa_principal_nome}` :
 ${rolePrinciple}
 ${processStepsBlock}
 
-${formDataText ? `DADOS JA PREENCHIDOS (NAO RE-PERGUNTE):\n${formDataText}\nSe ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
+${formDataText ? `JA SABEMOS (NAO RE-PERGUNTE):\n${formDataText}\nAntes de qualquer pergunta, verifique este bloco. Se ja tem os dados essenciais, pule qualificacao e apresente processo direto.\nNUNCA cite "formulario" ou "sistema".` : ""}
 
 ${backoffice.detected_role === "traveler" ? (() => {
   const roleLabel = secondaryRoleLabel(business);
@@ -2234,7 +2413,7 @@ ${business?.methodology_text ? `O QUE OFERECEMOS:\n${business.methodology_text}`
 
 ${customBlocksText}
 
-${qualStages ? `QUALIFICACAO (so o que falta):\n${qualStages}\nUMA pergunta por vez. Responda primeiro, depois pergunte.` : ""}
+${qualStages ? `AINDA PERGUNTAR (so o que falta — ja filtrado pelo runtime):\n${qualStages}\nRegras: (1) Responda primeiro o que o cliente pediu em 1-2 frases. (2) Depois faca UMA unica pergunta que avance o proximo gap. (3) Se o cliente respondeu varios dados de uma vez, acuse recebido sem re-perguntar e va direto pro proximo gap. (4) Se o bloco "JA SABEMOS" cobriu tudo, pule qualificacao e apresente processo.` : ""}
 
 ${feeMsg && business?.fee_presentation_timing !== "never" ? `TAXA: ${feeMsg}\nApresentar: ${business?.fee_presentation_timing || "after_qualification"}` : ""}
 
@@ -3065,17 +3244,22 @@ serve(async (req) => {
       // ── Step 1: Backoffice Agent ──
       const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
 
-      // ── Step 2: Data Agent ──
-      await runDataAgent(
+      // ── Step 2: Data Agent (retorna qualification_signals para o Persona) ──
+      const dataResult = await runDataAgent(
         supabase, agent, ctx, backoffice,
         agentConfig.business, agentConfig.qualification,
       );
 
-      // ── Step 3: Persona Agent (com tool calling) ──
+      // ── Step 2b: Cenários — executar ações automáticas deterministicamente ──
+      // (Frente C: apply_tag / auto_transition_stage / auto_notify disparam quando
+      // keyword bate na mensagem do usuário, sem depender do LLM.)
+      await applyScenarioActions(supabase, ctx, agentConfig.scenarios, processedText, agent.org_id);
+
+      // ── Step 3: Persona Agent (com tool calling + signals Frente E) ──
       const personaResult = await runPersonaAgent(
         supabase, agent, ctx, backoffice,
         agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
-        processedText,
+        processedText, dataResult.qualificationSignals,
       );
       const rawResponse = personaResult.response;
       totalInputTokens += personaResult.inputTokens;

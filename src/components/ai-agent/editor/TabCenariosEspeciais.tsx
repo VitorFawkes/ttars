@@ -8,6 +8,8 @@ import {
   type SpecialScenarioInput,
   type SpecialScenario,
 } from '@/hooks/useAgentSpecialScenarios'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useProducts } from '@/hooks/useProducts'
 
 interface Props {
   agentId: string | undefined
@@ -18,11 +20,14 @@ function fromRemote(scenarios: SpecialScenario[]): SpecialScenarioInput[] {
     scenario_name: s.scenario_name,
     trigger_type: s.trigger_type,
     trigger_config: s.trigger_config,
+    trigger_description: s.trigger_description,
     response_adjustment: s.response_adjustment,
     simplified_qualification: s.simplified_qualification,
     skip_fee_presentation: s.skip_fee_presentation,
     skip_meeting_scheduling: s.skip_meeting_scheduling,
     auto_assign_tag: s.auto_assign_tag,
+    auto_transition_stage_id: s.auto_transition_stage_id,
+    auto_notify_responsible: s.auto_notify_responsible,
     handoff_message: s.handoff_message,
     target_agent_id: s.target_agent_id,
     enabled: s.enabled,
@@ -32,8 +37,13 @@ function fromRemote(scenarios: SpecialScenario[]): SpecialScenarioInput[] {
 
 export function TabCenariosEspeciais({ agentId }: Props) {
   const { scenarios, isLoading, replaceAll } = useAgentSpecialScenarios(agentId)
+  const { data: agent } = useAiAgentDetail(agentId)
+  const { products } = useProducts()
   const [local, setLocal] = useState<SpecialScenarioInput[]>([])
   const [dirty, setDirty] = useState(false)
+
+  const agentProduto = (agent as { produto?: string } | undefined)?.produto
+  const pipelineId = products.find(p => p.slug === agentProduto)?.pipeline_id ?? undefined
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- derive local state from server data (pattern estabelecida em AiAgentDetailPage)
@@ -82,7 +92,12 @@ export function TabCenariosEspeciais({ agentId }: Props) {
 
   return (
     <div className="space-y-4">
-      <SpecialScenariosSection value={local} onChange={handleChange} />
+      <SpecialScenariosSection
+        value={local}
+        onChange={handleChange}
+        pipelineId={pipelineId}
+        produto={agentProduto}
+      />
 
       <div className="flex items-center justify-end gap-3">
         {dirty && <span className="text-xs text-amber-600">• alterações não salvas</span>}
