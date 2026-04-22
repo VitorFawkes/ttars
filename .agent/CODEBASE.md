@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 184 tabelas | 129 paginas | 148 hooks | 19 views | 572 components
+> **Stats:** 184 tabelas | 134 paginas | 148 hooks | 19 views | 572 components
 
 ---
 
@@ -392,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **129 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **134 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -492,6 +492,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
+| `FunnelFilterPanel` | `src/pages/analytics-new/funil/FunnelFilterPanel.tsx` |
+| `FunnelKpis` | `src/pages/analytics-new/funil/FunnelKpis.tsx` |
+| `FunnelLossReasons` | `src/pages/analytics-new/funil/FunnelLossReasons.tsx` |
+| `FunnelVelocityTable` | `src/pages/analytics-new/funil/FunnelVelocityTable.tsx` |
+| `FunnelVisual` | `src/pages/analytics-new/funil/FunnelVisual.tsx` |
 | `PipelineAgingHeatmap` | `src/pages/analytics-new/pipeline/PipelineAgingHeatmap.tsx` |
 | `PipelineFilterPanel` | `src/pages/analytics-new/pipeline/PipelineFilterPanel.tsx` |
 | `PipelineKpis` | `src/pages/analytics-new/pipeline/PipelineKpis.tsx` |
