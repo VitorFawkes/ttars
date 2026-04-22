@@ -92,6 +92,21 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
     const queryClient = useQueryClient();
     const [orderedFields, setOrderedFields] = useState<string[]>([]);
     const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
+    const [phaseConfig, setPhaseConfig] = useState({
+        supports_win: false,
+        win_action: 'advance_to_next' as string,
+        owner_label: '',
+    });
+
+    useEffect(() => {
+        if (phase) {
+            setPhaseConfig({
+                supports_win: phase.supports_win ?? false,
+                win_action: phase.win_action ?? 'advance_to_next',
+                owner_label: phase.owner_label ?? '',
+            });
+        }
+    }, [phase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -165,19 +180,26 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 updated_at: new Date().toISOString()
             };
 
-            // Check if exists first to decide insert vs update (or use upsert if we had ID)
-            // Since we don't have unique constraint on 'fase' in types, let's try upsert on 'fase' if possible,
-            // but 'fase' might not be a unique key in the schema definition we can't see.
-            // Assuming 'fase' is unique or we use the ID from fetched settings.
-
-            const { error } = await (supabase.from('pipeline_card_settings') as any)
+            const { error: cardSettingsError } = await (supabase.from('pipeline_card_settings') as any)
                 .upsert(payload, { onConflict: 'fase' });
 
-            if (error) throw error;
+            if (cardSettingsError) throw cardSettingsError;
+
+            const { error: phaseError } = await supabase
+                .from('pipeline_phases')
+                .update({
+                    supports_win: phaseConfig.supports_win,
+                    win_action: phaseConfig.win_action || null,
+                    owner_label: phaseConfig.owner_label || null,
+                })
+                .eq('id', phase.id);
+
+            if (phaseError) throw phaseError;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-card-settings'] });
-            queryClient.invalidateQueries({ queryKey: ['pipeline-settings'] }); // Invalidate KanbanCard cache
+            queryClient.invalidateQueries({ queryKey: ['pipeline-settings'] });
+            queryClient.invalidateQueries({ queryKey: ['pipeline-phases'] });
             alert('Configurações salvas com sucesso!');
             onClose();
         },
@@ -227,9 +249,62 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
-                    <p className="text-sm text-gray-500 mb-4">
-                        Escolha quais campos aparecem nos cards desta fase e arraste para ordenar.
-                    </p>
+                    {/* Win / Ganho configuration */}
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-3">Regras de Ganho</h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div>
+                                    <span className="text-sm font-medium text-gray-900">Esta fase tem ganho?</span>
+                                    <p className="text-xs text-gray-500">Habilita o botão "Marcar como ganho" nos cards desta fase</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setPhaseConfig(prev => ({ ...prev, supports_win: !prev.supports_win }))}
+                                    className={cn(
+                                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0",
+                                        phaseConfig.supports_win ? "bg-indigo-600" : "bg-gray-300"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                        phaseConfig.supports_win ? "translate-x-6" : "translate-x-1"
+                                    )} />
+                                </button>
+                            </div>
+
+                            {phaseConfig.supports_win && (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Ao marcar ganho, o card...</label>
+                                    <select
+                                        value={phaseConfig.win_action}
+                                        onChange={e => setPhaseConfig(prev => ({ ...prev, win_action: e.target.value }))}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    >
+                                        <option value="advance_to_next">Avança automaticamente para a próxima fase</option>
+                                        <option value="choose">Fica na etapa atual (ganho apenas registrado)</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Nome do responsável desta fase</label>
+                                <input
+                                    type="text"
+                                    value={phaseConfig.owner_label}
+                                    onChange={e => setPhaseConfig(prev => ({ ...prev, owner_label: e.target.value }))}
+                                    placeholder="Ex: SDR, Closer, Wedding Planner"
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-200 pt-5 mb-4">
+                        <p className="text-sm text-gray-500">
+                            Escolha quais campos aparecem nos cards desta fase e arraste para ordenar.
+                        </p>
+                    </div>
 
                     <DndContext
                         sensors={sensors}
