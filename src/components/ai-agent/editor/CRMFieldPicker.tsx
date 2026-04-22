@@ -99,7 +99,14 @@ export function useCRMFields({
       }
     }
 
-    return out
+    // Deduplicar por key. system_fields pode aparecer replicado quando o user
+    // tem visibilidade em mais de uma org (account pai + workspace filha).
+    const seen = new Set<string>()
+    return out.filter(f => {
+      if (seen.has(f.key)) return false
+      seen.add(f.key)
+      return true
+    })
   }, [scope, produto, systemFields, sections])
 
   return { fields, isLoading: loadingFields || loadingSections }

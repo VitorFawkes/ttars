@@ -16,17 +16,10 @@ export interface FieldAwareTextareaProps {
   trigger?: string
 }
 
-interface MentionState {
-  /** Posicao do trigger no `value`. */
-  anchor: number
-  /** Texto digitado depois do trigger (termo de busca). */
-  query: string
-}
-
 /**
  * Textarea com autocomplete de campos do CRM.
- * Ao digitar `@`, abre uma lista filtravel logo abaixo do textarea.
- * Selecionar substitui `@query` pela `key` do campo.
+ * Ao digitar `@` no textarea, abre uma lista filtrável logo abaixo, navegável
+ * por setas/Enter/Esc. Ao selecionar, a `key` do campo substitui `@query`.
  */
 export function FieldAwareTextarea({
   value,
@@ -40,9 +33,17 @@ export function FieldAwareTextarea({
   trigger = '@',
 }: FieldAwareTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [mention, setMention] = useState<MentionState | null>(null)
+  // Cursor é a única fonte de verdade sobre "onde o usuário está".
+  // Combinado com `value` (prop), derivamos a menção ativa.
+  const [cursor, setCursor] = useState<number | null>(null)
+  const [dismissed, setDismissed] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
   const { fields, isLoading } = useCRMFields({ scope, pipelineId, produto })
+
+  const mention = useMemo(() => {
+    if (cursor === null || dismissed) return null
+    return detectMention(value, cursor, trigger)
+  }, [value, cursor, dismissed, trigger])
 
   const matches = useMemo(() => {
     if (!mention) return []
@@ -60,31 +61,25 @@ export function FieldAwareTextarea({
 
   const groups = useMemo(() => groupFields(matches), [matches])
 
+  // Quando a query muda, volta a highlight pra primeira.
   useEffect(() => {
     setHighlightIdx(0)
   }, [mention?.query])
 
-  const detectMention = (text: string, cursor: number): MentionState | null => {
-    const before = text.slice(0, cursor)
-    const escapedTrigger = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(`(?:^|\\s)${escapedTrigger}([\\w.]*)$`)
-    const match = regex.exec(before)
-    if (!match) return null
-    const anchor = cursor - match[1].length - trigger.length
-    return { anchor, query: match[1] }
-  }
+  // Se o dropdown foi dispensado (Esc), reabre quando o usuário mexer no @.
+  useEffect(() => {
+    if (!dismissed) return
+    if (mention === null) setDismissed(false)
+  }, [mention, dismissed])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const next = e.target.value
-    onChange(next)
-    const cursor = e.target.selectionStart ?? next.length
-    setMention(detectMention(next, cursor))
+    onChange(e.target.value)
+    setCursor(e.target.selectionStart ?? e.target.value.length)
+    setDismissed(false)
   }
 
-  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Escape') return
-    const cursor = e.currentTarget.selectionStart ?? value.length
-    setMention(detectMention(value, cursor))
+  const syncCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setCursor(e.currentTarget.selectionStart ?? e.currentTarget.value.length)
   }
 
   const commitField = (field: CRMField) => {
@@ -94,14 +89,14 @@ export function FieldAwareTextarea({
     const needsSpaceAfter = after.length > 0 && !/^\s/.test(after)
     const inserted = `${field.key}${needsSpaceAfter ? '' : ' '}`
     const next = before + inserted + after
+    const nextCursor = before.length + inserted.length
     onChange(next)
-    setMention(null)
+    setCursor(nextCursor)
     requestAnimationFrame(() => {
       const ta = textareaRef.current
       if (!ta) return
-      const pos = before.length + inserted.length
       ta.focus()
-      ta.setSelectionRange(pos, pos)
+      ta.setSelectionRange(nextCursor, nextCursor)
     })
   }
 
@@ -119,7 +114,7 @@ export function FieldAwareTextarea({
       if (field) commitField(field)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      setMention(null)
+      setDismissed(true)
     }
   }
 
@@ -129,9 +124,10 @@ export function FieldAwareTextarea({
         ref={textareaRef}
         value={value}
         onChange={handleChange}
-        onKeyUp={handleKeyUp}
+        onKeyUp={syncCursor}
+        onClick={syncCursor}
         onKeyDown={handleKeyDown}
-        onBlur={() => setTimeout(() => setMention(null), 150)}
+        onBlur={() => setTimeout(() => setCursor(null), 150)}
         placeholder={placeholder}
         rows={rows}
       />
@@ -196,4 +192,19 @@ function groupFields(fields: CRMField[]): Group[] {
     map.set(f.sectionLabel, arr)
   }
   return Array.from(map.entries()).map(([sectionLabel, items]) => ({ sectionLabel, items }))
+}
+
+function detectMention(
+  text: string,
+  cursor: number,
+  trigger: string,
+): { anchor: number; query: string } | null {
+  if (cursor < 0 || cursor > text.length) return null
+  const before = text.slice(0, cursor)
+  const escapedTrigger = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(?:^|\\s)${escapedTrigger}([\\w.]*)$`)
+  const match = regex.exec(before)
+  if (!match) return null
+  const anchor = cursor - match[1].length - trigger.length
+  return { anchor, query: match[1] }
 }
