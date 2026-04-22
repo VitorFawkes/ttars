@@ -1,16 +1,24 @@
 import { Lightbulb } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { INTELLIGENT_DECISIONS_CATALOG, type AgentEditorForm } from './types'
 import { cn } from '@/lib/utils'
+import { FieldAwareTextarea } from './FieldAwareTextarea'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
+import { useProducts } from '@/hooks/useProducts'
 
 interface Props {
   form: AgentEditorForm
   setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
+  agentId?: string
 }
 
-export function TabDecisoes({ form, setForm }: Props) {
+export function TabDecisoes({ form, setForm, agentId }: Props) {
+  const { data: agent } = useAiAgentDetail(agentId)
+  const { products } = useProducts()
+  const produto = (agent as { produto?: string } | undefined)?.produto
+  const pipelineId = products.find(p => p.slug === produto)?.pipeline_id ?? undefined
+
   const toggle = (key: string) => {
     setForm(f => {
       const current = f.intelligent_decisions[key] ?? { enabled: false, config: {} }
@@ -72,13 +80,17 @@ export function TabDecisoes({ form, setForm }: Props) {
               {decision.enabled && (
                 <div className="space-y-1 pt-1">
                   <Label className="text-xs text-slate-600">Instruções específicas (opcional)</Label>
-                  <Textarea
+                  <FieldAwareTextarea
                     value={instructions}
-                    onChange={e => updateInstructions(cat.key, e.target.value)}
+                    onChange={v => updateInstructions(cat.key, v)}
                     rows={2}
-                    className="text-xs"
+                    pipelineId={pipelineId}
+                    produto={produto}
                     placeholder="Ex: Só criar reunião depois que o cliente confirmar email. Nunca agendar antes das 9h ou depois das 18h."
                   />
+                  <p className="text-[10px] text-slate-400">
+                    Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 font-mono text-[9px]">@</kbd> para inserir um campo do CRM. Escreva o resto em linguagem natural — o agente entende.
+                  </p>
                 </div>
               )}
             </div>
