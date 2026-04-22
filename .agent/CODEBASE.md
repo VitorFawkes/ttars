@@ -8,9 +8,9 @@
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
 <<<<<<< HEAD
-> **Stats:** 184 tabelas | 104 paginas | 148 hooks | 19 views | 571 components
+> **Stats:** 184 tabelas | 121 paginas | 148 hooks | 19 views | 571 components
 =======
-> **Stats:** 184 tabelas | 104 paginas | 148 hooks | 19 views | 571 components
+> **Stats:** 184 tabelas | 121 paginas | 148 hooks | 19 views | 571 components
 >>>>>>> feat/c2-editor-abas
 
 ---
@@ -396,7 +396,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **104 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **121 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -479,6 +479,23 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Step5_BusinessRules` | `src/pages/admin/wizard/Step5_BusinessRules.tsx` |
 | `Step6_Escalation` | `src/pages/admin/wizard/Step6_Escalation.tsx` |
 | `Step7_PreviewDeploy` | `src/pages/admin/wizard/Step7_PreviewDeploy.tsx` |
+| `AnalyticsLayout` | `src/pages/analytics-new/AnalyticsLayout.tsx` |
+| `AnalyticsRootRedirect` | `src/pages/analytics-new/AnalyticsRootRedirect.tsx` |
+| `AnalyticsSidebar` | `src/pages/analytics-new/AnalyticsSidebar.tsx` |
+| `CardTimelineDrawer` | `src/pages/analytics-new/CardTimelineDrawer.tsx` |
+| `ExplorarPage` | `src/pages/analytics-new/ExplorarPage.tsx` |
+| `FinancialView` | `src/pages/analytics-new/FinancialView.tsx` |
+| `FunnelView` | `src/pages/analytics-new/FunnelView.tsx` |
+| `OperationsView` | `src/pages/analytics-new/OperationsView.tsx` |
+| `PipelineView` | `src/pages/analytics-new/PipelineView.tsx` |
+| `ResumoView` | `src/pages/analytics-new/ResumoView.tsx` |
+| `RetentionView` | `src/pages/analytics-new/RetentionView.tsx` |
+| `SLAView` | `src/pages/analytics-new/SLAView.tsx` |
+| `SaudeView` | `src/pages/analytics-new/SaudeView.tsx` |
+| `TeamView` | `src/pages/analytics-new/TeamView.tsx` |
+| `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
+| `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
+| `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
