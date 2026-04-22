@@ -11,6 +11,16 @@ import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { SingleFieldPicker, type CRMField } from './CRMFieldPicker'
 import type { QualificationStageInput, DisqualificationTrigger } from '@/hooks/useAgentQualificationFlow'
 
+function slugifyKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
 const ADVANCE_OPTIONS = [
   { value: '', label: 'Nenhuma (agente decide)' },
   { value: 'first_lead_message', label: 'Primeira mensagem do lead' },
@@ -125,7 +135,7 @@ export function QualificationFlowEditor({ value, onChange, pipelineId, produto, 
               </div>
               <Input
                 value={stage.stage_name}
-                onChange={e => update(idx, { stage_name: e.target.value })}
+                onChange={e => update(idx, { stage_name: e.target.value, stage_key: slugifyKey(e.target.value) })}
                 placeholder="Nome da etapa (ex: Destino)"
                 className="font-medium"
               />
@@ -135,29 +145,18 @@ export function QualificationFlowEditor({ value, onChange, pipelineId, produto, 
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-slate-600">Chave interna</Label>
-              <Input
-                value={stage.stage_key ?? ''}
-                onChange={e => update(idx, { stage_key: e.target.value })}
-                placeholder="destino, periodo, viajantes..."
-                className="font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-slate-600">Campo do card que recebe a resposta</Label>
-              <SingleFieldPicker
-                value={stage.maps_to_field ?? null}
-                onChange={(v) => update(idx, { maps_to_field: v || null })}
-                scope="card"
-                pipelineId={pipelineId}
-                produto={produto}
-                extraFields={extraFields}
-                allowCustom
-                placeholder="Escolha onde salvar esta resposta"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-600">Campo do card que recebe a resposta</Label>
+            <SingleFieldPicker
+              value={stage.maps_to_field ?? null}
+              onChange={(v) => update(idx, { maps_to_field: v || null })}
+              scope="card"
+              pipelineId={pipelineId}
+              produto={produto}
+              extraFields={extraFields}
+              allowCustom
+              placeholder="Escolha onde salvar esta resposta"
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -288,7 +287,7 @@ export function QualificationFlowSection(props: QualificationFlowEditorProps) {
 
       <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3">
         <p className="text-xs text-indigo-900">
-          <strong>Como funciona:</strong> uma pergunta por vez, na ordem. Se o cliente já preencheu o campo no formulário (mkt_destino, etc), a pergunta é pulada. Use <em>Chave interna</em> para mapear no prompt e <em>Opções de resposta</em> para faixas predefinidas (ex: orçamento).
+          <strong>Como funciona:</strong> uma pergunta por vez, na ordem. Se o cliente já preencheu o campo selecionado, a pergunta é pulada. Use <em>Opções de resposta</em> para faixas predefinidas (ex: orçamento).
         </p>
       </div>
 
