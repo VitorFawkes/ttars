@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { usePipelineCurrent } from '@/hooks/analytics/usePipelineCurrent'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
@@ -34,8 +34,19 @@ export default function PipelineView() {
   const drillDown = useDrillDownStore()
   const { profile } = useAuth()
   const { ownerIds, setOwnerIds } = useAnalyticsFilters()
+  const setDatePreset = useAnalyticsFilters(s => s.setDatePreset)
   const { pipelineId } = useCurrentProductMeta()
   const { data: phases = [] } = usePipelinePhases(pipelineId ?? undefined)
+
+  // Pipeline é snapshot "tudo em aberto agora" — drill-downs precisam de janela ampla
+  // (dateRange default = last_3_months, que esconde cards antigos ainda abertos).
+  useEffect(() => {
+    const prev = useAnalyticsFilters.getState().datePreset
+    setDatePreset('all_time')
+    return () => {
+      setDatePreset(prev)
+    }
+  }, [setDatePreset])
 
   const state = usePipelinePageState()
 
@@ -188,6 +199,18 @@ export default function PipelineView() {
     [ownerIds, setOwnerIds]
   )
 
+  const handleOwnerDrill = useCallback(
+    (ownerId: string, ownerName: string) => {
+      drillDown.open({
+        label: `Cards de ${ownerName}`,
+        drillOwnerId: ownerId,
+        drillSource: 'current_stage',
+        excludeTerminal: true,
+      })
+    },
+    [drillDown]
+  )
+
   const handleOwnerToggle = useCallback(
     (ownerId: string) => {
       setOwnerIds(ownerIds.includes(ownerId) ? ownerIds.filter(id => id !== ownerId) : [ownerId])
@@ -247,7 +270,7 @@ export default function PipelineView() {
         setChartGroupBy={state.setChartGroupBy}
         phaseLabel={phaseLabel}
         onStageDrill={handleStageDrill}
-        onOwnerFilter={handleOwnerFilter}
+        onOwnerDrill={handleOwnerDrill}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -264,7 +287,7 @@ export default function PipelineView() {
           metric={state.metric}
           phaseFilter={state.phaseFilter}
           phaseLabel={phaseLabel}
-          onOwnerFilter={handleOwnerFilter}
+          onOwnerDrill={handleOwnerDrill}
         />
       </div>
 

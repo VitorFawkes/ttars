@@ -6,6 +6,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import ChartCard from '@/components/analytics/ChartCard'
 import { formatCurrency } from '@/utils/whatsappFormatters'
@@ -23,7 +24,14 @@ interface Props {
   metric: MetricMode
   phaseFilter: PhaseFilter
   phaseLabel: (slug: string | null | undefined) => string
-  onOwnerFilter: (ownerId: string | null) => void
+  onOwnerDrill: (ownerId: string, ownerName: string) => void
+}
+
+function formatBarLabel(v: number, isMonetary: boolean): string {
+  if (!v) return ''
+  if (!isMonetary) return String(v)
+  if (v >= 1000) return `${(v / 1000).toFixed(0)}k`
+  return String(v)
 }
 
 export default function PipelineOwnerWorkload({
@@ -32,7 +40,7 @@ export default function PipelineOwnerWorkload({
   metric,
   phaseFilter,
   phaseLabel,
-  onOwnerFilter,
+  onOwnerDrill,
 }: Props) {
   const isMonetary = metric !== 'cards'
 
@@ -59,11 +67,18 @@ export default function PipelineOwnerWorkload({
     }
 
     return filtered.slice(0, 12).map(o => {
+      const total =
+        metric === 'cards'
+          ? o.total_cards
+          : metric === 'faturamento'
+            ? o.total_value
+            : o.total_receita
       if (phaseFilter !== 'all') {
         return {
           name: o.owner_nome,
           owner_id: o.owner_id,
           [phaseFilter]: getVal(o, phaseFilter),
+          total,
         }
       }
       return {
@@ -72,6 +87,7 @@ export default function PipelineOwnerWorkload({
         sdr: getVal(o, 'sdr'),
         planner: getVal(o, 'planner'),
         'pos-venda': getVal(o, 'pos-venda'),
+        total,
       }
     })
   }, [owners, phaseFilter, metric])
@@ -88,8 +104,8 @@ export default function PipelineOwnerWorkload({
         phaseFilter === 'all'
           ? `Por responsável — ${
               metric === 'cards' ? 'quantidade' : metric === 'faturamento' ? 'faturamento' : 'receita'
-            }`
-          : `${phaseLabel(phaseFilter)} por responsável`
+            } · clique pra ver cards`
+          : `${phaseLabel(phaseFilter)} por responsável · clique pra ver cards`
       }
       isLoading={isLoading}
     >
@@ -98,7 +114,7 @@ export default function PipelineOwnerWorkload({
           <BarChart
             data={ownerChartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+            margin={{ top: 5, right: 60, left: 10, bottom: 5 }}
           >
             <XAxis
               type="number"
@@ -115,20 +131,33 @@ export default function PipelineOwnerWorkload({
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
               formatter={tooltipFormatter}
             />
-            {ownerBarKeys.map(key => (
-              <Bar
-                key={key}
-                dataKey={key}
-                stackId="a"
-                fill={getPhaseColor(key)}
-                cursor="pointer"
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                onClick={(_data: any, idx: number) => {
-                  const o = ownerChartData[idx]
-                  if (o?.owner_id) onOwnerFilter(o.owner_id as string)
-                }}
-              />
-            ))}
+            {ownerBarKeys.map((key, idx) => {
+              const isLast = idx === ownerBarKeys.length - 1
+              return (
+                <Bar
+                  key={key}
+                  dataKey={key}
+                  stackId="a"
+                  fill={getPhaseColor(key)}
+                  cursor="pointer"
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  onClick={(_data: any, i: number) => {
+                    const o = ownerChartData[i]
+                    if (o?.owner_id) onOwnerDrill(o.owner_id as string, o.name)
+                  }}
+                >
+                  {isLast && (
+                    <LabelList
+                      dataKey="total"
+                      position="right"
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      formatter={(v: any) => formatBarLabel(Number(v), isMonetary)}
+                      style={{ fontSize: 10, fill: '#475569', fontWeight: 600 }}
+                    />
+                  )}
+                </Bar>
+              )
+            })}
           </BarChart>
         </ResponsiveContainer>
       </div>

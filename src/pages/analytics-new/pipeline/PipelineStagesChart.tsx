@@ -36,7 +36,7 @@ interface Props {
   setChartGroupBy: (v: ChartGroupBy) => void
   phaseLabel: (slug: string | null | undefined) => string
   onStageDrill: (stageId: string, stageName: string) => void
-  onOwnerFilter: (ownerId: string | null) => void
+  onOwnerDrill: (ownerId: string, ownerName: string) => void
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,7 +74,7 @@ export default function PipelineStagesChart({
   setChartGroupBy,
   phaseLabel,
   onStageDrill,
-  onOwnerFilter,
+  onOwnerDrill,
 }: Props) {
   const isMonetary = metric !== 'cards'
 
@@ -289,7 +289,7 @@ export default function PipelineStagesChart({
               <BarChart
                 data={ownerChartData}
                 layout="vertical"
-                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 60, left: 10, bottom: 5 }}
               >
                 <XAxis
                   type="number"
@@ -311,20 +311,41 @@ export default function PipelineStagesChart({
                     return `${label} — Total: ${isMonetary ? formatCurrency(o.total as number) : o.total}`
                   }}
                 />
-                {ownerBarKeys.map(key => (
-                  <Bar
-                    key={key}
-                    dataKey={key}
-                    stackId="a"
-                    fill={getPhaseColor(key)}
-                    cursor="pointer"
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    onClick={(_data: any, idx: number) => {
-                      const o = ownerChartData[idx]
-                      if (o?.owner_id) onOwnerFilter(o.owner_id as string)
-                    }}
-                  />
-                ))}
+                {ownerBarKeys.map((key, i) => {
+                  const isLast = i === ownerBarKeys.length - 1
+                  return (
+                    <Bar
+                      key={key}
+                      dataKey={key}
+                      stackId="a"
+                      fill={getPhaseColor(key)}
+                      cursor="pointer"
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onClick={(_data: any, idx: number) => {
+                        const o = ownerChartData[idx]
+                        if (o?.owner_id) onOwnerDrill(o.owner_id as string, o.name)
+                      }}
+                    >
+                      {isLast && (
+                        <LabelList
+                          dataKey="total"
+                          position="right"
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter={(v: any) => {
+                            const n = Number(v)
+                            if (!n) return ''
+                            return isMonetary
+                              ? n >= 1000
+                                ? `${(n / 1000).toFixed(0)}k`
+                                : String(n)
+                              : String(n)
+                          }}
+                          style={{ fontSize: 10, fill: '#475569', fontWeight: 600 }}
+                        />
+                      )}
+                    </Bar>
+                  )
+                })}
               </BarChart>
             </ResponsiveContainer>
           </div>
