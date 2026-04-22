@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 187 tabelas | 138 paginas | 148 hooks | 19 views | 590 components
+> **Stats:** 187 tabelas | 139 paginas | 148 hooks | 19 views | 590 components
 
 ---
 
@@ -392,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **138 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **139 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -497,6 +497,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
 | `FunnelFilterPanel` | `src/pages/analytics-new/funil/FunnelFilterPanel.tsx` |
 | `FunnelKpis` | `src/pages/analytics-new/funil/FunnelKpis.tsx` |
+| `FunnelKpisEditor` | `src/pages/analytics-new/funil/FunnelKpisEditor.tsx` |
 | `FunnelLossReasons` | `src/pages/analytics-new/funil/FunnelLossReasons.tsx` |
 | `FunnelVelocityTable` | `src/pages/analytics-new/funil/FunnelVelocityTable.tsx` |
 | `FunnelVisual` | `src/pages/analytics-new/funil/FunnelVisual.tsx` |

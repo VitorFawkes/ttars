@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { QueryErrorState } from '@/components/ui/QueryErrorState'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
+import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import {
@@ -13,6 +14,7 @@ import {
 
 import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
+import FunnelKpisEditor from './funil/FunnelKpisEditor'
 import FunnelVisual from './funil/FunnelVisual'
 import FunnelVelocityTable from './funil/FunnelVelocityTable'
 import FunnelLossReasons from './funil/FunnelLossReasons'
@@ -20,9 +22,11 @@ import { useFunnelData } from './funil/useFunnelData'
 import { useFunnelPageState } from './funil/useFunnelPageState'
 import type { PickerOption, PickerSection } from './funil/MultiPickerPopover'
 import { ganhoFaseToRpc, statusToRpcArray } from './funil/constants'
+import { makeDefaultKpis, type KpiConfig } from './funil/kpiConfig'
 
 export default function FunnelView() {
   const { profile } = useAuth()
+  const { org } = useOrg()
   const drillDown = useDrillDownStore()
   const {
     dateRange,
@@ -37,7 +41,8 @@ export default function FunnelView() {
     setTagIds,
   } = useAnalyticsFilters()
 
-  const state = useFunnelPageState()
+  const state = useFunnelPageState(org?.id, product)
+  const [kpisEditorOpen, setKpisEditorOpen] = useState(false)
 
   // Pipeline do produto ativo — fonte canônica das etapas (não depende do retorno da RPC)
   const { pipelineId } = useCurrentProductMeta()
@@ -210,6 +215,13 @@ export default function FunnelView() {
     return rawVelocity.filter(s => visibleStageIds.has(s.stage_id))
   }, [rawVelocity, visibleStageIds, state.rootStageId])
 
+  // Configs dos 4 KPIs: usa o que o usuário salvou OU gera default com base no funil visível.
+  // Importante: quando conversion muda (período/filtros), NÃO regeneramos se usuário já tem config.
+  const kpiConfigs: KpiConfig[] = useMemo(() => {
+    if (state.kpiConfigs && state.kpiConfigs.length === 4) return state.kpiConfigs
+    return makeDefaultKpis(conversion)
+  }, [state.kpiConfigs, conversion])
+
   const handleStageDrill = useCallback(
     (stageId: string, stageName: string) => {
       const statusArray = statusToRpcArray(state.status)
@@ -296,9 +308,18 @@ export default function FunnelView() {
         isLoading={conversionAndKpisLoading}
         stages={conversion}
         previousStages={previousConversion}
-        metric={state.metric}
-        status={state.status}
         compareEnabled={state.compareEnabled}
+        configs={kpiConfigs}
+        onOpenEditor={() => setKpisEditorOpen(true)}
+      />
+
+      <FunnelKpisEditor
+        isOpen={kpisEditorOpen}
+        onClose={() => setKpisEditorOpen(false)}
+        configs={kpiConfigs}
+        stageOptions={stageOptions}
+        onSave={state.setKpiConfigs}
+        onReset={state.resetKpiConfigs}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

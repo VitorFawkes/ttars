@@ -1,36 +1,33 @@
-import { Target, Briefcase, DollarSign, Trophy } from 'lucide-react'
+import { Settings, Briefcase, Target, DollarSign, Clock, Scale } from 'lucide-react'
+import { useMemo } from 'react'
 import KpiCard from '@/components/analytics/KpiCard'
-import { formatCurrency } from '@/utils/whatsappFormatters'
-import { relativeDelta, type FunnelMetric, type FunnelStatus } from './constants'
+import { relativeDelta } from './constants'
+import { computeKpi, type KpiConfig, type KpiResult } from './kpiConfig'
 import type { FunnelStageV3 } from './useFunnelData'
 
 interface Props {
   isLoading: boolean
   stages: FunnelStageV3[]
   previousStages: FunnelStageV3[] | null
-  metric: FunnelMetric
-  status: FunnelStatus
   compareEnabled: boolean
+  configs: KpiConfig[]
+  onOpenEditor: () => void
 }
 
-function topOf(stages: FunnelStageV3[]): FunnelStageV3 | null {
-  return stages[0] ?? null
+const ICON_BY_TYPE = {
+  volume_stage: Briefcase,
+  conversion: Target,
+  aggregate: DollarSign,
+  time_stage: Clock,
 }
 
-function bottomOf(stages: FunnelStageV3[]): FunnelStageV3 | null {
-  return stages.length ? stages[stages.length - 1] : null
-}
-
-function sumValor(stages: FunnelStageV3[]): number {
-  return stages.reduce((s, x) => s + (x.period_valor || 0), 0)
-}
-
-function sumReceita(stages: FunnelStageV3[]): number {
-  return stages.reduce((s, x) => s + (x.period_receita || 0), 0)
-}
-
-function sumCount(stages: FunnelStageV3[]): number {
-  return stages.reduce((s, x) => s + (x.period_count || 0), 0)
+const COLOR_CLASSES: Record<KpiResult['color'], { text: string; bg: string }> = {
+  blue: { text: 'text-blue-600', bg: 'bg-blue-50' },
+  emerald: { text: 'text-emerald-600', bg: 'bg-emerald-50' },
+  indigo: { text: 'text-indigo-600', bg: 'bg-indigo-50' },
+  amber: { text: 'text-amber-600', bg: 'bg-amber-50' },
+  rose: { text: 'text-rose-600', bg: 'bg-rose-50' },
+  slate: { text: 'text-slate-600', bg: 'bg-slate-50' },
 }
 
 function formatDelta(d: number | null): string | undefined {
@@ -39,137 +36,76 @@ function formatDelta(d: number | null): string | undefined {
   return `${sign}${d.toFixed(0)}% vs anterior`
 }
 
-const shortName = (n: string | undefined, max = 18) =>
-  !n ? '' : n.length > max ? n.slice(0, max - 1) + '…' : n
-
 export default function FunnelKpis({
   isLoading,
   stages,
   previousStages,
-  metric,
-  status,
   compareEnabled,
+  configs,
+  onOpenEditor,
 }: Props) {
-  const top = topOf(stages)
-  const bot = bottomOf(stages)
-  const prevTop = previousStages ? topOf(previousStages) : null
-  const prevBot = previousStages ? bottomOf(previousStages) : null
+  const stagesById = useMemo(() => {
+    const m = new Map<string, FunnelStageV3>()
+    for (const s of stages) m.set(s.stage_id, s)
+    return m
+  }, [stages])
 
-  // KPIs usam `period_count` (cards que "caíram" na etapa no período conforme date_ref/status).
-  const totalEntered = top?.period_count ?? 0
-  const totalFinished = bot?.period_count ?? 0
-  const conversionRate = totalEntered > 0 ? (totalFinished / totalEntered) * 100 : 0
+  const prevStagesById = useMemo(() => {
+    const m = new Map<string, FunnelStageV3>()
+    if (previousStages) for (const s of previousStages) m.set(s.stage_id, s)
+    return m
+  }, [previousStages])
 
-  const prevEntered = prevTop?.period_count ?? 0
-  const prevFinished = prevBot?.period_count ?? 0
-  const prevConversion = prevEntered > 0 ? (prevFinished / prevEntered) * 100 : 0
-
-  const deltaEntered = compareEnabled ? relativeDelta(totalEntered, prevEntered) : null
-  const deltaFinished = compareEnabled ? relativeDelta(totalFinished, prevFinished) : null
-  const deltaConversion = compareEnabled ? relativeDelta(conversionRate, prevConversion) : null
-
-  // Valor/receita: soma ao longo das etapas visíveis. Como um card entra em UMA etapa
-  // (após deduplicação na RPC), não há double-counting. Mas representa "valor total movimentado",
-  // não receita realizada — o label reflete isso conforme status/metric.
-  const valorTotal = sumValor(stages)
-  const receitaTotal = sumReceita(stages)
-  const prevValor = previousStages ? sumValor(previousStages) : 0
-  const prevReceita = previousStages ? sumReceita(previousStages) : 0
-
-  const totalCount = sumCount(stages)
-  const prevCount = previousStages ? sumCount(previousStages) : 0
-
-  // Escolha do 4º KPI baseado em métrica + status:
-  //   - metric=receita → Receita total
-  //   - metric=faturamento → Faturamento
-  //   - metric=cards → Total movimentado (cards)
-  // Label troca conforme status:
-  //   - status='won' → "Receita realizada"
-  //   - status='lost' → "Perda em valor"
-  //   - demais → "Em movimento" (vendas + abertas)
-  const valueKpi = (() => {
-    if (metric === 'receita') {
-      return {
-        title:
-          status === 'won'
-            ? 'Receita ganha'
-            : status === 'lost'
-              ? 'Receita perdida'
-              : 'Receita no período',
-        value: formatCurrency(receitaTotal),
-        delta: compareEnabled ? relativeDelta(receitaTotal, prevReceita) : null,
+  const results = useMemo(() => {
+    return configs.map(cfg => {
+      const current = computeKpi(cfg, stages, stagesById)
+      let delta: number | null = null
+      if (compareEnabled && previousStages) {
+        const prev = computeKpi(cfg, previousStages, prevStagesById)
+        if (
+          current.numericValue != null &&
+          prev.numericValue != null &&
+          prev.numericValue !== 0
+        ) {
+          delta = relativeDelta(current.numericValue, prev.numericValue)
+        }
       }
-    }
-    if (metric === 'faturamento') {
-      return {
-        title:
-          status === 'won'
-            ? 'Faturamento ganho'
-            : status === 'lost'
-              ? 'Faturamento perdido'
-              : 'Faturamento no período',
-        value: formatCurrency(valorTotal),
-        delta: compareEnabled ? relativeDelta(valorTotal, prevValor) : null,
-      }
-    }
-    return {
-      title:
-        status === 'won'
-          ? 'Total de ganhos'
-          : status === 'lost'
-            ? 'Total de perdas'
-            : 'Total no período',
-      value: totalCount.toLocaleString('pt-BR'),
-      delta: compareEnabled ? relativeDelta(totalCount, prevCount) : null,
-    }
-  })()
-
-  const conversionTitle =
-    top && bot
-      ? `Conversão ${shortName(top.stage_nome, 14)} → ${shortName(bot.stage_nome, 14)}`
-      : 'Conversão do funil'
-
-  const topLabel = top ? `Entraram em "${shortName(top.stage_nome)}"` : 'Entraram no funil'
-  const botLabel = bot ? `Chegaram em "${shortName(bot.stage_nome)}"` : 'Chegaram ao fim'
+      return { cfg, result: current, delta }
+    })
+  }, [configs, stages, previousStages, stagesById, prevStagesById, compareEnabled])
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <KpiCard
-        title={topLabel}
-        value={totalEntered.toLocaleString('pt-BR')}
-        icon={Briefcase}
-        color="text-blue-600"
-        bgColor="bg-blue-50"
-        isLoading={isLoading}
-        subtitle={formatDelta(deltaEntered)}
-      />
-      <KpiCard
-        title={botLabel}
-        value={totalFinished.toLocaleString('pt-BR')}
-        icon={Trophy}
-        color="text-emerald-600"
-        bgColor="bg-emerald-50"
-        isLoading={isLoading}
-        subtitle={formatDelta(deltaFinished)}
-      />
-      <KpiCard
-        title={conversionTitle}
-        value={`${conversionRate.toFixed(1)}%`}
-        icon={Target}
-        color="text-indigo-600"
-        bgColor="bg-indigo-50"
-        isLoading={isLoading}
-        subtitle={formatDelta(deltaConversion)}
-      />
-      <KpiCard
-        title={valueKpi.title}
-        value={valueKpi.value}
-        icon={DollarSign}
-        color="text-amber-600"
-        bgColor="bg-amber-50"
-        isLoading={isLoading}
-        subtitle={formatDelta(valueKpi.delta)}
-      />
+    <div className="relative">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {results.map(({ cfg, result, delta }) => {
+          const Icon = cfg.type === 'aggregate' && cfg.aggregate === 'ticket'
+            ? Scale
+            : ICON_BY_TYPE[cfg.type]
+          const colors = COLOR_CLASSES[result.color]
+          return (
+            <KpiCard
+              key={cfg.id}
+              title={result.title}
+              value={result.value}
+              icon={Icon}
+              color={colors.text}
+              bgColor={colors.bg}
+              isLoading={isLoading}
+              subtitle={result.hint ?? formatDelta(delta)}
+            />
+          )
+        })}
+      </div>
+
+      {/* Engrenagem no canto superior direito — abre editor */}
+      <button
+        type="button"
+        onClick={onOpenEditor}
+        title="Personalizar KPIs"
+        className="absolute -top-2 -right-2 h-7 w-7 flex items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 shadow-sm transition-colors"
+      >
+        <Settings className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 }
