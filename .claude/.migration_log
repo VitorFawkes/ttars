@@ -587,3 +587,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-22T13:31:56Z | supabase/migrations/20260422l_disable_consultoras_trips_inbound.sql | applied_to_prod
 2026-04-22T14:01:08Z | supabase/migrations/20260422_fix_inventory_products_policy_org_split.sql | applied_to_prod
 2026-04-22T14:08:14Z | supabase/migrations/20260422b_fix_remaining_org_split_policies.sql | applied_to_prod
+2026-04-22T14:45:46Z | supabase/migrations/20260422c_wedding_funnel_rebuild.sql | applied_to_prod
+2026-04-22T14:45:59Z | supabase/migrations/20260422d_wedding_planning_fields.sql | applied_to_prod
+2026-04-22T14:46:13Z | supabase/migrations/20260422e_wedding_stage_configs.sql | applied_to_prod
