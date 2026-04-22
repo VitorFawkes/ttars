@@ -86,10 +86,12 @@ export function TabDecisoes({ form, setForm, agentId }: Props) {
                     rows={2}
                     pipelineId={pipelineId}
                     produto={produto}
+                    agentId={agentId}
+                    enabledTypes={['field', 'tag', 'skill', 'stage']}
                     placeholder="Ex: Só criar reunião depois que o cliente confirmar email. Nunca agendar antes das 9h ou depois das 18h."
                   />
                   <p className="text-[10px] text-slate-400">
-                    Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 font-mono text-[9px]">@</kbd> para inserir um campo do CRM. Escreva o resto em linguagem natural — o agente entende.
+                    Escreva em linguagem natural. Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 font-mono text-[9px]">@</kbd> pra inserir campo, tag, skill ou etapa — cada um aparece com cor diferente.
                   </p>
                 </div>
               )}

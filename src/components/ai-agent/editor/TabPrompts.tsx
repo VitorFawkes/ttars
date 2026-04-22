@@ -146,10 +146,12 @@ export function TabPrompts({ form, setForm, agentId }: Props) {
             rows={block.key === 'main' ? 12 : 6}
             pipelineId={pipelineId}
             produto={produto}
+            agentId={agentId}
+            enabledTypes={['field', 'tag', 'skill', 'stage']}
             className="font-mono"
           />
           <p className="text-[11px] text-slate-400">
-            Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[10px]">@</kbd> para inserir um campo do CRM. {getValue(block.key).length} caracteres.
+            Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[10px]">@</kbd> pra inserir campo, tag, skill ou etapa. {getValue(block.key).length} caracteres.
           </p>
         </section>
       ))}
