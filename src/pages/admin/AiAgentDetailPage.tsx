@@ -411,7 +411,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
-        {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} />}
+        {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}
         {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
