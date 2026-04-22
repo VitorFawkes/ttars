@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ViagemArvore } from './ViagemArvore'
 import { ViagemItemEditor } from './ViagemItemEditor'
 import { ViagemPreview } from './ViagemPreview'
 import { ViagemEditorHeader } from './ViagemEditorHeader'
 import { InboxPVPanel } from './InboxPVPanel'
+import { ViagemResumo } from './ViagemResumo'
 import type { ViagemInternaRow, TripItemInterno } from '@/hooks/viagem/useViagemInterna'
 import { useCreateTripItem, useDeleteTripItem, useHidratarViagem } from '@/hooks/viagem/useViagemInterna'
 
@@ -21,6 +22,21 @@ export function ViagemEditorLayout({ viagem, items, context, cardTitulo, onAtrel
   const createItem = useCreateTripItem()
   const deleteItem = useDeleteTripItem()
   const hidratarViagem = useHidratarViagem()
+
+  // Auto-selecionar primeiro item não-dia (ou primeiro dia se nada) quando
+  // a viagem tem conteúdo e nada está selecionado ainda. Evita a tela vazia
+  // "Selecione um item para editar" na primeira abertura.
+  useEffect(() => {
+    if (selectedId) return
+    if (items.length === 0) return
+    const firstNonDay = items.find((i) => i.tipo !== 'dia' && !i.deleted_at)
+    const firstAny = items.find((i) => !i.deleted_at)
+    const pick = firstNonDay ?? firstAny
+    if (pick) setSelectedId(pick.id)
+    // Só roda uma vez na montagem com items carregados — não queremos re-selecionar
+    // quando o usuário deseleciona propositalmente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length > 0])
 
   const selectedItem = items.find((i) => i.id === selectedId) ?? null
 
@@ -117,14 +133,12 @@ export function ViagemEditorLayout({ viagem, items, context, cardTitulo, onAtrel
           )}
         </div>
 
-        {/* Center — item editor */}
+        {/* Center — item editor ou resumo */}
         <div className="flex min-w-0 flex-1 flex-col border-r border-slate-200 bg-white">
           {selectedItem ? (
             <ViagemItemEditor item={selectedItem} />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-              Selecione um item para editar
-            </div>
+            <ViagemResumo viagem={viagem} items={items} cardTitulo={cardTitulo} />
           )}
         </div>
 

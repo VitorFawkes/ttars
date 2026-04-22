@@ -1,4 +1,5 @@
-import { Clock } from 'lucide-react'
+import { Clock, Eye } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import type { Viagem, DayGroupData, TripItem, TripComment, ViagemEstado } from '@/types/viagem'
 import { ViagemHero } from './ViagemHero'
 import { DecisionView } from './DecisionView'
@@ -41,11 +42,16 @@ export function ViagemClientePage({
 }: ViagemClientePageProps) {
   const view = ESTADO_TO_VIEW[viagem.estado]
   const { participant, ready, refresh } = useParticipant(viagem.id)
+  const [searchParams] = useSearchParams()
+  // Modo preview: TP/PV previewando via iframe do editor.
+  // Pula o gate e não renderiza widgets de passageiro real (chat, PWA install).
+  const isPreview = searchParams.get('preview') === '1'
 
   // Gate aparece em estados onde o passageiro interage ativamente:
   // decisão, preparação, contagem e em andamento. Nos estados iniciais
   // ("preparando") e de memória, não bloqueia.
   const precisaIdentificar =
+    !isPreview &&
     !participant &&
     ready &&
     ['decision', 'preparation', 'countdown', 'travel'].includes(view)
@@ -67,6 +73,14 @@ export function ViagemClientePage({
   return (
     <div className="min-h-dvh bg-slate-50">
       <OfflineBanner />
+      {isPreview && (
+        <div className="sticky top-0 z-40 flex items-center justify-center gap-2 bg-indigo-50 border-b border-indigo-200 px-4 py-1.5">
+          <Eye className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+          <p className="text-[11px] font-medium text-indigo-800">
+            Preview do editor — o cliente vê a mesma página depois de se identificar
+          </p>
+        </div>
+      )}
       <div className="max-w-lg mx-auto">
         <ViagemHero
           titulo={viagem.titulo}
@@ -141,8 +155,9 @@ export function ViagemClientePage({
       </div>
 
       {/* Botão flutuante "Conversar com a equipe" — disponível em todos os
-          estados ativos com passageiro identificado */}
-      {participant && ['decision', 'preparation', 'countdown', 'travel'].includes(view) && (
+          estados ativos com passageiro identificado. Não aparece no preview
+          do editor. */}
+      {!isPreview && participant && ['decision', 'preparation', 'countdown', 'travel'].includes(view) && (
         <FloatingChatButton
           token={token}
           comments={comments}
@@ -150,8 +165,8 @@ export function ViagemClientePage({
         />
       )}
 
-      {/* Sugestão de instalar como PWA (só em mobile) */}
-      <PWAInstallHint />
+      {/* Sugestão de instalar como PWA (só em mobile e fora do preview) */}
+      {!isPreview && <PWAInstallHint />}
     </div>
   )
 }

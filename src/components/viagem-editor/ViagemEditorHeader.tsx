@@ -134,13 +134,14 @@ export function ViagemEditorHeader({ viagem, context, cardTitulo, onAtrelarClick
         </div>
         <div className="hidden h-6 w-px bg-slate-200 md:block" />
 
-        {context === 'standalone' && viagem.card_id && cardTitulo && (
+        {viagem.card_id && (
           <Link
             to={`/cards/${viagem.card_id}`}
-            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+            title={cardTitulo ? `Abrir card: ${cardTitulo}` : 'Abrir card'}
           >
             <Link2 className="h-3.5 w-3.5" />
-            <span className="max-w-[240px] truncate">{cardTitulo}</span>
+            <span className="hidden sm:inline">Abrir card</span>
           </Link>
         )}
 

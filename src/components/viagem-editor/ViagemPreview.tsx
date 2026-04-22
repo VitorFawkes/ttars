@@ -7,7 +7,9 @@ interface Props {
 
 export function ViagemPreview({ publicToken }: Props) {
   const [key, setKey] = useState(0)
-  const previewUrl = `/v/${publicToken}`
+  // ?preview=1 sinaliza pro portal pular o gate de identificação
+  // (TP/PV está olhando a própria viagem, não é um passageiro real)
+  const previewUrl = `/v/${publicToken}?preview=1`
 
   return (
     <div className="flex h-full flex-col">
