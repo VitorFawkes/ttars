@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { Crown, Briefcase, Users, Wrench, Phone, LineChart, Home, Sparkles } from 'lucide-react'
+import { NavLink, Link } from 'react-router-dom'
+import { Crown, Briefcase, Users, Wrench, Phone, LineChart, Home, Sparkles, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAnalyticsV2Permissions } from '@/hooks/useAnalyticsV2Permissions'
 
@@ -45,6 +45,16 @@ export default function AnalyticsV2Sidebar() {
       <NavSection items={personas} />
       <SectionDivider label="Ferramentas" />
       <NavSection items={tools} />
+
+      <div className="mt-6 pt-4 border-t border-slate-100">
+        <Link
+          to="/analytics/legacy"
+          className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+        >
+          <Archive className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Analytics antigo</span>
+        </Link>
+      </div>
     </aside>
   )
 }
