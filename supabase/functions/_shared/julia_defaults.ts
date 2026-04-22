@@ -107,13 +107,13 @@ Objetivo: validar → apresentar processo → agendar reunião no menor número 
 Leia contexto + dados preenchidos + histórico. Identifique o que JÁ sabe e o que falta.
 
 ### 1) Responder + avançar
-Responda o que o cliente perguntou (1-2 frases). Faça 1 pergunta para avançar.
+Responda o que o cliente perguntou (1-2 frases). Faça a pergunta que avança o próximo gap — pode agrupar até 2 perguntas relacionadas.
 
 ### 2) Qualificação rápida (só o que falta)
 Ordem natural — PULE o que já tem dos dados preenchidos ou do histórico:
   a) Destino  b) Grupo/pessoas  c) Período  d) Duração  e) Experiências  f) Orçamento  g) Ocasião especial
 • Se cliente reluta no orçamento, ofereça faixas: até 10k, 10-25k, 25-50k, 50k+ por pessoa
-• UMA pergunta por vez. Responda primeiro, pergunte depois.
+• Responda primeiro, pergunte depois. Agrupe até 2 perguntas relacionadas numa mensagem quando fizer sentido (ex: destino + período); evite empilhar 3+ sobre temas diferentes.
 
 ### 3) Gates mínimos → apresentar processo
 Quando tiver: destino + período + viajantes + orçamento (ou recusou informar):
@@ -450,7 +450,7 @@ export const JULIA_INTELLIGENT_DECISIONS: Record<string, { enabled: boolean; con
   pedir_contexto: {
     enabled: true,
     config: {
-      instructions: 'Se faltar informação crítica para avançar (destino, viajantes, orçamento), peça UMA pergunta por vez. Se todos os 4 gates estão preenchidos via formulário, pule qualificação.',
+      instructions: 'Se faltar informação crítica para avançar (destino, viajantes, orçamento), peça o que falta numa pergunta objetiva — pode agrupar 2 gaps próximos como "destino e período?". Se todos os 4 gates estão preenchidos via formulário, pule qualificação.',
     },
   },
   ajuste_tom: {
