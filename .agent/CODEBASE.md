@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 184 tabelas | 134 paginas | 148 hooks | 19 views | 572 components
+> **Stats:** 184 tabelas | 137 paginas | 148 hooks | 19 views | 577 components
 
 ---
 
@@ -392,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **134 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **137 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -412,6 +412,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
+| `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
@@ -432,6 +433,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResetPassword` | `src/pages/ResetPassword.tsx` |
 | `SettingsPage` | `src/pages/SettingsPage.tsx` |
 | `Tasks` | `src/pages/Tasks.tsx` |
+| `ViagemStandalone` | `src/pages/ViagemStandalone.tsx` |
+| `ViagensPage` | `src/pages/ViagensPage.tsx` |
 | `AiAgentAnalyticsPage` | `src/pages/admin/AiAgentAnalyticsPage.tsx` |
 | `AiAgentBuilderWizard` | `src/pages/admin/AiAgentBuilderWizard.tsx` |
 | `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
