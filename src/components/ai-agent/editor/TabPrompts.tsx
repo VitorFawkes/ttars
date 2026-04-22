@@ -1,10 +1,11 @@
 import { useRef } from 'react'
 import { Sparkles, Download } from 'lucide-react'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { PromptVariablesPanel } from './PromptVariablesPanel'
+import { FieldAwareTextarea, type FieldAwareTextareaHandle } from './FieldAwareTextarea'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import type { AgentEditorForm } from './types'
 import {
   JULIA_PROMPT_MAIN, JULIA_PROMPT_CONTEXT, JULIA_PROMPT_DATA_UPDATE,
@@ -57,8 +58,11 @@ const PROMPT_BLOCKS: Array<{ key: PromptKey; title: string; hint: string; placeh
 ]
 
 export function TabPrompts({ form, setForm }: Props) {
-  const refs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const refs = useRef<Record<string, FieldAwareTextareaHandle | null>>({})
   const focusedKey = useRef<PromptKey>('main')
+
+  // Pipeline + produto do contexto atual, pra alimentar o autocomplete @ de campos do CRM.
+  const { slug: produto, pipelineId } = useCurrentProductMeta()
 
   const getValue = (key: PromptKey) => {
     if (key === 'main') return form.system_prompt
@@ -75,21 +79,7 @@ export function TabPrompts({ form, setForm }: Props) {
 
   const insertAt = (token: string) => {
     const key = focusedKey.current
-    const el = refs.current[key]
-    const value = getValue(key)
-    if (!el) {
-      setValue(key, value + token)
-      return
-    }
-    const start = el.selectionStart ?? value.length
-    const end = el.selectionEnd ?? value.length
-    const next = value.slice(0, start) + token + value.slice(end)
-    setValue(key, next)
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
+    refs.current[key]?.insertAtCursor(token)
   }
 
   const mainPreview = (form.system_prompt || '').slice(0, 280)
@@ -141,17 +131,19 @@ export function TabPrompts({ form, setForm }: Props) {
               <Download className="w-4 h-4" /> Usar padrão Julia
             </Button>
           </div>
-          <Textarea
-            ref={(el: HTMLTextAreaElement | null) => { refs.current[block.key] = el }}
+          <FieldAwareTextarea
+            ref={(h: FieldAwareTextareaHandle | null) => { refs.current[block.key] = h }}
             value={getValue(block.key)}
-            onChange={e => setValue(block.key, e.target.value)}
+            onChange={v => setValue(block.key, v)}
             onFocus={() => { focusedKey.current = block.key }}
             placeholder={block.placeholder}
             rows={block.key === 'main' ? 12 : 6}
-            className="font-mono text-sm"
+            pipelineId={pipelineId}
+            produto={produto ?? undefined}
+            className="font-mono"
           />
           <p className="text-[11px] text-slate-400">
-            {getValue(block.key).length} caracteres
+            Digite <kbd className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[10px]">@</kbd> para inserir um campo do CRM. {getValue(block.key).length} caracteres.
           </p>
         </section>
       ))}
