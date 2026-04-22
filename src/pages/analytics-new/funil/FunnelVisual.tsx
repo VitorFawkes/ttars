@@ -19,8 +19,6 @@ interface RowData {
   stage_nome: string
   phase_slug: string
   value: number
-  avgDays: number
-  p75Days: number
   widthPct: number
   pctFromRoot: number
   convFromPrev: number | null
@@ -30,8 +28,7 @@ interface RowData {
 
 function getValueForMetric(stage: FunnelStageData, metric: FunnelMetric): number {
   if (metric === 'cards') return stage.current_count
-  if (metric === 'faturamento') return stage.total_valor || 0
-  return stage.receita_total || 0
+  return stage.total_valor || 0
 }
 
 function formatValue(v: number, metric: FunnelMetric): string {
@@ -96,8 +93,6 @@ export default function FunnelVisual({
         stage_nome: s.stage_nome,
         phase_slug: s.phase_slug,
         value,
-        avgDays: s.avg_days_in_stage || 0,
-        p75Days: s.p75_days_in_stage || 0,
         widthPct: maxValue > 0 ? Math.max(4, (value / maxValue) * 100) : 0,
         pctFromRoot: rootValue > 0 ? (value / rootValue) * 100 : 0,
         convFromPrev:
@@ -129,14 +124,14 @@ export default function FunnelVisual({
 
       {rows.length > 0 && (
         <div className="px-4 pb-4">
-          {/* Grid com 6 colunas (ou 7 com compare):
-              Etapa · Barra (flex 1fr) · % topo · Conv etapa · [vs anterior] · p50·p75 */}
+          {/* Grid com 4 colunas (5 com compare):
+              Etapa · Barra (flex 1fr) · % topo · Conv etapa · [vs anterior] */}
           <div
             className="grid gap-x-3 text-xs items-center"
             style={{
               gridTemplateColumns: compareEnabled
-                ? 'minmax(200px, 240px) minmax(360px, 1fr) 80px 110px 80px 100px'
-                : 'minmax(200px, 240px) minmax(360px, 1fr) 80px 110px 100px',
+                ? 'minmax(200px, 240px) minmax(400px, 1fr) 80px 120px 100px'
+                : 'minmax(200px, 240px) minmax(400px, 1fr) 80px 120px',
             }}
           >
             {/* Cabeçalho */}
@@ -162,14 +157,11 @@ export default function FunnelVisual({
                 vs anterior
               </div>
             )}
-            <div className="text-slate-500 font-medium py-2.5 text-right whitespace-nowrap">
-              p50 · p75
-            </div>
 
             {/* Separador full-width */}
             <div
               className="border-b border-slate-200"
-              style={{ gridColumn: `span ${compareEnabled ? 6 : 5}` }}
+              style={{ gridColumn: `span ${compareEnabled ? 5 : 4}` }}
             />
 
             {/* Linhas */}
@@ -236,7 +228,12 @@ export default function FunnelVisual({
                   </div>
 
                   {/* Conversão etapa */}
-                  <div className="py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70">
+                  <div
+                    className={cn(
+                      'py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70',
+                      !compareEnabled && '-mr-2 pr-2 rounded-r'
+                    )}
+                  >
                     {row.convFromPrev == null ? (
                       <span className="text-slate-300 text-[11px]">—</span>
                     ) : (
@@ -255,20 +252,15 @@ export default function FunnelVisual({
 
                   {/* vs anterior */}
                   {compareEnabled && (
-                    <div className="py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70">
+                    <div className="py-2.5 text-right whitespace-nowrap group-hover:bg-slate-50/70 -mr-2 pr-2 rounded-r">
                       <DeltaBadge value={row.deltaVsPeriod} title="vs período anterior" />
                     </div>
                   )}
 
-                  {/* p50 · p75 */}
-                  <div className="py-2.5 text-right text-slate-400 tabular-nums whitespace-nowrap group-hover:bg-slate-50/70 -mr-2 pr-2 rounded-r">
-                    {row.avgDays.toFixed(0)}d · {row.p75Days.toFixed(0)}d
-                  </div>
-
                   {/* Separador entre linhas */}
                   <div
                     className="border-b border-slate-50"
-                    style={{ gridColumn: `span ${compareEnabled ? 6 : 5}` }}
+                    style={{ gridColumn: `span ${compareEnabled ? 5 : 4}` }}
                   />
                 </div>
               )

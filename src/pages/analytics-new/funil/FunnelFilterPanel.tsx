@@ -115,7 +115,6 @@ export default function FunnelFilterPanel({
               [
                 ['cards', 'Qtd'],
                 ['faturamento', 'Fat.'],
-                ['receita', 'Receita'],
               ] as const
             ).map(([v, label]) => (
               <button

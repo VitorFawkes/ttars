@@ -1,6 +1,8 @@
 import { SystemPhase } from '@/types/pipeline'
 
-export type FunnelMetric = 'cards' | 'faturamento' | 'receita'
+// RPC `analytics_funnel_conversion` só retorna `current_count` e `total_valor`.
+// Receita não existe nessa RPC — por isso só duas métricas.
+export type FunnelMetric = 'cards' | 'faturamento'
 /** Modos de análise — mesmos nomes usados no resto do app (GlobalControls legacy). */
 export type FunnelMode = 'entries' | 'ganho_sdr' | 'ganho_planner' | 'ganho_total'
 
@@ -59,5 +61,4 @@ export const MODE_HINTS: Record<FunnelMode, string> = {
 export const METRIC_LABELS: Record<FunnelMetric, string> = {
   cards: 'Qtd',
   faturamento: 'Fat.',
-  receita: 'Receita',
 }
