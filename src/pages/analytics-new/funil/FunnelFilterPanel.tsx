@@ -11,7 +11,7 @@ import {
   type FunnelStatus,
   type GanhoFase,
 } from './constants'
-import MultiPickerPopover, { type PickerOption } from './MultiPickerPopover'
+import MultiPickerPopover, { type PickerOption, type PickerSection } from './MultiPickerPopover'
 
 export interface StageOption {
   id: string
@@ -48,10 +48,10 @@ interface Props {
   isMyFunnel: boolean
   onToggleMyFunnel: () => void
 
-  /** Picker de consultores (owners) */
-  ownerOptions: PickerOption[]
+  /** Picker de consultores (owners) — em seções (Times + Pessoas) */
+  ownerSections: PickerSection[]
   selectedOwnerIds: string[]
-  onToggleOwner: (id: string) => void
+  onToggleOwner: (id: string, expandTo?: string[]) => void
   onClearOwners: () => void
 
   /** Picker de tags */
@@ -100,7 +100,7 @@ export default function FunnelFilterPanel({
   profileId,
   isMyFunnel,
   onToggleMyFunnel,
-  ownerOptions,
+  ownerSections,
   selectedOwnerIds,
   onToggleOwner,
   onClearOwners,
@@ -115,12 +115,13 @@ export default function FunnelFilterPanel({
   const hasStages = stageOptions.length > 0
   const showGanhoFaseToggle = status === 'won'
 
-  // Filtra o picker de owners removendo o próprio usuário quando "Meu Funil" estiver ativo
-  // (evita confusão: o botão "Meu Funil" já cobre esse caso).
-  const visibleOwnerOptions = useMemo(
-    () => (isMyFunnel && profileId ? ownerOptions.filter(o => o.id !== profileId) : ownerOptions),
-    [ownerOptions, isMyFunnel, profileId]
-  )
+  // Remove o próprio usuário das seções quando "Meu Funil" estiver ativo.
+  const visibleOwnerSections: PickerSection[] = useMemo(() => {
+    if (!isMyFunnel || !profileId) return ownerSections
+    return ownerSections
+      .map(s => ({ ...s, options: s.options.filter(o => o.id !== profileId) }))
+      .filter(s => s.options.length > 0)
+  }, [ownerSections, isMyFunnel, profileId])
 
   return (
     <div className="space-y-2.5">
@@ -321,11 +322,11 @@ export default function FunnelFilterPanel({
           />
         )}
 
-        {/* Picker de consultores (multi) */}
+        {/* Picker de consultores (multi) — inclui times e pessoas em seções */}
         <MultiPickerPopover
           label="Consultores"
           icon={<UserIcon className="w-3.5 h-3.5" />}
-          options={visibleOwnerOptions}
+          sections={visibleOwnerSections}
           selectedIds={selectedOwnerIds.filter(id => id !== profileId || !isMyFunnel)}
           onToggle={onToggleOwner}
           onClear={onClearOwners}

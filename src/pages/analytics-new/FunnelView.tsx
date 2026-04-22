@@ -5,7 +5,11 @@ import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
-import { useFilterProfiles, useFilterTags } from '@/hooks/analytics/useFilterOptions'
+import {
+  useFilterProfiles,
+  useFilterTags,
+  useFilterTeams,
+} from '@/hooks/analytics/useFilterOptions'
 
 import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
@@ -14,7 +18,7 @@ import FunnelVelocityTable from './funil/FunnelVelocityTable'
 import FunnelLossReasons from './funil/FunnelLossReasons'
 import { useFunnelData } from './funil/useFunnelData'
 import { useFunnelPageState } from './funil/useFunnelPageState'
-import type { PickerOption } from './funil/MultiPickerPopover'
+import type { PickerOption, PickerSection } from './funil/MultiPickerPopover'
 
 export default function FunnelView() {
   const { profile } = useAuth()
@@ -51,18 +55,59 @@ export default function FunnelView() {
     setOwnerIds(isMyFunnel ? [] : [profileId])
   }, [profileId, isMyFunnel, setOwnerIds])
 
-  // Filtros para pickers (excluem o próprio profile do picker de owners —
-  // "Meu Funil" já cobre esse caso).
+  // Dados dos pickers
   const { data: profileOptions = [] } = useFilterProfiles()
+  const { data: teamData = [] } = useFilterTeams()
   const { data: tagData = [] } = useFilterTags()
 
-  const ownerOptions: PickerOption[] = useMemo(
-    () => profileOptions.map(p => ({ id: p.id, label: p.nome || '(sem nome)' })),
-    [profileOptions]
-  )
+  // Owners em seções: Times (expandem para membros ao marcar) + Pessoas (individuais).
+  const ownerSections: PickerSection[] = useMemo(() => {
+    const sections: PickerSection[] = []
+    if (teamData.length > 0) {
+      sections.push({
+        label: 'Times',
+        options: teamData.map(t => ({
+          id: `team:${t.id}`,
+          label: t.name,
+          badge: `${t.memberIds.length}`,
+          expandTo: t.memberIds,
+          matchByExpand: true,
+        })),
+      })
+    }
+    if (profileOptions.length > 0) {
+      sections.push({
+        label: 'Pessoas',
+        options: profileOptions.map(p => ({
+          id: p.id,
+          label: p.nome || '(sem nome)',
+        })),
+      })
+    }
+    return sections
+  }, [teamData, profileOptions])
+
   const tagOptions: PickerOption[] = useMemo(
     () => tagData.map(t => ({ id: t.id, label: t.name })),
     [tagData]
+  )
+
+  // Handler do picker: se a opção tem expandTo (time), alterna todos os membros em bloco.
+  const handleToggleOwner = useCallback(
+    (id: string, expandTo?: string[]) => {
+      if (expandTo && expandTo.length > 0) {
+        const allSelected = expandTo.every(mid => ownerIds.includes(mid))
+        if (allSelected) {
+          setOwnerIds(ownerIds.filter(oid => !expandTo.includes(oid)))
+        } else {
+          const merged = Array.from(new Set([...ownerIds, ...expandTo]))
+          setOwnerIds(merged)
+        }
+      } else {
+        toggleOwnerId(id)
+      }
+    },
+    [ownerIds, setOwnerIds, toggleOwnerId]
   )
 
   const funnelParams = useMemo(
@@ -212,9 +257,9 @@ export default function FunnelView() {
         profileId={profileId}
         isMyFunnel={isMyFunnel}
         onToggleMyFunnel={toggleMyFunnel}
-        ownerOptions={ownerOptions}
+        ownerSections={ownerSections}
         selectedOwnerIds={ownerIds}
-        onToggleOwner={toggleOwnerId}
+        onToggleOwner={handleToggleOwner}
         onClearOwners={() => setOwnerIds([])}
         tagOptions={tagOptions}
         selectedTagIds={tagIds}
