@@ -413,7 +413,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
         {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
-        {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} />}
+        {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
         {activeTab === 'teste' && !isN8n && <TabTeste agentId={isNew ? undefined : id} />}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}

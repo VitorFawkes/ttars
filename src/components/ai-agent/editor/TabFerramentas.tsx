@@ -5,22 +5,40 @@ import { Badge } from '@/components/ui/Badge'
 import { Label } from '@/components/ui/label'
 import { useNavigate } from 'react-router-dom'
 import { useAiSkills, type AiSkill } from '@/hooks/useAiSkills'
+import { useAiAgentDetail } from '@/hooks/useAiAgents'
 import type { AgentEditorForm } from './types'
 
 interface Props {
   form: AgentEditorForm
   setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
+  agentId?: string
 }
 
-export function TabFerramentas({ form, setForm }: Props) {
+export function TabFerramentas({ form, setForm, agentId }: Props) {
   const navigate = useNavigate()
   const { skills } = useAiSkills()
+  // Busca as skills já atribuídas direto do detalhe do agente. Isso garante
+  // que apareçam mesmo se o hook geral `useAiSkills()` (filtrado por RLS da
+  // sessão atual) não retornar uma delas — por exemplo, skill criada em outra
+  // org do user. A fonte de render fica sempre consistente com o que o agente
+  // tem gravado no banco.
+  const { data: agentDetail } = useAiAgentDetail(agentId)
+  const assignedFromAgent = useMemo(() => {
+    const out: AiSkill[] = []
+    const src = (agentDetail as unknown as { ai_agent_skills?: Array<{ ai_skills?: AiSkill | null }> } | null)
+    for (const row of src?.ai_agent_skills ?? []) {
+      if (row.ai_skills) out.push(row.ai_skills)
+    }
+    return out
+  }, [agentDetail])
 
   const skillsById = useMemo(() => {
     const map = new Map<string, AiSkill>()
+    // Skills gerais primeiro, depois sobrescreve com as atribuídas (source-of-truth).
     skills.forEach(s => map.set(s.id, s))
+    assignedFromAgent.forEach(s => map.set(s.id, s))
     return map
-  }, [skills])
+  }, [skills, assignedFromAgent])
 
   const assigned = form.assigned_skill_ids
   const unassigned = skills.filter(s => !assigned.includes(s.id))
