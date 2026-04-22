@@ -2115,104 +2115,6 @@ Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios
 }
 
 // ---------------------------------------------------------------------------
-// 8b. Frente C — executar ações automáticas de cenários antes do Persona
-// ---------------------------------------------------------------------------
-// Detecção determinística baseada em keyword literal. Se qualquer keyword do
-// cenário bate na mensagem atual do usuário (case-insensitive), executamos
-// as ações configuradas (auto_assign_tag, auto_transition_stage_id,
-// auto_notify_responsible) via RPC/update direto — sem depender do LLM chamar
-// tools no meio da resposta. O prompt do Persona ainda recebe scenarioText
-// pra ajustar o tom; as ações são redundantes/idempotentes.
-//
-// trigger_description (Frente B) é avaliada só pelo LLM no Persona — não
-// disparamos ações determinísticas só por descrição semântica pra evitar
-// falsos positivos sem sinal literal.
-// ---------------------------------------------------------------------------
-
-async function applyScenarioActions(
-  supabase: SupabaseClient,
-  ctx: ConversationContext,
-  scenarios: SpecialScenario[],
-  userMessage: string,
-  orgId: string | null,
-): Promise<void> {
-  if (!ctx.card_id || !userMessage || scenarios.length === 0) return;
-
-  const lowerMsg = userMessage.toLowerCase();
-  const triggered: SpecialScenario[] = [];
-
-  for (const s of scenarios) {
-    const keywords = (s.trigger_config?.keywords as string[] | undefined) || [];
-    const matched = keywords.some((k) => {
-      const trimmed = k.trim().toLowerCase();
-      return trimmed.length > 2 && lowerMsg.includes(trimmed);
-    });
-    if (matched) triggered.push(s);
-  }
-
-  if (triggered.length === 0) return;
-
-  for (const s of triggered) {
-    console.log(`[scenario] matched "${s.scenario_name}" — applying actions`);
-
-    if (s.auto_assign_tag) {
-      try {
-        const { error } = await supabase.rpc("julia_assign_tag", {
-          p_card_id: ctx.card_id,
-          p_tag_name: s.auto_assign_tag,
-          p_tag_color: "#6366f1",
-        });
-        if (error) console.warn(`[scenario.tag] "${s.auto_assign_tag}" error:`, error.message);
-        else console.log(`[scenario.tag] applied "${s.auto_assign_tag}"`);
-      } catch (err) {
-        console.warn("[scenario.tag] exception:", err);
-      }
-    }
-
-    if (s.auto_transition_stage_id) {
-      try {
-        const { error } = await supabase
-          .from("cards")
-          .update({
-            pipeline_stage_id: s.auto_transition_stage_id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", ctx.card_id);
-        if (error) console.warn(`[scenario.stage] error:`, error.message);
-        else console.log(`[scenario.stage] transitioned to ${s.auto_transition_stage_id}`);
-      } catch (err) {
-        console.warn("[scenario.stage] exception:", err);
-      }
-    }
-
-    if (s.auto_notify_responsible) {
-      try {
-        const { data: card } = await supabase
-          .from("cards")
-          .select("dono_atual_id, titulo")
-          .eq("id", ctx.card_id)
-          .maybeSingle();
-        const ownerId = (card as { dono_atual_id?: string } | null)?.dono_atual_id;
-        if (ownerId) {
-          await supabase.from("notifications").insert({
-            user_id: ownerId,
-            org_id: orgId,
-            card_id: ctx.card_id,
-            type: "ai_scenario",
-            title: `Cenário do agente disparado: ${s.scenario_name}`,
-            body: `Card "${(card as { titulo?: string } | null)?.titulo || ctx.card_id}" — ${s.scenario_name}`,
-            metadata: { scenario_name: s.scenario_name, scenario_id: s.id },
-          });
-          console.log(`[scenario.notify] notified owner ${ownerId}`);
-        }
-      } catch (err) {
-        console.warn("[scenario.notify] exception:", err);
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
 // 9. Pipeline Step: Persona Agent
 // ---------------------------------------------------------------------------
 
@@ -2275,27 +2177,21 @@ async function runPersonaAgent(
     .map((d) => `- ${d.trigger}: "${d.message}"`)
     .join("\n");
 
-  // Frente B — match semântico por trigger_description (complementa keyword).
-  // Se o admin preencheu trigger_description em linguagem natural, o LLM avalia
-  // semanticamente; keyword serve como âncora de alta confiança.
+  // Cenários são avaliados semanticamente pelo LLM a partir da trigger_description.
+  // Quando um cenário se aplica, o agente segue o response_adjustment e chama os
+  // tools correspondentes (assign_tag) pra executar as ações configuradas.
   const scenarioText = scenarios
     .map((s) => {
-      const keywords = ((s.trigger_config?.keywords as string[] | undefined) || []).join(", ");
       const description = (s.trigger_description || "").trim();
-      let trigger: string;
-      if (keywords && description) {
-        trigger = `Quando detectar "${keywords}" OU semanticamente "${description}"`;
-      } else if (description) {
-        trigger = `Quando detectar semanticamente "${description}"`;
-      } else if (keywords) {
-        trigger = `Se detectar "${keywords}"`;
-      } else {
-        trigger = `No cenário "${s.scenario_name}"`;
-      }
-      let text = `${trigger}: ${s.response_adjustment || ""}`;
-      if (s.skip_fee_presentation) text += " NAO apresente taxa.";
-      if (s.skip_meeting_scheduling) text += " NAO agende reuniao.";
-      return text;
+      const header = description
+        ? `[${s.scenario_name}] Quando: ${description}`
+        : `[${s.scenario_name}]`;
+      const actions: string[] = [];
+      if (s.response_adjustment) actions.push(s.response_adjustment);
+      if (s.skip_fee_presentation) actions.push("NAO apresente taxa.");
+      if (s.skip_meeting_scheduling) actions.push("NAO agende reuniao.");
+      if (s.auto_assign_tag) actions.push(`Chame assign_tag("${s.auto_assign_tag}") pra marcar o card.`);
+      return `${header}\n  → ${actions.join(" ")}`;
     })
     .join("\n");
 
@@ -2488,12 +2384,12 @@ async function runValidator(
 
   const activeScenarioChecks = scenarios
     .map((s) => {
-      const keywords = (s.trigger_config?.keywords as string[] | undefined)?.join(", ") || s.scenario_name;
+      const label = s.trigger_description?.trim() || s.scenario_name;
       const checks: string[] = [];
-      if (s.skip_fee_presentation) checks.push(`Se detectar ${keywords}: NÃO pode ter menção a taxa/valor/fee`);
-      if (s.skip_meeting_scheduling) checks.push(`Se detectar ${keywords}: NÃO pode agendar reunião`);
-      if (s.response_adjustment) checks.push(`Se detectar ${keywords}: ${s.response_adjustment}`);
-      if (s.auto_assign_tag) checks.push(`Se detectar ${keywords}: Deve ter chamado assign_tag("${s.auto_assign_tag}")`);
+      if (s.skip_fee_presentation) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): NÃO pode ter menção a taxa/valor/fee`);
+      if (s.skip_meeting_scheduling) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): NÃO pode agendar reunião`);
+      if (s.response_adjustment) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): ${s.response_adjustment}`);
+      if (s.auto_assign_tag) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): Deve ter chamado assign_tag("${s.auto_assign_tag}")`);
       return checks.join("\n");
     })
     .filter(Boolean)
@@ -3250,12 +3146,9 @@ serve(async (req) => {
         agentConfig.business, agentConfig.qualification,
       );
 
-      // ── Step 2b: Cenários — executar ações automáticas deterministicamente ──
-      // (Frente C: apply_tag / auto_transition_stage / auto_notify disparam quando
-      // keyword bate na mensagem do usuário, sem depender do LLM.)
-      await applyScenarioActions(supabase, ctx, agentConfig.scenarios, processedText, agent.org_id);
-
       // ── Step 3: Persona Agent (com tool calling + signals Frente E) ──
+      // Cenários especiais são avaliados semanticamente pelo próprio persona a partir
+      // da trigger_description no prompt; ações (assign_tag) disparam via tool calling.
       const personaResult = await runPersonaAgent(
         supabase, agent, ctx, backoffice,
         agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
