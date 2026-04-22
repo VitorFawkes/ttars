@@ -7,11 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-22
 > **Trigger:** ALWAYS ON
-<<<<<<< HEAD
-> **Stats:** 184 tabelas | 121 paginas | 148 hooks | 19 views | 571 components
-=======
-> **Stats:** 184 tabelas | 121 paginas | 148 hooks | 19 views | 571 components
->>>>>>> feat/c2-editor-abas
+> **Stats:** 184 tabelas | 129 paginas | 148 hooks | 19 views | 572 components
 
 ---
 
@@ -396,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **121 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **129 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -496,6 +492,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
+| `PipelineAgingHeatmap` | `src/pages/analytics-new/pipeline/PipelineAgingHeatmap.tsx` |
+| `PipelineFilterPanel` | `src/pages/analytics-new/pipeline/PipelineFilterPanel.tsx` |
+| `PipelineKpis` | `src/pages/analytics-new/pipeline/PipelineKpis.tsx` |
+| `PipelineOwnerWorkload` | `src/pages/analytics-new/pipeline/PipelineOwnerWorkload.tsx` |
+| `PipelineOwnersTable` | `src/pages/analytics-new/pipeline/PipelineOwnersTable.tsx` |
+| `PipelineStagesChart` | `src/pages/analytics-new/pipeline/PipelineStagesChart.tsx` |
+| `PipelineTasksSection` | `src/pages/analytics-new/pipeline/PipelineTasksSection.tsx` |
+| `PipelineTopDeals` | `src/pages/analytics-new/pipeline/PipelineTopDeals.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
