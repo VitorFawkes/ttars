@@ -45,7 +45,9 @@ export function useEmailNotificationPreferences() {
 
     const upsertMutation = useMutation({
         mutationFn: async (input: Partial<EmailNotificationPreferences>) => {
-            if (!user || !profile?.org_id) throw new Error('Not authenticated')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const activeOrgId = (profile as any)?.active_org_id ?? profile?.org_id
+            if (!user || !activeOrgId) throw new Error('Not authenticated')
 
             const current = query.data ?? DEFAULT_PREFERENCES
             const next = {
@@ -58,7 +60,7 @@ export function useEmailNotificationPreferences() {
                 .from('email_notification_preferences')
                 .upsert({
                     user_id: user.id,
-                    org_id: profile.org_id,
+                    org_id: activeOrgId,
                     email_notifications_enabled: next.email_notifications_enabled,
                     notification_types: next.notification_types,
                     updated_at: new Date().toISOString(),
