@@ -4,10 +4,6 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUsers } from '@/hooks/useUsers'
-import { useMyVisiblePhases } from '@/hooks/useMyVisiblePhases'
-import { usePipelinePhases } from '@/hooks/usePipelinePhases'
-import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
-
 import FunnelFilterPanel, { type StageOption } from './funil/FunnelFilterPanel'
 import FunnelKpis from './funil/FunnelKpis'
 import FunnelVisual from './funil/FunnelVisual'
@@ -65,42 +61,10 @@ export default function FunnelView() {
     refetch,
   } = useFunnelData(funnelParams, state.compareEnabled)
 
-  // Filtra etapas pelas fases visíveis ao usuário (respeitando phase_visibility_rules
-  // e a fase do time dele). Admins e users sem time veem tudo (visiblePhaseIds == null).
-  const { data: visiblePhaseIds = null } = useMyVisiblePhases()
-  const { pipelineId } = useCurrentProductMeta()
-  const { data: pipelinePhases = [] } = usePipelinePhases(pipelineId ?? undefined)
-
-  const visibleSlugs = useMemo<Set<string> | null>(() => {
-    if (!visiblePhaseIds) return null // null = admin ou sem time → vê tudo
-    const visibleIds = new Set(visiblePhaseIds)
-    const slugs = new Set<string>()
-    for (const p of pipelinePhases) {
-      if (visibleIds.has(p.id) && p.slug) slugs.add(p.slug)
-    }
-    return slugs
-  }, [visiblePhaseIds, pipelinePhases])
-
-  // Aplica o filtro de visibilidade antes de tudo
-  const rawConversion = useMemo(
-    () =>
-      visibleSlugs == null
-        ? rpcConversion
-        : rpcConversion.filter(s => visibleSlugs.has(s.phase_slug)),
-    [rpcConversion, visibleSlugs]
-  )
-  const rawVelocity = useMemo(
-    () =>
-      visibleSlugs == null
-        ? rpcVelocity
-        : rpcVelocity.filter(s => s.phase_slug != null && visibleSlugs.has(s.phase_slug)),
-    [rpcVelocity, visibleSlugs]
-  )
-  const rawPreviousConversion = useMemo(() => {
-    if (!rpcPreviousConversion) return null
-    if (visibleSlugs == null) return rpcPreviousConversion
-    return rpcPreviousConversion.filter(s => visibleSlugs.has(s.phase_slug))
-  }, [rpcPreviousConversion, visibleSlugs])
+  // A RPC já filtra s.ativo = true — mesma fonte de verdade do Pipeline Studio.
+  const rawConversion = rpcConversion
+  const rawVelocity = rpcVelocity
+  const rawPreviousConversion = rpcPreviousConversion
 
   // Dropdown "Desde" usa as etapas da RPC (mesma fonte do funil, mesma ordem).
   // A RPC já devolve ordenado por `pp.order_index, s.ordem`.
