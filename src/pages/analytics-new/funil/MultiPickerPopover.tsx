@@ -5,17 +5,30 @@ import { cn } from '@/lib/utils'
 export interface PickerOption {
   id: string
   label: string
+  /** Se presente, clicar nessa opção expande em múltiplos IDs (ex: um time expande para membros). */
+  expandTo?: string[]
+  /** Badge pequeno ao lado do label (ex: "10" para mostrar número de membros do time). */
+  badge?: string
+  /** Considera marcado quando TODOS os expandTo estão em selectedIds (em vez do próprio id). */
+  matchByExpand?: boolean
+}
+
+export interface PickerSection {
+  label: string
+  options: PickerOption[]
 }
 
 interface Props {
   label: string
   icon?: React.ReactNode
-  options: PickerOption[]
+  /** Lista flat; alternativa a `sections`. */
+  options?: PickerOption[]
+  /** Lista agrupada em seções (ex: Times + Pessoas). */
+  sections?: PickerSection[]
   selectedIds: string[]
-  onToggle: (id: string) => void
+  onToggle: (id: string, expandTo?: string[]) => void
   onClear: () => void
   placeholder?: string
-  /** Nome singular/plural para exibir no botão ("consultor", "tag"). */
   singularNoun: string
   pluralNoun: string
   emptyHint?: string
@@ -30,6 +43,7 @@ export default function MultiPickerPopover({
   label,
   icon,
   options,
+  sections,
   selectedIds,
   onToggle,
   onClear,
@@ -37,7 +51,7 @@ export default function MultiPickerPopover({
   singularNoun,
   pluralNoun,
   emptyHint,
-  maxWidth = 280,
+  maxWidth = 320,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -52,14 +66,27 @@ export default function MultiPickerPopover({
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  const filtered = query
-    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
-    : options
+  const allOptions = sections ? sections.flatMap(s => s.options) : options || []
+  const totalCount = allOptions.length
+
+  const filterFn = (o: PickerOption) =>
+    !query || o.label.toLowerCase().includes(query.toLowerCase())
+
+  const filteredSections: PickerSection[] = sections
+    ? sections.map(s => ({ ...s, options: s.options.filter(filterFn) })).filter(s => s.options.length > 0)
+    : [{ label: '', options: allOptions.filter(filterFn) }]
+
+  const isOptionChecked = (o: PickerOption): boolean => {
+    if (o.matchByExpand && o.expandTo && o.expandTo.length > 0) {
+      return o.expandTo.every(id => selectedIds.includes(id))
+    }
+    return selectedIds.includes(o.id)
+  }
 
   const summary = (() => {
     if (selectedIds.length === 0) return placeholder ?? 'Todos'
     if (selectedIds.length === 1) {
-      const found = options.find(o => o.id === selectedIds[0])
+      const found = allOptions.find(o => o.id === selectedIds[0])
       return found?.label ?? `1 ${singularNoun}`
     }
     return `${selectedIds.length} ${pluralNoun}`
@@ -110,7 +137,7 @@ export default function MultiPickerPopover({
           className="absolute z-50 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden"
           style={{ minWidth: maxWidth }}
         >
-          {options.length > 6 && (
+          {totalCount > 6 && (
             <div className="p-2 border-b border-slate-100">
               <input
                 type="text"
@@ -122,35 +149,49 @@ export default function MultiPickerPopover({
               />
             </div>
           )}
-          <div className="max-h-64 overflow-y-auto py-1">
-            {filtered.length === 0 && (
+          <div className="max-h-72 overflow-y-auto py-1">
+            {filteredSections.length === 0 && (
               <div className="px-3 py-6 text-center text-xs text-slate-400">
                 {emptyHint ?? `Nenhum ${singularNoun} encontrado.`}
               </div>
             )}
-            {filtered.map(o => {
-              const checked = selectedIds.includes(o.id)
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => onToggle(o.id)}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
-                >
-                  <span
-                    className={cn(
-                      'w-4 h-4 rounded border flex items-center justify-center',
-                      checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'
-                    )}
-                  >
-                    {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                  </span>
-                  <span className="truncate text-slate-700" title={o.label}>
-                    {o.label}
-                  </span>
-                </button>
-              )
-            })}
+            {filteredSections.map((sec, sIdx) => (
+              <div key={sec.label || `sec-${sIdx}`}>
+                {sec.label && (
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/60">
+                    {sec.label}
+                  </div>
+                )}
+                {sec.options.map(o => {
+                  const checked = isOptionChecked(o)
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => onToggle(o.id, o.expandTo)}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                    >
+                      <span
+                        className={cn(
+                          'w-4 h-4 rounded border flex items-center justify-center shrink-0',
+                          checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'
+                        )}
+                      >
+                        {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </span>
+                      <span className="truncate text-slate-700 flex-1" title={o.label}>
+                        {o.label}
+                      </span>
+                      {o.badge && (
+                        <span className="text-[10px] font-medium text-slate-400 tabular-nums shrink-0">
+                          {o.badge}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
           </div>
           {selectedIds.length > 0 && (
             <div className="border-t border-slate-100 px-2 py-1.5 bg-slate-50">
