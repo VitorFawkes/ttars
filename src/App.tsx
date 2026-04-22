@@ -26,21 +26,26 @@ import ProposalsPage from './pages/ProposalsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
-import SaudeView from './pages/analytics/views/SaudeView'
-import ResumoView from './pages/analytics/views/ResumoView'
+import LegacySaudeView from './pages/analytics/views/SaudeView'
+import LegacyResumoView from './pages/analytics/views/ResumoView'
 import PipelineCurrentView from './components/analytics/views/PipelineCurrentView'
-import WhatsAppView from './components/analytics/views/WhatsAppView'
+import LegacyWhatsAppView from './components/analytics/views/WhatsAppView'
 import SalesFunnelView from './components/analytics/views/SalesFunnelView'
 import TeamAnalyticsView from './components/analytics/views/TeamAnalyticsView'
-import OperationsView from './components/analytics/views/OperationsView'
-import AnalyticsV2Page from './pages/AnalyticsV2/AnalyticsV2Page'
-import MeuPainelRedirect from './pages/AnalyticsV2/MeuPainelRedirect'
-import DonoDashboard from './pages/AnalyticsV2/dashboards/DonoDashboard'
-import ComercialDashboard from './pages/AnalyticsV2/dashboards/ComercialDashboard'
-import VendasDashboard from './pages/AnalyticsV2/dashboards/VendasDashboard'
-import PosDashboard from './pages/AnalyticsV2/dashboards/PosDashboard'
-import SdrDashboard from './pages/AnalyticsV2/dashboards/SdrDashboard'
-import ExplorarPage from './pages/AnalyticsV2/ExplorarPage'
+import LegacyOperationsView from './components/analytics/views/OperationsView'
+import AnalyticsLayout from './pages/analytics-new/AnalyticsLayout'
+import AnalyticsRootRedirect from './pages/analytics-new/AnalyticsRootRedirect'
+import PipelineView from './pages/analytics-new/PipelineView'
+import FunnelView from './pages/analytics-new/FunnelView'
+import ResumoView from './pages/analytics-new/ResumoView'
+import SaudeView from './pages/analytics-new/SaudeView'
+import WhatsAppView from './pages/analytics-new/WhatsAppView'
+import TeamView from './pages/analytics-new/TeamView'
+import FinancialView from './pages/analytics-new/FinancialView'
+import RetentionView from './pages/analytics-new/RetentionView'
+import OperationsView from './pages/analytics-new/OperationsView'
+import SLAView from './pages/analytics-new/SLAView'
+import ExplorarPage from './pages/analytics-new/ExplorarPage'
 import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
@@ -235,29 +240,39 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
-                  {/* Analytics — 5 dashboards por persona (Dono / Comercial / Vendas / Pós / SDR) + Explorar */}
-                  <Route path="/analytics" element={<AnalyticsV2Page />}>
-                    <Route index element={<MeuPainelRedirect />} />
-                    <Route path="dono" element={<DonoDashboard />} />
-                    <Route path="comercial" element={<ComercialDashboard />} />
-                    <Route path="vendas" element={<VendasDashboard />} />
-                    <Route path="pos-venda" element={<PosDashboard />} />
-                    <Route path="sdr" element={<SdrDashboard />} />
+                  {/* Analytics — reconstrução em fases (plan: analytics-rebuild.md). Fase 0 = esqueleto + Explorar portado */}
+                  <Route path="/analytics" element={<AnalyticsLayout />}>
+                    <Route index element={<AnalyticsRootRedirect />} />
+                    <Route path="pipeline" element={<PipelineView />} />
+                    <Route path="funil" element={<FunnelView />} />
+                    <Route path="resumo" element={<ResumoView />} />
+                    <Route path="saude" element={<SaudeView />} />
+                    <Route path="whatsapp" element={<WhatsAppView />} />
+                    <Route path="equipe" element={<TeamView />} />
+                    <Route path="financeiro" element={<FinancialView />} />
+                    <Route path="retencao" element={<RetentionView />} />
+                    <Route path="operacoes" element={<OperationsView />} />
+                    <Route path="sla" element={<SLAView />} />
                     <Route path="explorar" element={<ExplorarPage />} />
                   </Route>
-                  {/* Legado — mantido temporariamente para bookmarks antigos */}
+                  {/* Legado — safety net até o cleanup da Fase 5 */}
                   <Route path="/analytics/legacy" element={<AnalyticsPage />}>
                     <Route index element={<Navigate to="/analytics/legacy/saude" replace />} />
-                    <Route path="saude" element={<SaudeView />} />
-                    <Route path="resumo" element={<ResumoView />} />
+                    <Route path="saude" element={<LegacySaudeView />} />
+                    <Route path="resumo" element={<LegacyResumoView />} />
                     <Route path="pipeline" element={<PipelineCurrentView />} />
-                    <Route path="whatsapp" element={<WhatsAppView />} />
+                    <Route path="whatsapp" element={<LegacyWhatsAppView />} />
                     <Route path="funnel" element={<SalesFunnelView />} />
                     <Route path="team" element={<TeamAnalyticsView />} />
-                    <Route path="operations" element={<OperationsView />} />
+                    <Route path="operations" element={<LegacyOperationsView />} />
                     <Route path="completeness" element={<Navigate to="/leads?view=preenchimento" replace />} />
                   </Route>
-                  {/* Redirect de /analytics/v2/* (rota temporária da Fase 3) para a nova raiz /analytics */}
+                  {/* Redirects de rotas persona V2 para a raiz nova */}
+                  <Route path="/analytics/dono" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/analytics/comercial" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/analytics/vendas" element={<Navigate to="/analytics/equipe" replace />} />
+                  <Route path="/analytics/pos-venda" element={<Navigate to="/analytics/operacoes" replace />} />
+                  <Route path="/analytics/sdr" element={<Navigate to="/analytics/whatsapp" replace />} />
                   <Route path="/analytics/v2/*" element={<Navigate to="/analytics" replace />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
