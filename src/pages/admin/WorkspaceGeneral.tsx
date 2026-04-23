@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
-import { Settings, Loader2, Save, Building2, Palette, Clock, Download, ShieldCheck, LogOut, AlertTriangle } from 'lucide-react'
+import { Settings, Loader2, Save, Building2, Palette, Clock, Download, ShieldCheck, LogOut, AlertTriangle, Workflow } from 'lucide-react'
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -17,6 +17,7 @@ interface WorkspaceFormState {
     default_currency: string
     timezone: string
     date_format: string
+    sub_card_requires_pos_venda: boolean
 }
 
 const CURRENCY_OPTIONS = [
@@ -52,6 +53,7 @@ export default function WorkspaceGeneral() {
         default_currency: 'BRL',
         timezone: 'America/Sao_Paulo',
         date_format: 'dd/MM/yyyy',
+        sub_card_requires_pos_venda: true,
     })
 
     // Sincronizar form com dados do banco quando carregar
@@ -65,6 +67,7 @@ export default function WorkspaceGeneral() {
                 default_currency: org.settings?.default_currency ?? 'BRL',
                 timezone: org.settings?.timezone ?? 'America/Sao_Paulo',
                 date_format: org.settings?.date_format ?? 'dd/MM/yyyy',
+                sub_card_requires_pos_venda: org.settings?.sub_card_requires_pos_venda !== false,
             })
         }
     }, [org])
@@ -80,9 +83,11 @@ export default function WorkspaceGeneral() {
                     accent_color: data.accent_color,
                 },
                 settings: {
+                    ...(org.settings ?? {}),
                     default_currency: data.default_currency,
                     timezone: data.timezone,
                     date_format: data.date_format,
+                    sub_card_requires_pos_venda: data.sub_card_requires_pos_venda,
                 },
             }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -337,6 +342,33 @@ export default function WorkspaceGeneral() {
                             </select>
                         </div>
                     </div>
+                </section>
+
+                {/* Regras do funil */}
+                <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Workflow className="w-4 h-4 text-slate-500" />
+                        <h2 className="text-sm font-semibold text-slate-900">Regras do funil</h2>
+                    </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={form.sub_card_requires_pos_venda}
+                            onChange={(e) => setForm((f) => ({ ...f, sub_card_requires_pos_venda: e.target.checked }))}
+                            disabled={!isAdmin}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                        />
+                        <span>
+                            <span className="block text-sm font-medium text-slate-900">
+                                Só permitir sub-card quando o card principal estiver em Pós-venda
+                            </span>
+                            <span className="block text-xs text-slate-500 mt-0.5">
+                                Evita que sub-cards (mudanças e vendas extras) sejam criados em etapas comerciais por engano.
+                                Vale para a interface e para integrações (n8n, importações). Recomendado ligado.
+                            </span>
+                        </span>
+                    </label>
                 </section>
 
                 {/* Gestão de Sessões */}

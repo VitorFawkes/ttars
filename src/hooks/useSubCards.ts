@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { useOrg } from '../contexts/OrgContext'
 
 export type SubCardMode = 'incremental'
 export type SubCardStatus = 'active' | 'merged' | 'cancelled' | 'completed'
@@ -56,6 +57,9 @@ interface CancelSubCardResult {
 export function useSubCards(parentCardId?: string) {
     const queryClient = useQueryClient()
     const { toast } = useToast()
+    const { org } = useOrg()
+    // DEFAULT true — setting só afrouxa a regra, nunca aperta silenciosamente
+    const requiresPosVenda = org?.settings?.sub_card_requires_pos_venda !== false
 
     // Query: Get sub-cards for a parent card
     const subCardsQuery = useQuery({
@@ -212,8 +216,8 @@ export function useSubCards(parentCardId?: string) {
         if (card.card_type === 'future_opportunity') return false
         // Cannot be a group parent
         if (card.is_group_parent) return false
-        // Parent precisa estar em Pós-venda (slug 'pos_venda')
-        if (card.phase_slug !== undefined && card.phase_slug !== 'pos_venda') return false
+        // Regra Pós-venda (configurável por workspace via organizations.settings)
+        if (requiresPosVenda && card.phase_slug !== undefined && card.phase_slug !== 'pos_venda') return false
         return true
     }
 
