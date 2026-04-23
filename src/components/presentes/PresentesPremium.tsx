@@ -48,7 +48,7 @@ export default function PresentesPremium() {
             <div className="flex items-center gap-4">
                 <div className="flex-1">
                     <div className="flex items-center gap-4 text-sm text-slate-500">
-                        <span><strong className="text-slate-900">{gifts.length}</strong> presentes premium</span>
+                        <span><strong className="text-slate-900">{gifts.length}</strong> presentes avulsos</span>
                         <span>·</span>
                         <span>Total: <strong className="text-slate-900">{formatBRL(totalCost)}</strong></span>
                     </div>
@@ -58,7 +58,7 @@ export default function PresentesPremium() {
                     className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 transition-colors"
                 >
                     <Plus className="h-4 w-4" />
-                    Novo Presente Premium
+                    Novo Presente Avulso
                 </button>
             </div>
 
@@ -117,7 +117,7 @@ export default function PresentesPremium() {
                     <div className="mx-auto h-12 w-12 rounded-full bg-pink-100 flex items-center justify-center">
                         <Gift className="h-6 w-6 text-pink-400" />
                     </div>
-                    <p className="text-sm text-slate-500">Nenhum presente premium ainda</p>
+                    <p className="text-sm text-slate-500">Nenhum presente avulso ainda</p>
                     <button
                         onClick={() => setShowModal(true)}
                         className="text-sm text-pink-600 hover:text-pink-700 font-medium"
