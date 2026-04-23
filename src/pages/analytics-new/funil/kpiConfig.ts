@@ -13,14 +13,56 @@ export interface KpiConfig {
   type: KpiType
   /** Nome customizado pelo usuário. Se vazio, usa label padrão derivado do tipo. */
   label: string
-  /** Volume numa etapa / Tempo numa etapa. */
+  /**
+   * Volume numa etapa: lista de etapas que são SOMADAS.
+   * 1 etapa = comportamento simples. 2+ etapas = "Volume em X + Y + Z" (soma).
+   */
+  stageIds?: string[]
+  /** Conversão: etapa(s) origem. Soma os volumes se > 1. */
+  fromStageIds?: string[]
+  /** Conversão: etapa(s) destino. Soma os volumes se > 1. */
+  toStageIds?: string[]
+  /** Tempo numa etapa: sempre uma única etapa. */
   stageId?: string
-  /** Conversão: etapa origem. */
-  fromStageId?: string
-  /** Conversão: etapa destino. */
-  toStageId?: string
   /** Agregado do funil. */
   aggregate?: KpiAggregate
+}
+
+/**
+ * Converte configs antigos (com stageId/fromStageId/toStageId singulares)
+ * para o formato novo baseado em arrays. Idempotente.
+ */
+export function migrateConfig(raw: Partial<KpiConfig> & { stageId?: string; fromStageId?: string; toStageId?: string }): KpiConfig {
+  const out: KpiConfig = {
+    id: raw.id || 'slot-?',
+    type: (raw.type as KpiType) || 'volume_stage',
+    label: raw.label || '',
+  }
+
+  if (out.type === 'volume_stage') {
+    if (raw.stageIds && raw.stageIds.length > 0) {
+      out.stageIds = raw.stageIds
+    } else if (raw.stageId) {
+      out.stageIds = [raw.stageId]
+    }
+  } else if (out.type === 'conversion') {
+    if (raw.fromStageIds && raw.fromStageIds.length > 0) {
+      out.fromStageIds = raw.fromStageIds
+    } else if (raw.fromStageId) {
+      out.fromStageIds = [raw.fromStageId]
+    }
+    if (raw.toStageIds && raw.toStageIds.length > 0) {
+      out.toStageIds = raw.toStageIds
+    } else if (raw.toStageId) {
+      out.toStageIds = [raw.toStageId]
+    }
+  } else if (out.type === 'time_stage') {
+    out.stageId = raw.stageId || (raw.stageIds && raw.stageIds[0]) || undefined
+  } else if (out.type === 'aggregate') {
+    out.aggregate = raw.aggregate || 'cards'
+  }
+
+  return out
 }
 
 export const AGGREGATE_LABELS: Record<KpiAggregate, string> = {
@@ -31,7 +73,7 @@ export const AGGREGATE_LABELS: Record<KpiAggregate, string> = {
 }
 
 export const KPI_TYPE_LABELS: Record<KpiType, string> = {
-  volume_stage: 'Volume numa etapa',
+  volume_stage: 'Volume numa etapa (ou soma de várias)',
   conversion: 'Conversão entre etapas',
   aggregate: 'Agregado do funil',
   time_stage: 'Tempo numa etapa (mediana)',
@@ -56,16 +98,41 @@ const COLOR_BY_TYPE: Record<KpiType, KpiResult['color']> = {
   time_stage: 'slate',
 }
 
+/**
+ * Resolve os nomes das etapas numa lista curta e legível:
+ *   - 1 etapa: "Oportunidade"
+ *   - 2 etapas: "Oportunidade + Proposta"
+ *   - 3 etapas: "Oportunidade + 2"
+ *   - 4+ etapas: "4 etapas"
+ */
+function formatStageList(ids: string[] | undefined, stagesById: Map<string, FunnelStageV3>): string {
+  if (!ids || ids.length === 0) return ''
+  const names = ids.map(id => stagesById.get(id)?.stage_nome).filter(Boolean) as string[]
+  if (names.length === 0) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} + ${names[1]}`
+  if (names.length === 3) return `${names[0]} + 2`
+  return `${names.length} etapas`
+}
+
+function sumPeriodCount(ids: string[] | undefined, stagesById: Map<string, FunnelStageV3>): number {
+  if (!ids || ids.length === 0) return 0
+  return ids.reduce((acc, id) => {
+    const s = stagesById.get(id)
+    return acc + (s?.period_count ?? 0)
+  }, 0)
+}
+
 export function getDefaultLabel(config: KpiConfig, stagesById: Map<string, FunnelStageV3>): string {
   switch (config.type) {
     case 'volume_stage': {
-      const s = config.stageId ? stagesById.get(config.stageId) : null
-      return s ? `Volume em ${s.stage_nome}` : 'Volume numa etapa'
+      const list = formatStageList(config.stageIds, stagesById)
+      return list ? `Volume em ${list}` : 'Volume numa etapa'
     }
     case 'conversion': {
-      const from = config.fromStageId ? stagesById.get(config.fromStageId) : null
-      const to = config.toStageId ? stagesById.get(config.toStageId) : null
-      if (from && to) return `Conversão ${from.stage_nome} → ${to.stage_nome}`
+      const from = formatStageList(config.fromStageIds, stagesById)
+      const to = formatStageList(config.toStageIds, stagesById)
+      if (from && to) return `Conversão ${from} → ${to}`
       return 'Conversão entre etapas'
     }
     case 'aggregate':
@@ -87,32 +154,47 @@ export function computeKpi(
 
   switch (config.type) {
     case 'volume_stage': {
-      const s = config.stageId ? stagesById.get(config.stageId) : null
-      if (!s) return { title, value: '—', color, numericValue: null, hint: 'Escolha uma etapa' }
+      const ids = config.stageIds || []
+      if (ids.length === 0) {
+        return { title, value: '—', color, numericValue: null, hint: 'Escolha ao menos uma etapa' }
+      }
+      const total = sumPeriodCount(ids, stagesById)
+      const breakdown = ids.length > 1
+        ? ids
+            .map(id => {
+              const s = stagesById.get(id)
+              return s ? `${s.stage_nome}: ${s.period_count}` : null
+            })
+            .filter(Boolean)
+            .join(' · ')
+        : undefined
       return {
         title,
-        value: s.period_count.toLocaleString('pt-BR'),
+        value: total.toLocaleString('pt-BR'),
         color,
-        numericValue: s.period_count,
+        numericValue: total,
+        hint: breakdown,
       }
     }
 
     case 'conversion': {
-      const from = config.fromStageId ? stagesById.get(config.fromStageId) : null
-      const to = config.toStageId ? stagesById.get(config.toStageId) : null
-      if (!from || !to) {
-        return { title, value: '—', color, numericValue: null, hint: 'Escolha as duas etapas' }
+      const fromIds = config.fromStageIds || []
+      const toIds = config.toStageIds || []
+      if (fromIds.length === 0 || toIds.length === 0) {
+        return { title, value: '—', color, numericValue: null, hint: 'Escolha as etapas de origem e destino' }
       }
-      const rate = from.period_count > 0 ? (to.period_count / from.period_count) * 100 : null
-      if (rate == null) {
-        return { title, value: '—', color, numericValue: null, hint: 'Etapa de origem sem cards' }
+      const fromTotal = sumPeriodCount(fromIds, stagesById)
+      const toTotal = sumPeriodCount(toIds, stagesById)
+      if (fromTotal === 0) {
+        return { title, value: '—', color, numericValue: null, hint: 'Etapa(s) de origem sem cards no período' }
       }
+      const rate = (toTotal / fromTotal) * 100
       return {
         title,
         value: `${rate.toFixed(1)}%`,
         color,
         numericValue: rate,
-        hint: `${to.period_count} de ${from.period_count} cards`,
+        hint: `${toTotal} de ${fromTotal} cards`,
       }
     }
 
@@ -172,20 +254,20 @@ export function makeDefaultKpis(stages: FunnelStageV3[]): KpiConfig[] {
       id: 'slot-1',
       type: 'volume_stage',
       label: '',
-      stageId: top?.stage_id,
+      stageIds: top ? [top.stage_id] : [],
     },
     {
       id: 'slot-2',
       type: 'volume_stage',
       label: '',
-      stageId: bot?.stage_id,
+      stageIds: bot ? [bot.stage_id] : [],
     },
     {
       id: 'slot-3',
       type: 'conversion',
       label: '',
-      fromStageId: top?.stage_id,
-      toStageId: bot?.stage_id,
+      fromStageIds: top ? [top.stage_id] : [],
+      toStageIds: bot ? [bot.stage_id] : [],
     },
     {
       id: 'slot-4',

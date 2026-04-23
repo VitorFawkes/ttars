@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { DateRef, FunnelMetric, FunnelStatus, GanhoFase } from './constants'
-import type { KpiConfig } from './kpiConfig'
+import { migrateConfig, type KpiConfig } from './kpiConfig'
 
 const KPI_STORAGE_KEY_PREFIX = 'welcomecrm.funil.kpis.v1'
 
@@ -9,9 +9,10 @@ function loadKpis(orgId: string | undefined, product: string | undefined): KpiCo
   try {
     const raw = window.localStorage.getItem(`${KPI_STORAGE_KEY_PREFIX}.${orgId}.${product ?? 'default'}`)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as KpiConfig[]
+    const parsed = JSON.parse(raw) as Array<Partial<KpiConfig> & { stageId?: string; fromStageId?: string; toStageId?: string }>
     if (!Array.isArray(parsed) || parsed.length !== 4) return null
-    return parsed
+    // Migra formato antigo (stageId singular) → novo (stageIds array). Idempotente.
+    return parsed.map(migrateConfig)
   } catch {
     return null
   }

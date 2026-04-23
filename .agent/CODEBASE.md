@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-22
+> **Last Updated:** 2026-04-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 187 tabelas | 139 paginas | 148 hooks | 19 views | 590 components
+> **Stats:** 187 tabelas | 140 paginas | 148 hooks | 19 views | 590 components
 
 ---
 
@@ -392,7 +392,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **139 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **140 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -502,6 +502,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FunnelVelocityTable` | `src/pages/analytics-new/funil/FunnelVelocityTable.tsx` |
 | `FunnelVisual` | `src/pages/analytics-new/funil/FunnelVisual.tsx` |
 | `MultiPickerPopover` | `src/pages/analytics-new/funil/MultiPickerPopover.tsx` |
+| `StageMultiSelect` | `src/pages/analytics-new/funil/StageMultiSelect.tsx` |
 | `PipelineAgingHeatmap` | `src/pages/analytics-new/pipeline/PipelineAgingHeatmap.tsx` |
 | `PipelineFilterPanel` | `src/pages/analytics-new/pipeline/PipelineFilterPanel.tsx` |
 | `PipelineKpis` | `src/pages/analytics-new/pipeline/PipelineKpis.tsx` |

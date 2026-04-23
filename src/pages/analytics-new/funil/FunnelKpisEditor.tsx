@@ -8,6 +8,7 @@ import {
   type KpiType,
 } from './kpiConfig'
 import type { StageOption } from './FunnelFilterPanel'
+import StageMultiSelect from './StageMultiSelect'
 
 interface Props {
   isOpen: boolean
@@ -31,7 +32,8 @@ export default function FunnelKpisEditor({
 }: Props) {
   const [draft, setDraft] = useState<KpiConfig[]>(configs)
 
-  // Sincroniza quando o modal abre (pega o estado atual)
+  // Ressincroniza o draft com os configs atuais sempre que o modal abre.
+  // Sem isso, reabrir o modal após uma edição externa mostraria o draft antigo.
   useEffect(() => {
     if (isOpen) setDraft(configs)
   }, [isOpen, configs])
@@ -43,17 +45,19 @@ export default function FunnelKpisEditor({
   }
 
   const changeType = (idx: number, type: KpiType) => {
-    // Reset campos específicos quando muda o tipo
     setDraft(prev =>
       prev.map((c, i) => {
         if (i !== idx) return c
+        const firstId = stageOptions[0]?.id
+        const lastId = stageOptions[stageOptions.length - 1]?.id
         return {
           id: c.id,
           type,
           label: c.label,
-          stageId: type === 'volume_stage' || type === 'time_stage' ? stageOptions[0]?.id : undefined,
-          fromStageId: type === 'conversion' ? stageOptions[0]?.id : undefined,
-          toStageId: type === 'conversion' ? stageOptions[stageOptions.length - 1]?.id : undefined,
+          stageIds: type === 'volume_stage' ? (firstId ? [firstId] : []) : undefined,
+          fromStageIds: type === 'conversion' ? (firstId ? [firstId] : []) : undefined,
+          toStageIds: type === 'conversion' ? (lastId ? [lastId] : []) : undefined,
+          stageId: type === 'time_stage' ? firstId : undefined,
           aggregate: type === 'aggregate' ? 'cards' : undefined,
         }
       })
@@ -84,7 +88,7 @@ export default function FunnelKpisEditor({
           <div>
             <h2 className="text-base font-semibold text-slate-900">Personalizar KPIs do topo</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Defina o que cada um dos 4 cards mostra. A escolha é salva só pra você.
+              Defina o que cada um dos 4 cards mostra. Volume e Conversão aceitam somar várias etapas. A escolha é salva só pra você.
             </p>
           </div>
           <button
@@ -110,7 +114,7 @@ export default function FunnelKpisEditor({
                 Card {idx + 1}
               </div>
 
-              {/* Tipo */}
+              {/* Tipo + Nome */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">
@@ -143,8 +147,23 @@ export default function FunnelKpisEditor({
                 </div>
               </div>
 
-              {/* Campos condicionais */}
-              {(cfg.type === 'volume_stage' || cfg.type === 'time_stage') && (
+              {/* Volume numa etapa (aceita múltiplas → soma) */}
+              {cfg.type === 'volume_stage' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Etapa(s) — marque mais de uma para somar
+                  </label>
+                  <StageMultiSelect
+                    stageOptions={stageOptions}
+                    selectedIds={cfg.stageIds ?? []}
+                    onChange={ids => updateSlot(idx, { stageIds: ids })}
+                    placeholder="Selecione etapa(s)…"
+                  />
+                </div>
+              )}
+
+              {/* Tempo numa etapa (única) */}
+              {cfg.type === 'time_stage' && (
                 <div>
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">
                     Etapa
@@ -164,41 +183,30 @@ export default function FunnelKpisEditor({
                 </div>
               )}
 
+              {/* Conversão (ambos os lados aceitam múltiplas) */}
               {cfg.type === 'conversion' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      De (etapa origem)
+                      De (etapa origem) — soma se marcar várias
                     </label>
-                    <select
-                      value={cfg.fromStageId ?? ''}
-                      onChange={e => updateSlot(idx, { fromStageId: e.target.value || undefined })}
-                      className="w-full h-9 px-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 outline-none"
-                    >
-                      <option value="">Selecione…</option>
-                      {stageOptions.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.nome}
-                        </option>
-                      ))}
-                    </select>
+                    <StageMultiSelect
+                      stageOptions={stageOptions}
+                      selectedIds={cfg.fromStageIds ?? []}
+                      onChange={ids => updateSlot(idx, { fromStageIds: ids })}
+                      placeholder="Etapa(s) de origem…"
+                    />
                   </div>
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Até (etapa destino)
+                      Até (etapa destino) — soma se marcar várias
                     </label>
-                    <select
-                      value={cfg.toStageId ?? ''}
-                      onChange={e => updateSlot(idx, { toStageId: e.target.value || undefined })}
-                      className="w-full h-9 px-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 outline-none"
-                    >
-                      <option value="">Selecione…</option>
-                      {stageOptions.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.nome}
-                        </option>
-                      ))}
-                    </select>
+                    <StageMultiSelect
+                      stageOptions={stageOptions}
+                      selectedIds={cfg.toStageIds ?? []}
+                      onChange={ids => updateSlot(idx, { toStageIds: ids })}
+                      placeholder="Etapa(s) de destino…"
+                    />
                   </div>
                 </div>
               )}
