@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown, Combine } from 'lucide-react'
+import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown, Combine, ArrowUpFromLine } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCreateProposal } from '@/hooks/useProposal'
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useArchiveCard } from '@/hooks/useArchiveCard'
 import { useAIExtractionReview } from '@/hooks/useAIExtractionReview'
 import { useAIConversationExtraction } from '@/hooks/useAIConversationExtraction'
+import { usePromoteSubCard } from '@/hooks/usePromoteSubCard'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -53,8 +54,25 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     const [showAIReview, setShowAIReview] = useState(false)
     const [showAIConversation, setShowAIConversation] = useState(false)
     const [showMergeModal, setShowMergeModal] = useState(false)
+    const [showPromoteConfirm, setShowPromoteConfirm] = useState(false)
+    const promoteSubCard = usePromoteSubCard()
     const aiReview = useAIExtractionReview(card.id)
     const aiConversation = useAIConversationExtraction(card.id)
+
+    const cardType = (card as Record<string, unknown>).card_type as string | undefined
+    const subCardStatus = (card as Record<string, unknown>).sub_card_status as string | undefined
+    const isActiveSubCard = cardType === 'sub_card' && (subCardStatus === 'active' || subCardStatus === null || subCardStatus === undefined)
+
+    const handlePromote = async () => {
+        try {
+            await promoteSubCard.mutateAsync(card.id)
+            toast.success('Sub-card virou card principal')
+            setShowPromoteConfirm(false)
+        } catch (err) {
+            console.error('[ActionButtons] Erro ao promover sub-card:', err)
+            toast.error((err as Error).message || 'Erro ao converter sub-card')
+        }
+    }
 
     // Conta mensagens do card para habilitar botão "IA lê conversa"
     const { data: whatsappMessageCount = 0 } = useQuery({
@@ -465,6 +483,22 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     Agrupar
                 </button>
 
+                {isActiveSubCard && (
+                    <button
+                        onClick={() => setShowPromoteConfirm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors text-xs font-medium"
+                        title="Transformar este sub-card em card principal (desvincular do pai)"
+                        disabled={promoteSubCard.isPending}
+                    >
+                        {promoteSubCard.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <ArrowUpFromLine className="h-3.5 w-3.5" />
+                        )}
+                        Virar card principal
+                    </button>
+                )}
+
                 <button
                     onClick={() => setShowDeleteModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition-colors text-xs font-medium"
@@ -604,6 +638,59 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     navigate(`/card/${destinoId}`)
                 }}
             />
+
+            {showPromoteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                <ArrowUpFromLine className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-slate-900">Virar card principal</h3>
+                        </div>
+
+                        <p className="text-sm text-slate-600 mb-4">
+                            Este sub-card vai deixar de ser filho do card pai e passa a existir sozinho, como um card comum.
+                        </p>
+
+                        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1 mb-5">
+                            <p><strong className="text-slate-900">O que muda:</strong></p>
+                            <ul className="list-disc list-inside space-y-0.5 ml-1">
+                                <li>Desvincula do card pai</li>
+                                <li>Perde a marcação de "mudança" ou "venda adicional"</li>
+                                <li>Continua com todos os produtos, pessoas e histórico próprios</li>
+                            </ul>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => setShowPromoteConfirm(false)}
+                                disabled={promoteSubCard.isPending}
+                                className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handlePromote}
+                                disabled={promoteSubCard.isPending}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50"
+                            >
+                                {promoteSubCard.isPending ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Convertendo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <ArrowUpFromLine className="h-4 w-4" />
+                                        Confirmar
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }
