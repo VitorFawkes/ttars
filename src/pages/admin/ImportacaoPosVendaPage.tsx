@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { useOrg } from '@/contexts/OrgContext'
 import { parseBRNumber } from '@/lib/parseBRNumber'
 import { readFileText } from '@/lib/readFileText'
 import { toast } from 'sonner'
@@ -697,6 +698,8 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
 
 export default function ImportacaoPosVendaPage() {
     const { profile } = useAuth()
+    const { org } = useOrg()
+    const activeOrgId = org?.id
     const queryClient = useQueryClient()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -719,6 +722,61 @@ export default function ImportacaoPosVendaPage() {
     const [filterVoucher, setFilterVoucher] = useState<'all' | 'sim' | 'nao'>('all')
     const [showFilters, setShowFilters] = useState(false)
 
+    // Persistência de sessão — mantém preview + filtros ao navegar entre páginas.
+    // sessionStorage (não localStorage): some ao fechar a aba, não polui para sempre.
+    const storageKey = activeOrgId ? `pv-import-session:${activeOrgId}` : null
+    const [hasRestored, setHasRestored] = useState(false)
+
+    // Restaurar sessão salva ao montar
+    useEffect(() => {
+        if (hasRestored || !storageKey) return
+        try {
+            const raw = sessionStorage.getItem(storageKey)
+            if (raw) {
+                const parsed = JSON.parse(raw)
+                if (parsed?.step === 'preview' && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
+                    setStep('preview')
+                    setFileName(parsed.fileName || '')
+                    setTrips(parsed.trips)
+                    setSelectedTrips(new Set(parsed.selectedTrips || []))
+                    setFilterDataFimMin(parsed.filterDataFimMin || '')
+                    setFilterDataFimMax(parsed.filterDataFimMax || '')
+                    setFilterValorMin(parsed.filterValorMin || '')
+                    setFilterValorMax(parsed.filterValorMax || '')
+                    setFilterAction(parsed.filterAction || 'all')
+                    setFilterVendedor(parsed.filterVendedor || '')
+                    setFilterApp(parsed.filterApp || 'all')
+                    setFilterVoucher(parsed.filterVoucher || 'all')
+                    setShowFilters(!!parsed.showFilters)
+                }
+            }
+        } catch (err) {
+            console.warn('Não foi possível restaurar sessão de importação:', err)
+        }
+        setHasRestored(true)
+    }, [storageKey, hasRestored])
+
+    // Persistir sessão durante preview
+    useEffect(() => {
+        if (!hasRestored || !storageKey || step !== 'preview') return
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify({
+                step, fileName, trips,
+                selectedTrips: Array.from(selectedTrips),
+                filterDataFimMin, filterDataFimMax,
+                filterValorMin, filterValorMax,
+                filterAction, filterVendedor,
+                filterApp, filterVoucher,
+                showFilters,
+            }))
+        } catch (err) {
+            console.warn('Não foi possível salvar sessão de importação:', err)
+        }
+    }, [step, fileName, trips, selectedTrips,
+        filterDataFimMin, filterDataFimMax, filterValorMin, filterValorMax,
+        filterAction, filterVendedor, filterApp, filterVoucher,
+        showFilters, storageKey, hasRestored])
+
     // Auth check: admin or pos_venda phase
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -740,23 +798,27 @@ export default function ImportacaoPosVendaPage() {
         },
     })
 
-    // Planner profiles for vendedor matching — cross-org via team_members.
+    // Planner profiles for vendedor matching — do workspace ativo.
     // Resolvido por slug canônico da fase (pipeline_phases.slug = 'planner'), não por team.name,
     // para funcionar em orgs que renomearam o time.
     const { data: plannerProfiles = [] } = useQuery({
-        queryKey: ['planner-profiles'],
+        queryKey: ['planner-profiles', activeOrgId],
+        enabled: !!activeOrgId,
         queryFn: async () => {
-            // Todas as fases com slug='planner' (uma por org); depois teams ligados a essas fases.
+            if (!activeOrgId) return []
+            // Fase com slug='planner' do workspace ativo; depois teams ligados a essa fase.
             const { data: plannerPhases } = await supabase
                 .from('pipeline_phases')
                 .select('id')
                 .eq('slug', 'planner')
+                .eq('org_id', activeOrgId)
             const phaseIds = (plannerPhases || []).map(p => p.id as string)
             if (phaseIds.length === 0) return []
 
             const { data: plannerTeams } = await supabase
                 .from('teams')
                 .select('id')
+                .eq('org_id', activeOrgId)
                 .in('phase_id', phaseIds)
             const teamIds = (plannerTeams || []).map(t => t.id as string)
             if (teamIds.length === 0) return []
@@ -986,8 +1048,8 @@ export default function ImportacaoPosVendaPage() {
 
     // ─── Import handler ──────────────────────────────────────
     const handleImport = async () => {
-        const toProcess = trips.filter(t => t.action !== 'skip' && selectedTrips.has(t.id))
-        const skippedByUser = trips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
+        const toProcess = filteredTrips.filter(t => t.action !== 'skip' && selectedTrips.has(t.id))
+        const skippedByUser = filteredTrips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
         if (toProcess.length === 0) return
 
         setStep('importing')
@@ -1084,7 +1146,7 @@ export default function ImportacaoPosVendaPage() {
                             previous_state: rpcItem?.previous_state || null,
                         }
                     })
-                    const skippedItems = trips
+                    const skippedItems = filteredTrips
                         .filter(t => t.action !== 'skip' && !selectedTrips.has(t.id))
                         .map(t => ({
                             import_log_id: logRow.id,
@@ -1111,6 +1173,7 @@ export default function ImportacaoPosVendaPage() {
             }
 
             queryClient.invalidateQueries({ queryKey: ['pv-import-logs'] })
+            if (storageKey) sessionStorage.removeItem(storageKey)
             setStep('done')
             toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados`)
         } catch (err) {
@@ -1138,6 +1201,7 @@ export default function ImportacaoPosVendaPage() {
         setFilterVoucher('all')
         setShowFilters(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
+        if (storageKey) sessionStorage.removeItem(storageKey)
     }
 
     // ─── Filter logic ────────────────────────────────────────
@@ -1205,19 +1269,33 @@ export default function ImportacaoPosVendaPage() {
 
     const toggleAllTrips = useCallback(() => {
         setSelectedTrips(prev => {
-            const actionableTrips = trips.filter(t => t.action !== 'skip')
-            if (prev.size >= actionableTrips.length) return new Set()
-            return new Set(actionableTrips.map(t => t.id))
+            const scope = hasActiveFilters ? filteredTrips : trips
+            const actionable = scope.filter(t => t.action !== 'skip')
+            if (actionable.length === 0) return prev
+            const actionableIds = new Set(actionable.map(t => t.id))
+            const selectedInScope = actionable.filter(t => prev.has(t.id)).length
+            const next = new Set(prev)
+            if (selectedInScope >= actionable.length) {
+                for (const id of actionableIds) next.delete(id)
+            } else {
+                for (const id of actionableIds) next.add(id)
+            }
+            return next
         })
-    }, [trips])
+    }, [trips, filteredTrips, hasActiveFilters])
 
     if (!canAccess) return <Navigate to="/dashboard" replace />
 
     // ─── Stats ───────────────────────────────────────────────
-    const toCreate = trips.filter(t => t.action === 'create' && selectedTrips.has(t.id)).length
-    const toUpdate = trips.filter(t => t.action === 'update' && selectedTrips.has(t.id)).length
-    const toSkip = trips.filter(t => t.action === 'skip').length
-    const deselected = trips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
+    // Quando há filtro ativo, contadores refletem apenas o que está visível.
+    // Viagens fora do filtro ficam parqueadas (não contam como "pular" nem são importadas).
+    const scopeTrips = hasActiveFilters ? filteredTrips : trips
+    const toCreate = scopeTrips.filter(t => t.action === 'create' && selectedTrips.has(t.id)).length
+    const toUpdate = scopeTrips.filter(t => t.action === 'update' && selectedTrips.has(t.id)).length
+    const toSkip = scopeTrips.filter(t => t.action === 'skip').length
+    const deselected = scopeTrips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
+    const scopeActionable = scopeTrips.filter(t => t.action !== 'skip')
+    const selectedInScope = scopeActionable.filter(t => selectedTrips.has(t.id)).length
 
     return (
         <div className="h-full overflow-y-auto">
@@ -1490,16 +1568,15 @@ export default function ImportacaoPosVendaPage() {
                                 <button
                                     onClick={toggleAllTrips}
                                     className="flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition-colors"
-                                    title={selectedTrips.size >= trips.filter(t => t.action !== 'skip').length ? 'Desmarcar todas' : 'Selecionar todas'}
+                                    title={selectedInScope >= scopeActionable.length ? 'Desmarcar todas' : 'Selecionar todas'}
                                 >
                                     {(() => {
-                                        const actionable = trips.filter(t => t.action !== 'skip').length
-                                        if (selectedTrips.size === 0) return <Square className="h-4 w-4" />
-                                        if (selectedTrips.size >= actionable) return <SquareCheck className="h-4 w-4 text-indigo-600" />
+                                        if (selectedInScope === 0) return <Square className="h-4 w-4" />
+                                        if (selectedInScope >= scopeActionable.length) return <SquareCheck className="h-4 w-4 text-indigo-600" />
                                         return <MinusSquare className="h-4 w-4 text-indigo-600" />
                                     })()}
                                     <span className="font-medium">
-                                        {selectedTrips.size}/{trips.filter(t => t.action !== 'skip').length} selecionadas
+                                        {selectedInScope}/{scopeActionable.length} {hasActiveFilters ? 'filtradas selecionadas' : 'selecionadas'}
                                     </span>
                                 </button>
                                 <span className="text-slate-300">|</span>
