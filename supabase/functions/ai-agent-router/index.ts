@@ -3126,8 +3126,12 @@ serve(async (req) => {
       const oldest = buffered[0];
       const ageOldestMs = Date.now() - new Date(oldest.created_at).getTime();
 
-      if (ageOldestMs < debounceMs) {
-        // Ainda dentro da janela de debounce — esperar próxima ou novo drain
+      // Debounce só faz sentido quando já há MÚLTIPLAS mensagens não-processadas
+      // (sinal de burst — lead digitando rápido). Com apenas 1 msg pendente,
+      // aguardar bloqueia o processamento até a próxima msg chegar — e se ela
+      // nunca vier, o buffer fica preso. Fix 2026-04-23: processar na hora
+      // quando length <= 1, debounce continua valendo para length >= 2.
+      if (ageOldestMs < debounceMs && buffered.length > 1) {
         console.log(`[debounce] ${buffered.length} msgs buffered, oldest ${Math.round(ageOldestMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
         return new Response(
           JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
