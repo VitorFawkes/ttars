@@ -72,14 +72,50 @@ function isWithinBusinessHours(config: BusinessHoursConfig | undefined): boolean
 }
 
 function resolveTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+(?::\w+)?)\}\}/g, (_, key: string) => {
+  return template.replace(/\{\{(\w+(?::[\w-]+)?)\}\}/g, (_, key: string) => {
     if (key === "contact_name") return vars.contact_name || "Cliente";
+    if (key === "agent_name") return vars.agent_name || "";
+    if (key === "company_name") return vars.company_name || "";
     if (key.startsWith("form_field:")) {
       const field = key.split(":")[1];
       return vars[`form_${field}`] || "";
     }
     return vars[key] || "";
   });
+}
+
+/**
+ * System prompt para modo concept (diretriz livre). Usado tanto pela nova
+ * tabela ai_agent_presentations quanto pelo fallback legado first_message_config.
+ */
+function buildConceptSystemPrompt(
+  concept: string,
+  item: QueueItem,
+  vars: Record<string, string>,
+): string {
+  const formContext = Object.entries(item.form_data || {})
+    .filter(([, v]) => v)
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join("\n");
+
+  return `Voce e ${vars.agent_name || "um assistente de vendas"}${
+    vars.company_name ? ` da ${vars.company_name}` : ""
+  }. Gere UMA mensagem WhatsApp de primeiro contato.
+
+DIRETRIZ (siga como base, mantenha seu tom):
+${concept}
+
+Dados do lead:
+- Nome: ${item.contact_name || "Cliente"}
+${formContext ? `\nDados do formulario:\n${formContext}` : ""}
+
+REGRAS:
+- Maximo 2 frases. Tom natural, sem ser robotico.
+- NUNCA mencione "diretriz", "instrucao", IA, sistema ou formulario.
+- NUNCA use emojis em excesso (0-1 no maximo).
+- Personalize com os dados disponiveis.
+
+SAIDA: APENAS o texto da mensagem, pronto pra enviar.`;
 }
 
 async function callLLM(
@@ -324,21 +360,13 @@ serve(async (req) => {
           // === FOLLOW-UP: carregar contexto da conversa anterior ===
           messageText = await generateFollowUpMessage(supabase, item);
         } else {
-          // === FIRST CONTACT: usar first_message_config ===
-          const fmc = item.first_message_config;
-
-          if (!fmc) {
-            await supabase.rpc("complete_outbound_queue_item", {
-              p_queue_id: item.queue_id,
-              p_status: "skipped",
-              p_error: "No first_message_config",
-            });
-            results.push({ queue_id: item.queue_id, status: "skipped", error: "no_config" });
-            continue;
-          }
-
+          // === FIRST CONTACT: fonte prioritária = ai_agent_presentations ===
+          // Fallback para first_message_config legado só se a tabela estiver
+          // sem linha pro cenário (compat até remoção do JSONB).
           const templateVars: Record<string, string> = {
             contact_name: item.contact_name || "Cliente",
+            agent_name: "",
+            company_name: "",
           };
           if (item.form_data) {
             for (const [k, v] of Object.entries(item.form_data)) {
@@ -346,30 +374,64 @@ serve(async (req) => {
             }
           }
 
-          if (fmc.type === "fixed" && fmc.fixed_template) {
-            messageText = resolveTemplate(fmc.fixed_template, templateVars);
-          } else if (fmc.type === "ai_generated" && fmc.ai_instructions) {
-            const formContext = Object.entries(item.form_data || {})
-              .filter(([, v]) => v)
-              .map(([k, v]) => `- ${k}: ${v}`)
-              .join("\n");
+          // Carregar agent.nome + business.company_name pra variáveis
+          const { data: agentMeta } = await supabase
+            .from("ai_agents")
+            .select("nome")
+            .eq("id", item.agent_id)
+            .single();
+          const { data: bizMeta } = await supabase
+            .from("ai_agent_business_config")
+            .select("company_name")
+            .eq("agent_id", item.agent_id)
+            .maybeSingle();
+          templateVars.agent_name = (agentMeta as { nome?: string } | null)?.nome || "";
+          templateVars.company_name = (bizMeta as { company_name?: string } | null)?.company_name || "";
 
-            const systemPrompt = `Voce e um assistente de vendas. Gere UMA mensagem WhatsApp de primeiro contato.
-Instrucoes: ${fmc.ai_instructions}
+          // Tentar nova tabela primeiro
+          const { data: presentationRow } = await supabase
+            .from("ai_agent_presentations")
+            .select("mode, fixed_template, concept_text, enabled")
+            .eq("agent_id", item.agent_id)
+            .eq("scenario", "first_contact_outbound_form")
+            .eq("enabled", true)
+            .maybeSingle();
 
-Dados do lead:
-- Nome: ${item.contact_name || "Cliente"}
-${formContext ? `\nDados do formulario:\n${formContext}` : ""}
+          const presentation = presentationRow as {
+            mode: "fixed" | "concept";
+            fixed_template: string | null;
+            concept_text: string | null;
+            enabled: boolean;
+          } | null;
 
-REGRAS:
-- Maximo 2 frases. Tom natural, sem ser robotico.
-- NUNCA mencione IA, sistema, formulario.
-- NUNCA use emojis em excesso (0-1 no maximo).
-- Personalize com os dados disponiveis.
+          if (presentation && presentation.mode === "fixed" && presentation.fixed_template) {
+            messageText = resolveTemplate(presentation.fixed_template, templateVars);
+          } else if (presentation && presentation.mode === "concept" && presentation.concept_text) {
+            messageText = await callLLM(
+              buildConceptSystemPrompt(presentation.concept_text, item, templateVars),
+              "Gere a primeira mensagem de abordagem.",
+            );
+          } else {
+            // Fallback legado: first_message_config
+            const fmc = item.first_message_config;
+            if (!fmc) {
+              await supabase.rpc("complete_outbound_queue_item", {
+                p_queue_id: item.queue_id,
+                p_status: "skipped",
+                p_error: "No presentation or first_message_config",
+              });
+              results.push({ queue_id: item.queue_id, status: "skipped", error: "no_config" });
+              continue;
+            }
 
-SAIDA: APENAS o texto da mensagem, pronto pra enviar.`;
-
-            messageText = await callLLM(systemPrompt, "Gere a primeira mensagem de abordagem.");
+            if (fmc.type === "fixed" && fmc.fixed_template) {
+              messageText = resolveTemplate(fmc.fixed_template, templateVars);
+            } else if (fmc.type === "ai_generated" && fmc.ai_instructions) {
+              messageText = await callLLM(
+                buildConceptSystemPrompt(fmc.ai_instructions, item, templateVars),
+                "Gere a primeira mensagem de abordagem.",
+              );
+            }
           }
         }
 

@@ -76,7 +76,10 @@ fi
 # (`.eq('id', ...).single()`), chains de `.update(...).eq('id', ...)` (mutations
 # específicas não precisam de org filter), e pages de admin de plataforma.
 WS_TABLES="teams|departments|motivos_perda|card_tags|pipelines|cadence_templates|ai_agents|automation_flows"
-WS_EXCLUDE="src/pages/platform/|__tests__|\.migration"
+# Edge functions (supabase/functions/) rodam com service_role e escopam por
+# entity_id (agent_id, conversation_id, etc), não por useOrg() — excluídas pelo
+# mesmo motivo que src/pages/platform/ (cross-org por desenho).
+WS_EXCLUDE="src/pages/platform/|supabase/functions/|__tests__|\.migration"
 WS_VIOLATIONS=""
 for f in $CHANGED_FILES; do
   echo "$f" | grep -qE "$WS_EXCLUDE" && continue

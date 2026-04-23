@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send,
+  GitBranch, Settings, Zap, Send, MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -33,6 +33,7 @@ import { TabFunilQualificacao } from '@/components/ai-agent/editor/TabFunilQuali
 import { TabRegrasNegocio } from '@/components/ai-agent/editor/TabRegrasNegocio'
 import { TabCenariosEspeciais } from '@/components/ai-agent/editor/TabCenariosEspeciais'
 import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
+import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -296,6 +297,7 @@ export default function AiAgentDetailPage() {
   const tabs: EditorTab[] = useMemo(() => [
     { id: 'identidade', label: 'Identidade', icon: Bot },
     { id: 'modo', label: 'Modo de interação', icon: Send },
+    { id: 'apresentacao', label: 'Apresentação', icon: MessageCircle },
     { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
     { id: 'funil', label: 'Funil de qualificação', icon: GitBranch },
     { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
@@ -408,6 +410,7 @@ export default function AiAgentDetailPage() {
       <AgentEditorLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === 'identidade' && <TabIdentidade form={form} setForm={setFormWrapper} />}
         {activeTab === 'modo' && <TabModoInteracao form={form} setForm={setFormWrapper} />}
+        {activeTab === 'apresentacao' && <TabApresentacao agentId={isNew ? undefined : id} />}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}

@@ -167,10 +167,33 @@ interface SpecialScenario {
   target_agent_id: string | null;
 }
 
+/**
+ * Apresentação configurável (ai_agent_presentations) — define como o agente
+ * abre conversa em cenários específicos. V1 consome first_contact_inbound
+ * no buildPersonaPrompt; first_contact_outbound_form é consumido na edge
+ * function separada ai-agent-outbound-trigger.
+ */
+interface AiAgentPresentation {
+  id: string;
+  agent_id: string;
+  scenario: 'first_contact_inbound' | 'first_contact_outbound_form';
+  mode: 'fixed' | 'concept';
+  fixed_template: string | null;
+  concept_text: string | null;
+  enabled: boolean;
+}
+
 interface ConversationContext {
   historico: string;
   historico_compacto: string;
   is_primeiro_contato: boolean;
+  /**
+   * Cenário de apresentação aplicável neste turn. Setado por
+   * buildConversationContext quando is_primeiro_contato=true E há linha
+   * habilitada em ai_agent_presentations para o agente. Consumido em
+   * runPersonaAgent (buildPersonaPrompt injeta bloco dedicado).
+   */
+  presentation_scenario: 'first_contact_inbound' | null;
   last_message_who: "lead" | "owner" | "";
   owner_first_message: boolean;
   first_lead_message_only: boolean;
@@ -722,7 +745,7 @@ async function loadAgentConfig(
   agentId: string,
   agent?: AgentConfig,
 ) {
-  const [bizRes, qualRes, scenarioRes] = await Promise.all([
+  const [bizRes, qualRes, scenarioRes, presentationsRes] = await Promise.all([
     supabase
       .from("ai_agent_business_config")
       .select("*")
@@ -739,6 +762,11 @@ async function loadAgentConfig(
       .eq("agent_id", agentId)
       .eq("enabled", true)
       .order("priority", { ascending: false }),
+    supabase
+      .from("ai_agent_presentations")
+      .select("*")
+      .eq("agent_id", agentId)
+      .eq("enabled", true),
   ]);
 
   const business = (bizRes.data as BusinessConfig | null)
@@ -759,6 +787,7 @@ async function loadAgentConfig(
     business,
     qualification,
     scenarios: (scenarioRes.data as SpecialScenario[]) || [],
+    presentations: (presentationsRes.data as AiAgentPresentation[]) || [],
   };
 }
 
@@ -1016,10 +1045,14 @@ async function buildConversationContext(
     ? 'pause_permanently'
     : humanHandling ? 'human_handling' : null;
 
+  const isPrimeiroContato = msgs.length <= 1;
   return {
     historico,
     historico_compacto,
-    is_primeiro_contato: msgs.length <= 1,
+    is_primeiro_contato: isPrimeiroContato,
+    // Inbound puro: é a primeira vez que o agente responde este lead.
+    // Outbound pós-formulário usa ai-agent-outbound-trigger, não passa por aqui.
+    presentation_scenario: isPrimeiroContato ? 'first_contact_inbound' : null,
     last_message_who: lastWho as "lead" | "owner" | "",
     owner_first_message: hasOwner && !hasLead,
     first_lead_message_only: hasLead && !hasOwner,
@@ -2115,6 +2148,73 @@ Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios
 }
 
 // ---------------------------------------------------------------------------
+// Apresentação configurável — helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve variáveis {{contact_name}}, {{agent_name}}, {{company_name}} e
+ * {{form_field:<slug>}} no template. Var não-resolvida vira string vazia.
+ * Alinhado com resolveTemplate do ai-agent-outbound-trigger.
+ */
+function resolvePresentationTemplate(
+  template: string,
+  ctx: ConversationContext,
+  agent: AgentConfig,
+  business: BusinessConfig | null,
+): string {
+  return template.replace(/\{\{(\w+(?::[\w-]+)?)\}\}/g, (_, key: string) => {
+    if (key === "contact_name") return ctx.contact_name || "";
+    if (key === "agent_name") return agent.nome || "";
+    if (key === "company_name") return business?.company_name || "";
+    if (key.startsWith("form_field:")) {
+      const slug = key.split(":")[1];
+      return ctx.form_data?.[slug] || "";
+    }
+    return "";
+  });
+}
+
+/**
+ * Monta bloco de apresentação pra injetar no personaPrompt quando o cenário
+ * detectado em ctx.presentation_scenario tem linha habilitada. Retorna string
+ * vazia quando não aplica — nesse caso, o prompt mantém a regra default
+ * ("PRIMEIRO CONTATO: NAO se apresente novamente").
+ */
+function buildPresentationBlock(
+  presentations: AiAgentPresentation[],
+  ctx: ConversationContext,
+  agent: AgentConfig,
+  business: BusinessConfig | null,
+): string {
+  if (!ctx.presentation_scenario) return "";
+  const row = presentations.find(
+    (p) => p.scenario === ctx.presentation_scenario && p.enabled,
+  );
+  if (!row) return "";
+
+  if (row.mode === "fixed" && row.fixed_template) {
+    const resolved = resolvePresentationTemplate(row.fixed_template, ctx, agent, business);
+    return `APRESENTACAO OBRIGATORIA (cenario: ${row.scenario}):
+Esta e a PRIMEIRA vez que voce responde este lead. Sua PRIMEIRA mensagem deve ser EXATAMENTE:
+"${resolved}"
+
+Apos essa mensagem, siga as regras normais. Nao repita a apresentacao em mensagens seguintes.`;
+  }
+
+  if (row.mode === "concept" && row.concept_text) {
+    return `APRESENTACAO DESTE MOMENTO (cenario: ${row.scenario}):
+Diretriz: ${row.concept_text.trim()}
+
+Use esta diretriz como base pra abrir a conversa. Mantenha seu tom e persona.
+Adapte ao nome do lead (${ctx.contact_name || "Cliente"}) e ao que voce sabe do formulario.
+Nao cite "diretriz", "instrucao" ou "script". Soe natural.
+Apos se apresentar, va direto ao que o lead precisa.`;
+  }
+
+  return "";
+}
+
+// ---------------------------------------------------------------------------
 // 9. Pipeline Step: Persona Agent
 // ---------------------------------------------------------------------------
 
@@ -2128,6 +2228,7 @@ async function runPersonaAgent(
   scenarios: SpecialScenario[],
   userMessage: string,
   qualificationSignals: Record<string, string> = {},
+  presentations: AiAgentPresentation[] = [],
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   // Para agentes nao-template, usar o system_prompt original (v1 behavior — sem tools)
   if (!agent.is_template_based) {
@@ -2194,6 +2295,12 @@ async function runPersonaAgent(
       return `${header}\n  → ${actions.join(" ")}`;
     })
     .join("\n");
+
+  // Apresentação configurável (ai_agent_presentations) — injeta bloco dedicado
+  // quando ctx.presentation_scenario aponta um cenário E existe linha habilitada
+  // pro agente. Modo 'fixed' → enviar EXATO (com vars); modo 'concept' → diretriz
+  // que o LLM parafrasea mantendo persona. Fora do cenário, bloco vira "".
+  const presentationBlock = buildPresentationBlock(presentations, ctx, agent, business);
 
   // Frente E — bloco "JÁ SABEMOS": combina form_data persistido + signals inferidos
   // pelo Data Agent do histórico. Persona usa pra NÃO re-perguntar o que cliente
@@ -2329,7 +2436,7 @@ ${protectedFieldsBlock}
 
 HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
-PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avance direto.
+${presentationBlock ? presentationBlock : `PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avance direto.`}
 
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
@@ -3153,6 +3260,7 @@ serve(async (req) => {
         supabase, agent, ctx, backoffice,
         agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
         processedText, dataResult.qualificationSignals,
+        agentConfig.presentations,
       );
       const rawResponse = personaResult.response;
       totalInputTokens += personaResult.inputTokens;
