@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown } from 'lucide-react'
+import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown, Combine } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCreateProposal } from '@/hooks/useProposal'
@@ -19,6 +19,7 @@ import BriefingIAModal from './BriefingIAModal'
 import TranscriptionIAModal from './TranscriptionIAModal'
 import AIExtractionReviewModal from './AIExtractionReviewModal'
 import AIConversationReviewModal from './AIConversationReviewModal'
+import MergeCardsModal from './MergeCardsModal'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -51,6 +52,7 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     const [showTranscriptionIA, setShowTranscriptionIA] = useState(false)
     const [showAIReview, setShowAIReview] = useState(false)
     const [showAIConversation, setShowAIConversation] = useState(false)
+    const [showMergeModal, setShowMergeModal] = useState(false)
     const aiReview = useAIExtractionReview(card.id)
     const aiConversation = useAIConversationExtraction(card.id)
 
@@ -455,6 +457,15 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 )}
 
                 <button
+                    onClick={() => setShowMergeModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md hover:bg-amber-100 transition-colors text-xs font-medium"
+                    title="Agrupar este card com outro (mesma viagem)"
+                >
+                    <Combine className="h-3.5 w-3.5" />
+                    Agrupar
+                </button>
+
+                <button
                     onClick={() => setShowDeleteModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition-colors text-xs font-medium"
                     title="Arquivar Viagem"
@@ -581,6 +592,17 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 preview={aiConversation.preview}
                 onApply={(decisions) => aiConversation.apply(decisions)}
                 onCancel={() => { setShowAIConversation(false); aiConversation.reset() }}
+            />
+
+            <MergeCardsModal
+                open={showMergeModal}
+                onClose={() => setShowMergeModal(false)}
+                sourceCardId={card.id}
+                targetCardId={null}
+                onMerged={(destinoId) => {
+                    setShowMergeModal(false)
+                    navigate(`/card/${destinoId}`)
+                }}
             />
         </>
     )
