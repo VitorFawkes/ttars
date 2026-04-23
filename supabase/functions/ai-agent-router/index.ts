@@ -34,6 +34,12 @@ interface IncomingMessage {
   whatsapp_message_id?: string;
   echo_conversation_id?: string;
   media_url?: string;
+  /**
+   * Marker interno: self-call agendado após debounce window. Quando true, o
+   * router pula validações iniciais de message_text vazio e só processa o
+   * buffer pendente (se houver). Evita loop de drain e ack de msg fantasma.
+   */
+  _drain?: boolean;
 }
 
 // C3 — blocos dinâmicos injetados no prompt a partir da config do agente
@@ -3022,11 +3028,31 @@ serve(async (req) => {
 
     const input: IncomingMessage = await req.json();
 
-    if (!input.contact_phone || !input.message_text) {
+    // Drain mode: chamada interna após debounce window. Só permite contact_phone
+    // — message_text é opcional porque o texto real mora no buffer.
+    if (!input.contact_phone || (!input.message_text && !input._drain)) {
       return new Response(
         JSON.stringify({ error: "contact_phone and message_text required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Se for drain call, verificar se ainda há buffer pendente ANTES de continuar.
+    // Se outro call já drenou (ex: msg nova chegou durante o wait), retorna cedo.
+    if (input._drain) {
+      const normalized = normalizePhone(input.contact_phone);
+      const { data: pending } = await supabase
+        .from("ai_message_buffer")
+        .select("id")
+        .eq("contact_phone", normalized)
+        .is("processed_at", null)
+        .limit(1);
+      if (!pending || pending.length === 0) {
+        return new Response(
+          JSON.stringify({ handled: false, reason: "drain_no_pending" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // Placeholder temporário — agente é encontrado com isso antes de processar mídia,
@@ -3126,15 +3152,54 @@ serve(async (req) => {
       const oldest = buffered[0];
       const ageOldestMs = Date.now() - new Date(oldest.created_at).getTime();
 
-      // Debounce só faz sentido quando já há MÚLTIPLAS mensagens não-processadas
-      // (sinal de burst — lead digitando rápido). Com apenas 1 msg pendente,
-      // aguardar bloqueia o processamento até a próxima msg chegar — e se ela
-      // nunca vier, o buffer fica preso. Fix 2026-04-23: processar na hora
-      // quando length <= 1, debounce continua valendo para length >= 2.
-      if (ageOldestMs < debounceMs && buffered.length > 1) {
+      if (ageOldestMs < debounceMs) {
+        // Ainda dentro da janela de debounce — esperar próxima ou novo drain
         console.log(`[debounce] ${buffered.length} msgs buffered, oldest ${Math.round(ageOldestMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
+
+        // Fix 2026-04-23: agendar drain automático quando o window expira.
+        // Se vier outra msg no meio do window, ela chama o router de novo e já
+        // drena — o self-call agendado verá buffer vazio (ou com items novos) e
+        // processa normalmente. Idempotente porque a query de buffer filtra por
+        // processed_at IS NULL, então double-drain não responde duas vezes.
+        const waitMs = debounceMs - ageOldestMs + 500;
+        try {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+          // deno-lint-ignore no-explicit-any
+          const runtime = (globalThis as any).EdgeRuntime;
+          const schedule = async () => {
+            await new Promise((r) => setTimeout(r, waitMs));
+            try {
+              await fetch(`${supabaseUrl}/functions/v1/ai-agent-router`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${serviceKey}`,
+                },
+                body: JSON.stringify({
+                  phone_number_id: input.phone_number_id,
+                  contact_phone: input.contact_phone,
+                  contact_name: input.contact_name,
+                  message_text: "",
+                  _drain: true,
+                }),
+              });
+            } catch (err) {
+              console.error("[debounce drain] error:", err);
+            }
+          };
+          if (runtime?.waitUntil) {
+            runtime.waitUntil(schedule());
+          } else {
+            // Fallback: promessa solta (edge runtime mantém viva se for retornada)
+            schedule();
+          }
+        } catch (err) {
+          console.warn("[debounce drain] schedule failed:", err);
+        }
+
         return new Response(
-          JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length }),
+          JSON.stringify({ handled: true, debounced: true, buffered_count: buffered.length, drain_scheduled: true }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
