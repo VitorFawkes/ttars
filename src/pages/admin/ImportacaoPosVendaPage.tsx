@@ -79,6 +79,9 @@ interface TripGroup {
     appEnviadoConcluida: boolean
     existingCardId: string | null
     existingCardTitle: string | null
+    existingStageId: string | null
+    existingStageName: string | null
+    moveStage: boolean
     action: 'create' | 'update' | 'skip'
     valorTotal: number
     receita: number
@@ -156,7 +159,7 @@ class UnionFind {
 
 // ─── Trip Grouping Algorithm ────────────────────────────────
 
-function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'action'>[] {
+function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action'>[] {
     // Step 1: Group by vendaNum
     const byVenda = new Map<string, PosVendaCsvRow[]>()
     for (const row of rows) {
@@ -262,7 +265,7 @@ function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorPr
     }
 
     // Step 5: Build trip aggregates
-    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'action'>[] = []
+    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action'>[] = []
 
     for (const [, products] of groups) {
         // Separate annual products (Seguro Viagem with > 180 day span)
@@ -401,7 +404,7 @@ interface ImportLogItemRow {
 
 // ─── Expandable Trip Card ───────────────────────────────────
 
-function TripCard({ trip, selected, onToggle }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void }) {
+function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void; onToggleMoveStage: (id: string) => void }) {
     const [expanded, setExpanded] = useState(false)
     const Chevron = expanded ? ChevronDown : ChevronRight
 
@@ -410,6 +413,8 @@ function TripCard({ trip, selected, onToggle }: { trip: TripGroup; selected: boo
         update: { label: 'Atualizar', cls: 'bg-blue-50 text-blue-700' },
         skip: { label: 'Pular', cls: 'bg-slate-100 text-slate-500' },
     }[trip.action]
+
+    const showStageDecision = trip.action === 'update' && !!trip.existingStageId && trip.existingStageId !== trip.stage.id
 
     return (
         <div className={cn("border rounded-lg overflow-hidden transition-colors", selected ? "border-slate-200" : "border-slate-100 opacity-50")}>
@@ -480,6 +485,27 @@ function TripCard({ trip, selected, onToggle }: { trip: TripGroup; selected: boo
                     {trip.existingCardId && (
                         <div className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
                             Card existente: <Link to={`/card/${trip.existingCardId}`} className="text-blue-600 underline">{trip.existingCardTitle || trip.existingCardId}</Link>
+                        </div>
+                    )}
+
+                    {/* Decisão de mover de etapa (só quando update E etapas diferem) */}
+                    {showStageDecision && (
+                        <div className="text-xs bg-amber-50 border border-amber-200 rounded px-2 py-2 space-y-1.5">
+                            <div className="text-amber-900">
+                                Etapa atual: <span className="font-medium">{trip.existingStageName || '—'}</span>
+                                {' → '}
+                                Sugerida pelo CSV: <span className="font-medium">{trip.stage.name}</span>
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={trip.moveStage}
+                                    onChange={() => onToggleMoveStage(trip.id)}
+                                    onClick={e => e.stopPropagation()}
+                                    className="rounded border-amber-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-slate-700">Mover card para a etapa sugerida</span>
+                            </label>
                         </div>
                     )}
 
@@ -926,17 +952,19 @@ export default function ImportacaoPosVendaPage() {
             // Check existing cards by venda nums
             let existingCardId: string | null = null
             let existingCardTitle: string | null = null
+            let existingStageId: string | null = null
 
             // Check by numero_venda_monde
             for (const vchunk of chunked(trip.vendaNums, 10)) {
                 const { data: cards } = await supabase
                     .from('cards')
-                    .select('id, titulo, produto_data')
+                    .select('id, titulo, produto_data, pipeline_stage_id')
                     .in('produto_data->>numero_venda_monde', vchunk)
 
                 if (cards && cards.length > 0) {
                     existingCardId = cards[0].id
                     existingCardTitle = cards[0].titulo as string
+                    existingStageId = (cards[0].pipeline_stage_id as string) || null
                     break
                 }
             }
@@ -946,13 +974,14 @@ export default function ImportacaoPosVendaPage() {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
                     const { data: cards } = await supabase
                         .from('cards')
-                        .select('id, titulo')
+                        .select('id, titulo, pipeline_stage_id')
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
                         .limit(1)
 
                     if (cards && cards.length > 0) {
                         existingCardId = cards[0].id
                         existingCardTitle = cards[0].titulo as string
+                        existingStageId = (cards[0].pipeline_stage_id as string) || null
                         break
                     }
                 }
@@ -971,7 +1000,7 @@ export default function ImportacaoPosVendaPage() {
                     const contatoId = contatos[0].id
                     const { data: cards } = await supabase
                         .from('cards')
-                        .select('id, titulo')
+                        .select('id, titulo, pipeline_stage_id')
                         .eq('pessoa_principal_id', contatoId)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
@@ -981,6 +1010,7 @@ export default function ImportacaoPosVendaPage() {
                     if (cards && cards.length > 0) {
                         existingCardId = cards[0].id
                         existingCardTitle = cards[0].titulo as string
+                        existingStageId = (cards[0].pipeline_stage_id as string) || null
                     }
                 }
             }
@@ -993,8 +1023,28 @@ export default function ImportacaoPosVendaPage() {
                 vendedorProfileId,
                 existingCardId,
                 existingCardTitle,
+                existingStageId,
+                existingStageName: null, // preenchido no batch abaixo
+                moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
             })
+        }
+
+        // Batch query: resolver nomes das etapas atuais dos cards existentes
+        const uniqueExistingStageIds = [...new Set(
+            fullTrips.map(t => t.existingStageId).filter(Boolean) as string[]
+        )]
+        if (uniqueExistingStageIds.length > 0) {
+            const { data: stages } = await supabase
+                .from('pipeline_stages')
+                .select('id, nome')
+                .in('id', uniqueExistingStageIds)
+            const stageMap = new Map((stages || []).map(s => [s.id as string, s.nome as string]))
+            for (const t of fullTrips) {
+                if (t.existingStageId) {
+                    t.existingStageName = stageMap.get(t.existingStageId) || null
+                }
+            }
         }
 
         setTrips(fullTrips)
@@ -1064,7 +1114,9 @@ export default function ImportacaoPosVendaPage() {
                 pagante_nome: trip.pagantePrincipal,
                 vendas_owner_id: trip.vendedorProfileId,
                 pos_owner_id: SAMANTHA_ID,
-                pipeline_stage_id: trip.stage.id,
+                // Em UPDATE (card existe), só mandar nova etapa se o usuário marcou "Mover".
+                // RPC preserva pipeline_stage_id atual quando recebe null. Em CREATE, sempre usar a etapa calculada.
+                pipeline_stage_id: (trip.action === 'update' && !trip.moveStage) ? null : trip.stage.id,
                 data_viagem_inicio: trip.dataInicio,
                 data_viagem_fim: trip.dataFim,
                 valor_total: trip.valorTotal,
@@ -1267,6 +1319,12 @@ export default function ImportacaoPosVendaPage() {
         })
     }, [])
 
+    const toggleMoveStage = useCallback((id: string) => {
+        setTrips(prev => prev.map(t =>
+            t.id === id ? { ...t, moveStage: !t.moveStage } : t
+        ))
+    }, [])
+
     const toggleAllTrips = useCallback(() => {
         setSelectedTrips(prev => {
             const scope = hasActiveFilters ? filteredTrips : trips
@@ -1380,6 +1438,18 @@ export default function ImportacaoPosVendaPage() {
                 {/* ─── PREVIEW ─────────────────────────────────── */}
                 {step === 'preview' && (
                     <div className="space-y-4">
+                        {/* Aviso: comportamento em cards existentes */}
+                        {trips.some(t => t.action === 'update') && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm">
+                                <p className="font-medium text-blue-900 mb-1">Sobre os cards existentes</p>
+                                <p className="text-blue-800 leading-relaxed">
+                                    Tarefas feitas, valores, donos, acompanhantes e datas de viagem ficam intactos.
+                                    A etapa do pipeline só muda nas viagens em que você marcar <span className="font-medium">“Mover card para a etapa sugerida”</span> —
+                                    expanda uma viagem de atualização para decidir.
+                                </p>
+                            </div>
+                        )}
+
                         {/* Summary stats */}
                         <div className="grid grid-cols-4 gap-3">
                             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
@@ -1608,6 +1678,7 @@ export default function ImportacaoPosVendaPage() {
                                         trip={trip}
                                         selected={selectedTrips.has(trip.id)}
                                         onToggle={toggleTrip}
+                                        onToggleMoveStage={toggleMoveStage}
                                     />
                                 ))
                             )}
