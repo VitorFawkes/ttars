@@ -221,6 +221,17 @@ Deno.serve(async (req) => {
                     const direction = data.direction || singlePayload.direction;
                     if (direction === "outbound") continue;
 
+                    // BUG FIX 2026-04-23: Echo envia "message.status" com `text` preenchido
+                    // (eco da msg outbound). Sem filtro, o webhook tratava isso como msg
+                    // inbound nova, chamava o router, que respondia à própria resposta →
+                    // loop infinito de mensagens. Status events NUNCA devem disparar router.
+                    const eventKind = data.event || singlePayload.event;
+                    if (typeof eventKind === "string" && eventKind.startsWith("message.status")) continue;
+                    // Heurística extra: sender=null + status_name preenchido = status event
+                    const isStatusOnly = (data.sender === null && data.status_name)
+                        || (singlePayload.sender === null && singlePayload.status_name);
+                    if (isStatusOnly) continue;
+
                     const messageText = data.text || data.body || singlePayload.text || "";
                     if (!messageText) continue;
 
