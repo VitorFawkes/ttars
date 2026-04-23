@@ -34,6 +34,16 @@ interface DivergentMatch {
   crmName: string
 }
 
+interface EmailConflict {
+  person: MondePersonResult
+  existingContact: {
+    id: string
+    nome: string | null
+    sobrenome: string | null
+    email: string
+  }
+}
+
 interface MondeSearchSectionProps {
   searchTerm: string
   onPersonImported: (contatoId: string) => void
@@ -50,6 +60,8 @@ export default function MondeSearchSection({
   const [importingId, setImportingId] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [divergent, setDivergent] = useState<DivergentMatch | null>(null)
+  const [emailConflict, setEmailConflict] = useState<EmailConflict | null>(null)
+  const [editEmail, setEditEmail] = useState('')
 
   const handleSearch = () => {
     setHasSearched(true)
@@ -105,6 +117,40 @@ export default function MondeSearchSection({
       return
     }
 
+    // Pré-check de colisão por email: casal/família compartilha email no Monde,
+    // mas o índice unique (org_id, email) bloqueia o INSERT no CRM.
+    if (person.email) {
+      setImportingId(person.monde_person_id)
+      try {
+        const { data: emailMatches } = await supabase
+          .from('contatos')
+          .select('id, nome, sobrenome, email, monde_person_id')
+          .ilike('email', person.email)
+          .is('deleted_at', null)
+          .limit(5)
+
+        const conflict = emailMatches?.find(
+          (c) => c.email && c.monde_person_id !== person.monde_person_id
+        )
+
+        if (conflict) {
+          setEmailConflict({
+            person,
+            existingContact: {
+              id: conflict.id,
+              nome: conflict.nome,
+              sobrenome: conflict.sobrenome,
+              email: conflict.email!,
+            },
+          })
+          setEditEmail(conflict.email!)
+          return
+        }
+      } finally {
+        setImportingId(null)
+      }
+    }
+
     setImportingId(person.monde_person_id)
     try {
       const result = await importMutation.mutateAsync({
@@ -116,6 +162,29 @@ export default function MondeSearchSection({
           ? 'Contato importado do Monde'
           : 'Contato atualizado do Monde'
       )
+      clear()
+    } finally {
+      setImportingId(null)
+    }
+  }
+
+  const handleResolveEmailConflict = async () => {
+    if (!emailConflict) return
+    setImportingId(emailConflict.person.monde_person_id)
+    try {
+      const trimmed = editEmail.trim()
+      const newEmail = trimmed === '' ? null : trimmed
+      const result = await importMutation.mutateAsync({
+        mondePersonId: emailConflict.person.monde_person_id,
+        updateExistingEmail: {
+          contatoId: emailConflict.existingContact.id,
+          newEmail,
+        },
+      })
+      onPersonImported(result.id)
+      toast.success('Contato atualizado e novo contato importado')
+      setEmailConflict(null)
+      setEditEmail('')
       clear()
     } finally {
       setImportingId(null)
@@ -143,6 +212,76 @@ export default function MondeSearchSection({
           )}
           Buscar no Monde
         </button>
+      </div>
+    )
+  }
+
+  if (emailConflict) {
+    const existingName =
+      [emailConflict.existingContact.nome, emailConflict.existingContact.sobrenome]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || 'Contato sem nome'
+    const isImporting = importingId === emailConflict.person.monde_person_id
+    const trimmedNew = editEmail.trim()
+    const noChange =
+      trimmedNew.toLowerCase() === (emailConflict.existingContact.email || '').toLowerCase()
+    return (
+      <div className="border-t border-slate-100 pt-3 mt-3">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm text-amber-900 space-y-1">
+              <p className="font-medium">Email já cadastrado em outro contato</p>
+              <p className="text-xs text-amber-800">
+                O email{' '}
+                <span className="font-semibold">{emailConflict.existingContact.email}</span> já
+                pertence a <span className="font-semibold">{existingName}</span>. Se o cadastro
+                de {existingName} estiver errado, corrija o email abaixo (ou apague) e
+                importaremos {emailConflict.person.name} em seguida.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-amber-900">
+              Email de {existingName}
+            </label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              disabled={isImporting}
+              placeholder="deixe vazio para remover"
+              className="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-slate-400 disabled:opacity-60"
+            />
+            <p className="text-[11px] text-amber-700">
+              Dica: se o email é mesmo de {emailConflict.person.name} e estava no contato
+              errado, apague o conteúdo aqui.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleResolveEmailConflict}
+              disabled={isImporting || noChange}
+              className="w-full text-sm font-medium px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isImporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Salvar {existingName} e importar {emailConflict.person.name}
+            </button>
+            <button
+              onClick={() => {
+                setEmailConflict(null)
+                setEditEmail('')
+              }}
+              disabled={isImporting}
+              className="w-full text-xs text-slate-500 hover:text-slate-700 py-1"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

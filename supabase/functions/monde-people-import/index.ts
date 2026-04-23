@@ -380,6 +380,11 @@ Deno.serve(async (req) => {
     const forceCreateSeparate = body.force_create_separate === true;
     const requestedMode = body.mode || "auto";
     const pageLimit = body.page_limit || BATCH_SIZE;
+    // Pré-ação opcional: ajustar email de um contato existente antes da importação,
+    // para destravar o índice unique (org_id, email) quando casal/família compartilha email no Monde.
+    const updateExistingEmail = body.update_existing_email as
+      | { contato_id: string; new_email: string | null }
+      | undefined;
 
     // --- Check sync enabled ---
     const { data: settings } = await supabase
@@ -419,6 +424,23 @@ Deno.serve(async (req) => {
 
     // --- Single person import ---
     if (singlePersonId) {
+      // Pré-ação: ajustar email de contato existente antes de importar
+      // (resolve colisão no índice unique (org_id, email) quando casal compartilha email).
+      if (updateExistingEmail?.contato_id) {
+        const newEmail = (updateExistingEmail.new_email ?? "").trim() || null;
+        const { error: preUpdateError } = await supabase
+          .from("contatos")
+          .update({ email: newEmail })
+          .eq("id", updateExistingEmail.contato_id);
+
+        if (preUpdateError) {
+          return jsonResponse(
+            { error: `Falha ao atualizar email do contato existente: ${preUpdateError.message}` },
+            400
+          );
+        }
+      }
+
       const url = `${auth.apiUrl}/people/${singlePersonId}`;
       const response = await fetch(url, { headers: mondeV2Headers(token) });
 
