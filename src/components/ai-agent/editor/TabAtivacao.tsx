@@ -1,4 +1,5 @@
-import { Power, Phone, AlertTriangle, PowerOff, ChevronUp, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Power, Phone, AlertTriangle, PowerOff, ChevronUp, ChevronDown, Eraser, Loader2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/Button'
@@ -6,6 +7,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { AgentEditorForm } from './types'
 import { useTogglePhoneLineConfig } from '@/hooks/useAiAgents'
+import { useResetAgentConversations } from '@/hooks/useResetAgentConversations'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -144,6 +146,106 @@ export function TabAtivacao({ form, setForm, agentId, phoneLines }: Props) {
           </div>
         )}
       </section>
+
+      <ResetConversationSection agentId={agentId} />
     </div>
+  )
+}
+
+function ResetConversationSection({ agentId }: { agentId?: string }) {
+  const [phone, setPhone] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const reset = useResetAgentConversations(agentId)
+
+  const digits = phone.replace(/\D/g, '')
+  const canSubmit = digits.length >= 10 && !!agentId
+
+  const handleReset = async () => {
+    if (!canSubmit) return
+    try {
+      const result = await reset.mutateAsync(phone)
+      if (result.contacts_found === 0) {
+        toast.info('Nenhum contato encontrado com esse telefone.')
+      } else {
+        toast.success(
+          `Zerado: ${result.conversations_deleted} conversa(s), ${result.turns_deleted} mensagem(ns) da memória.`,
+        )
+      }
+      setConfirming(false)
+      setPhone('')
+    } catch (err) {
+      console.error('[ResetConversationSection]', err)
+      toast.error('Não consegui resetar. Tenta de novo.')
+    }
+  }
+
+  return (
+    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
+      <header className="flex items-center gap-2">
+        <Eraser className="w-5 h-5 text-orange-500" />
+        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Zerar conversa para testar do zero</h2>
+      </header>
+      <p className="text-sm text-slate-500 -mt-2">
+        Apaga o histórico e a memória deste agente com um número específico. Útil para testar uma abertura de conversa
+        novamente sem trocar de telefone. Não apaga o contato nem as mensagens do WhatsApp — só o que o agente lembra.
+      </p>
+
+      {!agentId ? (
+        <p className="text-sm text-slate-400 italic">Salve o agente antes de usar esta ação.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Label htmlFor="reset-phone" className="text-xs text-slate-600">Telefone</Label>
+              <input
+                id="reset-phone"
+                type="tel"
+                placeholder="11964293533"
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setConfirming(false) }}
+                disabled={reset.isPending}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {!confirming ? (
+            <Button
+              variant="outline"
+              onClick={() => setConfirming(true)}
+              disabled={!canSubmit}
+              className="gap-2 text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Eraser className="w-4 h-4" />
+              Zerar conversa com este número
+            </Button>
+          ) : (
+            <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-amber-800 font-medium">Confirma apagar o histórico com {phone}?</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Vai apagar todas as conversas deste agente com esse telefone, incluindo o que ele lembra (resumo, contexto, etapa da qualificação). Não dá pra desfazer.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    onClick={handleReset}
+                    disabled={reset.isPending}
+                    size="sm"
+                    className="gap-2 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {reset.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eraser className="w-3.5 h-3.5" />}
+                    {reset.isPending ? 'Apagando...' : 'Sim, apagar tudo'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={reset.isPending}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   )
 }

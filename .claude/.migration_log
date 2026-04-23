@@ -622,3 +622,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-23T16:59:36Z | supabase/migrations/20260423a_card_duplicate_detection_and_merge.sql | applied_to_prod
 2026-04-23T17:02:22Z | supabase/migrations/20260423b_fix_find_possible_duplicate_cards_date_subtract.sql | applied_to_prod
 2026-04-23T17:03:36Z | supabase/migrations/20260423c_fix_fundir_cards_cards_contatos_schema.sql | applied_to_prod
+2026-04-23T17:23:34Z | supabase/migrations/20260423c_reset_agent_conversations_with_phone.sql | applied_to_prod
