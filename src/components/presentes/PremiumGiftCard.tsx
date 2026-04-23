@@ -69,7 +69,7 @@ export default function PremiumGiftCard({ assignment, onStatusChange, onDuplicat
                     product_id: item.product_id,
                     quantity: item.quantity,
                     movement_type: 'devolucao',
-                    reason: `Cancelamento premium — ${contatoNome}`,
+                    reason: `Cancelamento avulso — ${contatoNome}`,
                     reference_id: item.id,
                 })
             }

@@ -10,7 +10,7 @@ import PresentesRelatorios from '@/components/presentes/PresentesRelatorios'
 
 const tabs = [
     { key: 'envios', label: 'Central de Envios', icon: Send },
-    { key: 'premium', label: 'Presentes Premium', icon: Crown },
+    { key: 'premium', label: 'Presentes Avulsos', icon: Crown },
     { key: 'estoque', label: 'Estoque', icon: Package },
     { key: 'relatorios', label: 'Relatórios', icon: BarChart3 },
 ] as const

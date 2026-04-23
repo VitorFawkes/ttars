@@ -3,9 +3,13 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import type { GiftAssignmentFull } from './useAllGiftAssignments'
 
-export interface PremiumGiftInput {
+export interface PremiumGiftRecipient {
     contatoId: string
     contatoName: string
+}
+
+export interface PremiumGiftInput {
+    recipients: PremiumGiftRecipient[]
     occasion: string | null
     occasionDetail?: string
     items: { productId: string | null; customName?: string; quantity: number; unitPrice: number }[]
@@ -71,83 +75,88 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
                 ? `${input.occasion} — ${input.occasionDetail}`
                 : input.occasion
 
-            // 1. Create assignment
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: assignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
-                .insert({
-                    card_id: null,
-                    contato_id: input.contatoId,
-                    gift_type: 'premium',
-                    occasion: occasionText,
-                    assigned_by: profile?.id,
-                    scheduled_ship_date: input.scheduledShipDate || null,
-                    delivery_address: input.deliveryAddress || null,
-                    delivery_date: input.deliveryDate || null,
-                    delivery_method: input.deliveryMethod || null,
-                    budget: input.budget || null,
-                    notes: input.notes || null,
-                })
-                .select()
-                .single()
-            if (aErr) throw aErr
+            const created: unknown[] = []
 
-            // 2. Add items + deduct stock
-            for (const item of input.items) {
+            for (const recipient of input.recipients) {
+                // 1. Create assignment for this recipient
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: giftItem, error: iErr } = await (supabase as any).from('card_gift_items')
+                const { data: assignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
                     .insert({
-                        assignment_id: assignment.id,
-                        product_id: item.productId,
-                        custom_name: item.customName || null,
-                        quantity: item.quantity,
-                        unit_price_snapshot: item.unitPrice,
+                        card_id: null,
+                        contato_id: recipient.contatoId,
+                        gift_type: 'premium',
+                        occasion: occasionText,
+                        assigned_by: profile?.id,
+                        scheduled_ship_date: input.scheduledShipDate || null,
+                        delivery_address: input.deliveryAddress || null,
+                        delivery_date: input.deliveryDate || null,
+                        delivery_method: input.deliveryMethod || null,
+                        budget: input.budget || null,
+                        notes: input.notes || null,
                     })
                     .select()
                     .single()
-                if (iErr) throw iErr
+                if (aErr) throw aErr
 
-                // Stock deduction for inventory items
-                if (item.productId) {
+                // 2. Add items + deduct stock (per recipient — one shipment each)
+                for (const item of input.items) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const { error: movErr } = await (supabase as any).from('inventory_movements')
+                    const { data: giftItem, error: iErr } = await (supabase as any).from('card_gift_items')
                         .insert({
+                            assignment_id: assignment.id,
                             product_id: item.productId,
-                            quantity: -item.quantity,
-                            movement_type: 'saida_gift',
-                            reason: `Presente premium — ${input.contatoName}`,
-                            reference_id: giftItem.id,
-                            performed_by: profile?.id,
+                            custom_name: item.customName || null,
+                            quantity: item.quantity,
+                            unit_price_snapshot: item.unitPrice,
                         })
-                    if (movErr) throw movErr
+                        .select()
+                        .single()
+                    if (iErr) throw iErr
+
+                    if (item.productId) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const { error: movErr } = await (supabase as any).from('inventory_movements')
+                            .insert({
+                                product_id: item.productId,
+                                quantity: -item.quantity,
+                                movement_type: 'saida_gift',
+                                reason: `Presente avulso — ${recipient.contatoName}`,
+                                reference_id: giftItem.id,
+                                performed_by: profile?.id,
+                            })
+                        if (movErr) throw movErr
+                    }
                 }
-            }
 
-            // 3. Create shipping task if date provided
-            if (input.scheduledShipDate) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: tarefa } = await (supabase as any).from('tarefas')
-                    .insert({
-                        titulo: `Enviar presente premium — ${input.contatoName}`,
-                        tipo: 'envio_presente',
-                        data_vencimento: new Date(`${input.scheduledShipDate}T09:00:00`).toISOString(),
-                        responsavel_id: profile?.id,
-                        status: 'pendente',
-                        concluida: false,
-                        created_by: profile?.id,
-                        metadata: { gift_assignment_id: assignment.id },
-                    })
-                    .select('id')
-                    .single()
-
-                if (tarefa?.id) {
+                // 3. Create shipping task if date provided
+                if (input.scheduledShipDate) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    await (supabase as any).from('card_gift_assignments')
-                        .update({ tarefa_id: tarefa.id })
-                        .eq('id', assignment.id)
+                    const { data: tarefa } = await (supabase as any).from('tarefas')
+                        .insert({
+                            titulo: `Enviar presente avulso — ${recipient.contatoName}`,
+                            tipo: 'envio_presente',
+                            data_vencimento: new Date(`${input.scheduledShipDate}T09:00:00`).toISOString(),
+                            responsavel_id: profile?.id,
+                            status: 'pendente',
+                            concluida: false,
+                            created_by: profile?.id,
+                            metadata: { gift_assignment_id: assignment.id },
+                        })
+                        .select('id')
+                        .single()
+
+                    if (tarefa?.id) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase as any).from('card_gift_assignments')
+                            .update({ tarefa_id: tarefa.id })
+                            .eq('id', assignment.id)
+                    }
                 }
+
+                created.push(assignment)
             }
 
-            return assignment
+            return created
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
@@ -168,8 +177,7 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
             }))
 
             return createPremiumGift.mutateAsync({
-                contatoId: newContatoId,
-                contatoName: newContatoName,
+                recipients: [{ contatoId: newContatoId, contatoName: newContatoName }],
                 occasion: sourceAssignment.occasion,
                 items,
                 deliveryMethod: sourceAssignment.delivery_method || undefined,
