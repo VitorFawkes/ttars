@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { X, ChevronRight, ChevronLeft, Gift, User, Tag, Package, Truck, CheckCircle, Loader2, PenLine, Users } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Gift, User, Tag, Package, Truck, CheckCircle, Loader2, PenLine, Users, Plane, Calendar, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ContactSearchInput from './ContactSearchInput'
 import GiftItemPicker from '@/components/card/gifts/GiftItemPicker'
 import GiftBudgetSummary from '@/components/card/gifts/GiftBudgetSummary'
 import type { InventoryProduct } from '@/hooks/useInventoryProducts'
 import type { PremiumGiftInput } from '@/hooks/usePremiumGifts'
+import { useContactAvailableCards } from '@/hooks/useContactAvailableCards'
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -65,6 +66,8 @@ const displayName = (c: SelectedContact) =>
 export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: PremiumGiftModalProps) {
     const [step, setStep] = useState<Step>('contato')
     const [contacts, setContacts] = useState<SelectedContact[]>([])
+    /** Mapa contatoId → cardId vinculado (ou null = avulso). Default: null pra cada novo contato. */
+    const [cardLinks, setCardLinks] = useState<Record<string, string | null>>({})
     const [occasion, setOccasion] = useState('')
     const [occasionDetail, setOccasionDetail] = useState('')
     const [items, setItems] = useState<KitItem[]>([])
@@ -75,18 +78,29 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
     const [budget, setBudget] = useState(0)
     const [notes, setNotes] = useState('')
 
+    // Modo histórico (backfill de presentes já enviados)
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const [isHistorical, setIsHistorical] = useState(false)
+    const [historicalShippedAt, setHistoricalShippedAt] = useState(todayStr)
+    const [historicalDeliveredAt, setHistoricalDeliveredAt] = useState(todayStr)
+    const historicalDatesInvalid = isHistorical && historicalDeliveredAt < historicalShippedAt
+
     const stepIdx = steps.findIndex(s => s.key === step)
 
     const totalCost = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
     const totalCostAll = totalCost * Math.max(contacts.length, 1)
+
+    // Busca cards disponíveis pra cada contato selecionado
+    const { data: availableCardsByContact = {}, isLoading: loadingCards } =
+        useContactAvailableCards(contacts.map(c => c.id))
 
     const canNext = () => {
         switch (step) {
             case 'contato': return contacts.length > 0
             case 'ocasiao': return !!occasion
             case 'itens': return items.length > 0
-            case 'entrega': return true
-            case 'revisao': return true
+            case 'entrega': return !historicalDatesInvalid
+            case 'revisao': return !historicalDatesInvalid
         }
     }
 
@@ -102,10 +116,20 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
 
     const addContact = (c: SelectedContact) => {
         setContacts(prev => prev.find(p => p.id === c.id) ? prev : [...prev, c])
+        setCardLinks(prev => prev[c.id] !== undefined ? prev : { ...prev, [c.id]: null })
     }
 
     const removeContact = (id: string) => {
         setContacts(prev => prev.filter(p => p.id !== id))
+        setCardLinks(prev => {
+            const next = { ...prev }
+            delete next[id]
+            return next
+        })
+    }
+
+    const setLinkForContact = (contatoId: string, cardId: string | null) => {
+        setCardLinks(prev => ({ ...prev, [contatoId]: cardId }))
     }
 
     const handleAddStock = (product: InventoryProduct, quantity: number, unitPrice: number) => {
@@ -134,8 +158,16 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
 
     const handleSubmit = async () => {
         if (contacts.length === 0) return
+        if (historicalDatesInvalid) return
+        const historical = isHistorical
+            ? { shippedAt: historicalShippedAt, deliveredAt: historicalDeliveredAt }
+            : undefined
         await onSubmit({
-            recipients: contacts.map(c => ({ contatoId: c.id, contatoName: displayName(c) })),
+            recipients: contacts.map(c => ({
+                contatoId: c.id,
+                contatoName: displayName(c),
+                cardId: cardLinks[c.id] ?? null,
+            })),
             occasion,
             occasionDetail: occasionDetail || undefined,
             items: items.map(i => ({
@@ -147,11 +179,15 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
             deliveryAddress: deliveryAddress || undefined,
             deliveryDate: deliveryDate || undefined,
             deliveryMethod: deliveryMethod || undefined,
-            scheduledShipDate: scheduledShipDate || undefined,
+            scheduledShipDate: historical ? undefined : (scheduledShipDate || undefined),
             budget: budget || undefined,
             notes: notes || undefined,
+            historical,
         })
     }
+
+    const linkedCount = contacts.filter(c => !!cardLinks[c.id]).length
+    const avulsoCount = contacts.length - linkedCount
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
@@ -162,9 +198,13 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                         <Gift className="h-4 w-4 text-pink-600" />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Novo Presente Avulso</h2>
-                        {contacts.length > 1 && (
-                            <p className="text-xs text-slate-500">Será enviado para {contacts.length} pessoas</p>
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Novo Presente</h2>
+                        {contacts.length > 0 && (
+                            <p className="text-xs text-slate-500">
+                                {contacts.length} {contacts.length === 1 ? 'pessoa' : 'pessoas'}
+                                {linkedCount > 0 && ` · ${linkedCount} vinculado${linkedCount > 1 ? 's' : ''} a viagem`}
+                                {isHistorical && ' · histórico'}
+                            </p>
                         )}
                     </div>
                     <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100">
@@ -218,29 +258,111 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                                         {contacts.length} {contacts.length === 1 ? 'pessoa selecionada' : 'pessoas selecionadas'}
                                     </div>
                                     <div className="space-y-2">
-                                        {contacts.map(c => (
-                                            <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
-                                                <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                                                    <span className="text-xs font-semibold text-indigo-700">
-                                                        {`${c.nome[0] ?? ''}${c.sobrenome?.[0] ?? ''}`.toUpperCase() || '?'}
-                                                    </span>
+                                        {contacts.map(c => {
+                                            const personCards = availableCardsByContact[c.id] || []
+                                            const eligibleCards = personCards.filter(card => !card.hasGift)
+                                            const linkedCardId = cardLinks[c.id] ?? null
+                                            const linkedCard = linkedCardId ? personCards.find(pc => pc.id === linkedCardId) : null
+                                            return (
+                                                <div key={c.id} className="bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
+                                                    <div className="flex items-center gap-3 px-3 py-2.5">
+                                                        <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                                            <span className="text-xs font-semibold text-indigo-700">
+                                                                {`${c.nome[0] ?? ''}${c.sobrenome?.[0] ?? ''}`.toUpperCase() || '?'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-900 truncate">{displayName(c)}</p>
+                                                            <p className="text-xs text-slate-500 truncate">
+                                                                {[c.email, c.telefone].filter(Boolean).join(' · ') || 'Sem contato'}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => removeContact(c.id)}
+                                                            className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                                                            aria-label="Remover"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Picker de viagem (opcional) */}
+                                                    <div className="px-3 pb-3 pt-1 border-t border-indigo-100/70 bg-white/40">
+                                                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 mb-1.5">
+                                                            <Plane className="h-3 w-3" />
+                                                            Vincular a uma viagem
+                                                            <span className="text-slate-400 font-normal">(opcional)</span>
+                                                        </div>
+
+                                                        {loadingCards ? (
+                                                            <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                Buscando viagens...
+                                                            </div>
+                                                        ) : eligibleCards.length === 0 ? (
+                                                            <p className="text-[11px] text-slate-500 py-1">
+                                                                Sem viagens disponíveis. Será criado como presente avulso.
+                                                            </p>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                <button
+                                                                    onClick={() => setLinkForContact(c.id, null)}
+                                                                    className={cn(
+                                                                        'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border transition-colors',
+                                                                        linkedCardId === null
+                                                                            ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                                                    )}
+                                                                >
+                                                                    {linkedCardId === null && <Check className="h-3 w-3" />}
+                                                                    Sem viagem (avulso)
+                                                                </button>
+                                                                {eligibleCards.slice(0, 6).map(card => {
+                                                                    const isActive = linkedCardId === card.id
+                                                                    return (
+                                                                        <button
+                                                                            key={card.id}
+                                                                            onClick={() => setLinkForContact(c.id, isActive ? null : card.id)}
+                                                                            title={card.titulo}
+                                                                            className={cn(
+                                                                                'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[200px]',
+                                                                                isActive
+                                                                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+                                                                            )}
+                                                                        >
+                                                                            {isActive && <Check className="h-3 w-3" />}
+                                                                            <Plane className="h-3 w-3 shrink-0" />
+                                                                            <span className="truncate">{card.titulo}</span>
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                                {eligibleCards.length > 6 && (
+                                                                    <span className="text-[11px] text-slate-400 self-center">
+                                                                        +{eligibleCards.length - 6} viagens
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {linkedCard && (
+                                                            <p className="text-[11px] text-emerald-700 mt-1.5">
+                                                                ✓ Vinculado a <strong>{linkedCard.titulo}</strong>
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-slate-900 truncate">{displayName(c)}</p>
-                                                    <p className="text-xs text-slate-500 truncate">
-                                                        {[c.email, c.telefone].filter(Boolean).join(' · ') || 'Sem contato'}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    onClick={() => removeContact(c.id)}
-                                                    className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
-                                                    aria-label="Remover"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
+
+                                    {(linkedCount > 0 || avulsoCount > 0) && contacts.length > 1 && (
+                                        <div className="text-[11px] text-slate-500 pt-1">
+                                            {linkedCount > 0 && <>📦 {linkedCount} vinculado{linkedCount > 1 ? 's' : ''} a viagem </>}
+                                            {linkedCount > 0 && avulsoCount > 0 && '· '}
+                                            {avulsoCount > 0 && <>🎁 {avulsoCount} avulso{avulsoCount > 1 ? 's' : ''}</>}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -336,16 +458,97 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                     {/* Step: Entrega */}
                     {step === 'entrega' && (
                         <div className="space-y-4">
+                            {/* Toggle de modo histórico (backfill) */}
+                            <div className={cn(
+                                'flex items-start gap-2.5 p-3 rounded-xl border transition-colors',
+                                isHistorical ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                            )}>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={isHistorical}
+                                    onClick={() => setIsHistorical(v => !v)}
+                                    className={cn(
+                                        'relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 mt-0.5',
+                                        isHistorical ? 'bg-emerald-600' : 'bg-slate-300'
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                                            isHistorical ? 'translate-x-5' : 'translate-x-1'
+                                        )}
+                                    />
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsHistorical(v => !v)}
+                                        className="text-left w-full"
+                                    >
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            Este presente JÁ foi entregue (registro histórico)
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            {isHistorical
+                                                ? 'Os itens NÃO serão descontados do estoque atual e não criamos tarefa de envio.'
+                                                : 'Use ao subir cards antigos pra registrar presentes que já foram enviados no passado.'}
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isHistorical && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                                        <Calendar className="h-3.5 w-3.5" />
+                                        Quando aconteceu
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-slate-500 mb-1 block">Data de envio</label>
+                                            <input
+                                                type="date"
+                                                value={historicalShippedAt}
+                                                max={todayStr}
+                                                onChange={e => setHistoricalShippedAt(e.target.value)}
+                                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-slate-500 mb-1 block">Data de entrega</label>
+                                            <input
+                                                type="date"
+                                                value={historicalDeliveredAt}
+                                                max={todayStr}
+                                                onChange={e => setHistoricalDeliveredAt(e.target.value)}
+                                                className={cn(
+                                                    'w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2',
+                                                    historicalDatesInvalid
+                                                        ? 'border-red-300 focus:ring-red-500'
+                                                        : 'border-slate-200 focus:ring-emerald-500'
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+                                    {historicalDatesInvalid && (
+                                        <p className="text-[11px] text-red-600">A data de entrega não pode ser anterior à de envio.</p>
+                                    )}
+                                </div>
+                            )}
+
                             <p className="text-sm text-slate-600">Informações de entrega</p>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-xs font-medium text-slate-500 mb-1 block">Endereço</label>
                                     <input type="text" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Rua, bairro, cidade..." className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                 </div>
-                                <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Data prevista de envio</label>
-                                    <input type="date" value={scheduledShipDate} onChange={e => setScheduledShipDate(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                </div>
+                                {!isHistorical && (
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-500 mb-1 block">Data prevista de envio</label>
+                                        <input type="date" value={scheduledShipDate} onChange={e => setScheduledShipDate(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="text-xs font-medium text-slate-500 mb-1 block">Método</label>
                                     <select value={deliveryMethod} onChange={e => setDeliveryMethod(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -384,12 +587,26 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                                     {contacts.length} {contacts.length === 1 ? 'pessoa' : 'pessoas'}
                                 </div>
                                 <div className="space-y-1">
-                                    {contacts.map(c => (
-                                        <div key={c.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 rounded-lg">
-                                            <User className="h-4 w-4 text-slate-400 shrink-0" />
-                                            <span className="text-sm font-medium text-slate-900 truncate">{displayName(c)}</span>
-                                        </div>
-                                    ))}
+                                    {contacts.map(c => {
+                                        const linkedCardId = cardLinks[c.id] ?? null
+                                        const linkedCard = linkedCardId
+                                            ? (availableCardsByContact[c.id] || []).find(card => card.id === linkedCardId)
+                                            : null
+                                        return (
+                                            <div key={c.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 rounded-lg">
+                                                <User className="h-4 w-4 text-slate-400 shrink-0" />
+                                                <span className="text-sm font-medium text-slate-900 truncate flex-1">{displayName(c)}</span>
+                                                {linkedCard ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 rounded-full max-w-[180px]">
+                                                        <Plane className="h-2.5 w-2.5 shrink-0" />
+                                                        <span className="truncate">{linkedCard.titulo}</span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-medium text-slate-400 px-2 py-0.5 bg-slate-200 rounded-full">avulso</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
@@ -424,11 +641,16 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                             )}
 
                             {/* Delivery */}
-                            {(deliveryAddress || scheduledShipDate || deliveryMethod) && (
+                            {(deliveryAddress || scheduledShipDate || deliveryMethod || isHistorical) && (
                                 <div className="px-4 py-3 bg-slate-50 rounded-xl space-y-1">
                                     {deliveryAddress && <p className="text-xs text-slate-600">📍 {deliveryAddress}</p>}
-                                    {scheduledShipDate && <p className="text-xs text-slate-600">📅 Envio: {new Date(scheduledShipDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>}
+                                    {!isHistorical && scheduledShipDate && <p className="text-xs text-slate-600">📅 Envio: {new Date(scheduledShipDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>}
                                     {deliveryMethod && <p className="text-xs text-slate-600">🚚 {deliveryMethods.find(m => m.value === deliveryMethod)?.label}</p>}
+                                    {isHistorical && (
+                                        <p className="text-xs text-emerald-700">
+                                            🕒 Histórico — enviado {new Date(historicalShippedAt + 'T12:00:00').toLocaleDateString('pt-BR')}, entregue {new Date(historicalDeliveredAt + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
@@ -463,11 +685,20 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                     ) : (
                         <button
                             onClick={handleSubmit}
-                            disabled={isSubmitting || contacts.length === 0 || items.length === 0}
-                            className="flex items-center gap-1.5 px-5 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 disabled:opacity-50 transition-colors"
+                            disabled={isSubmitting || contacts.length === 0 || items.length === 0 || historicalDatesInvalid}
+                            className={cn(
+                                'flex items-center gap-1.5 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors',
+                                isHistorical
+                                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                                    : 'bg-pink-600 hover:bg-pink-700'
+                            )}
                         >
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
-                            {contacts.length > 1 ? `Criar ${contacts.length} presentes` : 'Criar presente'}
+                            {isSubmitting
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : isHistorical ? <Check className="h-4 w-4" /> : <Gift className="h-4 w-4" />}
+                            {isHistorical
+                                ? (contacts.length > 1 ? `Registrar ${contacts.length} presentes entregues` : 'Registrar presente entregue')
+                                : (contacts.length > 1 ? `Criar ${contacts.length} presentes` : 'Criar presente')}
                         </button>
                     )}
                 </div>

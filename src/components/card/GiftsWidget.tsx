@@ -121,7 +121,7 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
                             <KitBuilder
                                 contacts={contactsWithoutGift}
                                 dataEmbarque={card.data_viagem_inicio || null}
-                                onSubmit={async (selectedContacts, items, shipDate) => {
+                                onSubmit={async (selectedContacts, items, shipDate, historical) => {
                                     try {
                                         await createBulkAssignments.mutateAsync({
                                             contacts: selectedContacts,
@@ -132,8 +132,13 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
                                                 unitPrice: i.unitPrice,
                                             })),
                                             scheduledShipDate: shipDate || undefined,
+                                            historical,
                                         })
-                                        toast.success(`Presentes criados para ${selectedContacts.length} pessoa${selectedContacts.length > 1 ? 's' : ''}`)
+                                        toast.success(
+                                            historical
+                                                ? `Presente histórico registrado para ${selectedContacts.length} pessoa${selectedContacts.length > 1 ? 's' : ''}`
+                                                : `Presentes criados para ${selectedContacts.length} pessoa${selectedContacts.length > 1 ? 's' : ''}`
+                                        )
                                         setShowKitBuilder(false)
                                     } catch {
                                         toast.error('Erro ao criar presentes')
@@ -248,7 +253,12 @@ function KitBuilder({
 }: {
     contacts: { id: string; nome: string; sobrenome: string | null }[]
     dataEmbarque: string | null
-    onSubmit: (selectedContacts: { id: string; name: string }[], items: KitItem[], shipDate: string | null) => void
+    onSubmit: (
+        selectedContacts: { id: string; name: string }[],
+        items: KitItem[],
+        shipDate: string | null,
+        historical?: { shippedAt: string; deliveredAt: string }
+    ) => void
     onCancel: () => void
     isSubmitting: boolean
 }) {
@@ -261,6 +271,13 @@ function KitBuilder({
     const [customShipDate, setCustomShipDate] = useState('')
     const [search, setSearch] = useState('')
     const [showCatalog, setShowCatalog] = useState(true)
+
+    // Historical mode (backfill): registra presente já enviado/entregue
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const [isHistorical, setIsHistorical] = useState(false)
+    const [historicalShippedAt, setHistoricalShippedAt] = useState(todayStr)
+    const [historicalDeliveredAt, setHistoricalDeliveredAt] = useState(todayStr)
+    const historicalDatesInvalid = isHistorical && historicalDeliveredAt < historicalShippedAt
 
     // Custom item state
     const [showCustomForm, setShowCustomForm] = useState(false)
@@ -331,16 +348,19 @@ function KitBuilder({
         })
     }
 
-    // Stock warnings
-    const stockWarning = kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock)
+    // Stock warnings (skipped in historical mode — não vai mexer no estoque)
+    const stockWarning = !isHistorical && kitItems.some(i => i.productId && i.stock !== undefined && i.quantity * numPeople > i.stock)
 
-    const canSubmit = kitItems.length > 0 && numPeople > 0 && !isSubmitting && !stockWarning
+    const canSubmit = kitItems.length > 0 && numPeople > 0 && !isSubmitting && !stockWarning && !historicalDatesInvalid
 
     const handleSubmit = () => {
         const selectedContacts = contacts
             .filter(c => selectedContactIds.has(c.id))
             .map(c => ({ id: c.id, name: `${c.nome}${c.sobrenome ? ' ' + c.sobrenome : ''}` }))
-        onSubmit(selectedContacts, kitItems, shipDate || null)
+        const historical = isHistorical
+            ? { shippedAt: historicalShippedAt, deliveredAt: historicalDeliveredAt }
+            : undefined
+        onSubmit(selectedContacts, kitItems, historical ? null : (shipDate || null), historical)
     }
 
     return (
@@ -357,6 +377,86 @@ function KitBuilder({
             </div>
 
             <div className="p-3 space-y-4">
+                {/* ─── Modo histórico (backfill) ─── */}
+                <div className={cn(
+                    'flex items-start gap-2.5 p-2.5 rounded-lg border transition-colors',
+                    isHistorical ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                )}>
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isHistorical}
+                        onClick={() => setIsHistorical(v => !v)}
+                        className={cn(
+                            'relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 mt-0.5',
+                            isHistorical ? 'bg-emerald-600' : 'bg-slate-300'
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                                isHistorical ? 'translate-x-5' : 'translate-x-1'
+                            )}
+                        />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <button
+                            type="button"
+                            onClick={() => setIsHistorical(v => !v)}
+                            className="text-left w-full"
+                        >
+                            <p className="text-xs font-semibold text-slate-700">
+                                Este presente JÁ foi entregue (registro histórico)
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                                {isHistorical
+                                    ? 'Os itens NÃO serão descontados do estoque atual e não criamos tarefa de envio.'
+                                    : 'Use quando estiver subindo cards antigos e quiser registrar presentes que já foram enviados no passado.'}
+                            </p>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ─── Datas históricas (só aparecem no modo histórico) ─── */}
+                {isHistorical && (
+                    <div className="space-y-2">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Quando aconteceu
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[11px] text-slate-500 mb-1">Data de envio</label>
+                                <input
+                                    type="date"
+                                    value={historicalShippedAt}
+                                    max={todayStr}
+                                    onChange={e => setHistoricalShippedAt(e.target.value)}
+                                    className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] text-slate-500 mb-1">Data de entrega</label>
+                                <input
+                                    type="date"
+                                    value={historicalDeliveredAt}
+                                    max={todayStr}
+                                    onChange={e => setHistoricalDeliveredAt(e.target.value)}
+                                    className={cn(
+                                        'w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1',
+                                        historicalDatesInvalid
+                                            ? 'border-red-300 focus:ring-red-500'
+                                            : 'border-slate-200 focus:ring-emerald-500'
+                                    )}
+                                />
+                            </div>
+                        </div>
+                        {historicalDatesInvalid && (
+                            <p className="text-[11px] text-red-600">A data de entrega não pode ser anterior à de envio.</p>
+                        )}
+                    </div>
+                )}
+
                 {/* ─── Product Catalog (click to select) ─── */}
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -603,7 +703,8 @@ function KitBuilder({
                     </div>
                 </div>
 
-                {/* ─── Ship date (relative to embarque) ─── */}
+                {/* ─── Ship date (relative to embarque) — escondido no modo histórico ─── */}
+                {!isHistorical && (
                 <div className="space-y-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />
@@ -657,6 +758,7 @@ function KitBuilder({
                         </p>
                     )}
                 </div>
+                )}
 
                 {/* Stock warning */}
                 {stockWarning && numPeople > 0 && (
@@ -693,10 +795,15 @@ function KitBuilder({
                     <button
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className={cn(
+                            'flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors',
+                            isHistorical
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'bg-pink-600 hover:bg-pink-700'
+                        )}
                     >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
-                        Criar Kit
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isHistorical ? <Check className="h-4 w-4" /> : <Gift className="h-4 w-4" />}
+                        {isHistorical ? 'Registrar presente entregue' : 'Criar Kit'}
                     </button>
                 </div>
             </div>

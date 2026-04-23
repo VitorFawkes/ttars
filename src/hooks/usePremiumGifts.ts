@@ -6,6 +6,9 @@ import type { GiftAssignmentFull } from './useAllGiftAssignments'
 export interface PremiumGiftRecipient {
     contatoId: string
     contatoName: string
+    /** Se preenchido, o presente é vinculado a esse card (gift_type='trip').
+     *  Se null/omitido, vira presente avulso (gift_type='premium', card_id=null). */
+    cardId?: string | null
 }
 
 export interface PremiumGiftInput {
@@ -19,6 +22,9 @@ export interface PremiumGiftInput {
     scheduledShipDate?: string
     budget?: number
     notes?: string
+    /** Quando preenchido, registra como já enviado/entregue (backfill).
+     *  NÃO desconta do estoque atual nem cria tarefa de envio. */
+    historical?: { shippedAt: string; deliveredAt: string }
 }
 
 /** CRUD for premium gifts (gift_type = 'premium', card_id = null) */
@@ -75,30 +81,120 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
                 ? `${input.occasion} — ${input.occasionDetail}`
                 : input.occasion
 
+            const historical = input.historical
+            const shippedAtIso = historical ? new Date(`${historical.shippedAt}T12:00:00`).toISOString() : null
+            const deliveredAtIso = historical ? new Date(`${historical.deliveredAt}T12:00:00`).toISOString() : null
+            const historicalNote = historical
+                ? `[Histórico] enviado ${historical.shippedAt}, entregue ${historical.deliveredAt}`
+                : null
+            const baseNotes = [historicalNote, input.notes].filter(Boolean).join('\n') || null
+
             const created: unknown[] = []
 
             for (const recipient of input.recipients) {
-                // 1. Create assignment for this recipient
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { data: assignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
-                    .insert({
-                        card_id: null,
-                        contato_id: recipient.contatoId,
-                        gift_type: 'premium',
-                        occasion: occasionText,
-                        assigned_by: profile?.id,
-                        scheduled_ship_date: input.scheduledShipDate || null,
-                        delivery_address: input.deliveryAddress || null,
-                        delivery_date: input.deliveryDate || null,
-                        delivery_method: input.deliveryMethod || null,
-                        budget: input.budget || null,
-                        notes: input.notes || null,
-                    })
-                    .select()
-                    .single()
-                if (aErr) throw aErr
+                const isLinked = !!recipient.cardId
+                const giftType = isLinked ? 'trip' : 'premium'
+                const reasonLabel = isLinked
+                    ? `Presente — ${recipient.contatoName}`
+                    : `Presente avulso — ${recipient.contatoName}`
 
-                // 2. Add items + deduct stock (per recipient — one shipment each)
+                let assignment: { id: string }
+
+                // Se for vinculado a card, faz upsert (UNIQUE card_id+contato_id)
+                if (isLinked) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: existing } = await (supabase as any)
+                        .from('card_gift_assignments')
+                        .select('id, notes')
+                        .eq('card_id', recipient.cardId)
+                        .eq('contato_id', recipient.contatoId)
+                        .maybeSingle()
+
+                    if (existing) {
+                        const updates: Record<string, unknown> = {
+                            occasion: occasionText,
+                            delivery_address: input.deliveryAddress || null,
+                            delivery_date: input.deliveryDate || null,
+                            delivery_method: input.deliveryMethod || null,
+                            budget: input.budget || null,
+                        }
+                        if (historical) {
+                            const prev: string = existing.notes ?? ''
+                            updates.status = 'entregue'
+                            updates.shipped_at = shippedAtIso
+                            updates.shipped_by = profile?.id
+                            updates.delivered_at = deliveredAtIso
+                            updates.scheduled_ship_date = null
+                            updates.notes = prev.includes('[Histórico]') ? prev : (prev ? `${historicalNote}\n${prev}` : historicalNote)
+                        } else if (input.scheduledShipDate) {
+                            updates.scheduled_ship_date = input.scheduledShipDate
+                        }
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const { error: upErr } = await (supabase as any)
+                            .from('card_gift_assignments')
+                            .update(updates)
+                            .eq('id', existing.id)
+                        if (upErr) throw upErr
+                        assignment = existing
+                    } else {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const { data: newAssign, error: aErr } = await (supabase as any)
+                            .from('card_gift_assignments')
+                            .insert({
+                                card_id: recipient.cardId,
+                                contato_id: recipient.contatoId,
+                                gift_type: giftType,
+                                occasion: occasionText,
+                                assigned_by: profile?.id,
+                                scheduled_ship_date: historical ? null : (input.scheduledShipDate || null),
+                                delivery_address: input.deliveryAddress || null,
+                                delivery_date: input.deliveryDate || null,
+                                delivery_method: input.deliveryMethod || null,
+                                budget: input.budget || null,
+                                notes: baseNotes,
+                                ...(historical ? {
+                                    status: 'entregue',
+                                    shipped_at: shippedAtIso,
+                                    shipped_by: profile?.id,
+                                    delivered_at: deliveredAtIso,
+                                } : {}),
+                            })
+                            .select()
+                            .single()
+                        if (aErr) throw aErr
+                        assignment = newAssign
+                    }
+                } else {
+                    // Avulso: sempre cria nova linha
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: newAssign, error: aErr } = await (supabase as any)
+                        .from('card_gift_assignments')
+                        .insert({
+                            card_id: null,
+                            contato_id: recipient.contatoId,
+                            gift_type: giftType,
+                            occasion: occasionText,
+                            assigned_by: profile?.id,
+                            scheduled_ship_date: historical ? null : (input.scheduledShipDate || null),
+                            delivery_address: input.deliveryAddress || null,
+                            delivery_date: input.deliveryDate || null,
+                            delivery_method: input.deliveryMethod || null,
+                            budget: input.budget || null,
+                            notes: baseNotes,
+                            ...(historical ? {
+                                status: 'entregue',
+                                shipped_at: shippedAtIso,
+                                shipped_by: profile?.id,
+                                delivered_at: deliveredAtIso,
+                            } : {}),
+                        })
+                        .select()
+                        .single()
+                    if (aErr) throw aErr
+                    assignment = newAssign
+                }
+
+                // 2. Add items (e desconta estoque, exceto em modo histórico)
                 for (const item of input.items) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: giftItem, error: iErr } = await (supabase as any).from('card_gift_items')
@@ -113,14 +209,14 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
                         .single()
                     if (iErr) throw iErr
 
-                    if (item.productId) {
+                    if (!historical && item.productId) {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const { error: movErr } = await (supabase as any).from('inventory_movements')
                             .insert({
                                 product_id: item.productId,
                                 quantity: -item.quantity,
                                 movement_type: 'saida_gift',
-                                reason: `Presente avulso — ${recipient.contatoName}`,
+                                reason: reasonLabel,
                                 reference_id: giftItem.id,
                                 performed_by: profile?.id,
                             })
@@ -128,12 +224,12 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
                     }
                 }
 
-                // 3. Create shipping task if date provided
-                if (input.scheduledShipDate) {
+                // 3. Create shipping task if date provided (skip em histórico)
+                if (!historical && input.scheduledShipDate) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: tarefa } = await (supabase as any).from('tarefas')
                         .insert({
-                            titulo: `Enviar presente avulso — ${recipient.contatoName}`,
+                            titulo: `Enviar presente — ${recipient.contatoName}`,
                             tipo: 'envio_presente',
                             data_vencimento: new Date(`${input.scheduledShipDate}T09:00:00`).toISOString(),
                             responsavel_id: profile?.id,
@@ -164,6 +260,8 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
             queryClient.invalidateQueries({ queryKey: ['gift-metrics'] })
+            queryClient.invalidateQueries({ queryKey: ['card-gifts'] })
+            queryClient.invalidateQueries({ queryKey: ['contact-available-cards'] })
         },
     })
 
