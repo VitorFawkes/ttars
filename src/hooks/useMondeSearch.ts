@@ -82,16 +82,23 @@ export function useMondeImportPerson() {
       mondePersonId,
       forceUpdate = false,
       forceCreateSeparate = false,
+      updateExistingEmail,
     }: {
       mondePersonId: string
       forceUpdate?: boolean
       forceCreateSeparate?: boolean
+      // Quando preenchido, a função ajusta o email do contato indicado ANTES da importação.
+      // Útil para destravar colisão no índice unique (org_id, email) — ex: casal/família com email compartilhado.
+      updateExistingEmail?: { contatoId: string; newEmail: string | null }
     }): Promise<ImportedContact> => {
       const { data, error } = await supabase.functions.invoke('monde-people-import', {
         body: {
           monde_person_id: mondePersonId,
           force_update: forceUpdate,
           force_create_separate: forceCreateSeparate,
+          update_existing_email: updateExistingEmail
+            ? { contato_id: updateExistingEmail.contatoId, new_email: updateExistingEmail.newEmail }
+            : undefined,
         },
       })
 
