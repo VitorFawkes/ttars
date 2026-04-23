@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
 import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic, PenLine } from 'lucide-react'
@@ -6,6 +7,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
 import ContactSelector from '../card/ContactSelector'
+import DuplicateCardBanner from '../card/DuplicateCardBanner'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import OwnerSelector from './OwnerSelector'
 import { Input } from '../ui/Input'
@@ -18,6 +20,7 @@ import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefin
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
 import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
+import { useDuplicateCardDetection } from '../../hooks/useDuplicateCardDetection'
 import { getPhaseColor, type PhaseColorTokens } from '../../lib/pipeline/phaseLabels'
 import { SystemPhase } from '../../types/pipeline'
 
@@ -207,11 +210,13 @@ function QuickStageSelector({ stages, selectedStageId, onSelect, showMore, onTog
 
 export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProps) {
     const queryClient = useQueryClient()
+    const navigate = useNavigate()
     const contentRef = useRef<HTMLDivElement>(null)
     const [showContactSelector, setShowContactSelector] = useState(false)
     const [showMoreStages, setShowMoreStages] = useState(false)
     const [showMoreOwners, setShowMoreOwners] = useState(false)
     const [showObservacoes, setShowObservacoes] = useState(false)
+    const [ignoreDuplicates, setIgnoreDuplicates] = useState(false)
     const { currentProduct } = useProductContext()
 
     // Scroll to top when modal opens or when returning from ContactSelector
@@ -375,9 +380,23 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
             setShowMoreOwners(false)
             setShowObservacoes(false)
             setShowMoreStages(false)
+            setIgnoreDuplicates(false)
         }
         wasOpenRef.current = isOpen
     }, [isOpen, initialOwners, currentProduct])
+
+    // Reset ignoreDuplicates when contact changes — user must re-confirm for each contact
+    useEffect(() => {
+        setIgnoreDuplicates(false)
+    }, [formData.pessoa_principal_id])
+
+    // Detecção de duplicata por contato + produto (sem datas — datas são definidas depois no card)
+    const duplicateDetection = useDuplicateCardDetection({
+        pessoaPrincipalId: formData.pessoa_principal_id,
+        produto: formData.produto,
+        enabled: isOpen && !!formData.pessoa_principal_id,
+    })
+    const duplicateMatches = ignoreDuplicates ? [] : (duplicateDetection.data ?? [])
 
 
     // Pipeline ID vem direto do produto da org ativa (1 org = 1 produto pós-Fase 5 Org Split)
@@ -708,6 +727,19 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                 <span>Produto:</span>
                                 <span className="px-2 py-0.5 bg-slate-100 rounded font-medium text-slate-700">{currentProduct}</span>
                             </div>
+
+                            {/* Duplicate detection banner */}
+                            {duplicateMatches.length > 0 && (
+                                <DuplicateCardBanner
+                                    matches={duplicateMatches}
+                                    preCreation
+                                    onIgnore={() => setIgnoreDuplicates(true)}
+                                    onMergeInto={(targetId) => {
+                                        onClose()
+                                        navigate(`/card/${targetId}`)
+                                    }}
+                                />
+                            )}
                         </section>
 
                         <div className="border-t border-slate-100" />
