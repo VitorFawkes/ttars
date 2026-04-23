@@ -191,7 +191,7 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200">
                     <div className="h-8 w-8 rounded-lg bg-pink-100 flex items-center justify-center">

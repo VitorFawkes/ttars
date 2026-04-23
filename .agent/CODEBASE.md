@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 187 tabelas | 140 paginas | 150 hooks | 19 views | 592 components
+> **Stats:** 187 tabelas | 140 paginas | 151 hooks | 19 views | 594 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **150 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **151 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -180,6 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
 | `useAiAgentHealth()` | `useAiAgentHealth.ts` |
 | `useAiAgentHubStats()` | `useAiAgentHubStats.ts` |
+| `useAiAgentPresentations()` | `useAiAgentPresentations.ts` |
 | `useAiAgents()` | `useAiAgents.ts` |
 | `useAiConversations()` | `useAiConversations.ts` |
 | `useAiKnowledgeBases()` | `useAiKnowledgeBases.ts` |
@@ -371,6 +372,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FutureOpportunitySection` | `src/components/card/FutureOpportunitySection.tsx` | Future opportunity section widget |
 | `DeveloperDocs` | `src/pages/DeveloperDocs.tsx` | **Swagger UI API Documentation** |
 | `AssistantStatsWidget` | `src/components/dashboard/AssistantStatsWidget.tsx` | Dashboard widget for assistant stats |
+| `DuplicateCardBanner` | `src/components/card/DuplicateCardBanner.tsx` | Aviso amarelo de possível duplicata no CreateCardModal |
+| `MergeCardsModal` | `src/components/card/MergeCardsModal.tsx` | Modal de agrupar (fundir) cards — busca por contato principal |
 
 ---
 
