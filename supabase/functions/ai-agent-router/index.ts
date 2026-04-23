@@ -3204,24 +3204,26 @@ serve(async (req) => {
         );
       }
 
-      // Debounce window passed — combine all buffered messages
-      if (buffered.length > 1) {
-        const combined = buffered.map((b) => b.message_text).filter(Boolean).join("\n");
-        if (combined) {
-          processedText = combined;
-          console.log(`[debounce] Combined ${buffered.length} messages into one (${combined.length} chars)`);
-        }
-        // Process media from the last media message in buffer (respeita multimodal_config)
-        const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
-        if (lastMedia) {
-          const mediaContent = await processMediaInline(
-            lastMedia.message_type,
-            lastMedia.media_url,
-            lastMedia.message_text,
-            agent.multimodal_config,
-          );
-          processedText = processedText + "\n" + mediaContent;
-        }
+      // Debounce window passed — SEMPRE reconstruir processedText a partir do
+      // buffer. Antes o código só fazia combine quando length>1, assumindo que
+      // em length=1 o input.message_text já tinha o conteúdo. Mas com self-drain
+      // (input.message_text="") isso perdia a msg. Fix 2026-04-23: sempre usa
+      // o buffer como fonte-de-verdade do que o lead falou.
+      const combined = buffered.map((b) => b.message_text).filter(Boolean).join("\n");
+      if (combined) {
+        processedText = combined;
+        console.log(`[debounce] Combined ${buffered.length} message(s) from buffer (${combined.length} chars)`);
+      }
+      // Process media from the last media message in buffer (respeita multimodal_config)
+      const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
+      if (lastMedia) {
+        const mediaContent = await processMediaInline(
+          lastMedia.message_type,
+          lastMedia.media_url,
+          lastMedia.message_text,
+          agent.multimodal_config,
+        );
+        processedText = processedText + "\n" + mediaContent;
       }
 
       // Mark all buffered messages as processed
