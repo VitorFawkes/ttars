@@ -5,7 +5,7 @@ export type PresentationScenario =
   | 'first_contact_inbound'
   | 'first_contact_outbound_form'
 
-export type PresentationMode = 'fixed' | 'concept'
+export type PresentationMode = 'fixed' | 'faithful' | 'concept'
 
 export interface AiAgentPresentation {
   id: string
@@ -75,7 +75,7 @@ export function useAiAgentPresentations(agentId?: string) {
         scenario: input.scenario,
         mode: input.mode,
         fixed_template: input.mode === 'fixed' ? input.fixed_template : null,
-        concept_text: input.mode === 'concept' ? input.concept_text : null,
+        concept_text: input.mode === 'fixed' ? null : input.concept_text,
         enabled: input.enabled,
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

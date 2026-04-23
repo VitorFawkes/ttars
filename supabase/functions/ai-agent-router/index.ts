@@ -183,7 +183,7 @@ interface AiAgentPresentation {
   id: string;
   agent_id: string;
   scenario: 'first_contact_inbound' | 'first_contact_outbound_form';
-  mode: 'fixed' | 'concept';
+  mode: 'fixed' | 'faithful' | 'concept';
   fixed_template: string | null;
   concept_text: string | null;
   enabled: boolean;
@@ -1577,15 +1577,16 @@ async function executeToolCall(
           // Se o agente configurou notify_responsible, tentar notificar algum admin/SDR da org
           if (agent.handoff_actions?.notify_responsible) {
             try {
+              // profiles.org_id aponta pra account pai em workspace filho — usar org_members
               const { data: admins } = await supabase
-                .from("profiles")
-                .select("id")
+                .from("org_members")
+                .select("user_id, profiles!inner(id, is_admin)")
                 .eq("org_id", agent.org_id)
-                .eq("is_admin", true)
+                .eq("profiles.is_admin", true)
                 .limit(5);
               if (admins && admins.length > 0) {
-                const notifications = admins.map((a: { id: string }) => ({
-                  user_id: a.id,
+                const notifications = admins.map((a: { user_id: string }) => ({
+                  user_id: a.user_id,
                   type: "ai_handoff",
                   title: `${agent.nome} pediu handoff (sem card)`,
                   body: `Contato ${ctx.contact_name || "desconhecido"} pediu humano antes de criar card. Motivo: ${reason}`,
@@ -2217,6 +2218,27 @@ Esta e a PRIMEIRA vez que voce responde este lead. Sua PRIMEIRA mensagem deve se
 "${resolved}"
 
 Apos essa mensagem, siga as regras normais. Nao repita a apresentacao em mensagens seguintes.`;
+  }
+
+  if (row.mode === "faithful" && row.concept_text) {
+    const resolved = resolvePresentationTemplate(row.concept_text, ctx, agent, business);
+    return `APRESENTACAO FIEL (cenario: ${row.scenario}):
+Esta e a PRIMEIRA vez que voce responde este lead. Siga FIELMENTE esta estrutura e conteudo:
+
+"${resolved}"
+
+O que voce PODE fazer:
+- Adaptar para soar natural com o nome do lead (${ctx.contact_name || "sem nome ainda"}).
+- Variar pequenas palavras de conexao (ex: "oi" vs "olá", "eu estou" vs "estou").
+- Quebrar em ate 2 mensagens WhatsApp curtas se ficar mais natural.
+
+O que voce NAO PODE fazer:
+- Adicionar etapas, informacoes ou promessas que nao estao neste texto.
+- Citar outras partes do prompt (processo, wedding planner, videoconferencia, prazo, preco) que nao aparecem aqui.
+- Mudar o objetivo ou a estrutura geral da mensagem.
+- Inventar beneficios, premios ou dados da empresa.
+
+Apos essa primeira resposta, siga as regras normais e nao repita a apresentacao.`;
   }
 
   if (row.mode === "concept" && row.concept_text) {

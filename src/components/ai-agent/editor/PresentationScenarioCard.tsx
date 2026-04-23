@@ -34,7 +34,7 @@ export function PresentationScenarioCard({
 }: Props) {
   const { upsert, remove } = useAiAgentPresentations(agentId)
 
-  const [mode, setMode] = useState<PresentationMode>(current?.mode ?? 'fixed')
+  const [mode, setMode] = useState<PresentationMode>(current?.mode ?? 'faithful')
   const [fixedTemplate, setFixedTemplate] = useState<string>(current?.fixed_template ?? '')
   const [conceptText, setConceptText] = useState<string>(current?.concept_text ?? '')
   const [enabled, setEnabled] = useState<boolean>(current?.enabled ?? true)
@@ -42,7 +42,7 @@ export function PresentationScenarioCard({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMode(current?.mode ?? 'fixed')
+    setMode(current?.mode ?? 'faithful')
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFixedTemplate(current?.fixed_template ?? '')
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -66,7 +66,7 @@ export function PresentationScenarioCard({
         scenario: scenarioKey,
         mode,
         fixed_template: mode === 'fixed' ? fixedTemplate.trim() : null,
-        concept_text: mode === 'concept' ? conceptText.trim() : null,
+        concept_text: mode === 'fixed' ? null : conceptText.trim(),
         enabled,
       })
       toast.success('Apresentação salva')
@@ -125,18 +125,25 @@ export function PresentationScenarioCard({
         </label>
       </header>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <ModeToggleButton
           active={mode === 'fixed'}
           onClick={() => { setMode('fixed'); markDirty() }}
-          title="Texto fixo"
-          subtitle="Agente envia EXATAMENTE esse texto, com os campos substituídos."
+          title="Texto literal"
+          subtitle="Envia exatamente esse texto. Só troca as variáveis. Zero improvisação."
+        />
+        <ModeToggleButton
+          active={mode === 'faithful'}
+          onClick={() => { setMode('faithful'); markDirty() }}
+          title="Diretriz fiel"
+          subtitle="Segue a estrutura e o conteúdo, só adapta o nome. Recomendado."
+          recommended
         />
         <ModeToggleButton
           active={mode === 'concept'}
           onClick={() => { setMode('concept'); markDirty() }}
-          title="Conceito (diretriz)"
-          subtitle="Agente parafrasea seguindo a diretriz, mantendo o tom da persona."
+          title="Diretriz livre"
+          subtitle="A IA parafrasea com liberdade. Mais criativo, menos previsível."
         />
       </div>
 
@@ -160,6 +167,32 @@ export function PresentationScenarioCard({
             </ul>
           </details>
         </div>
+      ) : mode === 'faithful' ? (
+        <div className="space-y-2">
+          <textarea
+            className="w-full min-h-[110px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            placeholder="Ex: Fico feliz que {{contact_name}} me chamou. Estou aqui pra entender o que você busca e, se fizer sentido, marcar uma conversa com nossa especialista."
+            value={conceptText}
+            onChange={(e) => { setConceptText(e.target.value); markDirty() }}
+          />
+          <p className="text-xs text-slate-500">
+            Escreva a mensagem do jeito que quer que saia. A IA vai seguir a estrutura e o conteúdo
+            fielmente, só adaptando o nome do lead e pequenas palavras pra soar natural. Ela
+            <strong className="font-semibold text-slate-700"> não vai inventar etapas</strong> nem
+            mencionar coisas que não estão no texto.
+          </p>
+          <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer hover:text-slate-700">Variáveis disponíveis</summary>
+            <ul className="mt-2 space-y-1 pl-4">
+              {VARIABLE_HINTS.map((v) => (
+                <li key={v.token}>
+                  <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{v.token}</code>
+                  <span className="ml-2">— {v.help}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
       ) : (
         <div className="space-y-2">
           <textarea
@@ -169,8 +202,9 @@ export function PresentationScenarioCard({
             onChange={(e) => { setConceptText(e.target.value); markDirty() }}
           />
           <p className="text-xs text-slate-500">
-            Escreva como quer que o agente se apresente. Ele vai adaptar o texto mantendo sua persona e
-            usando o nome do lead e do formulário quando fizer sentido.
+            Descreva o conceito da abertura. A IA tem liberdade pra escrever do zero seguindo essa ideia
+            e o tom da persona. Use quando quer variedade entre conversas, sabendo que o texto pode
+            variar bastante.
           </p>
         </div>
       )}
@@ -208,8 +242,8 @@ export function PresentationScenarioCard({
 }
 
 function ModeToggleButton({
-  active, onClick, title, subtitle,
-}: { active: boolean; onClick: () => void; title: string; subtitle: string }) {
+  active, onClick, title, subtitle, recommended,
+}: { active: boolean; onClick: () => void; title: string; subtitle: string; recommended?: boolean }) {
   return (
     <button
       type="button"
@@ -221,8 +255,13 @@ function ModeToggleButton({
           : 'border-slate-200 bg-white hover:border-slate-300',
       )}
     >
-      <div className={cn('text-sm font-medium', active ? 'text-indigo-700' : 'text-slate-700')}>
+      <div className={cn('text-sm font-medium flex items-center gap-1.5', active ? 'text-indigo-700' : 'text-slate-700')}>
         {title}
+        {recommended && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 font-normal">
+            recomendado
+          </span>
+        )}
       </div>
       <div className="text-xs text-slate-500 mt-0.5">{subtitle}</div>
     </button>

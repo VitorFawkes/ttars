@@ -626,3 +626,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-23T17:43:51Z | supabase/migrations/20260423d_reset_agent_full_reset_phone.sql | applied_to_prod
 2026-04-23T18:04:11Z | supabase/migrations/20260423d_converter_sub_card_em_principal.sql | applied_to_prod
 2026-04-23T18:26:34Z | supabase/migrations/20260423e_reset_nome_empty_not_literal.sql | applied_to_prod
+2026-04-23T19:56:57Z | supabase/migrations/20260424a_ai_agent_presentations_faithful_mode.sql | applied_to_prod
