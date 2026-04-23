@@ -244,13 +244,20 @@ export function useCardGifts(cardId: string) {
             contacts: { id: string; name: string }[]
             items: { productId: string | null; customName?: string; quantity: number; unitPrice: number }[]
             scheduledShipDate?: string
+            /** Quando preenchido, registra o presente como já enviado/entregue (backfill).
+             *  Não cria movimentação de estoque nem tarefa de envio. */
+            historical?: { shippedAt: string; deliveredAt: string }
         }) => {
             const results: GiftAssignment[] = []
+            const historical = input.historical
+            const shippedAtIso = historical ? new Date(`${historical.shippedAt}T12:00:00`).toISOString() : null
+            const deliveredAtIso = historical ? new Date(`${historical.deliveredAt}T12:00:00`).toISOString() : null
+
             for (const contact of input.contacts) {
                 // Upsert: reuse existing assignment if it exists (e.g., retry after partial failure)
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: existing } = await (supabase as any).from('card_gift_assignments')
-                    .select('id')
+                    .select('id, notes')
                     .eq('card_id', cardId)
                     .eq('contato_id', contact.id)
                     .maybeSingle()
@@ -258,6 +265,23 @@ export function useCardGifts(cardId: string) {
                 let assignment: { id: string }
                 if (existing) {
                     assignment = existing
+                    if (historical) {
+                        const prevNotes: string = existing.notes ?? ''
+                        const noteLine = `[Histórico] enviado ${historical.shippedAt}, entregue ${historical.deliveredAt}`
+                        const mergedNotes = prevNotes.includes('[Histórico]') ? prevNotes : (prevNotes ? `${noteLine}\n${prevNotes}` : noteLine)
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const { error: upErr } = await (supabase as any).from('card_gift_assignments')
+                            .update({
+                                status: 'entregue',
+                                shipped_at: shippedAtIso,
+                                shipped_by: profile?.id,
+                                delivered_at: deliveredAtIso,
+                                notes: mergedNotes,
+                                scheduled_ship_date: null,
+                            })
+                            .eq('id', assignment.id)
+                        if (upErr) throw upErr
+                    }
                 } else {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: newAssignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
@@ -266,7 +290,14 @@ export function useCardGifts(cardId: string) {
                             contato_id: contact.id,
                             gift_type: 'trip',
                             assigned_by: profile?.id,
-                            scheduled_ship_date: input.scheduledShipDate || null,
+                            scheduled_ship_date: historical ? null : (input.scheduledShipDate || null),
+                            ...(historical ? {
+                                status: 'entregue',
+                                shipped_at: shippedAtIso,
+                                shipped_by: profile?.id,
+                                delivered_at: deliveredAtIso,
+                                notes: `[Histórico] enviado ${historical.shippedAt}, entregue ${historical.deliveredAt}`,
+                            } : {}),
                         })
                         .select()
                         .single()
@@ -274,8 +305,8 @@ export function useCardGifts(cardId: string) {
                     assignment = newAssignment
                 }
 
-                // Create task if date provided
-                if (input.scheduledShipDate) {
+                // Create task if date provided (skip in historical mode)
+                if (!historical && input.scheduledShipDate) {
                     const tarefa = await createShipTask(cardId, assignment.id, contact.name, input.scheduledShipDate, profile?.id)
                     if (tarefa?.id) {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -300,8 +331,8 @@ export function useCardGifts(cardId: string) {
                         .single()
                     if (iErr) throw iErr
 
-                    // Stock deduction for inventory items
-                    if (item.productId) {
+                    // Stock deduction for inventory items (skip in historical mode — stock already deducted in real life)
+                    if (!historical && item.productId) {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const { error: movErr } = await (supabase as any).from('inventory_movements')
                             .insert({
