@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { X, ChevronRight, ChevronLeft, Gift, User, Tag, Package, Truck, CheckCircle, Loader2, PenLine, Users, Plane, Calendar, Check } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Gift, User, Tag, Package, Truck, CheckCircle, Loader2, PenLine, Users, Plane, Calendar, Check, ExternalLink, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ContactSearchInput from './ContactSearchInput'
 import GiftItemPicker from '@/components/card/gifts/GiftItemPicker'
 import GiftBudgetSummary from '@/components/card/gifts/GiftBudgetSummary'
 import type { InventoryProduct } from '@/hooks/useInventoryProducts'
 import type { PremiumGiftInput } from '@/hooks/usePremiumGifts'
-import { useContactAvailableCards } from '@/hooks/useContactAvailableCards'
+import { useContactAvailableCards, type AvailableCardTraveler } from '@/hooks/useContactAvailableCards'
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -62,6 +62,26 @@ interface PremiumGiftModalProps {
 
 const displayName = (c: SelectedContact) =>
     c.sobrenome ? `${c.nome} ${c.sobrenome}` : c.nome
+
+const formatDateRange = (start: string | null, end: string | null): string | null => {
+    if (!start && !end) return null
+    const parse = (d: string) => new Date(d.slice(0, 10) + 'T12:00:00')
+    const fmt = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    if (start && end) {
+        const a = parse(start)
+        const b = parse(end)
+        if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) {
+            return `${a.getDate().toString().padStart(2, '0')}–${fmt(b)}`
+        }
+        return `${fmt(a)} → ${fmt(b)}`
+    }
+    if (start) return fmt(parse(start))
+    if (end) return fmt(parse(end))
+    return null
+}
+
+const travelerName = (t: AvailableCardTraveler): string =>
+    t.sobrenome ? `${t.nome} ${t.sobrenome}` : t.nome
 
 export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: PremiumGiftModalProps) {
     const [step, setStep] = useState<Step>('contato')
@@ -257,29 +277,33 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                                         <Users className="h-3.5 w-3.5" />
                                         {contacts.length} {contacts.length === 1 ? 'pessoa selecionada' : 'pessoas selecionadas'}
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         {contacts.map(c => {
                                             const personCards = availableCardsByContact[c.id] || []
                                             const eligibleCards = personCards.filter(card => !card.hasGift)
                                             const linkedCardId = cardLinks[c.id] ?? null
                                             const linkedCard = linkedCardId ? personCards.find(pc => pc.id === linkedCardId) : null
+                                            // Co-viajantes do card vinculado que ainda não foram adicionados como recipient
+                                            const suggestedTravelers: AvailableCardTraveler[] = linkedCard
+                                                ? linkedCard.travelers.filter(t => !contacts.find(existing => existing.id === t.id))
+                                                : []
                                             return (
                                                 <div key={c.id} className="bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
-                                                    <div className="flex items-center gap-3 px-3 py-2.5">
-                                                        <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                                                            <span className="text-xs font-semibold text-indigo-700">
+                                                    <div className="flex items-center gap-3 px-4 py-3">
+                                                        <div className="h-11 w-11 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                                            <span className="text-sm font-semibold text-indigo-700">
                                                                 {`${c.nome[0] ?? ''}${c.sobrenome?.[0] ?? ''}`.toUpperCase() || '?'}
                                                             </span>
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-medium text-slate-900 truncate">{displayName(c)}</p>
-                                                            <p className="text-xs text-slate-500 truncate">
+                                                            <p className="text-base font-semibold text-slate-900 truncate">{displayName(c)}</p>
+                                                            <p className="text-sm text-slate-500 truncate">
                                                                 {[c.email, c.telefone].filter(Boolean).join(' · ') || 'Sem contato'}
                                                             </p>
                                                         </div>
                                                         <button
                                                             onClick={() => removeContact(c.id)}
-                                                            className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                                                            className="p-2 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
                                                             aria-label="Remover"
                                                         >
                                                             <X className="h-4 w-4" />
@@ -287,68 +311,155 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                                                     </div>
 
                                                     {/* Picker de viagem (opcional) */}
-                                                    <div className="px-3 pb-3 pt-1 border-t border-indigo-100/70 bg-white/40">
-                                                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 mb-1.5">
-                                                            <Plane className="h-3 w-3" />
+                                                    <div className="px-4 pb-4 pt-2 border-t border-indigo-100/70 bg-white/50">
+                                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
+                                                            <Plane className="h-3.5 w-3.5" />
                                                             Vincular a uma viagem
                                                             <span className="text-slate-400 font-normal">(opcional)</span>
                                                         </div>
 
                                                         {loadingCards ? (
-                                                            <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
-                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                                 Buscando viagens...
                                                             </div>
                                                         ) : eligibleCards.length === 0 ? (
-                                                            <p className="text-[11px] text-slate-500 py-1">
+                                                            <p className="text-xs text-slate-500 py-1">
                                                                 Sem viagens disponíveis. Será criado como presente avulso.
                                                             </p>
                                                         ) : (
-                                                            <div className="flex flex-wrap gap-1.5">
+                                                            <div className="space-y-1.5">
+                                                                {/* Opção "sem viagem" */}
                                                                 <button
                                                                     onClick={() => setLinkForContact(c.id, null)}
                                                                     className={cn(
-                                                                        'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border transition-colors',
+                                                                        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-colors',
                                                                         linkedCardId === null
-                                                                            ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                                                            ? 'bg-slate-100 border-slate-300'
+                                                                            : 'bg-white border-slate-200 hover:border-slate-300'
                                                                     )}
                                                                 >
-                                                                    {linkedCardId === null && <Check className="h-3 w-3" />}
-                                                                    Sem viagem (avulso)
+                                                                    <div className={cn(
+                                                                        'h-4 w-4 rounded-full border flex items-center justify-center shrink-0',
+                                                                        linkedCardId === null ? 'border-slate-500 bg-slate-500' : 'border-slate-300'
+                                                                    )}>
+                                                                        {linkedCardId === null && <Check className="h-2.5 w-2.5 text-white" />}
+                                                                    </div>
+                                                                    <span className="text-sm text-slate-700 font-medium">Sem viagem (presente avulso)</span>
                                                                 </button>
-                                                                {eligibleCards.slice(0, 6).map(card => {
+
+                                                                {/* Lista de viagens */}
+                                                                {eligibleCards.map(card => {
                                                                     const isActive = linkedCardId === card.id
+                                                                    const dateRange = formatDateRange(card.dataInicio, card.dataFim)
                                                                     return (
-                                                                        <button
+                                                                        <div
                                                                             key={card.id}
-                                                                            onClick={() => setLinkForContact(c.id, isActive ? null : card.id)}
-                                                                            title={card.titulo}
                                                                             className={cn(
-                                                                                'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[200px]',
+                                                                                'flex items-start gap-2.5 px-3 py-2 rounded-lg border transition-colors',
                                                                                 isActive
-                                                                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+                                                                                    ? 'bg-emerald-50 border-emerald-300'
+                                                                                    : 'bg-white border-slate-200 hover:border-emerald-300'
                                                                             )}
                                                                         >
-                                                                            {isActive && <Check className="h-3 w-3" />}
-                                                                            <Plane className="h-3 w-3 shrink-0" />
-                                                                            <span className="truncate">{card.titulo}</span>
-                                                                        </button>
+                                                                            <button
+                                                                                onClick={() => setLinkForContact(c.id, isActive ? null : card.id)}
+                                                                                className="flex items-start gap-2.5 flex-1 min-w-0 text-left"
+                                                                            >
+                                                                                <div className={cn(
+                                                                                    'h-4 w-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5',
+                                                                                    isActive ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                                                                                )}>
+                                                                                    {isActive && <Check className="h-2.5 w-2.5 text-white" />}
+                                                                                </div>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                                        <span className="text-sm font-medium text-slate-900 truncate">{card.titulo}</span>
+                                                                                        {card.produto && (
+                                                                                            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                                                {card.produto}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {card.role === 'primary' && (
+                                                                                            <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                                                                titular
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {(dateRange || card.travelers.length > 0) && (
+                                                                                        <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                                                                                            {dateRange && (
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Calendar className="h-3 w-3" />
+                                                                                                    {dateRange}
+                                                                                                </span>
+                                                                                            )}
+                                                                                            {card.travelers.length > 0 && (
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Users className="h-3 w-3" />
+                                                                                                    +{card.travelers.length} {card.travelers.length === 1 ? 'pessoa' : 'pessoas'}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </button>
+                                                                            <a
+                                                                                href={`/cards/${card.id}`}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={e => e.stopPropagation()}
+                                                                                className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
+                                                                                title="Abrir viagem em outra aba"
+                                                                            >
+                                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                                            </a>
+                                                                        </div>
                                                                     )
                                                                 })}
-                                                                {eligibleCards.length > 6 && (
-                                                                    <span className="text-[11px] text-slate-400 self-center">
-                                                                        +{eligibleCards.length - 6} viagens
-                                                                    </span>
-                                                                )}
                                                             </div>
                                                         )}
 
-                                                        {linkedCard && (
-                                                            <p className="text-[11px] text-emerald-700 mt-1.5">
-                                                                ✓ Vinculado a <strong>{linkedCard.titulo}</strong>
-                                                            </p>
+                                                        {/* Sugestão de co-viajantes do card vinculado */}
+                                                        {linkedCard && suggestedTravelers.length > 0 && (
+                                                            <div className="mt-3 pt-3 border-t border-dashed border-emerald-200">
+                                                                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 mb-1.5">
+                                                                    <UserPlus className="h-3.5 w-3.5" />
+                                                                    Adicionar outras pessoas desta viagem
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {suggestedTravelers.map(t => (
+                                                                        <button
+                                                                            key={t.id}
+                                                                            onClick={() => {
+                                                                                addContact({
+                                                                                    id: t.id,
+                                                                                    nome: t.nome,
+                                                                                    sobrenome: t.sobrenome,
+                                                                                    email: t.email,
+                                                                                    telefone: t.telefone,
+                                                                                })
+                                                                                // Auto-vincula à mesma viagem
+                                                                                setLinkForContact(t.id, linkedCard.id)
+                                                                            }}
+                                                                            disabled={t.hasGift}
+                                                                            title={t.hasGift ? 'Esta pessoa já tem presente neste card' : 'Adicionar à lista'}
+                                                                            className={cn(
+                                                                                'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                                                                                t.hasGift
+                                                                                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed line-through'
+                                                                                    : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                                                                            )}
+                                                                        >
+                                                                            {!t.hasGift && <UserPlus className="h-3 w-3" />}
+                                                                            {travelerName(t)}
+                                                                            {t.role === 'primary' && !t.hasGift && (
+                                                                                <span className="text-[9px] font-medium uppercase tracking-wide text-indigo-600">titular</span>
+                                                                            )}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
