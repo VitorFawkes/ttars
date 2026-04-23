@@ -9,6 +9,9 @@ export interface ResetResult {
   state_deleted: number
   buffer_deleted: number
   outbound_deleted: number
+  messages_deleted: number
+  contacts_cleared: number
+  cards_cleared: number
   message?: string
 }
 

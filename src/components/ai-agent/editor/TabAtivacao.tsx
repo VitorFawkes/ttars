@@ -167,9 +167,13 @@ function ResetConversationSection({ agentId }: { agentId?: string }) {
       if (result.contacts_found === 0) {
         toast.info('Nenhum contato encontrado com esse telefone.')
       } else {
-        toast.success(
-          `Zerado: ${result.conversations_deleted} conversa(s), ${result.turns_deleted} mensagem(ns) da memória.`,
-        )
+        const bits: string[] = []
+        if (result.conversations_deleted) bits.push(`${result.conversations_deleted} conversa(s)`)
+        if (result.turns_deleted) bits.push(`${result.turns_deleted} msg(s) da memória`)
+        if (result.messages_deleted) bits.push(`${result.messages_deleted} msg(s) do WhatsApp`)
+        if (result.contacts_cleared) bits.push(`${result.contacts_cleared} contato(s) anonimizado(s)`)
+        if (result.cards_cleared) bits.push(`${result.cards_cleared} card(s) sem resumo`)
+        toast.success(bits.length ? `Zerado: ${bits.join(', ')}.` : 'Zerado.')
       }
       setConfirming(false)
       setPhone('')
@@ -183,11 +187,12 @@ function ResetConversationSection({ agentId }: { agentId?: string }) {
     <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
       <header className="flex items-center gap-2">
         <Eraser className="w-5 h-5 text-orange-500" />
-        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Zerar conversa para testar do zero</h2>
+        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Zerar tudo para testar do zero</h2>
       </header>
       <p className="text-sm text-slate-500 -mt-2">
-        Apaga o histórico e a memória deste agente com um número específico. Útil para testar uma abertura de conversa
-        novamente sem trocar de telefone. Não apaga o contato nem as mensagens do WhatsApp — só o que o agente lembra.
+        Apaga tudo relacionado a este telefone: memória do agente, nome e dados pessoais do contato,
+        mensagens do WhatsApp e resumo IA do card. O card em si é preservado, mas o agente passa a tratar
+        o lead como se nunca tivesse ouvido falar dele.
       </p>
 
       {!agentId ? (
@@ -223,9 +228,10 @@ function ResetConversationSection({ agentId }: { agentId?: string }) {
             <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-amber-800 font-medium">Confirma apagar o histórico com {phone}?</p>
+                <p className="text-sm text-amber-800 font-medium">Confirma apagar TUDO sobre {phone}?</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Vai apagar todas as conversas deste agente com esse telefone, incluindo o que ele lembra (resumo, contexto, etapa da qualificação). Não dá pra desfazer.
+                  Apaga conversa e memória do agente, nome e dados do contato, mensagens do WhatsApp e
+                  resumo IA dos cards. O card em si fica, mas o agente trata como lead desconhecido. Não dá pra desfazer.
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Button
