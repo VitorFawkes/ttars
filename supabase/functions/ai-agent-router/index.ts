@@ -193,6 +193,9 @@ interface ConversationContext {
   historico: string;
   historico_compacto: string;
   is_primeiro_contato: boolean;
+  /** Se false, contato ainda não tem nome real no banco — agente deve
+   *  descobrir na conversa, NÃO usar o placeholder literal. */
+  contact_name_known: boolean;
   /**
    * Cenário de apresentação aplicável neste turn. Setado por
    * buildConversationContext quando is_primeiro_contato=true E há linha
@@ -1067,7 +1070,16 @@ async function buildConversationContext(
     meeting_created_or_confirmed: meetingDetected,
     stage_signal: "",
     turn_count: msgs.filter((m) => m.role === "user").length,
-    contact_name: [contact?.nome, contact?.sobrenome].filter(Boolean).join(" ") || "Cliente",
+    // contact_name_known: true se temos um nome real. Valores vazios ou
+    // placeholders neutros ("Cliente", "Lead", "WhatsApp") contam como
+    // desconhecido — o persona prompt instrui a IA a descobrir o nome na
+    // conversa em vez de usar o placeholder literal (bug 2026-04-23 14:57).
+    contact_name: [contact?.nome, contact?.sobrenome].filter(Boolean).join(" ") || "",
+    contact_name_known: (() => {
+      const raw = (contact?.nome || "").trim().toLowerCase();
+      if (!raw) return false;
+      return !["cliente", "lead", "whatsapp", "desconhecido"].includes(raw);
+    })(),
     contact_email: contact?.email || "",
     contact_role: contactRole,
     contato_id: contactId,
@@ -2396,7 +2408,9 @@ async function runPersonaAgent(
 Contexto:
 - ai_resumo: ${backoffice.ai_resumo || "(vazio)"}
 - ai_contexto: ${backoffice.ai_contexto || "(vazio)"}
-- Nome: ${ctx.contact_name}
+${ctx.contact_name_known
+  ? `- Nome: ${ctx.contact_name}`
+  : `- Nome: DESCONHECIDO — voce NAO sabe o nome do lead ainda. NUNCA use "Cliente", "Lead" ou qualquer placeholder como se fosse o nome dele. Em vez disso, descubra o nome com naturalidade na conversa (ex: "pra eu te chamar pelo nome, como voce se chama?"). Ate saber, use cumprimento sem nome ("Oi, tudo bem?").`}
 - Primeiro contato: ${ctx.is_primeiro_contato}
 - Role: ${backoffice.detected_role}
 - Card ID: ${ctx.card_id || "(sem card)"}
