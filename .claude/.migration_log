@@ -641,3 +641,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-23T21:57:38Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502k_ai_agent_v1_v2_comparison_view.sql | applied_to_prod
 2026-04-24T12:17:01Z | supabase/migrations/20260424a_card_rules_subcard_in_integration_settings.sql | applied_to_prod
 2026-04-24T14:32:27Z | supabase/migrations/20260424_pos_venda_cadence_tasks.sql | applied_to_prod
+2026-04-24T14:39:02Z | supabase/migrations/20260424a_fix_wedding_cards_misplaced_in_trips_org.sql | applied_to_prod
