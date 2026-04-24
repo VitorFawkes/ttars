@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
-import { useOrg } from '../contexts/OrgContext'
+import { useCardRulesSettings } from './useCardRulesSettings'
 
 export type SubCardMode = 'incremental'
 export type SubCardStatus = 'active' | 'merged' | 'cancelled' | 'completed'
@@ -57,9 +57,7 @@ interface CancelSubCardResult {
 export function useSubCards(parentCardId?: string) {
     const queryClient = useQueryClient()
     const { toast } = useToast()
-    const { org } = useOrg()
-    // DEFAULT true — setting só afrouxa a regra, nunca aperta silenciosamente
-    const requiresPosVenda = org?.settings?.sub_card_requires_pos_venda !== false
+    const { subcardRequiresPosVenda: requiresPosVenda } = useCardRulesSettings()
 
     // Query: Get sub-cards for a parent card
     const subCardsQuery = useQuery({
