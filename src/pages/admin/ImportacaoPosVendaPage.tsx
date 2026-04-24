@@ -954,12 +954,14 @@ export default function ImportacaoPosVendaPage() {
             let existingCardTitle: string | null = null
             let existingStageId: string | null = null
 
-            // Check by numero_venda_monde
+            // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
-                const { data: cards } = await supabase
+                let query = supabase
                     .from('cards')
                     .select('id, titulo, produto_data, pipeline_stage_id')
                     .in('produto_data->>numero_venda_monde', vchunk)
+                if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                const { data: cards } = await query
 
                 if (cards && cards.length > 0) {
                     existingCardId = cards[0].id
@@ -972,11 +974,13 @@ export default function ImportacaoPosVendaPage() {
             // Fallback: check historical numbers
             if (!existingCardId) {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
-                    const { data: cards } = await supabase
+                    let query = supabase
                         .from('cards')
                         .select('id, titulo, pipeline_stage_id')
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
                         .limit(1)
+                    if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                    const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
                         existingCardId = cards[0].id
@@ -998,7 +1002,7 @@ export default function ImportacaoPosVendaPage() {
 
                 if (contatos && contatos.length > 0) {
                     const contatoId = contatos[0].id
-                    const { data: cards } = await supabase
+                    let query = supabase
                         .from('cards')
                         .select('id, titulo, pipeline_stage_id')
                         .eq('pessoa_principal_id', contatoId)
@@ -1006,6 +1010,8 @@ export default function ImportacaoPosVendaPage() {
                         .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
                         .gte('data_viagem_fim', trip.dataInicio)
                         .limit(1)
+                    if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                    const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
                         existingCardId = cards[0].id
@@ -1057,7 +1063,7 @@ export default function ImportacaoPosVendaPage() {
         } finally {
             setIsProcessing(false)
         }
-    }, [plannerProfiles])
+    }, [plannerProfiles, activeOrgId])
 
     // ─── File upload handler ─────────────────────────────────
     const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
