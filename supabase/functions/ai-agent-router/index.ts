@@ -14,6 +14,15 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { runPersonaAgent_v2 } from "./persona_v2.ts";
+import {
+  readLastMomentKey,
+  upsertLastMomentKey,
+  loadPlaybookMoments,
+  type IdentityConfig,
+  type VoiceConfig,
+  type BoundariesConfig,
+} from "./playbook_loader.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +117,11 @@ interface AgentConfig {
     transition_message?: string | null;
     pause_permanently?: boolean;
   } | null;
+  // ---- Playbook v2 (Marco 2 — feature flag + configs) ----
+  playbook_enabled?: boolean | null;
+  identity_config?: IdentityConfig | null;
+  voice_config?: VoiceConfig | null;
+  boundaries_config?: BoundariesConfig | null;
 }
 
 interface BusinessCustomBlock {
@@ -236,6 +250,18 @@ interface ConversationContext {
   // think, calculate_qualification_score). Populado por executeToolCall, lido
   // pelo main handler no insert em ai_conversation_turns.skills_used.
   skills_used_this_turn?: string[];
+  // ---- Playbook v2 (Marco 2 — contexto de momento anterior) ----
+  /** Slug do momento classificado no turno anterior (lido de ai_conversation_state).
+   *  Usado por moment_detector pra evitar pular momentos e pra fallback. */
+  last_moment_key?: string | null;
+  /** Conteúdo da última mensagem do lead — usado pra matchesTrigger(keyword).
+   *  Derivado do histórico pelo buildConversationContext. */
+  last_lead_message?: string | null;
+  // ---- Metadata do turno v2 (preenchido por runPersonaAgent_v2) ----
+  v2_current_moment_key?: string | null;
+  v2_qualification_score_at_turn?: number | null;
+  v2_moment_detection_method?: 'deterministic' | 'llm' | 'fallback' | 'manual' | null;
+  v2_moment_transition_reason?: string | null;
 }
 
 interface BackofficeOutput {
@@ -243,6 +269,12 @@ interface BackofficeOutput {
   ai_contexto: string;
   detected_role: string;
   mudancas: { ai_resumo: boolean; ai_contexto: boolean };
+  // ---- Playbook v2 (Marco 2 — classificação opcional de momento) ----
+  /** Slug do momento classificado pelo LLM. Só preenchido quando
+   *  agent.playbook_enabled=true. Usado como fallback pelo moment_detector
+   *  quando detecção determinística não bate. */
+  current_moment_key?: string | null;
+  moment_transition_reason?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -599,7 +631,8 @@ async function findAgentByActiveConversation(
       handoff_signals, intelligent_decisions, prompts_extra,
       pipeline_models, timings, validator_rules,
       test_mode_phone_whitelist, multimodal_config,
-      handoff_actions
+      handoff_actions,
+      playbook_enabled, identity_config, voice_config, boundaries_config
     `)
     .eq("id", candidate.current_agent_id)
     .eq("ativa", true)
@@ -1055,6 +1088,21 @@ async function buildConversationContext(
     : humanHandling ? 'human_handling' : null;
 
   const isPrimeiroContato = msgs.length <= 1;
+
+  // ---- Playbook v2: carrega last_moment_key do ai_conversation_state ----
+  // Só faz sentido se algum agente v2 já rodou nessa conversa. readLastMomentKey
+  // retorna null pra v1, sem impacto.
+  const lastMomentKey = await readLastMomentKey(supabase, conversationId);
+
+  // ---- Playbook v2: extrai última mensagem do lead do histórico ----
+  // Usado pelo moment_detector pra matchesTrigger(keyword).
+  const lastLeadMessageRaw = (() => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') return msgs[i].content ?? null;
+    }
+    return null;
+  })();
+
   return {
     historico,
     historico_compacto,
@@ -1093,6 +1141,9 @@ async function buildConversationContext(
     sdr_owner_id: card?.responsavel_id || null,
     pessoa_principal_nome: pessoaPrincipalNome,
     form_data: formData,
+    // ---- Playbook v2 (Marco 2) ----
+    last_moment_key: lastMomentKey,
+    last_lead_message: lastLeadMessageRaw,
   };
 }
 
@@ -1821,6 +1872,7 @@ async function callLLMWithTools(
 // ---------------------------------------------------------------------------
 
 async function runBackofficeAgent(
+  supabase: SupabaseClient,
   agent: AgentConfig,
   ctx: ConversationContext,
   business: BusinessConfig | null,
@@ -1840,6 +1892,43 @@ async function runBackofficeAgent(
   const customContext = agent.prompts_extra?.context;
   const roleLabel = secondaryRoleLabel(business);
   const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
+
+  // ---- Playbook v2: bloco extra pra classificar momento ----
+  // Quando agent.playbook_enabled=true, carregamos os momentos configurados
+  // e pedimos ao Backoffice pra classificar current_moment_key (usado pelo
+  // moment_detector como fallback quando determinístico não bate). Zero
+  // impacto em agentes v1 — bloco fica vazio e JSON espera só campos v1.
+  let playbookMomentsBlock = "";
+  let playbookJsonExtra = "";
+  if (agent.playbook_enabled === true) {
+    try {
+      const moments = await loadPlaybookMoments(supabase, agent.id);
+      if (moments.length > 0) {
+        const lines = moments
+          .map((m, i) => `  ${i + 1}. ${m.moment_key} — ${m.moment_label}`)
+          .join("\n");
+        playbookMomentsBlock = `
+
+## Playbook — momentos desta conversa
+${lines}
+
+Último momento registrado: ${ctx.last_moment_key ?? "(nenhum)"}
+
+Classifique qual desses moment_keys descreve melhor o momento ATUAL da conversa.
+Regras: (1) Em primeiro contato, retorne o momento com trigger primeiro_contato ou display_order=1.
+(2) Nunca pule momentos sem razão clara — prefira o mais atrasado quando em dúvida.
+(3) Se o lead introduziu objeção/pergunta específica (preço, lua de mel, etc), pode pular
+pro momento correspondente.`;
+        playbookJsonExtra = `,
+  "current_moment_key": "<moment_key_classificado>",
+  "moment_transition_reason": "<1 frase curta: por que esse momento>"`;
+      }
+    } catch (err) {
+      console.warn("[runBackofficeAgent] playbook moments load failed:", err);
+      // silencioso — se moments falha, backoffice continua em modo v1
+    }
+  }
+
   const dataBlock = `
 
 ## Dados deste turno (injetados pelo runtime)
@@ -1848,7 +1937,7 @@ async function runBackofficeAgent(
 - ai_contexto atual: ${ctx.ai_contexto || "(vazio)"}
 - Papel do remetente (contact_role): ${ctx.contact_role}
 - Nome: ${ctx.contact_name}
-- Label do papel secundário: "${roleLabel}" (use esse termo ao referir-se a quem não é o cliente principal)
+- Label do papel secundário: "${roleLabel}" (use esse termo ao referir-se a quem não é o cliente principal)${playbookMomentsBlock}
 
 Responda SEMPRE em JSON único conforme a saída pedida acima.`;
 
@@ -1876,7 +1965,7 @@ Resposta OBRIGATORIA em JSON:
   "ai_resumo": "<texto final>",
   "ai_contexto": "<texto final>",
   "detected_role": "primary"|"traveler",
-  "mudancas": { "ai_resumo": true|false, "ai_contexto": true|false }
+  "mudancas": { "ai_resumo": true|false, "ai_contexto": true|false }${playbookJsonExtra}
 }`;
 
   const contextModel = agent.pipeline_models?.context?.model || agent.modelo;
@@ -1894,6 +1983,9 @@ Resposta OBRIGATORIA em JSON:
       ai_contexto: parsed.ai_contexto || ctx.ai_contexto,
       detected_role: parsed.detected_role || ctx.contact_role,
       mudancas: parsed.mudancas || { ai_resumo: false, ai_contexto: false },
+      // ---- Playbook v2: campos opcionais ----
+      current_moment_key: parsed.current_moment_key ?? null,
+      moment_transition_reason: parsed.moment_transition_reason ?? null,
     };
   } catch (err) {
     console.error("Backoffice agent error:", err);
@@ -1902,6 +1994,8 @@ Resposta OBRIGATORIA em JSON:
       ai_contexto: ctx.ai_contexto,
       detected_role: ctx.contact_role,
       mudancas: { ai_resumo: false, ai_contexto: false },
+      current_moment_key: null,
+      moment_transition_reason: null,
     };
   }
 }
@@ -2270,6 +2364,90 @@ async function runPersonaAgent(
   qualificationSignals: Record<string, string> = {},
   presentations: AiAgentPresentation[] = [],
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
+
+  // ═══════════════════════════════════════════════════════════════
+  // Playbook v2 — guard com fail-safe. Se agente tem flag ativa,
+  // delega pro runPersonaAgent_v2. Se falha, cai pro v1 abaixo.
+  // Ponto de entrada único pra bifurcação — resto do pipeline
+  // (backoffice, data, validator, formatter) continua igual pra v1 e v2.
+  // ═══════════════════════════════════════════════════════════════
+  if (agent.playbook_enabled === true) {
+    try {
+      const v2Result = await runPersonaAgent_v2(
+        supabase,
+        {
+          id: agent.id,
+          org_id: agent.org_id,
+          nome: agent.nome,
+          modelo: agent.modelo,
+          temperature: agent.temperature,
+          max_tokens: agent.max_tokens,
+          playbook_enabled: agent.playbook_enabled ?? false,
+          identity_config: agent.identity_config ?? null,
+          voice_config: agent.voice_config ?? null,
+          boundaries_config: agent.boundaries_config ?? null,
+          pipeline_models: agent.pipeline_models ?? null,
+        },
+        {
+          is_primeiro_contato: ctx.is_primeiro_contato,
+          contact_name: ctx.contact_name,
+          contact_name_known: ctx.contact_name_known,
+          contact_role: ctx.contact_role,
+          card_id: ctx.card_id,
+          card_titulo: ctx.card_titulo,
+          pipeline_stage_id: ctx.pipeline_stage_id,
+          ai_resumo: backoffice.ai_resumo ?? ctx.ai_resumo,
+          ai_contexto: backoffice.ai_contexto ?? ctx.ai_contexto,
+          form_data: ctx.form_data,
+          historico_compacto: ctx.historico_compacto,
+          lead_replied_now: ctx.lead_replied_now,
+          turn_count: ctx.turn_count,
+          last_moment_key: ctx.last_moment_key ?? null,
+          last_lead_message: ctx.last_lead_message ?? null,
+        },
+        {
+          ai_resumo: backoffice.ai_resumo,
+          ai_contexto: backoffice.ai_contexto,
+          detected_role: backoffice.detected_role,
+          current_moment_key: backoffice.current_moment_key ?? null,
+          moment_transition_reason: backoffice.moment_transition_reason ?? null,
+        },
+        business ? {
+          company_name: business.company_name ?? "",
+          company_description: business.company_description ?? "",
+          methodology_text: business.methodology_text ?? "",
+        } : null,
+        userMessage,
+        qualificationSignals,
+        async (model, temp, maxTok, sys, userMsg) => {
+          return callLLM(model, temp, maxTok, sys, userMsg);
+        },
+      );
+
+      // Anota metadata v2 no ctx pra o main handler persistir em ai_conversation_turns
+      ctx.v2_current_moment_key = v2Result.v2Metadata.current_moment_key;
+      ctx.v2_qualification_score_at_turn = v2Result.v2Metadata.qualification_score_at_turn;
+      ctx.v2_moment_detection_method = v2Result.v2Metadata.moment_detection_method;
+      ctx.v2_moment_transition_reason = v2Result.v2Metadata.moment_transition_reason;
+
+      return {
+        response: v2Result.response,
+        inputTokens: v2Result.inputTokens,
+        outputTokens: v2Result.outputTokens,
+      };
+    } catch (v2Err) {
+      // Fail-safe: log + cai pro v1. Nunca deixa lead sem resposta.
+      console.error(JSON.stringify({
+        event: 'persona_v2_failsafe',
+        agent_id: agent.id,
+        card_id: ctx.card_id,
+        error: String(v2Err),
+        stack: (v2Err as Error)?.stack?.split('\n').slice(0, 5),
+      }));
+      // Continua pro fluxo v1 abaixo.
+    }
+  }
+
   // Para agentes nao-template, usar o system_prompt original (v1 behavior — sem tools)
   if (!agent.is_template_based) {
     let enrichedPrompt = agent.system_prompt;
@@ -3352,7 +3530,7 @@ serve(async (req) => {
 
     try {
       // ── Step 1: Backoffice Agent ──
-      const backoffice = await runBackofficeAgent(agent, ctx, agentConfig.business);
+      const backoffice = await runBackofficeAgent(supabase, agent, ctx, agentConfig.business);
 
       // ── Step 2: Data Agent (retorna qualification_signals para o Persona) ──
       const dataResult = await runDataAgent(
@@ -3425,8 +3603,9 @@ serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════
 
     // Salvar resposta como turn (G5: popular skills_used + is_fallback)
+    // Marco 2b: popular 5 colunas v2 quando agent.playbook_enabled e persona_v2 rodou.
     const fullResponse = messages.join("\n\n");
-    await supabase.from("ai_conversation_turns").insert({
+    const turnInsert: Record<string, unknown> = {
       conversation_id: conversationId,
       role: "assistant",
       content: fullResponse,
@@ -3435,7 +3614,21 @@ serve(async (req) => {
       output_tokens: totalOutputTokens,
       skills_used: ctx.skills_used_this_turn || [],
       is_fallback: pipelineFellBack,
-    });
+      agent_version: agent.playbook_enabled && ctx.v2_current_moment_key ? 'v2' : 'v1',
+    };
+    if (ctx.v2_current_moment_key) {
+      turnInsert.current_moment_key = ctx.v2_current_moment_key;
+      turnInsert.qualification_score_at_turn = ctx.v2_qualification_score_at_turn ?? null;
+      turnInsert.moment_detection_method = ctx.v2_moment_detection_method ?? null;
+      turnInsert.moment_transition_reason = ctx.v2_moment_transition_reason ?? null;
+    }
+    await supabase.from("ai_conversation_turns").insert(turnInsert);
+
+    // Persiste last_moment_key em ai_conversation_state pro próximo turno.
+    // Só faz sentido quando persona_v2 rodou com sucesso.
+    if (ctx.v2_current_moment_key && !pipelineFellBack) {
+      await upsertLastMomentKey(supabase, conversationId, ctx.v2_current_moment_key);
+    }
 
     // Atualizar contadores
     await supabase
