@@ -137,6 +137,9 @@ export interface AgentEditorForm {
   interaction_mode: InteractionMode
   first_message_config: FirstMessageConfig
   outbound_trigger_config: OutboundTriggerConfig
+
+  // Playbook v2 (Marco 3) — feature flag por agente
+  playbook_enabled: boolean
 }
 
 export const HANDOFF_SIGNALS_CATALOG: Array<{ slug: string; label: string; defaultDescription: string }> = [

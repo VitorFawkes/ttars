@@ -34,6 +34,7 @@ import { TabRegrasNegocio } from '@/components/ai-agent/editor/TabRegrasNegocio'
 import { TabCenariosEspeciais } from '@/components/ai-agent/editor/TabCenariosEspeciais'
 import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
 import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
+import { TabPlaybook } from '@/components/ai-agent/editor/playbook/TabPlaybook'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -73,6 +74,7 @@ const DEFAULT_FORM: AgentEditorForm = {
   interaction_mode: 'inbound',
   first_message_config: { ...DEFAULT_FIRST_MESSAGE },
   outbound_trigger_config: { ...DEFAULT_OUTBOUND_TRIGGER },
+  playbook_enabled: false,
 }
 
 function formatRelative(iso: string): string {
@@ -155,6 +157,7 @@ export default function AiAgentDetailPage() {
       fallback_message: a.fallback_message || '',
       n8n_webhook_url: a.n8n_webhook_url || '',
       interaction_mode: (a.interaction_mode as AgentEditorForm['interaction_mode']) || 'inbound',
+      playbook_enabled: Boolean((a as unknown as { playbook_enabled?: boolean }).playbook_enabled),
       first_message_config: {
         ...DEFAULT_FIRST_MESSAGE,
         ...((a.first_message_config ?? {}) as Partial<AgentEditorForm['first_message_config']>),
@@ -212,6 +215,7 @@ export default function AiAgentDetailPage() {
         n8n_webhook_url: form.n8n_webhook_url || null,
         ativa: form.ativa,
         interaction_mode: form.interaction_mode,
+        playbook_enabled: form.playbook_enabled,
         first_message_config: form.interaction_mode !== 'inbound' ? form.first_message_config : null,
         outbound_trigger_config: form.interaction_mode !== 'inbound' ? form.outbound_trigger_config : null,
         routing_criteria: {
@@ -294,26 +298,38 @@ export default function AiAgentDetailPage() {
 
   const isN8n = form.execution_backend === 'n8n'
 
-  const tabs: EditorTab[] = useMemo(() => [
-    { id: 'identidade', label: 'Identidade', icon: Bot },
-    { id: 'modo', label: 'Modo de interação', icon: Send },
-    { id: 'apresentacao', label: 'Apresentação', icon: MessageCircle },
-    { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
-    { id: 'funil', label: 'Funil de qualificação', icon: GitBranch },
-    { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
-    { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
-    { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
-    { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
-    { id: 'conhecimento', label: 'Conhecimento', icon: BookOpen },
-    { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
-    { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
-    { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
-    { id: 'handoff', label: 'Handoff', icon: Handshake },
-    { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
-    { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
-    { id: 'ativacao', label: 'Ativação', icon: Power },
-    { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
-  ], [isN8n])
+  const tabs: EditorTab[] = useMemo(() => {
+    const base: EditorTab[] = [
+      { id: 'identidade', label: 'Identidade', icon: Bot },
+      { id: 'modo', label: 'Modo de interação', icon: Send },
+    ]
+    const playbookTab: EditorTab[] = [
+      { id: 'playbook', label: 'Playbook', icon: BookOpen },
+    ]
+    const classicoTabs: EditorTab[] = [
+      { id: 'apresentacao', label: 'Apresentação', icon: MessageCircle },
+      { id: 'funil', label: 'Funil de qualificação', icon: GitBranch },
+    ]
+    const sharedTabs: EditorTab[] = [
+      { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
+      { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
+      { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
+      { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
+      { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
+      { id: 'conhecimento', label: 'Conhecimento', icon: BookOpen },
+      { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
+      { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
+      { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
+      { id: 'handoff', label: 'Handoff', icon: Handshake },
+      { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
+      { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
+      { id: 'ativacao', label: 'Ativação', icon: Power },
+      { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
+    ]
+    return form.playbook_enabled
+      ? [...base, ...playbookTab, ...sharedTabs]
+      : [...base, ...classicoTabs, ...sharedTabs]
+  }, [isN8n, form.playbook_enabled])
 
   if (!isNew && loadingAgent) {
     return (
@@ -411,6 +427,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'identidade' && <TabIdentidade form={form} setForm={setFormWrapper} />}
         {activeTab === 'modo' && <TabModoInteracao form={form} setForm={setFormWrapper} />}
         {activeTab === 'apresentacao' && <TabApresentacao agentId={isNew ? undefined : id} />}
+        {activeTab === 'playbook' && !isNew && id && <TabPlaybook agentId={id} agentName={form.nome} companyName={''} />}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
