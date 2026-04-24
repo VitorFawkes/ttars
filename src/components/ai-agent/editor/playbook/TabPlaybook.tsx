@@ -9,6 +9,7 @@ import { BoundariesSection } from './sections/BoundariesSection'
 import { SilentSignalsSection } from './sections/SilentSignalsSection'
 import { ExamplesSection } from './sections/ExamplesSection'
 import { PlaybookPreviewPanel } from './preview/PlaybookPreviewPanel'
+import { V1V2ComparisonCard } from './V1V2ComparisonCard'
 import { useAgentIdentity } from '@/hooks/playbook/useAgentIdentity'
 import { useAgentVoice } from '@/hooks/playbook/useAgentVoice'
 import { useAgentBoundaries } from '@/hooks/playbook/useAgentBoundaries'
@@ -117,7 +118,9 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
       </header>
 
       <div className={cn('grid grid-cols-1', showPreview ? 'lg:grid-cols-[2fr_1fr]' : '')}>
-        <div className="p-5 space-y-2 overflow-auto">
+        <div className="p-5 space-y-4 overflow-auto">
+          <V1V2ComparisonCard agentId={agentId} />
+          <div className="space-y-2">
           {SECTIONS.map(s => (
             <div key={s.key} className="border border-slate-200 rounded-lg overflow-hidden">
               <button onClick={() => toggle(s.key)}
@@ -142,6 +145,7 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
               )}
             </div>
           ))}
+          </div>
         </div>
 
         {showPreview && (
