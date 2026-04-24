@@ -44,13 +44,33 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
 
   const start = Date.now();
 
+  // Detecta grupos de regras mutuamente exclusivas por padrão de nome na dimension.
+  // Convenção: dimension termina em _<número>_<número> → é uma faixa; grupo = prefixo sem as faixas.
+  // Ex: "valor_convidado_1500_2000" → grupo "valor_convidado"
+  const getGroup = (dim: string): string | null => {
+    const tokens = dim.split('_');
+    if (tokens.length >= 3
+        && /^\d+$/.test(tokens[tokens.length - 1])
+        && /^\d+$/.test(tokens[tokens.length - 2])) {
+      return tokens.slice(0, -2).join('_');
+    }
+    return null;
+  };
+
   const questionsBlock = subjectiveRules.map((r, i) => {
     const q = (r.condition_value as { question?: string })?.question ?? '';
-    return `${i + 1}. rule_id=${r.id} | ${q.trim()}`;
+    const group = getGroup(r.dimension);
+    const groupTag = group ? ` [grupo: ${group}]` : '';
+    return `${i + 1}. rule_id=${r.id}${groupTag} | ${q.trim()}`;
   }).join('\n');
 
+  const hasGroups = subjectiveRules.some(r => getGroup(r.dimension) !== null);
+  const groupInstruction = hasGroups
+    ? `\n\nIMPORTANTE sobre grupos: Perguntas marcadas com o mesmo [grupo: X] descrevem faixas mutuamente exclusivas da mesma variável. Para cada grupo, responda YES para APENAS UMA pergunta — a que melhor descreve o caso analisando o histórico. Todas as outras perguntas do mesmo grupo devem ser NO. Se não há evidência suficiente pra escolher nenhuma faixa do grupo, responda NO em todas do grupo.`
+    : '';
+
   const systemPrompt = `Você é um avaliador objetivo. Analise a conversa abaixo e responda cada pergunta com "yes" ou "no".
-Baseie-se APENAS em evidências do histórico. Se não há evidência clara, responda "no" (conservador).
+Baseie-se APENAS em evidências do histórico. Se não há evidência clara, responda "no" (conservador).${groupInstruction}
 
 Histórico da conversa:
 ${input.historico_compacto || '(conversa ainda vazia)'}
