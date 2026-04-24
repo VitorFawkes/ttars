@@ -1142,9 +1142,11 @@ export default function ImportacaoPosVendaPage() {
             fullTrips.map(t => t.existingStageId).filter(Boolean) as string[]
         )]
         if (uniqueExistingStageIds.length > 0) {
+            // FK explícita: pipeline_stages tem duas FKs pra pipeline_phases
+            // (phase_id e target_phase_id) — sem isso dá erro de ambiguidade.
             const { data: stages } = await supabase
                 .from('pipeline_stages')
-                .select('id, nome, phase:pipeline_phases!inner(slug)')
+                .select('id, nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .in('id', uniqueExistingStageIds)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
@@ -1584,10 +1586,17 @@ export default function ImportacaoPosVendaPage() {
                                 <p className="text-xs text-slate-500 mt-0.5">Atualizar</p>
                             </div>
                             {(toSkip + deselected) > 0 && (
-                                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center">
+                                <button
+                                    type="button"
+                                    onClick={() => { if (toSkip > 0) { setFilterAction('skip'); setShowFilters(true) } }}
+                                    className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center hover:bg-slate-50 transition-colors"
+                                    title={toSkip > 0 ? 'Ver viagens que serão puladas' : ''}
+                                >
                                     <p className="text-2xl font-bold text-slate-400">{toSkip + deselected}</p>
-                                    <p className="text-xs text-slate-500 mt-0.5">Pular</p>
-                                </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        {toSkip > 0 ? `Pular (${toSkip} em T. Planner)` : 'Pular'}
+                                    </p>
+                                </button>
                             )}
                         </div>
 
@@ -1667,7 +1676,7 @@ export default function ImportacaoPosVendaPage() {
                                                 <option value="all">Todas</option>
                                                 <option value="create">Apenas criar</option>
                                                 <option value="update">Apenas atualizar</option>
-                                                <option value="skip">Apenas pular</option>
+                                                <option value="skip">Apenas pular (T. Planner)</option>
                                             </select>
                                         </div>
 
