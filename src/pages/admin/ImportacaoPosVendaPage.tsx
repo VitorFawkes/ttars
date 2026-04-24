@@ -472,6 +472,27 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
             </button>
             </div>
 
+            {/* Decisão de mover de etapa — sempre visível (sem precisar expandir) */}
+            {showStageDecision && (
+                <div className="border-t border-slate-100 bg-amber-50 px-4 py-2.5 text-xs space-y-1.5">
+                    <div className="text-amber-900">
+                        Etapa atual: <span className="font-medium">{trip.existingStageName || '—'}</span>
+                        {' → '}
+                        Sugerida pelo CSV: <span className="font-medium">{trip.stage.name}</span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={trip.moveStage}
+                            onChange={() => onToggleMoveStage(trip.id)}
+                            onClick={e => e.stopPropagation()}
+                            className="rounded border-amber-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-slate-700">Mover card para a etapa sugerida</span>
+                    </label>
+                </div>
+            )}
+
             {expanded && (
                 <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 space-y-3">
                     {/* Meta info */}
@@ -484,28 +505,7 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
 
                     {trip.existingCardId && (
                         <div className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                            Card existente: <Link to={`/card/${trip.existingCardId}`} className="text-blue-600 underline">{trip.existingCardTitle || trip.existingCardId}</Link>
-                        </div>
-                    )}
-
-                    {/* Decisão de mover de etapa (só quando update E etapas diferem) */}
-                    {showStageDecision && (
-                        <div className="text-xs bg-amber-50 border border-amber-200 rounded px-2 py-2 space-y-1.5">
-                            <div className="text-amber-900">
-                                Etapa atual: <span className="font-medium">{trip.existingStageName || '—'}</span>
-                                {' → '}
-                                Sugerida pelo CSV: <span className="font-medium">{trip.stage.name}</span>
-                            </div>
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={trip.moveStage}
-                                    onChange={() => onToggleMoveStage(trip.id)}
-                                    onClick={e => e.stopPropagation()}
-                                    className="rounded border-amber-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <span className="text-slate-700">Mover card para a etapa sugerida</span>
-                            </label>
+                            Card existente: <Link to={`/cards/${trip.existingCardId}`} className="text-blue-600 underline">{trip.existingCardTitle || trip.existingCardId}</Link>
                         </div>
                     )}
 
@@ -697,7 +697,7 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                                                     {isReverted && <Undo2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                                                     <span className="text-slate-700 truncate">{item.pagante}</span>
                                                     {item.card_id && (
-                                                        <Link to={`/card/${item.card_id}`} className="text-indigo-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
+                                                        <Link to={`/cards/${item.card_id}`} className="text-indigo-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
                                                             ver card
                                                         </Link>
                                                     )}
