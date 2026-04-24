@@ -83,6 +83,7 @@ interface TripGroup {
     existingStageName: string | null
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
+    skipReason: string | null
     valorTotal: number
     receita: number
     vendaNums: string[]
@@ -159,7 +160,7 @@ class UnionFind {
 
 // ─── Trip Grouping Algorithm ────────────────────────────────
 
-function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action'>[] {
+function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action' | 'skipReason'>[] {
     // Step 1: Group by vendaNum
     const byVenda = new Map<string, PosVendaCsvRow[]>()
     for (const row of rows) {
@@ -265,7 +266,7 @@ function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorPr
     }
 
     // Step 5: Build trip aggregates
-    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action'>[] = []
+    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action' | 'skipReason'>[] = []
 
     for (const [, products] of groups) {
         // Separate annual products (Seguro Viagem with > 180 day span)
@@ -471,6 +472,13 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                 </div>
             </button>
             </div>
+
+            {/* Motivo de pular — visível sem precisar expandir */}
+            {trip.action === 'skip' && trip.skipReason && (
+                <div className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+                    {trip.skipReason}
+                </div>
+            )}
 
             {/* Decisão de mover de etapa — sempre visível (sem precisar expandir) */}
             {showStageDecision && (
@@ -1033,22 +1041,34 @@ export default function ImportacaoPosVendaPage() {
                 existingStageName: null, // preenchido no batch abaixo
                 moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
+                skipReason: null, // preenchido no batch abaixo se for T. Planner
             })
         }
 
-        // Batch query: resolver nomes das etapas atuais dos cards existentes
+        // Batch: resolver nome da etapa atual + fase (slug).
+        // Regra: se o card existente está em qualquer etapa da fase "planner" (T. Planner),
+        // pular o trip inteiro — o negócio ainda está em fechamento, não é caso de pós-venda.
         const uniqueExistingStageIds = [...new Set(
             fullTrips.map(t => t.existingStageId).filter(Boolean) as string[]
         )]
         if (uniqueExistingStageIds.length > 0) {
             const { data: stages } = await supabase
                 .from('pipeline_stages')
-                .select('id, nome')
+                .select('id, nome, phase:pipeline_phases!inner(slug)')
                 .in('id', uniqueExistingStageIds)
-            const stageMap = new Map((stages || []).map(s => [s.id as string, s.nome as string]))
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (stages || []).map((s: any) => [s.id as string, { nome: s.nome as string, phaseSlug: s.phase?.slug as string }])
+            )
             for (const t of fullTrips) {
                 if (t.existingStageId) {
-                    t.existingStageName = stageMap.get(t.existingStageId) || null
+                    const info = stageInfo.get(t.existingStageId)
+                    t.existingStageName = info?.nome || null
+                    if (info?.phaseSlug === 'planner') {
+                        t.action = 'skip'
+                        t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
+                    }
                 }
             }
         }
@@ -1236,9 +1256,12 @@ export default function ImportacaoPosVendaPage() {
             toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados`)
         } catch (err) {
             console.error('Erro na importação:', err)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const e = err as any
+            const msg = e?.message || e?.details || e?.hint || 'erro desconhecido'
             setImportResult({ cardsCreated: 0, cardsUpdated: 0, productsImported: 0, skipped: skippedByUser, errors: toProcess.length })
             setStep('done')
-            toast.error('Erro ao importar viagens')
+            toast.error(`Erro ao importar: ${msg}`, { duration: 10000 })
         }
     }
 
