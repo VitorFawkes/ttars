@@ -12,8 +12,6 @@ export interface OrgSettings {
     default_currency?: string
     timezone?: string
     date_format?: string
-    /** Exige card pai em Pós-venda para criar sub-card. Default: true. */
-    sub_card_requires_pos_venda?: boolean
 }
 
 export interface Organization {

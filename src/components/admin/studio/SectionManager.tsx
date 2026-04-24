@@ -6,7 +6,7 @@ import { useProductContext } from '../../../hooks/useProductContext'
 import { useFieldConfig } from '../../../hooks/useFieldConfig'
 import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig'
 import PhaseFieldConfigPanel from './PhaseFieldConfigPanel'
-import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square, ChevronsUpDown, Calendar } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Edit2, Check, X, Lock, EyeOff, Eye, ToggleLeft, ToggleRight, Layers, CheckSquare, Square, ChevronsUpDown, Calendar, Workflow } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -88,15 +88,45 @@ const defaultFormData: SectionFormData = {
     is_governable: true
 }
 
-function DateFeatureToggles() {
+interface ToggleDef {
+    key: string
+    label: string
+    description: string
+}
+
+interface SettingTogglesSectionProps {
+    title: string
+    icon: React.ReactNode
+    keyPrefix: string
+    toggles: ToggleDef[]
+    adminCacheKey: string
+    consumerCacheKey: string
+    /** Quando true, não esconde a seção se não houver linhas (seed pode estar ausente) */
+    alwaysShow?: boolean
+}
+
+/**
+ * Componente genérico para renderizar uma sub-seção de toggles lidos/escritos
+ * em `integration_settings`. Usado por "Regras de Data de Viagem" (date_features.*)
+ * e "Regras de Sub-Cards" (card_rules.*).
+ */
+function SettingTogglesSection({
+    title,
+    icon,
+    keyPrefix,
+    toggles,
+    adminCacheKey,
+    consumerCacheKey,
+    alwaysShow,
+}: SettingTogglesSectionProps) {
     const queryClient = useQueryClient()
     const { data: settings, isLoading } = useQuery({
-        queryKey: ['date-feature-settings-admin'],
+        queryKey: [adminCacheKey],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('integration_settings')
                 .select('key, value, description')
-                .like('key', 'date_features.%')
+                .like('key', `${keyPrefix}%`)
             if (error) throw error
             return data as { key: string; value: string; description: string | null }[]
         },
@@ -111,35 +141,23 @@ function DateFeatureToggles() {
             if (error) throw error
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['date-feature-settings-admin'] })
-            queryClient.invalidateQueries({ queryKey: ['date-feature-settings'] })
+            queryClient.invalidateQueries({ queryKey: [adminCacheKey] })
+            queryClient.invalidateQueries({ queryKey: [consumerCacheKey] })
         },
     })
 
-    if (isLoading || !settings || settings.length === 0) return null
-
-    const toggles = [
-        {
-            key: 'date_features.pos_venda_alert_enabled',
-            label: 'Alerta ao mover para Pós-Venda',
-            description: 'Exibe confirmação de data de viagem ao mover card para a primeira etapa de pós-venda',
-        },
-        {
-            key: 'date_features.auto_calc_from_products_enabled',
-            label: 'Auto-calcular Data Viagem c/ Welcome',
-            description: 'Calcula automaticamente a data a partir dos produtos financeiros (exceto seguro viagem)',
-        },
-    ]
+    if (isLoading) return null
+    if (!alwaysShow && (!settings || settings.length === 0)) return null
 
     return (
         <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
             <h3 className="text-sm font-bold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-orange-500" />
-                Regras de Data de Viagem
+                {icon}
+                {title}
             </h3>
             <div className="space-y-3">
                 {toggles.map(toggle => {
-                    const setting = settings.find(s => s.key === toggle.key)
+                    const setting = settings?.find(s => s.key === toggle.key)
                     const isEnabled = setting?.value === 'true'
                     return (
                         <div key={toggle.key} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors">
@@ -150,8 +168,9 @@ function DateFeatureToggles() {
                             <button
                                 type="button"
                                 onClick={() => updateMutation.mutate({ key: toggle.key, value: isEnabled ? 'false' : 'true' })}
-                                disabled={updateMutation.isPending}
-                                className="flex-shrink-0 ml-4"
+                                disabled={updateMutation.isPending || !setting}
+                                className="flex-shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={!setting ? 'Setting ainda não inicializado para este workspace' : undefined}
                             >
                                 {isEnabled ? (
                                     <ToggleRight className="w-8 h-8 text-green-600" />
@@ -164,6 +183,49 @@ function DateFeatureToggles() {
                 })}
             </div>
         </div>
+    )
+}
+
+function DateFeatureToggles() {
+    return (
+        <SettingTogglesSection
+            title="Regras de Data de Viagem"
+            icon={<Calendar className="w-4 h-4 text-orange-500" />}
+            keyPrefix="date_features."
+            adminCacheKey="date-feature-settings-admin"
+            consumerCacheKey="date-feature-settings"
+            toggles={[
+                {
+                    key: 'date_features.pos_venda_alert_enabled',
+                    label: 'Alerta ao mover para Pós-Venda',
+                    description: 'Exibe confirmação de data de viagem ao mover card para a primeira etapa de pós-venda',
+                },
+                {
+                    key: 'date_features.auto_calc_from_products_enabled',
+                    label: 'Auto-calcular Data Viagem c/ Welcome',
+                    description: 'Calcula automaticamente a data a partir dos produtos financeiros (exceto seguro viagem)',
+                },
+            ]}
+        />
+    )
+}
+
+function SubCardRulesToggles() {
+    return (
+        <SettingTogglesSection
+            title="Regras de Sub-Cards"
+            icon={<Workflow className="w-4 h-4 text-indigo-500" />}
+            keyPrefix="card_rules."
+            adminCacheKey="card-rules-settings-admin"
+            consumerCacheKey="card-rules-settings"
+            toggles={[
+                {
+                    key: 'card_rules.subcard_requires_pos_venda',
+                    label: 'Exigir Pós-Venda para criar sub-card',
+                    description: 'Só permite criar mudanças e vendas extras quando o card principal já está em Pós-Venda. Evita sub-cards criados por engano em etapas comerciais.',
+                },
+            ]}
+        />
     )
 }
 
@@ -356,6 +418,9 @@ export default function SectionManager() {
 
             {/* Regras de Data */}
             <DateFeatureToggles />
+
+            {/* Regras de Sub-Cards */}
+            <SubCardRulesToggles />
 
             {/* Form (Add/Edit) */}
             {(isAdding || editingId) && (
