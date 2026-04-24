@@ -42,6 +42,92 @@ const VOUCHERS_APP_ALIASES = ['vouchers no app']
 const CONTRATO_VOUCHER_ALIASES = ['contr/ voucher', 'contr./voucher', 'contr./ voucher', 'contrato voucher', 'contrato/voucher']
 const DATA_VENDA_ALIASES = ['data venda']
 
+// ─── Title formatting helpers ──────────────────────────────
+
+const MONTHS_PT = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
+
+// Keywords que indicam companhia aérea (não é destino).
+// Minúsculo, comparação via includes no fornecedor normalizado.
+const AIRLINE_KEYWORDS = [
+    'gol', 'latam', 'tam ', 'azul', 'tap ', 'american', 'delta',
+    'united', 'air france', 'klm', 'iberia', 'lufthansa', 'emirates',
+    'qatar', 'turkish', 'copa', 'avianca', 'jetblue', 'alitalia',
+    'british airways', 'aeromexico', 'swiss', 'austrian',
+    'airlines', 'aerolineas', 'airways',
+]
+
+const DESTINO_MAX_LEN = 30
+
+function capitalizeWord(w: string): string {
+    if (!w) return ''
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+}
+
+/** Nome curto: primeira + segunda palavra, capitalizadas. */
+function formatShortName(fullName: string): string {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return 'Sem nome'
+    if (parts.length === 1) return capitalizeWord(parts[0])
+    return `${capitalizeWord(parts[0])} ${capitalizeWord(parts[1])}`
+}
+
+/** Formata uma data ISO (yyyy-mm-dd) como "DD MMM AA" (ex: "04 JUL 26"). */
+function formatDateShort(iso: string): string {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!m) return iso
+    const [, y, mm, d] = m
+    const mmm = MONTHS_PT[parseInt(mm, 10) - 1] || '???'
+    const yy = y.slice(2)
+    return `${d} ${mmm} ${yy}`
+}
+
+function formatDateRangeShort(inicio: string | null, fim: string | null): string {
+    if (!inicio && !fim) return 'Sem data'
+    if (inicio && fim && inicio !== fim) {
+        return `${formatDateShort(inicio)} - ${formatDateShort(fim)}`
+    }
+    return formatDateShort((inicio || fim) as string)
+}
+
+/** Tira destino do trip a partir dos fornecedores dos produtos, ignorando companhias aéreas. */
+function extractDestination(products: { fornecedor: string }[]): string {
+    const uniq: string[] = []
+    const seen = new Set<string>()
+    for (const p of products) {
+        const f = (p.fornecedor || '').trim()
+        if (!f) continue
+        const lower = f.toLowerCase()
+        const isAirline = AIRLINE_KEYWORDS.some(k => lower.includes(k))
+        if (isAirline) continue
+        if (!seen.has(lower)) {
+            seen.add(lower)
+            uniq.push(f)
+        }
+    }
+    if (uniq.length === 0) return 'SEM DESTINO'
+    let first = uniq[0]
+    if (first.length > DESTINO_MAX_LEN) {
+        first = first.slice(0, DESTINO_MAX_LEN - 3).trimEnd() + '...'
+    }
+    if (uniq.length > 1) {
+        return `${first} + ${uniq.length - 1}`
+    }
+    return first
+}
+
+/** Gera o título padrão: "Nome Sobrenome / Destino / DD MMM AA - DD MMM AA". */
+function buildTripTitle(
+    pagante: string,
+    products: { fornecedor: string }[],
+    dataInicio: string | null,
+    dataFim: string | null,
+): string {
+    const name = formatShortName(pagante)
+    const destino = extractDestination(products)
+    const dates = formatDateRangeShort(dataInicio, dataFim)
+    return `${name} / ${destino} / ${dates}`
+}
+
 // ─── Types ──────────────────────────────────────────────────
 
 interface PosVendaCsvRow {
@@ -954,8 +1040,8 @@ export default function ImportacaoPosVendaPage() {
             const vendedorNorm = norm(trip.vendedor)
             const vendedorProfileId = profileMap.get(vendedorNorm) || null
 
-            // Build title
-            const titulo = `${trip.pagantePrincipal} - ${formatDateBR(trip.dataFim) || 'Sem data'}`
+            // Build title — padrão novo: "Nome Sobrenome / Destino / DD MMM AA - DD MMM AA"
+            const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
             // Check existing cards by venda nums
             let existingCardId: string | null = null
@@ -1134,7 +1220,7 @@ export default function ImportacaoPosVendaPage() {
         try {
             const payload = toProcess.map(trip => ({
                 existing_card_id: trip.existingCardId,
-                titulo: `${trip.pagantePrincipal} - ${formatDateBR(trip.dataFim) || 'Sem data'}`,
+                titulo: buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim),
                 cpf_norm: trip.cpfNorm,
                 cpf_raw: trip.cpfPrincipal,
                 pagante_nome: trip.pagantePrincipal,
@@ -1211,7 +1297,7 @@ export default function ImportacaoPosVendaPage() {
                             import_log_id: logRow.id,
                             card_id: rpcItem?.card_id || null,
                             action: t.action === 'create' ? 'created' : 'updated',
-                            card_title: `${t.pagantePrincipal} - ${formatDateBR(t.dataFim) || ''}`,
+                            card_title: buildTripTitle(t.pagantePrincipal, t.products, t.dataInicio, t.dataFim),
                             pagante: t.pagantePrincipal,
                             cpf: t.cpfPrincipal,
                             venda_nums: t.vendaNums,
@@ -1230,7 +1316,7 @@ export default function ImportacaoPosVendaPage() {
                             import_log_id: logRow.id,
                             card_id: null,
                             action: 'skipped',
-                            card_title: `${t.pagantePrincipal} - ${formatDateBR(t.dataFim) || ''}`,
+                            card_title: buildTripTitle(t.pagantePrincipal, t.products, t.dataInicio, t.dataFim),
                             pagante: t.pagantePrincipal,
                             cpf: t.cpfPrincipal,
                             venda_nums: t.vendaNums,
