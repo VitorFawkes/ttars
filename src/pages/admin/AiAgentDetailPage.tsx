@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send, MessageCircle,
+  GitBranch, Settings, Zap, Send, MessageCircle, Target,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -35,6 +35,7 @@ import { TabCenariosEspeciais } from '@/components/ai-agent/editor/TabCenariosEs
 import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
 import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
 import { TabPlaybook } from '@/components/ai-agent/editor/playbook/TabPlaybook'
+import { TabPontuacao } from '@/components/ai-agent/editor/TabPontuacao'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
@@ -312,6 +313,7 @@ export default function AiAgentDetailPage() {
     ]
     const sharedTabs: EditorTab[] = [
       { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
+      { id: 'pontuacao', label: 'Pontuação', icon: Target },
       { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
       { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
       { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
@@ -431,6 +433,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
+        {activeTab === 'pontuacao' && !isNew && id && <TabPontuacao agentId={id} />}
         {activeTab === 'prompts' && !isN8n && <TabPrompts form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}

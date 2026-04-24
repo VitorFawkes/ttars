@@ -1,10 +1,16 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, GripVertical, Trash2, Save, Loader2, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAgentMoments, type PlaybookMoment } from '@/hooks/playbook/useAgentMoments'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
+
+const ANCHOR_VARIABLES: Array<{ token: string; label: string }> = [
+  { token: '{contact_name}', label: 'Nome do lead' },
+  { token: '{agent_name}', label: 'Nome do agente' },
+  { token: '{company_name}', label: 'Nome da empresa' },
+]
 
 interface Props {
   agentId: string
@@ -40,8 +46,28 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
   const [newRedLine, setNewRedLine] = useState('')
   const [dirty, setDirty] = useState(false)
+  const anchorRef = useRef<HTMLTextAreaElement | null>(null)
 
   const markDirty = () => setDirty(true)
+
+  const insertVariable = (token: string) => {
+    const el = anchorRef.current
+    if (!el) {
+      setAnchor((prev) => (prev ?? '') + token)
+      markDirty()
+      return
+    }
+    const start = el.selectionStart ?? anchor.length
+    const end = el.selectionEnd ?? anchor.length
+    const next = anchor.slice(0, start) + token + anchor.slice(end)
+    setAnchor(next)
+    markDirty()
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = start + token.length
+      el.setSelectionRange(pos, pos)
+    })
+  }
 
   const handleSave = async () => {
     try {
@@ -156,9 +182,33 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                 onSelect={(t) => { setAnchor(t); markDirty() }}
               />
             </div>
-            <textarea value={anchor} onChange={(e) => { setAnchor(e.target.value); markDirty() }}
+            <textarea
+              ref={anchorRef}
+              value={anchor}
+              onChange={(e) => { setAnchor(e.target.value); markDirty() }}
               placeholder={mode === 'free' ? 'Descreva o objetivo' : 'Use {contact_name} para o nome do lead'}
-              className="w-full min-h-[80px] rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              className="w-full min-h-[80px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            {mode !== 'free' && (
+              <div className="mt-1.5">
+                <div className="text-[11px] text-slate-500 mb-1">
+                  Variáveis disponíveis (clique pra inserir onde o cursor está):
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {ANCHOR_VARIABLES.map((v) => (
+                    <button
+                      key={v.token}
+                      type="button"
+                      onClick={() => insertVariable(v.token)}
+                      className="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 font-mono"
+                      title={v.label}
+                    >
+                      {v.token}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
