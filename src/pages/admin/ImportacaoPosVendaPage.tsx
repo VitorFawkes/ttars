@@ -1257,22 +1257,54 @@ export default function ImportacaoPosVendaPage() {
                 acompanhantes: trip.acompanhantes,
             }))
 
+            // Batching: triggers cascata em cards/tarefas são pesados. Processa em
+            // lotes de 15 pra não estourar timeout e mostrar progresso real.
+            const BATCH_SIZE = 15
+            let cardsCreated = 0
+            let cardsUpdated = 0
+            let productsImported = 0
+            let contactsCreated = 0
+            let totalErrors = 0
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error: rpcError } = await (supabase as any).rpc('bulk_create_pos_venda_cards', {
-                p_trips: payload,
-                p_created_by: profile?.id,
-            })
-
-            if (rpcError) throw rpcError
-
+            const allRpcResults: any[] = []
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const result = data as any
-            const cardsCreated = result?.cards_created ?? 0
-            const cardsUpdated = result?.cards_updated ?? 0
-            const productsImported = result?.products_imported ?? 0
+            const allErrors: any[] = []
 
-            setImportProgress({ current: toProcess.length, total: toProcess.length })
-            setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: 0 })
+            for (let offset = 0; offset < payload.length; offset += BATCH_SIZE) {
+                const chunk = payload.slice(offset, offset + BATCH_SIZE)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data, error: rpcError } = await (supabase as any).rpc('bulk_create_pos_venda_cards', {
+                    p_trips: chunk,
+                    p_created_by: profile?.id,
+                })
+                if (rpcError) throw rpcError
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const r = data as any
+                cardsCreated += r?.cards_created ?? 0
+                cardsUpdated += r?.cards_updated ?? 0
+                productsImported += r?.products_imported ?? 0
+                contactsCreated += r?.contacts_created ?? 0
+                totalErrors += r?.errors ?? 0
+                // Resultados trazem idx relativo ao chunk; ajustar pro idx global
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const res of (r?.results || []) as any[]) {
+                    const adjusted = { ...res, idx: res.idx + offset }
+                    allRpcResults.push(adjusted)
+                    if (adjusted.action === 'error') allErrors.push(adjusted)
+                }
+                setImportProgress({
+                    current: Math.min(offset + BATCH_SIZE, payload.length),
+                    total: payload.length,
+                })
+            }
+
+            setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: totalErrors })
+            if (allErrors.length > 0) {
+                const firstErr = allErrors[0]
+                toast.error(`${allErrors.length} viagem(ns) com erro. Ex: ${firstErr.error || 'sem detalhe'}`, { duration: 12000 })
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result: any = { results: allRpcResults, contacts_created: contactsCreated }
 
             // Save import log
             try {
