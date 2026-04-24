@@ -70,7 +70,9 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
     : '';
 
   const systemPrompt = `Você é um avaliador objetivo. Analise a conversa abaixo e responda cada pergunta com "yes" ou "no".
-Baseie-se APENAS em evidências do histórico. Se não há evidência clara, responda "no" (conservador).${groupInstruction}
+Baseie-se APENAS em evidências do histórico. Se não há evidência clara, responda "no" (conservador).
+
+NÃO ESTIME, NÃO INFIRA, NÃO PRESUMA. Se uma pergunta depende de uma informação que o casal ainda não confirmou explicitamente (ex: número de pessoas que realmente devem comparecer, valor total declarado sem ambiguidade), responda "no" e deixe claro na reason que falta confirmar. Nunca aplique percentuais, médias ou heurísticas próprias sobre dados parciais.${groupInstruction}
 
 Histórico da conversa:
 ${input.historico_compacto || '(conversa ainda vazia)'}
