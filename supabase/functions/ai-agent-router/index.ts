@@ -3418,18 +3418,39 @@ serve(async (req) => {
         );
       }
 
-      // Debounce window passed — SEMPRE reconstruir processedText a partir do
-      // buffer. Antes o código só fazia combine quando length>1, assumindo que
-      // em length=1 o input.message_text já tinha o conteúdo. Mas com self-drain
-      // (input.message_text="") isso perdia a msg. Fix 2026-04-23: sempre usa
-      // o buffer como fonte-de-verdade do que o lead falou.
-      const combined = buffered.map((b) => b.message_text).filter(Boolean).join("\n");
+      // Debounce window passed. Fix 2026-04-24: race-condition — dois drains
+      // simultâneos estavam rodando o pipeline 2x. Agora usa UPDATE...RETURNING
+      // atômico pra claim exclusivo das msgs: o primeiro drain captura tudo e
+      // marca processed_at, o segundo (se chegar simultâneo) recebe 0 rows e
+      // sai sem disparar pipeline. Repl.
+      const claimTimestamp = new Date().toISOString();
+      const { data: claimed } = await supabase
+        .from("ai_message_buffer")
+        .update({ processed_at: claimTimestamp })
+        .eq("contact_phone", normalizedForBuffer)
+        .is("processed_at", null)
+        .select("id, message_text, message_type, media_url, created_at");
+
+      if (!claimed || claimed.length === 0) {
+        // Outro drain simultâneo já capturou as msgs. Este retorna no-op.
+        console.log(`[debounce] claim returned 0 rows — another drain won the race, bailing`);
+        return new Response(
+          JSON.stringify({ handled: true, debounced: true, drain_superseded: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Reordena por created_at (UPDATE...RETURNING não garante ordem)
+      claimed.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      const combined = claimed.map((b) => b.message_text).filter(Boolean).join("\n");
       if (combined) {
         processedText = combined;
-        console.log(`[debounce] Combined ${buffered.length} message(s) from buffer (${combined.length} chars)`);
+        console.log(`[debounce] Claimed ${claimed.length} message(s) from buffer atomically (${combined.length} chars)`);
       }
+
       // Process media from the last media message in buffer (respeita multimodal_config)
-      const lastMedia = [...buffered].reverse().find((b) => b.message_type !== "text" && b.media_url);
+      const lastMedia = [...claimed].reverse().find((b) => b.message_type !== "text" && b.media_url);
       if (lastMedia) {
         const mediaContent = await processMediaInline(
           lastMedia.message_type,
@@ -3439,13 +3460,6 @@ serve(async (req) => {
         );
         processedText = processedText + "\n" + mediaContent;
       }
-
-      // Mark all buffered messages as processed
-      await supabase
-        .from("ai_message_buffer")
-        .update({ processed_at: new Date().toISOString() })
-        .eq("contact_phone", normalizedForBuffer)
-        .is("processed_at", null);
     }
 
     // ── 5b. Salvar mensagem do usuario ──
