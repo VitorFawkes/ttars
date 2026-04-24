@@ -324,6 +324,7 @@ function DimensionsSection({
       label: 'Nova regra',
       ordem: (grouped[dimension]?.length ?? 0) * 10 + 10,
       ativa: true,
+      rule_type: 'qualify',
     })
   }
 
@@ -488,6 +489,7 @@ function RuleRow({
       label,
       ordem: rule.ordem,
       ativa,
+      rule_type: rule.rule_type ?? 'qualify',
     })
   }
 

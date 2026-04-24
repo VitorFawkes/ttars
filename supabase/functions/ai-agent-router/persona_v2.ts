@@ -27,6 +27,7 @@ import {
 } from "./playbook_loader.ts";
 import { detectMoment, type MomentDetectionContext } from "./moment_detector.ts";
 import { buildPromptV2 } from "./prompt_builder_v2.ts";
+import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
 
 // ---------------------------------------------------------------------------
 // Types (alinhados com index.ts — evitamos import circular definindo o mínimo)
@@ -120,8 +121,12 @@ export async function runPersonaAgent_v2(
     throw new Error(`persona_v2: agent ${agent.id} playbook_enabled=true mas nenhum momento configurado`);
   }
 
-  // 2. Calcula score via RPC existente (compat v1)
-  const scoreInfo = await calculateCurrentScore(supabase, agent.id, ctx, qualificationSignals);
+  // 2. Calcula score via RPC existente + avaliação ai_subjective (Marco 3.1)
+  const scoreInfo = await calculateCurrentScore(
+    supabase, agent.id, ctx, qualificationSignals,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    scoringRules as any, agent.nome,
+  );
 
   // 3. Detecta momento atual (híbrido: determinístico + LLM)
   const detCtx: MomentDetectionContext = {
@@ -227,6 +232,9 @@ async function calculateCurrentScore(
   agentId: string,
   ctx: CtxV2,
   qualificationSignals: Record<string, string>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scoringRules?: any[],
+  agentName?: string,
 ): Promise<{
   enabled: boolean;
   score: number | null;
@@ -235,9 +243,37 @@ async function calculateCurrentScore(
   disqualified?: boolean;
   breakdown?: Array<Record<string, unknown>>;
 }> {
-  // Inputs = combinação de form_data (persistido) + qualificationSignals (inferido)
-  // — mesma lógica que o persona v1 usa pra "JÁ SABEMOS".
   const inputs: Record<string, unknown> = { ...ctx.form_data, ...qualificationSignals };
+
+  // Pré-processa regras ai_subjective via LLM (Marco 3.1)
+  const subjectiveResults: Record<string, boolean> = {};
+  if (scoringRules && scoringRules.length > 0) {
+    const subj = scoringRules.filter((r) => r.condition_type === 'ai_subjective');
+    if (subj.length > 0) {
+      const openaiKey = Deno.env.get('OPENAI_API_KEY');
+      if (openaiKey) {
+        try {
+          const evalRes = await evaluateSubjectiveRules({
+            rules: subj,
+            historico_compacto: ctx.historico_compacto,
+            ai_resumo: ctx.ai_resumo,
+            ai_contexto: ctx.ai_contexto,
+            agentName: agentName ?? '',
+            openaiApiKey: openaiKey,
+          });
+          Object.assign(subjectiveResults, evalRes.resolved);
+          console.log(JSON.stringify({
+            event: 'subjective_evaluated',
+            agent_id: agentId, rules_count: subj.length,
+            resolved: evalRes.resolved, tokens: evalRes.tokens,
+            elapsed_ms: evalRes.elapsed_ms,
+          }));
+        } catch (err) {
+          console.warn('[persona_v2] subjective eval failed:', err);
+        }
+      }
+    }
+  }
 
   try {
     const { data, error } = await supabase.rpc('calculate_agent_qualification_score', {
@@ -248,13 +284,40 @@ async function calculateCurrentScore(
       console.warn('[persona_v2] calculate_agent_qualification_score error:', error);
       return { enabled: false, score: null, threshold: null, qualificado: null };
     }
+
+    // Aplica regras ai_subjective resolvidas (não são conhecidas pela RPC)
+    let score = Number(data?.score ?? 0);
+    let disqualified = Boolean(data?.disqualified ?? false);
+    const breakdown = Array.isArray(data?.breakdown) ? [...data.breakdown] : [];
+
+    if (scoringRules) {
+      for (const r of scoringRules) {
+        if (r.condition_type !== 'ai_subjective') continue;
+        if (subjectiveResults[r.id] !== true) continue;
+        if (r.rule_type === 'disqualify') {
+          disqualified = true;
+        } else {
+          score += Number(r.weight ?? 0);
+          breakdown.push({
+            dimension: r.dimension,
+            label: r.label ?? r.dimension,
+            weight: r.weight ?? 0,
+            rule_id: r.id,
+            rule_type: r.rule_type ?? 'qualify',
+            source: 'ai_subjective',
+          });
+        }
+      }
+    }
+
+    const threshold = Number(data?.threshold ?? 0);
     return {
-      enabled: data?.enabled ?? false,
-      score: data?.score ?? null,
-      threshold: data?.threshold ?? null,
-      qualificado: data?.qualificado ?? null,
-      disqualified: data?.disqualified ?? false,
-      breakdown: data?.breakdown ?? [],
+      enabled: Boolean(data?.enabled),
+      score,
+      threshold,
+      qualificado: disqualified ? false : score >= threshold,
+      disqualified,
+      breakdown,
     };
   } catch (err) {
     console.warn('[persona_v2] score calculation failed:', err);

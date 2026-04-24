@@ -313,7 +313,9 @@ export default function AiAgentDetailPage() {
     ]
     const sharedTabs: EditorTab[] = [
       { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
-      { id: 'pontuacao', label: 'Pontuação', icon: Target },
+      // Aba Pontuação só aparece em modo clássico — no Playbook v2 a qualificação
+      // vive dentro da seção Qualificação (inline, CRUD completo).
+      ...(form.playbook_enabled ? [] : [{ id: 'pontuacao', label: 'Pontuação', icon: Target } as EditorTab]),
       { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
       { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
       { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },

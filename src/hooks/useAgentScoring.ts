@@ -5,36 +5,30 @@ import { supabase } from '../lib/supabase'
 // Tipos genericos — qualquer agente da plataforma pode usar scoring
 // ============================================================================
 
-export type ConditionType = 'equals' | 'range' | 'boolean_true'
+export type ConditionType = 'equals' | 'range' | 'boolean_true' | 'ai_subjective'
+export type RuleType = 'qualify' | 'disqualify' | 'bonus'
 
 /**
- * Valor da condicao armazenado em JSONB. Formato depende do condition_type:
- *
- *   equals       → { value: string }
- *     ex: { value: "Caribe" }, { value: "Enterprise" }
- *
- *   range        → { min: number | null, max: number | null }
- *     ex: { min: 1750, max: 2250 }, { min: 3750, max: null }   // null = infinito
- *
- *   boolean_true → { field: string }
- *     ex: { field: "viagem_internacional" }, { field: "tem_decisor_confirmado" }
+ * Valor da condicao armazenado em JSONB. Formato depende do condition_type.
  */
 export type ConditionValue =
   | { value: string }
   | { min: number | null; max: number | null }
   | { field: string }
+  | { question: string }
 
 export interface ScoringRule {
   id: string
   org_id: string
   agent_id: string
-  dimension: string           // livre: "regiao", "valor_convidado", "sinal_indireto", "urgencia", etc
+  dimension: string
   condition_type: ConditionType
   condition_value: ConditionValue
   weight: number
   label: string | null
   ordem: number
   ativa: boolean
+  rule_type: RuleType
   created_at: string
   updated_at: string
 }
