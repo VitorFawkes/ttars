@@ -74,6 +74,7 @@ export interface VoiceConfig {
 export interface BoundariesConfig {
   library_active?: string[];
   custom?: string[];
+  custom_by_category?: Record<string, string[]>;
 }
 
 export interface ScoringRule {

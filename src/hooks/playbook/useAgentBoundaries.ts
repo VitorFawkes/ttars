@@ -3,7 +3,10 @@ import { supabase } from '../../lib/supabase'
 
 export interface BoundariesConfig {
   library_active?: string[]
+  /** Legacy: linhas personalizadas sem categoria (viram "Personalizado") */
   custom?: string[]
+  /** Novo (Marco 3.2): linhas personalizadas por categoria editável */
+  custom_by_category?: Record<string, string[]>
 }
 
 export function useAgentBoundaries(agentId?: string) {

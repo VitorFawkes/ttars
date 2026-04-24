@@ -222,22 +222,41 @@ function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMo
 }
 
 function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
-  const rules: string[] = [];
+  if (!boundaries) return '';
 
-  if (boundaries?.library_active) {
+  const sections: string[] = [];
+
+  // 1. Biblioteca ativa — agrupada como "Globais"
+  const libraryRules: string[] = [];
+  if (boundaries.library_active) {
     for (const id of boundaries.library_active) {
-      if (BOUNDARIES_LIBRARY[id]) rules.push(BOUNDARIES_LIBRARY[id]);
+      if (BOUNDARIES_LIBRARY[id]) libraryRules.push(BOUNDARIES_LIBRARY[id]);
     }
   }
-  if (boundaries?.custom) {
-    for (const c of boundaries.custom) {
-      if (c && c.trim()) rules.push(c.trim());
+  if (libraryRules.length > 0) {
+    sections.push(`Globais:\n${libraryRules.map(r => `- ${r}`).join('\n')}`);
+  }
+
+  // 2. Personalizadas por categoria (novo formato)
+  if (boundaries.custom_by_category) {
+    for (const [category, items] of Object.entries(boundaries.custom_by_category)) {
+      const clean = (items ?? []).filter(i => i && i.trim());
+      if (clean.length > 0) {
+        sections.push(`${category}:\n${clean.map(r => `- ${r.trim()}`).join('\n')}`);
+      }
     }
   }
 
-  if (rules.length === 0) return '';
-  const lines = rules.map(r => `- ${r}`).join('\n');
-  return `<boundaries>\nLinhas vermelhas globais (valem sempre):\n${lines}\n</boundaries>`;
+  // 3. Legacy: custom como lista plana (se houver e não duplicado)
+  if (boundaries.custom && boundaries.custom.length > 0) {
+    const clean = boundaries.custom.filter(c => c && c.trim());
+    if (clean.length > 0) {
+      sections.push(`Personalizado (legacy):\n${clean.map(r => `- ${r.trim()}`).join('\n')}`);
+    }
+  }
+
+  if (sections.length === 0) return '';
+  return `<boundaries>\nLinhas vermelhas (valem sempre):\n\n${sections.join('\n\n')}\n</boundaries>`;
 }
 
 function renderQualificationBlock(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Save, Plus, X } from 'lucide-react'
+import { Loader2, Save, Plus, X, FolderPlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -13,18 +13,28 @@ interface Props {
   companyName: string
 }
 
+const DEFAULT_CATEGORIES = ['Comercial', 'Comunicação', 'Marca', 'Comportamento']
+
 export function BoundariesSection({ agentId, agentName, companyName }: Props) {
   const { boundaries, isLoading, save } = useAgentBoundaries(agentId)
   const [active, setActive] = useState<string[]>([])
-  const [custom, setCustom] = useState<string[]>([])
-  const [newCustom, setNewCustom] = useState('')
+  const [customByCategory, setCustomByCategory] = useState<Record<string, string[]>>({})
+  const [newItemByCategory, setNewItemByCategory] = useState<Record<string, string>>({})
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [showAddCategory, setShowAddCategory] = useState(false)
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     setActive(boundaries?.library_active ?? [])
-    setCustom(boundaries?.custom ?? [])
+    // Migração silenciosa: se existe `custom` legacy, põe em categoria "Personalizado"
+    const cbc: Record<string, string[]> = { ...(boundaries?.custom_by_category ?? {}) }
+    const legacyCustom = boundaries?.custom ?? []
+    if (legacyCustom.length > 0 && !cbc['Personalizado']) {
+      cbc['Personalizado'] = legacyCustom
+    }
+    setCustomByCategory(cbc)
     setDirty(false)
-  }, [boundaries?.library_active, boundaries?.custom])
+  }, [boundaries?.library_active, boundaries?.custom, boundaries?.custom_by_category])
 
   const markDirty = () => setDirty(true)
   const toggle = (id: string) => {
@@ -34,27 +44,69 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
   }
 
   const handleSave = async () => {
-    const config: BoundariesConfig = { library_active: active, custom }
+    const config: BoundariesConfig = {
+      library_active: active,
+      custom_by_category: customByCategory,
+      custom: [], // zera legacy (agora tudo vive em custom_by_category)
+    }
     try { await save.mutateAsync(config); toast.success('Linhas vermelhas salvas'); setDirty(false) }
     catch (err) { console.error(err); toast.error('Não consegui salvar.') }
   }
 
+  const addItem = (cat: string) => {
+    const text = (newItemByCategory[cat] ?? '').trim()
+    if (!text) return
+    setCustomByCategory(prev => ({ ...prev, [cat]: [...(prev[cat] ?? []), text] }))
+    setNewItemByCategory(prev => ({ ...prev, [cat]: '' }))
+    markDirty()
+  }
+  const removeItem = (cat: string, idx: number) => {
+    setCustomByCategory(prev => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }))
+    markDirty()
+  }
+  const addCategory = () => {
+    const name = newCategoryName.trim()
+    if (!name) return
+    if (customByCategory[name]) { toast.error('Essa categoria já existe'); return }
+    setCustomByCategory(prev => ({ ...prev, [name]: [] }))
+    setNewCategoryName('')
+    setShowAddCategory(false)
+    markDirty()
+  }
+  const removeCategory = (cat: string) => {
+    if ((customByCategory[cat] ?? []).length > 0) {
+      if (!confirm(`Apagar a categoria "${cat}" e as ${customByCategory[cat].length} linhas dentro dela?`)) return
+    }
+    setCustomByCategory(prev => {
+      const next = { ...prev }; delete next[cat]; return next
+    })
+    markDirty()
+  }
+
   if (isLoading) return <div className="py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></div>
 
-  const byCategory = {
+  const libraryByCat = {
     comercial: BOUNDARIES_LIBRARY.filter(b => b.category === 'comercial'),
     comunicacao: BOUNDARIES_LIBRARY.filter(b => b.category === 'comunicacao'),
     marca: BOUNDARIES_LIBRARY.filter(b => b.category === 'marca'),
     comportamento: BOUNDARIES_LIBRARY.filter(b => b.category === 'comportamento'),
   }
 
+  // Garante que categorias default apareçam mesmo vazias
+  const allCategories = Array.from(new Set([
+    ...DEFAULT_CATEGORIES,
+    ...Object.keys(customByCategory),
+  ]))
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Biblioteca prontos */}
       <div>
-        <p className="text-sm text-slate-600 mb-3">Marque as linhas vermelhas padrão que se aplicam a esse agente:</p>
-        {Object.entries(byCategory).map(([cat, items]) => (
+        <h4 className="text-sm font-medium text-slate-900 mb-1">Biblioteca de linhas vermelhas</h4>
+        <p className="text-xs text-slate-500 mb-3">Marque as que se aplicam a esse agente:</p>
+        {Object.entries(libraryByCat).map(([cat, items]) => (
           <div key={cat} className="mb-4">
-            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{cat}</h4>
+            <h5 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{cat}</h5>
             <div className="space-y-1">
               {items.map(b => (
                 <label key={b.id} className={cn('flex items-start gap-2 p-2 rounded-md border cursor-pointer transition-colors',
@@ -71,37 +123,86 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
         ))}
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-slate-700">Personalizadas</label>
-          <SuggestVariationsButton
-            text=""
-            fieldType="red_line"
-            context={{ agent_nome: agentName, company_name: companyName }}
-            onSelect={(t) => { setCustom([...custom, t]); markDirty() }}
-            label="Sugerir +"
-          />
+      {/* Personalizadas — agora por categoria editável */}
+      <div className="pt-4 border-t border-slate-100">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h4 className="text-sm font-medium text-slate-900">Personalizadas</h4>
+            <p className="text-xs text-slate-500 mt-0.5">Suas próprias regras, organizadas em categorias.</p>
+          </div>
+          {!showAddCategory && (
+            <Button variant="outline" size="sm" onClick={() => setShowAddCategory(true)} className="gap-1.5">
+              <FolderPlus className="w-3.5 h-3.5" /> Nova categoria
+            </Button>
+          )}
         </div>
-        {custom.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">(nenhuma)</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {custom.map((c, i) => (
-              <span key={i} className="text-xs px-2 py-1 rounded-md border bg-rose-50 border-rose-100 text-rose-700 inline-flex items-center gap-1.5">
-                {c}
-                <button onClick={() => { setCustom(custom.filter((_, j) => j !== i)); markDirty() }}><X className="w-3 h-3" /></button>
-              </span>
-            ))}
+
+        {showAddCategory && (
+          <div className="flex gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+              placeholder="Nome da categoria (ex: Valores, Política interna)"
+              className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm" autoFocus />
+            <Button size="sm" onClick={addCategory} className="gap-1"><Plus className="w-3.5 h-3.5" /> Criar</Button>
+            <Button size="sm" variant="outline" onClick={() => { setNewCategoryName(''); setShowAddCategory(false) }}>Cancelar</Button>
           </div>
         )}
-        <div className="flex gap-2 mt-2">
-          <input value={newCustom} onChange={(e) => setNewCustom(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newCustom.trim()) { setCustom([...custom, newCustom.trim()]); setNewCustom(''); markDirty() } } }}
-            placeholder="Ex: Nunca usa emoji na primeira mensagem"
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-          <Button size="sm" variant="outline" onClick={() => { if (newCustom.trim()) { setCustom([...custom, newCustom.trim()]); setNewCustom(''); markDirty() } }} className="gap-1">
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
+
+        <div className="space-y-4">
+          {allCategories.map(cat => {
+            const items = customByCategory[cat] ?? []
+            const isCustomCat = !DEFAULT_CATEGORIES.includes(cat)
+            return (
+              <div key={cat} className="border border-slate-200 rounded-lg bg-white">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+                  <h5 className="text-xs font-medium text-slate-700 uppercase tracking-wide">{cat}</h5>
+                  <div className="flex items-center gap-2">
+                    <SuggestVariationsButton
+                      text=""
+                      fieldType="red_line"
+                      context={{ agent_nome: agentName, company_name: companyName, related_moment_label: cat }}
+                      onSelect={(t) => {
+                        setCustomByCategory(prev => ({ ...prev, [cat]: [...(prev[cat] ?? []), t] }))
+                        markDirty()
+                      }}
+                      label="Sugerir"
+                    />
+                    {isCustomCat && (
+                      <button onClick={() => removeCategory(cat)} className="text-slate-400 hover:text-red-600"
+                        title="Apagar categoria">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="p-3 space-y-2">
+                  {items.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">(nenhuma personalizada nesta categoria)</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((c, i) => (
+                        <span key={i} className="text-xs px-2 py-1 rounded-md border bg-rose-50 border-rose-100 text-rose-700 inline-flex items-center gap-1.5">
+                          {c}
+                          <button onClick={() => removeItem(cat, i)}><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      value={newItemByCategory[cat] ?? ''}
+                      onChange={(e) => setNewItemByCategory(prev => ({ ...prev, [cat]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(cat) } }}
+                      placeholder="Ex: Nunca dar desconto sem aprovação"
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
+                    <Button size="sm" variant="outline" onClick={() => addItem(cat)} className="gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
