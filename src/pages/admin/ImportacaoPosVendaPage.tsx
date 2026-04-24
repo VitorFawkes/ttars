@@ -502,6 +502,7 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
     }[trip.action]
 
     const showStageDecision = trip.action === 'update' && !!trip.existingStageId && trip.existingStageId !== trip.stage.id
+    const computedTitle = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
     return (
         <div className={cn("border rounded-lg overflow-hidden transition-colors", selected ? "border-slate-200" : "border-slate-100 opacity-50")}>
@@ -527,7 +528,7 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-medium text-slate-900 truncate">
-                            {trip.pagantePrincipal}
+                            {computedTitle}
                         </span>
                         <span className={cn('inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full', actionBadge.cls)}>
                             {actionBadge.label}
@@ -536,7 +537,10 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                             {trip.stage.name}
                         </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 truncate mb-0.5">
+                        {trip.pagantePrincipal}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-400">
                         <span>{formatDateBR(trip.dataInicio)} → {formatDateBR(trip.dataFim)}</span>
                         <span className="flex items-center gap-1">
                             <Package className="h-3 w-3" /> {trip.products.length} produtos
