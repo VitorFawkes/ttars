@@ -628,3 +628,14 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-23T18:26:34Z | supabase/migrations/20260423e_reset_nome_empty_not_literal.sql | applied_to_prod
 2026-04-23T19:56:57Z | supabase/migrations/20260424a_ai_agent_presentations_faithful_mode.sql | applied_to_prod
 2026-04-23T20:58:28Z | supabase/migrations/20260423e_criar_sub_card_respeita_setting_pos_venda.sql | applied_to_prod
+2026-04-23T21:55:57Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502a_ai_agent_moments.sql | applied_to_prod
+2026-04-23T21:56:10Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502b_ai_agent_silent_signals.sql | applied_to_prod
+2026-04-23T21:56:19Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502c_ai_agent_few_shot_examples.sql | applied_to_prod
+2026-04-23T21:56:29Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502d_ai_agents_v2_columns.sql | applied_to_prod
+2026-04-23T21:56:39Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502e_ai_agent_scoring_rules_rule_type.sql | applied_to_prod
+2026-04-23T21:56:48Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502f_calculate_agent_qualification_score_v2.sql | applied_to_prod
+2026-04-23T21:56:58Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502g_ai_conversation_turns_v2_columns.sql | applied_to_prod
+2026-04-23T21:57:09Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502h_ai_conversation_state_last_moment.sql | applied_to_prod
+2026-04-23T21:57:19Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502i_ai_agent_templates_playbook.sql | applied_to_prod
+2026-04-23T21:57:28Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502j_seed_playbook_templates.sql | applied_to_prod
+2026-04-23T21:57:38Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260502k_ai_agent_v1_v2_comparison_view.sql | applied_to_prod
