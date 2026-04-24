@@ -736,7 +736,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     onIgnore={() => setIgnoreDuplicates(true)}
                                     onMergeInto={(targetId) => {
                                         onClose()
-                                        navigate(`/card/${targetId}`)
+                                        navigate(`/cards/${targetId}`)
                                     }}
                                 />
                             )}

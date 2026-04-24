@@ -269,21 +269,39 @@ export default function MergeCardsModal({
         setIsMerging(true)
         try {
             const result = await fundirCards(sourceCardId, selectedTargetId, motivo.trim() || undefined)
+
+            // Invalida ANTES de navegar — garante que o CardDetail destino
+            // abre com dados frescos (itens movidos, valor recalculado).
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['cards'] }),
+                queryClient.invalidateQueries({ queryKey: ['card-detail', selectedTargetId] }),
+                queryClient.invalidateQueries({ queryKey: ['card-detail', sourceCardId] }),
+                queryClient.invalidateQueries({ queryKey: ['card-summary', selectedTargetId] }),
+                queryClient.invalidateQueries({ queryKey: ['card-summary', sourceCardId] }),
+                queryClient.invalidateQueries({ queryKey: ['financial-items', selectedTargetId] }),
+                queryClient.invalidateQueries({ queryKey: ['financial-items', sourceCardId] }),
+                queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
+                queryClient.invalidateQueries({ queryKey: ['duplicate-cards'] }),
+            ])
+
+            const destinoTitulo = result.card_destino_titulo || target?.titulo || 'destino'
+            const partes: string[] = []
+            if (result.items_moved > 0) partes.push(`${result.items_moved} produto${result.items_moved === 1 ? '' : 's'}`)
+            if (result.passengers_moved > 0) partes.push(`${result.passengers_moved} viajante${result.passengers_moved === 1 ? '' : 's'}`)
+            if (result.contatos_moved > 0) partes.push(`${result.contatos_moved} contato${result.contatos_moved === 1 ? '' : 's'}`)
+            if (result.activities_moved > 0) partes.push(`${result.activities_moved} atividade${result.activities_moved === 1 ? '' : 's'}`)
+            const lista = partes.length > 0 ? partes.join(', ') : 'dados'
+
             toast({
-                title: 'Cards agrupados com sucesso',
-                description: `${result.items_moved} produto(s) e ${result.contatos_moved} contato(s) movidos.`,
+                title: `Cards agrupados em "${destinoTitulo}"`,
+                description: `${lista} movidos. O card antigo foi arquivado (pode ser recuperado na Lixeira).`,
                 type: 'success',
             })
-            queryClient.invalidateQueries({ queryKey: ['cards'] })
-            queryClient.invalidateQueries({ queryKey: ['card-detail', selectedTargetId] })
-            queryClient.invalidateQueries({ queryKey: ['card-detail', sourceCardId] })
-            queryClient.invalidateQueries({ queryKey: ['financial-items', selectedTargetId] })
-            queryClient.invalidateQueries({ queryKey: ['financial-items', sourceCardId] })
-            queryClient.invalidateQueries({ queryKey: ['pipeline'] })
-            queryClient.invalidateQueries({ queryKey: ['duplicate-cards'] })
-            onMerged?.(selectedTargetId)
+
             setMotivo('')
             onClose()
+            // Só agora navega — modal já fechado, queries atualizadas
+            onMerged?.(selectedTargetId)
         } catch (err) {
             console.error('[MergeCardsModal]', err)
             toast({

@@ -635,7 +635,7 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                 targetCardId={null}
                 onMerged={(destinoId) => {
                     setShowMergeModal(false)
-                    navigate(`/card/${destinoId}`)
+                    navigate(`/cards/${destinoId}`, { replace: true })
                 }}
             />
 

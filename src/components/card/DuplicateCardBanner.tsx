@@ -81,7 +81,7 @@ export default function DuplicateCardBanner({ matches, preCreation = false, onIg
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <Link
-                                            to={`/card/${m.id}`}
+                                            to={`/cards/${m.id}`}
                                             target="_blank"
                                             className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 rounded border border-slate-200"
                                             title="Abrir card em nova aba"
