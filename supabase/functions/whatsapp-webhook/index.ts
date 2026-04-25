@@ -238,6 +238,32 @@ Deno.serve(async (req) => {
                     const contactPhone = data.from || data.remote_phone || data.contact_phone || data.contact?.phone || singlePayload.from || singlePayload.contact_phone || "";
                     if (!contactPhone) continue;
 
+                    // Defense-in-depth contra echo loop (2026-04-25): se o messageText
+                    // bate exatamente com algo enviado outbound nos últimos 90s pra esse
+                    // mesmo destinatário, é eco da própria resposta — descarta.
+                    // Echo às vezes manda webhook de "message.created" com text preenchido
+                    // sem direction=outbound nem event=message.status, escapando dos 3
+                    // filtros acima. Sem isso, o router responde à própria resposta
+                    // (loop) ou comenta o eco ("Haha, mensagem voltou pra mim").
+                    try {
+                        const phoneDigits = contactPhone.replace(/\D/g, "");
+                        const since = new Date(Date.now() - 90 * 1000).toISOString();
+                        const trimmed = messageText.trim();
+                        const { data: recentOutbound } = await supabaseClient
+                            .from("whatsapp_messages")
+                            .select("body")
+                            .eq("direction", "outbound")
+                            .eq("sender_phone", phoneDigits)
+                            .gte("created_at", since)
+                            .limit(20);
+                        if (recentOutbound?.some((m: { body: string | null }) => (m.body ?? "").trim() === trimmed)) {
+                            console.log(`[webhook] DISCARDED echo loop: text matches outbound msg sent <90s ago to ${phoneDigits}`);
+                            continue;
+                        }
+                    } catch (err) {
+                        console.warn("[webhook] echo-loop check failed (proceeding):", err);
+                    }
+
                     // Insert into debounce buffer before calling router
                     const msgType = data.type || data.message_type || "text";
                     const mediaUrl = data.media_url || data.media?.url || null;
