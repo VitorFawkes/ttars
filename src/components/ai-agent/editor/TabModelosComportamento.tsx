@@ -129,36 +129,36 @@ export function TabModelosComportamento({ form, setForm }: Props) {
           <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Comportamento temporal</h2>
         </header>
         <p className="text-sm text-slate-500 -mt-2">
-          Como o agente respeita o ritmo humano da conversa. Valores da Julia: debounce 20s, delay 4s, até 3 blocos por resposta.
+          Como o agente respeita o ritmo humano da conversa.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label>Debounce (segundos)</Label>
+            <Label>Tempo pra juntar mensagens (segundos)</Label>
             <Input
               type="number" min="0"
               value={form.timings.debounce_seconds}
               onChange={e => setForm(f => ({ ...f, timings: { ...f.timings, debounce_seconds: parseInt(e.target.value) || 0 } }))}
             />
-            <p className="text-[11px] text-slate-400">Tempo que espera para agrupar mensagens rápidas.</p>
+            <p className="text-[11px] text-slate-400">Quando o cliente envia várias mensagens em sequência, o agente espera esse tempo antes de responder, pra agrupar tudo numa resposta única. Recomendado: 20s.</p>
           </div>
           <div className="space-y-2">
-            <Label>Delay entre blocos (segundos)</Label>
+            <Label>Pausa entre mensagens (segundos)</Label>
             <Input
               type="number" min="0"
               value={form.timings.typing_delay_seconds}
               onChange={e => setForm(f => ({ ...f, timings: { ...f.timings, typing_delay_seconds: parseInt(e.target.value) || 0 } }))}
             />
-            <p className="text-[11px] text-slate-400">Pausa entre blocos para parecer digitação humana.</p>
+            <p className="text-[11px] text-slate-400">Quando o agente quebra a resposta em mais de uma mensagem, espera esse tempo entre cada uma pra parecer que está digitando.</p>
           </div>
           <div className="space-y-2">
-            <Label>Máx blocos por resposta</Label>
+            <Label>Máximo de mensagens por resposta</Label>
             <Input
               type="number" min="1" max="10"
               value={form.timings.max_message_blocks}
               onChange={e => setForm(f => ({ ...f, timings: { ...f.timings, max_message_blocks: parseInt(e.target.value) || 1 } }))}
             />
-            <p className="text-[11px] text-slate-400">Limite de mensagens do agente por turno.</p>
+            <p className="text-[11px] text-slate-400">Em quantas mensagens o agente pode quebrar a resposta. 3 costuma ser natural no WhatsApp.</p>
           </div>
         </div>
       </section>
