@@ -3359,6 +3359,20 @@ serve(async (req) => {
       .is("processed_at", null)
       .order("created_at", { ascending: true });
 
+    // Fix 2026-04-25: race condition entre 2 self-calls _drain disparando
+    // quase simultâneos. O check inicial (linha ~3258) viu pending no momento X,
+    // mas até chegar aqui o outro drain já capturou tudo. Sem este bail, B
+    // continua o flow com message_text vazio, insere turn user vazio e roda
+    // pipeline gerando resposta duplicada. Cenário real: Vitor manda 2 msgs com
+    // 10s de diferença → 2 self-calls agendados pra disparar quase juntos.
+    if (input._drain && (!buffered || buffered.length === 0)) {
+      console.log(`[debounce] drain reached buffer check with empty buffer — another drain already claimed`);
+      return new Response(
+        JSON.stringify({ handled: false, reason: "drain_superseded_at_buffer_check" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (buffered && buffered.length > 0) {
       // Debounce baseado na OLDEST: quando a mensagem mais antiga do buffer passou
       // do window, processa tudo junto (incluindo a recém-chegada). Antes usava
