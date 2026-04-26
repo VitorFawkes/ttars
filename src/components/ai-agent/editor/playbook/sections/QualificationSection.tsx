@@ -1,10 +1,25 @@
-import { useState } from 'react'
-import { Loader2, Plus, Sparkles, ChevronDown, ChevronRight, Info } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Loader2, Plus, Sparkles, ChevronDown, ChevronRight, Info, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { useAgentScoring, type ScoringRule, type ScoringRuleInput, type FallbackAction } from '@/hooks/useAgentScoring'
+import { useAgentMoments } from '@/hooks/playbook/useAgentMoments'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { QualificationRuleBuilder } from '../qualification/QualificationRuleBuilder'
+
+/**
+ * Decide se um critério é "órfão" — usa um campo do CRM que nenhum slot da
+ * Sondagem coleta. Critérios subjetivos (avaliados pela IA durante a conversa)
+ * e bonus de sinal_indireto não precisam de coleta formal.
+ */
+function isCriterionOrphan(rule: ScoringRule, collectedFields: Set<string>): boolean {
+  if (rule.condition_type === 'ai_subjective') return false
+  if (rule.dimension === 'sinal_indireto') return false
+  const cv = (rule.condition_value ?? {}) as { field?: string }
+  const field = cv.field ?? rule.dimension
+  if (!field) return false
+  return !collectedFields.has(field)
+}
 
 interface Props {
   agentId: string
@@ -19,6 +34,7 @@ const FALLBACK_OPTIONS: Array<{ value: FallbackAction; label: string; descriptio
 
 export function QualificationSection({ agentId }: Props) {
   const { rules, config, isLoading, upsertRule, deleteRule, upsertConfig } = useAgentScoring(agentId)
+  const { moments } = useAgentMoments(agentId)
   const meta = useCurrentProductMeta()
   const pipelineId: string | undefined = meta?.pipelineId ?? undefined
   const produtoSlug: string | undefined = meta?.slug ?? undefined
@@ -26,6 +42,24 @@ export function QualificationSection({ agentId }: Props) {
   const [creating, setCreating] = useState(false)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [showConfig, setShowConfig] = useState(false)
+
+  // Conjunto de campos do CRM que ALGUM slot da Sondagem coleta. Usado pra detectar
+  // critérios órfãos (que esperam dado que nenhuma pergunta coleta).
+  const collectedFields = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of moments) {
+      if (m.kind !== 'flow' || !m.discovery_config) continue
+      for (const slot of m.discovery_config.slots ?? []) {
+        if (slot.crm_field_key) set.add(slot.crm_field_key)
+      }
+    }
+    return set
+  }, [moments])
+
+  const orphanCount = useMemo(
+    () => rules.filter(r => isCriterionOrphan(r, collectedFields)).length,
+    [rules, collectedFields],
+  )
 
   if (isLoading) return <div className="py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></div>
 
@@ -98,20 +132,31 @@ export function QualificationSection({ agentId }: Props) {
         </div>
       </div>
 
+      {orphanCount > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <div className="text-amber-900 text-xs">
+            <strong>{orphanCount} critério{orphanCount > 1 ? 's' : ''} sem coleta.</strong>{' '}
+            {orphanCount === 1 ? 'Esse critério usa' : 'Esses critérios usam'} um campo do CRM que nenhuma informação da Sondagem está coletando — o agente nunca vai ter esse dado pra avaliar.
+            Vá em <strong>Momentos da conversa → Sondagem</strong> e adicione uma informação que ligue ao mesmo campo.
+          </div>
+        </div>
+      )}
+
       <RuleGroup title="🟢 Critérios que qualificam" description="Somam pontos ao score" rules={byType.qualify}
         editingRuleId={editingRuleId} setEditingRuleId={setEditingRuleId}
         onSaveRule={handleSaveRule} onDeleteRule={handleDeleteRule}
-        pipelineId={pipelineId} produto={produtoSlug} />
+        pipelineId={pipelineId} produto={produtoSlug} collectedFields={collectedFields} />
 
       <RuleGroup title="🟡 Sinais de bônus" description="Pontos extras com teto (acumula até o máximo configurado)" rules={byType.bonus}
         editingRuleId={editingRuleId} setEditingRuleId={setEditingRuleId}
         onSaveRule={handleSaveRule} onDeleteRule={handleDeleteRule}
-        pipelineId={pipelineId} produto={produtoSlug} />
+        pipelineId={pipelineId} produto={produtoSlug} collectedFields={collectedFields} />
 
       <RuleGroup title="🔴 Desqualificadores" description="Se bater, o lead é descartado imediatamente" rules={byType.disqualify}
         editingRuleId={editingRuleId} setEditingRuleId={setEditingRuleId}
         onSaveRule={handleSaveRule} onDeleteRule={handleDeleteRule}
-        pipelineId={pipelineId} produto={produtoSlug} />
+        pipelineId={pipelineId} produto={produtoSlug} collectedFields={collectedFields} />
 
       {creating ? (
         <QualificationRuleBuilder pipelineId={pipelineId} produto={produtoSlug}
@@ -126,13 +171,14 @@ export function QualificationSection({ agentId }: Props) {
 }
 
 function RuleGroup({
-  title, description, rules, editingRuleId, setEditingRuleId, onSaveRule, onDeleteRule, pipelineId, produto,
+  title, description, rules, editingRuleId, setEditingRuleId, onSaveRule, onDeleteRule, pipelineId, produto, collectedFields,
 }: {
   title: string; description: string; rules: ScoringRule[]
   editingRuleId: string | null; setEditingRuleId: (id: string | null) => void
   onSaveRule: (input: ScoringRuleInput) => Promise<void>
   onDeleteRule: (id: string) => Promise<void>
   pipelineId?: string; produto?: string
+  collectedFields: Set<string>
 }) {
   return (
     <div>
@@ -148,8 +194,13 @@ function RuleGroup({
               onSave={onSaveRule} onDelete={() => onDeleteRule(r.id)} onCancel={() => setEditingRuleId(null)} />
           ) : (
             <button key={r.id} onClick={() => setEditingRuleId(r.id)}
-              className="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 bg-white transition-colors">
-              <RulePreview rule={r} />
+              className={cn(
+                'w-full text-left p-2.5 rounded-lg border bg-white transition-colors',
+                isCriterionOrphan(r, collectedFields)
+                  ? 'border-amber-200 hover:border-amber-300'
+                  : 'border-slate-200 hover:border-indigo-300',
+              )}>
+              <RulePreview rule={r} orphan={isCriterionOrphan(r, collectedFields)} />
             </button>
           ))}
         </div>
@@ -158,7 +209,7 @@ function RuleGroup({
   )
 }
 
-function RulePreview({ rule }: { rule: ScoringRule }) {
+function RulePreview({ rule, orphan = false }: { rule: ScoringRule; orphan?: boolean }) {
   const isSubjective = rule.condition_type === 'ai_subjective'
   const cv = rule.condition_value as Record<string, unknown>
   const humanCondition = (() => {
@@ -179,6 +230,14 @@ function RulePreview({ rule }: { rule: ScoringRule }) {
         <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
           {isSubjective && <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />}
           <span className="truncate">{rule.label || rule.dimension}</span>
+          {orphan && (
+            <span
+              title="Nenhuma informação da Sondagem coleta esse dado"
+              className="text-[10px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0 inline-flex items-center gap-1"
+            >
+              <AlertTriangle className="w-2.5 h-2.5" /> sem coleta
+            </span>
+          )}
         </div>
         <div className="text-xs text-slate-500 mt-0.5 truncate">
           {isSubjective ? <>IA avalia: {humanCondition}</> : <><span className="font-mono text-[11px]">{rule.dimension}</span> {humanCondition}</>}
