@@ -961,21 +961,69 @@ async function ensureCardForInboundIfEnabled(
   contactId: string,
   phoneNumberId: string | undefined,
   contactName: string | null,
+  agentId: string | undefined,
+  senderPhone: string | undefined,
 ): Promise<{ id: string; titulo: string | null; pipeline_stage_id: string | null; ai_resumo: string | null; ai_contexto: string | null; dono_atual_id: string | null; sdr_owner_id: string | null; produto_data: Record<string, unknown> | null; estado_operacional: string | null; ai_responsavel: string | null; ai_pause_config: Record<string, unknown> | null; pessoa_principal_id: string | null } | null> {
   if (!phoneNumberId) return null;
 
   const { data: linhaRow } = await supabase
     .from("whatsapp_linha_config")
-    .select("produto, pipeline_id, stage_id, criar_card, default_owner_id, org_id")
+    .select("id, produto, pipeline_id, stage_id, criar_card, default_owner_id, org_id")
     .eq("phone_number_id", phoneNumberId)
     .eq("ativo", true)
     .maybeSingle();
 
-  const linha = linhaRow as { produto?: string; pipeline_id?: string | null; stage_id?: string | null; criar_card?: boolean | null; default_owner_id?: string | null; org_id?: string | null } | null;
+  const linha = linhaRow as { id?: string; produto?: string; pipeline_id?: string | null; stage_id?: string | null; criar_card?: boolean | null; default_owner_id?: string | null; org_id?: string | null } | null;
   if (!linha || linha.criar_card !== true) return null;
   if (!linha.pipeline_id || !linha.stage_id) {
     console.warn(`[ensureCardForInbound] linha ${phoneNumberId} tem criar_card=true mas falta pipeline_id/stage_id — pulando`);
     return null;
+  }
+
+  // ── Defesa em profundidade: nunca cria card pra número fora da whitelist ──
+  // Mesmo que findAgentByActiveConversation tenha aceitado, validamos de novo
+  // contra (a) routing_filter.allowed_phones da config linha-agente e
+  // (b) test_mode_phone_whitelist do agente. Se ambas têm whitelist e o
+  // sender NÃO está em nenhuma, NÃO cria card. Evita poluir o pipeline
+  // com leads não-autorizados em modo de teste.
+  if (agentId && senderPhone) {
+    const normalizedSender = normalizePhone(senderPhone);
+    let allowedByLinha: string[] | null = null;
+    let allowedByAgent: string[] | null = null;
+
+    if (linha.id) {
+      const { data: linkRow } = await supabase
+        .from("ai_agent_phone_line_config")
+        .select("routing_filter")
+        .eq("phone_line_id", linha.id)
+        .eq("agent_id", agentId)
+        .eq("ativa", true)
+        .maybeSingle();
+      const rf = (linkRow as { routing_filter?: { allowed_phones?: string[] } | null } | null)?.routing_filter;
+      if (rf?.allowed_phones && rf.allowed_phones.length > 0) {
+        allowedByLinha = rf.allowed_phones.map((p) => normalizePhone(p));
+      }
+    }
+
+    const { data: agentRow } = await supabase
+      .from("ai_agents")
+      .select("test_mode_phone_whitelist")
+      .eq("id", agentId)
+      .maybeSingle();
+    const wl = (agentRow as { test_mode_phone_whitelist?: string[] | null } | null)?.test_mode_phone_whitelist;
+    if (wl && wl.length > 0) {
+      allowedByAgent = wl.map((p) => normalizePhone(p));
+    }
+
+    // Se HÁ whitelist em qualquer camada, sender precisa estar em pelo menos uma
+    if (allowedByLinha || allowedByAgent) {
+      const okLinha = allowedByLinha?.includes(normalizedSender) ?? false;
+      const okAgent = allowedByAgent?.includes(normalizedSender) ?? false;
+      if (!okLinha && !okAgent) {
+        console.log(`[ensureCardForInbound] BLOCKED — sender ${normalizedSender} fora das whitelists (linha: ${JSON.stringify(allowedByLinha)}, agente: ${JSON.stringify(allowedByAgent)})`);
+        return null;
+      }
+    }
   }
 
   // Insere card vinculado ao contato como pessoa_principal
@@ -1029,6 +1077,8 @@ async function buildConversationContext(
   agentConfig: { business: BusinessConfig | null },
   memoryConfig?: Record<string, unknown> | null,
   phoneNumberId?: string,
+  agentId?: string,
+  senderPhone?: string,
 ): Promise<ConversationContext> {
   // memory_config do agente: max_history_turns (limite total) e short_term_turns
   // (window do compacto). Defaults batem com comportamento legado (50/8).
@@ -1087,6 +1137,7 @@ async function buildConversationContext(
     const created = await ensureCardForInboundIfEnabled(
       supabase, contactId, phoneNumberId,
       [contact?.nome, contact?.sobrenome].filter(Boolean).join(" ") || null,
+      agentId, senderPhone,
     );
     if (created) {
       cardRow = created;
@@ -3578,7 +3629,8 @@ serve(async (req) => {
 
     // ── 6. Build context (paridade com "Historico Texto") ──
     const ctx = await buildConversationContext(
-      supabase, conversationId, contactId, agentConfig, agent.memory_config, input.phone_number_id,
+      supabase, conversationId, contactId, agentConfig, agent.memory_config,
+      input.phone_number_id, agent.id, input.contact_phone,
     );
 
     // ── 6a. Pause guard: humano assumiu ou pause_permanently ligado ──
