@@ -31,9 +31,9 @@ const TRIGGER_OPTIONS: Array<{ value: PlaybookMoment['trigger_type']; label: str
 ]
 
 const MODE_OPTIONS: Array<{ value: PlaybookMoment['message_mode']; label: string; subtitle: string }> = [
-  { value: 'literal', label: 'Texto literal', subtitle: 'Envia exatamente esse texto' },
-  { value: 'faithful', label: 'Diretriz fiel', subtitle: 'Segue estrutura, adapta só nome e variações mínimas' },
-  { value: 'free', label: 'Estilo livre', subtitle: 'Tem liberdade, respeitando objetivo e red_lines' },
+  { value: 'literal', label: 'Texto exato', subtitle: 'Envia exatamente esse texto, palavra por palavra' },
+  { value: 'faithful', label: 'Diretriz fiel', subtitle: 'Segue a estrutura do texto, adapta só nome e pequenas palavras' },
+  { value: 'free', label: 'Estilo livre', subtitle: 'A agente cria a resposta, respeitando o objetivo e as regras' },
 ]
 
 export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps }: Props) {
@@ -149,13 +149,17 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Nome do momento</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Nome {isFlow ? 'da fase' : 'da jogada'}
+            </label>
             <input value={label} onChange={(e) => { setLabel(e.target.value); markDirty() }}
               className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Quando acontece</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              {isFlow ? 'Quando essa fase começa' : 'Como detectar essa situação'}
+            </label>
             <select value={triggerType} onChange={(e) => { setTriggerType(e.target.value as PlaybookMoment['trigger_type']); setTriggerConfig({}); markDirty() }}
               className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm">
               {TRIGGER_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -186,7 +190,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Como responde</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Como a agente responde</label>
             <div className="space-y-1">
               {MODE_OPTIONS.map(o => (
                 <label key={o.value} className="flex items-start gap-2 text-sm p-2 rounded border border-slate-100 hover:border-slate-200 cursor-pointer">
@@ -203,7 +207,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-medium text-slate-600">
-                {mode === 'free' ? 'Objetivo / diretriz' : 'Texto da mensagem'}
+                {mode === 'free' ? 'Objetivo desta fase (a agente improvisa baseado nisso)' : 'Texto que a agente vai usar'}
               </label>
               <SuggestVariationsButton
                 text={anchor}
@@ -273,7 +277,9 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           )}
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Linhas vermelhas deste momento</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Coisas que ela NÃO pode fazer {isFlow ? 'nesta fase' : 'nesta jogada'}
+            </label>
             {redLines.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {redLines.map((rl, i) => (

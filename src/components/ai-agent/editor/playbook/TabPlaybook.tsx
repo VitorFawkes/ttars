@@ -26,13 +26,13 @@ interface Props {
 type SectionKey = 'identity' | 'voice' | 'moments' | 'qualification' | 'boundaries' | 'signals' | 'examples'
 
 const SECTIONS: Array<{ key: SectionKey; title: string; subtitle: string; icon: typeof User }> = [
-  { key: 'identity', title: 'Identidade', subtitle: 'Papel e missão em 1 frase', icon: User },
-  { key: 'voice', title: 'Voz', subtitle: 'Tom, emoji, frases típicas e proibidas', icon: Volume2 },
-  { key: 'moments', title: 'Momentos da conversa', subtitle: 'Frases-âncora por fase com triggers e red lines', icon: Clock },
-  { key: 'qualification', title: 'Qualificação', subtitle: 'Critérios qualify / disqualify / bonus', icon: Target },
-  { key: 'boundaries', title: 'Linhas vermelhas gerais', subtitle: 'O que o agente NUNCA faz', icon: Shield },
-  { key: 'signals', title: 'Sinais silenciosos', subtitle: 'Coisas que o agente registra sem comentar', icon: Eye },
-  { key: 'examples', title: 'Exemplos', subtitle: 'Pares lead→agente pra calibrar', icon: MessageSquareQuote },
+  { key: 'identity', title: 'Identidade', subtitle: 'Quem é a agente e qual a missão dela', icon: User },
+  { key: 'voice', title: 'Voz', subtitle: 'Como ela soa: tom, frases típicas e proibidas', icon: Volume2 },
+  { key: 'moments', title: 'Momentos da conversa', subtitle: 'Fases do funil + jogadas situacionais (objeções, etc.)', icon: Clock },
+  { key: 'qualification', title: 'Critérios de qualificação', subtitle: 'O que torna um cliente bom — somam pontos ou desqualificam', icon: Target },
+  { key: 'boundaries', title: 'Linhas vermelhas gerais', subtitle: 'Coisas que a agente NUNCA faz, em qualquer momento', icon: Shield },
+  { key: 'signals', title: 'Sinais silenciosos', subtitle: 'O que ela observa e anota sem comentar com o cliente', icon: Eye },
+  { key: 'examples', title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
 ]
 
 export function TabPlaybook({ agentId, agentName, companyName }: Props) {
