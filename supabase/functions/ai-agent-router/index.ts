@@ -944,12 +944,91 @@ async function getOrCreateConversation(
 // 5. Build Conversation Context (paridade com "Historico Texto" da Julia)
 // ---------------------------------------------------------------------------
 
+/**
+ * Cria card automaticamente pra inbound de WhatsApp quando linha tem
+ * `criar_card=true`. Opt-in por linha — sem isso, comportamento legado
+ * preservado (router só usa cards já existentes).
+ *
+ * Pq isso existe: conversa via WhatsApp inbound puro (sem formulário) não
+ * gerava card. Sem card → ai_resumo / ai_contexto / produto_data ficam
+ * sempre vazios → Backoffice e Data agents rodam mas não têm onde gravar
+ * → Estela perde memória de longo prazo, depende só do histórico curto.
+ *
+ * Habilitado opcionalmente por linha (SDR Weddings em teste, 2026-04-26).
+ */
+async function ensureCardForInboundIfEnabled(
+  supabase: SupabaseClient,
+  contactId: string,
+  phoneNumberId: string | undefined,
+  contactName: string | null,
+): Promise<{ id: string; titulo: string | null; pipeline_stage_id: string | null; ai_resumo: string | null; ai_contexto: string | null; dono_atual_id: string | null; sdr_owner_id: string | null; produto_data: Record<string, unknown> | null; estado_operacional: string | null; ai_responsavel: string | null; ai_pause_config: Record<string, unknown> | null; pessoa_principal_id: string | null } | null> {
+  if (!phoneNumberId) return null;
+
+  const { data: linhaRow } = await supabase
+    .from("whatsapp_linha_config")
+    .select("produto, pipeline_id, stage_id, criar_card, default_owner_id, org_id")
+    .eq("phone_number_id", phoneNumberId)
+    .eq("ativo", true)
+    .maybeSingle();
+
+  const linha = linhaRow as { produto?: string; pipeline_id?: string | null; stage_id?: string | null; criar_card?: boolean | null; default_owner_id?: string | null; org_id?: string | null } | null;
+  if (!linha || linha.criar_card !== true) return null;
+  if (!linha.pipeline_id || !linha.stage_id) {
+    console.warn(`[ensureCardForInbound] linha ${phoneNumberId} tem criar_card=true mas falta pipeline_id/stage_id — pulando`);
+    return null;
+  }
+
+  // Insere card vinculado ao contato como pessoa_principal
+  const titulo = (contactName && contactName.trim()) || "Lead WhatsApp";
+  const insertPayload: Record<string, unknown> = {
+    titulo,
+    pessoa_principal_id: contactId,
+    pipeline_id: linha.pipeline_id,
+    pipeline_stage_id: linha.stage_id,
+    produto: linha.produto,
+    origem: "whatsapp",
+    status_comercial: "aberto",
+    moeda: "BRL",
+  };
+  if (linha.default_owner_id) {
+    insertPayload.dono_atual_id = linha.default_owner_id;
+    insertPayload.sdr_owner_id = linha.default_owner_id;
+  }
+  if (linha.org_id) insertPayload.org_id = linha.org_id;
+
+  const { data: newCard, error } = await supabase
+    .from("cards")
+    .insert(insertPayload)
+    .select("id, titulo, pipeline_stage_id, ai_resumo, ai_contexto, dono_atual_id, sdr_owner_id, produto_data, estado_operacional, ai_responsavel, ai_pause_config, pessoa_principal_id")
+    .single();
+
+  if (error) {
+    console.warn(`[ensureCardForInbound] insert falhou: ${error.message}`);
+    return null;
+  }
+
+  // Junction também — leitura via cards_contatos é fallback no resto do código.
+  // Ignora erro se já existir (unique constraint).
+  try {
+    await supabase.from("cards_contatos").insert({
+      card_id: newCard.id,
+      contato_id: contactId,
+      tipo_viajante: "adulto",
+      ordem: 0,
+    });
+  } catch (_e) { /* duplicates ok */ }
+
+  console.log(`[ensureCardForInbound] card ${newCard.id} criado pra contato ${contactId} via linha ${phoneNumberId}`);
+  return newCard as Awaited<ReturnType<typeof ensureCardForInboundIfEnabled>>;
+}
+
 async function buildConversationContext(
   supabase: SupabaseClient,
   conversationId: string,
   contactId: string,
   agentConfig: { business: BusinessConfig | null },
   memoryConfig?: Record<string, unknown> | null,
+  phoneNumberId?: string,
 ): Promise<ConversationContext> {
   // memory_config do agente: max_history_turns (limite total) e short_term_turns
   // (window do compacto). Defaults batem com comportamento legado (50/8).
@@ -1000,6 +1079,20 @@ async function buildConversationContext(
         cardRow = secCards[0];
         contactRole = "traveler";
       }
+    }
+  }
+
+  // Se não achou card existente, tenta criar via linha (só se opt-in: criar_card=true)
+  if (!cardRow) {
+    const created = await ensureCardForInboundIfEnabled(
+      supabase, contactId, phoneNumberId,
+      [contact?.nome, contact?.sobrenome].filter(Boolean).join(" ") || null,
+    );
+    if (created) {
+      cardRow = created;
+      contactRole = "primary";
+      // Vincula card à conversa atual pra que próximo turno já encontre direto
+      await supabase.from("ai_conversations").update({ card_id: created.id }).eq("id", conversationId);
     }
   }
 
@@ -3485,7 +3578,7 @@ serve(async (req) => {
 
     // ── 6. Build context (paridade com "Historico Texto") ──
     const ctx = await buildConversationContext(
-      supabase, conversationId, contactId, agentConfig, agent.memory_config,
+      supabase, conversationId, contactId, agentConfig, agent.memory_config, input.phone_number_id,
     );
 
     // ── 6a. Pause guard: humano assumiu ou pause_permanently ligado ──
