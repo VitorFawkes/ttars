@@ -25,12 +25,14 @@ export function MomentLibraryModal({ agentId, existingKeys, nextDisplayOrder, on
         moment_key: s.moment_key,
         moment_label: s.moment_label,
         display_order: nextDisplayOrder,
+        kind: s.kind,
         trigger_type: s.trigger_type,
         trigger_config: s.trigger_config ?? {},
         message_mode: s.message_mode,
         anchor_text: s.anchor_text ?? null,
         red_lines: s.red_lines ?? [],
         collects_fields: [],
+        discovery_config: null,
         enabled: true,
       })
       toast.success(`Momento "${s.moment_label}" adicionado`)

@@ -232,6 +232,77 @@ export type Database = {
             foreignKeyName: "ai_agent_business_config_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: true
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_business_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_few_shot_examples: {
+        Row: {
+          agent_id: string
+          agent_response: string
+          context_note: string | null
+          created_at: string
+          display_order: number
+          enabled: boolean
+          id: string
+          lead_message: string
+          related_moment_key: string | null
+          related_signal_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          agent_response: string
+          context_note?: string | null
+          created_at?: string
+          display_order?: number
+          enabled?: boolean
+          id?: string
+          lead_message: string
+          related_moment_key?: string | null
+          related_signal_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          agent_response?: string
+          context_note?: string | null
+          created_at?: string
+          display_order?: number
+          enabled?: boolean
+          id?: string
+          lead_message?: string
+          related_moment_key?: string | null
+          related_signal_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_few_shot_examples_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_few_shot_examples_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_few_shot_examples_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -271,6 +342,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_kb_links_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -330,6 +408,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_bases_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -440,6 +525,92 @@ export type Database = {
             foreignKeyName: "ai_agent_metrics_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_metrics_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_moments: {
+        Row: {
+          agent_id: string
+          anchor_text: string | null
+          collects_fields: string[]
+          created_at: string
+          discovery_config: Json | null
+          display_order: number
+          enabled: boolean
+          id: string
+          kind: string
+          message_mode: string
+          moment_key: string
+          moment_label: string
+          red_lines: string[]
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          anchor_text?: string | null
+          collects_fields?: string[]
+          created_at?: string
+          discovery_config?: Json | null
+          display_order: number
+          enabled?: boolean
+          id?: string
+          kind?: string
+          message_mode?: string
+          moment_key: string
+          moment_label: string
+          red_lines?: string[]
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          anchor_text?: string | null
+          collects_fields?: string[]
+          created_at?: string
+          discovery_config?: Json | null
+          display_order?: number
+          enabled?: boolean
+          id?: string
+          kind?: string
+          message_mode?: string
+          moment_key?: string
+          moment_label?: string
+          red_lines?: string[]
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_moments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_moments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_moments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -485,6 +656,13 @@ export type Database = {
             foreignKeyName: "ai_agent_phone_line_config_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_phone_line_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -493,6 +671,64 @@ export type Database = {
             columns: ["phone_line_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_linha_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_presentations: {
+        Row: {
+          agent_id: string
+          concept_text: string | null
+          created_at: string
+          enabled: boolean
+          fixed_template: string | null
+          id: string
+          mode: string
+          scenario: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          concept_text?: string | null
+          created_at?: string
+          enabled?: boolean
+          fixed_template?: string | null
+          id?: string
+          mode: string
+          scenario: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          concept_text?: string | null
+          created_at?: string
+          enabled?: boolean
+          fixed_template?: string | null
+          id?: string
+          mode?: string
+          scenario?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_presentations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_presentations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_presentations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
         ]
@@ -555,6 +791,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_prompts_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -648,6 +891,13 @@ export type Database = {
             foreignKeyName: "ai_agent_qualification_flow_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_qualification_flow_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -693,6 +943,13 @@ export type Database = {
             foreignKeyName: "ai_agent_scoring_config_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: true
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_scoring_config_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -717,6 +974,7 @@ export type Database = {
           label: string | null
           ordem: number | null
           org_id: string
+          rule_type: string
           updated_at: string | null
           weight: number
         }
@@ -731,6 +989,7 @@ export type Database = {
           label?: string | null
           ordem?: number | null
           org_id?: string
+          rule_type?: string
           updated_at?: string | null
           weight: number
         }
@@ -745,6 +1004,7 @@ export type Database = {
           label?: string | null
           ordem?: number | null
           org_id?: string
+          rule_type?: string
           updated_at?: string | null
           weight?: number
         }
@@ -760,6 +1020,13 @@ export type Database = {
             foreignKeyName: "ai_agent_scoring_rules_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_scoring_rules_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -768,6 +1035,70 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_silent_signals: {
+        Row: {
+          agent_id: string
+          created_at: string
+          crm_field_key: string | null
+          detection_hint: string
+          display_order: number
+          enabled: boolean
+          how_to_use: string | null
+          id: string
+          signal_key: string
+          signal_label: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          crm_field_key?: string | null
+          detection_hint: string
+          display_order?: number
+          enabled?: boolean
+          how_to_use?: string | null
+          id?: string
+          signal_key: string
+          signal_label: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          crm_field_key?: string | null
+          detection_hint?: string
+          display_order?: number
+          enabled?: boolean
+          how_to_use?: string | null
+          id?: string
+          signal_key?: string
+          signal_label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_silent_signals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_silent_signals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_silent_signals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
         ]
@@ -812,6 +1143,13 @@ export type Database = {
             foreignKeyName: "ai_agent_skills_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_skills_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -828,6 +1166,8 @@ export type Database = {
         Row: {
           agent_id: string
           auto_assign_tag: string | null
+          auto_notify_responsible: boolean
+          auto_transition_stage_id: string | null
           created_at: string | null
           enabled: boolean | null
           handoff_message: string | null
@@ -840,11 +1180,14 @@ export type Database = {
           skip_meeting_scheduling: boolean | null
           target_agent_id: string | null
           trigger_config: Json
+          trigger_description: string | null
           trigger_type: string
         }
         Insert: {
           agent_id: string
           auto_assign_tag?: string | null
+          auto_notify_responsible?: boolean
+          auto_transition_stage_id?: string | null
           created_at?: string | null
           enabled?: boolean | null
           handoff_message?: string | null
@@ -857,11 +1200,14 @@ export type Database = {
           skip_meeting_scheduling?: boolean | null
           target_agent_id?: string | null
           trigger_config?: Json
+          trigger_description?: string | null
           trigger_type: string
         }
         Update: {
           agent_id?: string
           auto_assign_tag?: string | null
+          auto_notify_responsible?: boolean
+          auto_transition_stage_id?: string | null
           created_at?: string | null
           enabled?: boolean | null
           handoff_message?: string | null
@@ -874,6 +1220,7 @@ export type Database = {
           skip_meeting_scheduling?: boolean | null
           target_agent_id?: string | null
           trigger_config?: Json
+          trigger_description?: string | null
           trigger_type?: string
         }
         Relationships: [
@@ -888,14 +1235,42 @@ export type Database = {
             foreignKeyName: "ai_agent_special_scenarios_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_auto_transition_stage_id_fkey"
+            columns: ["auto_transition_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_auto_transition_stage_id_fkey"
+            columns: ["auto_transition_stage_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
           },
           {
             foreignKeyName: "ai_agent_special_scenarios_target_agent_id_fkey"
             columns: ["target_agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_special_scenarios_target_agent_id_fkey"
+            columns: ["target_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -913,6 +1288,7 @@ export type Database = {
           created_at: string | null
           default_business_config: Json | null
           default_escalation_rules: Json | null
+          default_playbook_structure: Json | null
           default_qualification_flow: Json | null
           default_routing_criteria: Json | null
           default_skills: Json | null
@@ -938,6 +1314,7 @@ export type Database = {
           created_at?: string | null
           default_business_config?: Json | null
           default_escalation_rules?: Json | null
+          default_playbook_structure?: Json | null
           default_qualification_flow?: Json | null
           default_routing_criteria?: Json | null
           default_skills?: Json | null
@@ -963,6 +1340,7 @@ export type Database = {
           created_at?: string | null
           default_business_config?: Json | null
           default_escalation_rules?: Json | null
+          default_playbook_structure?: Json | null
           default_qualification_flow?: Json | null
           default_routing_criteria?: Json | null
           default_skills?: Json | null
@@ -1039,6 +1417,13 @@ export type Database = {
             foreignKeyName: "ai_agent_wizard_drafts_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_wizard_drafts_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1063,6 +1448,7 @@ export type Database = {
           ativa: boolean | null
           ativa_changed_at: string | null
           ativa_changed_by: string | null
+          boundaries_config: Json | null
           context_fields_config: Json | null
           created_at: string | null
           created_by: string | null
@@ -1076,6 +1462,7 @@ export type Database = {
           handoff_actions: Json | null
           handoff_signals: Json | null
           id: string
+          identity_config: Json | null
           intelligent_decisions: Json | null
           interaction_mode: string | null
           is_template_based: boolean | null
@@ -1089,6 +1476,7 @@ export type Database = {
           outbound_trigger_config: Json | null
           persona: string | null
           pipeline_models: Json | null
+          playbook_enabled: boolean
           produto: Database["public"]["Enums"]["app_product"]
           prompts_extra: Json
           routing_criteria: Json | null
@@ -1101,11 +1489,13 @@ export type Database = {
           tipo: string
           updated_at: string | null
           validator_rules: Json | null
+          voice_config: Json | null
         }
         Insert: {
           ativa?: boolean | null
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
+          boundaries_config?: Json | null
           context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -1119,6 +1509,7 @@ export type Database = {
           handoff_actions?: Json | null
           handoff_signals?: Json | null
           id?: string
+          identity_config?: Json | null
           intelligent_decisions?: Json | null
           interaction_mode?: string | null
           is_template_based?: boolean | null
@@ -1132,6 +1523,7 @@ export type Database = {
           outbound_trigger_config?: Json | null
           persona?: string | null
           pipeline_models?: Json | null
+          playbook_enabled?: boolean
           produto: Database["public"]["Enums"]["app_product"]
           prompts_extra?: Json
           routing_criteria?: Json | null
@@ -1144,11 +1536,13 @@ export type Database = {
           tipo: string
           updated_at?: string | null
           validator_rules?: Json | null
+          voice_config?: Json | null
         }
         Update: {
           ativa?: boolean | null
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
+          boundaries_config?: Json | null
           context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -1162,6 +1556,7 @@ export type Database = {
           handoff_actions?: Json | null
           handoff_signals?: Json | null
           id?: string
+          identity_config?: Json | null
           intelligent_decisions?: Json | null
           interaction_mode?: string | null
           is_template_based?: boolean | null
@@ -1175,6 +1570,7 @@ export type Database = {
           outbound_trigger_config?: Json | null
           persona?: string | null
           pipeline_models?: Json | null
+          playbook_enabled?: boolean
           produto?: Database["public"]["Enums"]["app_product"]
           prompts_extra?: Json
           routing_criteria?: Json | null
@@ -1187,6 +1583,7 @@ export type Database = {
           tipo?: string
           updated_at?: string | null
           validator_rules?: Json | null
+          voice_config?: Json | null
         }
         Relationships: [
           {
@@ -1242,6 +1639,13 @@ export type Database = {
             foreignKeyName: "ai_agents_fallback_agent_id_fkey"
             columns: ["fallback_agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agents_fallback_agent_id_fkey"
+            columns: ["fallback_agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1267,6 +1671,8 @@ export type Database = {
           current_topic: string | null
           extracted_variables: Json | null
           id: string
+          last_moment_key: string | null
+          last_moment_updated_at: string | null
           pending_actions: Json | null
           preferences: Json | null
           summary: string | null
@@ -1277,6 +1683,8 @@ export type Database = {
           current_topic?: string | null
           extracted_variables?: Json | null
           id?: string
+          last_moment_key?: string | null
+          last_moment_updated_at?: string | null
           pending_actions?: Json | null
           preferences?: Json | null
           summary?: string | null
@@ -1287,6 +1695,8 @@ export type Database = {
           current_topic?: string | null
           extracted_variables?: Json | null
           id?: string
+          last_moment_key?: string | null
+          last_moment_updated_at?: string | null
           pending_actions?: Json | null
           preferences?: Json | null
           summary?: string | null
@@ -1305,51 +1715,66 @@ export type Database = {
       ai_conversation_turns: {
         Row: {
           agent_id: string | null
+          agent_version: string
           confidence: number | null
           content: string
           context_used: Json | null
           conversation_id: string
           created_at: string | null
+          current_moment_key: string | null
           detected_intent: string | null
           detected_sentiment: string | null
           id: string
           input_tokens: number | null
           is_fallback: boolean | null
+          moment_detection_method: string | null
+          moment_transition_reason: string | null
           output_tokens: number | null
+          qualification_score_at_turn: number | null
           reasoning: string | null
           role: string
           skills_used: Json | null
         }
         Insert: {
           agent_id?: string | null
+          agent_version?: string
           confidence?: number | null
           content: string
           context_used?: Json | null
           conversation_id: string
           created_at?: string | null
+          current_moment_key?: string | null
           detected_intent?: string | null
           detected_sentiment?: string | null
           id?: string
           input_tokens?: number | null
           is_fallback?: boolean | null
+          moment_detection_method?: string | null
+          moment_transition_reason?: string | null
           output_tokens?: number | null
+          qualification_score_at_turn?: number | null
           reasoning?: string | null
           role: string
           skills_used?: Json | null
         }
         Update: {
           agent_id?: string | null
+          agent_version?: string
           confidence?: number | null
           content?: string
           context_used?: Json | null
           conversation_id?: string
           created_at?: string | null
+          current_moment_key?: string | null
           detected_intent?: string | null
           detected_sentiment?: string | null
           id?: string
           input_tokens?: number | null
           is_fallback?: boolean | null
+          moment_detection_method?: string | null
+          moment_transition_reason?: string | null
           output_tokens?: number | null
+          qualification_score_at_turn?: number | null
           reasoning?: string | null
           role?: string
           skills_used?: Json | null
@@ -1360,6 +1785,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_turns_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -1460,6 +1892,13 @@ export type Database = {
             foreignKeyName: "ai_conversations_current_agent_id_fkey"
             columns: ["current_agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_current_agent_id_fkey"
+            columns: ["current_agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1496,6 +1935,13 @@ export type Database = {
             columns: ["primary_agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_primary_agent_id_fkey"
+            columns: ["primary_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -1873,6 +2319,13 @@ export type Database = {
             foreignKeyName: "ai_outbound_queue_agent_id_fkey"
             columns: ["agent_id"]
             isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_outbound_queue_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
@@ -1984,6 +2437,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_skill_usage_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
             referencedColumns: ["agent_id"]
           },
           {
@@ -12680,10 +13140,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "section_field_config_field_key_fkey"
-            columns: ["field_key"]
+            columns: ["field_key", "org_id"]
             isOneToOne: false
             referencedRelation: "system_fields"
-            referencedColumns: ["key"]
+            referencedColumns: ["key", "org_id"]
           },
           {
             foreignKeyName: "section_field_config_org_id_fkey"
@@ -13325,6 +13785,7 @@ export type Database = {
           options: Json | null
           order_index: number | null
           org_id: string
+          produto_exclusivo: string | null
           section: string | null
           section_id: string | null
           type: string
@@ -13338,6 +13799,7 @@ export type Database = {
           options?: Json | null
           order_index?: number | null
           org_id?: string
+          produto_exclusivo?: string | null
           section?: string | null
           section_id?: string | null
           type: string
@@ -13351,6 +13813,7 @@ export type Database = {
           options?: Json | null
           order_index?: number | null
           org_id?: string
+          produto_exclusivo?: string | null
           section?: string | null
           section_id?: string | null
           type?: string
@@ -13891,6 +14354,55 @@ export type Database = {
           },
         ]
       }
+      trip_checklist_progress: {
+        Row: {
+          checked_at: string
+          id: string
+          item_key: string
+          org_id: string
+          participant_id: string
+          viagem_id: string
+        }
+        Insert: {
+          checked_at?: string
+          id?: string
+          item_key: string
+          org_id: string
+          participant_id: string
+          viagem_id: string
+        }
+        Update: {
+          checked_at?: string
+          id?: string
+          item_key?: string
+          org_id?: string
+          participant_id?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_checklist_progress_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_checklist_progress_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "trip_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_checklist_progress_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_comments: {
         Row: {
           autor: string
@@ -14062,6 +14574,8 @@ export type Database = {
           ordem: number
           org_id: string
           parent_id: string | null
+          source_id: string | null
+          source_type: string | null
           status: Database["public"]["Enums"]["trip_item_status"]
           tipo: Database["public"]["Enums"]["trip_item_tipo"]
           updated_at: string
@@ -14083,6 +14597,8 @@ export type Database = {
           ordem?: number
           org_id?: string
           parent_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
           status?: Database["public"]["Enums"]["trip_item_status"]
           tipo: Database["public"]["Enums"]["trip_item_tipo"]
           updated_at?: string
@@ -14104,6 +14620,8 @@ export type Database = {
           ordem?: number
           org_id?: string
           parent_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
           status?: Database["public"]["Enums"]["trip_item_status"]
           tipo?: Database["public"]["Enums"]["trip_item_tipo"]
           updated_at?: string
@@ -14179,6 +14697,118 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_participants: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          nome: string
+          org_id: string
+          relacao: string | null
+          telefone: string | null
+          viagem_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          nome: string
+          org_id: string
+          relacao?: string | null
+          telefone?: string | null
+          viagem_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          nome?: string
+          org_id?: string
+          relacao?: string | null
+          telefone?: string | null
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_participants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_participants_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          file_url: string
+          height: number | null
+          id: string
+          org_id: string
+          participant_id: string | null
+          viagem_id: string
+          width: number | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          file_url: string
+          height?: number | null
+          id?: string
+          org_id: string
+          participant_id?: string | null
+          viagem_id: string
+          width?: number | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          file_url?: string
+          height?: number | null
+          id?: string
+          org_id?: string
+          participant_id?: string | null
+          viagem_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_photos_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_photos_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "trip_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_photos_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
             referencedColumns: ["id"]
           },
         ]
@@ -14338,12 +14968,15 @@ export type Database = {
       viagens: {
         Row: {
           capa_url: string | null
-          card_id: string
+          card_id: string | null
           confirmada_em: string | null
           created_at: string
           enviada_em: string | null
           estado: Database["public"]["Enums"]["viagem_estado"]
           id: string
+          nps_comentario: string | null
+          nps_nota: number | null
+          nps_respondida_em: string | null
           org_id: string
           pos_owner_id: string | null
           public_token: string
@@ -14356,12 +14989,15 @@ export type Database = {
         }
         Insert: {
           capa_url?: string | null
-          card_id: string
+          card_id?: string | null
           confirmada_em?: string | null
           created_at?: string
           enviada_em?: string | null
           estado?: Database["public"]["Enums"]["viagem_estado"]
           id?: string
+          nps_comentario?: string | null
+          nps_nota?: number | null
+          nps_respondida_em?: string | null
           org_id?: string
           pos_owner_id?: string | null
           public_token?: string
@@ -14374,12 +15010,15 @@ export type Database = {
         }
         Update: {
           capa_url?: string | null
-          card_id?: string
+          card_id?: string | null
           confirmada_em?: string | null
           created_at?: string
           enviada_em?: string | null
           estado?: Database["public"]["Enums"]["viagem_estado"]
           id?: string
+          nps_comentario?: string | null
+          nps_nota?: number | null
+          nps_respondida_em?: string | null
           org_id?: string
           pos_owner_id?: string | null
           public_token?: string
@@ -15539,6 +16178,31 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_agent_v1_v2_comparison: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          agent_version: string | null
+          avg_qual_score: number | null
+          avg_tokens_per_response: number | null
+          conversations: number | null
+          escalated_conversations: number | null
+          escalation_rate: number | null
+          first_turn_at: string | null
+          last_turn_at: string | null
+          org_id: string | null
+          responses: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_conflicts_summary: {
         Row: {
           actual_stage_id: string | null
@@ -16412,6 +17076,7 @@ export type Database = {
       }
       agent_update_card_data: {
         Args: {
+          p_allowed_fields?: string[]
           p_card_id: string
           p_patch: Json
           p_protected_fields?: string[]
@@ -16514,16 +17179,20 @@ export type Database = {
       analytics_drill_down_cards: {
         Args: {
           p_date_end?: string
+          p_date_ref?: string
           p_date_start?: string
           p_drill_destino?: string
+          p_drill_ganho_fase?: string
           p_drill_loss_reason?: string
           p_drill_owner_id?: string
           p_drill_period_end?: string
           p_drill_period_start?: string
           p_drill_phase?: string
+          p_drill_root_stage_id?: string
           p_drill_source?: string
           p_drill_stage_id?: string
           p_drill_status?: string
+          p_drill_status_array?: string[]
           p_exclude_terminal?: boolean
           p_global_owner_id?: string
           p_global_stage_id?: string
@@ -16699,6 +17368,32 @@ export type Database = {
           total_valor: number
         }[]
       }
+      analytics_funnel_conversion_v3: {
+        Args: {
+          p_date_end?: string
+          p_date_ref?: string
+          p_date_start?: string
+          p_ganho_fase?: string
+          p_owner_id?: string
+          p_owner_ids?: string[]
+          p_product?: string
+          p_stage_id?: string
+          p_status?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          current_count: number
+          ordem: number
+          p50_days_in_stage: number
+          p75_days_in_stage: number
+          period_count: number
+          period_receita: number
+          period_valor: number
+          phase_slug: string
+          stage_id: string
+          stage_nome: string
+        }[]
+      }
       analytics_funnel_live: {
         Args: {
           p_date_end?: string
@@ -16775,6 +17470,26 @@ export type Database = {
           p_owner_context?: string
           p_owner_ids?: string[]
           p_phase_slugs?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_atuais: number
+          cards_passaram: number
+          media_dias: number
+          mediana_dias: number
+          ordem: number
+          p90_dias: number
+          phase_slug: string
+          stage_id: string
+          stage_nome: string
+        }[]
+      }
+      analytics_funnel_velocity_v3: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+          p_product?: string
           p_tag_ids?: string[]
         }
         Returns: {
@@ -17839,6 +18554,10 @@ export type Database = {
         Args: { p_item_id: string; p_token: string }
         Returns: Json
       }
+      atrelar_viagem_a_card: {
+        Args: { p_card_id: string; p_hidratar?: boolean; p_viagem_id: string }
+        Returns: Json
+      }
       audit_contact_quality: {
         Args: { p_issue_types?: string[]; p_limit?: number }
         Returns: {
@@ -17953,8 +18672,29 @@ export type Database = {
         Returns: number
       }
       cleanup_net_http_response: { Args: never; Returns: undefined }
-      comentar_item: {
-        Args: { p_item_id: string; p_texto: string; p_token: string }
+      comentar_item:
+        | {
+            Args: { p_item_id: string; p_texto: string; p_token: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_item_id: string
+              p_participant_id?: string
+              p_texto: string
+              p_token: string
+            }
+            Returns: Json
+          }
+      compartilhar_foto: {
+        Args: {
+          p_caption?: string
+          p_file_url: string
+          p_height?: number
+          p_participant_id: string
+          p_token: string
+          p_width?: number
+        }
         Returns: Json
       }
       completar_sub_card: { Args: { p_sub_card_id: string }; Returns: Json }
@@ -17985,6 +18725,10 @@ export type Database = {
         }[]
       }
       contatos_default_org_id: { Args: never; Returns: string }
+      converter_sub_card_em_principal: {
+        Args: { p_sub_card_id: string }
+        Returns: Json
+      }
       create_user_and_card: {
         Args: { p_name: string; p_phone: string; p_pipeline_stage_id?: string }
         Returns: Json
@@ -18021,6 +18765,15 @@ export type Database = {
         Args: { p_future_opp_id: string }
         Returns: Json
       }
+      criar_viagem: {
+        Args: {
+          p_card_id?: string
+          p_hidratar?: boolean
+          p_subtitulo?: string
+          p_titulo?: string
+        }
+        Returns: Json
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_analytics_view: { Args: { p_id: string }; Returns: boolean }
       delete_user: { Args: { user_id: string }; Returns: undefined }
@@ -18044,6 +18797,7 @@ export type Database = {
         Args: { p_value: string }
         Returns: undefined
       }
+      enviar_viagem_ao_cliente: { Args: { p_viagem_id: string }; Returns: Json }
       escolher_alternativa: {
         Args: { p_alternativa_id: string; p_item_id: string; p_token: string }
         Returns: Json
@@ -18072,7 +18826,35 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      find_possible_duplicate_cards: {
+        Args: {
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_exclude_card_id?: string
+          p_pessoa_principal_id: string
+          p_produto: string
+        }
+        Returns: {
+          created_at: string
+          data_viagem_fim: string
+          data_viagem_inicio: string
+          financial_items_count: number
+          id: string
+          phase_slug: string
+          pipeline_stage_id: string
+          produto: string
+          stage_nome: string
+          status_comercial: string
+          titulo: string
+          valor_estimado: number
+          valor_final: number
+        }[]
+      }
       fix_orphan_conversations: { Args: never; Returns: Json }
+      fn_absorver_trip_items_sub_card: {
+        Args: { p_sub_card_id: string }
+        Returns: Json
+      }
       fn_business_minutes_between: {
         Args: { p_a: string; p_b: string; p_org_id?: string }
         Returns: number
@@ -18084,6 +18866,10 @@ export type Database = {
       fn_check_integration_health: { Args: never; Returns: Json }
       fn_enqueue_idle_followups: { Args: never; Returns: Json }
       fn_enqueue_temporal_events: { Args: never; Returns: number }
+      fn_infer_trip_item_tipo: {
+        Args: { p_description: string }
+        Returns: Database["public"]["Enums"]["trip_item_tipo"]
+      }
       fn_roteamento_pos_venda_trips: { Args: never; Returns: Json }
       fn_roteamento_pos_venda_trips_diagnose: {
         Args: never
@@ -18096,6 +18882,14 @@ export type Database = {
           c_viagem_fim: string
           c_viagem_inicio: string
         }[]
+      }
+      fundir_cards: {
+        Args: {
+          p_card_destino: string
+          p_card_origem: string
+          p_motivo?: string
+        }
+        Returns: Json
       }
       generate_api_key: {
         Args: {
@@ -18151,6 +18945,10 @@ export type Database = {
         Returns: {
           card_id: string
         }[]
+      }
+      get_checklist: {
+        Args: { p_participant_id: string; p_token: string }
+        Returns: Json
       }
       get_client_by_phone: {
         Args: {
@@ -18303,6 +19101,20 @@ export type Database = {
         Returns: Json
       }
       has_role: { Args: { role_name: string }; Returns: boolean }
+      hidratar_viagem_de_financeiro: {
+        Args: { p_viagem_id: string }
+        Returns: Json
+      }
+      identificar_participante: {
+        Args: {
+          p_email?: string
+          p_nome: string
+          p_relacao?: string
+          p_telefone?: string
+          p_token: string
+        }
+        Returns: Json
+      }
       increment_library_usage: {
         Args: { library_id: string }
         Returns: undefined
@@ -18394,6 +19206,16 @@ export type Database = {
         }
         Returns: Json
       }
+      listar_fotos: { Args: { p_token: string }; Returns: Json }
+      marcar_checklist: {
+        Args: {
+          p_checked?: boolean
+          p_item_key: string
+          p_participant_id: string
+          p_token: string
+        }
+        Returns: Json
+      }
       marcar_ganho: {
         Args: {
           p_card_id: string
@@ -18440,6 +19262,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mover_financial_items: {
+        Args: { p_card_destino: string; p_item_ids: string[] }
+        Returns: Json
+      }
       normalize_cpf: { Args: { cpf_input: string }; Returns: string }
       normalize_name: { Args: { name: string }; Returns: string }
       normalize_phone: { Args: { phone_number: string }; Returns: string }
@@ -18448,6 +19274,7 @@ export type Database = {
         Returns: string
       }
       normalize_phone_robust: { Args: { p_phone: string }; Returns: string[] }
+      pipeline_phases_duplicate_slugs_count: { Args: never; Returns: number }
       platform_delete_activity_category: {
         Args: { p_key: string }
         Returns: undefined
@@ -18697,6 +19524,10 @@ export type Database = {
         Returns: undefined
       }
       record_card_open: { Args: { p_card_id: string }; Returns: Json }
+      registrar_nps: {
+        Args: { p_comentario?: string; p_nota: number; p_token: string }
+        Returns: Json
+      }
       replace_cadence_steps: {
         Args: { p_steps: Json; p_template_id: string }
         Returns: undefined
@@ -18751,6 +19582,10 @@ export type Database = {
       }
       requesting_org_id: { Args: never; Returns: string }
       requesting_parent_org_id: { Args: never; Returns: string }
+      reset_agent_conversations_with_phone: {
+        Args: { p_agent_id: string; p_phone: string }
+        Returns: Json
+      }
       reset_user_password: {
         Args: { p_new_password: string; p_user_id: string }
         Returns: undefined

@@ -1,18 +1,43 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
+export type MomentKind = 'flow' | 'play'
+
+/** Cada slot da Sondagem: informação a coletar + perguntas escritas (opcionais). */
+export interface DiscoverySlot {
+  key: string
+  label: string
+  icon?: string | null
+  required: boolean
+  /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
+  questions: string[]
+  /** Liga ao campo do CRM (system_fields.field_key) — usado pra ligação visual com critérios. */
+  crm_field_key?: string | null
+}
+
+export interface DiscoveryConfig {
+  slots: DiscoverySlot[]
+}
+
 export interface PlaybookMoment {
   id: string
   agent_id: string
   moment_key: string
   moment_label: string
   display_order: number
+  /**
+   * flow = fase do funil (sequencial, ordem importa, lead progride).
+   * play = jogada situacional (interrupção por gatilho dentro de qualquer fase).
+   */
+  kind: MomentKind
   trigger_type: 'primeiro_contato' | 'lead_respondeu' | 'keyword' | 'score_threshold' | 'always' | 'custom' | 'manual'
   trigger_config: Record<string, unknown>
   message_mode: 'literal' | 'faithful' | 'free'
   anchor_text: string | null
   red_lines: string[]
   collects_fields: string[]
+  /** Slots da Sondagem (só preenchido em fases de descoberta). */
+  discovery_config: DiscoveryConfig | null
   enabled: boolean
 }
 

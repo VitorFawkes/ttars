@@ -14,6 +14,8 @@ export type LibraryMoment = {
   suggested: {
     moment_key: string;
     moment_label: string;
+    /** flow = fase do funil (sequencial). play = jogada situacional (interrupt). */
+    kind: 'flow' | 'play';
     trigger_type: 'primeiro_contato' | 'lead_respondeu' | 'keyword' | 'score_threshold' | 'always';
     trigger_config?: Record<string, unknown>;
     message_mode: 'literal' | 'faithful' | 'free';
@@ -32,6 +34,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'abertura',
       moment_label: 'Abertura',
+      kind: 'flow',
       trigger_type: 'primeiro_contato',
       message_mode: 'faithful',
       anchor_text: 'Oi {contact_name}, que bom que você me chamou. Me conta o que você busca?',
@@ -46,6 +49,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'sondagem',
       moment_label: 'Sondagem',
+      kind: 'flow',
       trigger_type: 'lead_respondeu',
       message_mode: 'free',
       anchor_text: 'Uma pergunta por turno, foco em contexto antes de dor. SPIN: Situação → Problema → Implicação.',
@@ -61,6 +65,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'objecao_preco',
       moment_label: 'Objeção de preço',
+      kind: 'play',
       trigger_type: 'keyword',
       trigger_config: { keywords: ['preço', 'preco', 'valor', 'quanto custa', 'orçamento', 'orcamento'] },
       message_mode: 'faithful',
@@ -76,6 +81,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'preciso_pensar',
       moment_label: 'Preciso pensar',
+      kind: 'play',
       trigger_type: 'keyword',
       trigger_config: { keywords: ['preciso pensar', 'vou pensar', 'me dê um tempo', 'preciso ver'] },
       message_mode: 'faithful',
@@ -91,6 +97,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'desfecho_qualificado',
       moment_label: 'Desfecho qualificado',
+      kind: 'flow',
       trigger_type: 'score_threshold',
       trigger_config: { operator: 'gte', value: 25 },
       message_mode: 'faithful',
@@ -106,6 +113,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'desfecho_nao_qualificado',
       moment_label: 'Desfecho não qualificado',
+      kind: 'flow',
       trigger_type: 'always',
       message_mode: 'faithful',
       anchor_text: 'Olha, vou ser honesta. Do jeito que tá, não é o que a gente consegue entregar. Prefiro falar agora.',
@@ -121,6 +129,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'entender_problema',
       moment_label: 'Entender o problema',
+      kind: 'flow',
       trigger_type: 'lead_respondeu',
       message_mode: 'free',
       anchor_text: 'Deixa o cliente descrever. Faça perguntas mínimas pra diagnosticar.',
@@ -135,6 +144,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'buscar_solucao',
       moment_label: 'Buscar solução',
+      kind: 'flow',
       trigger_type: 'always',
       message_mode: 'free',
       anchor_text: 'Propor solução direta. Se não souber, reconhecer e escalar.',
@@ -149,6 +159,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'confirmar_resolucao',
       moment_label: 'Confirmar resolução',
+      kind: 'flow',
       trigger_type: 'always',
       message_mode: 'faithful',
       anchor_text: 'Funcionou? Consegue confirmar pra eu fechar aqui?',
@@ -164,6 +175,7 @@ export const MOMENTS_LIBRARY: LibraryMoment[] = [
     suggested: {
       moment_key: 'pedido_humano',
       moment_label: 'Pedido de humano',
+      kind: 'play',
       trigger_type: 'keyword',
       trigger_config: { keywords: ['falar com humano', 'falar com atendente', 'pessoa de verdade', 'atendimento humano'] },
       message_mode: 'faithful',

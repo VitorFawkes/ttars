@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, GripVertical, Trash2, Save, Loader2, X, Plus } from 'lucide-react'
+import { ChevronDown, ChevronUp, GripVertical, Trash2, Save, Loader2, X, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useAgentMoments, type PlaybookMoment } from '@/hooks/playbook/useAgentMoments'
+import { useAgentMoments, type PlaybookMoment, type DiscoveryConfig } from '@/hooks/playbook/useAgentMoments'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
+import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
 
 const ANCHOR_VARIABLES: Array<{ token: string; label: string }> = [
   { token: '{contact_name}', label: 'Nome do lead' },
@@ -44,9 +45,24 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [mode, setMode] = useState(moment.message_mode)
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
+  const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(moment.discovery_config ?? null)
   const [newRedLine, setNewRedLine] = useState('')
   const [dirty, setDirty] = useState(false)
   const anchorRef = useRef<HTMLTextAreaElement | null>(null)
+
+  /** Só fases (kind=flow) podem ter slots de descoberta. Jogadas situacionais (play) não. */
+  const canHaveDiscovery = moment.kind === 'flow'
+  const hasDiscovery = canHaveDiscovery && discoveryConfig !== null
+
+  const enableDiscovery = () => {
+    setDiscoveryConfig({ slots: [] })
+    markDirty()
+  }
+  const removeDiscovery = () => {
+    if (!confirm('Remover toda a configuração de informações coletadas? As perguntas escritas serão perdidas.')) return
+    setDiscoveryConfig(null)
+    markDirty()
+  }
 
   const markDirty = () => setDirty(true)
 
@@ -76,12 +92,14 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         moment_key: moment.moment_key,
         moment_label: label.trim(),
         display_order: moment.display_order,
+        kind: moment.kind,
         trigger_type: triggerType,
         trigger_config: triggerConfig,
         message_mode: mode,
         anchor_text: (mode === 'literal' || mode === 'faithful') ? anchor.trim() : (anchor.trim() || null),
         red_lines: redLines,
         collects_fields: moment.collects_fields ?? [],
+        discovery_config: canHaveDiscovery ? discoveryConfig : null,
         enabled: moment.enabled,
       })
       toast.success('Momento salvo'); setDirty(false)
@@ -98,13 +116,25 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
     if (newRedLine.trim()) { setRedLines([...redLines, newRedLine.trim()]); setNewRedLine(''); markDirty() }
   }
 
+  const isFlow = moment.kind === 'flow'
+
   return (
-    <div className={cn('bg-white border rounded-lg', expanded ? 'border-indigo-200' : 'border-slate-200')}>
+    <div className={cn(
+      'bg-white border rounded-lg',
+      expanded
+        ? (isFlow ? 'border-indigo-200' : 'border-rose-200')
+        : 'border-slate-200',
+    )}>
       <header className="flex items-center gap-2 px-3 py-2.5">
-        <button type="button" {...(dragHandleProps?.attributes ?? {})} {...(dragHandleProps?.listeners ?? {})}
-          className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing">
-          <GripVertical className="w-4 h-4" />
-        </button>
+        {isFlow ? (
+          <button type="button" {...(dragHandleProps?.attributes ?? {})} {...(dragHandleProps?.listeners ?? {})}
+            className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing"
+            title="Arraste pra mudar a ordem da fase">
+            <GripVertical className="w-4 h-4" />
+          </button>
+        ) : (
+          <span className="text-rose-400" title="Jogada situacional — ordem não importa">⚡</span>
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-slate-900 truncate">{label || moment.moment_key}</div>
           <div className="text-xs text-slate-500 truncate">
@@ -210,6 +240,37 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
               </div>
             )}
           </div>
+
+          {canHaveDiscovery && (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="text-xs font-medium text-slate-900">Configuração de Sondagem</span>
+                </div>
+                {hasDiscovery ? (
+                  <button onClick={removeDiscovery} className="text-[11px] text-slate-500 hover:text-rose-600">
+                    desativar
+                  </button>
+                ) : (
+                  <button onClick={enableDiscovery} className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium">
+                    + ativar
+                  </button>
+                )}
+              </div>
+              {hasDiscovery ? (
+                <DiscoveryConfigEditor
+                  value={discoveryConfig}
+                  onChange={(next) => { setDiscoveryConfig(next); markDirty() }}
+                />
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  Ative se esta fase é onde a agente coleta informações estruturadas (data, destino, orçamento, etc.).
+                  Sem isso, a agente improvisa baseado só no objetivo escrito acima.
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Linhas vermelhas deste momento</label>

@@ -191,31 +191,83 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
   return `<voice>\n${lines.join('\n')}\n</voice>`;
 }
 
+function renderOneMoment(m: PlaybookMoment, currentMomentKey: string): string[] {
+  const lines: string[] = [];
+  const marker = m.moment_key === currentMomentKey ? '★' : '•';
+  lines.push(`${marker} ${m.moment_key} — ${m.moment_label}`);
+
+  if (m.anchor_text && m.anchor_text.trim()) {
+    const indentedText = m.anchor_text.trim().split('\n').map(l => `    ${l}`).join('\n');
+    lines.push(indentedText);
+  }
+
+  if (m.message_mode === 'literal') {
+    lines.push('    [modo: texto literal — envie exatamente, só substitua {contact_name}]');
+  } else if (m.message_mode === 'faithful') {
+    lines.push('    [modo: diretriz fiel — siga estrutura e conteúdo, adapte nome e pequenas palavras]');
+  } else {
+    lines.push('    [modo: livre — você tem flexibilidade, respeitando objetivo e red_lines]');
+  }
+
+  if (m.discovery_config && m.discovery_config.slots && m.discovery_config.slots.length > 0) {
+    lines.push('    Informações que você precisa coletar nesta fase:');
+    for (const slot of m.discovery_config.slots) {
+      const reqMark = slot.required ? ' [obrigatória]' : '';
+      const ico = slot.icon ? `${slot.icon} ` : '';
+      lines.push(`      - ${ico}${slot.label}${reqMark}`);
+      if (slot.questions && slot.questions.length > 0) {
+        lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
+        slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
+      } else {
+        lines.push(`        Sem pergunta escrita — formule a pergunta natural baseada no contexto.`);
+      }
+      if (slot.crm_field_key) {
+        lines.push(`        (registra em ${slot.crm_field_key})`);
+      }
+    }
+  }
+
+  if (m.red_lines && m.red_lines.length > 0) {
+    lines.push('    Não fazer nesta fase:');
+    m.red_lines.forEach(rl => lines.push(`      - ${rl}`));
+  }
+  return lines;
+}
+
 function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMoment): string {
   if (moments.length === 0) return '';
+
+  // Separa fases do funil (kind=flow) das jogadas situacionais (kind=play).
+  // Padrão de prompt: o LLM lê melhor duas listas pequenas com semântica clara
+  // do que uma lista flat misturando dois conceitos diferentes.
+  const flows = moments.filter(m => (m.kind ?? 'flow') === 'flow');
+  const plays = moments.filter(m => m.kind === 'play');
+
   const lines: string[] = [];
-  lines.push('Frases-âncora por momento. A IA adapta ao nome e à conversa, mantendo estrutura e conteúdo.');
+  lines.push('Como você conduz a conversa. Sempre adapte ao nome e ao contexto, mantendo estrutura.');
   lines.push('');
 
-  for (const m of moments) {
-    const marker = m.moment_key === currentMoment.moment_key ? '★' : '•';
-    lines.push(`${marker} ${m.moment_key} — ${m.moment_label}`);
-    if (m.anchor_text && m.anchor_text.trim()) {
-      const indentedText = m.anchor_text.trim().split('\n').map(l => `    ${l}`).join('\n');
-      lines.push(indentedText);
-    }
-    if (m.message_mode === 'literal') {
-      lines.push('    [modo: texto literal — envie exatamente, só substitua {contact_name}]');
-    } else if (m.message_mode === 'faithful') {
-      lines.push('    [modo: diretriz fiel — siga estrutura e conteúdo, adapte nome e pequenas palavras]');
-    } else {
-      lines.push('    [modo: livre — você tem flexibilidade, respeitando objetivo e red_lines]');
-    }
-    if (m.red_lines && m.red_lines.length > 0) {
-      lines.push('    Não fazer nesta fase:');
-      m.red_lines.forEach(rl => lines.push(`      - ${rl}`));
-    }
+  if (flows.length > 0) {
+    lines.push('<flow>');
+    lines.push('Fases do funil (passe por elas em ordem; cada uma tem um gatilho que indica quando começa):');
     lines.push('');
+    for (const m of flows) {
+      lines.push(...renderOneMoment(m, currentMoment.moment_key));
+      lines.push('');
+    }
+    lines.push('</flow>');
+    lines.push('');
+  }
+
+  if (plays.length > 0) {
+    lines.push('<plays>');
+    lines.push('Jogadas situacionais (podem disparar em qualquer fase quando o gatilho aparece; depois volte pra fase atual):');
+    lines.push('');
+    for (const m of plays) {
+      lines.push(...renderOneMoment(m, currentMoment.moment_key));
+      lines.push('');
+    }
+    lines.push('</plays>');
   }
 
   return `<anchors>\n${lines.join('\n').trimEnd()}\n</anchors>`;

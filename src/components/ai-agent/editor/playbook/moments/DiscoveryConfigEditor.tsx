@@ -1,0 +1,246 @@
+import { useState } from 'react'
+import { Plus, X, GripVertical, ChevronDown, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { cn } from '@/lib/utils'
+import type { DiscoveryConfig, DiscoverySlot } from '@/hooks/playbook/useAgentMoments'
+
+interface Props {
+  value: DiscoveryConfig | null
+  onChange: (next: DiscoveryConfig) => void
+}
+
+/**
+ * Editor da Sondagem: cada "informação a coletar" (slot) com perguntas escritas
+ * opcionais. Sem perguntas, a agente improvisa baseado no rótulo.
+ *
+ * Princípios:
+ *   - Tudo CRUD pela UI (adiciona/edita/remove qualquer slot e qualquer pergunta).
+ *   - Asterisco vermelho = obrigatório pra qualificar.
+ *   - Microcopy explica o que vira o quê pro agente.
+ */
+export function DiscoveryConfigEditor({ value, onChange }: Props) {
+  const slots = value?.slots ?? []
+
+  const updateSlot = (idx: number, next: Partial<DiscoverySlot>) => {
+    const list = [...slots]
+    list[idx] = { ...list[idx], ...next }
+    onChange({ slots: list })
+  }
+
+  const removeSlot = (idx: number) => {
+    if (!confirm(`Remover a informação "${slots[idx].label}"?`)) return
+    onChange({ slots: slots.filter((_, i) => i !== idx) })
+  }
+
+  const addSlot = () => {
+    const nextKey = `info_${Date.now().toString(36).slice(-4)}`
+    onChange({
+      slots: [
+        ...slots,
+        {
+          key: nextKey,
+          label: 'Nova informação',
+          icon: '',
+          required: false,
+          questions: [],
+          crm_field_key: null,
+        },
+      ],
+    })
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-medium text-slate-900">Informações que ela precisa coletar</h4>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Cada informação pode ter perguntas escritas (a agente usa) ou ficar vazio (a agente improvisa).
+          </p>
+        </div>
+      </div>
+
+      {slots.length === 0 ? (
+        <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-500 mb-3">Nenhuma informação configurada.</p>
+          <Button size="sm" variant="outline" onClick={addSlot} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Adicionar a primeira informação
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {slots.map((slot, idx) => (
+              <SlotItem
+                key={slot.key + idx}
+                slot={slot}
+                onChange={(next) => updateSlot(idx, next)}
+                onRemove={() => removeSlot(idx)}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Button size="sm" variant="outline" onClick={addSlot} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Adicionar informação
+            </Button>
+            <p className="text-[11px] text-slate-400">
+              <span className="text-rose-500 font-medium">*</span> = obrigatória pra qualificar
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function SlotItem({
+  slot,
+  onChange,
+  onRemove,
+}: {
+  slot: DiscoverySlot
+  onChange: (next: Partial<DiscoverySlot>) => void
+  onRemove: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [newQuestion, setNewQuestion] = useState('')
+
+  const addQuestion = () => {
+    const q = newQuestion.trim()
+    if (!q) return
+    onChange({ questions: [...slot.questions, q] })
+    setNewQuestion('')
+  }
+
+  const removeQuestion = (i: number) => {
+    onChange({ questions: slot.questions.filter((_, j) => j !== i) })
+  }
+
+  return (
+    <div className={cn('bg-white border rounded-lg', expanded ? 'border-slate-300' : 'border-slate-200')}>
+      <header className="flex items-center gap-2 px-3 py-2">
+        <GripVertical className="w-3.5 h-3.5 text-slate-300" />
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2 flex-1 text-left text-slate-400 hover:text-slate-700"
+        >
+          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <span className="text-base leading-none">{slot.icon || '🔹'}</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
+              <span className="truncate">{slot.label}</span>
+              {slot.required && <span className="text-rose-500 font-bold">*</span>}
+            </div>
+            <div className="text-[11px] text-slate-500">
+              {slot.questions.length === 0
+                ? 'sem perguntas escritas — agente improvisa'
+                : `${slot.questions.length} pergunta${slot.questions.length > 1 ? 's' : ''} escrita${slot.questions.length > 1 ? 's' : ''}`}
+            </div>
+          </div>
+        </button>
+      </header>
+
+      {expanded && (
+        <div className="px-3 pb-3 pt-1 space-y-2.5 border-t border-slate-100">
+          <div className="grid grid-cols-12 gap-2 items-start">
+            <div className="col-span-2">
+              <label className="block text-[11px] font-medium text-slate-600 mb-1">Ícone</label>
+              <input
+                value={slot.icon ?? ''}
+                onChange={(e) => onChange({ icon: e.target.value })}
+                placeholder="📅"
+                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-center"
+                maxLength={4}
+              />
+            </div>
+            <div className="col-span-7">
+              <label className="block text-[11px] font-medium text-slate-600 mb-1">Nome da informação</label>
+              <input
+                value={slot.label}
+                onChange={(e) => onChange({ label: e.target.value })}
+                placeholder="Ex: Data do casamento"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-[11px] font-medium text-slate-600 mb-1">Obrigatória?</label>
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={slot.required}
+                  onChange={(e) => onChange({ required: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-xs text-slate-700">Obrigatória</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+              Liga ao campo do CRM (opcional)
+            </label>
+            <input
+              value={slot.crm_field_key ?? ''}
+              onChange={(e) => onChange({ crm_field_key: e.target.value || null })}
+              placeholder="ex: ww_data_casamento"
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono text-slate-600"
+            />
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Se preenchido, conecta esta informação aos critérios de qualificação que usam esse campo.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+              Perguntas escritas <span className="text-slate-400 font-normal">(opcional — vazio = agente improvisa)</span>
+            </label>
+            {slot.questions.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {slot.questions.map((q, i) => (
+                  <div key={i} className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-100">
+                    <span className="text-xs text-slate-400 mt-0.5">{i + 1}.</span>
+                    <span className="flex-1 text-xs text-slate-700">{q}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(i)}
+                      className="text-slate-400 hover:text-rose-600"
+                      title="Remover pergunta"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={newQuestion}
+                onChange={(e) => setNewQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addQuestion()
+                  }
+                }}
+                placeholder="Ex: Vocês já têm uma data ou época em mente?"
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+              />
+              <Button size="sm" variant="outline" onClick={addQuestion} className="gap-1">
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex justify-end">
+            <Button size="sm" variant="outline" onClick={onRemove} className="gap-1.5 text-slate-500 hover:text-rose-600">
+              <X className="w-3.5 h-3.5" /> Remover esta informação
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

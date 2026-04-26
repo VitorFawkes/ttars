@@ -11,18 +11,39 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Types
 // ---------------------------------------------------------------------------
 
+export type MomentKind = 'flow' | 'play';
+
+export interface DiscoverySlot {
+  key: string;
+  label: string;
+  icon?: string | null;
+  required: boolean;
+  /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
+  questions: string[];
+  /** Liga ao campo do CRM (system_fields.field_key). */
+  crm_field_key?: string | null;
+}
+
+export interface DiscoveryConfig {
+  slots: DiscoverySlot[];
+}
+
 export interface PlaybookMoment {
   id: string;
   agent_id: string;
   moment_key: string;
   moment_label: string;
   display_order: number;
+  /** flow = fase do funil (sequencial). play = jogada situacional (interrupt por gatilho). */
+  kind: MomentKind;
   trigger_type: 'primeiro_contato' | 'lead_respondeu' | 'keyword' | 'score_threshold' | 'always' | 'custom' | 'manual';
   trigger_config: Record<string, unknown>;
   message_mode: 'literal' | 'faithful' | 'free';
   anchor_text: string | null;
   red_lines: string[];
   collects_fields: string[];
+  /** Slots da Sondagem (só preenchido em fases de descoberta, kind=flow). */
+  discovery_config: DiscoveryConfig | null;
   enabled: boolean;
 }
 
