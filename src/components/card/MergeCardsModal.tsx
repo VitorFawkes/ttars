@@ -27,6 +27,8 @@ interface CardSourceInfo {
     parent_card_id: string | null
     pessoa_principal_id: string | null
     pessoa_principal_nome: string | null
+    numero_venda_monde: string | null
+    numeros_venda_monde_count: number
 }
 
 interface CardCandidate {
@@ -72,7 +74,7 @@ const formatDateBR = (iso: string | null) => {
     return `${d}/${m}/${y}`
 }
 
-/** Info base do card origem (tipo, contato, pai) para decidir UX de pré-seleção. */
+/** Info base do card origem (tipo, contato, pai, venda Monde) para decidir UX. */
 function useCardSourceInfo(cardId: string | null) {
     return useQuery({
         queryKey: ['card-merge-source', cardId],
@@ -81,7 +83,7 @@ function useCardSourceInfo(cardId: string | null) {
             if (!cardId) return null
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from('cards') as any)
-                .select('id, titulo, card_type, parent_card_id, pessoa_principal_id, pessoa_principal:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)')
+                .select('id, titulo, card_type, parent_card_id, pessoa_principal_id, produto_data, pessoa_principal:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)')
                 .eq('id', cardId)
                 .single()
             if (error || !data) return null
@@ -90,6 +92,12 @@ function useCardSourceInfo(cardId: string | null) {
             const nomeCompleto = contato
                 ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ').trim() || null
                 : null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const pd = (data as any).produto_data as Record<string, unknown> | null
+            const numeroVendaMonde = pd && typeof pd.numero_venda_monde === 'string' ? pd.numero_venda_monde : null
+            const histArr = pd && Array.isArray(pd.numeros_venda_monde_historico)
+                ? (pd.numeros_venda_monde_historico as unknown[])
+                : []
             return {
                 id: data.id,
                 titulo: data.titulo,
@@ -97,6 +105,8 @@ function useCardSourceInfo(cardId: string | null) {
                 parent_card_id: data.parent_card_id,
                 pessoa_principal_id: data.pessoa_principal_id,
                 pessoa_principal_nome: nomeCompleto,
+                numero_venda_monde: numeroVendaMonde,
+                numeros_venda_monde_count: histArr.length,
             }
         },
     })
@@ -259,6 +269,7 @@ export default function MergeCardsModal({
     const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
     const [sourceAction, setSourceAction] = useState<SourceAfterAction>('archive')
     const [userTouchedAction, setUserTouchedAction] = useState(false)
+    const [migrateVendaMonde, setMigrateVendaMonde] = useState(false)
 
     const { data: sourceInfo } = useCardSourceInfo(sourceCardId)
 
@@ -284,6 +295,7 @@ export default function MergeCardsModal({
             setSelectedItemIds(new Set())
             setSourceAction('archive')
             setUserTouchedAction(false)
+            setMigrateVendaMonde(false)
         }
     }, [open, initialTargetId])
 
@@ -365,7 +377,11 @@ export default function MergeCardsModal({
                 activitiesMoved = result.activities_moved
                 sourceArchived = true
             } else if (itemsToMove.length > 0) {
-                const result = await moverFinancialItems(itemsToMove.map(i => i.id), selectedTargetId)
+                const result = await moverFinancialItems(
+                    itemsToMove.map(i => i.id),
+                    selectedTargetId,
+                    migrateVendaMonde,
+                )
                 itemsMoved = result.items_moved
             }
 
@@ -769,6 +785,34 @@ export default function MergeCardsModal({
                                 </div>
                             )}
 
+                            {/* Checkbox: migrar nº de venda Monde quando split */}
+                            {sourceItems.length > 0 &&
+                                !(allItemsSelected && sourceAction === 'archive') &&
+                                (sourceInfo?.numero_venda_monde || (sourceInfo?.numeros_venda_monde_count ?? 0) > 0) && (
+                                    <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:bg-slate-50">
+                                        <input
+                                            type="checkbox"
+                                            checked={migrateVendaMonde}
+                                            onChange={e => setMigrateVendaMonde(e.target.checked)}
+                                            disabled={isMerging}
+                                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-slate-900">
+                                                Levar também o nº da venda Monde
+                                                {sourceInfo?.numero_venda_monde && (
+                                                    <span className="ml-2 text-xs font-mono px-1.5 py-0.5 bg-slate-100 rounded">
+                                                        {sourceInfo.numero_venda_monde}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                Adiciona ao histórico do card destino. O card de origem mantém o número.
+                                            </p>
+                                        </div>
+                                    </label>
+                                )}
+
                             {/* Aviso geral */}
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
                                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -786,11 +830,25 @@ export default function MergeCardsModal({
                                         {allItemsSelected && sourceAction === 'archive' && (
                                             <>
                                                 <li>Passageiros, contatos, atividades e equipe também migram</li>
+                                                {(sourceInfo?.numero_venda_monde || (sourceInfo?.numeros_venda_monde_count ?? 0) > 0) && (
+                                                    <li>
+                                                        Nº da venda Monde
+                                                        {sourceInfo?.numero_venda_monde && (
+                                                            <> ({sourceInfo.numero_venda_monde})</>
+                                                        )}
+                                                        {' '}vai pro destino (com histórico)
+                                                    </li>
+                                                )}
                                                 <li>O card de origem é arquivado (recuperável na Lixeira)</li>
                                             </>
                                         )}
                                         {(!allItemsSelected || sourceAction === 'keep_open') && (
-                                            <li>O card de origem permanece aberto com o que você não marcou</li>
+                                            <>
+                                                <li>O card de origem permanece aberto com o que você não marcou</li>
+                                                {migrateVendaMonde && sourceInfo?.numero_venda_monde && (
+                                                    <li>Nº da venda Monde ({sourceInfo.numero_venda_monde}) é copiado pro destino (origem mantém)</li>
+                                                )}
+                                            </>
                                         )}
                                         <li>Valor e receita do destino são recalculados</li>
                                     </ul>

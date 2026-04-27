@@ -98,12 +98,14 @@ export async function fundirCards(
 export async function moverFinancialItems(
     itemIds: string[],
     cardDestinoId: string,
-): Promise<{ success: boolean; items_moved: number; source_cards: string[]; destino_id: string }> {
+    migrateVendaMonde = false,
+): Promise<{ success: boolean; items_moved: number; source_cards: string[]; destino_id: string; venda_monde_migrated?: boolean }> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC não tipada
     const { data, error } = await (supabase.rpc as any)('mover_financial_items', {
         p_item_ids: itemIds,
         p_card_destino: cardDestinoId,
+        p_migrate_venda_monde: migrateVendaMonde,
     })
     if (error) throw error
-    return data as { success: boolean; items_moved: number; source_cards: string[]; destino_id: string }
+    return data as { success: boolean; items_moved: number; source_cards: string[]; destino_id: string; venda_monde_migrated?: boolean }
 }
