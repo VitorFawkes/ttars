@@ -87,7 +87,7 @@ ${formDataEntries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}
   const systemPrompt = `Você é um avaliador objetivo. Analise a conversa abaixo e responda cada pergunta com "yes" ou "no".
 Baseie-se em evidências do histórico E nos dados estruturados já coletados. Se não há evidência clara em nenhum dos dois, responda "no" (conservador).
 
-Use informação que o casal já compartilhou na conversa OU está nos dados estruturados. Se uma pergunta depende de um dado que ainda não foi mencionado nem coletado (por exemplo a estimativa real de pessoas que o casal acredita que vão de fato, quando ele só falou em quantos convites pretende enviar), responda "no" e registre na reason que o dado ainda não está disponível. Não aplique heurísticas próprias nem invente números a partir de dados parciais.${groupInstruction}
+Use informação que o casal já compartilhou na conversa OU está nos dados estruturados. Quando os dados estruturados trazem campos como número de convidados ou orçamento, trate-os como fatos confirmados pelo casal — eles foram coletados pela agente já com a premissa correta (ex: convidados = quem deve comparecer de fato). Faça os cálculos pedidos pela pergunta usando esses números diretamente, sem reaplicar ressalvas que a pergunta não exige. Se um dado essencial para responder NÃO está disponível em nenhuma das fontes, responda "no" e registre na reason. Não aplique heurísticas próprias nem invente números a partir de dados parciais.${groupInstruction}
 
 ${formDataBlock}Histórico da conversa:
 ${input.historico_compacto || '(conversa ainda vazia)'}
