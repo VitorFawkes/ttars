@@ -157,14 +157,16 @@ function FlowGroup({
       )}
 
       {flows.length > 0 && (
-        <div className="flex gap-2 mt-3">
-          <Button onClick={onCreate} variant="outline" size="sm" className="gap-1.5" disabled={creating}>
-            <Plus className="w-3.5 h-3.5" /> Adicionar fase
-          </Button>
-          <Button onClick={onLibrary} variant="outline" size="sm" className="gap-1.5">
-            <BookOpen className="w-3.5 h-3.5" /> Da biblioteca
-          </Button>
-          <p className="ml-auto text-[11px] text-slate-400 self-center">
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onCreate} variant="outline" size="sm" className="gap-1.5" disabled={creating}>
+              <Plus className="w-3.5 h-3.5" /> Adicionar fase
+            </Button>
+            <Button onClick={onLibrary} variant="outline" size="sm" className="gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" /> Da biblioteca
+            </Button>
+          </div>
+          <p className="text-[11px] text-slate-400">
             💡 Arraste pra mudar a ordem do funil
           </p>
         </div>
@@ -242,14 +244,16 @@ function PlayGroup({
       )}
 
       {plays.length > 0 && (
-        <div className="flex gap-2 mt-3">
-          <Button onClick={onCreate} variant="outline" size="sm" className="gap-1.5" disabled={creating}>
-            <Plus className="w-3.5 h-3.5" /> Adicionar jogada
-          </Button>
-          <Button onClick={onLibrary} variant="outline" size="sm" className="gap-1.5">
-            <BookOpen className="w-3.5 h-3.5" /> Da biblioteca
-          </Button>
-          <p className="ml-auto text-[11px] text-slate-400 self-center">
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onCreate} variant="outline" size="sm" className="gap-1.5" disabled={creating}>
+              <Plus className="w-3.5 h-3.5" /> Adicionar jogada
+            </Button>
+            <Button onClick={onLibrary} variant="outline" size="sm" className="gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" /> Da biblioteca
+            </Button>
+          </div>
+          <p className="text-[11px] text-slate-400">
             💡 Ordem aqui não importa — disparam por gatilho
           </p>
         </div>
