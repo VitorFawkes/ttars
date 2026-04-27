@@ -3,7 +3,10 @@
 # sem o flag --no-verify-jwt
 
 # Functions que DEVEM ser públicas (recebem webhooks externos sem JWT)
-PUBLIC_FUNCTIONS="webhook-ingest webhook-whatsapp whatsapp-webhook active-campaign-webhook integration-sync-deals"
+# ai-agent-router incluído mesmo sendo função interna: o whatsapp-webhook
+# chama com Bearer SERVICE_ROLE, mas o Edge Runtime rejeita JWTs antigos
+# após rotação de keys (sb_secret_*). Ver config.toml da função.
+PUBLIC_FUNCTIONS="webhook-ingest webhook-whatsapp whatsapp-webhook active-campaign-webhook integration-sync-deals ai-agent-router"
 
 # Extrair o input do hook (JSON via stdin)
 INPUT=$(cat)

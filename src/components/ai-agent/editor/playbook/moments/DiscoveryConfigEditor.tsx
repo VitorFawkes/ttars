@@ -86,11 +86,11 @@ export function DiscoveryConfigEditor({ value, onChange, pipelineId, produtoSlug
             ))}
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <Button size="sm" variant="outline" onClick={addSlot} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" /> Adicionar informação
             </Button>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-400 whitespace-nowrap">
               <span className="text-rose-500 font-medium">*</span> = obrigatória pra qualificar
             </p>
           </div>
@@ -138,11 +138,11 @@ function SlotItem({
           {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           <span className="text-base leading-none">{slot.icon || '🔹'}</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
-              <span className="truncate">{slot.label}</span>
-              {slot.required && <span className="text-rose-500 font-bold">*</span>}
+            <div className="text-sm font-medium text-slate-900 flex items-center gap-1.5 min-w-0">
+              <span className="truncate flex-1 min-w-0">{slot.label}</span>
+              {slot.required && <span className="text-rose-500 font-bold shrink-0">*</span>}
             </div>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-slate-500 truncate">
               {slot.questions.length === 0
                 ? 'sem perguntas escritas — agente improvisa'
                 : `${slot.questions.length} pergunta${slot.questions.length > 1 ? 's' : ''} escrita${slot.questions.length > 1 ? 's' : ''}`}

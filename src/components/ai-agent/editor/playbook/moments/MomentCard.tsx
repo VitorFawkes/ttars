@@ -209,7 +209,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <label className="block text-xs font-medium text-slate-600">
                 {mode === 'free' ? 'Objetivo desta fase (a agente improvisa baseado nisso)' : 'Texto que a agente vai usar'}
               </label>

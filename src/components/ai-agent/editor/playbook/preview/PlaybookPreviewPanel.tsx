@@ -26,7 +26,11 @@ interface ChatMessage {
 
 interface Props {
   agentId: string
-  previewConfig: PreviewPlaybookConfig
+  /**
+   * Configurações do Playbook em memória (config ainda não salva no banco).
+   * Quando ausente, o backend usa as configs salvas — útil pra testar a versão "real".
+   */
+  previewConfig?: PreviewPlaybookConfig
   /** Whitelist do agente — usado pra habilitar botão "Zerar conversa real" e saber pra qual número resetar. */
   testWhitelist?: string[] | null
 }
@@ -104,30 +108,53 @@ export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: 
   }
 
   const [resetting, setResetting] = useState(false)
-  const phoneToReset = testWhitelist?.[0] ?? null
+  const phonesToReset = testWhitelist ?? []
 
   /**
-   * Zera tudo do número de teste no banco: arquiva conversa real, soft-delete
-   * card, limpa buffer. Restrito ao número da whitelist do agente.
-   * Chama RPC reset_agent_test_conversation que valida whitelist no backend.
+   * Zera tudo dos números de teste no banco: arquiva conversa real, soft-delete
+   * card, limpa buffer e dados do contato. Restrito aos números da whitelist do agente.
+   * Itera por todos os números cadastrados na whitelist.
    */
   const resetRealConversation = async () => {
-    if (!phoneToReset) return
-    if (!confirm(`Zerar conversa real do número ${phoneToReset}?\n\nIsso vai arquivar a conversa, apagar o card (soft delete) e limpar mensagens pendentes. Você poderá começar do zero mandando uma nova mensagem no WhatsApp.`)) return
+    if (phonesToReset.length === 0) return
+    const lista = phonesToReset.join(', ')
+    const titulo = phonesToReset.length === 1
+      ? `Zerar conversa real do número ${phonesToReset[0]}?`
+      : `Zerar conversa real de ${phonesToReset.length} números?\n\n${lista}`
+    if (!confirm(`${titulo}\n\nIsso vai arquivar a conversa, apagar o card (soft delete) e limpar mensagens pendentes de cada um. Você poderá começar do zero mandando nova mensagem no WhatsApp.`)) return
     setResetting(true)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc('reset_agent_test_conversation', {
-        p_agent_id: agentId,
-        p_phone: phoneToReset,
-      })
-      if (error) throw error
-      const r = data as ResetTestResponse
-      const total = (r.archived_conversations ?? 0) + (r.deleted_cards ?? 0) + (r.deleted_buffer ?? 0)
-      if (r.reason === 'no_contact_found' || total === 0) {
-        toast.success('Tudo já estava limpo — nenhuma conversa, card ou mensagem pendente.')
+      let archived = 0
+      let deletedCards = 0
+      let deletedBuffer = 0
+      const erros: string[] = []
+      for (const phone of phonesToReset) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data, error } = await (supabase as any).rpc('reset_agent_test_conversation', {
+            p_agent_id: agentId,
+            p_phone: phone,
+          })
+          if (error) {
+            erros.push(`${phone}: ${error.message}`)
+            continue
+          }
+          const r = data as ResetTestResponse
+          archived += r.archived_conversations ?? 0
+          deletedCards += r.deleted_cards ?? 0
+          deletedBuffer += r.deleted_buffer ?? 0
+        } catch (err) {
+          erros.push(`${phone}: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+      const total = archived + deletedCards + deletedBuffer
+      if (total === 0 && erros.length === 0) {
+        toast.success('Tudo já estava limpo — nada a apagar.')
+      } else if (erros.length === 0) {
+        toast.success(`Zerado: ${archived} conversa(s), ${deletedCards} card(s), ${deletedBuffer} mensagem(ns) pendente(s).`)
       } else {
-        toast.success(`Zerado: ${r.archived_conversations} conversa(s), ${r.deleted_cards} card(s), ${r.deleted_buffer} mensagem(ns) pendente(s).`)
+        toast.warning(`Parcial: ${total} item(ns) limpo(s), ${erros.length} erro(s). Veja console.`)
+        console.warn('[PlaybookPreviewPanel] erros no reset:', erros)
       }
       // Limpa também o teste local
       reset()
@@ -146,17 +173,21 @@ export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: 
         <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare} label="Testar" />
         <TabButton active={tab === 'prompt'} onClick={() => setTab('prompt')} icon={Code} label="Prompt" />
         <div className="flex-1" />
-        {phoneToReset && (
+        {phonesToReset.length > 0 && (
           <Button
             variant="outline"
             size="sm"
             onClick={resetRealConversation}
             disabled={resetting}
-            title={`Apaga a conversa real, o card e o buffer pendente do número ${phoneToReset}`}
+            title={
+              phonesToReset.length === 1
+                ? `Apaga a conversa real, o card e o buffer pendente do número ${phonesToReset[0]}`
+                : `Apaga conversa, card e buffer dos ${phonesToReset.length} números da whitelist`
+            }
             className="gap-1.5 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
           >
             {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            Zerar conversa real
+            Zerar conversa real{phonesToReset.length > 1 ? ` (${phonesToReset.length})` : ''}
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-slate-500" title="Limpa só o teste local (não toca conversa real)">

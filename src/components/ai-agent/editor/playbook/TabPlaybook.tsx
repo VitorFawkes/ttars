@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, User, Volume2, Clock, Target, Shield, Eye, MessageSquareQuote } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { IdentitySection } from './sections/IdentitySection'
 import { VoiceSection } from './sections/VoiceSection'
 import { MomentsSection } from './sections/MomentsSection'
@@ -8,21 +7,12 @@ import { QualificationSection } from './sections/QualificationSection'
 import { BoundariesSection } from './sections/BoundariesSection'
 import { SilentSignalsSection } from './sections/SilentSignalsSection'
 import { ExamplesSection } from './sections/ExamplesSection'
-import { PlaybookPreviewPanel } from './preview/PlaybookPreviewPanel'
 import { V1V2ComparisonCard } from './V1V2ComparisonCard'
-import { useAgentIdentity } from '@/hooks/playbook/useAgentIdentity'
-import { useAgentVoice } from '@/hooks/playbook/useAgentVoice'
-import { useAgentBoundaries } from '@/hooks/playbook/useAgentBoundaries'
-import { useAgentMoments } from '@/hooks/playbook/useAgentMoments'
-import { useAgentSilentSignals } from '@/hooks/playbook/useAgentSilentSignals'
-import { useAgentFewShotExamples } from '@/hooks/playbook/useAgentFewShotExamples'
 
 interface Props {
   agentId: string
   agentName: string
   companyName: string
-  /** Whitelist do agente — propagada pro PreviewPanel pra habilitar "Zerar conversa real". */
-  testWhitelist?: string[] | null
 }
 
 type SectionKey = 'identity' | 'voice' | 'moments' | 'qualification' | 'boundaries' | 'signals' | 'examples'
@@ -37,7 +27,7 @@ const SECTIONS: Array<{ key: SectionKey; title: string; subtitle: string; icon: 
   { key: 'examples', title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
 ]
 
-export function TabPlaybook({ agentId, agentName, companyName, testWhitelist }: Props) {
+export function TabPlaybook({ agentId, agentName, companyName }: Props) {
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     identity: true,
     voice: false,
@@ -47,56 +37,6 @@ export function TabPlaybook({ agentId, agentName, companyName, testWhitelist }: 
     signals: false,
     examples: false,
   })
-  const [showPreview, setShowPreview] = useState(true)
-
-  // Carrega configs pra o preview em tempo real
-  const { identity } = useAgentIdentity(agentId)
-  const { voice } = useAgentVoice(agentId)
-  const { boundaries } = useAgentBoundaries(agentId)
-  const { moments } = useAgentMoments(agentId)
-  const { signals } = useAgentSilentSignals(agentId)
-  const { examples } = useAgentFewShotExamples(agentId)
-
-  const previewConfig = useMemo(() => ({
-    identity_config: identity ?? null,
-    voice_config: voice ?? null,
-    boundaries_config: boundaries ?? null,
-    moments: moments.map(m => ({
-      id: m.id,
-      moment_key: m.moment_key,
-      moment_label: m.moment_label,
-      display_order: m.display_order,
-      kind: m.kind,
-      trigger_type: m.trigger_type,
-      trigger_config: m.trigger_config,
-      message_mode: m.message_mode,
-      anchor_text: m.anchor_text,
-      red_lines: m.red_lines,
-      collects_fields: m.collects_fields,
-      discovery_config: m.discovery_config,
-      enabled: m.enabled,
-    })),
-    silent_signals: signals.map(s => ({
-      id: s.id,
-      signal_key: s.signal_key,
-      signal_label: s.signal_label,
-      detection_hint: s.detection_hint,
-      crm_field_key: s.crm_field_key,
-      how_to_use: s.how_to_use,
-      display_order: s.display_order,
-      enabled: s.enabled,
-    })),
-    few_shot_examples: examples.map(e => ({
-      id: e.id,
-      lead_message: e.lead_message,
-      agent_response: e.agent_response,
-      context_note: e.context_note,
-      related_moment_key: e.related_moment_key,
-      related_signal_key: e.related_signal_key,
-      display_order: e.display_order,
-      enabled: e.enabled,
-    })),
-  }), [identity, voice, boundaries, moments, signals, examples])
 
   const toggle = (k: SectionKey) => setExpanded(s => ({ ...s, [k]: !s[k] }))
 
@@ -110,21 +50,14 @@ export function TabPlaybook({ agentId, agentName, companyName, testWhitelist }: 
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 font-medium">beta</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Configure cada peça do prompt que o agente usa. Cada seção vira um bloco do prompt.
+            Configure cada peça do prompt que o agente usa. Cada seção vira um bloco do prompt. Pra testar a configuração, vá na aba <span className="font-medium text-slate-700">Teste ao vivo</span>.
           </p>
         </div>
-        <button
-          onClick={() => setShowPreview(!showPreview)}
-          className="text-xs text-slate-500 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 hover:border-slate-300"
-        >
-          {showPreview ? 'Ocultar prévia' : 'Mostrar prévia'}
-        </button>
       </header>
 
-      <div className={cn('grid grid-cols-1', showPreview ? 'lg:grid-cols-[2fr_1fr]' : '')}>
-        <div className="p-5 space-y-4 overflow-auto">
-          <V1V2ComparisonCard agentId={agentId} />
-          <div className="space-y-2">
+      <div className="p-5 space-y-4">
+        <V1V2ComparisonCard agentId={agentId} />
+        <div className="space-y-2">
           {SECTIONS.map(s => (
             <div key={s.key} className="border border-slate-200 rounded-lg overflow-hidden">
               <button onClick={() => toggle(s.key)}
@@ -149,14 +82,7 @@ export function TabPlaybook({ agentId, agentName, companyName, testWhitelist }: 
               )}
             </div>
           ))}
-          </div>
         </div>
-
-        {showPreview && (
-          <div className="hidden lg:block h-[calc(100vh-220px)] sticky top-0">
-            <PlaybookPreviewPanel agentId={agentId} previewConfig={previewConfig} testWhitelist={testWhitelist} />
-          </div>
-        )}
       </div>
     </section>
   )

@@ -436,7 +436,6 @@ export default function AiAgentDetailPage() {
             agentId={id}
             agentName={form.nome}
             companyName={''}
-            testWhitelist={(existingAgent as { test_mode_phone_whitelist?: string[] | null } | undefined)?.test_mode_phone_whitelist ?? null}
           />
         )}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
@@ -447,7 +446,13 @@ export default function AiAgentDetailPage() {
         {activeTab === 'modelos' && !isN8n && <TabModelosComportamento form={form} setForm={setFormWrapper} />}
         {activeTab === 'ferramentas' && <TabFerramentas form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'conhecimento' && <TabConhecimento agentId={isNew ? undefined : id} />}
-        {activeTab === 'teste' && !isN8n && <TabTeste agentId={isNew ? undefined : id} />}
+        {activeTab === 'teste' && !isN8n && (
+          <TabTeste
+            agentId={isNew ? undefined : id}
+            agentName={form.nome}
+            playbookEnabled={!!form.playbook_enabled}
+          />
+        )}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
