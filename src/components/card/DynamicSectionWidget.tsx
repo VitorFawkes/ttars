@@ -25,7 +25,6 @@ import { cn } from '../../lib/utils'
 import type { Database, Json } from '../../database.types'
 import * as Icons from 'lucide-react'
 import { ProposalsWidget } from './ProposalsWidget'
-import MondeWidget from './MondeWidget'
 import FinanceiroWidget from './FinanceiroWidget'
 import ObservacoesEstruturadas from './ObservacoesEstruturadas'
 import TripInformation from './TripInformation'
@@ -46,7 +45,6 @@ type Card = Database['public']['Tables']['cards']['Row']
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const WIDGET_REGISTRY: Record<string, React.ComponentType<any>> = {
     proposals: ProposalsWidget,
-    monde: MondeWidget,
     financeiro: FinanceiroWidget,
     observacoes_criticas: ObservacoesEstruturadas,
     trip_info: TripInformation,
