@@ -258,6 +258,7 @@ async function calculateCurrentScore(
             historico_compacto: ctx.historico_compacto,
             ai_resumo: ctx.ai_resumo,
             ai_contexto: ctx.ai_contexto,
+            form_data: ctx.form_data,
             agentName: agentName ?? '',
             openaiApiKey: openaiKey,
           });

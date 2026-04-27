@@ -1218,6 +1218,32 @@ async function buildConversationContext(
     for (const field of formFields) {
       if (pd[field]) formData[field] = String(pd[field]);
     }
+
+    // Playbook v2: além de form_data_fields (config legacy de marketing),
+    // auto-inclui campos coletados pelos slots de Sondagem do agente. Sem isso,
+    // dados extraídos pelo Data Agent (ex: ww_destino, ww_orcamento_faixa)
+    // ficam no card mas nunca chegam ao <known> do prompt — agente esquece.
+    if (agentId) {
+      try {
+        const { data: momentRows } = await supabase
+          .from("ai_agent_moments")
+          .select("discovery_config")
+          .eq("agent_id", agentId)
+          .not("discovery_config", "is", null);
+        for (const m of (momentRows || [])) {
+          const cfg = (m as { discovery_config?: { slots?: Array<{ crm_field_key?: string | null }> } | null }).discovery_config;
+          const slots = cfg?.slots ?? [];
+          for (const s of slots) {
+            const key = s.crm_field_key;
+            if (key && pd[key] !== undefined && pd[key] !== null && !formData[key]) {
+              formData[key] = String(pd[key]);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[buildConversationContext] discovery slots merge failed:", err);
+      }
+    }
   }
 
   // Flags de pausa: humano assumiu OU pause_permanently foi ligado por handoff anterior.

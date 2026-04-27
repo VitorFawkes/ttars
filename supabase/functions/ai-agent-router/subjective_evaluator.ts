@@ -25,6 +25,12 @@ export interface SubjectiveEvalInput {
   historico_compacto: string;
   ai_resumo: string;
   ai_contexto: string;
+  /**
+   * Dados estruturados já coletados na conversa (vindos de cards.produto_data
+   * via slots da Sondagem). Tratados como FATOS confirmados pelo evaluator —
+   * evita falso negativo quando dado existe no card mas saiu do histórico curto.
+   */
+  form_data?: Record<string, string>;
   agentName: string;
   openaiApiKey: string;
   model?: string;
@@ -69,12 +75,21 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
     ? `\n\nIMPORTANTE sobre grupos: Perguntas marcadas com o mesmo [grupo: X] descrevem faixas mutuamente exclusivas da mesma variável. Para cada grupo, responda YES para APENAS UMA pergunta — a que melhor descreve o caso analisando o histórico. Todas as outras perguntas do mesmo grupo devem ser NO. Se não há evidência suficiente pra escolher nenhuma faixa do grupo, responda NO em todas do grupo.`
     : '';
 
+  const formDataEntries = Object.entries(input.form_data ?? {})
+    .filter(([, v]) => v && String(v).trim());
+  const formDataBlock = formDataEntries.length > 0
+    ? `Dados estruturados já coletados pelo Data Agent (FATOS confirmados — use como evidência forte, mesmo que o tópico já tenha saído do histórico curto):
+${formDataEntries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+
+`
+    : '';
+
   const systemPrompt = `Você é um avaliador objetivo. Analise a conversa abaixo e responda cada pergunta com "yes" ou "no".
-Baseie-se APENAS em evidências do histórico. Se não há evidência clara, responda "no" (conservador).
+Baseie-se em evidências do histórico E nos dados estruturados já coletados. Se não há evidência clara em nenhum dos dois, responda "no" (conservador).
 
-Use apenas informação que o casal já compartilhou na conversa. Se uma pergunta depende de um dado que ainda não foi mencionado (por exemplo a estimativa real de pessoas que o casal acredita que vão de fato, quando ele só falou em quantos convites pretende enviar), responda "no" e registre na reason que o dado ainda não está na conversa. Não aplique heurísticas próprias nem inventa números a partir de dados parciais.${groupInstruction}
+Use informação que o casal já compartilhou na conversa OU está nos dados estruturados. Se uma pergunta depende de um dado que ainda não foi mencionado nem coletado (por exemplo a estimativa real de pessoas que o casal acredita que vão de fato, quando ele só falou em quantos convites pretende enviar), responda "no" e registre na reason que o dado ainda não está disponível. Não aplique heurísticas próprias nem invente números a partir de dados parciais.${groupInstruction}
 
-Histórico da conversa:
+${formDataBlock}Histórico da conversa:
 ${input.historico_compacto || '(conversa ainda vazia)'}
 
 Resumo consolidado:
