@@ -228,7 +228,9 @@ serve(async (req) => {
         silentSignals: signals,
         fewShotExamples: examples,
         scoringRules: rules,
-        scoreInfo: { enabled: false, score: null, threshold: null, qualificado: null },
+        // Marcar enabled:true preview-only pra que blocos dependentes (qualification,
+        // handoff_logic) renderizem. Score real é calculado só em produção via persona_v2.
+        scoreInfo: { enabled: true, score: 0, threshold: 25, qualificado: false },
         ctx: {
           is_primeiro_contato: isPrimeiro,
           contact_name: "Cliente Teste",

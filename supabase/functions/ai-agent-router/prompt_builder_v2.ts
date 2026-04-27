@@ -112,6 +112,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
   const signals = renderSilentSignalsBlock(input.silentSignals);
+  const handoffLogic = renderHandoffLogicBlock(input);
   const examples = renderExamplesBlock(input.fewShotExamples, input.currentMoment);
 
   const turn = renderTurnBlock(input);
@@ -126,6 +127,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
     boundaries,
     qualification,
     signals,
+    handoffLogic,
     examples,
     `</agent>`,
     ``,
@@ -353,6 +355,72 @@ function renderQualificationBlock(
 
   if (lines.length === 0) return '';
   return `<qualification>\n${lines.join('\n')}\n</qualification>`;
+}
+
+/**
+ * Bloco de lógica de avanço (qualify → handoff). Só aparece se há scoring
+ * habilitado E momento atual é uma fase de coleta (kind=flow com discovery_config)
+ * — tipicamente Sondagem.
+ *
+ * Resolve o problema de "sondagem perpétua": LLM não sabia quando parar de
+ * coletar info e passar pro desfecho. Decision tree explícita:
+ *   1. Score atinge threshold → desfecho qualificado, pare de perguntar.
+ *   2. Slots obrigatórios cheios MAS score abaixo → buscar sinais invisíveis
+ *      (família ajudando, viagem internacional, casamento admirado) com
+ *      perguntas naturais que possam revelar bonus.
+ *   3. Já tentou sinais E score continua abaixo → desfecho não qualificado.
+ *   4. Faltam slots obrigatórios → continue sondagem normal.
+ */
+function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
+  const { scoreInfo, currentMoment, silentSignals } = input;
+
+  // Só faz sentido em fase de coleta (Sondagem)
+  const hasDiscovery = currentMoment.discovery_config?.slots && currentMoment.discovery_config.slots.length > 0;
+  if (!hasDiscovery || !scoreInfo.enabled) return '';
+
+  const slots = currentMoment.discovery_config!.slots;
+  const requiredSlots = slots.filter(s => s.required);
+
+  const requiredFieldsList = requiredSlots
+    .map(s => `${s.icon ? s.icon + ' ' : ''}${s.label}${s.crm_field_key ? ` (${s.crm_field_key})` : ''}`)
+    .join(', ');
+
+  const signalsList = silentSignals.map(s => {
+    const detect = s.detection_hint ? ` — detectado por: ${s.detection_hint}` : '';
+    return `  • ${s.signal_label}${detect}`;
+  }).join('\n');
+
+  const lines: string[] = [];
+  lines.push('Lógica de avanço — você está em fase de coleta. Decida o próximo passo nesta ordem:');
+  lines.push('');
+  lines.push('1. SCORE ATINGIU THRESHOLD → AVANCE PRO DESFECHO');
+  lines.push(`   Olhe <qualification_status> no <turn>. Se score ≥ ${scoreInfo.threshold ?? 25}, PARE de fazer perguntas.`);
+  lines.push('   Vá direto pra fase de fechamento (proposta de conversa com a especialista).');
+  lines.push('   Não justifique a transição. Não peça mais info "pra confirmar". Você já tem o suficiente.');
+  lines.push('');
+  if (requiredFieldsList) {
+    lines.push('2. SLOTS OBRIGATÓRIOS COLETADOS MAS SCORE ABAIXO DO THRESHOLD → BUSQUE SINAIS INVISÍVEIS');
+    lines.push(`   Slots obrigatórios desta fase: ${requiredFieldsList}.`);
+    lines.push('   Se TODOS estão preenchidos em <known> mas o score ainda está abaixo do mínimo,');
+    lines.push('   faça UMA pergunta natural que possa revelar um dos sinais bonus listados em <silent_signals>:');
+    if (signalsList) {
+      lines.push(signalsList);
+    }
+    lines.push('   A pergunta deve soar como conversa genuína (curiosidade sobre estilo de vida, família,');
+    lines.push('   inspirações), nunca como "preciso desse dado pra qualificar". Faça no máximo 2 tentativas');
+    lines.push('   pra revelar sinais — depois disso, avance.');
+    lines.push('');
+  }
+  lines.push('3. SCORE CONTINUA ABAIXO MESMO APÓS BUSCAR SINAIS → DESFECHO NÃO QUALIFICADO');
+  lines.push('   Encerre cordial e honesto. Não force.');
+  lines.push('');
+  lines.push('4. FALTAM SLOTS OBRIGATÓRIOS → CONTINUE SONDAGEM NORMAL');
+  lines.push('   Faça uma pergunta por turno sobre o slot que ainda falta.');
+  lines.push('');
+  lines.push('Princípio: seu objetivo é qualificar e conectar com a especialista. Não é entrevista —');
+  lines.push('é conversa que decide. Não exponha o jargão (não diga "score", "qualificado", "slots") pro lead.');
+
+  return `<handoff_logic>\n${lines.join('\n')}\n</handoff_logic>`;
 }
 
 function renderSilentSignalsBlock(signals: PlaybookSilentSignal[]): string {

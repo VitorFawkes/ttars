@@ -119,7 +119,12 @@ Responda em JSON estrito:
       body: JSON.stringify({
         model: input.model ?? "gpt-4.1-mini",
         temperature: 0.1,
-        max_completion_tokens: 600,
+        // Bug 2026-04-27: 600 tokens truncava resposta quando agente tinha 10+
+        // rules subjective. JSON saía inválido, parse falhava, catch retornava
+        // {}, score ficava 0 sempre. Cálculo: cada eval ~30 tokens (uuid 36
+        // chars + answer + reason curto), wrapper JSON ~50. 15 rules ≈ 500+
+        // tokens. Subimos pra 1500 com folga pra agentes maiores.
+        max_completion_tokens: 1500,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -130,15 +135,24 @@ Responda em JSON estrito:
 
     if (!res.ok) {
       const errBody = await res.text();
-      console.warn(`[subjective_evaluator] LLM error: ${errBody.substring(0, 200)}`);
+      console.warn(`[subjective_evaluator] LLM error status=${res.status}: ${errBody.substring(0, 300)}`);
       return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
     }
 
     const data = await res.json();
     const usage = data.usage ?? {};
     const content = data.choices?.[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(content);
-    const evaluations: Array<{ rule_id: string; answer: string }> = parsed.evaluations ?? [];
+    const finishReason = data.choices?.[0]?.finish_reason;
+    let parsed: { evaluations?: Array<{ rule_id: string; answer: string }> };
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseErr) {
+      // Resposta veio truncada ou malformada. Loga finish_reason pra diagnóstico
+      // (ex: "length" indica que max_completion_tokens estourou).
+      console.warn(`[subjective_evaluator] JSON parse failed (finish=${finishReason}, content_len=${content.length}, usage=${JSON.stringify(usage)}): ${String(parseErr).substring(0, 200)}`);
+      return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0 } };
+    }
+    const evaluations = parsed.evaluations ?? [];
 
     const resolved: Record<string, boolean> = {};
     for (const e of evaluations) {
@@ -151,7 +165,7 @@ Responda em JSON estrito:
       tokens: { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0 },
     };
   } catch (err) {
-    console.warn(`[subjective_evaluator] caught:`, err);
+    console.warn(`[subjective_evaluator] caught (${(err as Error).name}): ${String(err).substring(0, 300)}`);
     return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
   }
 }
