@@ -121,9 +121,10 @@ export interface BuildPromptV2Input {
 // ---------------------------------------------------------------------------
 
 export function buildPromptV2(input: BuildPromptV2Input): string {
+  const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
-  const anchors = renderAnchorsBlock(input.moments, input.currentMoment);
+  const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
   const signals = renderSilentSignalsBlock(input.silentSignals);
@@ -210,13 +211,85 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
   return `<voice>\n${lines.join('\n')}\n</voice>`;
 }
 
-function renderOneMoment(m: PlaybookMoment, currentMomentKey: string): string[] {
+// Mapa pra normalizar weekday do Postgres → PT-BR. agent_check_calendar usa
+// to_char(d, 'Dy') que devolve abrev em inglês quando o locale do server não
+// é PT — então mapeamos manualmente aqui pra ter consistência no prompt.
+const WEEKDAY_PT: Record<string, string> = {
+  Mon: 'segunda', Tue: 'terça', Wed: 'quarta', Thu: 'quinta',
+  Fri: 'sexta', Sat: 'sábado', Sun: 'domingo',
+  // PT-BR já vem assim em alguns servidores
+  Seg: 'segunda', Ter: 'terça', Qua: 'quarta', Qui: 'quinta', Sex: 'sexta', Sáb: 'sábado', Dom: 'domingo',
+};
+
+/** Formata um slot do agent_check_calendar pra texto natural: "quarta 30/04 às 14h". */
+function formatSlotLabel(slot: { date: string; time: string; weekday: string }): string {
+  const wd = WEEKDAY_PT[slot.weekday] ?? slot.weekday.toLowerCase();
+  const [, mm, dd] = slot.date.split('-');
+  // "14:00" → "14h", "14:30" → "14:30"
+  const t = slot.time.endsWith(':00') ? `${slot.time.slice(0, -3)}h` : slot.time;
+  return `${wd} ${dd}/${mm} às ${t}`;
+}
+
+/**
+ * Substitui variáveis dinâmicas em texto livre (anchor_text dos momentos).
+ * Variáveis suportadas:
+ *   {contact_name}        — nome do lead (ou "(nome do lead)" se desconhecido)
+ *   {agent_name}          — nome do agente
+ *   {company_name}        — nome da empresa
+ *   {responsavel_name}    — nome do closer (book_meeting.responsavel_name)
+ *   {slot_1}/{2}/{3}      — primeiros 3 horários disponíveis formatados
+ *   {slots_disponiveis}   — lista natural ("quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h")
+ *
+ * Quando book_meeting não está ativo, as variáveis de slot/responsável caem em
+ * placeholder neutro pra LLM saber que precisa improvisar (ex: "(horários a confirmar)").
+ */
+function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
+  const subs: Record<string, string> = {
+    '{contact_name}': input.ctx.contact_name_known ? input.ctx.contact_name : '(nome do lead)',
+    '{agent_name}': input.agentName,
+    '{company_name}': input.companyName,
+  };
+
+  const cfg = input.bookMeeting;
+  subs['{responsavel_name}'] = cfg?.responsavel_name ?? '(especialista)';
+
+  const slots = cfg?.available_slots ?? [];
+  const formatted = slots.map(formatSlotLabel);
+  subs['{slot_1}'] = formatted[0] ?? '(horário a confirmar)';
+  subs['{slot_2}'] = formatted[1] ?? '(horário a confirmar)';
+  subs['{slot_3}'] = formatted[2] ?? '(horário a confirmar)';
+
+  // Lista natural com 3 horários: "quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h"
+  const top3 = formatted.slice(0, 3);
+  if (top3.length === 0) {
+    subs['{slots_disponiveis}'] = '(horários a confirmar)';
+  } else if (top3.length === 1) {
+    subs['{slots_disponiveis}'] = top3[0];
+  } else if (top3.length === 2) {
+    subs['{slots_disponiveis}'] = `${top3[0]} ou ${top3[1]}`;
+  } else {
+    subs['{slots_disponiveis}'] = `${top3[0]}, ${top3[1]} ou ${top3[2]}`;
+  }
+
+  return subs;
+}
+
+function applySubstitutions(text: string, subs: Record<string, string>): string {
+  let out = text;
+  for (const [token, value] of Object.entries(subs)) {
+    out = out.split(token).join(value);
+  }
+  return out;
+}
+
+function renderOneMoment(m: PlaybookMoment, currentMomentKey: string, subs: Record<string, string>): string[] {
   const lines: string[] = [];
   const marker = m.moment_key === currentMomentKey ? '★' : '•';
   lines.push(`${marker} ${m.moment_key} — ${m.moment_label}`);
 
   if (m.anchor_text && m.anchor_text.trim()) {
-    const indentedText = m.anchor_text.trim().split('\n').map(l => `    ${l}`).join('\n');
+    const substituted = applySubstitutions(m.anchor_text.trim(), subs);
+    const indentedText = substituted.split('\n').map(l => `    ${l}`).join('\n');
     lines.push(indentedText);
   }
 
@@ -253,7 +326,7 @@ function renderOneMoment(m: PlaybookMoment, currentMomentKey: string): string[] 
   return lines;
 }
 
-function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMoment): string {
+function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMoment, subs: Record<string, string>): string {
   if (moments.length === 0) return '';
 
   // Separa fases do funil (kind=flow) das jogadas situacionais (kind=play).
@@ -271,7 +344,7 @@ function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMo
     lines.push('Fases do funil (passe por elas em ordem; cada uma tem um gatilho que indica quando começa):');
     lines.push('');
     for (const m of flows) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs));
       lines.push('');
     }
     lines.push('</flow>');
@@ -283,7 +356,7 @@ function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMo
     lines.push('Jogadas situacionais (podem disparar em qualquer fase quando o gatilho aparece; depois volte pra fase atual):');
     lines.push('');
     for (const m of plays) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs));
       lines.push('');
     }
     lines.push('</plays>');

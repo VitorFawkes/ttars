@@ -8,10 +8,15 @@ import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
 import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
 
-const ANCHOR_VARIABLES: Array<{ token: string; label: string }> = [
+const ANCHOR_VARIABLES: Array<{ token: string; label: string; hint?: string }> = [
   { token: '{contact_name}', label: 'Nome do lead' },
   { token: '{agent_name}', label: 'Nome do agente' },
   { token: '{company_name}', label: 'Nome da empresa' },
+  { token: '{responsavel_name}', label: 'Wedding Planner', hint: 'Nome do closer configurado em Handoff > Agendar reunião automática' },
+  { token: '{slots_disponiveis}', label: 'Lista de horários', hint: 'Próximos 3 horários livres na agenda do closer (ex: "quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h")' },
+  { token: '{slot_1}', label: '1º horário livre', hint: 'Primeiro horário disponível (ex: "quarta 30/04 às 14h")' },
+  { token: '{slot_2}', label: '2º horário livre' },
+  { token: '{slot_3}', label: '3º horário livre' },
 ]
 
 interface Props {
@@ -239,12 +244,16 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                       type="button"
                       onClick={() => insertVariable(v.token)}
                       className="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 font-mono"
-                      title={v.label}
+                      title={v.hint ? `${v.label} — ${v.hint}` : v.label}
                     >
                       {v.token}
                     </button>
                   ))}
                 </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                  💡 <span className="font-medium">Horários ({'{slot_1}'}, {'{slots_disponiveis}'}, etc)</span> só aparecem
+                  quando "Agendar reunião automática" está ativa em <strong>Handoff</strong>. Se não estiver, a agente improvisa horário pelo objetivo.
+                </p>
               </div>
             )}
           </div>
