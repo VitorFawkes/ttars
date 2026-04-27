@@ -660,3 +660,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-27T14:19:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260427b_reset_agent_test_clears_contact.sql | applied_to_prod
 2026-04-27T14:21:09Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260427c_reset_agent_test_contact_placeholder.sql | applied_to_prod
 2026-04-27T16:56:26Z | supabase/migrations/20260427a_fundir_cards_migra_venda_monde.sql | applied_to_prod
+2026-04-27T18:26:19Z | supabase/migrations/20260427a_revert_ganho_pos_pre_viagem.sql | applied_to_prod
+2026-04-27T18:26:39Z | supabase/migrations/20260427b_pre_embarque_30d_not_won.sql | applied_to_prod
+2026-04-27T18:27:53Z | supabase/migrations/20260427b_pre_embarque_30d_not_won.sql | applied_to_prod
+2026-04-27T18:28:18Z | supabase/migrations/20260427c_bulk_pos_venda_no_ganho_pos.sql | applied_to_prod

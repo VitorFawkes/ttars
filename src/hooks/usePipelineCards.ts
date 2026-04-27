@@ -261,7 +261,9 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 query = query.in('status_comercial', filters.statusComercial)
             } else if (!showClosedCards) {
-                query = query.in('status_comercial', ['aberto'])
+                // Mostra cards em fluxo: aberto OU ganho-em-execução (ganho mas Pós-venda não concluído).
+                // Cards com ganho_pos=true (Pós-venda finalizado, pós NPS) ficam ocultos por padrão.
+                query = query.or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
             }
 
             // Origem Filter
