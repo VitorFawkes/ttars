@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, ExternalLink } from 'lucide-react'
-import { useModelosConcierge, useToggleModeloAtivo } from '../../hooks/concierge/useModelosConcierge'
+import { Loader2, ExternalLink, Plus, Pencil } from 'lucide-react'
+import { useModelosConcierge, useToggleModeloAtivo, type ModeloConcierge } from '../../hooks/concierge/useModelosConcierge'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, categoriasParaProduto, type TipoConcierge } from '../../hooks/concierge/types'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrg } from '../../contexts/OrgContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { cn } from '../../lib/utils'
+import ModeloEditorModal from '../../components/concierge/ModeloEditorModal'
 
 function categoriaLabel(key: string | null): string {
   if (!key) return '—'
@@ -22,10 +24,16 @@ const FILTROS: Array<{ value: 'todos' | TipoConcierge; label: string }> = [
 
 export default function ModelosPage() {
   const { profile } = useAuth()
+  const { org } = useOrg()
   const { slug: produtoAtual } = useCurrentProductMeta()
   const { data: modelos, isLoading } = useModelosConcierge()
   const toggle = useToggleModeloAtivo()
   const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoConcierge>('todos')
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorModelo, setEditorModelo] = useState<ModeloConcierge | null>(null)
+
+  const abrirNovo = () => { setEditorModelo(null); setEditorOpen(true) }
+  const abrirEdicao = (m: ModeloConcierge) => { setEditorModelo(m); setEditorOpen(true) }
 
   const categoriasDoProduto = useMemo(() => {
     return new Set(categoriasParaProduto(produtoAtual).map(c => c.key))
@@ -80,8 +88,16 @@ export default function ModelosPage() {
             .
           </p>
         </div>
-        <div className="text-[12px] text-slate-500">
-          <span className="font-mono font-semibold text-slate-900">{ativos}</span> ativos de {modelosFiltrados.length}
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-slate-500">
+            <span className="font-mono font-semibold text-slate-900">{ativos}</span> ativos de {modelosFiltrados.length}
+          </span>
+          <button
+            onClick={abrirNovo}
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            <Plus className="w-3.5 h-3.5" /> Novo modelo
+          </button>
         </div>
       </div>
 
@@ -161,6 +177,7 @@ export default function ModelosPage() {
                 <th className="text-left px-3 py-2.5 font-semibold">Tipo · categoria</th>
                 <th className="text-center px-3 py-2.5 font-semibold">Quando dispara</th>
                 <th className="text-center px-3 py-2.5 font-semibold">Ativo</th>
+                <th className="px-3 py-2.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -192,7 +209,7 @@ export default function ModelosPage() {
                     </td>
                     <td className="px-3 py-3 text-center">
                       <button
-                        onClick={() => toggle.mutate({ template_id: m.template_id, is_active: !m.template_active })}
+                        onClick={() => org?.id && toggle.mutate({ template_id: m.template_id, is_active: !m.template_active, org_id: org.id })}
                         className={cn(
                           'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
                           m.template_active ? 'bg-emerald-500' : 'bg-slate-200'
@@ -206,6 +223,14 @@ export default function ModelosPage() {
                         />
                       </button>
                     </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        onClick={() => abrirEdicao(m)}
+                        className="inline-flex items-center gap-1 h-7 px-2 text-[11.5px] text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md"
+                      >
+                        <Pencil className="w-3 h-3" /> Editar
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -213,6 +238,12 @@ export default function ModelosPage() {
           </table>
         </div>
       )}
+
+      <ModeloEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        modelo={editorModelo}
+      />
     </div>
   )
 }
