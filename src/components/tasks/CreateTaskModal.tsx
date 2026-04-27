@@ -9,7 +9,7 @@ import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { cn } from '../../lib/utils'
 import { TASK_TYPE_CONFIG } from './taskTypeConfig'
 import { useCriarAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
-import { CATEGORIAS_CONCIERGE, TIPO_LABEL, type TipoConcierge, type CategoriaConcierge } from '../../hooks/concierge/types'
+import { TIPO_LABEL, categoriasParaProduto, type TipoConcierge, type CategoriaConcierge } from '../../hooks/concierge/types'
 
 interface CardOption {
     id: string
@@ -359,9 +359,9 @@ export function CreateTaskModal({
                                     disabled={!conciergeType}
                                 >
                                     <option value="">Selecione...</option>
-                                    {conciergeType && Object.entries(CATEGORIAS_CONCIERGE)
-                                        .filter(([, config]) => config.tipo === conciergeType)
-                                        .map(([key, config]) => (
+                                    {conciergeType && categoriasParaProduto(currentProduct)
+                                        .filter(({ config }) => config.tipo === conciergeType)
+                                        .map(({ key, config }) => (
                                             <option key={key} value={key}>
                                                 {config.label}
                                             </option>

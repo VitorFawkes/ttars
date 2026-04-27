@@ -2,25 +2,36 @@ import { useState, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useCriarAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
-import { CATEGORIAS_CONCIERGE, TIPO_LABEL, type TipoConcierge, type CategoriaConcierge, type CobradoDe } from '../../hooks/concierge/types'
+import { CATEGORIAS_CONCIERGE, TIPO_LABEL, categoriasParaProduto, type TipoConcierge, type CategoriaConcierge, type CobradoDe } from '../../hooks/concierge/types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
 interface NovoAtendimentoModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen?: boolean
+  open?: boolean
+  onClose?: () => void
+  onOpenChange?: (open: boolean) => void
   cardId?: string
+  cardIdLocked?: string
 }
 
-export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }: NovoAtendimentoModalProps) {
+function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: initialCardId, cardIdLocked }: NovoAtendimentoModalProps) {
+  const isOpenResolved = open ?? isOpen ?? false
+  const close = () => {
+    onClose?.()
+    onOpenChange?.(false)
+  }
+  const lockedCard = cardIdLocked ?? null
   const { profile } = useAuth()
   const { org } = useOrg()
-  const [cardId, setCardId] = useState(initialCardId ?? '')
+  const { slug: produtoAtual } = useCurrentProductMeta()
+  const [cardIdInternal, setCardIdInternal] = useState(lockedCard ?? initialCardId ?? '')
   const [tipo, setTipo] = useState<TipoConcierge>('operacional')
-  const [categoria, setCategoria] = useState<CategoriaConcierge>('check_in')
+  const [categoriaSelected, setCategoriaSelected] = useState<CategoriaConcierge>('outro')
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')
   const [prazo, setPrazo] = useState('')
@@ -29,7 +40,13 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>('')
   const [cardSearch, setCardSearch] = useState('')
 
+  // Quando lockedCard vem como prop, ele dita o cardId; senão usa o state interno.
+  const cardId = lockedCard ?? cardIdInternal
+  const setCardId = setCardIdInternal
+
   const { mutate: criarAtendimento, isPending } = useCriarAtendimento()
+
+  const categoriasDoProduto = useMemo(() => categoriasParaProduto(produtoAtual), [produtoAtual])
 
   // Carregar cards para autocomplete
   const { data: cards = [] } = useQuery({
@@ -48,10 +65,17 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
   })
 
   const categoriasDoTipo = useMemo(() => {
-    return Object.entries(CATEGORIAS_CONCIERGE)
-      .filter(([, cat]) => cat.tipo === tipo)
-      .map(([key]) => key as CategoriaConcierge)
-  }, [tipo])
+    return categoriasDoProduto
+      .filter(c => c.config.tipo === tipo)
+      .map(c => c.key as CategoriaConcierge)
+  }, [tipo, categoriasDoProduto])
+
+  // Categoria efetiva: se a selecionada saiu da lista (porque o tipo mudou),
+  // cai automaticamente na primeira da lista. Sem effect.
+  const categoria: CategoriaConcierge = categoriasDoTipo.includes(categoriaSelected)
+    ? categoriaSelected
+    : (categoriasDoTipo[0] ?? 'outro')
+  const setCategoria = setCategoriaSelected
 
   const mostraValor = tipo === 'oferta'
 
@@ -80,12 +104,12 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
         setPrazo('')
         setValor('')
         setCobradoDe('')
-        onClose()
+        close()
       },
     })
   }
 
-  if (!isOpen) return null
+  if (!isOpenResolved) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -94,7 +118,7 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
         <div className="flex items-center justify-between p-6 border-b border-slate-200 sticky top-0 bg-white">
           <h2 className="text-xl font-bold text-slate-900">Novo atendimento</h2>
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -281,7 +305,7 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={close}
               disabled={isPending}
             >
               Cancelar
@@ -298,3 +322,6 @@ export function NovoAtendimentoModal({ isOpen, onClose, cardId: initialCardId }:
     </div>
   )
 }
+
+export { NovoAtendimentoModal }
+export default NovoAtendimentoModal

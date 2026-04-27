@@ -1,339 +1,491 @@
-import { useState, useMemo } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { Zap, AlertCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Search, Check, MessageCircle, MoreHorizontal, Flame, Zap, Calendar, Telescope, User as UserIcon, Users, Sparkles, TrendingUp, Wallet, Clock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { useMeuDia, useGroupedMeuDia, type MeuDiaGroupBy, type MeuDiaFilters } from '../../hooks/concierge/useMeuDia'
-import { TIPO_LABEL, SOURCE_LABEL, type TipoConcierge, type SourceConcierge } from '../../hooks/concierge/types'
-import { cn } from '../../lib/utils'
+import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
+import { useMeuDia, type MeuDiaFilters, type MeuDiaGroupBy } from '../../hooks/concierge/useMeuDia'
+import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
+import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, categoriasParaProduto, type TipoConcierge, type SourceConcierge, type StatusApresentacao, type MeuDiaItem, type CategoriaConcierge } from '../../hooks/concierge/types'
 import { AtendimentoDetailModal } from '../../components/concierge/AtendimentoDetailModal'
-import type { MeuDiaItem } from '../../hooks/concierge/types'
+import { cn } from '../../lib/utils'
 
-type ViewMode = 'prazo' | 'viagem' | 'categoria'
+type Bucket = 'vencido' | 'hoje' | 'esta_semana' | 'futuro'
+
+const BUCKET_CONFIG: Array<{ id: Bucket; label: string; Icon: typeof Flame; tone: { bg: string; text: string; border: string }; hint: string }> = [
+  { id: 'vencido',     label: 'Vencidos',    Icon: Flame,     tone: { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200'    }, hint: 'Já passaram do prazo' },
+  { id: 'hoje',        label: 'Hoje',        Icon: Zap,       tone: { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200'  }, hint: 'Faz hoje' },
+  { id: 'esta_semana', label: 'Esta semana', Icon: Calendar,  tone: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' }, hint: 'Tem prazo até domingo' },
+  { id: 'futuro',      label: 'Próximas',    Icon: Telescope, tone: { bg: 'bg-slate-100', text: 'text-slate-700',  border: 'border-slate-200'  }, hint: 'Mais distantes' },
+]
+
+function fmtBRL(v: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
+}
+
+function relTime(iso: string) {
+  const target = new Date(iso).getTime()
+  const now = Date.now()
+  const diffMs = target - now
+  const diffH = Math.round(diffMs / (1000 * 60 * 60))
+  const diffD = Math.round(diffMs / (1000 * 60 * 60 * 24))
+  if (Math.abs(diffH) < 1) return 'agora'
+  if (diffH < 0 && diffH > -24) return `há ${-diffH}h`
+  if (diffH < 0) return `há ${-diffD}d`
+  if (diffH < 24) return `em ${diffH}h`
+  return `em ${diffD}d`
+}
 
 export default function MeuDiaPage() {
   const { profile } = useAuth()
-  const [viewMode, setViewMode] = useState<ViewMode>('prazo')
-  const [showAllUsers, setShowAllUsers] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
-  const [tiposFilter, setTiposFilter] = useState<Set<string>>(new Set())
-  const [categoriasFilter, setCategoriasFilter] = useState<Set<string>>(new Set())
-  const [sourcesFilter, setSourcesFilter] = useState<Set<string>>(new Set())
-  const [selectedAtendimento, setSelectedAtendimento] = useState<MeuDiaItem | null>(null)
+  const { slug: produtoAtual } = useCurrentProductMeta()
+  const [bucket, setBucket] = useState<Bucket>('vencido')
+  const [groupBy, setGroupBy] = useState<MeuDiaGroupBy>('prazo')
+  const [tipoFilter, setTipoFilter] = useState<Set<TipoConcierge>>(new Set())
+  const [sourceFilter, setSourceFilter] = useState<Set<SourceConcierge>>(new Set())
+  const [search, setSearch] = useState('')
+  const [showAll, setShowAll] = useState(false)
+  const [selected, setSelected] = useState<MeuDiaItem | null>(null)
+
+  const marcarOutcome = useMarcarOutcome()
+  const notificarCliente = useNotificarCliente()
 
   const filters: MeuDiaFilters = useMemo(() => ({
-    donoId: !showAllUsers && profile?.id ? profile.id : undefined,
-    status: statusFilter.size > 0 ? Array.from(statusFilter) as ('aberto' | 'em_andamento' | 'concluido')[] : undefined,
-    tipos: tiposFilter.size > 0 ? Array.from(tiposFilter) as TipoConcierge[] : undefined,
-    categorias: categoriasFilter.size > 0 ? Array.from(categoriasFilter) : undefined,
-    sources: sourcesFilter.size > 0 ? Array.from(sourcesFilter) as SourceConcierge[] : undefined,
+    donoId: !showAll && profile?.id ? profile.id : undefined,
+    tipos: tipoFilter.size > 0 ? Array.from(tipoFilter) : undefined,
+    sources: sourceFilter.size > 0 ? Array.from(sourceFilter) : undefined,
     incluirConcluidos: false,
-  }), [profile?.id, showAllUsers, statusFilter, tiposFilter, categoriasFilter, sourcesFilter])
+  }), [profile?.id, showAll, tipoFilter, sourceFilter])
 
   const { data: items = [], isLoading } = useMeuDia(filters)
-  const grouped = useGroupedMeuDia(items, viewMode as MeuDiaGroupBy)
 
-  const estadoVazio = items.length === 0
+  const itemsDoProduto = useMemo(
+    () => items.filter(i => !produtoAtual || i.produto?.toUpperCase() === produtoAtual.toUpperCase()),
+    [items, produtoAtual]
+  )
 
-  const toggleStatusFilter = (status: string) => {
-    const next = new Set(statusFilter)
-    if (next.has(status)) next.delete(status)
-    else next.add(status)
-    setStatusFilter(next)
-  }
-
-  const toggleTiposFilter = (tipo: string) => {
-    const next = new Set(tiposFilter)
-    if (next.has(tipo)) next.delete(tipo)
-    else next.add(tipo)
-    setTiposFilter(next)
-  }
-
-  const toggleSourcesFilter = (source: string) => {
-    const next = new Set(sourcesFilter)
-    if (next.has(source)) next.delete(source)
-    else next.add(source)
-    setSourcesFilter(next)
-  }
-
-  const allCategorias = useMemo(() => {
-    const cats = new Set<string>()
-    for (const item of items) {
-      cats.add(item.categoria)
+  const counts = useMemo(() => {
+    const c: Record<Bucket, number> = { vencido: 0, hoje: 0, esta_semana: 0, futuro: 0 }
+    for (const it of itemsDoProduto) {
+      if (it.status_apresentacao in c) c[it.status_apresentacao as Bucket] += 1
     }
-    return Array.from(cats).sort()
-  }, [items])
+    return c
+  }, [itemsDoProduto])
 
-  const closedItemsCount = items.filter(i => i.outcome !== null).length
-  const vendidoExtra = items
-    .filter(i => i.outcome === 'aceito' && i.cobrado_de === 'cliente')
-    .reduce((sum, i) => sum + (i.valor ?? 0), 0)
+  const filtered = useMemo(() => {
+    return itemsDoProduto.filter(it => {
+      if (it.status_apresentacao !== bucket) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const blob = `${it.titulo} ${it.card_titulo} ${it.descricao ?? ''} ${it.categoria}`.toLowerCase()
+        if (!blob.includes(q)) return false
+      }
+      return true
+    })
+  }, [itemsDoProduto, bucket, search])
 
-  const isVencido = (item: MeuDiaItem) => item.status_apresentacao === 'vencido'
+  const grouped = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; order: number; items: MeuDiaItem[] }>()
+    for (const it of filtered) {
+      let key: string, label: string, order = 0
+      if (groupBy === 'viagem') {
+        key = it.card_id
+        label = it.card_titulo
+        order = it.data_viagem_inicio ? new Date(it.data_viagem_inicio).getTime() : Number.MAX_SAFE_INTEGER
+      } else if (groupBy === 'categoria') {
+        key = it.categoria
+        const cat = CATEGORIAS_CONCIERGE[it.categoria as keyof typeof CATEGORIAS_CONCIERGE]
+        label = cat?.label ?? it.categoria
+      } else {
+        key = it.status_apresentacao
+        label = ({ vencido: 'Vencidos', hoje: 'Hoje', esta_semana: 'Esta semana', futuro: 'Próximas', concluido: 'Concluídos', fechado: 'Fechados' } as Record<StatusApresentacao, string>)[it.status_apresentacao]
+      }
+      if (!map.has(key)) map.set(key, { key, label, order, items: [] })
+      map.get(key)!.items.push(it)
+    }
+    return Array.from(map.values()).sort((a, b) => a.order - b.order)
+  }, [filtered, groupBy])
+
+  const todayCloseable = counts.vencido + counts.hoje
+  const valorEmJogo = itemsDoProduto
+    .filter(i => i.tipo_concierge === 'oferta' && (i.status_apresentacao === 'vencido' || i.status_apresentacao === 'hoje' || i.status_apresentacao === 'esta_semana'))
+    .reduce((s, i) => s + (i.valor ?? 0), 0)
+
+  const onMarcarFeito = (item: MeuDiaItem) => marcarOutcome.mutate({ atendimento_id: item.atendimento_id, outcome: 'feito' })
+  const onNotificar = (item: MeuDiaItem) => notificarCliente.mutate(item.atendimento_id)
 
   return (
-    <div className="p-8">
-      {/* Filtros e Controles */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* View Mode */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">
-              Agrupar por
-            </label>
-            <div className="flex gap-2">
-              {(['prazo', 'viagem', 'categoria'] as const).map(mode => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-                    viewMode === mode
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  )}
-                >
-                  {mode === 'prazo' && 'Por prazo'}
-                  {mode === 'viagem' && 'Por viagem'}
-                  {mode === 'categoria' && 'Por categoria'}
-                </button>
-              ))}
-            </div>
-          </div>
+    <div className="flex h-[calc(100vh-7rem)]">
+      <UrgencyRail bucket={bucket} setBucket={setBucket} counts={counts} />
 
-          {/* Show All Users Toggle */}
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAllUsers}
-                onChange={(e) => setShowAllUsers(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm font-medium text-slate-700">Ver de todos</span>
-            </label>
+      <div className="flex-1 flex flex-col min-w-0">
+        <Toolbar
+          search={search} setSearch={setSearch}
+          groupBy={groupBy} setGroupBy={setGroupBy}
+          tipoFilter={tipoFilter} setTipoFilter={setTipoFilter}
+          sourceFilter={sourceFilter} setSourceFilter={setSourceFilter}
+          showAll={showAll} setShowAll={setShowAll}
+          count={filtered.length}
+          produtoAtual={produtoAtual}
+        />
+
+        <div className="flex-1 overflow-auto">
+          <div className="px-6 py-4 pb-24 space-y-6">
+            {isLoading ? (
+              <div className="text-center py-12 text-sm text-slate-500">Carregando fila...</div>
+            ) : grouped.length === 0 ? (
+              <EmptyBucket bucket={bucket} />
+            ) : (
+              grouped.map(g => (
+                <section key={g.key}>
+                  <h3 className="text-[11.5px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    {g.label}
+                    <span className="text-slate-400 font-mono text-[11px]">{g.items.length}</span>
+                  </h3>
+                  <ul className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-sm overflow-hidden">
+                    {g.items.map(it => (
+                      <QueueRow
+                        key={it.atendimento_id}
+                        item={it}
+                        onClick={() => setSelected(it)}
+                        onMarcarFeito={() => onMarcarFeito(it)}
+                        onNotificar={() => onNotificar(it)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Filter Row */}
-        <div className="space-y-3">
-          {/* Status Filter */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Status</label>
-            <div className="flex flex-wrap gap-2">
-              {(['aberto', 'em_andamento', 'concluido'] as const).map(status => (
-                <button
-                  key={status}
-                  onClick={() => toggleStatusFilter(status)}
-                  className={cn(
-                    "px-3 py-1 text-xs rounded-full font-medium transition-colors",
-                    statusFilter.has(status)
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  )}
-                >
-                  {status === 'aberto' && 'Aberto'}
-                  {status === 'em_andamento' && 'Em andamento'}
-                  {status === 'concluido' && 'Concluído'}
-                </button>
-              ))}
-            </div>
-          </div>
+        <FooterBar todayCloseable={todayCloseable} valorEmJogo={valorEmJogo} />
+      </div>
 
-          {/* Tipos Filter */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Tipos</label>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(TIPO_LABEL).map(([tipo, { label, bgColor, color }]) => (
-                <button
-                  key={tipo}
-                  onClick={() => toggleTiposFilter(tipo)}
-                  className={cn(
-                    "px-3 py-1 text-xs rounded-full font-medium transition-colors",
-                    tiposFilter.has(tipo)
-                      ? `${bgColor} ${color}`
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {selected && (
+        <AtendimentoDetailModal
+          atendimento={selected as never}
+          open={!!selected}
+          onOpenChange={(o) => { if (!o) setSelected(null) }}
+        />
+      )}
+    </div>
+  )
+}
 
-          {/* Categorias Filter */}
-          {allCategorias.length > 0 && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Categorias</label>
-              <div className="flex flex-wrap gap-2">
-                {allCategorias.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      const next = new Set(categoriasFilter)
-                      if (next.has(cat)) next.delete(cat)
-                      else next.add(cat)
-                      setCategoriasFilter(next)
-                    }}
-                    className={cn(
-                      "px-3 py-1 text-xs rounded-full font-medium transition-colors",
-                      categoriasFilter.has(cat)
-                        ? 'bg-indigo-100 text-indigo-700'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    )}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
+function UrgencyRail({ bucket, setBucket, counts }: { bucket: Bucket; setBucket: (b: Bucket) => void; counts: Record<Bucket, number> }) {
+  return (
+    <aside className="w-60 shrink-0 border-r border-slate-200 bg-white flex flex-col">
+      <div className="px-5 pt-5 pb-3">
+        <div className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Sua fila</div>
+        <div className="text-[13px] text-slate-700 leading-snug">
+          {counts.vencido > 0 ? (
+            <>Tem <span className="font-semibold text-red-700">{counts.vencido} vencido{counts.vencido === 1 ? '' : 's'}</span>. Começa por aí.</>
+          ) : counts.hoje > 0 ? (
+            <>{counts.hoje} pra fechar hoje.</>
+          ) : (
+            <>Tudo em paz. Boa.</>
           )}
-
-          {/* Sources Filter */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Origem</label>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(SOURCE_LABEL).map(([source, { label }]) => (
-                <button
-                  key={source}
-                  onClick={() => toggleSourcesFilter(source)}
-                  className={cn(
-                    "px-3 py-1 text-xs rounded-full font-medium transition-colors",
-                    sourcesFilter.has(source)
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Lista Agrupada */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      <nav className="px-3 space-y-0.5">
+        {BUCKET_CONFIG.map(({ id, label, Icon, tone }) => {
+          const active = bucket === id
+          const isVencidoAtivo = id === 'vencido' && counts.vencido > 0
+          return (
+            <button
+              key={id}
+              onClick={() => setBucket(id)}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-[13px] transition-colors text-left',
+                active ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100'
+              )}
+            >
+              <Icon className={cn('w-3.5 h-3.5', active ? 'text-white' : isVencidoAtivo ? 'text-red-600' : 'text-slate-400')} />
+              <span className="flex-1 font-medium">{label}</span>
+              <span className={cn(
+                'font-mono text-[11px] px-1.5 h-5 inline-flex items-center rounded-md',
+                active ? 'bg-white/15 text-white' : isVencidoAtivo ? `${tone.bg} ${tone.text} font-semibold` : 'bg-slate-100 text-slate-600'
+              )}>
+                {counts[id]}
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="mx-3 my-4 border-t border-slate-200" />
+
+      <div className="px-3">
+        <div className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wider px-2 mb-1.5">Atalhos</div>
+        <div className="flex items-center gap-2.5 px-2.5 h-8 rounded-md text-[12.5px] text-slate-700 hover:bg-slate-100">
+          <span className="flex-1">Pesquisar fila</span>
+          <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 font-mono text-[10.5px] text-slate-600 bg-white border border-slate-200 border-b-2 rounded">/</kbd>
         </div>
-      ) : estadoVazio ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
-          <Zap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Nenhum atendimento</h3>
-          <p className="text-slate-600">Crie o primeiro atendimento para começar</p>
+      </div>
+
+      <div className="mt-auto p-4">
+        <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-lg p-3">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 mb-1">
+            <Sparkles className="w-3.5 h-3.5" />
+            Dica de fluxo
+          </div>
+          <p className="text-[11.5px] text-slate-600 leading-snug">
+            Resolva vencidos primeiro, depois ataque <em>hoje</em> agrupado por viagem — você toca o cliente uma vez só.
+          </p>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {grouped.map(group => (
-            <div key={group.groupKey}>
-              <h2 className="text-lg font-semibold text-slate-900 mb-3">{group.groupLabel}</h2>
-              <div className="space-y-2">
-                {group.items.map(item => (
-                  <button
-                    key={item.atendimento_id}
-                    onClick={() => setSelectedAtendimento(item)}
-                    className={cn(
-                      "w-full text-left bg-white border border-slate-200 rounded-xl p-4 shadow-sm transition-all hover:shadow-md hover:border-slate-300",
-                      isVencido(item) && 'border-red-200 bg-red-50'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        {/* Tipo e Categoria */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-semibold px-2 py-1 rounded-full"
-                            style={{
-                              backgroundColor: TIPO_LABEL[item.tipo_concierge].bgColor,
-                              color: TIPO_LABEL[item.tipo_concierge].color.replace('text-', '').replace('-', ' ')
-                            }}>
-                            {TIPO_LABEL[item.tipo_concierge].emoji} {TIPO_LABEL[item.tipo_concierge].label}
-                          </span>
-                          <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                            {item.categoria}
-                          </span>
-                        </div>
+      </div>
+    </aside>
+  )
+}
 
-                        {/* Titulo */}
-                        <h3 className="font-semibold text-slate-900 mb-1">{item.titulo}</h3>
+interface ToolbarProps {
+  search: string; setSearch: (s: string) => void
+  groupBy: MeuDiaGroupBy; setGroupBy: (g: MeuDiaGroupBy) => void
+  tipoFilter: Set<TipoConcierge>; setTipoFilter: (s: Set<TipoConcierge>) => void
+  sourceFilter: Set<SourceConcierge>; setSourceFilter: (s: Set<SourceConcierge>) => void
+  showAll: boolean; setShowAll: (b: boolean) => void
+  count: number
+  produtoAtual: string | null | undefined
+}
 
-                        {/* Card Info */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm text-slate-600">{item.card_titulo}</span>
-                          {item.data_viagem_inicio && (
-                            <span className="text-xs text-slate-500">
-                              ({new Date(item.data_viagem_inicio).toLocaleDateString('pt-BR')})
-                            </span>
-                          )}
-                        </div>
+function Toolbar({ search, setSearch, groupBy, setGroupBy, tipoFilter, setTipoFilter, sourceFilter, setSourceFilter, showAll, setShowAll, count, produtoAtual }: ToolbarProps) {
+  const toggleSet = <T,>(set: Set<T>, setter: (s: Set<T>) => void, k: T) => {
+    const next = new Set(set)
+    if (next.has(k)) next.delete(k); else next.add(k)
+    setter(next)
+  }
 
-                        {/* Prazo e fonte */}
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          {item.data_vencimento && (
-                            <>
-                              {isVencido(item) ? (
-                                <span className="text-red-600 font-semibold flex items-center gap-1">
-                                  <AlertCircle className="w-3 h-3" />
-                                  Vencido {formatDistanceToNow(new Date(item.data_vencimento), { locale: ptBR })}
-                                </span>
-                              ) : (
-                                <span>Prazo: {formatDistanceToNow(new Date(item.data_vencimento), { locale: ptBR })}</span>
-                              )}
-                            </>
-                          )}
-                          {SOURCE_LABEL[item.source] && (
-                            <span className="ml-auto">
-                              {SOURCE_LABEL[item.source].emoji} {SOURCE_LABEL[item.source].label}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+  const _categoriasDoProduto = useMemo(() => categoriasParaProduto(produtoAtual), [produtoAtual])
+  void _categoriasDoProduto
 
-                      {/* Valor */}
-                      {item.tipo_concierge === 'oferta' && item.valor && (
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-semibold text-slate-900">
-                            R$ {item.valor.toLocaleString('pt-BR')}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+  return (
+    <div className="border-b border-slate-200 bg-white px-6 py-3">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar viagem, cliente, tarefa..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-8 pl-9 pr-9 text-[13px] bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+          />
+          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 font-mono text-[10.5px] text-slate-600 bg-white border border-slate-200 border-b-2 rounded">/</kbd>
         </div>
-      )}
+        <div className="text-[12px] text-slate-500 font-mono">{count} {count === 1 ? 'item' : 'itens'}</div>
+        <div className="flex-1" />
 
-      {/* Footer com Métricas */}
-      {!estadoVazio && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-8 py-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-6">
-              <div>
-                <span className="text-xs text-slate-600">Fechados este mês</span>
-                <div className="text-lg font-bold text-slate-900">{closedItemsCount}</div>
-              </div>
-              <div>
-                <span className="text-xs text-slate-600">Vendido extra</span>
-                <div className="text-lg font-bold text-green-600">
-                  R$ {vendidoExtra.toLocaleString('pt-BR')}
-                </div>
-              </div>
-            </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11.5px] text-slate-500">Agrupar:</span>
+          <div className="inline-flex bg-slate-100 rounded-md p-0.5">
+            {(['prazo', 'viagem', 'categoria'] as MeuDiaGroupBy[]).map(g => (
+              <button
+                key={g}
+                onClick={() => setGroupBy(g)}
+                className={cn(
+                  'h-7 px-2.5 text-[12px] font-medium rounded transition-colors',
+                  groupBy === g ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                )}
+              >
+                {g === 'prazo' ? 'Prazo' : g === 'viagem' ? 'Viagem' : 'Categoria'}
+              </button>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Atendimento Detail Modal */}
-      {selectedAtendimento && (
-        <AtendimentoDetailModal
-          item={selectedAtendimento}
-          isOpen={!!selectedAtendimento}
-          onClose={() => setSelectedAtendimento(null)}
-        />
-      )}
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className={cn(
+            'flex items-center gap-1.5 h-8 px-2.5 text-[12.5px] rounded-md border transition-colors',
+            showAll ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+          )}
+        >
+          {showAll ? <Users className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
+          {showAll ? 'Time inteiro' : 'Só meus'}
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 mt-3 -mb-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <span className="text-[11px] text-slate-500 shrink-0">Tipo:</span>
+        {(Object.entries(TIPO_LABEL) as [TipoConcierge, typeof TIPO_LABEL[TipoConcierge]][]).map(([key, meta]) => {
+          const active = tipoFilter.has(key)
+          return (
+            <button
+              key={key}
+              onClick={() => toggleSet(tipoFilter, setTipoFilter, key)}
+              className={cn(
+                'shrink-0 inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11.5px] font-medium border transition-colors',
+                active ? `${meta.bgColor} ${meta.color} ${meta.borderColor}` : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              <span className={cn('w-1.5 h-1.5 rounded-full', meta.dotColor)} />
+              {meta.label}
+            </button>
+          )
+        })}
+
+        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+        <span className="text-[11px] text-slate-500 shrink-0">Origem:</span>
+        {(Object.entries(SOURCE_LABEL) as [SourceConcierge, typeof SOURCE_LABEL[SourceConcierge]][]).map(([key, meta]) => {
+          const active = sourceFilter.has(key)
+          return (
+            <button
+              key={key}
+              onClick={() => toggleSet(sourceFilter, setSourceFilter, key)}
+              className={cn(
+                'shrink-0 inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11.5px] border transition-colors',
+                active ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              <span>{meta.emoji}</span>
+              {meta.label}
+            </button>
+          )
+        })}
+
+        {(tipoFilter.size > 0 || sourceFilter.size > 0) && (
+          <button
+            onClick={() => { setTipoFilter(new Set()); setSourceFilter(new Set()) }}
+            className="shrink-0 text-[11.5px] text-slate-500 hover:text-slate-700 ml-1"
+          >
+            limpar
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function QueueRow({ item, onClick, onMarcarFeito, onNotificar }: { item: MeuDiaItem; onClick: () => void; onMarcarFeito: () => void; onNotificar: () => void }) {
+  const meta = TIPO_LABEL[item.tipo_concierge]
+  const cat = CATEGORIAS_CONCIERGE[item.categoria as CategoriaConcierge]
+  const isVencido = item.status_apresentacao === 'vencido'
+
+  return (
+    <li className="group relative">
+      <span className={cn('absolute left-0 top-0 bottom-0 w-[3px]', meta.dotColor)} />
+      <button
+        onClick={onClick}
+        className="w-full text-left py-3 pl-4 pr-3 hover:bg-slate-50 transition-colors flex items-start gap-3"
+      >
+        <div className="pt-0.5 shrink-0">
+          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold', meta.bgColor, meta.color)}>
+            <span>{meta.emoji}</span>
+            {meta.label}
+          </span>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <h4 className="text-[13.5px] font-semibold text-slate-900 truncate">{item.titulo}</h4>
+            {isVencido && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">VENCIDO</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-slate-500">
+            <span className="text-slate-700 font-medium truncate max-w-[260px]">{item.card_titulo}</span>
+            <span className="text-slate-300">·</span>
+            <span>{cat?.label ?? item.categoria}</span>
+            <span className="text-slate-300">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[11px]">{SOURCE_LABEL[item.source].emoji}</span>
+              {SOURCE_LABEL[item.source].label}
+            </span>
+          </div>
+          {item.descricao && (
+            <p className="text-[12px] text-slate-500 mt-1 line-clamp-1">{item.descricao}</p>
+          )}
+        </div>
+
+        <div className="shrink-0 flex items-start gap-3 pt-0.5">
+          {item.valor != null && (
+            <div className="text-right">
+              <div className="text-[12.5px] font-semibold text-slate-900 font-mono">{fmtBRL(item.valor)}</div>
+              <div className="text-[10.5px] text-slate-400 uppercase tracking-wide">valor</div>
+            </div>
+          )}
+
+          <div className="text-right min-w-[80px]">
+            <div className={cn('text-[12px] font-medium font-mono', isVencido ? 'text-red-600' : 'text-slate-700')}>
+              {item.data_vencimento ? relTime(item.data_vencimento) : '—'}
+            </div>
+            <div className="text-[10.5px] text-slate-400 uppercase tracking-wide">prazo</div>
+          </div>
+
+          {item.dias_pra_embarque != null && (
+            <div className="text-right min-w-[60px]">
+              <div className="text-[12px] font-medium text-slate-700 font-mono">
+                {item.dias_pra_embarque < 0 ? `+${-item.dias_pra_embarque}d` : `${item.dias_pra_embarque}d`}
+              </div>
+              <div className="text-[10.5px] text-slate-400 uppercase tracking-wide">embarque</div>
+            </div>
+          )}
+
+          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => { e.stopPropagation(); onMarcarFeito() }}
+              className="w-7 h-7 inline-flex items-center justify-center rounded text-slate-500 hover:bg-emerald-100 hover:text-emerald-700"
+              title="Marcar feito"
+            >
+              <Check className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onNotificar() }}
+              className="w-7 h-7 inline-flex items-center justify-center rounded text-slate-500 hover:bg-cyan-100 hover:text-cyan-700"
+              title="Notificar cliente"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick() }}
+              className="w-7 h-7 inline-flex items-center justify-center rounded text-slate-500 hover:bg-slate-200"
+              title="Mais"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </button>
+    </li>
+  )
+}
+
+function EmptyBucket({ bucket }: { bucket: Bucket }) {
+  const map: Record<Bucket, { title: string; sub: string }> = {
+    vencido:     { title: 'Nada vencido. Bom trabalho.', sub: 'Quando algo passar do prazo, vai aparecer aqui em primeiro lugar.' },
+    hoje:        { title: 'Sem nada pra hoje.',          sub: 'Aproveita pro café — ou adianta da próxima janela.' },
+    esta_semana: { title: 'Semana em paz.',              sub: 'Use a aba Em Lote pra processar cadências em massa.' },
+    futuro:      { title: 'Sem futuro previsto ainda.',  sub: 'Os modelos de cadência criam atendimentos automaticamente.' },
+  }
+  const e = map[bucket]
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
+      <h3 className="text-[15px] font-semibold text-slate-900 mb-1">{e.title}</h3>
+      <p className="text-[13px] text-slate-500 max-w-sm mx-auto">{e.sub}</p>
+    </div>
+  )
+}
+
+function FooterBar({ todayCloseable, valorEmJogo }: { todayCloseable: number; valorEmJogo: number }) {
+  return (
+    <div className="border-t border-slate-200 bg-white/85 backdrop-blur-md px-6 py-2.5 flex items-center gap-6">
+      <div className="flex items-center gap-2">
+        <Clock className="w-3.5 h-3.5 text-amber-500" />
+        <span className="text-[11.5px] text-slate-500">Pra fechar hoje</span>
+        <span className="font-mono text-[13px] font-semibold text-slate-900">{todayCloseable}</span>
+      </div>
+      <div className="w-px h-4 bg-slate-200" />
+      <div className="flex items-center gap-2">
+        <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+        <span className="text-[11.5px] text-slate-500">Valor em jogo</span>
+        <span className="font-mono text-[13px] font-semibold text-emerald-700">{fmtBRL(valorEmJogo)}</span>
+      </div>
+      <div className="w-px h-4 bg-slate-200" />
+      <div className="flex items-center gap-2">
+        <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+        <span className="text-[11.5px] text-slate-500">Fila do dia ativa</span>
+      </div>
     </div>
   )
 }

@@ -4,43 +4,82 @@ export type OutcomeConcierge = 'aceito' | 'recusado' | 'feito' | 'cancelado'
 export type CobradoDe = 'cliente' | 'cortesia' | 'incluido_pacote'
 export type StatusApresentacao = 'concluido' | 'fechado' | 'vencido' | 'hoje' | 'esta_semana' | 'futuro'
 
+/**
+ * Cada categoria declara em quais produtos ela faz sentido.
+ * 'universal' = aparece em qualquer produto.
+ *
+ * Quando um produto novo (Courses, etc.) for ativado, basta:
+ * 1. Adicionar slug do produto ao array `produtos` das categorias relevantes
+ * 2. Adicionar categorias específicas do produto novo aqui
+ * 3. Criar migration de seed de cadências para o produto (opcional)
+ */
 export const CATEGORIAS_CONCIERGE = {
-  passaporte: { label: 'Passaporte', tipo: 'operacional' as TipoConcierge },
-  check_in: { label: 'Check-in', tipo: 'operacional' as TipoConcierge },
-  check_in_oferta: { label: 'Oferta de check-in', tipo: 'operacional' as TipoConcierge },
-  check_in_executar: { label: 'Executar check-in', tipo: 'operacional' as TipoConcierge },
-  publicar_app: { label: 'Publicar app', tipo: 'operacional' as TipoConcierge },
-  welcome_letter: { label: 'Welcome letter', tipo: 'operacional' as TipoConcierge },
-  pesquisa_pos: { label: 'Pesquisa pós-viagem', tipo: 'operacional' as TipoConcierge },
-  vip_treatment: { label: 'Tratamento VIP', tipo: 'operacional' as TipoConcierge },
-  formulario: { label: 'Formulário/Autorização', tipo: 'operacional' as TipoConcierge },
-  hotel_contato: { label: 'Contato com hotel', tipo: 'operacional' as TipoConcierge },
-  roteiro_auxilio: { label: 'Auxílio roteiro', tipo: 'operacional' as TipoConcierge },
-  assento: { label: 'Assento aéreo', tipo: 'oferta' as TipoConcierge },
-  bagagem: { label: 'Franquia bagagem', tipo: 'oferta' as TipoConcierge },
-  ingresso: { label: 'Ingresso', tipo: 'oferta' as TipoConcierge },
-  passeio: { label: 'Passeio', tipo: 'oferta' as TipoConcierge },
-  seguro: { label: 'Seguro', tipo: 'oferta' as TipoConcierge },
-  transfer: { label: 'Transfer', tipo: 'oferta' as TipoConcierge },
-  locacao: { label: 'Locação de carro', tipo: 'oferta' as TipoConcierge },
-  restaurante: { label: 'Reserva restaurante', tipo: 'reserva' as TipoConcierge },
-  outro: { label: 'Outro', tipo: 'operacional' as TipoConcierge },
+  // Universais (qualquer produto)
+  vip_treatment: { label: 'Tratamento VIP', tipo: 'operacional' as TipoConcierge, produtos: ['universal'] as const },
+  hotel_contato: { label: 'Contato com fornecedor', tipo: 'operacional' as TipoConcierge, produtos: ['universal'] as const },
+  formulario: { label: 'Formulário/Autorização', tipo: 'operacional' as TipoConcierge, produtos: ['universal'] as const },
+  outro: { label: 'Outro', tipo: 'operacional' as TipoConcierge, produtos: ['universal'] as const },
+  ingresso: { label: 'Ingresso', tipo: 'oferta' as TipoConcierge, produtos: ['universal'] as const },
+  passeio: { label: 'Passeio', tipo: 'oferta' as TipoConcierge, produtos: ['universal'] as const },
+  seguro: { label: 'Seguro', tipo: 'oferta' as TipoConcierge, produtos: ['universal'] as const },
+  transfer: { label: 'Transfer', tipo: 'oferta' as TipoConcierge, produtos: ['universal'] as const },
+  restaurante: { label: 'Reserva restaurante', tipo: 'reserva' as TipoConcierge, produtos: ['universal'] as const },
+
+  // Welcome Trips
+  passaporte: { label: 'Passaporte', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  check_in: { label: 'Check-in', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  check_in_oferta: { label: 'Oferta de check-in', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  check_in_executar: { label: 'Executar check-in', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  publicar_app: { label: 'Publicar app', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  welcome_letter: { label: 'Welcome letter', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  pesquisa_pos: { label: 'Pesquisa pós-viagem', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  roteiro_auxilio: { label: 'Auxílio roteiro', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
+  assento: { label: 'Assento aéreo', tipo: 'oferta' as TipoConcierge, produtos: ['TRIPS'] as const },
+  bagagem: { label: 'Franquia bagagem', tipo: 'oferta' as TipoConcierge, produtos: ['TRIPS'] as const },
+  locacao: { label: 'Locação de carro', tipo: 'oferta' as TipoConcierge, produtos: ['TRIPS'] as const },
+
+  // Welcome Weddings
+  degustacao: { label: 'Degustação', tipo: 'reserva' as TipoConcierge, produtos: ['WEDDING'] as const },
+  prova_vestido: { label: 'Prova de vestido', tipo: 'operacional' as TipoConcierge, produtos: ['WEDDING'] as const },
+  prova_bolo: { label: 'Prova de bolo', tipo: 'operacional' as TipoConcierge, produtos: ['WEDDING'] as const },
+  ensaio_foto: { label: 'Ensaio fotográfico', tipo: 'reserva' as TipoConcierge, produtos: ['WEDDING'] as const },
+  ensaio_video: { label: 'Ensaio vídeo', tipo: 'reserva' as TipoConcierge, produtos: ['WEDDING'] as const },
+  transporte_cerimonia: { label: 'Transporte cerimônia', tipo: 'operacional' as TipoConcierge, produtos: ['WEDDING'] as const },
+  lua_de_mel: { label: 'Lua de mel', tipo: 'oferta' as TipoConcierge, produtos: ['WEDDING'] as const },
+  decoracao_extras: { label: 'Decoração extras', tipo: 'oferta' as TipoConcierge, produtos: ['WEDDING'] as const },
+  celebrante: { label: 'Celebrante', tipo: 'operacional' as TipoConcierge, produtos: ['WEDDING'] as const },
+  buffet_ajustes: { label: 'Ajustes buffet', tipo: 'operacional' as TipoConcierge, produtos: ['WEDDING'] as const },
 } as const
 
 export type CategoriaConcierge = keyof typeof CATEGORIAS_CONCIERGE
 
-export const TIPO_LABEL: Record<TipoConcierge, { label: string; emoji: string; color: string; bgColor: string }> = {
-  oferta: { label: 'Oferta', emoji: '💰', color: 'text-purple-700', bgColor: 'bg-purple-100' },
-  reserva: { label: 'Reserva', emoji: '🛎️', color: 'text-cyan-700', bgColor: 'bg-cyan-100' },
-  suporte: { label: 'Suporte', emoji: '🚨', color: 'text-red-700', bgColor: 'bg-red-100' },
-  operacional: { label: 'Operacional', emoji: '📋', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+/**
+ * Filtra categorias visíveis para um produto.
+ * Retorna universais + as do produto especificado.
+ * Use sempre com `useCurrentProductMeta().slug` em UI dentro de workspace.
+ */
+export function categoriasParaProduto(produto: string | null | undefined): Array<{ key: CategoriaConcierge; config: { label: string; tipo: TipoConcierge; produtos: readonly string[] } }> {
+  const slug = (produto || '').toUpperCase()
+  return Object.entries(CATEGORIAS_CONCIERGE)
+    .filter(([, cfg]) => {
+      const produtos = cfg.produtos as readonly string[]
+      return produtos.includes('universal') || produtos.includes(slug)
+    })
+    .map(([key, config]) => ({ key: key as CategoriaConcierge, config: { label: config.label, tipo: config.tipo, produtos: config.produtos as readonly string[] } }))
+}
+
+export const TIPO_LABEL: Record<TipoConcierge, { label: string; emoji: string; tone: string; color: string; bgColor: string; borderColor: string; dotColor: string }> = {
+  oferta:     { label: 'Oferta',     emoji: '💰', tone: 'purple',  color: 'text-purple-700',  bgColor: 'bg-purple-50',  borderColor: 'border-purple-200',  dotColor: 'bg-purple-500'  },
+  reserva:    { label: 'Reserva',    emoji: '🛎️', tone: 'cyan',    color: 'text-cyan-700',    bgColor: 'bg-cyan-50',    borderColor: 'border-cyan-200',    dotColor: 'bg-cyan-500'    },
+  suporte:    { label: 'Suporte',    emoji: '🚨', tone: 'red',     color: 'text-red-700',     bgColor: 'bg-red-50',     borderColor: 'border-red-200',     dotColor: 'bg-red-500'     },
+  operacional:{ label: 'Operacional',emoji: '📋', tone: 'emerald', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500' },
 }
 
 export const SOURCE_LABEL: Record<SourceConcierge, { label: string; emoji: string }> = {
-  cadencia: { label: 'Cadência', emoji: '🤖' },
-  manual: { label: 'Manual', emoji: '✋' },
-  cliente: { label: 'Cliente', emoji: '💬' },
-  planner_request: { label: 'Planner pediu', emoji: '👤' },
+  cadencia:        { label: 'Cadência',     emoji: '🤖' },
+  manual:          { label: 'Manual',       emoji: '✋' },
+  cliente:         { label: 'Cliente',      emoji: '💬' },
+  planner_request: { label: 'Planner pediu',emoji: '👤' },
 }
 
 export interface AtendimentoConcierge {
@@ -68,7 +107,6 @@ export interface AtendimentoConcierge {
 }
 
 export interface MeuDiaItem {
-  // Tarefa
   tarefa_id: string
   titulo: string
   descricao: string | null
@@ -82,7 +120,6 @@ export interface MeuDiaItem {
   tarefa_criada_por: string | null
   tarefa_criada_em: string
 
-  // Card
   card_titulo: string
   produto: string
   data_viagem_inicio: string | null
@@ -92,7 +129,6 @@ export interface MeuDiaItem {
   card_valor_estimado: number | null
   card_valor_final: number | null
 
-  // Atendimento
   atendimento_id: string
   tipo_concierge: TipoConcierge
   categoria: string
@@ -111,7 +147,6 @@ export interface MeuDiaItem {
   payload: Record<string, unknown>
   atendimento_criado_em: string
 
-  // Calculados
   status_apresentacao: StatusApresentacao
   dias_pra_embarque: number | null
 }
@@ -138,11 +173,11 @@ export interface AtendimentoLote {
 }
 
 export const JANELA_LABEL: Record<AtendimentoLote['janela_embarque'], string> = {
-  sem_data: 'Sem data de embarque',
-  em_andamento: 'Em viagem',
-  embarca_48h: 'Embarca em 48h',
-  embarca_semana: 'Embarca esta semana',
-  embarca_15d: 'Embarca em 15 dias',
-  embarca_30d: 'Embarca em 30 dias',
-  embarca_futuro: 'Embarca em mais de 30 dias',
+  sem_data:        'Sem data de embarque',
+  em_andamento:    'Em viagem',
+  embarca_48h:     'Embarca em 48h',
+  embarca_semana:  'Embarca esta semana',
+  embarca_15d:     'Embarca em 15 dias',
+  embarca_30d:     'Embarca em 30 dias',
+  embarca_futuro:  'Embarca em mais de 30 dias',
 }

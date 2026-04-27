@@ -9,9 +9,12 @@ import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 
 interface AtendimentoDetailModalProps {
-  item: MeuDiaItem
-  isOpen: boolean
-  onClose: () => void
+  item?: MeuDiaItem
+  atendimento?: MeuDiaItem
+  isOpen?: boolean
+  open?: boolean
+  onClose?: () => void
+  onOpenChange?: (open: boolean) => void
 }
 
 const OUTCOME_OPTIONS: { value: OutcomeConcierge; label: string; color: string; bgColor: string }[] = [
@@ -21,15 +24,20 @@ const OUTCOME_OPTIONS: { value: OutcomeConcierge; label: string; color: string; 
   { value: 'cancelado', label: 'Cancelado', color: 'text-slate-700', bgColor: 'bg-slate-50' },
 ]
 
-export function AtendimentoDetailModal({ item, isOpen, onClose }: AtendimentoDetailModalProps) {
-  const [selectedOutcome, setSelectedOutcome] = useState<OutcomeConcierge | null>((item.outcome as OutcomeConcierge) ?? null)
-  const [valorFinal, setValorFinal] = useState(item.valor?.toString() ?? '')
-  const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item.cobrado_de ?? '')
+export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
+  const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
+  const isOpen = props.open ?? props.isOpen ?? false
+  const onClose = () => { props.onClose?.(); props.onOpenChange?.(false) }
+  const [selectedOutcome, setSelectedOutcome] = useState<OutcomeConcierge | null>((item?.outcome as OutcomeConcierge) ?? null)
+  const [valorFinal, setValorFinal] = useState(item?.valor?.toString() ?? '')
+  const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item?.cobrado_de ?? '')
   const [observacao, setObservacao] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
+
+  if (!item) return null
 
   const isVencido = item.status_apresentacao === 'vencido'
   const tipoInfo = TIPO_LABEL[item.tipo_concierge]
