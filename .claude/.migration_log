@@ -650,3 +650,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-24T19:14:57Z | supabase/migrations/20260424e_prevent_duplicate_cadence_tarefas.sql | applied_to_prod
 2026-04-26T15:35:00Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260425g_ai_agent_moments_kind_and_discovery.sql | applied_to_prod
 2026-04-27T00:15:36Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260425h_reset_agent_test_conversation.sql | applied_to_prod
+2026-04-27T12:24:11Z | supabase/migrations/20260427b_disable_monde_outbound_sync.sql | applied_to_prod
