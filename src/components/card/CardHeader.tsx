@@ -52,6 +52,8 @@ import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import FieldConfirmationModal from './FieldConfirmationModal'
+import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
+import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
 import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
 import SendAlertModal from './SendAlertModal'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
@@ -385,6 +387,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [fieldConfirmationModalOpen, setFieldConfirmationModalOpen] = useState(false)
+    const [autoMergeModalOpen, setAutoMergeModalOpen] = useState(false)
+    const [autoMergeInfo, setAutoMergeInfo] = useState<AutoMergePreflightInfo | null>(null)
+    const [autoMergePending, setAutoMergePending] = useState<{ stageId: string; stageName: string } | null>(null)
+    const [autoMergeExecuting, setAutoMergeExecuting] = useState(false)
     const [pendingConfirmationFields, setPendingConfirmationFields] = useState<StageFieldConfirmation[]>([])
     const [pendingStageChange, setPendingStageChange] = useState<{
         stageId: string,
@@ -640,6 +646,32 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         setIsValidatingStage(true)
 
         try {
+        // 0. AUTO-MERGE GATE: sub-card saindo da 1ª etapa de Pós-venda → vai fundir no pai
+        try {
+            const preflight = await detectAutoMergePreflight(
+                {
+                    id: card.id,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    card_type: (card as any).card_type,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    sub_card_status: (card as any).sub_card_status,
+                    parent_card_id: card.parent_card_id ?? null,
+                    pipeline_stage_id: card.pipeline_stage_id,
+                    pipeline_id: card.pipeline_id,
+                },
+                stageId,
+            )
+            if (preflight.willMerge) {
+                setAutoMergeInfo(preflight)
+                setAutoMergePending({ stageId, stageName })
+                setAutoMergeModalOpen(true)
+                setShowStageDropdown(false)
+                return
+            }
+        } catch (err) {
+            console.warn('[AutoMerge preflight CardHeader] failed — continuing:', err)
+        }
+
         // 1. Validate Move (async - checks fields, proposals, tasks, rules)
         const validation = await validateMove(card, stageId)
 
@@ -1841,6 +1873,50 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 onClose={() => setShowAlertModal(false)}
                 cardId={card.id!}
                 cardTitle={card.titulo}
+            />
+
+            <AutoMergeOnMoveModal
+                open={autoMergeModalOpen}
+                info={autoMergeInfo ?? undefined}
+                isLoading={false}
+                isExecuting={autoMergeExecuting}
+                targetStageNome={autoMergePending?.stageName ?? null}
+                onCancel={() => {
+                    if (autoMergeExecuting) return
+                    setAutoMergeModalOpen(false)
+                    setAutoMergeInfo(null)
+                    setAutoMergePending(null)
+                }}
+                onConfirm={async () => {
+                    if (!autoMergePending) return
+                    setAutoMergeExecuting(true)
+                    try {
+                        const { error } = await supabase.rpc('mover_card', {
+                            p_card_id: card.id,
+                            p_nova_etapa_id: autoMergePending.stageId,
+                        })
+                        if (error) throw error
+                        queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['cards'] })
+                        if (autoMergeInfo?.parent?.id) {
+                            queryClient.invalidateQueries({ queryKey: ['card-detail', autoMergeInfo.parent.id] })
+                            queryClient.invalidateQueries({ queryKey: ['financial-items', autoMergeInfo.parent.id] })
+                        }
+                        toast.success(`Sub-card juntado a "${autoMergeInfo?.parent?.titulo || 'card principal'}"`)
+                        setAutoMergeModalOpen(false)
+                        setAutoMergeInfo(null)
+                        setAutoMergePending(null)
+                        // Se o card detalhado é o sub-card que foi arquivado, navegar pro pai
+                        if (autoMergeInfo?.parent?.id) {
+                            navigate(`/cards/${autoMergeInfo.parent.id}`, { replace: true })
+                        }
+                    } catch (err) {
+                        console.error('Erro auto-merge CardHeader:', err)
+                        toast.error('Não foi possível juntar os cards. Tente novamente.')
+                    } finally {
+                        setAutoMergeExecuting(false)
+                    }
+                }}
             />
         </>
     )
