@@ -657,3 +657,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-27T13:17:01Z | supabase/migrations/20260427e_drop_orphan_monde_functions.sql | applied_to_prod
 2026-04-27T13:34:58Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260427a_reset_agent_test_conversation_all_cards.sql | applied_to_prod
 2026-04-27T14:06:44Z | supabase/migrations/20260427f_org_members_select_same_org.sql | applied_to_prod
+2026-04-27T14:19:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260427b_reset_agent_test_clears_contact.sql | applied_to_prod
+2026-04-27T14:21:09Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260427c_reset_agent_test_contact_placeholder.sql | applied_to_prod
