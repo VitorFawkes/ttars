@@ -10,13 +10,14 @@ import { Badge } from '../ui/Badge'
 import ContactForm from '../card/ContactForm'
 import type { Person } from '../../hooks/usePeopleIntelligence'
 import type { Database } from '../../database.types'
-import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package, RefreshCw } from 'lucide-react'
+import { Loader2, Plane, Crown, Calendar, DollarSign, MapPin, FileText, Trash2, Database as DatabaseIcon, Gift, Clock, Truck, Check, PackageCheck, Package, RefreshCw, History } from 'lucide-react'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
 import { mergeContactData } from '../../lib/contactMerge'
 import { swapCardContact } from '../../lib/swapCardContact'
 import { toast } from 'sonner'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
 import ContactDetailsViewer from '../card/ContactDetailsViewer'
+import ContactChangeLogTab from './ContactChangeLogTab'
 import { useDeleteContact } from '../../hooks/useDeleteContact'
 import { useMondeImportPerson } from '../../hooks/useMondeSearch'
 import { useContactGifts } from '../../hooks/useContactGifts'
@@ -210,6 +211,10 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                                 <Gift className="h-3.5 w-3.5 mr-1" />
                                 Presentes
                             </TabsTrigger>
+                            <TabsTrigger value="history" className="flex-1">
+                                <History className="h-3.5 w-3.5 mr-1" />
+                                Histórico
+                            </TabsTrigger>
                             {card && (
                                 <TabsTrigger value="integration" className="flex-1">
                                     <DatabaseIcon className="h-3.5 w-3.5 mr-1" />
@@ -312,6 +317,10 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
 
                         <TabsContent value="gifts" className="mt-0">
                             <ContactGiftsTab personId={person.id} onNavigate={(cardId) => { onClose(); navigate(`/cards/${cardId}`) }} />
+                        </TabsContent>
+
+                        <TabsContent value="history" className="mt-0">
+                            <ContactChangeLogTab contatoId={person.id} />
                         </TabsContent>
 
                         {card && (

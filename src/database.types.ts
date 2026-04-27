@@ -5907,6 +5907,68 @@ export type Database = {
           },
         ]
       }
+      contato_change_log: {
+        Row: {
+          changed_by: string | null
+          changed_fields: Json | null
+          contato_id: string
+          created_at: string
+          event_type: string
+          id: string
+          org_id: string
+          source: string
+        }
+        Insert: {
+          changed_by?: string | null
+          changed_fields?: Json | null
+          contato_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          org_id: string
+          source?: string
+        }
+        Update: {
+          changed_by?: string | null
+          changed_fields?: Json | null
+          contato_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          org_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contato_change_log_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contato_change_log_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "contato_change_log_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contato_change_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contato_meios: {
         Row: {
           contato_id: string
@@ -18958,6 +19020,18 @@ export type Database = {
         }
         Returns: Json
       }
+      get_contato_change_log: {
+        Args: { p_contato_id: string; p_limit?: number }
+        Returns: {
+          changed_by: string
+          changed_by_name: string
+          changed_fields: Json
+          created_at: string
+          event_type: string
+          id: string
+          source: string
+        }[]
+      }
       get_encryption_key: { Args: never; Returns: string }
       get_invite_details: { Args: { token_input: string }; Returns: Json }
       get_monde_sales_by_card: {
@@ -19583,6 +19657,10 @@ export type Database = {
       requesting_org_id: { Args: never; Returns: string }
       requesting_parent_org_id: { Args: never; Returns: string }
       reset_agent_conversations_with_phone: {
+        Args: { p_agent_id: string; p_phone: string }
+        Returns: Json
+      }
+      reset_agent_test_conversation: {
         Args: { p_agent_id: string; p_phone: string }
         Returns: Json
       }

@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-26
+> **Last Updated:** 2026-04-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 140 paginas | 154 hooks | 20 views | 611 components
+> **Stats:** 192 tabelas | 140 paginas | 156 hooks | 20 views | 613 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **154 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **156 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -241,10 +241,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useApiKeys()` | `useApiKeys.ts` |
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
 | `useAutoCalcTripDate()` | `useAutoCalcTripDate.ts` |
+| `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useContatoChangeLog()` | `useContatoChangeLog.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
