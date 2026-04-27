@@ -3,9 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/Input'
-import { Loader2, ArrowRight, Combine, AlertTriangle, Search, User } from 'lucide-react'
+import { Loader2, ArrowRight, Combine, AlertTriangle, Search, User, Package, Archive, Inbox } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fundirCards } from '@/hooks/useDuplicateCardDetection'
+import { fundirCards, moverFinancialItems } from '@/hooks/useDuplicateCardDetection'
 import { useToast } from '@/contexts/ToastContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrg } from '@/contexts/OrgContext'
@@ -50,6 +50,17 @@ interface CardSummary {
     data_viagem_fim: string | null
     items_count: number
     pessoa_principal_nome: string | null
+}
+
+interface FinancialItem {
+    id: string
+    description: string | null
+    sale_value: number | null
+    supplier_cost: number | null
+    fornecedor: string | null
+    product_type: string | null
+    data_inicio: string | null
+    data_fim: string | null
 }
 
 const formatBRL = (value: number | null | undefined) =>
@@ -117,7 +128,6 @@ function useCandidateCards({
             let pessoaIds: string[] | null = null
 
             if (term.length > 1) {
-                // Buscar contatos pelo nome/telefone/email e depois cards daquela pessoa
                 const filter = buildContactSearchFilter(term)
                 const { data: contatos } = await supabase
                     .from('contatos')
@@ -208,6 +218,29 @@ function useCardSummary(cardId: string | null) {
     })
 }
 
+/** Lista os card_financial_items (Produto-Vendas) do source para o user escolher o que migrar. */
+function useSourceFinancialItems(sourceCardId: string | null) {
+    return useQuery({
+        queryKey: ['card-financial-items', sourceCardId],
+        enabled: !!sourceCardId,
+        queryFn: async (): Promise<FinancialItem[]> => {
+            if (!sourceCardId) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from('card_financial_items') as any)
+                .select('id, description, sale_value, supplier_cost, fornecedor, product_type, data_inicio, data_fim')
+                .eq('card_id', sourceCardId)
+                .order('created_at', { ascending: true })
+            if (error) {
+                console.warn('[useSourceFinancialItems]', error)
+                return []
+            }
+            return (data ?? []) as FinancialItem[]
+        },
+    })
+}
+
+type SourceAfterAction = 'archive' | 'keep_open'
+
 export default function MergeCardsModal({
     open,
     onClose,
@@ -223,10 +256,12 @@ export default function MergeCardsModal({
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [selectedTargetId, setSelectedTargetId] = useState<string | null>(initialTargetId)
     const [autoSelectedFromParent, setAutoSelectedFromParent] = useState(false)
+    const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+    const [sourceAction, setSourceAction] = useState<SourceAfterAction>('archive')
+    const [userTouchedAction, setUserTouchedAction] = useState(false)
 
     const { data: sourceInfo } = useCardSourceInfo(sourceCardId)
 
-    // Quando é sub-card com pai, pré-seleciona o pai como destino automaticamente
     useEffect(() => {
         if (!open || initialTargetId) return
         if (sourceInfo?.card_type === 'sub_card' && sourceInfo.parent_card_id && !selectedTargetId) {
@@ -246,6 +281,9 @@ export default function MergeCardsModal({
             setSelectedTargetId(initialTargetId)
             setMotivo('')
             setAutoSelectedFromParent(false)
+            setSelectedItemIds(new Set())
+            setSourceAction('archive')
+            setUserTouchedAction(false)
         }
     }, [open, initialTargetId])
 
@@ -263,15 +301,75 @@ export default function MergeCardsModal({
     const targetCardId = selectedTargetId
     const { data: source, isLoading: loadingSource } = useCardSummary(sourceCardId)
     const { data: target, isLoading: loadingTarget } = useCardSummary(targetCardId)
+    const { data: sourceItems = [], isLoading: loadingItems } = useSourceFinancialItems(sourceCardId)
+
+    // Quando os itens carregam, pré-seleciona todos
+    useEffect(() => {
+        if (sourceItems.length > 0 && selectedItemIds.size === 0 && !userTouchedAction) {
+            setSelectedItemIds(new Set(sourceItems.map(i => i.id)))
+        }
+    }, [sourceItems, selectedItemIds.size, userTouchedAction])
+
+    const allItemsSelected = sourceItems.length > 0 && selectedItemIds.size === sourceItems.length
+    const someItemsSelected = selectedItemIds.size > 0 && !allItemsSelected
+    const noItemsSelected = sourceItems.length > 0 && selectedItemIds.size === 0
+
+    // Default da ação sobre o source: arquivar se todos itens vão; manter aberto se split
+    useEffect(() => {
+        if (userTouchedAction) return
+        if (sourceItems.length === 0) {
+            setSourceAction('archive')
+        } else if (allItemsSelected) {
+            setSourceAction('archive')
+        } else {
+            setSourceAction('keep_open')
+        }
+    }, [allItemsSelected, sourceItems.length, userTouchedAction])
+
+    const toggleItem = (id: string) => {
+        setSelectedItemIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    const toggleAll = () => {
+        if (allItemsSelected) setSelectedItemIds(new Set())
+        else setSelectedItemIds(new Set(sourceItems.map(i => i.id)))
+    }
 
     const handleMerge = async () => {
         if (!sourceCardId || !selectedTargetId) return
         setIsMerging(true)
         try {
-            const result = await fundirCards(sourceCardId, selectedTargetId, motivo.trim() || undefined)
+            const itemsToMove = sourceItems.filter(i => selectedItemIds.has(i.id))
+            const movingAllItems = sourceItems.length > 0 && itemsToMove.length === sourceItems.length
+            const archiveSource = sourceAction === 'archive'
 
-            // Invalida ANTES de navegar — garante que o CardDetail destino
-            // abre com dados frescos (itens movidos, valor recalculado).
+            // Roteador:
+            //   - Move tudo + arquivar  → fundir_cards (transfere itens, passageiros, contatos, atividades, time)
+            //   - Caso parcial ou keep_open → mover_financial_items (só move itens) e source segue aberto
+            let itemsMoved = 0
+            let passengersMoved = 0
+            let contatosMoved = 0
+            let activitiesMoved = 0
+            let sourceArchived = false
+
+            if (movingAllItems && archiveSource) {
+                const result = await fundirCards(sourceCardId, selectedTargetId, motivo.trim() || undefined)
+                itemsMoved = result.items_moved
+                passengersMoved = result.passengers_moved
+                contatosMoved = result.contatos_moved
+                activitiesMoved = result.activities_moved
+                sourceArchived = true
+            } else if (itemsToMove.length > 0) {
+                const result = await moverFinancialItems(itemsToMove.map(i => i.id), selectedTargetId)
+                itemsMoved = result.items_moved
+            }
+
+            // Invalida queries antes de navegar/fechar
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['cards'] }),
                 queryClient.invalidateQueries({ queryKey: ['card-detail', selectedTargetId] }),
@@ -280,27 +378,35 @@ export default function MergeCardsModal({
                 queryClient.invalidateQueries({ queryKey: ['card-summary', sourceCardId] }),
                 queryClient.invalidateQueries({ queryKey: ['financial-items', selectedTargetId] }),
                 queryClient.invalidateQueries({ queryKey: ['financial-items', sourceCardId] }),
+                queryClient.invalidateQueries({ queryKey: ['card-financial-items', sourceCardId] }),
+                queryClient.invalidateQueries({ queryKey: ['card-financial-items', selectedTargetId] }),
                 queryClient.invalidateQueries({ queryKey: ['pipeline'] }),
                 queryClient.invalidateQueries({ queryKey: ['duplicate-cards'] }),
             ])
 
-            const destinoTitulo = result.card_destino_titulo || target?.titulo || 'destino'
+            const destinoTitulo = target?.titulo || 'destino'
             const partes: string[] = []
-            if (result.items_moved > 0) partes.push(`${result.items_moved} produto${result.items_moved === 1 ? '' : 's'}`)
-            if (result.passengers_moved > 0) partes.push(`${result.passengers_moved} viajante${result.passengers_moved === 1 ? '' : 's'}`)
-            if (result.contatos_moved > 0) partes.push(`${result.contatos_moved} contato${result.contatos_moved === 1 ? '' : 's'}`)
-            if (result.activities_moved > 0) partes.push(`${result.activities_moved} atividade${result.activities_moved === 1 ? '' : 's'}`)
-            const lista = partes.length > 0 ? partes.join(', ') : 'dados'
+            if (itemsMoved > 0) partes.push(`${itemsMoved} produto${itemsMoved === 1 ? '' : 's'}`)
+            if (passengersMoved > 0) partes.push(`${passengersMoved} viajante${passengersMoved === 1 ? '' : 's'}`)
+            if (contatosMoved > 0) partes.push(`${contatosMoved} contato${contatosMoved === 1 ? '' : 's'}`)
+            if (activitiesMoved > 0) partes.push(`${activitiesMoved} atividade${activitiesMoved === 1 ? '' : 's'}`)
+            const lista = partes.length > 0 ? partes.join(', ') : 'nada'
+
+            const restantes = sourceItems.length - itemsToMove.length
+            const sourceFate = sourceArchived
+                ? 'O card antigo foi arquivado (recuperável na Lixeira).'
+                : restantes > 0
+                    ? `O card de origem segue aberto com ${restantes} produto${restantes === 1 ? '' : 's'} restante${restantes === 1 ? '' : 's'}.`
+                    : 'O card de origem segue aberto, sem produtos.'
 
             toast({
-                title: `Cards agrupados em "${destinoTitulo}"`,
-                description: `${lista} movidos. O card antigo foi arquivado (pode ser recuperado na Lixeira).`,
+                title: `${lista} movidos para "${destinoTitulo}"`,
+                description: sourceFate,
                 type: 'success',
             })
 
             setMotivo('')
             onClose()
-            // Só agora navega — modal já fechado, queries atualizadas
             onMerged?.(selectedTargetId)
         } catch (err) {
             console.error('[MergeCardsModal]', err)
@@ -314,19 +420,35 @@ export default function MergeCardsModal({
         }
     }
 
-    const canMerge = !!sourceCardId && !!selectedTargetId && !isMerging
-
     const isSubCard = sourceInfo?.card_type === 'sub_card'
     const sourceContatoNome = sourceInfo?.pessoa_principal_nome
+    const canConfirm =
+        !!sourceCardId &&
+        !!selectedTargetId &&
+        !isMerging &&
+        // permite confirmar se há itens selecionados OU se source não tem itens (caso fundir tudo metadata)
+        (sourceItems.length === 0 || selectedItemIds.size > 0)
 
     const searchPlaceholder = useMemo(() => {
         if (sourceContatoNome) return `Buscando em "${sourceContatoNome}" — ou digite outro nome...`
         return 'Buscar pelo nome do contato principal...'
     }, [sourceContatoNome])
 
+    const buttonLabel = useMemo(() => {
+        if (sourceItems.length === 0) return 'Agrupar cards'
+        if (allItemsSelected) {
+            return sourceAction === 'archive' ? 'Mover tudo e arquivar origem' : 'Mover todos os produtos'
+        }
+        if (someItemsSelected) {
+            const n = selectedItemIds.size
+            return `Mover ${n} produto${n === 1 ? '' : 's'}`
+        }
+        return 'Agrupar cards'
+    }, [sourceItems.length, allItemsSelected, someItemsSelected, sourceAction, selectedItemIds.size])
+
     return (
         <Dialog open={open} onOpenChange={v => !v && !isMerging && onClose()}>
-            <DialogContent className="sm:max-w-[640px]">
+            <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                         <Combine className="h-5 w-5 text-amber-600" />
@@ -335,19 +457,6 @@ export default function MergeCardsModal({
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div className="text-xs text-amber-800 space-y-1">
-                            <p className="font-medium">O que vai acontecer:</p>
-                            <ul className="list-disc list-inside space-y-0.5 ml-1">
-                                <li>Todos os produtos (Produto - Vendas) do card origem vão para o destino</li>
-                                <li>Passageiros, contatos e atividades também migram</li>
-                                <li>O card origem é arquivado (pode ser recuperado na Lixeira)</li>
-                                <li>Valor e receita do destino são recalculados automaticamente</li>
-                            </ul>
-                        </div>
-                    </div>
-
                     {isSubCard && autoSelectedFromParent && targetCardId && (
                         <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 flex items-center gap-2">
                             <div className="text-xs text-indigo-800">
@@ -356,7 +465,7 @@ export default function MergeCardsModal({
                         </div>
                     )}
 
-                    {/* Target selector (when no target pre-selected or user clicked "trocar") */}
+                    {/* Seletor de destino */}
                     {!targetCardId && (
                         <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
                             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -440,7 +549,7 @@ export default function MergeCardsModal({
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
                                     <div className="flex items-center justify-between">
                                         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                            Origem (será arquivado)
+                                            Origem
                                         </span>
                                     </div>
                                     {loadingSource ? (
@@ -470,7 +579,7 @@ export default function MergeCardsModal({
                                             'text-[10px] font-semibold uppercase tracking-wide',
                                             autoSelectedFromParent ? 'text-indigo-700' : 'text-emerald-700',
                                         )}>
-                                            {autoSelectedFromParent ? 'Card principal (destino)' : 'Destino (ficará com tudo)'}
+                                            {autoSelectedFromParent ? 'Card principal (destino)' : 'Destino'}
                                         </span>
                                         {!initialTargetId && (
                                             <button
@@ -497,14 +606,205 @@ export default function MergeCardsModal({
                                 </div>
                             </div>
 
+                            {/* Lista de itens com checkbox */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                                            <Package className="h-4 w-4 text-amber-600" />
+                                            Quais produtos vão para o destino?
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Marque os que devem migrar. Os desmarcados ficam no card de origem.
+                                        </p>
+                                    </div>
+                                    {sourceItems.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={toggleAll}
+                                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium shrink-0"
+                                        >
+                                            {allItemsSelected ? 'Desmarcar todos' : 'Marcar todos'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {loadingItems ? (
+                                    <div className="flex items-center justify-center py-4">
+                                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                    </div>
+                                ) : sourceItems.length === 0 ? (
+                                    <p className="text-xs text-slate-500 italic py-1">
+                                        Este card não tem produtos cadastrados em Produto - Vendas. Mesmo assim, ao confirmar, contatos, viajantes e histórico migram.
+                                    </p>
+                                ) : (
+                                    <div className="border border-slate-200 rounded-lg max-h-56 overflow-y-auto divide-y divide-slate-100">
+                                        {sourceItems.map(item => {
+                                            const checked = selectedItemIds.has(item.id)
+                                            const dateRange =
+                                                item.data_inicio || item.data_fim
+                                                    ? [formatDateBR(item.data_inicio), formatDateBR(item.data_fim)].join(' → ')
+                                                    : null
+                                            return (
+                                                <label
+                                                    key={item.id}
+                                                    className={cn(
+                                                        'flex items-start gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors',
+                                                        !checked && 'opacity-60',
+                                                    )}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => toggleItem(item.id)}
+                                                        disabled={isMerging}
+                                                        className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-baseline justify-between gap-2">
+                                                            <p className="text-sm font-medium text-slate-900 truncate">
+                                                                {item.description || `Produto ${item.product_type || ''}`.trim() || 'Sem descrição'}
+                                                            </p>
+                                                            <span className="text-xs font-medium text-slate-700 shrink-0">
+                                                                {formatBRL(Number(item.sale_value) || 0)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                                            {item.fornecedor && <span className="truncate">{item.fornecedor}</span>}
+                                                            {item.fornecedor && dateRange && <span className="text-slate-300">·</span>}
+                                                            {dateRange && <span>{dateRange}</span>}
+                                                            {item.product_type && (
+                                                                <span className="ml-auto px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 text-[10px] uppercase tracking-wide">
+                                                                    {item.product_type}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+
+                                {noItemsSelected && (
+                                    <p className="text-xs text-rose-600 mt-1">
+                                        Marque pelo menos um produto para mover, ou cancele e use Excluir se quiser apenas arquivar este card.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* O que fazer com o card de origem */}
+                            {sourceItems.length > 0 && (
+                                <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                                    <p className="text-sm font-semibold text-slate-900">
+                                        E o card de origem ({source?.titulo || '...'})?
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <label
+                                            className={cn(
+                                                'flex items-start gap-2 cursor-pointer rounded-lg border p-3 transition-colors',
+                                                sourceAction === 'archive'
+                                                    ? 'border-amber-400 bg-amber-50'
+                                                    : 'border-slate-200 hover:border-slate-300',
+                                                !allItemsSelected && 'opacity-50 cursor-not-allowed',
+                                            )}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="source-action"
+                                                checked={sourceAction === 'archive'}
+                                                onChange={() => {
+                                                    setUserTouchedAction(true)
+                                                    setSourceAction('archive')
+                                                }}
+                                                disabled={!allItemsSelected || isMerging}
+                                                className="mt-0.5 h-4 w-4 text-amber-600 focus:ring-amber-500"
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
+                                                    <Archive className="h-3.5 w-3.5 text-amber-600" />
+                                                    Arquivar este card
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    Vai pra Lixeira (recuperável). Recomendado quando todos os produtos migram.
+                                                </p>
+                                                {!allItemsSelected && (
+                                                    <p className="text-[11px] text-rose-600 mt-1">
+                                                        Disponível só quando todos os produtos forem movidos.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </label>
+
+                                        <label
+                                            className={cn(
+                                                'flex items-start gap-2 cursor-pointer rounded-lg border p-3 transition-colors',
+                                                sourceAction === 'keep_open'
+                                                    ? 'border-emerald-400 bg-emerald-50'
+                                                    : 'border-slate-200 hover:border-slate-300',
+                                            )}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="source-action"
+                                                checked={sourceAction === 'keep_open'}
+                                                onChange={() => {
+                                                    setUserTouchedAction(true)
+                                                    setSourceAction('keep_open')
+                                                }}
+                                                disabled={isMerging}
+                                                className="mt-0.5 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
+                                                    <Inbox className="h-3.5 w-3.5 text-emerald-600" />
+                                                    Manter aberto
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    O card segue ativo. Ideal quando só parte dos produtos migra (vira outra venda).
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Aviso geral */}
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="text-xs text-amber-900 space-y-1">
+                                    <p className="font-medium">Como vai ficar:</p>
+                                    <ul className="list-disc list-inside space-y-0.5 ml-1">
+                                        {selectedItemIds.size > 0 && (
+                                            <li>
+                                                <strong>{selectedItemIds.size}</strong> produto{selectedItemIds.size === 1 ? '' : 's'} vão pro destino
+                                                {sourceItems.length - selectedItemIds.size > 0 && (
+                                                    <> · <strong>{sourceItems.length - selectedItemIds.size}</strong> ficam no origem</>
+                                                )}
+                                            </li>
+                                        )}
+                                        {allItemsSelected && sourceAction === 'archive' && (
+                                            <>
+                                                <li>Passageiros, contatos, atividades e equipe também migram</li>
+                                                <li>O card de origem é arquivado (recuperável na Lixeira)</li>
+                                            </>
+                                        )}
+                                        {(!allItemsSelected || sourceAction === 'keep_open') && (
+                                            <li>O card de origem permanece aberto com o que você não marcou</li>
+                                        )}
+                                        <li>Valor e receita do destino são recalculados</li>
+                                    </ul>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                    Motivo do agrupamento (opcional)
+                                    Motivo (opcional)
                                 </label>
                                 <Textarea
                                     value={motivo}
                                     onChange={e => setMotivo(e.target.value)}
-                                    placeholder="Ex: mesma viagem, contato cadastrou duas vezes..."
+                                    placeholder="Ex: produto ficou na viagem errada, cliente cadastrou duas vezes..."
                                     rows={2}
                                     className="resize-none text-sm"
                                     disabled={isMerging}
@@ -520,18 +820,18 @@ export default function MergeCardsModal({
                     </Button>
                     <Button
                         onClick={handleMerge}
-                        disabled={!canMerge}
+                        disabled={!canConfirm}
                         className="bg-amber-600 hover:bg-amber-700 text-white"
                     >
                         {isMerging ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                Agrupando...
+                                Movendo...
                             </>
                         ) : (
                             <>
                                 <Combine className="h-4 w-4 mr-2" />
-                                Agrupar cards
+                                {buttonLabel}
                             </>
                         )}
                     </Button>
