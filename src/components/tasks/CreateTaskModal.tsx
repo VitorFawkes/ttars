@@ -345,7 +345,7 @@ export function CreateTaskModal({
                                     <option value="">Selecione...</option>
                                     {Object.entries(TIPO_LABEL).map(([key, val]) => (
                                         <option key={key} value={key}>
-                                            {val.emoji} {val.label}
+                                            {val.label}
                                         </option>
                                     ))}
                                 </select>

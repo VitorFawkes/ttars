@@ -93,7 +93,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <p className="text-xs text-slate-600 mb-1">Tipo</p>
               <div className="flex items-center gap-2">
-                <span>{tipoInfo.emoji}</span>
                 <p className="font-semibold text-slate-900">{tipoInfo.label}</p>
               </div>
             </div>
@@ -106,7 +105,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <p className="text-xs text-slate-600 mb-1">Origem</p>
               <div className="flex items-center gap-2">
-                <span>{sourceInfo.emoji}</span>
                 <p className="font-semibold text-slate-900">{sourceInfo.label}</p>
               </div>
             </div>

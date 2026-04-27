@@ -136,7 +136,7 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
               >
                 {(Object.entries(TIPO_LABEL) as [TipoConcierge, typeof TIPO_LABEL[TipoConcierge]][]).map(([key, meta]) => (
-                  <option key={key} value={key}>{meta.emoji} {meta.label}</option>
+                  <option key={key} value={key}>{meta.label}</option>
                 ))}
               </select>
             </div>

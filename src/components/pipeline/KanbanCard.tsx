@@ -597,13 +597,16 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
 
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {conciergeStats && conciergeStats.ativos > 0 && (
-                        <div className="flex items-center gap-1 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
-                            <span>{conciergeStats.ativos}</span>
-                            {conciergeStats.tipo_prioritario && (
-                                <span title={`Tipo prioritário: ${conciergeStats.tipo_prioritario}`}>
-                                    {TIPO_LABEL[conciergeStats.tipo_prioritario]?.emoji}
-                                </span>
+                        <div
+                            className={cn(
+                                'flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium',
+                                conciergeStats.tipo_prioritario
+                                    ? `${TIPO_LABEL[conciergeStats.tipo_prioritario].bgColor} ${TIPO_LABEL[conciergeStats.tipo_prioritario].color}`
+                                    : 'bg-purple-100 text-purple-700'
                             )}
+                            title={conciergeStats.tipo_prioritario ? `${conciergeStats.ativos} concierge · ${TIPO_LABEL[conciergeStats.tipo_prioritario].label}` : `${conciergeStats.ativos} concierge`}
+                        >
+                            {conciergeStats.ativos}
                         </div>
                     )}
                 </div>

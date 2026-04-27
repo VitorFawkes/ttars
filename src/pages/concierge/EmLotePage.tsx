@@ -4,6 +4,7 @@ import { useAtendimentosLote } from '../../hooks/concierge/useAtendimentosLote'
 import { useExecutarEmLote } from '../../hooks/concierge/useAtendimentoMutations'
 import { TIPO_LABEL, JANELA_LABEL, CATEGORIAS_CONCIERGE } from '../../hooks/concierge/types'
 import type { AtendimentoLote, OutcomeConcierge } from '../../hooks/concierge/types'
+import { TipoBadge } from '../../components/concierge/Badges'
 
 function categoriaLabel(key: string): string {
   return CATEGORIAS_CONCIERGE[key as keyof typeof CATEGORIAS_CONCIERGE]?.label ?? key
@@ -67,9 +68,8 @@ export default function EmLotePage() {
           <div key={key} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50" onClick={() => toggle(key)}>
               {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${tipoCfg.bgColor} ${tipoCfg.color}`}>
-                {tipoCfg.emoji} {tipoCfg.label}
-              </span>
+              <TipoBadge tipo={g.tipo_concierge} />
+              <span className="sr-only">{tipoCfg.label}</span>
               <div className="flex-1">
                 <div className="text-sm font-semibold text-slate-900">{categoriaLabel(g.categoria)}</div>
                 <div className="text-xs text-slate-500">{JANELA_LABEL[g.janela_embarque]}</div>

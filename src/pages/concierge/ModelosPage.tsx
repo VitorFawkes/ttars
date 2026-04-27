@@ -8,6 +8,7 @@ import { useOrg } from '../../contexts/OrgContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { cn } from '../../lib/utils'
 import ModeloEditorModal from '../../components/concierge/ModeloEditorModal'
+import { TipoBadge } from '../../components/concierge/Badges'
 
 function categoriaLabel(key: string | null): string {
   if (!key) return '—'
@@ -182,7 +183,6 @@ export default function ModelosPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {modelosFiltrados.map(m => {
-                const tipoCfg = m.tipo_concierge ? TIPO_LABEL[m.tipo_concierge] : null
                 const day = m.day_offset ?? 0
                 const dayLabel = day === 0 ? 'No aceite' : day > 0 ? `D+${day}` : `D${day}`
                 return (
@@ -195,12 +195,7 @@ export default function ModelosPage() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
-                        {tipoCfg && (
-                          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold', tipoCfg.bgColor, tipoCfg.color)}>
-                            <span>{tipoCfg.emoji}</span>
-                            {tipoCfg.label}
-                          </span>
-                        )}
+                        {m.tipo_concierge && <TipoBadge tipo={m.tipo_concierge} />}
                         <span className="text-[12px] text-slate-700">{categoriaLabel(m.categoria_concierge)}</span>
                       </div>
                     </td>

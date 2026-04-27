@@ -6,6 +6,7 @@ import { useMeuDia, type MeuDiaFilters, type MeuDiaGroupBy } from '../../hooks/c
 import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
 import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, categoriasParaProduto, type TipoConcierge, type SourceConcierge, type StatusApresentacao, type MeuDiaItem, type CategoriaConcierge } from '../../hooks/concierge/types'
 import { AtendimentoDetailModal } from '../../components/concierge/AtendimentoDetailModal'
+import { TipoBadge, SourceIcon } from '../../components/concierge/Badges'
 import { cn } from '../../lib/utils'
 
 type Bucket = 'vencido' | 'hoje' | 'esta_semana' | 'futuro'
@@ -338,7 +339,7 @@ function Toolbar({ search, setSearch, groupBy, setGroupBy, tipoFilter, setTipoFi
                 active ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               )}
             >
-              <span>{meta.emoji}</span>
+              <SourceIcon source={key} className="w-3 h-3" />
               {meta.label}
             </button>
           )
@@ -370,10 +371,7 @@ function QueueRow({ item, onClick, onMarcarFeito, onNotificar }: { item: MeuDiaI
         className="w-full text-left py-3 pl-4 pr-3 hover:bg-slate-50 transition-colors flex items-start gap-3"
       >
         <div className="pt-0.5 shrink-0">
-          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold', meta.bgColor, meta.color)}>
-            <span>{meta.emoji}</span>
-            {meta.label}
-          </span>
+          <TipoBadge tipo={item.tipo_concierge} />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -389,7 +387,7 @@ function QueueRow({ item, onClick, onMarcarFeito, onNotificar }: { item: MeuDiaI
             <span>{cat?.label ?? item.categoria}</span>
             <span className="text-slate-300">·</span>
             <span className="inline-flex items-center gap-1">
-              <span className="text-[11px]">{SOURCE_LABEL[item.source].emoji}</span>
+              <SourceIcon source={item.source} className="w-3 h-3 text-slate-400" />
               {SOURCE_LABEL[item.source].label}
             </span>
           </div>

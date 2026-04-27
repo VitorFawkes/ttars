@@ -68,18 +68,18 @@ export function categoriasParaProduto(produto: string | null | undefined): Array
     .map(([key, config]) => ({ key: key as CategoriaConcierge, config: { label: config.label, tipo: config.tipo, produtos: config.produtos as readonly string[] } }))
 }
 
-export const TIPO_LABEL: Record<TipoConcierge, { label: string; emoji: string; tone: string; color: string; bgColor: string; borderColor: string; dotColor: string }> = {
-  oferta:     { label: 'Oferta',     emoji: '💰', tone: 'purple',  color: 'text-purple-700',  bgColor: 'bg-purple-50',  borderColor: 'border-purple-200',  dotColor: 'bg-purple-500'  },
-  reserva:    { label: 'Reserva',    emoji: '🛎️', tone: 'cyan',    color: 'text-cyan-700',    bgColor: 'bg-cyan-50',    borderColor: 'border-cyan-200',    dotColor: 'bg-cyan-500'    },
-  suporte:    { label: 'Suporte',    emoji: '🚨', tone: 'red',     color: 'text-red-700',     bgColor: 'bg-red-50',     borderColor: 'border-red-200',     dotColor: 'bg-red-500'     },
-  operacional:{ label: 'Operacional',emoji: '📋', tone: 'emerald', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500' },
+export const TIPO_LABEL: Record<TipoConcierge, { label: string; tone: string; color: string; bgColor: string; borderColor: string; dotColor: string }> = {
+  oferta:     { label: 'Oferta',     tone: 'purple',  color: 'text-purple-700',  bgColor: 'bg-purple-50',  borderColor: 'border-purple-200',  dotColor: 'bg-purple-500'  },
+  reserva:    { label: 'Reserva',    tone: 'cyan',    color: 'text-cyan-700',    bgColor: 'bg-cyan-50',    borderColor: 'border-cyan-200',    dotColor: 'bg-cyan-500'    },
+  suporte:    { label: 'Suporte',    tone: 'red',     color: 'text-red-700',     bgColor: 'bg-red-50',     borderColor: 'border-red-200',     dotColor: 'bg-red-500'     },
+  operacional:{ label: 'Operacional',tone: 'emerald', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500' },
 }
 
-export const SOURCE_LABEL: Record<SourceConcierge, { label: string; emoji: string }> = {
-  cadencia:        { label: 'Cadência',     emoji: '🤖' },
-  manual:          { label: 'Manual',       emoji: '✋' },
-  cliente:         { label: 'Cliente',      emoji: '💬' },
-  planner_request: { label: 'Planner pediu',emoji: '👤' },
+export const SOURCE_LABEL: Record<SourceConcierge, { label: string }> = {
+  cadencia:        { label: 'Cadência'      },
+  manual:          { label: 'Manual'        },
+  cliente:         { label: 'Cliente'       },
+  planner_request: { label: 'Planner pediu' },
 }
 
 export interface AtendimentoConcierge {
