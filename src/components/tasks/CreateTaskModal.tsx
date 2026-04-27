@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { X, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -8,6 +8,8 @@ import { useProductContext } from '../../hooks/useProductContext'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { cn } from '../../lib/utils'
 import { TASK_TYPE_CONFIG } from './taskTypeConfig'
+import { useCriarAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
+import { CATEGORIAS_CONCIERGE, TIPO_LABEL, type TipoConcierge, type CategoriaConcierge } from '../../hooks/concierge/types'
 
 interface CardOption {
     id: string
@@ -46,6 +48,7 @@ export function CreateTaskModal({
     const { data: options } = useFilterOptions()
     const queryClient = useQueryClient()
     const profiles = options?.profiles || []
+    const criarAtendimento = useCriarAtendimento()
 
     const [cardSearch, setCardSearch] = useState('')
     const [cardId, setCardId] = useState<string | null>(initialCardId || null)
@@ -56,18 +59,22 @@ export function CreateTaskModal({
     const [dataVencimento, setDataVencimento] = useState<string>('')
     const [prioridade, setPrioridade] = useState<string>('media')
     const [responsavelId, setResponsavelId] = useState<string | null>(profile?.id || null)
+    const [isConciergeRequest, setIsConciergeRequest] = useState(false)
+    const [conciergeType, setConciergeType] = useState<TipoConcierge | ''>('')
+    const [conciergeCategory, setConciergCategory] = useState<CategoriaConcierge | ''>('')
 
-    useEffect(() => {
-        if (open && profile?.id && !responsavelId) setResponsavelId(profile.id)
-    }, [open, profile?.id, responsavelId])
+    const resetForm = () => {
+        setCardSearch(''); setCardId(null); setCardTitulo('')
+        setTitulo(''); setDescricao(''); setDataVencimento('')
+        setTipo('tarefa'); setPrioridade('media')
+        setIsConciergeRequest(false); setConciergeType(''); setConciergCategory('')
+        if (profile?.id) setResponsavelId(profile.id)
+    }
 
-    useEffect(() => {
-        if (!open) {
-            setCardSearch(''); setCardId(null); setCardTitulo('')
-            setTitulo(''); setDescricao(''); setDataVencimento('')
-            setTipo('tarefa'); setPrioridade('media')
-        }
-    }, [open])
+    const handleClose = () => {
+        resetForm()
+        onOpenChange(false)
+    }
 
     const { data: cardResults } = useQuery({
         queryKey: ['create-task-card-search', cardSearch, currentProduct],
@@ -91,30 +98,48 @@ export function CreateTaskModal({
         mutationFn: async () => {
             if (!cardId) throw new Error('Selecione um card')
             if (!titulo.trim()) throw new Error('Informe um título')
-            const { error } = await supabase.from('tarefas').insert({
-                card_id: cardId,
-                titulo: titulo.trim(),
-                descricao: descricao.trim() || null,
-                tipo,
-                prioridade,
-                responsavel_id: responsavelId,
-                data_vencimento: dataVencimento ? new Date(dataVencimento).toISOString() : null,
-                status: 'pendente',
-                concluida: false,
-                created_by: profile?.id,
-                metadata: { origin: 'manual' },
-            })
-            if (error) throw error
+
+            if (isConciergeRequest) {
+                if (!conciergeType) throw new Error('Selecione o tipo de atendimento')
+                if (!conciergeCategory) throw new Error('Selecione a categoria')
+                return criarAtendimento.mutateAsync({
+                    card_id: cardId,
+                    tipo_concierge: conciergeType as TipoConcierge,
+                    categoria: conciergeCategory as CategoriaConcierge,
+                    source: 'planner_request',
+                    titulo: titulo.trim(),
+                    descricao: descricao.trim() || undefined,
+                    data_vencimento: dataVencimento ? new Date(dataVencimento).toISOString() : undefined,
+                    responsavel_id: responsavelId || undefined,
+                    prioridade,
+                })
+            } else {
+                const { error } = await supabase.from('tarefas').insert({
+                    card_id: cardId,
+                    titulo: titulo.trim(),
+                    descricao: descricao.trim() || null,
+                    tipo,
+                    prioridade,
+                    responsavel_id: responsavelId,
+                    data_vencimento: dataVencimento ? new Date(dataVencimento).toISOString() : null,
+                    status: 'pendente',
+                    concluida: false,
+                    created_by: profile?.id,
+                    metadata: { origin: 'manual' },
+                })
+                if (error) throw error
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
             queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
-            toast.success('Tarefa criada')
-            onOpenChange(false)
+            queryClient.invalidateQueries({ queryKey: ['concierge'] })
+            toast.success(isConciergeRequest ? 'Atendimento concierge criado' : 'Tarefa criada')
+            handleClose()
         },
         onError: (err: Error) => {
-            toast.error('Erro ao criar tarefa', { description: err.message })
+            toast.error(isConciergeRequest ? 'Erro ao criar atendimento' : 'Erro ao criar tarefa', { description: err.message })
         },
     })
 
@@ -125,7 +150,7 @@ export function CreateTaskModal({
     return (
         <div
             className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => onOpenChange(false)}
+            onClick={handleClose}
         >
             <div
                 className="bg-white rounded-xl border border-slate-200 shadow-lg max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto"
@@ -134,7 +159,7 @@ export function CreateTaskModal({
                 <div className="flex items-start justify-between mb-4">
                     <h3 className="text-base font-semibold text-slate-900 tracking-tight">Nova tarefa</h3>
                     <button
-                        onClick={() => onOpenChange(false)}
+                        onClick={handleClose}
                         className="text-slate-400 hover:text-slate-600"
                     >
                         <X className="h-4 w-4" />
@@ -284,19 +309,81 @@ export function CreateTaskModal({
                         </select>
                     </div>
 
+                    {/* É demanda de concierge? */}
+                    <div className="flex items-center gap-2 py-2">
+                        <input
+                            type="checkbox"
+                            id="isConcierge"
+                            checked={isConciergeRequest}
+                            onChange={(e) => {
+                                setIsConciergeRequest(e.target.checked)
+                                if (!e.target.checked) {
+                                    setConciergeType('')
+                                    setConciergCategory('')
+                                }
+                            }}
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label htmlFor="isConcierge" className="text-xs font-medium text-slate-600 cursor-pointer">
+                            É demanda de concierge?
+                        </label>
+                    </div>
+
+                    {/* Tipo e Categoria — condicional */}
+                    {isConciergeRequest && (
+                        <div className="grid grid-cols-2 gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                            <div>
+                                <label className="text-xs font-medium text-slate-600 mb-1 block">Tipo *</label>
+                                <select
+                                    value={conciergeType}
+                                    onChange={(e) => {
+                                        setConciergeType(e.target.value as TipoConcierge)
+                                        setConciergCategory('')
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {Object.entries(TIPO_LABEL).map(([key, val]) => (
+                                        <option key={key} value={key}>
+                                            {val.emoji} {val.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-600 mb-1 block">Categoria *</label>
+                                <select
+                                    value={conciergeCategory}
+                                    onChange={(e) => setConciergCategory(e.target.value as CategoriaConcierge)}
+                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                    disabled={!conciergeType}
+                                >
+                                    <option value="">Selecione...</option>
+                                    {conciergeType && Object.entries(CATEGORIAS_CONCIERGE)
+                                        .filter(([, config]) => config.tipo === conciergeType)
+                                        .map(([key, config]) => (
+                                            <option key={key} value={key}>
+                                                {config.label}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex items-center justify-end gap-2 pt-2">
                         <button
-                            onClick={() => onOpenChange(false)}
+                            onClick={handleClose}
                             className="px-3 py-2 text-sm font-medium rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                         >
                             Cancelar
                         </button>
                         <button
                             onClick={() => mutation.mutate()}
-                            disabled={!cardId || !titulo.trim() || mutation.isPending}
+                            disabled={!cardId || !titulo.trim() || mutation.isPending || (isConciergeRequest && (!conciergeType || !conciergeCategory))}
                             className="px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                            {mutation.isPending ? 'Criando...' : 'Criar tarefa'}
+                            {mutation.isPending ? 'Criando...' : isConciergeRequest ? 'Criar atendimento' : 'Criar tarefa'}
                         </button>
                     </div>
                 </div>

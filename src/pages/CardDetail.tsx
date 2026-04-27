@@ -6,7 +6,7 @@ import CardHeader from '../components/card/CardHeader'
 import { useStageRequirements, type TaskRequirement } from '../hooks/useStageRequirements'
 import CardTasks from '../components/card/CardTasks'
 import { DynamicSectionsList } from '../components/card/DynamicSectionWidget'
-
+import { SectionConciergeOverview } from '../components/card/SectionConciergeOverview'
 import ConversationHistory from '../components/card/ConversationHistory'
 import PessoasWidget from '../components/card/PessoasWidget'
 
@@ -328,6 +328,9 @@ export default function CardDetail() {
 
                     {/* Tasks & Meetings (Unified) — hardcoded */}
                     <CardTasks cardId={card.id!} requiredTasks={requiredTasks} />
+
+                    {/* Concierge Overview — hardcoded */}
+                    <SectionConciergeOverview cardId={card.id!} />
 
                     {/* Dynamic Sections (left_column) — includes Informações Importantes via widget */}
                     <DynamicSectionsList

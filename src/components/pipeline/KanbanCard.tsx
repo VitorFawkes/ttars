@@ -15,6 +15,8 @@ import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
+import { useCardConciergeStats } from '../../hooks/concierge/useCardConciergeStats'
+import { TIPO_LABEL } from '../../hooks/concierge/types'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -88,6 +90,7 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
+    const { data: conciergeStats } = useCardConciergeStats(card.id)
 
     const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
 
@@ -561,6 +564,7 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md",
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
+                conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
                 card.status_comercial === 'ganho' && isGanhoDireto(card) && "border-amber-300 bg-amber-50/40 opacity-80",
                 card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
@@ -572,6 +576,7 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                             : "border-gray-200 hover:border-gray-300"
                 )
             )}
+            title={conciergeStats ? `${conciergeStats.ativos} atendimentos abertos · ${conciergeStats.vencidos} vencidos · R$ ${(conciergeStats.valor_vendido_extra / 100).toFixed(2)} vendido` : undefined}
         >
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -587,6 +592,19 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                     {/* Group Affiliation Badge — only for group children */}
                     {card.parent_card_id && (card as any).card_type === 'group_child' && (
                         <GroupBadge card={card} />
+                    )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {conciergeStats && conciergeStats.ativos > 0 && (
+                        <div className="flex items-center gap-1 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-medium">
+                            <span>{conciergeStats.ativos}</span>
+                            {conciergeStats.tipo_prioritario && (
+                                <span title={`Tipo prioritário: ${conciergeStats.tipo_prioritario}`}>
+                                    {TIPO_LABEL[conciergeStats.tipo_prioritario]?.emoji}
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
 

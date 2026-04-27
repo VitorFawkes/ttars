@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, Shield, MapPin, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, Shield, MapPin, Headphones, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
@@ -18,6 +18,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: str
     { name: 'Contatos', href: '/people', icon: User },
     { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
+    { name: 'Concierge', href: '/concierge', icon: Headphones },
     { name: 'Vendas Monde', href: '/vendas-monde', icon: FileSpreadsheet, adminOnly: true, orgsOnly: ['welcome-trips'] },
     { name: 'Import. Pós-Venda', href: '/importacao-pos-venda', icon: Upload, phases: ['pos_venda'] },
     { name: 'Presentes', href: '/presentes', icon: Gift, roles: ['pos_venda'] },

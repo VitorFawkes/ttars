@@ -52,7 +52,11 @@ import ExplorarPage from './pages/analytics-new/ExplorarPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
 import ReactivationPage from './pages/ReactivationPage'
-
+import ConciergeLayout from './pages/concierge/ConciergeLayout'
+import MeuDiaPage from './pages/concierge/MeuDiaPage'
+import EmLotePage from './pages/concierge/EmLotePage'
+import PainelGestorPage from './pages/concierge/PainelGestorPage'
+import ModelosPage from './pages/concierge/ModelosPage'
 
 import ProposalReview from './pages/public/ProposalReview'
 import ProposalConfirmed from './pages/public/ProposalConfirmed'
@@ -244,6 +248,12 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
+                  <Route path="/concierge" element={<ConciergeLayout />}>
+                    <Route index element={<MeuDiaPage />} />
+                    <Route path="em-lote" element={<EmLotePage />} />
+                    <Route path="painel" element={<PainelGestorPage />} />
+                    <Route path="modelos" element={<ModelosPage />} />
+                  </Route>
                   {/* Analytics — reconstrução em fases (plan: analytics-rebuild.md). Fase 0 = esqueleto + Explorar portado */}
                   <Route path="/analytics" element={<AnalyticsLayout />}>
                     <Route index element={<AnalyticsRootRedirect />} />

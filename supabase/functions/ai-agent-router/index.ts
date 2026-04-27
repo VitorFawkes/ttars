@@ -1498,6 +1498,42 @@ const BUILT_IN_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  // Tool de concierge — cria atendimento concierge (tarefa + complemento)
+  // quando o cliente pede algo concreto (reservar restaurante, comprar passeio, resolver problema)
+  {
+    type: "function",
+    function: {
+      name: "criar_atendimento_concierge",
+      description: "Cria um atendimento de concierge a partir de uma solicitação do cliente via WhatsApp. Use quando o cliente pede algo concreto (reservar restaurante, comprar passeio, resolver problema de viagem).",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo_concierge: {
+            type: "string",
+            enum: ["oferta", "reserva", "suporte", "operacional"],
+            description: "oferta=cliente quer comprar algo pago, reserva=quer que façamos reserva sem custo extra (restaurante), suporte=problema/imprevisto, operacional=ação interna",
+          },
+          categoria: {
+            type: "string",
+            description: "Categoria granular: passeio, ingresso, transfer, restaurante, hotel_contato, check_in, passaporte, welcome_letter, seguro, etc.",
+          },
+          titulo: {
+            type: "string",
+            description: "Resumo curto do que o cliente pediu",
+          },
+          descricao: {
+            type: "string",
+            description: "Detalhes do pedido",
+          },
+          prazo_horas: {
+            type: "number",
+            description: "Em quantas horas precisa ser feito (24, 48, etc). Default 24.",
+          },
+        },
+        required: ["tipo_concierge", "categoria", "titulo"],
+      },
+    },
+  },
 ];
 
 async function loadAgentTools(
@@ -1905,6 +1941,56 @@ async function executeToolCall(
         } catch (err) {
           console.warn(`[calculate_qualification_score] exception:`, (err as Error).message);
           result = JSON.stringify({ error: "Erro interno ao calcular score" });
+        }
+        break;
+      }
+
+      case "criar_atendimento_concierge": {
+        // Cria um atendimento concierge (tarefa + complemento) quando o cliente pede algo concreto.
+        // Integra com RPC rpc_criar_atendimento_concierge (migration 20260427c).
+        if (!ctx.card_id) {
+          result = JSON.stringify({ error: "Sem card associado para criar atendimento concierge" });
+          break;
+        }
+
+        try {
+          const prazoCoreRPC = (args.prazo_horas as number) || 24;
+          const dataVencimento = new Date();
+          dataVencimento.setHours(dataVencimento.getHours() + prazoCoreRPC);
+
+          const { data: atendimentoId, error: conciergeErr } = await supabase.rpc("rpc_criar_atendimento_concierge", {
+            p_card_id: ctx.card_id,
+            p_tipo_concierge: args.tipo_concierge as string,
+            p_categoria: args.categoria as string,
+            p_source: "cliente",
+            p_titulo: args.titulo as string,
+            p_descricao: (args.descricao as string) || null,
+            p_data_vencimento: dataVencimento.toISOString(),
+            p_responsavel_id: ctx.sdr_owner_id || null,
+            p_prioridade: "media",
+            p_valor: null,
+            p_cobrado_de: null,
+            p_origem_descricao: `Cliente via WhatsApp: ${(args.titulo as string).substring(0, 100)}`,
+            p_cadence_step_id: null,
+            p_hospedagem_ref: null,
+            p_payload: {},
+          });
+
+          if (conciergeErr) {
+            console.warn("[criar_atendimento_concierge] RPC error:", conciergeErr.message);
+            result = JSON.stringify({ error: conciergeErr.message });
+          } else {
+            result = JSON.stringify({
+              success: true,
+              atendimento_id: atendimentoId,
+              tipo: args.tipo_concierge,
+              categoria: args.categoria,
+              prazo_horas: prazoCoreRPC,
+            });
+          }
+        } catch (err) {
+          console.warn("[criar_atendimento_concierge] exception:", (err as Error).message);
+          result = JSON.stringify({ error: "Erro interno ao criar atendimento concierge" });
         }
         break;
       }

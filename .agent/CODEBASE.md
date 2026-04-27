@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 192 tabelas | 140 paginas | 156 hooks | 20 views | 614 components
+> **Stats:** 189 tabelas | 144 paginas | 155 hooks | 19 views | 613 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **156 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **155 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -262,7 +262,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
 | `useMondePendingSales()` | `useMondePendingSales.ts` |
-| `useMondeSales()` | `useMondeSales.ts` |
 | `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
 | `useMyDayTasks()` | `useMyDayTasks.ts` |
 | `useMyVisiblePhases()` | `useMyVisiblePhases.ts` |
@@ -402,7 +401,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **140 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -431,7 +430,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `InvitePage` | `src/pages/InvitePage.tsx` |
 | `Leads` | `src/pages/Leads.tsx` |
 | `Login` | `src/pages/Login.tsx` |
-| `MondePreviewPage` | `src/pages/MondePreviewPage.tsx` |
 | `People` | `src/pages/People.tsx` |
 | `Pipeline` | `src/pages/Pipeline.tsx` |
 | `PortalEditor` | `src/pages/PortalEditor.tsx` |
@@ -524,6 +522,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
+| `ConciergeLayout` | `src/pages/concierge/ConciergeLayout.tsx` |
+| `EmLotePage` | `src/pages/concierge/EmLotePage.tsx` |
+| `MeuDiaPage` | `src/pages/concierge/MeuDiaPage.tsx` |
+| `ModelosPage` | `src/pages/concierge/ModelosPage.tsx` |
+| `PainelGestorPage` | `src/pages/concierge/PainelGestorPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
 | `HelpCenter` | `src/pages/help/HelpCenter.tsx` |
 | `helpArticles` | `src/pages/help/helpArticles.tsx` |
