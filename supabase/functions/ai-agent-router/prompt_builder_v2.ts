@@ -393,10 +393,16 @@ function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
   const lines: string[] = [];
   lines.push('Lógica de avanço — você está em fase de coleta. Decida o próximo passo nesta ordem:');
   lines.push('');
-  lines.push('1. SCORE ATINGIU THRESHOLD → AVANCE PRO DESFECHO');
-  lines.push(`   Olhe <qualification_status> no <turn>. Se score ≥ ${scoreInfo.threshold ?? 25}, PARE de fazer perguntas.`);
-  lines.push('   Vá direto pra fase de fechamento (proposta de conversa com a especialista).');
-  lines.push('   Não justifique a transição. Não peça mais info "pra confirmar". Você já tem o suficiente.');
+  lines.push('1. SCORE ATINGIU THRESHOLD → AVANCE IMEDIATAMENTE PRO DESFECHO');
+  lines.push(`   Olhe <qualification_status> no <turn>. Se score ≥ ${scoreInfo.threshold ?? 25}, sua próxima resposta`);
+  lines.push('   ABRE direto com o handoff. Não:');
+  lines.push('     - Recapitule o que coletou ("então: nordeste, 80 conv...")');
+  lines.push('     - Confirme detalhe extra ("só pra fechar, vocês querem mesmo...")');
+  lines.push('     - Faça pergunta secundária ("pé na areia ou clássico?")');
+  lines.push('     - Justifique a transição ("já tenho o suficiente")');
+  lines.push('   Apenas: reconheça em UMA frase curta + proponha conectar com a especialista.');
+  lines.push('   Continuar perguntando depois do score ≥ threshold é o erro mais caro: queima a janela');
+  lines.push('   de fechamento e desperdiça atenção do lead premium.');
   lines.push('');
   if (requiredFieldsList) {
     lines.push('2. SLOTS OBRIGATÓRIOS COLETADOS MAS SCORE ABAIXO DO THRESHOLD → BUSQUE SINAIS INVISÍVEIS');

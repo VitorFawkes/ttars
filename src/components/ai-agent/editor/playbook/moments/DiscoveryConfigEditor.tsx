@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, GripVertical, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import type { DiscoveryConfig, DiscoverySlot } from '@/hooks/playbook/useAgentMoments'
@@ -120,7 +120,6 @@ function SlotItem({
   return (
     <div className={cn('bg-white border rounded-lg', expanded ? 'border-slate-300' : 'border-slate-200')}>
       <header className="flex items-center gap-2 px-3 py-2">
-        <GripVertical className="w-3.5 h-3.5 text-slate-300" />
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
