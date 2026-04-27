@@ -119,12 +119,8 @@ Responda em JSON estrito:
       body: JSON.stringify({
         model: input.model ?? "gpt-4.1-mini",
         temperature: 0.1,
-        // Bug 2026-04-27: 600 tokens truncava resposta quando agente tinha 10+
-        // rules subjective. JSON saía inválido, parse falhava, catch retornava
-        // {}, score ficava 0 sempre. Cálculo: cada eval ~30 tokens (uuid 36
-        // chars + answer + reason curto), wrapper JSON ~50. 15 rules ≈ 500+
-        // tokens. Subimos pra 1500 com folga pra agentes maiores.
-        max_completion_tokens: 1500,
+        // Sem max_completion_tokens — deixa o modelo usar o default. Cap fixo
+        // truncava JSON e causava parse error silencioso (bug 2026-04-27).
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
