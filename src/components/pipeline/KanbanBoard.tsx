@@ -22,6 +22,8 @@ import QualityGateModal from '../card/QualityGateModal'
 import LossReasonModal, { type FutureOpportunityData } from '../card/LossReasonModal'
 import WinOptionsModal from '../card/WinOptionsModal'
 import FieldConfirmationModal from '../card/FieldConfirmationModal'
+import AutoMergeOnMoveModal from '../card/AutoMergeOnMoveModal'
+import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
 import { useQualityGate, type MissingRequirement } from '../../hooks/useQualityGate'
 import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
 import type { Database } from '../../database.types'
@@ -256,6 +258,16 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         targetPhaseName?: string
     } | null>(null)
 
+    const [autoMergeModalOpen, setAutoMergeModalOpen] = useState(false)
+    const [autoMergeInfo, setAutoMergeInfo] = useState<AutoMergePreflightInfo | null>(null)
+    const [autoMergePending, setAutoMergePending] = useState<{
+        cardId: string
+        stageId: string
+        targetStageName: string
+        rollback: (() => void) | null
+    } | null>(null)
+    const [autoMergeExecuting, setAutoMergeExecuting] = useState(false)
+
     // Edge Scrolling Logic
     useEffect(() => {
         const container = scrollContainerRef.current
@@ -441,6 +453,26 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             }
         }
 
+        // --- AUTO-MERGE GATE: sub-card saindo da 1ª etapa de Pós-venda → vai fundir no pai ---
+        // Buscamos por id pois view_cards_acoes não expõe card_type/parent_card_id.
+        try {
+            const preflight = await detectAutoMergePreflight(cardId, stageId)
+            if (preflight.willMerge) {
+                rollback()
+                setAutoMergeInfo(preflight)
+                setAutoMergePending({
+                    cardId,
+                    stageId,
+                    targetStageName: targetStage?.nome || 'Nova Etapa',
+                    rollback: null,
+                })
+                setAutoMergeModalOpen(true)
+                return
+            }
+        } catch (err) {
+            console.warn('[AutoMerge preflight] failed — falling back to direct move:', err)
+        }
+
         // --- EXECUTE: Persist to database ---
         try {
             const { error } = await supabase.rpc('mover_card', {
@@ -455,6 +487,42 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             console.error('Error moving card:', err)
             rollback()
         }
+    }
+
+    const handleConfirmAutoMerge = async () => {
+        if (!autoMergePending) return
+        setAutoMergeExecuting(true)
+        try {
+            const { error } = await supabase.rpc('mover_card', {
+                p_card_id: autoMergePending.cardId,
+                p_nova_etapa_id: autoMergePending.stageId,
+            })
+            if (error) throw error
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['card-detail', autoMergePending.cardId] })
+            if (autoMergeInfo?.parent?.id) {
+                queryClient.invalidateQueries({ queryKey: ['card-detail', autoMergeInfo.parent.id] })
+                queryClient.invalidateQueries({ queryKey: ['financial-items', autoMergeInfo.parent.id] })
+            }
+            toast.success(`Sub-card juntado a "${autoMergeInfo?.parent?.titulo || 'card principal'}"`)
+            setAutoMergeModalOpen(false)
+            setAutoMergeInfo(null)
+            setAutoMergePending(null)
+        } catch (err) {
+            console.error('Error in auto-merge move:', err)
+            toast.error('Não foi possível juntar os cards. Tente novamente.')
+        } finally {
+            setAutoMergeExecuting(false)
+        }
+    }
+
+    const handleCancelAutoMerge = () => {
+        if (autoMergeExecuting) return
+        setAutoMergeModalOpen(false)
+        setAutoMergeInfo(null)
+        setAutoMergePending(null)
     }
 
     const handleFieldConfirmationConfirm = async () => {
@@ -1003,6 +1071,16 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                     />
                                 </>
                             )}
+
+                            <AutoMergeOnMoveModal
+                                open={autoMergeModalOpen}
+                                info={autoMergeInfo ?? undefined}
+                                isLoading={false}
+                                isExecuting={autoMergeExecuting}
+                                targetStageNome={autoMergePending?.targetStageName ?? null}
+                                onCancel={handleCancelAutoMerge}
+                                onConfirm={handleConfirmAutoMerge}
+                            />
 
                         </div>
                     </DndContext>
