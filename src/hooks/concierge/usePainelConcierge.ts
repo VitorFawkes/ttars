@@ -26,12 +26,12 @@ export function usePainelConciergeStats(periodo: PainelPeriodo = 'mes') {
     queryFn: async (): Promise<PainelKPIs> => {
       const startISO = start.toISOString()
 
-      const { data: total } = await sbAny
+      const { count: totalCount } = await sbAny
         .from('atendimentos_concierge')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', startISO)
 
-      const { data: fechados } = await sbAny
+      const { count: fechadosCount } = await sbAny
         .from('atendimentos_concierge')
         .select('id', { count: 'exact', head: true })
         .gte('outcome_em', startISO)
@@ -50,8 +50,6 @@ export function usePainelConciergeStats(periodo: PainelPeriodo = 'mes') {
         .eq('tipo_concierge', 'oferta')
         .gte('created_at', startISO)
 
-      const totalCount = (total as { count?: number } | null)?.count ?? 0
-      const fechadosCount = (fechados as { count?: number } | null)?.count ?? 0
       const vendidoSum = ((vendidos ?? []) as { valor: number | null }[])
         .reduce((acc, r) => acc + (r.valor ?? 0), 0)
       const ofertasArr = (ofertas ?? []) as { outcome: string | null }[]
@@ -59,8 +57,8 @@ export function usePainelConciergeStats(periodo: PainelPeriodo = 'mes') {
       const ofertasAceitas = ofertasArr.filter(o => o.outcome === 'aceito').length
 
       return {
-        total: totalCount,
-        fechados: fechadosCount,
+        total: totalCount ?? 0,
+        fechados: fechadosCount ?? 0,
         taxa_sla: 0,
         vendido_extra: vendidoSum,
         taxa_conversao_oferta: ofertasTotal > 0 ? (ofertasAceitas / ofertasTotal) * 100 : 0,

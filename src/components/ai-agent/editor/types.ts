@@ -42,12 +42,33 @@ export interface HandoffSignal {
   description: string
 }
 
+/**
+ * Configuração de agendamento automático de reunião com closer/especialista
+ * quando o agente identifica lead qualificado.
+ */
+export interface BookMeetingConfig {
+  /** Ativa o agendamento automático. */
+  enabled: boolean
+  /** ID do profile que recebe a reunião (Wedding Planner / closer). */
+  responsavel_id: string | null
+  /** Tipo de reunião que vai ser registrada na tabela tarefas. */
+  tipo: 'reuniao' | 'reuniao_video' | 'reuniao_presencial' | 'reuniao_telefone'
+  /** Duração esperada em minutos (vai pro metadata da tarefa). */
+  duracao_minutos: number
+  /** Template do título. Aceita {contact_name}, {agent_name}, {responsavel_name}. */
+  titulo_template: string
+  /** Mensagem que a agente envia pro lead após agendar. Mesmas variáveis + {data} {hora}. */
+  mensagem_confirmacao_template: string
+}
+
 export interface HandoffActions {
   change_stage_id: string | null
   apply_tag: { color: string; name: string } | null
   notify_responsible: boolean
   transition_message: string | null
   pause_permanently: boolean
+  /** Agendamento automático de reunião com closer (opcional). */
+  book_meeting: BookMeetingConfig | null
 }
 
 export interface IntelligentDecision {
@@ -202,6 +223,7 @@ export const DEFAULT_HANDOFF_ACTIONS: HandoffActions = {
   notify_responsible: true,
   transition_message: null,
   pause_permanently: false,
+  book_meeting: null,
 }
 
 export const DEFAULT_PROMPTS_EXTRA: Omit<AgentPrompts, 'main'> = {

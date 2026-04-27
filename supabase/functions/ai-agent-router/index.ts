@@ -116,6 +116,14 @@ interface AgentConfig {
     notify_responsible?: boolean;
     transition_message?: string | null;
     pause_permanently?: boolean;
+    book_meeting?: {
+      enabled?: boolean;
+      responsavel_id?: string | null;
+      tipo?: 'reuniao' | 'reuniao_video' | 'reuniao_presencial' | 'reuniao_telefone';
+      duracao_minutos?: number;
+      titulo_template?: string;
+      mensagem_confirmacao_template?: string;
+    } | null;
   } | null;
   // ---- Playbook v2 (Marco 2 — feature flag + configs) ----
   playbook_enabled?: boolean | null;
@@ -1736,14 +1744,22 @@ async function executeToolCall(
       }
 
       case "check_calendar": {
-        // Guard: card sem dono → a RPC responderia "Consultor" genérico e
-        // o agente ofereceria horários de ninguém. Melhor parar aqui, instruir
-        // o agente a não prometer horário e pedir handoff pra que um humano
-        // assuma o card antes de marcar reunião.
-        if (!ctx.sdr_owner_id) {
+        // Quando handoff_actions.book_meeting está ativo, a reunião é com o
+        // closer/T.Planner configurado, não com o SDR do card. Override aqui
+        // é silencioso — LLM não precisa saber de quem é a agenda.
+        // deno-lint-ignore no-explicit-any
+        const bookCfg = ((agent as any)?.handoff_actions?.book_meeting ?? null) as {
+          enabled?: boolean;
+          responsavel_id?: string | null;
+        } | null;
+        const ownerForCalendar = (bookCfg?.enabled === true && bookCfg.responsavel_id)
+          ? bookCfg.responsavel_id
+          : ctx.sdr_owner_id;
+
+        if (!ownerForCalendar) {
           result = JSON.stringify({
             error: "no_owner_assigned",
-            guidance: "Este card ainda não tem um consultor responsável. Não prometa horário nem proponha reunião agora. Colete contexto do cliente e peça handoff (request_handoff) para que alguém do time assuma e marque a reunião depois.",
+            guidance: "Este card ainda não tem um consultor responsável e não há closer configurado. Não prometa horário nem proponha reunião agora. Colete contexto do cliente e peça handoff (request_handoff) para que alguém do time assuma e marque a reunião depois.",
           });
           break;
         }
@@ -1751,7 +1767,7 @@ async function executeToolCall(
         const calendarRpc = (business?.calendar_config as { rpc_name?: string } | undefined)?.rpc_name
           || "agent_check_calendar";
         const { data: calResult } = await supabase.rpc(calendarRpc, {
-          p_owner_id: ctx.sdr_owner_id,
+          p_owner_id: ownerForCalendar,
           p_date_from: args.date_from as string,
           p_date_to: args.date_to as string,
         });
@@ -1764,20 +1780,82 @@ async function executeToolCall(
           result = JSON.stringify({ error: "Sem card associado para criar tarefa" });
           break;
         }
+        // Quando é reunião E o agente tem book_meeting configurado, aplica
+        // override: responsavel = closer escolhido na UI, tipo conforme config,
+        // título via template (se não veio o LLM já formatou). Não-reunião
+        // mantém comportamento legado (responsavel = SDR do card).
+        const tipoArg = (args.tipo as string) || "reuniao";
+        // deno-lint-ignore no-explicit-any
+        const bookCfg = ((agent as any)?.handoff_actions?.book_meeting ?? null) as {
+          enabled?: boolean;
+          responsavel_id?: string | null;
+          tipo?: string;
+          duracao_minutos?: number;
+          titulo_template?: string;
+          mensagem_confirmacao_template?: string;
+        } | null;
+        const isMeeting = tipoArg.startsWith("reuniao");
+        const useBookCfg = isMeeting && bookCfg?.enabled === true && bookCfg?.responsavel_id;
+
+        let responsavelId: string | null = ctx.sdr_owner_id;
+        let titulo = args.titulo as string;
+        let tipoFinal = tipoArg;
+        let responsavelName: string | null = null;
+        const metadata: Record<string, unknown> = { source: "ai_agent" };
+
+        if (useBookCfg) {
+          responsavelId = bookCfg.responsavel_id ?? ctx.sdr_owner_id;
+          tipoFinal = bookCfg.tipo ?? tipoArg;
+          metadata.duracao_minutos = bookCfg.duracao_minutos ?? 60;
+
+          // Busca nome do responsável pra LLM montar mensagem de confirmação
+          if (responsavelId) {
+            const { data: profileRow } = await supabase
+              .from("profiles")
+              .select("nome")
+              .eq("id", responsavelId)
+              .maybeSingle();
+            responsavelName = (profileRow as { nome?: string | null } | null)?.nome ?? null;
+          }
+
+          // Renderiza template do título com variáveis disponíveis
+          if (bookCfg.titulo_template) {
+            titulo = bookCfg.titulo_template
+              .replace(/\{contact_name\}/g, ctx.contact_name || "lead")
+              .replace(/\{agent_name\}/g, agent.nome || "")
+              .replace(/\{responsavel_name\}/g, responsavelName ?? "");
+          }
+        }
+
         const { error: taskErr } = await supabase.from("tarefas").insert({
           card_id: ctx.card_id,
-          titulo: args.titulo as string,
-          descricao: args.descricao as string || null,
-          tipo: args.tipo as string || "reuniao",
+          titulo,
+          descricao: (args.descricao as string) || null,
+          tipo: tipoFinal,
           data_vencimento: args.data_vencimento as string,
-          status: args.tipo === "reuniao" ? "agendada" : "pendente",
+          status: isMeeting ? "agendada" : "pendente",
           concluida: false,
-          responsavel_id: ctx.sdr_owner_id,
+          responsavel_id: responsavelId,
           org_id: agent.org_id,
+          metadata,
         });
-        result = taskErr
-          ? JSON.stringify({ error: taskErr.message })
-          : JSON.stringify({ success: true, tipo: args.tipo, data: args.data_vencimento });
+        if (taskErr) {
+          result = JSON.stringify({ error: taskErr.message });
+        } else {
+          // Se book_meeting está ativo, retorna info estruturada pro LLM montar
+          // a mensagem de confirmação pro lead com os campos certos
+          const payload: Record<string, unknown> = {
+            success: true,
+            tipo: tipoFinal,
+            data: args.data_vencimento,
+          };
+          if (useBookCfg) {
+            payload.responsavel_name = responsavelName;
+            payload.duracao_minutos = bookCfg.duracao_minutos ?? 60;
+            payload.mensagem_confirmacao_template = bookCfg.mensagem_confirmacao_template ?? null;
+          }
+          result = JSON.stringify(payload);
+        }
         break;
       }
 
@@ -2628,6 +2706,13 @@ async function runPersonaAgent(
   // (backoffice, data, validator, formatter) continua igual pra v1 e v2.
   // ═══════════════════════════════════════════════════════════════
   if (agent.playbook_enabled === true) {
+    // Pré-carrega tools v1 pra reusar no v2 — habilita check_calendar, create_task,
+    // search_knowledge_base, request_handoff etc. dentro do persona v2 sem duplicar
+    // infraestrutura. Sem isso, persona_v2 só fala mas não age (bug 2026-04-27 do
+    // book_meeting que ficava em prompt mas nunca chamava create_task).
+    const v2Tools = await loadAgentTools(supabase, agent.id);
+    const v2History: Array<{ role: string; content: string }> = [];
+
     try {
       const v2Result = await runPersonaAgent_v2(
         supabase,
@@ -2643,6 +2728,8 @@ async function runPersonaAgent(
           voice_config: agent.voice_config ?? null,
           boundaries_config: agent.boundaries_config ?? null,
           pipeline_models: agent.pipeline_models ?? null,
+          // deno-lint-ignore no-explicit-any
+          handoff_actions: (agent as any).handoff_actions ?? null,
         },
         {
           is_primeiro_contato: ctx.is_primeiro_contato,
@@ -2676,7 +2763,14 @@ async function runPersonaAgent(
         userMessage,
         qualificationSignals,
         async (model, temp, maxTok, sys, userMsg) => {
-          return callLLM(model, temp, maxTok, sys, userMsg);
+          // Tool-calling habilitado em v2: persona pode chamar check_calendar
+          // pra ver disponibilidade, create_task pra agendar, search_knowledge_base
+          // pra responder fatos da KB, etc. Sem tools (lista vazia), o callLLMWithTools
+          // se comporta como callLLM puro — fail-safe.
+          return callLLMWithTools(
+            supabase, model, temp, maxTok,
+            sys, userMsg, v2History, v2Tools, ctx, agent, business,
+          );
         },
       );
 

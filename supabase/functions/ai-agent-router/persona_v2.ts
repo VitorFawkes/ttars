@@ -45,6 +45,16 @@ interface AgentV2Config {
   voice_config: VoiceConfig | null;
   boundaries_config: BoundariesConfig | null;
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
+  handoff_actions?: {
+    book_meeting?: {
+      enabled?: boolean;
+      responsavel_id?: string | null;
+      tipo?: 'reuniao' | 'reuniao_video' | 'reuniao_presencial' | 'reuniao_telefone';
+      duracao_minutos?: number;
+      titulo_template?: string;
+      mensagem_confirmacao_template?: string;
+    } | null;
+  } | null;
 }
 
 interface BusinessV2Config {
@@ -167,7 +177,58 @@ export async function runPersonaAgent_v2(
     }
   }
 
-  // 5. Monta o prompt
+  // 5. Resolve config de book_meeting (busca nome do responsável + horários disponíveis).
+  // Pré-buscar slots aqui evita o LLM precisar chamar check_calendar pra propor o
+  // primeiro horário — vai com 3-5 opções já formatadas. Tool ainda fica disponível
+  // pra checar slots ALTERNATIVOS quando o lead propor outro dia/hora.
+  const bookCfg = agent.handoff_actions?.book_meeting ?? null;
+  let bookMeetingForPrompt: Parameters<typeof buildPromptV2>[0]['bookMeeting'] = null;
+  if (bookCfg?.enabled === true) {
+    let responsavelName: string | null = null;
+    if (bookCfg.responsavel_id) {
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', bookCfg.responsavel_id)
+        .maybeSingle();
+      responsavelName = (profileRow as { nome?: string | null } | null)?.nome ?? null;
+    }
+
+    // Pré-busca os próximos slots disponíveis (próximos 14 dias) — usa a mesma
+    // RPC que a tool check_calendar usa, garantindo consistência. Se falhar,
+    // segue sem slots pré-carregados (LLM ainda pode chamar a tool).
+    let availableSlots: Array<{ date: string; time: string; weekday: string }> = [];
+    if (bookCfg.responsavel_id) {
+      try {
+        const today = new Date();
+        const dateFrom = today.toISOString().slice(0, 10);
+        const dateTo = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const { data: cal } = await supabase.rpc('agent_check_calendar', {
+          p_owner_id: bookCfg.responsavel_id,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
+        });
+        const slotsRaw = (cal as { available_slots?: Array<{ date: string; time: string; weekday: string }> } | null)?.available_slots ?? [];
+        // Pega no máximo 8 — LLM escolhe os 2-3 melhores
+        availableSlots = slotsRaw.slice(0, 8);
+      } catch (err) {
+        console.warn('[persona_v2] pré-busca de slots falhou:', err);
+      }
+    }
+
+    bookMeetingForPrompt = {
+      enabled: true,
+      responsavel_name: responsavelName,
+      tipo: bookCfg.tipo ?? 'reuniao_video',
+      duracao_minutos: bookCfg.duracao_minutos ?? 60,
+      titulo_template: bookCfg.titulo_template ?? 'Reunião com {contact_name}',
+      mensagem_confirmacao_template: bookCfg.mensagem_confirmacao_template ??
+        'Perfeito! Marquei {responsavel_name} pra falar com vocês {data} às {hora}.',
+      available_slots: availableSlots,
+    };
+  }
+
+  // 6. Monta o prompt
   const prompt = buildPromptV2({
     agentName: agent.nome,
     companyName: business?.company_name ?? '',
@@ -198,6 +259,7 @@ export async function runPersonaAgent_v2(
     },
     userMessage,
     companyDescription: business?.methodology_text ?? business?.company_description,
+    bookMeeting: bookMeetingForPrompt,
   });
 
   // 6. Chama LLM (sem tools nesta v2.0)

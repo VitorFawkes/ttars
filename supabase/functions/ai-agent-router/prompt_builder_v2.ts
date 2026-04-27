@@ -99,6 +99,21 @@ export interface BuildPromptV2Input {
   };
   userMessage: string;
   companyDescription?: string | null;
+  /**
+   * Configuração de agendamento automático com closer (handoff_actions.book_meeting).
+   * Quando enabled=true, renderiza bloco <meeting_booking> instruindo o LLM a
+   * chamar a tool create_task assim que o lead aceitar um horário.
+   */
+  bookMeeting?: {
+    enabled: boolean;
+    responsavel_name: string | null;
+    tipo: 'reuniao' | 'reuniao_video' | 'reuniao_presencial' | 'reuniao_telefone';
+    duracao_minutos: number;
+    titulo_template: string;
+    mensagem_confirmacao_template: string;
+    /** Slots pré-buscados pra LLM propor sem precisar chamar check_calendar primeiro. */
+    available_slots?: Array<{ date: string; time: string; weekday: string }>;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +128,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
   const signals = renderSilentSignalsBlock(input.silentSignals);
   const handoffLogic = renderHandoffLogicBlock(input);
+  const meetingBooking = renderMeetingBookingBlock(input);
   const examples = renderExamplesBlock(input.fewShotExamples, input.currentMoment);
 
   const turn = renderTurnBlock(input);
@@ -128,6 +144,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
     qualification,
     signals,
     handoffLogic,
+    meetingBooking,
     examples,
     `</agent>`,
     ``,
@@ -453,6 +470,95 @@ function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
   }
 
   return `<handoff_logic>\n${lines.join('\n')}\n</handoff_logic>`;
+}
+
+/**
+ * Bloco que ativa o agendamento automático no momento do handoff.
+ * Só aparece quando admin configurou handoff_actions.book_meeting.enabled=true
+ * E definiu um responsável. O LLM passa a chamar a tool create_task quando o
+ * lead concordar com horário, e a tarefa cai pra esse responsável (não SDR).
+ */
+function renderMeetingBookingBlock(input: BuildPromptV2Input): string {
+  const cfg = input.bookMeeting;
+  if (!cfg || !cfg.enabled) return '';
+
+  const responsavelLabel = cfg.responsavel_name ?? 'a especialista';
+  const slots = cfg.available_slots ?? [];
+
+  const lines: string[] = [];
+  lines.push(`Agendamento automático ATIVO. Quando o lead estiver qualificado e pronto pra falar com ${responsavelLabel}, sua missão é fechar dia + horário e registrar a reunião.`);
+  lines.push('');
+
+  // ---- Disponibilidade pré-carregada ----
+  if (slots.length > 0) {
+    lines.push('## Horários disponíveis HOJE na agenda real de ' + responsavelLabel + ' (próximos 14 dias):');
+    lines.push('');
+    // Agrupa por data pra ficar legível
+    const byDay = new Map<string, Array<{ time: string; weekday: string }>>();
+    for (const s of slots) {
+      const arr = byDay.get(s.date) ?? [];
+      arr.push({ time: s.time, weekday: s.weekday });
+      byDay.set(s.date, arr);
+    }
+    for (const [date, times] of byDay) {
+      const weekdayPt = times[0]?.weekday ?? '';
+      const horas = times.map(t => t.time).slice(0, 4).join(', ');
+      // YYYY-MM-DD → DD/MM
+      const [, mm, dd] = date.split('-');
+      lines.push(`- ${weekdayPt} ${dd}/${mm}: ${horas}`);
+    }
+    lines.push('');
+    lines.push('PROPONHA 2-3 horários (não despeje a lista toda). Misture dias diferentes pra dar opção de variedade. Use formato natural: "tenho quarta 30/04 às 14h ou 16h, e quinta 01/05 às 10h. Qual fica melhor pra vocês?"');
+    lines.push('');
+  } else {
+    lines.push('## Disponibilidade');
+    lines.push(`A agenda de ${responsavelLabel} não tem slots pré-carregados. Use a tool **check_calendar** com date_from=hoje e date_to=+14 dias pra ver horários disponíveis ANTES de propor.`);
+    lines.push('');
+  }
+
+  // ---- Lead propõe horário fora do que você listou ----
+  lines.push('## Se o lead propuser outro dia ou horário (fora do que você sugeriu)');
+  lines.push('1. Chame **check_calendar** com date_from = data proposta e date_to = mesmo dia (ou janela curta).');
+  lines.push('2. Se a resposta `available_slots` contém o horário pedido → confirma direto e vai pro passo de criar a tarefa.');
+  lines.push('3. Se NÃO contém → propõe os 2 horários disponíveis mais próximos da preferência do lead. Não rejeite seco; ofereça alternativa.');
+  lines.push('4. Loop até fechar um horário que existe na agenda.');
+  lines.push('');
+
+  // ---- Quando lead aceita ----
+  lines.push('## Quando o lead aceitar um horário');
+  lines.push('Chame **create_task** imediatamente, com:');
+  lines.push('- tipo: "reuniao"');
+  lines.push('- data_vencimento: ISO 8601 (YYYY-MM-DDTHH:MM:SS) — combine a data acordada com o horário aceito');
+  lines.push('- titulo: pode mandar curto ("Reunião com lead"). O backend sobrescreve via template configurado.');
+  lines.push('- descricao: 1-2 frases com contexto (destino, data do casamento, número de convidados, orçamento). Isso aparece pra ' + responsavelLabel + ' chegar com contexto.');
+  lines.push('');
+  lines.push(`Tipo configurado pela admin: ${cfg.tipo} (${cfg.duracao_minutos} min). Você não precisa passar isso — o backend aplica.`);
+  lines.push('');
+
+  // ---- Mensagem de confirmação ----
+  lines.push('## Após create_task retornar success');
+  lines.push('Mande UMA mensagem pro lead confirmando, usando este template:');
+  lines.push('');
+  lines.push(`"${cfg.mensagem_confirmacao_template}"`);
+  lines.push('');
+  lines.push('Substitua as variáveis com valores reais antes de mandar:');
+  lines.push('- {contact_name} → primeiro nome do lead');
+  if (cfg.responsavel_name) {
+    lines.push(`- {responsavel_name} → "${cfg.responsavel_name}"`);
+  }
+  lines.push('- {data} → data legível em PT-BR (ex: "quinta-feira, 15 de maio")');
+  lines.push('- {hora} → horário em formato HH:MM (ex: "14h" ou "14:30")');
+  lines.push('');
+
+  // ---- Regras de ouro ----
+  lines.push('## Regras');
+  lines.push('- NÃO fale "vou agendar" antes de chamar create_task. Aja, depois confirme.');
+  lines.push('- NÃO invente disponibilidade. Use só horários da lista pré-carregada OU retornados por check_calendar.');
+  lines.push('- NÃO peça email — o sistema cria a reunião pelo card.');
+  lines.push('- Se create_task retornar erro, fale com o lead em linguagem humana ("tive um problema técnico, vou pedir pra alguém te chamar pra ajustar") e dispara handoff.');
+  lines.push('- Mantenha o tom natural. Você está marcando uma conversa entre pessoas, não enviando convite de calendário corporativo.');
+
+  return `<meeting_booking>\n${lines.join('\n')}\n</meeting_booking>`;
 }
 
 function renderSilentSignalsBlock(signals: PlaybookSilentSignal[]): string {
