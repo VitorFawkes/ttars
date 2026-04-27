@@ -49,7 +49,6 @@ import RetentionView from './pages/analytics-new/RetentionView'
 import OperationsView from './pages/analytics-new/OperationsView'
 import SLAView from './pages/analytics-new/SLAView'
 import ExplorarPage from './pages/analytics-new/ExplorarPage'
-import MondePreviewPage from './pages/MondePreviewPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
 import ReactivationPage from './pages/ReactivationPage'
@@ -235,7 +234,6 @@ function App() {
                   <Route path="/cards/echo/criar/:conversationId" element={<CreateCardFromEcho />} />
                   <Route path="/cards/:id" element={<CardDetail />} />
                   <Route path="/cards/:id/viagem" element={<CardViagem />} />
-                  <Route path="/cards/:id/monde-preview" element={<MondePreviewPage />} />
                   <Route path="/viagens" element={<ViagensPage />} />
                   <Route path="/viagens/:id" element={<ViagemStandalone />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />

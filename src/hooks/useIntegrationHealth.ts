@@ -10,7 +10,7 @@ export interface HealthRule {
     rule_key: string
     label: string
     description: string | null
-    category: 'whatsapp' | 'activecampaign' | 'outbound' | 'monde' | 'system'
+    category: 'whatsapp' | 'activecampaign' | 'outbound' | 'system'
     severity: 'info' | 'warning' | 'critical'
     threshold_hours: number
     threshold_count: number | null
@@ -156,11 +156,6 @@ function fmtCurrency(val: unknown): string {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function fmtDate(val: unknown): string {
-    if (!val) return ''
-    return new Date(String(val)).toLocaleDateString('pt-BR')
-}
-
 const CHANNEL_QUERIES: Record<string, { table: string; select: string; filters?: Record<string, string>; mapFn: (row: Record<string, unknown>) => ChannelEvent }> = {
     whatsapp_inbound: {
         table: 'whatsapp_messages',
@@ -252,28 +247,6 @@ const CHANNEL_QUERIES: Record<string, { table: string; select: string; filters?:
                 errorFull: hasFail ? extractFullError(r.processing_log) : undefined,
                 processingLog: hasFail ? parseProcessingLog(r.processing_log) : undefined,
                 rawData: hasFail ? { event_type: r.event_type, external_id: r.external_id, attempts: r.attempts, max_attempts: r.max_attempts } : undefined,
-                link: r.card_id ? `/cards/${r.card_id}` : undefined,
-                linkLabel: r.card_id ? 'Ver card' : undefined,
-            }
-        },
-    },
-    monde: {
-        table: 'monde_sales',
-        select: 'id,created_at,status,monde_sale_number,total_value,currency,travel_start_date,travel_end_date,error_message,attempts,card_id',
-        mapFn: (r) => {
-            const hasFail = r.status === 'failed'
-            return {
-                id: String(r.id),
-                created_at: String(r.created_at),
-                status: String(r.status ?? ''),
-                summary: `Venda #${r.monde_sale_number ?? '?'} — ${fmtCurrency(r.total_value)}`,
-                detail: [
-                    r.travel_start_date ? `Viagem: ${fmtDate(r.travel_start_date)}${r.travel_end_date ? ` a ${fmtDate(r.travel_end_date)}` : ''}` : null,
-                    Number(r.attempts ?? 0) > 1 ? `${r.attempts} tentativas` : null,
-                ].filter(Boolean).join(' · ') || undefined,
-                error: hasFail ? String(r.error_message ?? 'Falha no envio ao Monde').slice(0, 120) : undefined,
-                errorFull: hasFail ? String(r.error_message ?? 'Falha no envio ao Monde') : undefined,
-                rawData: hasFail ? { monde_sale_number: r.monde_sale_number, total_value: r.total_value, currency: r.currency, attempts: r.attempts, error_message: r.error_message } : undefined,
                 link: r.card_id ? `/cards/${r.card_id}` : undefined,
                 linkLabel: r.card_id ? 'Ver card' : undefined,
             }
