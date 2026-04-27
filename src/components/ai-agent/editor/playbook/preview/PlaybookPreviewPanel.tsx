@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Code, MessageSquare, Send, Loader2, RefreshCw, Eye, EyeOff, FileText, Download, Trash2 } from 'lucide-react'
+import { Code, MessageSquare, Send, Loader2, RefreshCw, Eye, EyeOff, FileText, Download, Trash2, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -108,27 +108,41 @@ export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: 
   }
 
   const [resetting, setResetting] = useState(false)
+  const [resetMenuOpen, setResetMenuOpen] = useState(false)
   const phonesToReset = testWhitelist ?? []
 
+  // Formata telefone pra exibição amigável: 5511964293533 → +55 (11) 96429-3533
+  const formatPhone = (p: string): string => {
+    const d = p.replace(/\D/g, '')
+    if (d.length === 13 && d.startsWith('55')) {
+      return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`
+    }
+    if (d.length === 11) {
+      return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+    }
+    return d
+  }
+
   /**
-   * Zera tudo dos números de teste no banco: arquiva conversa real, soft-delete
-   * card, limpa buffer e dados do contato. Restrito aos números da whitelist do agente.
-   * Itera por todos os números cadastrados na whitelist.
+   * Zera dados de teste no banco para os números recebidos: arquiva conversas,
+   * soft-delete cards, limpa buffer e dados do contato. Cada número é
+   * tratado isoladamente — útil quando vários colegas estão testando ao mesmo
+   * tempo e só um quer recomeçar.
    */
-  const resetRealConversation = async () => {
-    if (phonesToReset.length === 0) return
-    const lista = phonesToReset.join(', ')
-    const titulo = phonesToReset.length === 1
-      ? `Zerar conversa real do número ${phonesToReset[0]}?`
-      : `Zerar conversa real de ${phonesToReset.length} números?\n\n${lista}`
-    if (!confirm(`${titulo}\n\nIsso vai arquivar a conversa, apagar o card (soft delete) e limpar mensagens pendentes de cada um. Você poderá começar do zero mandando nova mensagem no WhatsApp.`)) return
+  const resetRealConversation = async (targetPhones: string[]) => {
+    if (targetPhones.length === 0) return
+    const titulo = targetPhones.length === 1
+      ? `Zerar conversa real de ${formatPhone(targetPhones[0])}?`
+      : `Zerar conversa real de ${targetPhones.length} números?\n\n${targetPhones.map(formatPhone).join('\n')}`
+    if (!confirm(`${titulo}\n\nIsso vai arquivar a conversa, apagar o card (soft delete) e limpar mensagens pendentes. Esses números poderão começar do zero mandando nova mensagem no WhatsApp.\n\nOs OUTROS números da whitelist não são afetados.`)) return
+    setResetMenuOpen(false)
     setResetting(true)
     try {
       let archived = 0
       let deletedCards = 0
       let deletedBuffer = 0
       const erros: string[] = []
-      for (const phone of phonesToReset) {
+      for (const phone of targetPhones) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data, error } = await (supabase as any).rpc('reset_agent_test_conversation', {
@@ -173,22 +187,75 @@ export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: 
         <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare} label="Testar" />
         <TabButton active={tab === 'prompt'} onClick={() => setTab('prompt')} icon={Code} label="Prompt" />
         <div className="flex-1" />
-        {phonesToReset.length > 0 && (
+        {phonesToReset.length === 1 && (
           <Button
             variant="outline"
             size="sm"
-            onClick={resetRealConversation}
+            onClick={() => resetRealConversation([phonesToReset[0]])}
             disabled={resetting}
-            title={
-              phonesToReset.length === 1
-                ? `Apaga a conversa real, o card e o buffer pendente do número ${phonesToReset[0]}`
-                : `Apaga conversa, card e buffer dos ${phonesToReset.length} números da whitelist`
-            }
+            title={`Apaga a conversa real, o card e o buffer pendente de ${formatPhone(phonesToReset[0])}`}
             className="gap-1.5 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
           >
             {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            Zerar conversa real{phonesToReset.length > 1 ? ` (${phonesToReset.length})` : ''}
+            Zerar conversa real
           </Button>
+        )}
+        {phonesToReset.length > 1 && (
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetMenuOpen(o => !o)}
+              disabled={resetting}
+              className="gap-1.5 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+              title="Escolha qual número quer zerar — não afeta os outros"
+            >
+              {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              Zerar conversa real
+              <ChevronDown className="w-3.5 h-3.5" />
+            </Button>
+            {resetMenuOpen && !resetting && (
+              <>
+                {/* Backdrop pra fechar ao clicar fora */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setResetMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white border border-slate-200 shadow-lg rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 text-[11px] font-medium text-slate-500 uppercase tracking-wide border-b border-slate-100 bg-slate-50">
+                    Zerar de qual número?
+                  </div>
+                  <ul className="py-1 max-h-64 overflow-y-auto">
+                    {phonesToReset.map(phone => (
+                      <li key={phone}>
+                        <button
+                          type="button"
+                          onClick={() => resetRealConversation([phone])}
+                          className="w-full text-left px-3 py-2 hover:bg-rose-50 text-sm flex items-center gap-2 text-slate-700 hover:text-rose-700 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{formatPhone(phone)}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">{phone}</p>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="border-t border-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => resetRealConversation(phonesToReset)}
+                      className="w-full text-left px-3 py-2 hover:bg-rose-50 text-sm flex items-center gap-2 text-rose-600 hover:text-rose-700 rounded transition-colors font-medium"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Zerar TODOS ({phonesToReset.length})
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
         <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-slate-500" title="Limpa só o teste local (não toca conversa real)">
           <RefreshCw className="w-3.5 h-3.5" /> Resetar teste
