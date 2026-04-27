@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAgentMoments, type PlaybookMoment, type DiscoveryConfig } from '@/hooks/playbook/useAgentMoments'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
 import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
 
@@ -38,6 +39,9 @@ const MODE_OPTIONS: Array<{ value: PlaybookMoment['message_mode']; label: string
 
 export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps }: Props) {
   const { upsert, remove } = useAgentMoments(agentId)
+  const meta = useCurrentProductMeta()
+  const pipelineId: string | undefined = meta?.pipelineId ?? undefined
+  const produtoSlug: string | undefined = meta?.slug ?? undefined
   const [expanded, setExpanded] = useState(false)
   const [label, setLabel] = useState(moment.moment_label)
   const [triggerType, setTriggerType] = useState(moment.trigger_type)
@@ -266,6 +270,8 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                 <DiscoveryConfigEditor
                   value={discoveryConfig}
                   onChange={(next) => { setDiscoveryConfig(next); markDirty() }}
+                  pipelineId={pipelineId}
+                  produtoSlug={produtoSlug}
                 />
               ) : (
                 <p className="text-[11px] text-slate-500">

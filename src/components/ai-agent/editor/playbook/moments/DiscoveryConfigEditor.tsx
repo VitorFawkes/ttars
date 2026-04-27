@@ -2,11 +2,15 @@ import { useState } from 'react'
 import { Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
+import { SingleFieldPicker } from '@/components/ai-agent/editor/CRMFieldPicker'
 import type { DiscoveryConfig, DiscoverySlot } from '@/hooks/playbook/useAgentMoments'
 
 interface Props {
   value: DiscoveryConfig | null
   onChange: (next: DiscoveryConfig) => void
+  /** Pipeline do produto pra alimentar o SingleFieldPicker (campos do CRM). */
+  pipelineId?: string
+  produtoSlug?: string
 }
 
 /**
@@ -18,7 +22,7 @@ interface Props {
  *   - Asterisco vermelho = obrigatório pra qualificar.
  *   - Microcopy explica o que vira o quê pro agente.
  */
-export function DiscoveryConfigEditor({ value, onChange }: Props) {
+export function DiscoveryConfigEditor({ value, onChange, pipelineId, produtoSlug }: Props) {
   const slots = value?.slots ?? []
 
   const updateSlot = (idx: number, next: Partial<DiscoverySlot>) => {
@@ -76,6 +80,8 @@ export function DiscoveryConfigEditor({ value, onChange }: Props) {
                 slot={slot}
                 onChange={(next) => updateSlot(idx, next)}
                 onRemove={() => removeSlot(idx)}
+                pipelineId={pipelineId}
+                produtoSlug={produtoSlug}
               />
             ))}
           </div>
@@ -98,10 +104,14 @@ function SlotItem({
   slot,
   onChange,
   onRemove,
+  pipelineId,
+  produtoSlug,
 }: {
   slot: DiscoverySlot
   onChange: (next: Partial<DiscoverySlot>) => void
   onRemove: () => void
+  pipelineId?: string
+  produtoSlug?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const [newQuestion, setNewQuestion] = useState('')
@@ -181,14 +191,16 @@ function SlotItem({
             <label className="block text-[11px] font-medium text-slate-600 mb-1">
               Liga ao campo do CRM (opcional)
             </label>
-            <input
-              value={slot.crm_field_key ?? ''}
-              onChange={(e) => onChange({ crm_field_key: e.target.value || null })}
-              placeholder="ex: ww_data_casamento"
-              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono text-slate-600"
+            <SingleFieldPicker
+              value={slot.crm_field_key ?? null}
+              onChange={(v) => onChange({ crm_field_key: v || null })}
+              scope="card"
+              pipelineId={pipelineId}
+              produto={produtoSlug}
+              placeholder="Escolha um campo do card..."
             />
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Se preenchido, conecta esta informação aos critérios de qualificação que usam esse campo.
+              Se escolher, conecta esta informação aos critérios de qualificação que usam esse campo.
             </p>
           </div>
 

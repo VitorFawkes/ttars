@@ -372,7 +372,7 @@ function renderQualificationBlock(
  *   4. Faltam slots obrigatórios → continue sondagem normal.
  */
 function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
-  const { scoreInfo, currentMoment, silentSignals } = input;
+  const { scoreInfo, currentMoment, silentSignals, ctx } = input;
 
   // Só faz sentido em fase de coleta (Sondagem)
   const hasDiscovery = currentMoment.discovery_config?.slots && currentMoment.discovery_config.slots.length > 0;
@@ -385,7 +385,17 @@ function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
     .map(s => `${s.icon ? s.icon + ' ' : ''}${s.label}${s.crm_field_key ? ` (${s.crm_field_key})` : ''}`)
     .join(', ');
 
-  const signalsList = silentSignals.map(s => {
+  // Estado dos sinais invisíveis: já revelados (crm_field populado em form_data)
+  // vs ainda pendentes. Permite ao LLM saber quais NÃO buscar e quais ainda valem.
+  const signalsStatus = silentSignals.map(s => {
+    const key = s.crm_field_key;
+    const revealed = key && ctx.form_data[key] && String(ctx.form_data[key]).trim();
+    return { signal: s, revealed: !!revealed };
+  });
+  const signalsRemaining = signalsStatus.filter(s => !s.revealed).map(s => s.signal);
+  const signalsRevealed = signalsStatus.filter(s => s.revealed).map(s => s.signal);
+
+  const signalsListRemaining = signalsRemaining.map(s => {
     const detect = s.detection_hint ? ` — detectado por: ${s.detection_hint}` : '';
     return `  • ${s.signal_label}${detect}`;
   }).join('\n');
@@ -408,13 +418,21 @@ function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
     lines.push('2. SLOTS OBRIGATÓRIOS COLETADOS MAS SCORE ABAIXO DO THRESHOLD → BUSQUE SINAIS INVISÍVEIS');
     lines.push(`   Slots obrigatórios desta fase: ${requiredFieldsList}.`);
     lines.push('   Se TODOS estão preenchidos em <known> mas o score ainda está abaixo do mínimo,');
-    lines.push('   faça UMA pergunta natural que possa revelar um dos sinais bonus listados em <silent_signals>:');
-    if (signalsList) {
-      lines.push(signalsList);
+    lines.push('   faça UMA pergunta natural que possa revelar UM dos sinais bonus AINDA NÃO REVELADOS.');
+    lines.push('');
+    lines.push('   Olhe <signals_status> no <turn> pra saber:');
+    lines.push('     - quais sinais já foram revelados (NÃO pergunte de novo, seria invasivo)');
+    lines.push('     - quais ainda podem ser buscados');
+    if (signalsListRemaining) {
+      lines.push('');
+      lines.push('   Sinais ainda buscáveis pelo agente (configurados):');
+      lines.push(signalsListRemaining);
     }
+    lines.push('');
     lines.push('   A pergunta deve soar como conversa genuína (curiosidade sobre estilo de vida, família,');
-    lines.push('   inspirações), nunca como "preciso desse dado pra qualificar". Faça no máximo 2 tentativas');
-    lines.push('   pra revelar sinais — depois disso, avance.');
+    lines.push('   inspirações), nunca como "preciso desse dado pra qualificar". UMA pergunta por turno.');
+    lines.push('   Se signals_status mostra que já tentou pelo menos 2 turnos seguidos sem revelar nada novo,');
+    lines.push('   pare de tentar e vá pro desfecho não qualificado.');
     lines.push('');
   }
   lines.push('3. SCORE CONTINUA ABAIXO MESMO APÓS BUSCAR SINAIS → DESFECHO NÃO QUALIFICADO');
@@ -425,6 +443,14 @@ function renderHandoffLogicBlock(input: BuildPromptV2Input): string {
   lines.push('');
   lines.push('Princípio: seu objetivo é qualificar e conectar com a especialista. Não é entrevista —');
   lines.push('é conversa que decide. Não exponha o jargão (não diga "score", "qualificado", "slots") pro lead.');
+  // Anexa o status atual no próprio bloco pra ficar perto da regra
+  if (signalsRevealed.length > 0 || signalsRemaining.length > 0) {
+    lines.push('');
+    lines.push(`<signals_status>`);
+    lines.push(`Já revelados (não buscar de novo): ${signalsRevealed.length === 0 ? '(nenhum)' : signalsRevealed.map(s => s.signal_label).join(', ')}`);
+    lines.push(`Ainda buscáveis: ${signalsRemaining.length === 0 ? '(nenhum)' : signalsRemaining.map(s => s.signal_label).join(', ')}`);
+    lines.push(`</signals_status>`);
+  }
 
   return `<handoff_logic>\n${lines.join('\n')}\n</handoff_logic>`;
 }
