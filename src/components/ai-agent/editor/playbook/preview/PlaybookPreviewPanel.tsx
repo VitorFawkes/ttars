@@ -123,8 +123,9 @@ export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: 
       })
       if (error) throw error
       const r = data as ResetTestResponse
-      if (r.reason === 'no_contact_found') {
-        toast.success('Já estava limpo — nenhuma conversa pra zerar.')
+      const total = (r.archived_conversations ?? 0) + (r.deleted_cards ?? 0) + (r.deleted_buffer ?? 0)
+      if (r.reason === 'no_contact_found' || total === 0) {
+        toast.success('Tudo já estava limpo — nenhuma conversa, card ou mensagem pendente.')
       } else {
         toast.success(`Zerado: ${r.archived_conversations} conversa(s), ${r.deleted_cards} card(s), ${r.deleted_buffer} mensagem(ns) pendente(s).`)
       }
