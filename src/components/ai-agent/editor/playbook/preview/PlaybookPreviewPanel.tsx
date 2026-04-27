@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Code, MessageSquare, Send, Loader2, RefreshCw, Eye, EyeOff, FileText, Download } from 'lucide-react'
+import { Code, MessageSquare, Send, Loader2, RefreshCw, Eye, EyeOff, FileText, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 import { useAgentPromptPreview, type PreviewPlaybookConfig } from '@/hooks/playbook/useAgentPromptPreview'
 import { colorizeXml } from '@/lib/playbook/colorizeXml'
 import { PromptHumanView } from './PromptHumanView'
+
+interface ResetTestResponse {
+  ok: boolean
+  reason?: string
+  contact_id?: string
+  archived_conversations?: number
+  deleted_cards?: number
+  deleted_buffer?: number
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -17,6 +27,8 @@ interface ChatMessage {
 interface Props {
   agentId: string
   previewConfig: PreviewPlaybookConfig
+  /** Whitelist do agente — usado pra habilitar botão "Zerar conversa real" e saber pra qual número resetar. */
+  testWhitelist?: string[] | null
 }
 
 // Persistência do estado do painel (prompt + chat de teste) no cache do React Query.
@@ -24,7 +36,7 @@ interface Props {
 const promptCacheKey = (agentId: string) => ['playbook-preview-panel', agentId, 'prompt']
 const chatCacheKey = (agentId: string) => ['playbook-preview-panel', agentId, 'chat']
 
-export function PlaybookPreviewPanel({ agentId, previewConfig }: Props) {
+export function PlaybookPreviewPanel({ agentId, previewConfig, testWhitelist }: Props) {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<'chat' | 'prompt'>('chat')
   const [messages, setMessagesState] = useState<ChatMessage[]>(
@@ -91,14 +103,63 @@ export function PlaybookPreviewPanel({ agentId, previewConfig }: Props) {
     setLastPrompt(null)
   }
 
+  const [resetting, setResetting] = useState(false)
+  const phoneToReset = testWhitelist?.[0] ?? null
+
+  /**
+   * Zera tudo do número de teste no banco: arquiva conversa real, soft-delete
+   * card, limpa buffer. Restrito ao número da whitelist do agente.
+   * Chama RPC reset_agent_test_conversation que valida whitelist no backend.
+   */
+  const resetRealConversation = async () => {
+    if (!phoneToReset) return
+    if (!confirm(`Zerar conversa real do número ${phoneToReset}?\n\nIsso vai arquivar a conversa, apagar o card (soft delete) e limpar mensagens pendentes. Você poderá começar do zero mandando uma nova mensagem no WhatsApp.`)) return
+    setResetting(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('reset_agent_test_conversation', {
+        p_agent_id: agentId,
+        p_phone: phoneToReset,
+      })
+      if (error) throw error
+      const r = data as ResetTestResponse
+      if (r.reason === 'no_contact_found') {
+        toast.success('Já estava limpo — nenhuma conversa pra zerar.')
+      } else {
+        toast.success(`Zerado: ${r.archived_conversations} conversa(s), ${r.deleted_cards} card(s), ${r.deleted_buffer} mensagem(ns) pendente(s).`)
+      }
+      // Limpa também o teste local
+      reset()
+    } catch (err) {
+      console.error('[PlaybookPreviewPanel] reset real error:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Não consegui zerar: ${msg}`)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <div className="bg-slate-50 border-l border-slate-200 h-full flex flex-col">
       <header className="flex items-center gap-1 px-3 py-2 border-b border-slate-200 bg-white">
         <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare} label="Testar" />
         <TabButton active={tab === 'prompt'} onClick={() => setTab('prompt')} icon={Code} label="Prompt" />
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-slate-500">
-          <RefreshCw className="w-3.5 h-3.5" /> Resetar
+        {phoneToReset && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetRealConversation}
+            disabled={resetting}
+            title={`Apaga a conversa real, o card e o buffer pendente do número ${phoneToReset}`}
+            className="gap-1.5 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+          >
+            {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            Zerar conversa real
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-slate-500" title="Limpa só o teste local (não toca conversa real)">
+          <RefreshCw className="w-3.5 h-3.5" /> Resetar teste
         </Button>
       </header>
 

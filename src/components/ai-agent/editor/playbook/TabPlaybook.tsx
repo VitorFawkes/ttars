@@ -21,6 +21,8 @@ interface Props {
   agentId: string
   agentName: string
   companyName: string
+  /** Whitelist do agente — propagada pro PreviewPanel pra habilitar "Zerar conversa real". */
+  testWhitelist?: string[] | null
 }
 
 type SectionKey = 'identity' | 'voice' | 'moments' | 'qualification' | 'boundaries' | 'signals' | 'examples'
@@ -35,7 +37,7 @@ const SECTIONS: Array<{ key: SectionKey; title: string; subtitle: string; icon: 
   { key: 'examples', title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
 ]
 
-export function TabPlaybook({ agentId, agentName, companyName }: Props) {
+export function TabPlaybook({ agentId, agentName, companyName, testWhitelist }: Props) {
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     identity: true,
     voice: false,
@@ -152,7 +154,7 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
 
         {showPreview && (
           <div className="hidden lg:block h-[calc(100vh-220px)] sticky top-0">
-            <PlaybookPreviewPanel agentId={agentId} previewConfig={previewConfig} />
+            <PlaybookPreviewPanel agentId={agentId} previewConfig={previewConfig} testWhitelist={testWhitelist} />
           </div>
         )}
       </div>

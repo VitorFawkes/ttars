@@ -431,7 +431,14 @@ export default function AiAgentDetailPage() {
         {activeTab === 'identidade' && <TabIdentidade form={form} setForm={setFormWrapper} />}
         {activeTab === 'modo' && <TabModoInteracao form={form} setForm={setFormWrapper} />}
         {activeTab === 'apresentacao' && <TabApresentacao agentId={isNew ? undefined : id} />}
-        {activeTab === 'playbook' && !isNew && id && <TabPlaybook agentId={id} agentName={form.nome} companyName={''} />}
+        {activeTab === 'playbook' && !isNew && id && (
+          <TabPlaybook
+            agentId={id}
+            agentName={form.nome}
+            companyName={''}
+            testWhitelist={(existingAgent as { test_mode_phone_whitelist?: string[] | null } | undefined)?.test_mode_phone_whitelist ?? null}
+          />
+        )}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}
