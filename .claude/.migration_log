@@ -654,3 +654,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-27T12:29:57Z | supabase/migrations/20260424b_auto_merge_sub_card_on_leave_first_pos_venda.sql | applied_to_prod
 2026-04-27T12:42:53Z | supabase/migrations/20260427c_contato_change_log.sql | applied_to_prod
 2026-04-27T13:07:48Z | supabase/migrations/20260427d_purge_monde_outbound.sql | applied_to_prod
+2026-04-27T13:17:01Z | supabase/migrations/20260427e_drop_orphan_monde_functions.sql | applied_to_prod
