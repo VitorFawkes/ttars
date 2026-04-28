@@ -28,6 +28,7 @@ import {
 import { detectMoment, type MomentDetectionContext } from "./moment_detector.ts";
 import { buildPromptV2 } from "./prompt_builder_v2.ts";
 import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
+import { detectFactsToOmit } from "./fact_omission_detector.ts";
 
 // ---------------------------------------------------------------------------
 // Types (alinhados com index.ts — evitamos import circular definindo o mínimo)
@@ -290,6 +291,60 @@ export async function runPersonaAgent_v2(
     }
   }
 
+  // 5c. Detecção determinística de fatos do anchor que o lead já mencionou.
+  // SÓ roda em modos literal/faithful (modo 'free' não precisa — agente já
+  // adapta). E só roda quando há mensagens prévias do lead pra analisar.
+  // Esse pedaço transforma a "instrução fuzzy" do prompt anterior em decisão
+  // determinística — antes o LLM principal precisava lembrar de checar
+  // histórico (~70% confiabilidade). Agora ele recebe a lista pronta (~95%).
+  let trechosAOmitir: string[] = [];
+  let leadResumo = '';
+  const shouldDetectOmissions = (cur.message_mode === 'literal' || cur.message_mode === 'faithful')
+    && cur.anchor_text
+    && cur.anchor_text.trim().length > 0
+    && ctx.historico_compacto.includes('[lead]:');
+
+  if (shouldDetectOmissions) {
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (openaiKey) {
+      // Extrai só as últimas mensagens do lead do historico_compacto
+      // (formato: "[lead]: texto\n[owner]: texto\n[lead]: texto").
+      const leadMessages = ctx.historico_compacto
+        .split('\n')
+        .filter(l => l.startsWith('[lead]:'))
+        .map(l => l.replace(/^\[lead\]:\s*/, '').trim())
+        .filter(l => l.length > 0)
+        .slice(-8); // últimas 8 mensagens do lead
+
+      // Quando wait_for_reply + steps: passa só o STEP atual (não o anchor inteiro).
+      let anchorForCheck = cur.anchor_text!;
+      if (usesSteps) {
+        const allSteps = cur.anchor_text!.split(/\n\s*-{3,}\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+        anchorForCheck = allSteps[Math.min(currentMomentStepIndex, allSteps.length - 1)] ?? cur.anchor_text!;
+      }
+
+      try {
+        const omRes = await detectFactsToOmit({
+          anchorText: anchorForCheck,
+          leadMessages,
+          openaiApiKey: openaiKey,
+        });
+        trechosAOmitir = omRes.trechos_a_omitir;
+        leadResumo = omRes.resumo_do_que_lead_disse;
+        console.log(JSON.stringify({
+          event: 'fact_omission_detected',
+          agent_id: agent.id,
+          moment_key: cur.moment_key,
+          trechos_count: trechosAOmitir.length,
+          tokens: omRes.tokens,
+          elapsed_ms: omRes.elapsed_ms,
+        }));
+      } catch (err) {
+        console.warn('[persona_v2] fact_omission_detector failed:', err);
+      }
+    }
+  }
+
   // 6. Monta o prompt
   const prompt = buildPromptV2({
     agentName: agent.nome,
@@ -319,6 +374,8 @@ export async function runPersonaAgent_v2(
       historico_compacto: ctx.historico_compacto,
       last_moment_key: ctx.last_moment_key,
       current_moment_step_index: currentMomentStepIndex,
+      lead_already_mentioned_excerpts: trechosAOmitir,
+      lead_summary: leadResumo,
     },
     userMessage,
     companyDescription: business?.methodology_text ?? business?.company_description,

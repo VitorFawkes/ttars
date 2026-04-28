@@ -105,6 +105,15 @@ export interface BuildPromptV2Input {
      * Calculado pelo persona_v2 contando assistant turns no current_moment_key.
      */
     current_moment_step_index?: number;
+    /**
+     * Trechos LITERAIS do anchor_text que o lead JÁ mencionou nas mensagens
+     * anteriores. Detectados deterministicamente por fact_omission_detector
+     * (GPT-4.1-mini). Persona principal deve OMITIR esses trechos do output,
+     * mantendo o resto fiel ao anchor.
+     */
+    lead_already_mentioned_excerpts?: string[];
+    /** Resumo curto do que o lead disse na conversa (1 frase). */
+    lead_summary?: string;
   };
   userMessage: string;
   companyDescription?: string | null;
@@ -362,12 +371,10 @@ function renderOneMoment(
       '    [modo: TEXTO LITERAL — envie EXATAMENTE como escrito acima, palavra por palavra. ' +
       'As variáveis ({contact_name}, {responsavel_name}, etc) já foram substituídas. ' +
       'NÃO reformule frases. NÃO troque sinônimos. NÃO acrescente saudações extras. NÃO mude o tom. ' +
-      'EXCEÇÃO ÚNICA — omissão por redundância: se o lead JÁ mencionou explicitamente um fato específico ' +
-      'que está no texto (ex: o lead já disse o nome dele, ou já citou os 5 prêmios, ou já contou a viagem ' +
-      'anterior), você pode OMITIR o trecho específico do texto que repete esse fato. Resto continua literal. ' +
-      'Quando houver dúvida se omitir ou não, MANTENHA o trecho — só omita quando o lead ' +
-      'foi totalmente explícito sobre o assunto. Se uma variável veio vazia (ex: nome desconhecido), ' +
-      'pule a parte que dependeria dela de forma natural mas mantenha o resto literal.]'
+      'NÃO antecipe nada que viria nos próximos passos. ' +
+      'Se o sistema injetou um bloco <lead_already_mentioned>, OMITA SOMENTE os trechos listados lá ' +
+      '(o sistema já validou que o lead os mencionou). Resto: literal palavra-por-palavra. ' +
+      'Se uma variável veio vazia (ex: nome desconhecido), pule a parte que dependeria dela de forma natural.]'
     );
   } else if (m.message_mode === 'faithful') {
     lines.push(
@@ -378,8 +385,7 @@ function renderOneMoment(
       'Adapte SOMENTE: (a) substituir nome do lead; (b) ajustar concordância de gênero/plural quando aplicável; ' +
       '(c) corrigir uma ou outra palavra pra fluir naturalmente. ' +
       'NÃO reescreva frases. NÃO substitua trechos por sinônimos. NÃO mude o tom. NÃO acrescente nem omita ideias. ' +
-      'Se o lead já mencionou algo do texto (nome, fato, prêmio), você pode pular naturalmente esse trecho ' +
-      'específico — mas mantenha o resto fiel.]'
+      'Se o sistema injetou bloco <lead_already_mentioned>, omita os trechos listados lá. Resto: fiel.]'
     );
   } else {
     lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines.]');
@@ -816,6 +822,25 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
   parts.push('<history>');
   parts.push(ctx.historico_compacto || '(sem mensagens anteriores)');
   parts.push('</history>');
+  // Bloco determinístico de trechos do anchor que o lead já antecipou.
+  // Calculado pelo fact_omission_detector ANTES desta chamada (GPT-4.1-mini).
+  // Aparece só quando há trechos pra omitir — não polui prompt à toa.
+  const omitExcerpts = ctx.lead_already_mentioned_excerpts ?? [];
+  if (omitExcerpts.length > 0) {
+    parts.push('');
+    parts.push('<lead_already_mentioned>');
+    parts.push('O lead já mencionou estes pontos do texto-âncora nas mensagens anteriores. OMITA esses trechos do output (não os repita), mas mantenha o resto do anchor fiel ao modo configurado:');
+    for (const t of omitExcerpts) {
+      parts.push(`  - "${t}"`);
+    }
+    if (ctx.lead_summary) {
+      parts.push('');
+      parts.push(`Resumo do que o lead disse: ${ctx.lead_summary}`);
+    }
+    parts.push('Quando omitir, faça-o de forma natural — não inicie a mensagem com "como você mencionou..." nem "já que você sabe...". Apenas pule o trecho específico e siga o resto.');
+    parts.push('</lead_already_mentioned>');
+  }
+
   parts.push('');
   parts.push('<last_message from="lead">');
   parts.push(input.userMessage);
