@@ -1918,6 +1918,27 @@ async function executeTaskStep(
         throw new Error(`Failed to create task: ${taskError.message}`);
     }
 
+    // Cria complemento atendimentos_concierge se step marcado pra concierge
+    if (step.gera_atendimento_concierge && step.tipo_concierge && step.categoria_concierge) {
+        const { error: atdError } = await supabaseClient
+            .from("atendimentos_concierge")
+            .insert({
+                tarefa_id: task.id,
+                card_id: card.id,
+                tipo_concierge: step.tipo_concierge,
+                categoria: step.categoria_concierge,
+                source: 'cadencia',
+                cadence_step_id: step.id,
+                origem_descricao: `Cadência: ${instance.template?.name ?? 'modelo'}`,
+                payload: step.condicao_extra ?? {}
+            });
+
+        if (atdError) {
+            console.error(`[CadenceEngine] Falha ao criar atendimento_concierge:`, atdError);
+            // Não falha a tarefa — só loga. Tarefa já está criada e funcionará normalmente.
+        }
+    }
+
     // Log do evento
     await logEvent(supabaseClient, {
         instance_id: instance.id,
@@ -1926,7 +1947,9 @@ async function executeTaskStep(
         event_source: 'cadence_engine',
         event_data: {
             step_key: step.step_key,
-            task_tipo: config.tipo
+            task_tipo: config.tipo,
+            tipo_concierge: step.tipo_concierge ?? null,
+            categoria_concierge: step.categoria_concierge ?? null
         },
         action_taken: 'create_task',
         action_result: { task_id: task.id, task_titulo: task.titulo }
