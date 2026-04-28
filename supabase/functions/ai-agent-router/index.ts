@@ -3741,6 +3741,11 @@ serve(async (req) => {
       );
     }
 
+    // Declarado fora do if pra ser visível no pipeline_lock check abaixo.
+    // Quando o lock falha precisamos reverter o claim cirurgicamente — só os IDs
+    // que ESTA chamada capturou.
+    let claimed: Array<{ id: string; message_text: string; message_type: string; media_url: string | null; created_at: string }> | null = null;
+
     if (buffered && buffered.length > 0) {
       // Debounce baseado na OLDEST: quando a mensagem mais antiga do buffer passou
       // do window, processa tudo junto (incluindo a recém-chegada). Antes usava
@@ -3806,12 +3811,13 @@ serve(async (req) => {
       // marca processed_at, o segundo (se chegar simultâneo) recebe 0 rows e
       // sai sem disparar pipeline. Repl.
       const claimTimestamp = new Date().toISOString();
-      const { data: claimed } = await supabase
+      const { data: claimedData } = await supabase
         .from("ai_message_buffer")
         .update({ processed_at: claimTimestamp })
         .eq("contact_phone", normalizedForBuffer)
         .is("processed_at", null)
         .select("id, message_text, message_type, media_url, created_at");
+      claimed = claimedData;
 
       if (!claimed || claimed.length === 0) {
         // Outro drain simultâneo já capturou as msgs. Este retorna no-op.
@@ -3844,7 +3850,80 @@ serve(async (req) => {
       }
     }
 
-    // ── 5b. Salvar mensagem do usuario ──
+    // ── 5b. Lock de pipeline por contato. Previne 2 pipelines rodando em
+    // paralelo pro mesmo lead (bug 28/04 conv d05b1fae: 2 respostas pra
+    // mesmo input quando lead manda msgs em ~2s de diferença). Se já existe
+    // lock ativo, agenda re-drain pra +30s e bail.
+    const lockPhone = normalizePhone(input.contact_phone);
+    let lockAcquired = false;
+    try {
+      const { data: lockResult } = await supabase.rpc('try_acquire_pipeline_lock', {
+        p_contact_phone: lockPhone,
+        p_ttl_seconds: 90,
+      });
+      lockAcquired = Boolean(lockResult);
+    } catch (err) {
+      console.warn('[pipeline_lock] acquire failed (proceeding without lock):', err);
+    }
+
+    if (!lockAcquired) {
+      // Outro pipeline já está rodando pra esse contato. Reverte o claim que
+      // ESTA chamada fez (se houver) pra que o pipeline ativo OU um drain
+      // futuro capture as msgs novas. Agenda re-drain pra depois que o ativo
+      // provavelmente termina.
+      console.log(`[pipeline_lock] contact ${lockPhone} já tem pipeline ativo — agendando re-drain em 30s`);
+
+      // Reverte claim cirurgicamente: SÓ os IDs que esta chamada acabou de claimar.
+      // Se claimed é null/vazio, outro drain já tinha capturado; nada a reverter.
+      try {
+        const claimedIds = (claimed ?? []).map(c => c.id);
+        if (claimedIds.length > 0) {
+          await supabase
+            .from('ai_message_buffer')
+            .update({ processed_at: null })
+            .in('id', claimedIds);
+        }
+      } catch (err) {
+        console.warn('[pipeline_lock] revert claim failed:', err);
+      }
+
+      // Agenda drain em 30s (depois do TTL típico de pipeline).
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        // deno-lint-ignore no-explicit-any
+        const runtime = (globalThis as any).EdgeRuntime;
+        const schedule = async () => {
+          await new Promise(r => setTimeout(r, 30_000));
+          try {
+            await fetch(`${supabaseUrl}/functions/v1/ai-agent-router`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+              body: JSON.stringify({
+                phone_number_id: input.phone_number_id,
+                contact_phone: input.contact_phone,
+                contact_name: input.contact_name,
+                message_text: '',
+                _drain: true,
+              }),
+            });
+          } catch (err) {
+            console.error('[pipeline_lock] re-drain dispatch failed:', err);
+          }
+        };
+        if (runtime?.waitUntil) runtime.waitUntil(schedule());
+        else schedule();
+      } catch (err) {
+        console.warn('[pipeline_lock] schedule re-drain failed:', err);
+      }
+
+      return new Response(
+        JSON.stringify({ handled: true, reason: 'pipeline_locked', re_drain_scheduled: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── 5c. Salvar mensagem do usuario ──
     await supabase.from("ai_conversation_turns").insert({
       conversation_id: conversationId,
       role: "user",
@@ -4041,6 +4120,13 @@ serve(async (req) => {
     // Enviar via WhatsApp (multiplas mensagens)
     await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
 
+    // Libera lock de pipeline antes de retornar (sucesso).
+    try {
+      await supabase.rpc('release_pipeline_lock', { p_contact_phone: lockPhone });
+    } catch (err) {
+      console.warn('[pipeline_lock] release on success failed:', err);
+    }
+
     return new Response(
       JSON.stringify({
         handled: true,
@@ -4057,6 +4143,7 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Agent router error:", error);
+    // Lock de pipeline tem TTL de 90s — em caso de erro não-tratado, expira sozinho.
     return new Response(
       JSON.stringify({ error: "Internal server error", details: String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
