@@ -38,6 +38,13 @@ export interface PlaybookMoment {
   collects_fields: string[]
   /** Slots da Sondagem (só preenchido em fases de descoberta). */
   discovery_config: DiscoveryConfig | null
+  /**
+   * Como a agente entrega a resposta nessa fase:
+   *   all_at_once   — quebra em até max_message_blocks blocos numa rajada (default).
+   *   wait_for_reply — manda apenas UMA mensagem e espera o lead responder antes
+   *                    de avançar (útil em abertura: "Oi!" → espera → próxima coisa).
+   */
+  delivery_mode: 'all_at_once' | 'wait_for_reply'
   enabled: boolean
 }
 

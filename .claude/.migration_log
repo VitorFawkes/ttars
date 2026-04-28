@@ -665,3 +665,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-27T18:27:53Z | supabase/migrations/20260427b_pre_embarque_30d_not_won.sql | applied_to_prod
 2026-04-27T18:28:18Z | supabase/migrations/20260427c_bulk_pos_venda_no_ganho_pos.sql | applied_to_prod
 2026-04-28T17:26:18Z | supabase/migrations/20260428a_fix_views_concierge_remove_double_filter.sql | applied_to_prod
+2026-04-28T17:28:17Z | supabase/migrations/20260428a_ai_agent_moments_delivery_mode.sql | applied_to_prod

@@ -740,7 +740,17 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
   const lines: string[] = [];
   lines.push(`Produza agora a próxima resposta de ${input.agentName}.`);
   lines.push(`- Use a âncora do momento atual (${cur.moment_label}), adaptada ao contexto e ao lead.`);
-  lines.push(`- Pode quebrar em até 2-3 mensagens curtas se ficar mais natural.`);
+
+  // Ritmo de envio configurado pelo admin no MomentCard. wait_for_reply força
+  // uma única mensagem curta — ideal pra abertura ("Oi, tudo bem?") onde
+  // mandar 3 blocos em rajada parece robô. Default all_at_once preserva
+  // comportamento legado (até 3 blocos numa só resposta).
+  if (cur.delivery_mode === 'wait_for_reply') {
+    lines.push(`- IMPORTANTE: nesta fase, mande APENAS UMA mensagem curta. Não emita múltiplos blocos. Faça uma única pergunta ou afirmação e PARE — espere o lead responder antes de avançar pra próxima coisa. Se o impulso é dizer mais, segura: vai sair menos robótico assim.`);
+  } else {
+    lines.push(`- Pode quebrar em até 2-3 mensagens curtas se ficar mais natural.`);
+  }
+
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);
   lines.push(`- Output: só o texto que vai no WhatsApp. Sem aspas externas, sem prefixo "Resposta:", sem explicação.`);
   return lines.join('\n');

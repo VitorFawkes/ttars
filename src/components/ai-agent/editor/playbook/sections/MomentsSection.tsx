@@ -55,6 +55,7 @@ export function MomentsSection({ agentId, agentName, companyName }: Props) {
         red_lines: [],
         collects_fields: [],
         discovery_config: null,
+        delivery_mode: 'all_at_once',
         enabled: true,
       })
       toast.success(`${kind === 'flow' ? 'Fase' : 'Jogada'} criada — expande pra configurar`)

@@ -33,6 +33,7 @@ export function MomentLibraryModal({ agentId, existingKeys, nextDisplayOrder, on
         red_lines: s.red_lines ?? [],
         collects_fields: [],
         discovery_config: null,
+        delivery_mode: 'all_at_once',
         enabled: true,
       })
       toast.success(`Momento "${s.moment_label}" adicionado`)

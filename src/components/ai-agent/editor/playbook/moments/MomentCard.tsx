@@ -42,6 +42,11 @@ const MODE_OPTIONS: Array<{ value: PlaybookMoment['message_mode']; label: string
   { value: 'free', label: 'Estilo livre', subtitle: 'A agente cria a resposta, respeitando o objetivo e as regras' },
 ]
 
+const DELIVERY_OPTIONS: Array<{ value: PlaybookMoment['delivery_mode']; label: string; subtitle: string }> = [
+  { value: 'all_at_once', label: 'Tudo de uma vez', subtitle: 'Manda saudação + apresentação + pergunta numa rajada (até 3 mensagens seguidas)' },
+  { value: 'wait_for_reply', label: 'Uma de cada vez', subtitle: 'Manda UMA mensagem e espera o lead responder antes de continuar (mais natural na abertura)' },
+]
+
 export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps }: Props) {
   const { upsert, remove } = useAgentMoments(agentId)
   const meta = useCurrentProductMeta()
@@ -52,6 +57,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [triggerType, setTriggerType] = useState(moment.trigger_type)
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(moment.trigger_config ?? {})
   const [mode, setMode] = useState(moment.message_mode)
+  const [deliveryMode, setDeliveryMode] = useState<PlaybookMoment['delivery_mode']>(moment.delivery_mode ?? 'all_at_once')
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
   const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(moment.discovery_config ?? null)
@@ -109,6 +115,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         red_lines: redLines,
         collects_fields: moment.collects_fields ?? [],
         discovery_config: canHaveDiscovery ? discoveryConfig : null,
+        delivery_mode: deliveryMode,
         enabled: moment.enabled,
       })
       toast.success('Momento salvo'); setDirty(false)
@@ -204,6 +211,26 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
               {MODE_OPTIONS.map(o => (
                 <label key={o.value} className="flex items-start gap-2 text-sm p-2 rounded border border-slate-100 hover:border-slate-200 cursor-pointer">
                   <input type="radio" checked={mode === o.value} onChange={() => { setMode(o.value); markDirty() }} className="mt-0.5" />
+                  <div>
+                    <div className="font-medium text-slate-700">{o.label}</div>
+                    <div className="text-xs text-slate-500">{o.subtitle}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Ritmo de envio nesta fase</label>
+            <div className="space-y-1">
+              {DELIVERY_OPTIONS.map(o => (
+                <label key={o.value} className="flex items-start gap-2 text-sm p-2 rounded border border-slate-100 hover:border-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={deliveryMode === o.value}
+                    onChange={() => { setDeliveryMode(o.value); markDirty() }}
+                    className="mt-0.5"
+                  />
                   <div>
                     <div className="font-medium text-slate-700">{o.label}</div>
                     <div className="text-xs text-slate-500">{o.subtitle}</div>

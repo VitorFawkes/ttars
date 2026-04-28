@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Loader2, Save, Plus, X, FolderPlus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2, Plus, X, FolderPlus, Trash2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,8 @@ interface Props {
 
 const DEFAULT_CATEGORIES = ['Comercial', 'Comunicação', 'Marca', 'Comportamento']
 
+type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
+
 export function BoundariesSection({ agentId, agentName, companyName }: Props) {
   const { boundaries, isLoading, save } = useAgentBoundaries(agentId)
   const [active, setActive] = useState<string[]>([])
@@ -22,8 +24,14 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
   const [newItemByCategory, setNewItemByCategory] = useState<Record<string, string>>({})
   const [newCategoryName, setNewCategoryName] = useState('')
   const [showAddCategory, setShowAddCategory] = useState(false)
-  const [dirty, setDirty] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
 
+  // Refs pra debouncer + last-known state (evita race entre múltiplos addItem rápidos).
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestStateRef = useRef<{ active: string[]; cbc: Record<string, string[]> }>({ active: [], cbc: {} })
+  const initializedRef = useRef(false)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setActive(boundaries?.library_active ?? [])
     // Migração silenciosa: se existe `custom` legacy, põe em categoria "Personalizado"
@@ -33,54 +41,80 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
       cbc['Personalizado'] = legacyCustom
     }
     setCustomByCategory(cbc)
-    setDirty(false)
+    latestStateRef.current = { active: boundaries?.library_active ?? [], cbc }
+    initializedRef.current = true
+    setSaveStatus('idle')
   }, [boundaries?.library_active, boundaries?.custom, boundaries?.custom_by_category])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const markDirty = () => setDirty(true)
-  const toggle = (id: string) => {
-    if (active.includes(id)) setActive(active.filter(x => x !== id))
-    else setActive([...active, id])
-    markDirty()
+  // Auto-save debounced. Toda mutação chama scheduleSave; o save real roda após
+  // 600ms sem novas alterações. Sem isso, o admin escrevia uma regra, dava
+  // Enter pra adicionar à lista, mas esquecia de clicar "Salvar" no rodapé e
+  // perdia tudo (bug 2026-04-28).
+  const scheduleSave = (nextActive: string[], nextCbc: Record<string, string[]>) => {
+    latestStateRef.current = { active: nextActive, cbc: nextCbc }
+    setSaveStatus('pending')
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(async () => {
+      const snapshot = latestStateRef.current
+      const config: BoundariesConfig = {
+        library_active: snapshot.active,
+        custom_by_category: snapshot.cbc,
+        custom: [],
+      }
+      try {
+        await save.mutateAsync(config)
+        setSaveStatus('saved')
+        // Volta pro idle após 2s
+        setTimeout(() => setSaveStatus(s => s === 'saved' ? 'idle' : s), 2000)
+      } catch (err) {
+        console.error('[BoundariesSection] auto-save error:', err)
+        setSaveStatus('error')
+        toast.error('Não consegui salvar. Verifique sua conexão.')
+      }
+    }, 600)
   }
 
-  const handleSave = async () => {
-    const config: BoundariesConfig = {
-      library_active: active,
-      custom_by_category: customByCategory,
-      custom: [], // zera legacy (agora tudo vive em custom_by_category)
-    }
-    try { await save.mutateAsync(config); toast.success('Linhas vermelhas salvas'); setDirty(false) }
-    catch (err) { console.error(err); toast.error('Não consegui salvar.') }
+  // Cleanup do timer ao desmontar
+  useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }, [])
+
+  const toggle = (id: string) => {
+    const next = active.includes(id) ? active.filter(x => x !== id) : [...active, id]
+    setActive(next)
+    if (initializedRef.current) scheduleSave(next, customByCategory)
   }
 
   const addItem = (cat: string) => {
     const text = (newItemByCategory[cat] ?? '').trim()
     if (!text) return
-    setCustomByCategory(prev => ({ ...prev, [cat]: [...(prev[cat] ?? []), text] }))
+    const nextCbc = { ...customByCategory, [cat]: [...(customByCategory[cat] ?? []), text] }
+    setCustomByCategory(nextCbc)
     setNewItemByCategory(prev => ({ ...prev, [cat]: '' }))
-    markDirty()
+    scheduleSave(active, nextCbc)
   }
   const removeItem = (cat: string, idx: number) => {
-    setCustomByCategory(prev => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }))
-    markDirty()
+    const nextCbc = { ...customByCategory, [cat]: (customByCategory[cat] ?? []).filter((_, i) => i !== idx) }
+    setCustomByCategory(nextCbc)
+    scheduleSave(active, nextCbc)
   }
   const addCategory = () => {
     const name = newCategoryName.trim()
     if (!name) return
     if (customByCategory[name]) { toast.error('Essa categoria já existe'); return }
-    setCustomByCategory(prev => ({ ...prev, [name]: [] }))
+    const nextCbc = { ...customByCategory, [name]: [] }
+    setCustomByCategory(nextCbc)
     setNewCategoryName('')
     setShowAddCategory(false)
-    markDirty()
+    scheduleSave(active, nextCbc)
   }
   const removeCategory = (cat: string) => {
     if ((customByCategory[cat] ?? []).length > 0) {
       if (!confirm(`Apagar a categoria "${cat}" e as ${customByCategory[cat].length} linhas dentro dela?`)) return
     }
-    setCustomByCategory(prev => {
-      const next = { ...prev }; delete next[cat]; return next
-    })
-    markDirty()
+    const nextCbc = { ...customByCategory }
+    delete nextCbc[cat]
+    setCustomByCategory(nextCbc)
+    scheduleSave(active, nextCbc)
   }
 
   if (isLoading) return <div className="py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></div>
@@ -162,8 +196,9 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
                       fieldType="red_line"
                       context={{ agent_nome: agentName, company_name: companyName, related_moment_label: cat }}
                       onSelect={(t) => {
-                        setCustomByCategory(prev => ({ ...prev, [cat]: [...(prev[cat] ?? []), t] }))
-                        markDirty()
+                        const nextCbc = { ...customByCategory, [cat]: [...(customByCategory[cat] ?? []), t] }
+                        setCustomByCategory(nextCbc)
+                        scheduleSave(active, nextCbc)
                       }}
                       label="Sugerir"
                     />
@@ -206,11 +241,23 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
         </div>
       </div>
 
-      <div className="flex justify-end pt-2 border-t border-slate-100">
-        {dirty && <span className="text-xs text-amber-600 self-center mr-3">• alterações não salvas</span>}
-        <Button onClick={handleSave} disabled={!dirty || save.isPending} size="sm" className="gap-1.5">
-          {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Salvar
-        </Button>
+      <div className="flex justify-end items-center pt-2 border-t border-slate-100 text-xs text-slate-500 min-h-[28px]">
+        {saveStatus === 'pending' && (
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <Loader2 className="w-3 h-3 animate-spin" /> Salvando...
+          </span>
+        )}
+        {saveStatus === 'saved' && (
+          <span className="flex items-center gap-1.5 text-emerald-600">
+            <Check className="w-3.5 h-3.5" /> Salvo automaticamente
+          </span>
+        )}
+        {saveStatus === 'error' && (
+          <span className="text-rose-600">Erro ao salvar — tente de novo</span>
+        )}
+        {saveStatus === 'idle' && (
+          <span className="text-slate-400">Suas alterações são salvas automaticamente</span>
+        )}
       </div>
     </div>
   )
