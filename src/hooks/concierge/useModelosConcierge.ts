@@ -3,6 +3,16 @@ import { toast } from 'sonner'
 import { sbAny } from './_supabaseUntyped'
 import type { TipoConcierge } from './types'
 
+export type DataAnchor = 'aceite' | 'viagem_inicio' | 'viagem_fim' | 'welcome_inicio' | 'welcome_fim'
+
+export const DATA_ANCHOR_LABEL: Record<DataAnchor, { label: string; descricao: string }> = {
+  aceite:         { label: 'No aceite da viagem',                    descricao: 'Conta a partir do dia em que a viagem foi marcada como vendida' },
+  viagem_inicio:  { label: 'Embarque (viagem completa)',             descricao: 'A partir do início da viagem completa do cliente (data_viagem_inicio)' },
+  viagem_fim:     { label: 'Volta (viagem completa)',                descricao: 'A partir do retorno da viagem completa (data_viagem_fim)' },
+  welcome_inicio: { label: 'Início com Welcome',                     descricao: 'A partir da entrada na parte que é com a Welcome (Data Viagem c/ Welcome — início)' },
+  welcome_fim:    { label: 'Fim com Welcome',                        descricao: 'A partir da saída da parte com Welcome (Data Viagem c/ Welcome — fim)' },
+}
+
 export interface ModeloConcierge {
   template_id: string
   template_name: string
@@ -12,6 +22,7 @@ export interface ModeloConcierge {
   tipo_concierge: TipoConcierge | null
   categoria_concierge: string | null
   day_offset: number | null
+  data_anchor: DataAnchor
   condicao_extra: Record<string, unknown>
   task_titulo: string | null
   task_descricao: string | null
@@ -29,6 +40,7 @@ export function useModelosConcierge() {
           tipo_concierge,
           categoria_concierge,
           day_offset,
+          data_anchor,
           condicao_extra,
           task_config,
           gera_atendimento_concierge,
@@ -43,6 +55,7 @@ export function useModelosConcierge() {
         tipo_concierge: TipoConcierge | null
         categoria_concierge: string | null
         day_offset: number | null
+        data_anchor: DataAnchor | null
         condicao_extra: Record<string, unknown> | null
         task_config: Record<string, unknown> | null
         cadence_templates: { id: string; name: string; description: string | null; is_active: boolean }
@@ -57,6 +70,7 @@ export function useModelosConcierge() {
         tipo_concierge: r.tipo_concierge,
         categoria_concierge: r.categoria_concierge,
         day_offset: r.day_offset,
+        data_anchor: r.data_anchor ?? 'viagem_inicio',
         condicao_extra: r.condicao_extra ?? {},
         task_titulo: (r.task_config?.titulo as string) ?? null,
         task_descricao: (r.task_config?.descricao as string) ?? null,
@@ -92,6 +106,7 @@ interface ModeloPayload {
   tipo_concierge: TipoConcierge
   categoria_concierge: string
   day_offset: number
+  data_anchor: DataAnchor
   task_titulo: string
   task_descricao: string
   condicao_extra?: Record<string, unknown>
@@ -143,6 +158,7 @@ export function useCriarModelo() {
             wait_for_outcome: false,
           },
           day_offset: input.day_offset,
+          data_anchor: input.data_anchor,
           requires_previous_completed: false,
           gera_atendimento_concierge: true,
           tipo_concierge: input.tipo_concierge,
@@ -176,6 +192,7 @@ interface ModeloUpdatePayload {
   tipo_concierge: TipoConcierge
   categoria_concierge: string
   day_offset: number
+  data_anchor: DataAnchor
   task_titulo: string
   task_descricao: string
   condicao_extra?: Record<string, unknown>
@@ -199,6 +216,7 @@ export function useUpdateModelo() {
           tipo_concierge: input.tipo_concierge,
           categoria_concierge: input.categoria_concierge,
           day_offset: input.day_offset,
+          data_anchor: input.data_anchor,
           condicao_extra: input.condicao_extra ?? {},
           task_config: {
             tipo: 'tarefa',

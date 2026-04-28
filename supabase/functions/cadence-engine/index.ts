@@ -1864,33 +1864,84 @@ async function executeTaskStep(
     const offsetValue = dueOffset?.value ?? step.day_offset ?? 0;
     const offsetUnit = dueOffset?.unit ?? 'business_days';
 
-    let taskDueDate = new Date();
-    if (offsetValue > 0) {
+    // Resolver data-âncora a partir de step.data_anchor (default: now()).
+    // Para atendimentos do Concierge, anchor pode ser:
+    // - aceite (started_at da instance)
+    // - viagem_inicio / viagem_fim (cards.data_viagem_inicio / fim)
+    // - welcome_inicio / welcome_fim (cards.produto_data->'data_exata_da_viagem'->'start'/'end')
+    let anchorDate: Date | null = null;
+    if (step.data_anchor && step.data_anchor !== 'now') {
+        try {
+            // Buscar dados extras do card (produto_data) se necessário
+            let cardExtras: Record<string, unknown> | null = null;
+            if (step.data_anchor === 'welcome_inicio' || step.data_anchor === 'welcome_fim') {
+                const { data: cardFull } = await supabaseClient
+                    .from('cards').select('produto_data, data_viagem_inicio, data_viagem_fim').eq('id', card.id).single();
+                cardExtras = cardFull as Record<string, unknown> | null;
+            }
+            switch (step.data_anchor) {
+                case 'aceite':
+                    if (instance.started_at) anchorDate = new Date(instance.started_at);
+                    break;
+                case 'viagem_inicio':
+                    if (card.data_viagem_inicio) anchorDate = new Date(card.data_viagem_inicio);
+                    break;
+                case 'viagem_fim':
+                    if (card.data_viagem_fim) anchorDate = new Date(card.data_viagem_fim);
+                    break;
+                case 'welcome_inicio': {
+                    const pd = cardExtras?.produto_data as Record<string, unknown> | undefined;
+                    const dexata = pd?.data_exata_da_viagem as { start?: string } | undefined;
+                    if (dexata?.start) anchorDate = new Date(dexata.start);
+                    else if (cardExtras?.data_viagem_inicio) anchorDate = new Date(cardExtras.data_viagem_inicio as string);
+                    break;
+                }
+                case 'welcome_fim': {
+                    const pd = cardExtras?.produto_data as Record<string, unknown> | undefined;
+                    const dexata = pd?.data_exata_da_viagem as { end?: string } | undefined;
+                    if (dexata?.end) anchorDate = new Date(dexata.end);
+                    else if (cardExtras?.data_viagem_fim) anchorDate = new Date(cardExtras.data_viagem_fim as string);
+                    break;
+                }
+            }
+        } catch (err) {
+            console.warn(`[CadenceEngine] Falha ao resolver data_anchor=${step.data_anchor}:`, err);
+        }
+    }
+
+    // Base do cálculo: anchor (se resolvido) ou now()
+    const calcBase = anchorDate ?? new Date();
+    let taskDueDate = new Date(calcBase);
+    if (offsetValue !== 0) {
         if (offsetUnit === 'hours') {
             const minutesToAdd = offsetValue * 60;
-            if (template.respect_business_hours) {
+            if (template.respect_business_hours && offsetValue > 0) {
                 const businessConfig: BusinessHoursConfig = {
                     start: template.business_hours_start ?? BUSINESS_HOURS_START,
                     end: template.business_hours_end ?? BUSINESS_HOURS_END,
                     allowedWeekdays: template.allowed_weekdays ?? [1, 2, 3, 4, 5]
                 };
-                taskDueDate = calculateBusinessTime(new Date(), minutesToAdd, businessConfig);
+                taskDueDate = calculateBusinessTime(calcBase, minutesToAdd, businessConfig);
             } else {
-                taskDueDate = addMinutes(new Date(), minutesToAdd);
+                taskDueDate = addMinutes(calcBase, minutesToAdd);
             }
         } else if (offsetUnit === 'calendar_days') {
-            taskDueDate = addDays(new Date(), offsetValue);
+            taskDueDate = addDays(calcBase, offsetValue);
         } else {
-            // business_days (default)
-            taskDueDate = calculateDayOffset(new Date(), offsetValue, template);
+            // business_days (default) — só recalcula se positivo (calculateDayOffset não suporta negativo)
+            if (offsetValue > 0) {
+                taskDueDate = calculateDayOffset(calcBase, offsetValue, template);
+            } else {
+                taskDueDate = addDays(calcBase, offsetValue);
+            }
         }
-    } else if (template.respect_business_hours) {
+    } else if (template.respect_business_hours && !anchorDate) {
         const businessConfig: BusinessHoursConfig = {
             start: template.business_hours_start ?? BUSINESS_HOURS_START,
             end: template.business_hours_end ?? BUSINESS_HOURS_END,
             allowedWeekdays: template.allowed_weekdays ?? [1, 2, 3, 4, 5]
         };
-        taskDueDate = calculateBusinessTime(new Date(), 0, businessConfig);
+        taskDueDate = calculateBusinessTime(calcBase, 0, businessConfig);
     }
 
     // Criar tarefa

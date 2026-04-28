@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { X, Trash2, AlertCircle } from 'lucide-react'
 import { useOrg } from '../../contexts/OrgContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
-import { useCriarModelo, useUpdateModelo, useDeleteModelo, type ModeloConcierge } from '../../hooks/concierge/useModelosConcierge'
+import { useCriarModelo, useUpdateModelo, useDeleteModelo, DATA_ANCHOR_LABEL, type ModeloConcierge, type DataAnchor } from '../../hooks/concierge/useModelosConcierge'
 import { TIPO_LABEL, categoriasParaProduto, type TipoConcierge } from '../../hooks/concierge/types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -35,6 +35,7 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
   const [description, setDescription] = useState(modelo?.template_description ?? '')
   const [tipo, setTipo] = useState<TipoConcierge>(modelo?.tipo_concierge ?? 'operacional')
   const [dayOffset, setDayOffset] = useState<number>(modelo?.day_offset ?? 0)
+  const [dataAnchor, setDataAnchor] = useState<DataAnchor>(modelo?.data_anchor ?? 'viagem_inicio')
   const [taskTitulo, setTaskTitulo] = useState(modelo?.task_titulo ?? '')
   const [taskDescricao, setTaskDescricao] = useState(modelo?.task_descricao ?? '')
   const [requerOcasiaoEspecial, setRequerOcasiaoEspecial] = useState(Boolean(modelo?.condicao_extra?.requer_ocasiao_especial))
@@ -77,6 +78,7 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
       tipo_concierge: tipo,
       categoria_concierge: categoriaEfetiva,
       day_offset: dayOffset,
+      data_anchor: dataAnchor,
       task_titulo: taskTitulo.trim(),
       task_descricao: taskDescricao.trim(),
       condicao_extra,
@@ -96,7 +98,12 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
     del.mutate({ template_id: modelo.template_id, org_id: org.id }, { onSuccess: () => onClose() })
   }
 
-  const dayLabel = dayOffset === 0 ? 'No aceite da viagem' : dayOffset > 0 ? `${dayOffset} dia${dayOffset === 1 ? '' : 's'} depois do retorno` : `${-dayOffset} dia${dayOffset === -1 ? '' : 's'} antes do embarque`
+  const anchorLabel = DATA_ANCHOR_LABEL[dataAnchor].label.toLowerCase()
+  const dayLabel = dayOffset === 0
+    ? `Exatamente em ${anchorLabel}`
+    : dayOffset > 0
+      ? `${dayOffset} dia${dayOffset === 1 ? '' : 's'} depois de ${anchorLabel}`
+      : `${-dayOffset} dia${dayOffset === -1 ? '' : 's'} antes de ${anchorLabel}`
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -158,17 +165,29 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quando dispara *</label>
-            <div className="flex items-center gap-3">
-              <Input
-                type="number"
-                value={dayOffset}
-                onChange={(e) => setDayOffset(parseInt(e.target.value || '0', 10))}
-                className="w-24"
-              />
-              <span className="text-xs text-slate-600">{dayLabel}</span>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-2">
+              <select
+                value={dataAnchor}
+                onChange={(e) => setDataAnchor(e.target.value as DataAnchor)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+              >
+                {(Object.entries(DATA_ANCHOR_LABEL) as [DataAnchor, typeof DATA_ANCHOR_LABEL[DataAnchor]][]).map(([key, meta]) => (
+                  <option key={key} value={key}>{meta.label}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={dayOffset}
+                  onChange={(e) => setDayOffset(parseInt(e.target.value || '0', 10))}
+                  className="w-20"
+                />
+                <span className="text-xs text-slate-500">dias</span>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Use número negativo (ex: -20) para "20 dias antes do embarque". Positivo (ex: +3) para depois do retorno. Zero para no aceite.
+            <p className="text-[11px] text-slate-600 mt-1.5"><strong>{dayLabel}.</strong></p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {DATA_ANCHOR_LABEL[dataAnchor].descricao}. Negativo = antes; positivo = depois; zero = no momento.
             </p>
           </div>
 
