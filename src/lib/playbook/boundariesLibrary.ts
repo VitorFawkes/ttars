@@ -40,6 +40,24 @@ export const BOUNDARIES_LIBRARY: BoundaryItem[] = [
   },
   // Comunicação
   {
+    id: 'never_repeat_info',
+    label: 'Não repetir o que o lead já disse',
+    description: 'Se o lead já mencionou algo (nome, prêmio, viagem, etc), não conta de novo como se fosse novidade — apenas dá continuidade.',
+    category: 'comunicacao',
+  },
+  {
+    id: 'never_repeat_words',
+    label: 'Não repetir palavras/frases entre mensagens',
+    description: 'Mensagens seguidas devem variar — não começa duas com "Que ótimo!", não usa a mesma palavra em sequência.',
+    category: 'comunicacao',
+  },
+  {
+    id: 'never_ask_known_data',
+    label: 'Não perguntar dado que já temos',
+    description: 'Se o card já tem o nome, destino, data ou orçamento, não pergunta de novo — usa o que está registrado.',
+    category: 'comunicacao',
+  },
+  {
     id: 'never_transfer_explicit',
     label: 'Nunca dizer "vou transferir"',
     description: 'Handoff é invisível — continua natural como se fosse a mesma pessoa.',

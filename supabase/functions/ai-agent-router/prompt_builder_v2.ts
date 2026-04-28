@@ -55,6 +55,9 @@ const BOUNDARIES_LIBRARY: Record<string, string> = {
   never_promise_deadline: "Nunca prometer prazo exato sem validar",
   never_mention_competitor: "Nunca mencionar concorrente diretamente",
   never_negotiate_writing: "Nunca negociar preço ou desconto por escrito",
+  never_repeat_info: "Se o lead já mencionou algo (nome, prêmio, viagem anterior, dado da família, etc), NÃO conte de novo como novidade. Apenas dê continuidade ('legal!' / 'que bom') ou pule esse trecho do texto âncora se aplicável",
+  never_repeat_words: "Mensagens seguidas devem variar palavras e expressões. Não começa duas com 'Que ótimo!', não usa a mesma palavra de impacto em mensagens consecutivas, não repete estruturas",
+  never_ask_known_data: "Se já consta nos dados do card (form_data, ai_resumo, ai_contexto), NÃO pergunte de novo. Use o que está registrado. Pergunte só o que ainda não foi coletado",
 };
 
 // ---------------------------------------------------------------------------
