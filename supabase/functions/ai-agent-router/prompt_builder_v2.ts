@@ -358,9 +358,29 @@ function renderOneMoment(
   }
 
   if (m.message_mode === 'literal') {
-    lines.push('    [modo: TEXTO LITERAL — envie EXATAMENTE como escrito acima, palavra por palavra. As variáveis {contact_name}, {responsavel_name} etc já foram substituídas. NÃO reformule frases, NÃO troque sinônimos, NÃO acrescente saudações extras, NÃO omita partes. Se o texto contém quebra de linha em branco, mantenha-a. Se o nome do lead não está disponível (variável vazia), pule a parte que dependeria do nome de forma natural mas mantenha o resto literal.]');
+    lines.push(
+      '    [modo: TEXTO LITERAL — envie EXATAMENTE como escrito acima, palavra por palavra. ' +
+      'As variáveis ({contact_name}, {responsavel_name}, etc) já foram substituídas. ' +
+      'NÃO reformule frases. NÃO troque sinônimos. NÃO acrescente saudações extras. NÃO mude o tom. ' +
+      'EXCEÇÃO ÚNICA — omissão por redundância: se o lead JÁ mencionou explicitamente um fato específico ' +
+      'que está no texto (ex: o lead já disse o nome dele, ou já citou os 5 prêmios, ou já contou a viagem ' +
+      'anterior), você pode OMITIR o trecho específico do texto que repete esse fato. Resto continua literal. ' +
+      'Quando houver dúvida se omitir ou não, MANTENHA o trecho — só omita quando o lead ' +
+      'foi totalmente explícito sobre o assunto. Se uma variável veio vazia (ex: nome desconhecido), ' +
+      'pule a parte que dependeria dela de forma natural mas mantenha o resto literal.]'
+    );
   } else if (m.message_mode === 'faithful') {
-    lines.push('    [modo: DIRETRIZ FIEL — use o texto acima como BASE OBRIGATÓRIA. Mantenha: ordem das ideias, tom, comprimento, estrutura de parágrafos, perguntas no mesmo lugar. Adapte SOMENTE: (a) substituir nome do lead; (b) ajustar concordância de gênero/plural quando aplicável; (c) corrigir uma ou outra palavra pra fluir melhor. NÃO reescreva frases inteiras. NÃO substitua trechos por sinônimos. NÃO mude o tom. NÃO acrescente nem omita ideias. Se o lead já mencionou algo que está no texto (ex: já disse o nome), você pode pular naturalmente esse trecho específico — mas mantenha o resto fiel.]');
+    lines.push(
+      '    [modo: DIRETRIZ FIEL — use o texto acima como BASE OBRIGATÓRIA. ' +
+      'Mantenha: ordem das ideias, tom, comprimento, estrutura de parágrafos, perguntas no mesmo lugar. ' +
+      'Régua quantitativa: mude NO MÁXIMO ~10% das palavras do texto original. Se o anchor tem 100 palavras, ' +
+      'você pode trocar até 10. Resto fica como gravado. ' +
+      'Adapte SOMENTE: (a) substituir nome do lead; (b) ajustar concordância de gênero/plural quando aplicável; ' +
+      '(c) corrigir uma ou outra palavra pra fluir naturalmente. ' +
+      'NÃO reescreva frases. NÃO substitua trechos por sinônimos. NÃO mude o tom. NÃO acrescente nem omita ideias. ' +
+      'Se o lead já mencionou algo do texto (nome, fato, prêmio), você pode pular naturalmente esse trecho ' +
+      'específico — mas mantenha o resto fiel.]'
+    );
   } else {
     lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines.]');
   }

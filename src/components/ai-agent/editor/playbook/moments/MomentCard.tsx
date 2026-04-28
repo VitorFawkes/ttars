@@ -37,9 +37,9 @@ const TRIGGER_OPTIONS: Array<{ value: PlaybookMoment['trigger_type']; label: str
 ]
 
 const MODE_OPTIONS: Array<{ value: PlaybookMoment['message_mode']; label: string; subtitle: string }> = [
-  { value: 'literal', label: 'Texto exato', subtitle: 'Envia exatamente esse texto, palavra por palavra' },
-  { value: 'faithful', label: 'Diretriz fiel', subtitle: 'Segue a estrutura do texto, adapta só nome e pequenas palavras' },
-  { value: 'free', label: 'Estilo livre', subtitle: 'A agente cria a resposta, respeitando o objetivo e as regras' },
+  { value: 'literal', label: 'Texto exato', subtitle: 'Envia palavra por palavra. Só pula um trecho se o lead já mencionou esse fato específico (ex: já citou os prêmios). Resto fica literal.' },
+  { value: 'faithful', label: 'Diretriz fiel', subtitle: 'Mantém o texto quase todo igual (até 10% de palavras pode trocar pra fluir). Ordem, tom e perguntas ficam como você escreveu.' },
+  { value: 'free', label: 'Estilo livre', subtitle: 'A agente cria a resposta usando o texto como objetivo. Liberdade pra adaptar tudo conforme o contexto.' },
 ]
 
 const DELIVERY_OPTIONS: Array<{ value: PlaybookMoment['delivery_mode']; label: string; subtitle: string }> = [
