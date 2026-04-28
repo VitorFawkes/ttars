@@ -194,6 +194,64 @@ export async function runPersonaAgent_v2(
     });
   }
 
+  // 3b. Gate de obrigatórias: se há slots required em moments ANTERIORES
+  // (display_order menor) que ainda não foram preenchidos, força ficar no
+  // moment com pendência. Sem isso, lead que dispara score_threshold antes
+  // de coletar todos os obrigatórios (ex: disse "Caribe" → +30 pontos > 25)
+  // pulava direto pro desfecho — fechando reunião sem ter data, número de
+  // convidados ou orçamento. Wedding Planner chegava cega na reunião.
+  //
+  // Critério: slot é "preenchido" quando crm_field_key tem valor em
+  // form_data OU em qualificationSignals. Slots sem crm_field_key não entram
+  // no gate (não dá pra saber se foram preenchidos).
+  type RequiredSlotPending = { momentKey: string; momentDisplayOrder: number; slotLabel: string; crmFieldKey: string };
+  const requiredPending: RequiredSlotPending[] = [];
+  for (const m of moments) {
+    if ((m.kind ?? 'flow') !== 'flow') continue;
+    const slots = m.discovery_config?.slots ?? [];
+    for (const s of slots) {
+      if (!s.required) continue;
+      if (!s.crm_field_key) continue;
+      const filled = (ctx.form_data[s.crm_field_key] && String(ctx.form_data[s.crm_field_key]).trim())
+        || (qualificationSignals[s.crm_field_key] && String(qualificationSignals[s.crm_field_key]).trim());
+      if (!filled) {
+        requiredPending.push({
+          momentKey: m.moment_key,
+          momentDisplayOrder: m.display_order,
+          slotLabel: s.label,
+          crmFieldKey: s.crm_field_key,
+        });
+      }
+    }
+  }
+
+  // Se há slots required pendentes E o detector apontou pra moment POSTERIOR
+  // ao primeiro moment com pendência, override pra esse moment. Mantém a
+  // sondagem aberta até completar.
+  if (requiredPending.length > 0) {
+    const firstPending = requiredPending.reduce((min, p) =>
+      p.momentDisplayOrder < min.momentDisplayOrder ? p : min,
+    );
+    if (detected.moment.display_order > firstPending.momentDisplayOrder) {
+      const targetMoment = moments.find(m => m.moment_key === firstPending.momentKey);
+      if (targetMoment) {
+        console.log(JSON.stringify({
+          event: 'moment_gated_by_required_slots',
+          original_moment: detected.moment.moment_key,
+          override_to: targetMoment.moment_key,
+          pending_slots: requiredPending.map(p => `${p.momentKey}.${p.slotLabel}`),
+        }));
+        detected = {
+          moment: targetMoment,
+          method: 'deterministic',
+          reason: `required_slots_pending:${requiredPending.length}`,
+        };
+        // Reset step lock — entramos num moment diferente do last_moment.
+        lockedStepIndex = null;
+      }
+    }
+  }
+
   // Log estruturado pra observabilidade (cai em Supabase Functions Logs)
   console.log(JSON.stringify({
     event: 'moment_detected',
