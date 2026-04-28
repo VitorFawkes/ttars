@@ -151,11 +151,47 @@ export async function runPersonaAgent_v2(
     qualification_score_current: scoreInfo.score,
   };
 
-  const detected = detectMoment({
-    moments,
-    ctx: detCtx,
-    backofficeSuggestion: backoffice.current_moment_key ?? null,
-  });
+  // 3a. Step-lock pra fases sequenciais (wait_for_reply + anchor com "---").
+  // Se a fase anterior ainda tem passos por mandar, segura nela em vez de
+  // deixar o detector pular pra próxima fase quando o lead respondeu.
+  // Sem isso, a Estela ia da abertura (passo 1) direto pra sondagem no
+  // segundo turn — pulava o passo 2 da abertura inteiro.
+  let detected: ReturnType<typeof detectMoment>;
+  let lockedStepIndex: number | null = null;
+  if (ctx.last_moment_key && ctx.conversation_id) {
+    const lastMoment = moments.find(m => m.moment_key === ctx.last_moment_key);
+    if (
+      lastMoment
+      && lastMoment.delivery_mode === 'wait_for_reply'
+      && typeof lastMoment.anchor_text === 'string'
+      && /\n\s*-{3,}\s*\n/.test(lastMoment.anchor_text)
+    ) {
+      const totalSteps = lastMoment.anchor_text.split(/\n\s*-{3,}\s*\n/).filter(s => s.trim()).length;
+      try {
+        const { count } = await supabase
+          .from('ai_conversation_turns')
+          .select('id', { count: 'exact', head: true })
+          .eq('conversation_id', ctx.conversation_id)
+          .eq('role', 'assistant')
+          .eq('current_moment_key', lastMoment.moment_key);
+        const sent = count ?? 0;
+        if (sent < totalSteps) {
+          detected = { moment: lastMoment, method: 'deterministic', reason: 'wait_for_reply_steps_pending' };
+          lockedStepIndex = sent;
+        }
+      } catch (err) {
+        console.warn('[persona_v2] step-lock count failed:', err);
+      }
+    }
+  }
+  // @ts-expect-error definido condicionalmente acima
+  if (!detected) {
+    detected = detectMoment({
+      moments,
+      ctx: detCtx,
+      backofficeSuggestion: backoffice.current_moment_key ?? null,
+    });
+  }
 
   // Log estruturado pra observabilidade (cai em Supabase Functions Logs)
   console.log(JSON.stringify({
@@ -235,12 +271,12 @@ export async function runPersonaAgent_v2(
   // Permite que o admin separe o anchor_text com "---" pra mandar uma
   // mensagem por turn até esgotar a sequência. Conta quantos turns assistant
   // já existem com este moment_key — esse número vira o índice do próximo step.
-  let currentMomentStepIndex = 0;
+  let currentMomentStepIndex = lockedStepIndex ?? 0;
   const cur = detected.moment;
   const usesSteps = cur.delivery_mode === 'wait_for_reply'
     && typeof cur.anchor_text === 'string'
     && /\n\s*-{3,}\s*\n/.test(cur.anchor_text);
-  if (usesSteps && ctx.conversation_id) {
+  if (usesSteps && lockedStepIndex === null && ctx.conversation_id) {
     try {
       const { count } = await supabase
         .from('ai_conversation_turns')
