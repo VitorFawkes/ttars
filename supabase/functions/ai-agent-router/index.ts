@@ -496,20 +496,36 @@ async function findAgentForLine(
   senderPhone: string | undefined,
   messageType?: string,
 ): Promise<AgentConfig | null> {
-  let lineQuery = supabase
-    .from("whatsapp_linha_config")
-    .select("id")
-    .eq("ativo", true);
+  // Match por label primeiro (preferência admin); cai pra phone_number_id se label
+  // não bate. Sem o fallback, qualquer rename da linha no Echo silencia o agente
+  // (bug 2026-04-28 — Echo mandou label "Teste Vitor" mas linha estava cadastrada
+  // como "Estela": webhook bufferava e nunca processava).
+  if (!phoneNumberLabel && !phoneNumberId) return null;
+
+  type Line = { id: string };
+  let lines: Line[] | null = null;
 
   if (phoneNumberLabel) {
-    lineQuery = lineQuery.eq("phone_number_label", phoneNumberLabel);
-  } else if (phoneNumberId) {
-    lineQuery = lineQuery.eq("phone_number_id", phoneNumberId);
-  } else {
-    return null;
+    const { data } = await supabase
+      .from("whatsapp_linha_config")
+      .select("id")
+      .eq("ativo", true)
+      .eq("phone_number_label", phoneNumberLabel);
+    lines = data as Line[] | null;
   }
 
-  const { data: lines } = await lineQuery;
+  if ((!lines || lines.length === 0) && phoneNumberId) {
+    const { data } = await supabase
+      .from("whatsapp_linha_config")
+      .select("id")
+      .eq("ativo", true)
+      .eq("phone_number_id", phoneNumberId);
+    lines = data as Line[] | null;
+    if (lines && lines.length > 0 && phoneNumberLabel) {
+      console.warn(`[findAgentForLine] label "${phoneNumberLabel}" não bate em nenhuma linha; achei pelo phone_number_id ${phoneNumberId}. Considere atualizar phone_number_label da whatsapp_linha_config.`);
+    }
+  }
+
   if (!lines || lines.length === 0) return null;
 
   const lineIds = lines.map((l: { id: string }) => l.id);
