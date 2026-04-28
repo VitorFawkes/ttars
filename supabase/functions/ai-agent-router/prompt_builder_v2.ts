@@ -249,6 +249,46 @@ function formatSlotLabel(slot: { date: string; time: string; weekday: string }):
 }
 
 /**
+ * Detecta saudação contextual do lead na ÚLTIMA mensagem dele.
+ * Retorna "Boa noite" / "Boa tarde" / "Bom dia" se o lead começou com
+ * isso. Caso contrário retorna null (não há saudação específica a usar).
+ *
+ * "Oi" e "Olá" não são overrides — são saudações neutras já cobertas
+ * pelo template default do admin (que normalmente começa com "Olá,").
+ */
+function detectLeadGreeting(lastLeadMessage: string | null | undefined): string | null {
+  if (!lastLeadMessage) return null;
+  const head = lastLeadMessage.toLowerCase().trim().slice(0, 30);
+  if (/\bboa\s+noite\b/.test(head)) return 'Boa noite';
+  if (/\bboa\s+tarde\b/.test(head)) return 'Boa tarde';
+  if (/\bbom\s+dia\b/.test(head)) return 'Bom dia';
+  return null;
+}
+
+/**
+ * Saudação fallback baseada no horário em São Paulo (BR).
+ * Usada quando o lead não saudou e o admin colocou {saudacao} no anchor.
+ */
+function timeBasedGreetingSaoPaulo(): string {
+  // Date em São Paulo timezone via toLocaleString trick (Deno tem suporte completo)
+  const sp = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const hour = sp.getHours();
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+/**
+ * Extrai a última mensagem do lead do historico_compacto (formato com
+ * "[lead]: texto" linhas). Retorna null se não há nenhuma.
+ */
+function extractLastLeadMessage(historicoCompacto: string): string | null {
+  const lines = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
+  if (lines.length === 0) return null;
+  return lines[lines.length - 1].replace(/^\[lead\]:\s*/, '').trim();
+}
+
+/**
  * Substitui variáveis dinâmicas em texto livre (anchor_text dos momentos).
  * Variáveis suportadas:
  *   {contact_name}        — nome do lead (ou string vazia + cleanup quando desconhecido)
@@ -293,12 +333,49 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
     subs['{slots_disponiveis}'] = `${top3[0]}, ${top3[1]} ou ${top3[2]}`;
   }
 
+  // Saudação contextual: prioridade pra o que o lead disse; senão hora local SP.
+  // Default = "Olá" (neutro) quando lead não deu saudação E admin não usou
+  // {saudacao_horario} (que sempre usa hora). Se admin pôs {saudacao} explícito
+  // no anchor, vira a contextual; smart-replace abaixo cuida do anchor sem variável.
+  const lastLeadMsg = extractLastLeadMessage(input.ctx.historico_compacto);
+  const detected = detectLeadGreeting(lastLeadMsg);
+  subs['{saudacao}'] = detected ?? 'Olá';
+  subs['{saudacao_horario}'] = timeBasedGreetingSaoPaulo();
+
+  // Sentinel pra applySubstitutions saber se deve fazer smart-replace
+  // ("Olá|Oi" no início → saudação detectada). Não vai pro output final.
+  if (detected) {
+    subs['__detected_greeting'] = detected;
+  }
+
   return subs;
 }
 
 function applySubstitutions(text: string, subs: Record<string, string>): string {
   let out = text;
-  for (const [token, value] of Object.entries(subs)) {
+
+  // Smart-replace de saudação ANTES de aplicar variáveis. Se o lead deu
+  // "boa noite/tarde/dia" E o anchor começa com "Olá" ou "Oi" como saudação
+  // genérica (seguida de vírgula, espaço com nome, ou exclamação), substitui
+  // pela saudação contextual. Isso funciona mesmo sem o admin usar {saudacao}
+  // explícito — comportamento default mais inteligente.
+  // Exemplos:
+  //   "Olá, tudo bem?" + lead disse "boa noite" → "Boa noite, tudo bem?"
+  //   "Olá {contact_name}, tudo bem?" + "boa noite" → "Boa noite Vitor, tudo bem?"
+  //   "Oi! Aqui é a Estela" + "boa tarde" → "Boa tarde! Aqui é a Estela"
+  const detectedGreeting = subs['__detected_greeting'];
+  if (detectedGreeting) {
+    // (^|\n) limita ao início do anchor ou início de step (após "---" splittado).
+    out = out.replace(/(^|\n)(Olá|Oi)([\s,!])/i, `$1${detectedGreeting}$3`);
+  }
+
+  // Remove sentinels internas antes do replace normal
+  const cleanSubs: Record<string, string> = {};
+  for (const [k, v] of Object.entries(subs)) {
+    if (!k.startsWith('__')) cleanSubs[k] = v;
+  }
+
+  for (const [token, value] of Object.entries(cleanSubs)) {
     out = out.split(token).join(value);
   }
 

@@ -12,6 +12,8 @@ const ANCHOR_VARIABLES: Array<{ token: string; label: string; hint?: string }> =
   { token: '{contact_name}', label: 'Nome do lead' },
   { token: '{agent_name}', label: 'Nome do agente' },
   { token: '{company_name}', label: 'Nome da empresa' },
+  { token: '{saudacao}', label: 'Saudação contextual', hint: 'Vira "Boa noite", "Boa tarde" ou "Bom dia" se o lead saudou assim. Senão "Olá".' },
+  { token: '{saudacao_horario}', label: 'Saudação por horário', hint: 'Vira "Bom dia/Boa tarde/Boa noite" baseado SÓ no horário (BR). Útil se você não quer espelhar o lead.' },
   { token: '{responsavel_name}', label: 'Wedding Planner', hint: 'Nome do closer configurado em Handoff > Agendar reunião automática' },
   { token: '{slots_disponiveis}', label: 'Lista de horários', hint: 'Próximos 3 horários livres na agenda do closer (ex: "quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h")' },
   { token: '{slot_1}', label: '1º horário livre', hint: 'Primeiro horário disponível (ex: "quarta 30/04 às 14h")' },
