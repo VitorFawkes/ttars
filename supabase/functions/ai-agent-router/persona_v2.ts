@@ -79,6 +79,9 @@ interface CtxV2 {
   turn_count: number;
   last_moment_key: string | null;
   last_lead_message: string | null;
+  /** Necessário pra contar quantos turns assistant já passaram no current_moment
+   *  (usado quando anchor_text está dividido em steps via "---" + delivery_mode=wait_for_reply). */
+  conversation_id?: string | null;
 }
 
 interface BackofficeV2Output {
@@ -228,6 +231,29 @@ export async function runPersonaAgent_v2(
     };
   }
 
+  // 5b. Step sequencial em fases wait_for_reply.
+  // Permite que o admin separe o anchor_text com "---" pra mandar uma
+  // mensagem por turn até esgotar a sequência. Conta quantos turns assistant
+  // já existem com este moment_key — esse número vira o índice do próximo step.
+  let currentMomentStepIndex = 0;
+  const cur = detected.moment;
+  const usesSteps = cur.delivery_mode === 'wait_for_reply'
+    && typeof cur.anchor_text === 'string'
+    && /\n\s*-{3,}\s*\n/.test(cur.anchor_text);
+  if (usesSteps && ctx.conversation_id) {
+    try {
+      const { count } = await supabase
+        .from('ai_conversation_turns')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', ctx.conversation_id)
+        .eq('role', 'assistant')
+        .eq('current_moment_key', cur.moment_key);
+      currentMomentStepIndex = count ?? 0;
+    } catch (err) {
+      console.warn('[persona_v2] step_index count failed:', err);
+    }
+  }
+
   // 6. Monta o prompt
   const prompt = buildPromptV2({
     agentName: agent.nome,
@@ -256,6 +282,7 @@ export async function runPersonaAgent_v2(
       qualificationSignals,
       historico_compacto: ctx.historico_compacto,
       last_moment_key: ctx.last_moment_key,
+      current_moment_step_index: currentMomentStepIndex,
     },
     userMessage,
     companyDescription: business?.methodology_text ?? business?.company_description,

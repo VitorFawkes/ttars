@@ -2713,6 +2713,7 @@ async function runPersonaAgent(
   userMessage: string,
   qualificationSignals: Record<string, string> = {},
   presentations: AiAgentPresentation[] = [],
+  conversationId?: string | null,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
 
   // ═══════════════════════════════════════════════════════════════
@@ -2763,6 +2764,7 @@ async function runPersonaAgent(
           turn_count: ctx.turn_count,
           last_moment_key: ctx.last_moment_key ?? null,
           last_lead_message: ctx.last_lead_message ?? null,
+          conversation_id: conversationId ?? null,
         },
         {
           ai_resumo: backoffice.ai_resumo,
@@ -3941,6 +3943,7 @@ serve(async (req) => {
         agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
         processedText, dataResult.qualificationSignals,
         agentConfig.presentations,
+        conversationId,
       );
       const rawResponse = personaResult.response;
       totalInputTokens += personaResult.inputTokens;

@@ -256,9 +256,21 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
               ref={anchorRef}
               value={anchor}
               onChange={(e) => { setAnchor(e.target.value); markDirty() }}
-              placeholder={mode === 'free' ? 'Descreva o objetivo' : 'Use {contact_name} para o nome do lead'}
-              className="w-full min-h-[80px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              placeholder={
+                mode === 'free'
+                  ? 'Descreva o objetivo'
+                  : deliveryMode === 'wait_for_reply'
+                    ? 'Mensagem 1\n\n---\n\nMensagem 2 (depois que o lead responder)\n\n---\n\nMensagem 3'
+                    : 'Use {contact_name} para o nome do lead'
+              }
+              className="w-full min-h-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
+            {deliveryMode === 'wait_for_reply' && mode !== 'free' && (
+              <p className="text-[11px] text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-2.5 py-1.5 mt-1.5 leading-relaxed">
+                ✨ <span className="font-medium">Sequência de mensagens:</span> separe cada mensagem com uma linha contendo só <code className="font-mono px-1 bg-white border border-indigo-200 rounded">---</code>.
+                A agente manda a primeira, espera o lead responder, manda a próxima, e assim por diante. Quando acabarem os blocos, ela avança pra próxima fase do funil.
+              </p>
+            )}
             {mode !== 'free' && (
               <div className="mt-1.5">
                 <div className="text-[11px] text-slate-500 mb-1">

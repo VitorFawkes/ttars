@@ -96,6 +96,12 @@ export interface BuildPromptV2Input {
     qualificationSignals: Record<string, string>;
     historico_compacto: string;
     last_moment_key: string | null;
+    /**
+     * Índice do step atual quando o anchor_text do moment está dividido em
+     * passos sequenciais via "---" (modo wait_for_reply). 0 = primeiro step.
+     * Calculado pelo persona_v2 contando assistant turns no current_moment_key.
+     */
+    current_moment_step_index?: number;
   };
   userMessage: string;
   companyDescription?: string | null;
@@ -124,7 +130,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
-  const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs);
+  const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
   const signals = renderSilentSignalsBlock(input.silentSignals);
@@ -282,15 +288,49 @@ function applySubstitutions(text: string, subs: Record<string, string>): string 
   return out;
 }
 
-function renderOneMoment(m: PlaybookMoment, currentMomentKey: string, subs: Record<string, string>): string[] {
+/** Splita anchor_text por separadores "---" (3+ traços em linha própria, c/ ou s/ espaços). */
+function splitAnchorSteps(anchor: string): string[] {
+  return anchor.split(/\n\s*-{3,}\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+function renderOneMoment(
+  m: PlaybookMoment,
+  currentMomentKey: string,
+  subs: Record<string, string>,
+  stepIndex?: number,
+): string[] {
   const lines: string[] = [];
   const marker = m.moment_key === currentMomentKey ? '★' : '•';
   lines.push(`${marker} ${m.moment_key} — ${m.moment_label}`);
 
+  // Step sequencial: quando momento usa wait_for_reply E anchor está dividido
+  // em N steps com "---", mostra só o step ATUAL pra LLM (não toda a seq).
+  // Pra outros momentos (ou quando não é o atual), mostra texto inteiro como
+  // referência, mas marca claramente que vê só.
+  const isCurrent = m.moment_key === currentMomentKey;
+  const usesSteps = m.delivery_mode === 'wait_for_reply'
+    && typeof m.anchor_text === 'string'
+    && /\n\s*-{3,}\s*\n/.test(m.anchor_text);
+
   if (m.anchor_text && m.anchor_text.trim()) {
-    const substituted = applySubstitutions(m.anchor_text.trim(), subs);
-    const indentedText = substituted.split('\n').map(l => `    ${l}`).join('\n');
-    lines.push(indentedText);
+    if (isCurrent && usesSteps) {
+      const steps = splitAnchorSteps(m.anchor_text);
+      const idx = Math.min(stepIndex ?? 0, steps.length - 1);
+      const isLast = idx >= steps.length - 1;
+      const substituted = applySubstitutions(steps[idx], subs);
+      const indentedText = substituted.split('\n').map(l => `    ${l}`).join('\n');
+      lines.push(`    [Sequência: passo ${idx + 1} de ${steps.length}${isLast ? ' — último' : ''}]`);
+      lines.push(indentedText);
+      if (!isLast) {
+        lines.push(`    [APÓS o lead responder esta mensagem, no próximo turno mande o passo ${idx + 2}/${steps.length}.]`);
+      } else {
+        lines.push(`    [Esse é o último passo desta abertura. No próximo turno, AVANCE para a próxima fase do funil.]`);
+      }
+    } else {
+      const substituted = applySubstitutions(m.anchor_text.trim(), subs);
+      const indentedText = substituted.split('\n').map(l => `    ${l}`).join('\n');
+      lines.push(indentedText);
+    }
   }
 
   if (m.message_mode === 'literal') {
@@ -326,7 +366,12 @@ function renderOneMoment(m: PlaybookMoment, currentMomentKey: string, subs: Reco
   return lines;
 }
 
-function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMoment, subs: Record<string, string>): string {
+function renderAnchorsBlock(
+  moments: PlaybookMoment[],
+  currentMoment: PlaybookMoment,
+  subs: Record<string, string>,
+  stepIndex?: number,
+): string {
   if (moments.length === 0) return '';
 
   // Separa fases do funil (kind=flow) das jogadas situacionais (kind=play).
@@ -344,7 +389,7 @@ function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMo
     lines.push('Fases do funil (passe por elas em ordem; cada uma tem um gatilho que indica quando começa):');
     lines.push('');
     for (const m of flows) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex));
       lines.push('');
     }
     lines.push('</flow>');
@@ -356,7 +401,7 @@ function renderAnchorsBlock(moments: PlaybookMoment[], currentMoment: PlaybookMo
     lines.push('Jogadas situacionais (podem disparar em qualquer fase quando o gatilho aparece; depois volte pra fase atual):');
     lines.push('');
     for (const m of plays) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex));
       lines.push('');
     }
     lines.push('</plays>');
