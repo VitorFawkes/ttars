@@ -239,7 +239,7 @@ function formatSlotLabel(slot: { date: string; time: string; weekday: string }):
 /**
  * Substitui variáveis dinâmicas em texto livre (anchor_text dos momentos).
  * Variáveis suportadas:
- *   {contact_name}        — nome do lead (ou "(nome do lead)" se desconhecido)
+ *   {contact_name}        — nome do lead (ou string vazia + cleanup quando desconhecido)
  *   {agent_name}          — nome do agente
  *   {company_name}        — nome da empresa
  *   {responsavel_name}    — nome do closer (book_meeting.responsavel_name)
@@ -248,10 +248,14 @@ function formatSlotLabel(slot: { date: string; time: string; weekday: string }):
  *
  * Quando book_meeting não está ativo, as variáveis de slot/responsável caem em
  * placeholder neutro pra LLM saber que precisa improvisar (ex: "(horários a confirmar)").
+ *
+ * Nome desconhecido: {contact_name} vira "" (vazio) e applySubstitutions roda
+ * cleanup de pontuação solta — "Olá {contact_name}, tudo bem?" vira "Olá, tudo
+ * bem?" sem o "(nome do lead)" feio na mensagem real.
  */
 function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
   const subs: Record<string, string> = {
-    '{contact_name}': input.ctx.contact_name_known ? input.ctx.contact_name : '(nome do lead)',
+    '{contact_name}': input.ctx.contact_name_known ? input.ctx.contact_name : '',
     '{agent_name}': input.agentName,
     '{company_name}': input.companyName,
   };
@@ -285,6 +289,23 @@ function applySubstitutions(text: string, subs: Record<string, string>): string 
   for (const [token, value] of Object.entries(subs)) {
     out = out.split(token).join(value);
   }
+
+  // Cleanup quando alguma variável virou string vazia (típico: {contact_name}
+  // sem nome conhecido). Sem isso, "Olá {contact_name}, tudo bem?" vira
+  // "Olá , tudo bem?" — vergonhoso. Aqui consertamos os artefatos comuns.
+  out = out
+    // Espaço antes de pontuação ("Olá , X" → "Olá, X")
+    .replace(/\s+([,.!?;:])/g, '$1')
+    // Vírgula seguida de outra pontuação (",." → ".")
+    .replace(/,\s*([.!?])/g, '$1')
+    // Pontuação dupla ("Olá,, tudo" → "Olá, tudo")
+    .replace(/([,.!?;:])\1+/g, '$1')
+    // Espaços múltiplos
+    .replace(/[ \t]{2,}/g, ' ')
+    // Espaço no início de linha
+    .replace(/\n[ \t]+/g, '\n')
+    .trim();
+
   return out;
 }
 
@@ -334,11 +355,11 @@ function renderOneMoment(
   }
 
   if (m.message_mode === 'literal') {
-    lines.push('    [modo: texto literal — envie exatamente, só substitua {contact_name}]');
+    lines.push('    [modo: TEXTO LITERAL — envie EXATAMENTE como escrito acima, palavra por palavra. As variáveis {contact_name}, {responsavel_name} etc já foram substituídas. NÃO reformule frases, NÃO troque sinônimos, NÃO acrescente saudações extras, NÃO omita partes. Se o texto contém quebra de linha em branco, mantenha-a. Se o nome do lead não está disponível (variável vazia), pule a parte que dependeria do nome de forma natural mas mantenha o resto literal.]');
   } else if (m.message_mode === 'faithful') {
-    lines.push('    [modo: diretriz fiel — siga estrutura e conteúdo, adapte nome e pequenas palavras]');
+    lines.push('    [modo: DIRETRIZ FIEL — use o texto acima como BASE OBRIGATÓRIA. Mantenha: ordem das ideias, tom, comprimento, estrutura de parágrafos, perguntas no mesmo lugar. Adapte SOMENTE: (a) substituir nome do lead; (b) ajustar concordância de gênero/plural quando aplicável; (c) corrigir uma ou outra palavra pra fluir melhor. NÃO reescreva frases inteiras. NÃO substitua trechos por sinônimos. NÃO mude o tom. NÃO acrescente nem omita ideias. Se o lead já mencionou algo que está no texto (ex: já disse o nome), você pode pular naturalmente esse trecho específico — mas mantenha o resto fiel.]');
   } else {
-    lines.push('    [modo: livre — você tem flexibilidade, respeitando objetivo e red_lines]');
+    lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines.]');
   }
 
   if (m.discovery_config && m.discovery_config.slots && m.discovery_config.slots.length > 0) {
