@@ -164,31 +164,75 @@ function ModeloEditorModalInner({ onClose, modelo }: { onClose: () => void; mode
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quando dispara *</label>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-2">
-              <select
-                value={dataAnchor}
-                onChange={(e) => setDataAnchor(e.target.value as DataAnchor)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
-              >
-                {(Object.entries(DATA_ANCHOR_LABEL) as [DataAnchor, typeof DATA_ANCHOR_LABEL[DataAnchor]][]).map(([key, meta]) => (
-                  <option key={key} value={key}>{meta.label}</option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={dayOffset}
-                  onChange={(e) => setDayOffset(parseInt(e.target.value || '0', 10))}
-                  className="w-20"
-                />
-                <span className="text-xs text-slate-500">dias</span>
-              </div>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">Quando dispara *</label>
+
+            {/* Origem: aceite | viagem completa | trecho com Welcome */}
+            <div className="space-y-1.5 mb-3">
+              {([
+                { value: 'aceite' as const, label: 'No aceite da viagem', sub: 'Quando a viagem foi marcada como vendida' },
+                { value: 'viagem' as const, label: 'Em relação à viagem completa', sub: 'Inclui voos antes/depois com ou sem Welcome' },
+                { value: 'welcome' as const, label: 'Em relação ao trecho com Welcome', sub: 'Só a parte que é com a Welcome (data_exata_da_viagem)' },
+              ]).map(opt => {
+                const isAceite = opt.value === 'aceite'
+                const grupoAtual = dataAnchor === 'aceite' ? 'aceite'
+                  : (dataAnchor === 'viagem_inicio' || dataAnchor === 'viagem_fim') ? 'viagem'
+                  : 'welcome'
+                const ativo = grupoAtual === opt.value
+                return (
+                  <label key={opt.value} className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${ativo ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <input
+                      type="radio"
+                      name="data-anchor-grupo"
+                      checked={ativo}
+                      onChange={() => {
+                        if (isAceite) setDataAnchor('aceite')
+                        else if (opt.value === 'viagem') setDataAnchor(dataAnchor === 'viagem_fim' ? 'viagem_fim' : 'viagem_inicio')
+                        else setDataAnchor(dataAnchor === 'welcome_fim' ? 'welcome_fim' : 'welcome_inicio')
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[12.5px] font-medium text-slate-900">{opt.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{opt.sub}</div>
+                      {/* Sub-toggle início/fim */}
+                      {ativo && !isAceite && (
+                        <div className="mt-2 inline-flex bg-white border border-slate-200 rounded-md p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setDataAnchor(opt.value === 'viagem' ? 'viagem_inicio' : 'welcome_inicio')}
+                            className={`h-6 px-2.5 text-[11.5px] rounded transition-colors ${
+                              (dataAnchor === 'viagem_inicio' || dataAnchor === 'welcome_inicio')
+                                ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >Início</button>
+                          <button
+                            type="button"
+                            onClick={() => setDataAnchor(opt.value === 'viagem' ? 'viagem_fim' : 'welcome_fim')}
+                            className={`h-6 px-2.5 text-[11.5px] rounded transition-colors ${
+                              (dataAnchor === 'viagem_fim' || dataAnchor === 'welcome_fim')
+                                ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >Fim</button>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                )
+              })}
             </div>
-            <p className="text-[11px] text-slate-600 mt-1.5"><strong>{dayLabel}.</strong></p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              {DATA_ANCHOR_LABEL[dataAnchor].descricao}. Negativo = antes; positivo = depois; zero = no momento.
-            </p>
+
+            {/* Quantos dias antes/depois */}
+            <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <Input
+                type="number"
+                value={dayOffset}
+                onChange={(e) => setDayOffset(parseInt(e.target.value || '0', 10))}
+                className="w-20"
+              />
+              <span className="text-xs text-slate-500">dias (negativo = antes; positivo = depois; zero = no momento)</span>
+            </div>
+
+            <p className="text-[11.5px] text-indigo-700 font-medium mt-2">→ {dayLabel}</p>
           </div>
 
           <div>
