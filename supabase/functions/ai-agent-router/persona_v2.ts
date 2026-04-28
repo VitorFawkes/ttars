@@ -142,6 +142,38 @@ export async function runPersonaAgent_v2(
     scoringRules as any, agent.nome,
   );
 
+  // 2a. Score MONOTÔNICO: persiste max(score_anterior, score_atual). O subjective
+  // evaluator é instável (chama LLM a cada turn) e pode reavaliar e dar nota
+  // menor por mudança de contexto. Score de qualificação não deve cair sem
+  // motivo deterministico. Bug observado em prod 28/04: score saltou 20 → 0 → 5.
+  // Disqualified hard-stop ainda zera (caso "orçamento até 50k" — comportamento
+  // intencional).
+  if (ctx.conversation_id && scoreInfo.score !== null && !scoreInfo.disqualified) {
+    try {
+      const { data: prevTurns } = await supabase
+        .from('ai_conversation_turns')
+        .select('qualification_score_at_turn')
+        .eq('conversation_id', ctx.conversation_id)
+        .not('qualification_score_at_turn', 'is', null)
+        .order('qualification_score_at_turn', { ascending: false })
+        .limit(1);
+      const prevMax = (prevTurns?.[0] as { qualification_score_at_turn?: number } | undefined)?.qualification_score_at_turn ?? 0;
+      const effectiveScore = Math.max(scoreInfo.score, prevMax);
+      if (effectiveScore > scoreInfo.score) {
+        console.log(JSON.stringify({
+          event: 'score_monotonic_floor',
+          calculated: scoreInfo.score,
+          prev_max: prevMax,
+          effective: effectiveScore,
+        }));
+        scoreInfo.score = effectiveScore;
+        scoreInfo.qualificado = scoreInfo.threshold !== null && effectiveScore >= scoreInfo.threshold;
+      }
+    } catch (err) {
+      console.warn('[persona_v2] monotonic score lookup failed:', err);
+    }
+  }
+
   // 3. Detecta momento atual (híbrido: determinístico + LLM)
   const detCtx: MomentDetectionContext = {
     is_primeiro_contato: ctx.is_primeiro_contato,

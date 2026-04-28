@@ -942,6 +942,23 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
     lines.push(`- Pode quebrar em até 2-3 mensagens curtas se ficar mais natural.`);
   }
 
+  // Conduta conversacional — quando o lead faz pergunta off-script ou esquiva,
+  // primeiro RESPONDE/RECONHECE o que ele disse antes de redirecionar.
+  // Sem isso, soa evasivo (bug 28/04: lead perguntou "como funciona produção"
+  // e Estela só redirecionou pra qualificação de orçamento, sem responder).
+  lines.push(`- Se o lead fizer uma pergunta ou trouxer um tema fora do roteiro, RESPONDA primeiro de forma curta e útil (mesmo que parcial), DEPOIS retome a sua linha de conversa de forma natural. Não ignore o que ele perguntou.`);
+
+  // Esquiva de pergunta da Sondagem — 1 retry máximo, nunca martela.
+  lines.push(`- Se você perguntou algo da Sondagem e o lead não respondeu (mudou de assunto, esquivou), você pode tentar UMA VEZ MAIS de forma natural — mas só depois de reconhecer/responder o que ele disse. Se ele esquivar de novo, deixa pra lá e segue a conversa. Não force.`);
+
+  // Modo Desfecho qualificado: ser natural, não martelar reunião.
+  // Detecção heurística: o moment_key contém "qualifi" ou "desfecho" — admin
+  // tipicamente nomeia assim. Senão, comportamento default não muda.
+  const isDesfecho = /desfecho|qualifi|fechament/i.test(cur.moment_key);
+  if (isDesfecho) {
+    lines.push(`- Você está na fase de FECHAMENTO. O objetivo final é marcar a reunião com a especialista. Mas seja natural: se o lead quiser conversar mais, fazer perguntas ou compartilhar algo, RESPONDA naturalmente — não fique empurrando reunião a cada turn. Quando der a abertura natural pra propor o horário, proponha. Cuidado pra não soar insistente.`);
+  }
+
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);
   lines.push(`- Output: só o texto que vai no WhatsApp. Sem aspas externas, sem prefixo "Resposta:", sem explicação.`);
   return lines.join('\n');
