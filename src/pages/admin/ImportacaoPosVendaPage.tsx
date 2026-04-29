@@ -1856,6 +1856,58 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
+            // Recuperar receita histórica via pos_venda_import_log_items.
+            // Quando uma viagem da planilha agregada vai CRIAR card novo, a receita
+            // não vem na planilha — buscamos no log de imports anteriores (que vieram
+            // da planilha detalhada com a coluna Receita) usando os números de venda.
+            const tripsThatNeedReceita = fullTrips.filter(t => t.action === 'create' && t.vendaNums.length > 0)
+            if (tripsThatNeedReceita.length > 0) {
+                const allVendaNums = [...new Set(tripsThatNeedReceita.flatMap(t => t.vendaNums))]
+                if (allVendaNums.length > 0) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: logItems } = await ((supabase as any).from('pos_venda_import_log_items') as any)
+                        .select('venda_nums, total_venda, total_receita, created_at')
+                        .overlaps('venda_nums', allVendaNums)
+                        .order('created_at', { ascending: false })
+                        .limit(500)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const items: Array<{ venda_nums: string[]; total_venda: number; total_receita: number; created_at: string }> = logItems || []
+                    for (const t of tripsThatNeedReceita) {
+                        const tripSet = new Set(t.vendaNums)
+                        // Prioriza item com mesmo conjunto de vendas; depois overlap com mais matches
+                        let best: typeof items[0] | null = null
+                        let bestScore = 0
+                        for (const item of items) {
+                            const overlap = (item.venda_nums || []).filter(v => tripSet.has(v)).length
+                            if (overlap === 0) continue
+                            // score: overlap exato vale mais; data mais recente desempata
+                            const exact = overlap === t.vendaNums.length && item.venda_nums.length === t.vendaNums.length
+                            const score = (exact ? 1000 : overlap * 10)
+                            if (score > bestScore) {
+                                best = item
+                                bestScore = score
+                            }
+                        }
+                        if (best && best.total_receita > 0) {
+                            t.receita = best.total_receita
+                            // Se a planilha agregada não trouxe valor mas o log tem, usa do log
+                            if (t.valorTotal === 0 && best.total_venda > 0) {
+                                t.valorTotal = best.total_venda
+                            }
+                            // Distribuir receita pelos products proporcionalmente ao sale_value
+                            // (o RPC recalcula receita do card via sum(sale_value) - sum(supplier_cost),
+                            // então precisa estar nos products também)
+                            const totalSale = t.products.reduce((s, p) => s + p.valorTotal, 0)
+                            if (totalSale > 0) {
+                                for (const p of t.products) {
+                                    p.receita = Math.round((p.valorTotal / totalSale) * t.receita * 100) / 100
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             for (const t of fullTrips) {
                 t.audit = computeAudit(t)
                 // Se há outros cards com a mesma venda, sobe a severidade pra warn (se ainda 'ok'),
@@ -1871,8 +1923,11 @@ export default function ImportacaoPosVendaPage() {
             setCardsToArchive(new Set(fullTrips.flatMap(t => (t.otherCardCandidates || []).map(o => o.id))))
             setStep('preview')
             const matched = fullTrips.filter(t => t.action === 'update').length
+            const created = fullTrips.filter(t => t.action === 'create').length
+            const withReceita = fullTrips.filter(t => t.action === 'create' && t.receita > 0).length
             const unmatched = fullTrips.filter(t => t.action === 'skip').length
-            toast.success(`${fullTrips.length} viagens lidas — ${matched} com card no CRM, ${unmatched} sem card.`)
+            const receitaMsg = withReceita > 0 ? ` · receita recuperada do histórico em ${withReceita} criação(ões)` : ''
+            toast.success(`${fullTrips.length} viagens lidas — ${matched} atualizar, ${created} criar, ${unmatched} pular${receitaMsg}.`)
         } catch (err) {
             console.error('Erro ao processar planilha agregada:', err)
             toast.error(`Erro ao processar arquivo: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
