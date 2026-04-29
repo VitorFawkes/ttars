@@ -369,6 +369,7 @@ export default function Pipeline() {
                             subView={subView}
                             filters={filters}
                             showWonDirect={showWonDirect}
+                            showClosedCards={currentProduct === 'CORP'}
                             className="h-full px-8 pb-4"
                         />
                     ) : (
@@ -378,6 +379,7 @@ export default function Pipeline() {
                             subView={subView}
                             filters={filters}
                             showWonDirect={showWonDirect}
+                            showClosedCards={currentProduct === 'CORP'}
                             onCardClick={(cardId) => {
                                 navigate(`/cards/${cardId}`)
                             }}

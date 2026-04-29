@@ -11,6 +11,7 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useProductContext } from '@/hooks/useProductContext'
 import TripsProductWidgets from '@/components/analytics/resumo/TripsProductWidgets'
 import WeddingProductWidgets from '@/components/analytics/resumo/WeddingProductWidgets'
+import CorpProductWidgets from '@/components/analytics/resumo/CorpProductWidgets'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,6 +140,7 @@ export default function ResumoView() {
             {/* Variantes por produto */}
             {currentProduct === 'TRIPS' && <TripsProductWidgets />}
             {currentProduct === 'WEDDING' && <WeddingProductWidgets />}
+            {currentProduct === 'CORP' && <CorpProductWidgets />}
         </div>
     )
 }

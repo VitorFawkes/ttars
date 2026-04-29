@@ -672,3 +672,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-29T15:13:35Z | supabase/migrations/20260429c_arquiva_cards_active_campaign_pre_pos_viagem.sql | applied_to_prod
 2026-04-29T15:14:10Z | supabase/migrations/20260429d_guard_ganho_pos_pre_viagem.sql | applied_to_prod
 2026-04-29T16:03:49Z | supabase/migrations/20260429a_ai_agent_moments_intent.sql | applied_to_prod
+2026-04-29T18:03:11Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429a_corporativo_provision.sql | applied_to_prod
+2026-04-29T18:05:50Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429a_corporativo_provision.sql | applied_to_prod

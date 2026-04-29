@@ -31,7 +31,7 @@ export interface ProductMetadata {
 const FALLBACK_PRODUCTS: ProductMetadata[] = [
     { id: '', slug: 'TRIPS', name: 'Welcome Trips', name_short: 'Trips', icon: Plane, icon_name: 'Plane', color_class: 'text-teal-500', pipeline_id: null, deal_label: 'Viagem', deal_plural: 'Viagens', main_date_label: 'Data da Viagem', not_found_label: 'Viagem não encontrada', active: true, display_order: 1 },
     { id: '', slug: 'WEDDING', name: 'Welcome Wedding', name_short: 'Wedding', icon: Heart, icon_name: 'Heart', color_class: 'text-rose-500', pipeline_id: null, deal_label: 'Casamento', deal_plural: 'Casamentos', main_date_label: 'Data do Casamento', not_found_label: 'Casamento não encontrado', active: true, display_order: 2 },
-    { id: '', slug: 'CORP', name: 'Welcome Corp', name_short: 'Corp', icon: Building2, icon_name: 'Building2', color_class: 'text-purple-500', pipeline_id: null, deal_label: 'Evento', deal_plural: 'Eventos', main_date_label: 'Data do Evento', not_found_label: 'Evento não encontrado', active: false, display_order: 3 },
+    { id: '', slug: 'CORP', name: 'Welcome Corporativo', name_short: 'Corporativo', icon: Building2, icon_name: 'Building2', color_class: 'text-purple-500', pipeline_id: null, deal_label: 'Atendimento', deal_plural: 'Atendimentos', main_date_label: 'Data do atendimento', not_found_label: 'Atendimento não encontrado', active: true, display_order: 3 },
 ]
 
 export function useProducts(includeInactive = false) {
