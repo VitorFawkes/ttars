@@ -175,7 +175,14 @@ interface TripGroup {
     existingGanhoPos: boolean | null
     existingDonoPosId: string | null
     /** Quando há mais de um card no CRM com a mesma venda, lista os outros (id + titulo). */
-    otherCardCandidates: Array<{ id: string; titulo: string }>
+    otherCardCandidates: Array<{
+        id: string
+        titulo: string
+        statusComercial: string | null
+        ganhoPlanner: boolean | null
+        stageId: string | null
+        stageName: string | null
+    }>
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
     skipReason: string | null
@@ -718,23 +725,35 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                             )}
                             {(trip.otherCardCandidates?.length ?? 0) > 0 && (
                                 <div className="mt-1.5 pt-1.5 border-t border-amber-200/50">
-                                    <div className="font-medium mb-0.5">
-                                        Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda:
+                                    <div className="font-medium mb-1">
+                                        Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda (não vão ser tocados):
                                     </div>
-                                    <ul className="space-y-0.5">
-                                        {trip.otherCardCandidates.map(other => (
-                                            <li key={other.id} className="flex items-start gap-1">
-                                                <span className="text-amber-500 shrink-0">•</span>
-                                                <Link
-                                                    to={`/cards/${other.id}`}
-                                                    className="underline hover:no-underline truncate"
-                                                    onClick={e => e.stopPropagation()}
-                                                    title={other.titulo}
-                                                >
-                                                    {other.titulo}
-                                                </Link>
-                                            </li>
-                                        ))}
+                                    <ul className="space-y-1">
+                                        {trip.otherCardCandidates.map(other => {
+                                            const status = other.statusComercial ?? '—'
+                                            const etapa = other.stageName || '(etapa desconhecida)'
+                                            const ganhoPlannerLabel = other.ganhoPlanner === true
+                                                ? 'Ganho Planner ✓'
+                                                : 'sem Ganho Planner'
+                                            return (
+                                                <li key={other.id} className="flex items-start gap-1.5">
+                                                    <span className="text-amber-500 shrink-0 leading-tight">•</span>
+                                                    <div className="min-w-0">
+                                                        <Link
+                                                            to={`/cards/${other.id}`}
+                                                            className="underline hover:no-underline truncate block"
+                                                            onClick={e => e.stopPropagation()}
+                                                            title={other.titulo}
+                                                        >
+                                                            {other.titulo}
+                                                        </Link>
+                                                        <div className="text-[10px] text-amber-700/80 leading-tight">
+                                                            status: <span className="font-medium">{status}</span> • etapa: <span className="font-medium">{etapa}</span> • {ganhoPlannerLabel}
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            )
+                                        })}
                                     </ul>
                                 </div>
                             )}
@@ -1657,7 +1676,14 @@ export default function ImportacaoPosVendaPage() {
 
                 // O melhor candidato vence; o resto fica em otherCardCandidates pra mostrar na UI
                 const winner = uniqueCandidates[0] || null
-                const others = uniqueCandidates.slice(1).map(c => ({ id: c.id, titulo: c.titulo }))
+                const others = uniqueCandidates.slice(1).map(c => ({
+                    id: c.id,
+                    titulo: c.titulo,
+                    statusComercial: c.status_comercial,
+                    ganhoPlanner: c.ganho_planner,
+                    stageId: c.pipeline_stage_id,
+                    stageName: null as string | null, // populado no batch de stages
+                }))
 
                 let existingCardId: string | null = null
                 let existingCardTitle: string | null = null
@@ -1707,15 +1733,20 @@ export default function ImportacaoPosVendaPage() {
                 })
             }
 
-            // Batch: nome da etapa + slug da fase
-            const uniqueExistingStageIds = [...new Set(
-                fullTrips.map(t => t.existingStageId).filter(Boolean) as string[]
-            )]
-            if (uniqueExistingStageIds.length > 0) {
+            // Batch: nome da etapa + slug da fase. Inclui IDs dos outros candidates
+            // pra também mostrar a etapa atual deles na lista de ambíguos.
+            const allStageIds = new Set<string>()
+            for (const t of fullTrips) {
+                if (t.existingStageId) allStageIds.add(t.existingStageId)
+                for (const o of t.otherCardCandidates) {
+                    if (o.stageId) allStageIds.add(o.stageId)
+                }
+            }
+            if (allStageIds.size > 0) {
                 const { data: stages } = await supabase
                     .from('pipeline_stages')
                     .select('id, nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
-                    .in('id', uniqueExistingStageIds)
+                    .in('id', [...allStageIds])
                 const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (stages || []).map((s: any) => [s.id as string, { nome: s.nome as string, phaseSlug: s.phase?.slug as string }])
@@ -1728,6 +1759,11 @@ export default function ImportacaoPosVendaPage() {
                         if (info?.phaseSlug === 'planner') {
                             t.action = 'skip'
                             t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
+                        }
+                    }
+                    for (const o of t.otherCardCandidates) {
+                        if (o.stageId) {
+                            o.stageName = stageInfo.get(o.stageId)?.nome || null
                         }
                     }
                 }
