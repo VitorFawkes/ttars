@@ -167,15 +167,68 @@ interface TripGroup {
     existingCardTitle: string | null
     existingStageId: string | null
     existingStageName: string | null
+    existingPhaseSlug: string | null
+    existingStatusComercial: string | null
+    existingGanhoPos: boolean | null
+    existingDonoPosId: string | null
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
     skipReason: string | null
+    audit: AuditResult
     valorTotal: number
     receita: number
     vendaNums: string[]
 }
 
+type AuditSeverity = 'ok' | 'warn' | 'error'
+interface AuditResult {
+    severity: AuditSeverity
+    issues: string[]
+}
+
 type Step = 'idle' | 'preview' | 'importing' | 'done'
+
+// ─── Auditoria ──────────────────────────────────────────────
+
+/**
+ * Calcula a "saúde" de uma viagem do CSV em relação ao card existente no CRM.
+ *
+ * - error → não encontrei card no CRM (a viagem da planilha não tem card correspondente)
+ * - warn  → encontrei card, mas algo está fora do esperado para uma viagem ganha em pós-venda
+ * - ok    → tudo certo
+ */
+function computeAudit(trip: Pick<TripGroup,
+    'existingCardId' | 'existingPhaseSlug' | 'existingStageName' |
+    'existingStatusComercial' | 'existingGanhoPos' | 'existingDonoPosId'
+>): AuditResult {
+    if (!trip.existingCardId) {
+        return {
+            severity: 'error',
+            issues: ['Não encontrei card no CRM para essa viagem.'],
+        }
+    }
+    const issues: string[] = []
+    const isGanho = trip.existingStatusComercial === 'ganho'
+    if (!isGanho) {
+        issues.push('Card não está marcado como ganho.')
+    }
+    if (trip.existingGanhoPos !== true) {
+        issues.push('Card não está marcado como ganho em pós-venda.')
+    }
+    if (trip.existingPhaseSlug && trip.existingPhaseSlug !== 'pos_venda') {
+        const stageLabel = trip.existingStageName ? ` (${trip.existingStageName})` : ''
+        issues.push(`Etapa atual${stageLabel} está fora da fase Pós-venda.`)
+    } else if (!trip.existingPhaseSlug) {
+        issues.push('Etapa do card não pôde ser identificada.')
+    }
+    if (!trip.existingDonoPosId) {
+        issues.push('Sem dono pós-venda atribuído.')
+    }
+    return {
+        severity: issues.length === 0 ? 'ok' : 'warn',
+        issues,
+    }
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -246,7 +299,15 @@ class UnionFind {
 
 // ─── Trip Grouping Algorithm ────────────────────────────────
 
-function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action' | 'skipReason'>[] {
+type RawTripGroup = Omit<TripGroup,
+    | 'vendedorProfileId'
+    | 'existingCardId' | 'existingCardTitle'
+    | 'existingStageId' | 'existingStageName' | 'existingPhaseSlug'
+    | 'existingStatusComercial' | 'existingGanhoPos' | 'existingDonoPosId'
+    | 'moveStage' | 'action' | 'skipReason' | 'audit'
+>
+
+function groupRowsIntoTrips(rows: PosVendaCsvRow[]): RawTripGroup[] {
     // Step 1: Group by vendaNum
     const byVenda = new Map<string, PosVendaCsvRow[]>()
     for (const row of rows) {
@@ -352,7 +413,7 @@ function groupRowsIntoTrips(rows: PosVendaCsvRow[]): Omit<TripGroup, 'vendedorPr
     }
 
     // Step 5: Build trip aggregates
-    const trips: Omit<TripGroup, 'vendedorProfileId' | 'existingCardId' | 'existingCardTitle' | 'existingStageId' | 'existingStageName' | 'moveStage' | 'action' | 'skipReason'>[] = []
+    const trips: RawTripGroup[] = []
 
     for (const [, products] of groups) {
         // Separate annual products (Seguro Viagem with > 180 day span)
@@ -501,6 +562,14 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
         skip: { label: 'Pular', cls: 'bg-slate-100 text-slate-500' },
     }[trip.action]
 
+    const auditBadge: Record<AuditSeverity, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
+        ok: { label: 'Ok', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: CheckCircle2 },
+        warn: { label: 'Divergência', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle },
+        error: { label: 'Sem card', cls: 'bg-rose-50 text-rose-700 border-rose-200', Icon: XCircle },
+    }
+    const auditInfo = auditBadge[trip.audit.severity]
+    const AuditIcon = auditInfo.Icon
+
     const showStageDecision = trip.action === 'update' && !!trip.existingStageId && trip.existingStageId !== trip.stage.id
     const computedTitle = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
@@ -536,6 +605,13 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
                             {trip.stage.name}
                         </span>
+                        <span
+                            className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border', auditInfo.cls)}
+                            title={trip.audit.issues.length > 0 ? trip.audit.issues.join(' • ') : 'Card já está com tudo certo no CRM'}
+                        >
+                            <AuditIcon className="h-3 w-3" />
+                            {auditInfo.label}
+                        </span>
                     </div>
                     <div className="text-xs text-slate-500 truncate mb-0.5">
                         {trip.pagantePrincipal}
@@ -567,6 +643,34 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
             {trip.action === 'skip' && trip.skipReason && (
                 <div className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600">
                     {trip.skipReason}
+                </div>
+            )}
+
+            {/* Auditoria — lista de divergências (visível sem precisar expandir) */}
+            {trip.audit.issues.length > 0 && (
+                <div className={cn(
+                    'border-t px-4 py-2 text-xs',
+                    trip.audit.severity === 'error'
+                        ? 'border-rose-100 bg-rose-50/60 text-rose-800'
+                        : 'border-amber-100 bg-amber-50/60 text-amber-800'
+                )}>
+                    <div className="flex items-start gap-2">
+                        <AuditIcon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', trip.audit.severity === 'error' ? 'text-rose-600' : 'text-amber-600')} />
+                        <div className="space-y-0.5">
+                            {trip.audit.issues.map((issue, idx) => (
+                                <div key={idx}>{issue}</div>
+                            ))}
+                            {trip.existingCardId && (
+                                <Link
+                                    to={`/cards/${trip.existingCardId}`}
+                                    className="inline-block mt-1 text-[11px] underline hover:no-underline"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    Abrir card para conferir
+                                </Link>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -844,6 +948,7 @@ export default function ImportacaoPosVendaPage() {
     const [filterVendedor, setFilterVendedor] = useState('')
     const [filterApp, setFilterApp] = useState<'all' | 'sim' | 'nao'>('all')
     const [filterVoucher, setFilterVoucher] = useState<'all' | 'sim' | 'nao'>('all')
+    const [filterAudit, setFilterAudit] = useState<'all' | AuditSeverity>('all')
     const [showFilters, setShowFilters] = useState(false)
 
     // Persistência de sessão — mantém preview + filtros ao navegar entre páginas.
@@ -871,6 +976,7 @@ export default function ImportacaoPosVendaPage() {
                     setFilterVendedor(parsed.filterVendedor || '')
                     setFilterApp(parsed.filterApp || 'all')
                     setFilterVoucher(parsed.filterVoucher || 'all')
+                    setFilterAudit(parsed.filterAudit || 'all')
                     setShowFilters(!!parsed.showFilters)
                 }
             }
@@ -891,6 +997,7 @@ export default function ImportacaoPosVendaPage() {
                 filterValorMin, filterValorMax,
                 filterAction, filterVendedor,
                 filterApp, filterVoucher,
+                filterAudit,
                 showFilters,
             }))
         } catch (err) {
@@ -898,7 +1005,7 @@ export default function ImportacaoPosVendaPage() {
         }
     }, [step, fileName, trips, selectedTrips,
         filterDataFimMin, filterDataFimMax, filterValorMin, filterValorMax,
-        filterAction, filterVendedor, filterApp, filterVoucher,
+        filterAction, filterVendedor, filterApp, filterVoucher, filterAudit,
         showFilters, storageKey, hasRestored])
 
     // Auth check: admin or pos_venda phase
@@ -1051,20 +1158,29 @@ export default function ImportacaoPosVendaPage() {
             let existingCardId: string | null = null
             let existingCardTitle: string | null = null
             let existingStageId: string | null = null
+            let existingStatusComercial: string | null = null
+            let existingGanhoPos: boolean | null = null
+            let existingDonoPosId: string | null = null
+
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_pos, pos_owner_id'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
                 let query = supabase
                     .from('cards')
-                    .select('id, titulo, produto_data, pipeline_stage_id')
+                    .select(`${CARD_AUDIT_SELECT}, produto_data`)
                     .in('produto_data->>numero_venda_monde', vchunk)
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
 
                 if (cards && cards.length > 0) {
-                    existingCardId = cards[0].id
-                    existingCardTitle = cards[0].titulo as string
-                    existingStageId = (cards[0].pipeline_stage_id as string) || null
+                    const c = cards[0]
+                    existingCardId = c.id
+                    existingCardTitle = c.titulo as string
+                    existingStageId = (c.pipeline_stage_id as string) || null
+                    existingStatusComercial = (c.status_comercial as string) ?? null
+                    existingGanhoPos = (c.ganho_pos as boolean) ?? null
+                    existingDonoPosId = (c.pos_owner_id as string) ?? null
                     break
                 }
             }
@@ -1074,16 +1190,20 @@ export default function ImportacaoPosVendaPage() {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
                     let query = supabase
                         .from('cards')
-                        .select('id, titulo, pipeline_stage_id')
+                        .select(CARD_AUDIT_SELECT)
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
                         .limit(1)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
                     const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
-                        existingCardId = cards[0].id
-                        existingCardTitle = cards[0].titulo as string
-                        existingStageId = (cards[0].pipeline_stage_id as string) || null
+                        const c = cards[0]
+                        existingCardId = c.id
+                        existingCardTitle = c.titulo as string
+                        existingStageId = (c.pipeline_stage_id as string) || null
+                        existingStatusComercial = (c.status_comercial as string) ?? null
+                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
+                        existingDonoPosId = (c.pos_owner_id as string) ?? null
                         break
                     }
                 }
@@ -1102,7 +1222,7 @@ export default function ImportacaoPosVendaPage() {
                     const contatoId = contatos[0].id
                     let query = supabase
                         .from('cards')
-                        .select('id, titulo, pipeline_stage_id')
+                        .select(CARD_AUDIT_SELECT)
                         .eq('pessoa_principal_id', contatoId)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
@@ -1112,9 +1232,13 @@ export default function ImportacaoPosVendaPage() {
                     const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
-                        existingCardId = cards[0].id
-                        existingCardTitle = cards[0].titulo as string
-                        existingStageId = (cards[0].pipeline_stage_id as string) || null
+                        const c = cards[0]
+                        existingCardId = c.id
+                        existingCardTitle = c.titulo as string
+                        existingStageId = (c.pipeline_stage_id as string) || null
+                        existingStatusComercial = (c.status_comercial as string) ?? null
+                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
+                        existingDonoPosId = (c.pos_owner_id as string) ?? null
                     }
                 }
             }
@@ -1129,9 +1253,14 @@ export default function ImportacaoPosVendaPage() {
                 existingCardTitle,
                 existingStageId,
                 existingStageName: null, // preenchido no batch abaixo
+                existingPhaseSlug: null, // preenchido no batch abaixo
+                existingStatusComercial,
+                existingGanhoPos,
+                existingDonoPosId,
                 moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
                 skipReason: null, // preenchido no batch abaixo se for T. Planner
+                audit: { severity: 'ok', issues: [] }, // preenchido depois do batch de stages
             })
         }
 
@@ -1157,12 +1286,18 @@ export default function ImportacaoPosVendaPage() {
                 if (t.existingStageId) {
                     const info = stageInfo.get(t.existingStageId)
                     t.existingStageName = info?.nome || null
+                    t.existingPhaseSlug = info?.phaseSlug || null
                     if (info?.phaseSlug === 'planner') {
                         t.action = 'skip'
                         t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
                     }
                 }
             }
+        }
+
+        // Auditoria de saúde — calcula depois do enrichment de stages.
+        for (const t of fullTrips) {
+            t.audit = computeAudit(t)
         }
 
         setTrips(fullTrips)
@@ -1410,10 +1545,11 @@ export default function ImportacaoPosVendaPage() {
     }
 
     // ─── Filter logic ────────────────────────────────────────
-    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor || filterApp !== 'all' || filterVoucher !== 'all')
+    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor || filterApp !== 'all' || filterVoucher !== 'all' || filterAudit !== 'all')
 
     const filteredTrips = trips.filter(trip => {
         if (filterAction !== 'all' && trip.action !== filterAction) return false
+        if (filterAudit !== 'all' && trip.audit.severity !== filterAudit) return false
         if (filterDataFimMin && (!trip.dataFim || trip.dataFim < filterDataFimMin)) return false
         if (filterDataFimMax && (!trip.dataFim || trip.dataFim > filterDataFimMax)) return false
         if (filterValorMin && trip.valorTotal < parseFloat(filterValorMin)) return false
@@ -1438,6 +1574,7 @@ export default function ImportacaoPosVendaPage() {
         setFilterVendedor('')
         setFilterApp('all')
         setFilterVoucher('all')
+        setFilterAudit('all')
     }, [])
 
     const selectFiltered = useCallback(() => {
@@ -1507,6 +1644,12 @@ export default function ImportacaoPosVendaPage() {
     const deselected = scopeTrips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id)).length
     const scopeActionable = scopeTrips.filter(t => t.action !== 'skip')
     const selectedInScope = scopeActionable.filter(t => selectedTrips.has(t.id)).length
+
+    // Auditoria — sempre calculada sobre todas as viagens (não respeita filtro de Saúde,
+    // senão clicar num cartão zera os outros contadores).
+    const auditOk = trips.filter(t => t.audit.severity === 'ok').length
+    const auditWarn = trips.filter(t => t.audit.severity === 'warn').length
+    const auditError = trips.filter(t => t.audit.severity === 'error').length
 
     return (
         <div className="h-full overflow-y-auto">
@@ -1591,6 +1734,91 @@ export default function ImportacaoPosVendaPage() {
                 {/* ─── PREVIEW ─────────────────────────────────── */}
                 {step === 'preview' && (
                     <div className="space-y-4">
+                        {/* Auditoria — saúde das viagens já existentes no CRM */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-slate-900">Conferência das viagens no CRM</h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Antes de importar, veja se cada viagem da planilha já está saudável no CRM (ganho, etapa de pós-venda e dono atribuído).
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => { setFilterAudit(filterAudit === 'ok' ? 'all' : 'ok'); setShowFilters(true) }}
+                                    className={cn(
+                                        'rounded-xl p-3 text-center transition-colors border',
+                                        filterAudit === 'ok'
+                                            ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-200'
+                                            : 'bg-white border-emerald-200 hover:bg-emerald-50/50'
+                                    )}
+                                    disabled={auditOk === 0}
+                                    title={auditOk > 0 ? 'Filtrar viagens saudáveis' : ''}
+                                >
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                        <p className="text-xl font-bold text-emerald-600">{auditOk}</p>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Ok</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setFilterAudit(filterAudit === 'warn' ? 'all' : 'warn'); setShowFilters(true) }}
+                                    className={cn(
+                                        'rounded-xl p-3 text-center transition-colors border',
+                                        filterAudit === 'warn'
+                                            ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-200'
+                                            : 'bg-white border-amber-200 hover:bg-amber-50/50'
+                                    )}
+                                    disabled={auditWarn === 0}
+                                    title={auditWarn > 0 ? 'Filtrar viagens com divergência' : ''}
+                                >
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                        <p className="text-xl font-bold text-amber-600">{auditWarn}</p>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Com divergência</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setFilterAudit(filterAudit === 'error' ? 'all' : 'error'); setShowFilters(true) }}
+                                    className={cn(
+                                        'rounded-xl p-3 text-center transition-colors border',
+                                        filterAudit === 'error'
+                                            ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200'
+                                            : 'bg-white border-rose-200 hover:bg-rose-50/50'
+                                    )}
+                                    disabled={auditError === 0}
+                                    title={auditError > 0 ? 'Filtrar viagens sem card no CRM' : ''}
+                                >
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <XCircle className="h-4 w-4 text-rose-600" />
+                                        <p className="text-xl font-bold text-rose-600">{auditError}</p>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Sem card no CRM</p>
+                                </button>
+                            </div>
+                            {filterAudit !== 'all' && (
+                                <div className="mt-3 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2.5">
+                                    <span>
+                                        Mostrando apenas viagens
+                                        {filterAudit === 'ok' && ' saudáveis'}
+                                        {filterAudit === 'warn' && ' com divergência'}
+                                        {filterAudit === 'error' && ' sem card no CRM'}
+                                        .
+                                    </span>
+                                    <button
+                                        onClick={() => setFilterAudit('all')}
+                                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700 transition-colors"
+                                    >
+                                        <X className="h-3 w-3" /> Limpar filtro de saúde
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Aviso: comportamento em cards existentes */}
                         {trips.some(t => t.action === 'update') && (
                             <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm">
@@ -1752,6 +1980,21 @@ export default function ImportacaoPosVendaPage() {
                                                 <option value="all">Todos</option>
                                                 <option value="sim">Todos com voucher</option>
                                                 <option value="nao">Algum sem voucher</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Saúde no CRM */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">Saúde no CRM</label>
+                                            <select
+                                                value={filterAudit}
+                                                onChange={e => setFilterAudit(e.target.value as typeof filterAudit)}
+                                                className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                            >
+                                                <option value="all">Todas</option>
+                                                <option value="ok">Apenas saudáveis</option>
+                                                <option value="warn">Apenas com divergência</option>
+                                                <option value="error">Apenas sem card no CRM</option>
                                             </select>
                                         </div>
                                     </div>
