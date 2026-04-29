@@ -9,7 +9,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Zap } from 'lucide-react'
+import { toast } from 'sonner'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
@@ -17,7 +18,6 @@ import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
-import { toast } from 'sonner'
 import { cn } from '../../../lib/utils'
 
 interface ConciergeKanbanBoardProps {
@@ -25,7 +25,7 @@ interface ConciergeKanbanBoardProps {
 }
 
 export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
-  const { groupedByEstado, isLoading } = useKanbanTarefas(filters)
+  const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
@@ -73,8 +73,21 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+      <div className="flex items-center justify-center h-64 text-sm text-slate-500">
+        <Loader2 className="w-4 h-4 animate-spin mr-2" />
         Carregando atendimentos…
+      </div>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="px-6 py-8">
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
+          <Zap className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-900">Sem atendimentos na fila</h3>
+          <p className="text-sm text-slate-500 mt-1.5">Quando algo aparecer pra fazer, vai cair aqui.</p>
+        </div>
       </div>
     )
   }
@@ -84,24 +97,26 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
       {showLeftArrow && (
         <button
           onClick={scrollLeft}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-200 rounded-full p-2 shadow-md hover:bg-slate-50"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-200 rounded-full p-1.5 shadow-md hover:bg-slate-50 hover:shadow-lg transition-shadow"
+          aria-label="Rolar para esquerda"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
         </button>
       )}
       {showRightArrow && (
         <button
           onClick={scrollRight}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-200 rounded-full p-2 shadow-md hover:bg-slate-50"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-200 rounded-full p-1.5 shadow-md hover:bg-slate-50 hover:shadow-lg transition-shadow"
+          aria-label="Rolar para direita"
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
         </button>
       )}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div
           ref={containerRef}
-          className={cn('flex gap-3 overflow-x-auto px-6 py-4 h-full', 'scroll-smooth')}
+          className={cn('flex gap-3 overflow-x-auto px-6 py-4 h-full scroll-smooth')}
         >
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
@@ -115,8 +130,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                 tone={col.tone}
               >
                 {items.length === 0 ? (
-                  <div className="text-[11px] text-slate-400 italic py-4 text-center">
-                    nenhum atendimento
+                  <div className="text-[10.5px] text-slate-400 italic py-6 text-center">
+                    vazio
                   </div>
                 ) : (
                   items.map(item => (
