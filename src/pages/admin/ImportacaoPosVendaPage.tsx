@@ -2136,17 +2136,21 @@ export default function ImportacaoPosVendaPage() {
                                                 ? 'Cada linha é uma viagem completa. O sistema vai localizar o card no CRM pelos números de venda e mostrar o que está divergente.'
                                                 : 'Faça upload do CSV com os produtos vendidos. O sistema agrupará por viagem, detectará cards existentes e criará os novos no pós-venda.'}
                                         </p>
-                                        <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer font-medium text-sm">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer font-medium text-sm"
+                                        >
                                             <FileSpreadsheet className="h-4 w-4" />
                                             Selecionar arquivo
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept=".csv,.xlsx,.xls,.tsv,.txt"
-                                                className="hidden"
-                                                onChange={handleFileUpload}
-                                            />
-                                        </label>
+                                        </button>
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept=".csv,.xlsx,.xls,.tsv,.txt"
+                                            className="sr-only"
+                                            onChange={handleFileUpload}
+                                        />
                                         <p className="text-xs text-slate-400 mt-3">
                                             {flowMode === 'agregada'
                                                 ? 'CSV, XLSX ou XLS — colunas esperadas: Pagante, Início, Fim, Vendas, Produtos, Fornecedores, Passageiros, Vendedor, Valor (R$)'
