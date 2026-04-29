@@ -25,11 +25,11 @@ export function useMoverEstadoFunil() {
 
   return useMutation<void, Error, MoverEstadoInput, OptimisticContext>({
     mutationFn: async ({ atendimento, destino, outcomeEncerramento, observacao }) => {
-      if (destino === 'a_fazer') {
-        throw new Error('Não dá pra voltar para "A fazer"')
+      if (destino === 'em_contato') {
+        throw new Error('Não dá pra voltar para "Em contato"')
       }
 
-      if (destino === 'em_contato') {
+      if (destino === 'aguardando_retorno') {
         if (atendimento.notificou_cliente_em) return
         const { error } = await sbAny.rpc('rpc_notificar_cliente', {
           p_atendimento_id: atendimento.atendimento_id,
@@ -92,7 +92,7 @@ export function useMoverEstadoFunil() {
           return old.map(item => {
             if (item.atendimento_id !== atendimento.atendimento_id) return item
 
-            if (destino === 'em_contato') {
+            if (destino === 'aguardando_retorno') {
               const next = { ...item, notificou_cliente_em: new Date().toISOString() }
               return { ...next, estado_funil: computeEstadoFunil(next) }
             }
@@ -128,10 +128,10 @@ export function useMoverEstadoFunil() {
     },
 
     onSuccess: (_data, vars) => {
-      if (vars.destino === 'em_contato')        toast.success('Cliente notificado')
-      else if (vars.destino === 'aceito')       toast.success('Oferta marcada como aceita')
-      else if (vars.destino === 'feito')        toast.success('Atendimento concluído')
-      else if (vars.destino === 'encerrado')    toast.success('Atendimento encerrado')
+      if (vars.destino === 'aguardando_retorno') toast.success('Cliente notificado')
+      else if (vars.destino === 'aceito')        toast.success('Oferta marcada como aceita')
+      else if (vars.destino === 'feito')         toast.success('Atendimento concluído')
+      else if (vars.destino === 'encerrado')     toast.success('Atendimento encerrado')
 
       queryClient.invalidateQueries({ queryKey: ['concierge'] })
       queryClient.invalidateQueries({ queryKey: ['tasks-list'] })

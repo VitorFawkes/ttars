@@ -13,7 +13,7 @@ import { cn } from '../../lib/utils'
 
 export default function KanbanPage() {
   const { profile } = useAuth()
-  const { slug: produtoAtual } = useCurrentProductMeta()
+  const { slug: produtoAtual, pipelineId } = useCurrentProductMeta()
   const { prefs, setPref, toggleSet, clearAll, hasAnyFilter } = useConciergePreferences()
 
   const [search, setSearch] = useState('')
@@ -48,8 +48,9 @@ export default function KanbanPage() {
     () => ({
       donoId,
       tipos: prefs.tipos.length > 0 ? prefs.tipos : undefined,
+      pipelineId: pipelineId ?? null,
     }),
-    [donoId, prefs.tipos]
+    [donoId, prefs.tipos, pipelineId]
   )
 
   const { data: tarefas, rawData: rawTarefas } = useKanbanTarefas(prefs.modo === 'tarefas' ? tarefasFilters : { donoId: null })
