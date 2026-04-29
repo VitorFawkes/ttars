@@ -1,5 +1,6 @@
 import { Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrg } from '../../contexts/OrgContext'
 import Sidebar from './Sidebar'
 import { ThemeBoundary } from "../ui/ThemeBoundary";
 import { useProposalNotifications } from '@/hooks/useProposalNotifications';
@@ -18,6 +19,7 @@ import { ImpersonateBanner } from '@/components/platform/ImpersonateBanner';
 
 export default function Layout() {
     const { session, loading, authError } = useAuth()
+    const { org } = useOrg()
 
     // Enable real-time proposal notifications
     useProposalNotifications()
@@ -81,7 +83,7 @@ export default function Layout() {
             <GlobalSearchModal />
             <FeedbackPopup />
             <NotificationCenter />
-            <OnboardingWizard />
+            <OnboardingWizard key={org?.id ?? 'no-org'} />
         </GlobalSearchProvider>
     );
 }

@@ -104,7 +104,24 @@ export default function OnboardingWizard() {
     const queryClient = useQueryClient()
 
     const currentStep = org?.onboarding_step ?? 0
-    const [minimized, setMinimized] = useState(false)
+
+    // Estado persistido em localStorage por org:
+    //  - Refresh não traz o popup grande de volta (mantém minimizado)
+    //  - Layout passa key={org?.id} para forçar remount na troca de workspace,
+    //    o que faz este lazy useState reler o localStorage do org correto
+    const storageKey = org?.id ? `onboarding-minimized-${org.id}` : null
+    const [minimized, setMinimizedState] = useState<boolean>(() => {
+        if (typeof window === 'undefined' || !storageKey) return false
+        return window.localStorage.getItem(storageKey) === '1'
+    })
+
+    const setMinimized = (value: boolean) => {
+        setMinimizedState(value)
+        if (typeof window !== 'undefined' && storageKey) {
+            if (value) window.localStorage.setItem(storageKey, '1')
+            else window.localStorage.removeItem(storageKey)
+        }
+    }
 
     // Mostrar apenas para admins e quando onboarding não foi completado
     const isAdmin = profile?.is_admin === true
@@ -132,15 +149,36 @@ export default function OnboardingWizard() {
     })
 
     if (!shouldShow || minimized) {
-        // Botão flutuante para reabrir
+        // Botão flutuante para reabrir — sempre visível enquanto há onboarding pendente.
+        // z-50 para ficar acima de overlays do CRM (modais usam z-40).
         if (shouldShow && minimized) {
+            const progressPct = Math.round((currentStep / STEPS.length) * 100)
             return (
                 <button
                     onClick={() => setMinimized(false)}
-                    className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg px-4 py-3 flex items-center gap-2 text-sm font-medium"
+                    className="fixed bottom-6 right-6 z-50 group bg-white border border-indigo-200 hover:border-indigo-400 hover:shadow-xl text-slate-900 rounded-2xl shadow-lg overflow-hidden transition-all"
+                    title="Continuar configuração do workspace"
                 >
-                    <Rocket className="w-4 h-4" />
-                    Continuar configuração ({currentStep}/{STEPS.length})
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="relative flex-shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                                <Rocket className="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full ring-2 ring-white animate-pulse" />
+                        </div>
+                        <div className="text-left pr-1">
+                            <p className="text-xs font-semibold text-slate-900 leading-tight">Continuar configuração</p>
+                            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+                                {currentStep}/{STEPS.length} passos · {progressPct}%
+                            </p>
+                        </div>
+                    </div>
+                    <div className="h-1 bg-slate-100">
+                        <div
+                            className="h-full bg-indigo-600 transition-all duration-500"
+                            style={{ width: `${progressPct}%` }}
+                        />
+                    </div>
                 </button>
             )
         }
