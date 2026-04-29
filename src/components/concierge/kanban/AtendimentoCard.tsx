@@ -67,25 +67,28 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
     >
       <span className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg', meta.dotColor)} />
 
-      {(selectionMode || selected) && onToggleSelect && (
+      {onToggleSelect && (
         <button
           type="button"
           data-no-drag
           onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
           onPointerDown={(e) => e.stopPropagation()}
           className={cn(
-            'absolute top-2 right-2 z-10 w-5 h-5 rounded border flex items-center justify-center transition-colors',
+            'absolute top-2 right-2 z-10 w-5 h-5 rounded border flex items-center justify-center transition-all',
             selected
-              ? 'bg-indigo-600 border-indigo-600 text-white'
-              : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50'
+              ? 'bg-indigo-600 border-indigo-600 text-white opacity-100'
+              : selectionMode
+              ? 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-100'
+              : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
           )}
           aria-label={selected ? 'Desmarcar' : 'Selecionar'}
+          title="Selecionar para ações em massa"
         >
           {selected && <Check className="w-3 h-3" strokeWidth={3} />}
         </button>
       )}
 
-      <div className={cn('pl-3 py-2.5', selectionMode || selected ? 'pr-9' : 'pr-2.5')}>
+      <div className="pl-3 pr-7 py-2.5">
         <div className="flex items-start justify-between gap-2 mb-1">
           <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
             {titulo}
