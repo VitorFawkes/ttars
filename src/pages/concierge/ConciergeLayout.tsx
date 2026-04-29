@@ -6,8 +6,8 @@ import { Button } from '../../components/ui/Button'
 import { NovoAtendimentoModal } from '../../components/concierge/NovoAtendimentoModal'
 
 const tabs = [
-  { name: 'Meu Dia', path: '/concierge', exact: true },
-  { name: 'Kanban', path: '/concierge/kanban' },
+  { name: 'Kanban', path: '/concierge', exact: true },
+  { name: 'Meu Dia', path: '/concierge/meu-dia' },
   { name: 'Painel', path: '/concierge/painel' },
   { name: 'Modelos', path: '/concierge/modelos' },
 ]

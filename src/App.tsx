@@ -249,8 +249,10 @@ function App() {
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/concierge" element={<ConciergeLayout />}>
-                    <Route index element={<MeuDiaPage />} />
-                    <Route path="kanban" element={<KanbanPage />} />
+                    <Route index element={<KanbanPage />} />
+                    <Route path="meu-dia" element={<MeuDiaPage />} />
+                    <Route path="kanban" element={<Navigate to="/concierge" replace />} />
+                    <Route path="em-lote" element={<Navigate to="/concierge" replace />} />
                     <Route path="painel" element={<PainelGestorPage />} />
                     <Route path="modelos" element={<ModelosPage />} />
                   </Route>
