@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Flame, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
+import { Calendar, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem } from '../../../hooks/concierge/types'
 import { useMarcarOutcome } from '../../../hooks/concierge/useAtendimentoMutations'
@@ -43,7 +43,6 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
   const fim = fmtDate(viagem.data_viagem_fim)
   const dataLabel = ini && fim ? `${ini} – ${fim}` : ini ?? 'Sem data'
   const isCritica = viagem.saude === 'critica'
-  const isConcluida = viagem.saude === 'concluida'
   const inlineTasks = viagem.abertos.slice(0, MAX_INLINE_TASKS)
   const remaining = viagem.abertos.length - inlineTasks.length
 
@@ -62,25 +61,21 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
           onClick={onOpenDrawer}
           className="block w-full text-left hover:bg-slate-50/50 -mx-1 -mt-1 px-1 pt-1 pb-1 rounded"
         >
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
-              {viagem.card_titulo}
-            </h4>
-            {isCritica && <Flame className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" strokeWidth={2.5} />}
-            {isConcluida && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" strokeWidth={2.5} />}
-          </div>
+          <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 mb-1">
+            {viagem.card_titulo}
+          </h4>
 
-          <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500">
-            <span className="font-semibold text-slate-600 uppercase tracking-wide">{viagem.produto?.toUpperCase()}</span>
+          <div className="flex items-center gap-x-1.5 gap-y-0.5 text-[10.5px] text-slate-500 flex-wrap">
+            <span className="font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{viagem.produto?.toUpperCase()}</span>
             <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center gap-0.5">
+            <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
               <Calendar className="w-2.5 h-2.5" />
               {dataLabel}
             </span>
             {viagem.dias_pra_embarque != null && viagem.dias_pra_embarque >= 0 && (
               <>
                 <span className="text-slate-300">·</span>
-                <span className="font-mono font-semibold text-slate-700">embarca em {viagem.dias_pra_embarque}d</span>
+                <span className="font-mono font-semibold text-slate-700 whitespace-nowrap">embarca em {viagem.dias_pra_embarque}d</span>
               </>
             )}
           </div>
@@ -118,14 +113,13 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
       <div className="border-t border-slate-100 px-2.5 py-1 flex items-center justify-between gap-2 bg-slate-50/40">
         <div className="flex items-center gap-1 text-[10px]">
           {viagem.vencidos > 0 && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">
-              <Flame className="w-2.5 h-2.5" strokeWidth={3} />
-              {viagem.vencidos}
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">
+              {viagem.vencidos} vencido{viagem.vencidos === 1 ? '' : 's'}
             </span>
           )}
           {viagem.hoje > 0 && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
-              {viagem.hoje} hj
+              {viagem.hoje} hoje
             </span>
           )}
           {viagem.concluidos > 0 && (
@@ -204,11 +198,8 @@ function TaskInlineRow({ task, onClick }: { task: MeuDiaItem; onClick: () => voi
         </button>
 
         <div className="shrink-0 flex items-center gap-1.5">
-          {isVencido && !done && (
-            <span className="text-[9.5px] font-bold text-red-700 uppercase tracking-wide">vence</span>
-          )}
           {prazo && (
-            <span className={cn('font-mono text-[10.5px] font-semibold', prazo.overdue && !done ? 'text-red-600' : 'text-slate-500')}>
+            <span className={cn('font-mono text-[10.5px] font-semibold whitespace-nowrap', (prazo.overdue || isVencido) && !done ? 'text-red-600' : 'text-slate-500')}>
               {prazo.label}
             </span>
           )}

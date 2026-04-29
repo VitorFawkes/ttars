@@ -1,50 +1,98 @@
 import { Search, X } from 'lucide-react'
-import { TIPO_LABEL, SOURCE_LABEL, type TipoConcierge, type SourceConcierge } from '../../../hooks/concierge/types'
-import { JANELA_LABEL, JANELA_ORDER, type JanelaEmbarque } from '../../../hooks/concierge/useKanbanTarefas'
+import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type TipoConcierge, type SourceConcierge } from '../../../hooks/concierge/types'
+import { JANELA_LABEL, JANELA_ORDER, type JanelaEmbarque, type KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
 import { SourceIcon } from '../Badges'
+import { ConsultorPicker } from './ConsultorPicker'
+import { MoreFiltersPopover } from './MoreFiltersPopover'
+import { useFilterTags } from '../../../hooks/analytics/useFilterOptions'
+import type { DonoFilter } from '../../../hooks/concierge/useConciergePreferences'
 import { cn } from '../../../lib/utils'
 
 interface KanbanFiltersBarProps {
   search: string
   onSearchChange: (v: string) => void
 
-  tipoFilter: Set<TipoConcierge>
+  donoFilter: DonoFilter
+  onDonoFilterChange: (next: DonoFilter) => void
+
+  tipoFilter: TipoConcierge[]
   onToggleTipo: (t: TipoConcierge) => void
 
-  janelaFilter: Set<JanelaEmbarque>
+  janelaFilter: JanelaEmbarque[]
   onToggleJanela: (j: JanelaEmbarque) => void
 
-  sourceFilter: Set<SourceConcierge>
+  sourceFilter: SourceConcierge[]
   onToggleSource: (s: SourceConcierge) => void
 
+  categoriaFilter: string[]
+  onToggleCategoria: (key: string) => void
+
+  tagFilter: string[]
+  onToggleTag: (id: string) => void
+
   cardFilter: { id: string; titulo: string } | null
-  onClearCard: () => void
+  onSelectCard: (card: { id: string; titulo: string } | null) => void
 
   onClearAll: () => void
   hasAnyFilter: boolean
 
-  showJanelaAndSource?: boolean
+  showAdvanced?: boolean
+  tarefas: KanbanTarefaItem[]
 }
 
 export function KanbanFiltersBar({
   search,
   onSearchChange,
+  donoFilter,
+  onDonoFilterChange,
   tipoFilter,
   onToggleTipo,
   janelaFilter,
   onToggleJanela,
   sourceFilter,
   onToggleSource,
+  categoriaFilter,
+  onToggleCategoria,
+  tagFilter,
+  onToggleTag,
   cardFilter,
-  onClearCard,
+  onSelectCard,
   onClearAll,
   hasAnyFilter,
-  showJanelaAndSource = true,
+  showAdvanced = true,
+  tarefas,
 }: KanbanFiltersBarProps) {
+  const { data: allTags = [] } = useFilterTags()
+
+  const activeChips: { key: string; label: string; onRemove: () => void }[] = []
+  if (cardFilter) {
+    activeChips.push({
+      key: `card-${cardFilter.id}`,
+      label: `Viagem: ${cardFilter.titulo}`,
+      onRemove: () => onSelectCard(null),
+    })
+  }
+  for (const c of categoriaFilter) {
+    const cat = CATEGORIAS_CONCIERGE[c as keyof typeof CATEGORIAS_CONCIERGE]
+    activeChips.push({
+      key: `cat-${c}`,
+      label: `Categoria: ${cat?.label ?? c}`,
+      onRemove: () => onToggleCategoria(c),
+    })
+  }
+  for (const id of tagFilter) {
+    const tag = allTags.find(t => t.id === id)
+    activeChips.push({
+      key: `tag-${id}`,
+      label: `Tag: ${tag?.name ?? id}`,
+      onRemove: () => onToggleTag(id),
+    })
+  }
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -65,19 +113,18 @@ export function KanbanFiltersBar({
           )}
         </div>
 
-        {cardFilter && (
-          <span className="inline-flex items-center gap-1 h-7 pl-2 pr-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11.5px] font-medium max-w-[260px]">
-            <span className="text-[10px] uppercase tracking-wide opacity-70">Viagem:</span>
-            <span className="truncate">{cardFilter.titulo}</span>
-            <button
-              type="button"
-              onClick={onClearCard}
-              className="ml-1 p-0.5 rounded hover:bg-indigo-100"
-              aria-label="Limpar filtro de viagem"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+        <ConsultorPicker value={donoFilter} onChange={onDonoFilterChange} />
+
+        {showAdvanced && (
+          <MoreFiltersPopover
+            categoriasFilter={categoriaFilter}
+            onToggleCategoria={onToggleCategoria}
+            tagFilter={tagFilter}
+            onToggleTag={onToggleTag}
+            cardFilter={cardFilter}
+            onSelectCard={onSelectCard}
+            tarefas={tarefas}
+          />
         )}
 
         {hasAnyFilter && (
@@ -94,7 +141,7 @@ export function KanbanFiltersBar({
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[11px] text-slate-500 shrink-0">Tipo:</span>
         {(Object.entries(TIPO_LABEL) as [TipoConcierge, typeof TIPO_LABEL[TipoConcierge]][]).map(([key, meta]) => {
-          const active = tipoFilter.has(key)
+          const active = tipoFilter.includes(key)
           return (
             <button
               key={key}
@@ -113,13 +160,12 @@ export function KanbanFiltersBar({
           )
         })}
 
-        {showJanelaAndSource && (
+        {showAdvanced && (
           <>
             <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
             <span className="text-[11px] text-slate-500 shrink-0">Embarque:</span>
             {JANELA_ORDER.map(j => {
-              const active = janelaFilter.has(j)
+              const active = janelaFilter.includes(j)
               return (
                 <button
                   key={j}
@@ -138,10 +184,9 @@ export function KanbanFiltersBar({
             })}
 
             <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
             <span className="text-[11px] text-slate-500 shrink-0">Origem:</span>
             {(Object.entries(SOURCE_LABEL) as [SourceConcierge, typeof SOURCE_LABEL[SourceConcierge]][]).map(([key, meta]) => {
-              const active = sourceFilter.has(key)
+              const active = sourceFilter.includes(key)
               return (
                 <button
                   key={key}
@@ -162,6 +207,27 @@ export function KanbanFiltersBar({
           </>
         )}
       </div>
+
+      {activeChips.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          {activeChips.map(chip => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-medium max-w-[260px]"
+            >
+              <span className="truncate">{chip.label}</span>
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                className="ml-0.5 p-0.5 rounded hover:bg-indigo-100"
+                aria-label="Remover filtro"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

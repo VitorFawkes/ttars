@@ -89,23 +89,15 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
       )}
 
       <div className="pl-3 pr-7 py-2.5">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
-            {titulo}
-          </h4>
-          {isVencido && (
-            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-red-100 text-red-700 tracking-wide">
-              VENCIDO
-            </span>
-          )}
-        </div>
+        <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 mb-1">
+          {titulo}
+        </h4>
 
         <div className="text-[11.5px] text-slate-600 truncate mb-2">{item.card_titulo}</div>
 
         {showCatPill && (
           <div className="mb-2">
-            <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold', meta.bgColor, meta.color)}>
-              <span className={cn('w-1 h-1 rounded-full', meta.dotColor)} />
+            <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold', meta.bgColor, meta.color)}>
               {catLabel}
             </span>
           </div>
@@ -115,7 +107,7 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           {prazo ? (
             <div className="min-w-0">
               <div className="text-[9.5px] text-slate-400 uppercase tracking-wide leading-none">Prazo</div>
-              <div className={cn('font-mono font-semibold text-[11px] mt-0.5', prazo.overdue ? 'text-red-600' : 'text-slate-700')}>
+              <div className={cn('font-mono font-semibold text-[11px] mt-0.5', prazo.overdue || isVencido ? 'text-red-600' : 'text-slate-700')}>
                 {prazo.label}
               </div>
             </div>
