@@ -1470,6 +1470,7 @@ export default function ImportacaoPosVendaPage() {
 
             // Aliases dos cabeçalhos da planilha agregada
             const colPagante = findColumn(headers, ['pagante', 'cliente', 'titular'])
+            const colCpf = findColumn(headers, ['cpf', 'documento'])
             const colInicio = findColumn(headers, ['início', 'inicio', 'data inicio', 'data início', 'check-in', 'checkin', 'embarque', 'partida'])
             const colFim = findColumn(headers, ['fim', 'final', 'data fim', 'check-out', 'checkout', 'volta', 'retorno'])
             const colVendas = findColumn(headers, ['vendas', 'venda', 'venda nº', 'venda n°', 'numeros venda', 'números venda', '# vendas'])
@@ -1527,6 +1528,10 @@ export default function ImportacaoPosVendaPage() {
                 const pagante = String(r[colPagante!] ?? '').trim()
                 if (!pagante) continue
 
+                const cpfRaw = colCpf ? String(r[colCpf] ?? '').trim() : ''
+                const cpfClean = (cpfRaw === '—' || cpfRaw === '-') ? '' : cpfRaw
+                const cpfNorm = normalizeCpf(cpfClean)
+
                 const dataInicio = parseDateFlex(r[colInicio!])
                 const dataFim = colFim ? parseDateFlex(r[colFim]) : null
 
@@ -1559,8 +1564,8 @@ export default function ImportacaoPosVendaPage() {
                 const products: PosVendaCsvRow[] = (produtos.length > 0 ? produtos : ['Viagem']).map((prod, i) => ({
                     vendaNum: vendaNums[i] || vendaNums[0] || '',
                     vendedor,
-                    cpf: '',
-                    cpfNorm: '',
+                    cpf: cpfClean,
+                    cpfNorm,
                     pagante,
                     fornecedor: fornecedores[i] || fornecedores[0] || '',
                     produto: prod,
@@ -1590,8 +1595,8 @@ export default function ImportacaoPosVendaPage() {
 
                 rawTrips.push({
                     id: `${pagante}-${vendaNums.join('_') || dataInicio || ''}`,
-                    cpfPrincipal: '',
-                    cpfNorm: '',
+                    cpfPrincipal: cpfClean,
+                    cpfNorm,
                     pagantePrincipal: pagante,
                     vendedor,
                     dataInicio,
@@ -1704,6 +1709,43 @@ export default function ImportacaoPosVendaPage() {
                     }
                 }
 
+                // 3. Fallback por CPF + datas (só se tem CPF na planilha e não achou pela venda).
+                // Mesma lógica do fluxo detalhado.
+                if (candidates.length === 0 && trip.cpfNorm && trip.dataInicio) {
+                    const { data: contatos } = await supabase
+                        .from('contatos')
+                        .select('id')
+                        .eq('cpf_normalizado', trip.cpfNorm)
+                        .is('deleted_at', null)
+                        .limit(1)
+                    if (contatos && contatos.length > 0) {
+                        const contatoId = contatos[0].id
+                        let query = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .eq('pessoa_principal_id', contatoId)
+                            .in('pipeline_stage_id', POS_VENDA_STAGES)
+                            .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
+                            .gte('data_viagem_fim', trip.dataInicio)
+                            .limit(5)
+                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                        const { data: cards } = await query
+                        for (const c of (cards || [])) {
+                            if (candidates.some(x => x.id === c.id)) continue
+                            candidates.push({
+                                id: c.id,
+                                titulo: c.titulo as string,
+                                pipeline_stage_id: (c.pipeline_stage_id as string) || null,
+                                status_comercial: (c.status_comercial as string) ?? null,
+                                ganho_planner: (c.ganho_planner as boolean) ?? null,
+                                ganho_pos: (c.ganho_pos as boolean) ?? null,
+                                pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                _matchType: 'venda_historico', // visualmente fallback, score igual histórico
+                            })
+                        }
+                    }
+                }
+
                 // Dedup por id
                 const uniqueCandidates = Array.from(
                     new Map(candidates.map(c => [c.id, c])).values()
@@ -1740,14 +1782,22 @@ export default function ImportacaoPosVendaPage() {
                     existingDonoPosId = winner.pos_owner_id
                 }
 
-                // Sem CPF disponível, NÃO há fallback por contato+datas.
-                // Cards não encontrados viram 'skip' (planilha agregada nunca cria cards).
-                const action: TripGroup['action'] = existingCardId ? 'update' : 'skip'
-                const skipReason = existingCardId
-                    ? null
-                    : (trip.vendaNums.length === 0
-                        ? 'Sem número de venda na planilha — não foi possível localizar o card.'
-                        : 'Não encontrei card com esses números de venda no CRM.')
+                // Decisão de ação:
+                // - Achou card no CRM → update
+                // - Não achou MAS tem CPF + pagante → create (cria contato e card novo)
+                // - Não achou e sem CPF/pagante → skip (não dá pra criar contato)
+                let action: TripGroup['action']
+                let skipReason: string | null = null
+                if (existingCardId) {
+                    action = 'update'
+                } else if (trip.cpfNorm && trip.pagantePrincipal) {
+                    action = 'create'
+                } else {
+                    action = 'skip'
+                    skipReason = trip.vendaNums.length === 0
+                        ? 'Sem número de venda nem CPF — não foi possível localizar nem criar o card.'
+                        : 'Não encontrei card com esses números de venda no CRM e não tem CPF pra criar um novo.'
+                }
 
                 fullTrips.push({
                     ...trip,
@@ -2686,9 +2736,13 @@ export default function ImportacaoPosVendaPage() {
                             </div>
                             <Button onClick={handleImport} disabled={toCreate + toUpdate === 0 && cardsToArchive.size === 0}>
                                 <Upload className="h-4 w-4 mr-1.5" />
-                                {flowMode === 'agregada'
-                                    ? `Atualizar ${toUpdate} viagen${toUpdate !== 1 ? 's' : ''}`
-                                    : `Importar ${toCreate + toUpdate} viagen${toCreate + toUpdate !== 1 ? 's' : ''}`}
+                                {(() => {
+                                    const total = toCreate + toUpdate
+                                    if (total === 0) return 'Aplicar'
+                                    if (toCreate > 0 && toUpdate > 0) return `Atualizar ${toUpdate} + criar ${toCreate} viagen${total !== 1 ? 's' : ''}`
+                                    if (toCreate > 0) return `Criar ${toCreate} viagen${toCreate !== 1 ? 's' : ''}`
+                                    return `Atualizar ${toUpdate} viagen${toUpdate !== 1 ? 's' : ''}`
+                                })()}
                                 {cardsToArchive.size > 0 && (
                                     <span className="ml-1.5 text-[10px] font-normal opacity-90">
                                         + arquivar {cardsToArchive.size}
