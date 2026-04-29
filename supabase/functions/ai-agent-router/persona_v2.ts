@@ -124,6 +124,36 @@ export async function runPersonaAgent_v2(
   ) => Promise<{ response: string; inputTokens: number; outputTokens: number }>,
 ): Promise<PersonaV2Result> {
 
+  // 0. Fechamento social curto: lead mandou só agradecimento ou despedida.
+  // Detector determinístico (regex ancorado pra mensagem INTEIRA — evita
+  // falso-positivo do tipo "ok pode ser quinta" matchar como "ok"). Aplica
+  // em todos os modos (literal, faithful, free) porque é resposta social
+  // independente da fase. Não chama LLM, não roda tools, não muda moment.
+  const closing = detectShortClosing(userMessage);
+  if (closing) {
+    const firstName = ctx.contact_name_known
+      ? ctx.contact_name.trim().split(/\s+/)[0]
+      : '';
+    const response = renderClosingResponse(closing, firstName);
+    console.log(JSON.stringify({
+      event: 'short_closing_response',
+      agent_id: agent.id,
+      type: closing,
+      user_message: userMessage.slice(0, 60),
+    }));
+    return {
+      response,
+      inputTokens: 0,
+      outputTokens: response.length / 4 | 0,
+      v2Metadata: {
+        current_moment_key: ctx.last_moment_key ?? 'short_closing',
+        qualification_score_at_turn: null,
+        moment_detection_method: 'deterministic',
+        moment_transition_reason: `short_closing:${closing}`,
+      },
+    };
+  }
+
   // 1. Carrega configs v2 em paralelo
   const [moments, silentSignals, fewShotExamples, scoringRules] = await Promise.all([
     loadPlaybookMoments(supabase, agent.id),
@@ -536,6 +566,46 @@ export async function runPersonaAgent_v2(
       moment_transition_reason: backoffice.moment_transition_reason || detected.reason,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: detectShortClosing — lead mandou só agradecimento/despedida?
+// Regex ANCORADA pra mensagem inteira normalizada — não pega "ok pode ser
+// quinta" porque a mensagem inteira não bate.
+// ---------------------------------------------------------------------------
+
+type ClosingType = 'thanks' | 'farewell';
+
+function detectShortClosing(userMessage: string): ClosingType | null {
+  if (!userMessage) return null;
+  // Normaliza: lowercase, remove acentos, tira pontuação no fim, trim
+  const normalized = userMessage
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[!.?]+$/g, '')
+    .trim();
+  if (normalized.length === 0 || normalized.length > 40) return null;
+
+  // Agradecimento — mensagem inteira é só isso
+  if (/^(obrigad[oa](ao|s)?|brigad[oa]|valeu|vlw|tmj|gratid[aã]o|agrade[cç]o|muit[oa] obrigad[oa]|obrigad[oa] mesmo)$/.test(normalized)) {
+    return 'thanks';
+  }
+
+  // Despedida
+  if (/^(tchau|ate logo|ate mais|ate breve|ate depois|ate ja|falou|fui|abracos?|um abraco|bjs|beijos?)$/.test(normalized)) {
+    return 'farewell';
+  }
+
+  return null;
+}
+
+function renderClosingResponse(type: ClosingType, firstName: string): string {
+  const name = firstName ? `, ${firstName}` : '';
+  if (type === 'thanks') {
+    return `Imagina${name}! Qualquer coisa estou por aqui.`;
+  }
+  // farewell
+  return `Até logo${name}!`;
 }
 
 // ---------------------------------------------------------------------------
