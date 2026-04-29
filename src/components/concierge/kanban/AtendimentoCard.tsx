@@ -1,7 +1,8 @@
 import { useDraggable } from '@dnd-kit/core'
-import { Check } from 'lucide-react'
+import { Check, Flame } from 'lucide-react'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE } from '../../../hooks/concierge/types'
 import type { KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
+import { useToggleTarefaCritica } from '../../../hooks/concierge/useToggleCritical'
 import { cn } from '../../../lib/utils'
 
 function fmtBRL(v: number | null | undefined) {
@@ -44,8 +45,11 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const prazo = relPrazo(item.data_vencimento)
   const valor = fmtBRL(item.valor)
   const isVencido = item.status_apresentacao === 'vencido'
+  const isCritical = item.prioridade === 'critica'
   const titulo = item.titulo?.trim() || catLabel
   const showCatPill = titulo !== catLabel
+
+  const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
 
   return (
     <div
@@ -54,7 +58,8 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
       data-draggable
       className={cn(
         'group relative bg-white border rounded-lg shadow-sm cursor-grab active:cursor-grabbing transition-all hover:shadow-md',
-        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200',
+        isCritical && !selected && 'border-red-400 ring-2 ring-red-100',
+        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : !isCritical && 'border-slate-200',
         isDragging && !isOverlay && 'opacity-40',
         isOverlay && 'shadow-xl ring-2 ring-indigo-400 cursor-grabbing rotate-1'
       )}
@@ -67,28 +72,48 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
     >
       <span className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg', meta.dotColor)} />
 
-      {onToggleSelect && (
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
         <button
           type="button"
           data-no-drag
-          onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+          onClick={(e) => { e.stopPropagation(); toggleCritica({ tarefa_id: item.tarefa_id, isCritical: !isCritical }) }}
           onPointerDown={(e) => e.stopPropagation()}
+          disabled={togglingCritica}
           className={cn(
-            'absolute top-2 right-2 z-10 w-5 h-5 rounded border flex items-center justify-center transition-all',
-            selected
-              ? 'bg-indigo-600 border-indigo-600 text-white opacity-100'
-              : selectionMode
-              ? 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-100'
-              : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+            'w-5 h-5 rounded flex items-center justify-center transition-all',
+            isCritical
+              ? 'bg-red-100 text-red-600 hover:bg-red-200 opacity-100'
+              : 'text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
           )}
-          aria-label={selected ? 'Desmarcar' : 'Selecionar'}
-          title="Selecionar para ações em massa"
+          aria-label={isCritical ? 'Remover marcação crítica' : 'Marcar como crítica'}
+          title={isCritical ? 'Tarefa crítica — clique pra remover' : 'Marcar como crítica'}
         >
-          {selected && <Check className="w-3 h-3" strokeWidth={3} />}
+          <Flame className="w-3 h-3" strokeWidth={2.5} />
         </button>
-      )}
 
-      <div className="pl-3 pr-7 py-2.5">
+        {onToggleSelect && (
+          <button
+            type="button"
+            data-no-drag
+            onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={cn(
+              'w-5 h-5 rounded border flex items-center justify-center transition-all',
+              selected
+                ? 'bg-indigo-600 border-indigo-600 text-white opacity-100'
+                : selectionMode
+                ? 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-100'
+                : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+            )}
+            aria-label={selected ? 'Desmarcar' : 'Selecionar'}
+            title="Selecionar para ações em massa"
+          >
+            {selected && <Check className="w-3 h-3" strokeWidth={3} />}
+          </button>
+        )}
+      </div>
+
+      <div className="pl-3 pr-12 py-2.5">
         <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 mb-1">
           {titulo}
         </h4>

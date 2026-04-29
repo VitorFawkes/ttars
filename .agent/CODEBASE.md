@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 144 paginas | 156 hooks | 22 views | 631 components
+> **Stats:** 191 tabelas | 145 paginas | 157 hooks | 22 views | 633 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **156 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **157 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -250,6 +250,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
+| `useEmpresas()` | `useEmpresas.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
@@ -402,7 +403,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **145 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -426,6 +427,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
+| `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |

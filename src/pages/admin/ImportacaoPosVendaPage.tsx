@@ -1054,7 +1054,23 @@ export default function ImportacaoPosVendaPage() {
     const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number; cardsArchived?: number } | null>(null)
     // Detalhe por viagem após o import — alimenta a tela "done" com lista do que subiu/falhou
     const [importDetails, setImportDetails] = useState<{
-        success: Array<{ pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; action: 'created' | 'updated' }>
+        success: Array<{
+            pagante: string
+            titulo: string
+            vendaNums: string[]
+            cardId: string | null
+            action: 'created' | 'updated'
+            changes: {
+                stageFrom: string | null
+                stageTo: string | null
+                stageMoved: boolean
+                statusFrom: string | null
+                statusTo: string | null
+                ganhoPosFrom: boolean | null
+                ganhoPosTo: boolean | null
+                vendasAdicionadas: string[]
+            }
+        }>
         failed: Array<{ pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; error: string }>
         skipped: Array<{ pagante: string; titulo: string; vendaNums: string[]; reason: string }>
     } | null>(null)
@@ -1990,17 +2006,24 @@ export default function ImportacaoPosVendaPage() {
         setImportProgress({ current: 0, total: toProcess.length })
 
         try {
-            // Pré-correção: cards que estão com ganho_pos=true em etapa pré-Pós-Viagem
-            // (estado errado herdado de imports antigos) precisam ser corrigidos ANTES
-            // do RPC, senão o trigger enforce_trips_ganho_pos_only_in_pos_viagem bloqueia
-            // qualquer UPDATE neles. Movemos status pra 'aberto' e zeramos ganho_pos —
-            // estado correto pra etapas pré-Pós-Viagem.
+            // Pré-correção: cards em etapa pré-Pós-Viagem que têm indicadores de "ganho"
+            // (status_comercial='ganho' OU ganho_pos=true) — estado errado herdado de
+            // imports antigos. Movemos status pra 'aberto' e zeramos ganho_pos —
+            // estado correto pra etapas pré-Pós-Viagem (a viagem ainda não aconteceu).
+            //
+            // Isso também desbloqueia o trigger enforce_trips_ganho_pos_only_in_pos_viagem
+            // que barra qualquer UPDATE em cards com ganho_pos=true em pré-pós-viagem.
             const cardsToFixBeforeUpdate = toProcess
-                .filter(t => t.action === 'update'
-                    && t.existingCardId
-                    && t.existingGanhoPos === true
-                    && t.existingStageId !== STAGE_POS_VIAGEM)
+                .filter(t => {
+                    if (t.action !== 'update' || !t.existingCardId) return false
+                    // Etapa-alvo: a calculada pelo sistema (se moveStage) ou a atual
+                    const targetStageId = t.moveStage ? t.stage.id : t.existingStageId
+                    if (!targetStageId || targetStageId === STAGE_POS_VIAGEM) return false
+                    // Precisa correção se card tem indicador de "ganho" e a etapa-alvo é pré-pós-viagem
+                    return t.existingGanhoPos === true || t.existingStatusComercial === 'ganho'
+                })
                 .map(t => t.existingCardId as string)
+            const cardsFixedSet = new Set(cardsToFixBeforeUpdate)
             if (cardsToFixBeforeUpdate.length > 0) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error: fixErr } = await (supabase.from('cards') as any)
@@ -2011,7 +2034,7 @@ export default function ImportacaoPosVendaPage() {
                     })
                     .in('id', cardsToFixBeforeUpdate)
                 if (fixErr) {
-                    console.error('Erro ao pré-corrigir ganho_pos:', fixErr)
+                    console.error('Erro ao pré-corrigir status/ganho_pos:', fixErr)
                     // Continua mesmo assim — alguns cards podem dar erro no RPC e o usuário vê
                 }
             }
@@ -2093,9 +2116,9 @@ export default function ImportacaoPosVendaPage() {
             setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: totalErrors })
 
             // Detalhe por viagem pra tela "done" mostrar exatamente o que subiu / falhou
-            const success: { pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; action: 'created' | 'updated' }[] = []
-            const failed: { pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; error: string }[] = []
-            const skipped: { pagante: string; titulo: string; vendaNums: string[]; reason: string }[] = []
+            const success: NonNullable<typeof importDetails>['success'] = []
+            const failed: NonNullable<typeof importDetails>['failed'] = []
+            const skipped: NonNullable<typeof importDetails>['skipped'] = []
             for (const res of allRpcResults) {
                 const trip = toProcess[res.idx]
                 if (!trip) continue
@@ -2104,7 +2127,26 @@ export default function ImportacaoPosVendaPage() {
                 if (res.action === 'error') {
                     failed.push({ ...base, error: res.error || 'erro desconhecido' })
                 } else if (res.action === 'created' || res.action === 'updated') {
-                    success.push({ ...base, action: res.action })
+                    // Capturar mudanças exatas pra mostrar no relatório
+                    const wasFixed = trip.existingCardId ? cardsFixedSet.has(trip.existingCardId) : false
+                    const stageMoved = res.action === 'updated'
+                        && trip.moveStage === true
+                        && trip.existingStageId !== null
+                        && trip.existingStageId !== trip.stage.id
+                    success.push({
+                        ...base,
+                        action: res.action,
+                        changes: {
+                            stageFrom: trip.existingStageName,
+                            stageTo: trip.stage.name,
+                            stageMoved,
+                            statusFrom: res.action === 'updated' ? trip.existingStatusComercial : null,
+                            statusTo: wasFixed ? 'aberto' : (res.action === 'created' ? 'aberto' : trip.existingStatusComercial),
+                            ganhoPosFrom: res.action === 'updated' ? trip.existingGanhoPos : null,
+                            ganhoPosTo: wasFixed ? false : (res.action === 'created' ? false : trip.existingGanhoPos),
+                            vendasAdicionadas: trip.vendaNums,
+                        },
+                    })
                 }
             }
             // Viagens com action='skip' (T. Planner ou sem match) na lista — não vão pro RPC
@@ -3057,27 +3099,86 @@ export default function ImportacaoPosVendaPage() {
                             <details className="bg-white border border-emerald-200 rounded-xl shadow-sm overflow-hidden group">
                                 <summary className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 cursor-pointer flex items-center gap-2 text-sm font-semibold text-emerald-900">
                                     <CheckCircle2 className="h-4 w-4" />
-                                    Viagens que subiram ({importDetails?.success.length}) — clique pra expandir
+                                    Viagens que subiram ({importDetails?.success.length}) — clique pra ver o que mudou em cada uma
                                 </summary>
-                                <ul className="divide-y divide-emerald-100 max-h-96 overflow-y-auto">
-                                    {(importDetails?.success || []).map((s, idx) => (
-                                        <li key={idx} className="px-4 py-2 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0', s.action === 'created' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>
-                                                    {s.action === 'created' ? 'criado' : 'atualizado'}
-                                                </span>
-                                                <span className="font-medium text-slate-700 truncate flex-1">{s.titulo}</span>
-                                                {s.cardId && (
-                                                    <Link
-                                                        to={`/cards/${s.cardId}`}
-                                                        className="text-xs text-indigo-600 hover:underline shrink-0"
-                                                    >
-                                                        ver
-                                                    </Link>
+                                <ul className="divide-y divide-emerald-100 max-h-[32rem] overflow-y-auto">
+                                    {(importDetails?.success || []).map((s, idx) => {
+                                        const ch = s.changes
+                                        const statusChanged = ch.statusFrom !== null && ch.statusFrom !== ch.statusTo
+                                        const ganhoPosChanged = ch.ganhoPosFrom !== null && ch.ganhoPosFrom !== ch.ganhoPosTo
+                                        const hasAnyChange = ch.stageMoved || statusChanged || ganhoPosChanged || (ch.vendasAdicionadas.length > 0 && s.action === 'updated')
+                                        return (
+                                            <li key={idx} className="px-4 py-2.5 text-sm">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0', s.action === 'created' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>
+                                                        {s.action === 'created' ? 'criado' : 'atualizado'}
+                                                    </span>
+                                                    <span className="font-medium text-slate-700 truncate flex-1">{s.titulo}</span>
+                                                    {s.cardId && (
+                                                        <Link
+                                                            to={`/cards/${s.cardId}`}
+                                                            className="text-xs text-indigo-600 hover:underline shrink-0"
+                                                        >
+                                                            ver
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                                {/* Mudanças detalhadas */}
+                                                {s.action === 'updated' && hasAnyChange && (
+                                                    <ul className="ml-4 space-y-0.5 text-xs text-slate-600">
+                                                        {ch.stageMoved && (
+                                                            <li>
+                                                                <span className="text-slate-400">etapa:</span>{' '}
+                                                                <span className="text-slate-500">{ch.stageFrom || '—'}</span>
+                                                                {' → '}
+                                                                <span className="font-medium text-blue-700">{ch.stageTo}</span>
+                                                            </li>
+                                                        )}
+                                                        {!ch.stageMoved && ch.stageFrom && (
+                                                            <li>
+                                                                <span className="text-slate-400">etapa:</span>{' '}
+                                                                <span>{ch.stageFrom}</span>
+                                                                <span className="text-slate-400 italic"> (mantida)</span>
+                                                            </li>
+                                                        )}
+                                                        {statusChanged && (
+                                                            <li>
+                                                                <span className="text-slate-400">status comercial:</span>{' '}
+                                                                <span className="text-slate-500">{ch.statusFrom || '—'}</span>
+                                                                {' → '}
+                                                                <span className="font-medium text-emerald-700">{ch.statusTo}</span>
+                                                                <span className="text-slate-400 italic"> (corrigido)</span>
+                                                            </li>
+                                                        )}
+                                                        {ganhoPosChanged && (
+                                                            <li>
+                                                                <span className="text-slate-400">ganho pós-venda:</span>{' '}
+                                                                <span className="text-slate-500">{ch.ganhoPosFrom ? 'sim' : 'não'}</span>
+                                                                {' → '}
+                                                                <span className="font-medium text-emerald-700">{ch.ganhoPosTo ? 'sim' : 'não'}</span>
+                                                                <span className="text-slate-400 italic"> (corrigido)</span>
+                                                            </li>
+                                                        )}
+                                                        {ch.vendasAdicionadas.length > 0 && (
+                                                            <li>
+                                                                <span className="text-slate-400">números de venda:</span>{' '}
+                                                                <span className="font-medium text-slate-700">+ {ch.vendasAdicionadas.join(', ')}</span>
+                                                                <span className="text-slate-400 italic"> (no histórico)</span>
+                                                            </li>
+                                                        )}
+                                                    </ul>
                                                 )}
-                                            </div>
-                                        </li>
-                                    ))}
+                                                {s.action === 'updated' && !hasAnyChange && (
+                                                    <div className="ml-4 text-xs text-slate-400 italic">sem mudanças (já estava sincronizado)</div>
+                                                )}
+                                                {s.action === 'created' && (
+                                                    <div className="ml-4 text-xs text-slate-600">
+                                                        criado em <span className="font-medium">{ch.stageTo}</span> · vendas: {ch.vendasAdicionadas.join(', ') || '—'}
+                                                    </div>
+                                                )}
+                                            </li>
+                                        )
+                                    })}
                                 </ul>
                             </details>
                         )}

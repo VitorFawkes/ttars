@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
 import { usePipelineStages } from '../usePipelineStages'
-import type { MeuDiaItem, TipoConcierge } from './types'
+import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
+import { computeJanelaEmbarque, type JanelaEmbarque } from './useKanbanTarefas'
 
 /**
  * Saúde da viagem permanece como sinal visual no card (cor da accent bar),
@@ -13,6 +14,13 @@ export type SaudeViagem = 'critica' | 'em_andamento' | 'concluida'
 export interface KanbanViagensFilters {
   donoId?: string | null
   tipos?: TipoConcierge[]
+  sources?: SourceConcierge[]
+  janelas?: JanelaEmbarque[]
+  categorias?: string[]
+  cardIds?: string[]
+  /** Map<cardId, Set<tagId>> + lista de tagIds desejadas — filtra cards que têm qualquer uma das tags */
+  tagFilter?: { tagIds: string[]; lookup: Map<string, Set<string>> }
+  search?: string
   pipelineId?: string | null
 }
 
@@ -25,6 +33,7 @@ export interface ViagemKanbanItem {
   pessoa_principal_id: string | null
   card_valor_estimado: number | null
   card_valor_final: number | null
+  card_is_critical: boolean
   pipeline_stage_id: string
   saude: SaudeViagem
   total_atendimentos: number
@@ -75,18 +84,51 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
   const stagesQuery = usePipelineStages(filters.pipelineId ?? undefined)
 
   const query = useQuery({
-    queryKey: ['concierge', 'kanban-viagens', { donoId: filters.donoId, tipos: filters.tipos }],
+    queryKey: ['concierge', 'kanban-viagens', {
+      donoId: filters.donoId,
+      tipos: filters.tipos,
+      sources: filters.sources,
+      janelas: filters.janelas,
+      categorias: filters.categorias,
+      cardIds: filters.cardIds,
+      tagIds: filters.tagFilter?.tagIds,
+      search: filters.search,
+    }],
     queryFn: async (): Promise<ViagemKanbanItem[]> => {
       let q = sbAny.from('v_meu_dia_concierge').select('*')
 
       if (filters.donoId) q = q.eq('dono_id', filters.donoId)
       if (filters.tipos?.length) q = q.in('tipo_concierge', filters.tipos)
+      if (filters.sources?.length) q = q.in('source', filters.sources)
 
       const { data, error } = await q
       if (error) throw error
 
+      // Filtros aplicados antes do agrupamento (a viagem só conta tarefas que casam com os filtros)
+      const wantedTagIds = filters.tagFilter?.tagIds ?? []
+      const tagLookup = filters.tagFilter?.lookup
+      const filtered = (data ?? []).filter((item: MeuDiaItem) => {
+        if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
+        if (filters.categorias?.length && !filters.categorias.includes(item.categoria)) return false
+        if (filters.janelas?.length) {
+          const jan = computeJanelaEmbarque(item.dias_pra_embarque)
+          if (!filters.janelas.includes(jan)) return false
+        }
+        if (wantedTagIds.length > 0 && tagLookup) {
+          const cardTags = tagLookup.get(item.card_id)
+          if (!cardTags) return false
+          if (!wantedTagIds.some(t => cardTags.has(t))) return false
+        }
+        if (filters.search?.trim()) {
+          const q2 = filters.search.toLowerCase()
+          const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
+          if (!blob.includes(q2)) return false
+        }
+        return true
+      })
+
       const byCard = new Map<string, MeuDiaItem[]>()
-      for (const item of (data ?? []) as MeuDiaItem[]) {
+      for (const item of filtered as MeuDiaItem[]) {
         const list = byCard.get(item.card_id) ?? []
         list.push(item)
         byCard.set(item.card_id, list)
@@ -123,6 +165,7 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           pessoa_principal_id: head.pessoa_principal_id,
           card_valor_estimado: head.card_valor_estimado,
           card_valor_final: head.card_valor_final,
+          card_is_critical: !!head.card_is_critical,
           pipeline_stage_id: head.pipeline_stage_id,
           total_atendimentos: items.length,
           abertos_count: abertos.length,
