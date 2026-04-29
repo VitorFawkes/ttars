@@ -169,7 +169,6 @@ interface TripGroup {
     existingStageName: string | null
     existingPhaseSlug: string | null
     existingStatusComercial: string | null
-    existingGanhoPos: boolean | null
     existingDonoPosId: string | null
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
@@ -199,7 +198,7 @@ type Step = 'idle' | 'preview' | 'importing' | 'done'
  */
 function computeAudit(trip: Pick<TripGroup,
     'existingCardId' | 'existingPhaseSlug' | 'existingStageName' |
-    'existingStatusComercial' | 'existingGanhoPos' | 'existingDonoPosId'
+    'existingStatusComercial' | 'existingDonoPosId'
 >): AuditResult {
     if (!trip.existingCardId) {
         return {
@@ -211,9 +210,6 @@ function computeAudit(trip: Pick<TripGroup,
     const isGanho = trip.existingStatusComercial === 'ganho'
     if (!isGanho) {
         issues.push('Card não está marcado como ganho.')
-    }
-    if (trip.existingGanhoPos !== true) {
-        issues.push('Card não está marcado como ganho em pós-venda.')
     }
     if (trip.existingPhaseSlug && trip.existingPhaseSlug !== 'pos_venda') {
         const stageLabel = trip.existingStageName ? ` (${trip.existingStageName})` : ''
@@ -303,7 +299,7 @@ type RawTripGroup = Omit<TripGroup,
     | 'vendedorProfileId'
     | 'existingCardId' | 'existingCardTitle'
     | 'existingStageId' | 'existingStageName' | 'existingPhaseSlug'
-    | 'existingStatusComercial' | 'existingGanhoPos' | 'existingDonoPosId'
+    | 'existingStatusComercial' | 'existingDonoPosId'
     | 'moveStage' | 'action' | 'skipReason' | 'audit'
 >
 
@@ -1159,10 +1155,9 @@ export default function ImportacaoPosVendaPage() {
             let existingCardTitle: string | null = null
             let existingStageId: string | null = null
             let existingStatusComercial: string | null = null
-            let existingGanhoPos: boolean | null = null
             let existingDonoPosId: string | null = null
 
-            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_pos, pos_owner_id'
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, pos_owner_id'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
@@ -1179,7 +1174,6 @@ export default function ImportacaoPosVendaPage() {
                     existingCardTitle = c.titulo as string
                     existingStageId = (c.pipeline_stage_id as string) || null
                     existingStatusComercial = (c.status_comercial as string) ?? null
-                    existingGanhoPos = (c.ganho_pos as boolean) ?? null
                     existingDonoPosId = (c.pos_owner_id as string) ?? null
                     break
                 }
@@ -1202,8 +1196,7 @@ export default function ImportacaoPosVendaPage() {
                         existingCardTitle = c.titulo as string
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
-                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
-                        existingDonoPosId = (c.pos_owner_id as string) ?? null
+                            existingDonoPosId = (c.pos_owner_id as string) ?? null
                         break
                     }
                 }
@@ -1237,8 +1230,7 @@ export default function ImportacaoPosVendaPage() {
                         existingCardTitle = c.titulo as string
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
-                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
-                        existingDonoPosId = (c.pos_owner_id as string) ?? null
+                            existingDonoPosId = (c.pos_owner_id as string) ?? null
                     }
                 }
             }
@@ -1255,7 +1247,6 @@ export default function ImportacaoPosVendaPage() {
                 existingStageName: null, // preenchido no batch abaixo
                 existingPhaseSlug: null, // preenchido no batch abaixo
                 existingStatusComercial,
-                existingGanhoPos,
                 existingDonoPosId,
                 moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
