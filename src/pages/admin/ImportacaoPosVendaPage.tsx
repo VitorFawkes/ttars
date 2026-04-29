@@ -608,22 +608,31 @@ interface ImportLogItemRow {
 function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void; onToggleMoveStage: (id: string) => void }) {
     const [expanded, setExpanded] = useState(false)
     const Chevron = expanded ? ChevronDown : ChevronRight
-    const { archive, isArchiving } = useArchiveCard()
-    // Marca local: cards ambíguos arquivados nesta sessão (UI fica riscada).
-    // Estado local porque o backend retorna sucesso assíncrono e a lista é prop.
+    const { archiveBulk, isArchiving } = useArchiveCard()
+    // markedToArchive: usuário marcou pra arquivar mas ainda não confirmou
+    const [markedToArchive, setMarkedToArchive] = useState<Set<string>>(new Set())
+    // archivedOtherIds: já foram arquivados (UI riscada)
     const [archivedOtherIds, setArchivedOtherIds] = useState<Set<string>>(new Set())
 
-    const handleArchiveOther = (otherId: string, otherTitle: string) => {
-        const ok = window.confirm(
-            `Arquivar este card?\n\n"${otherTitle}"\n\nEle vai pra lixeira e pode ser restaurado lá.`
-        )
-        if (!ok) return
-        archive(otherId)
-        setArchivedOtherIds(prev => {
+    const toggleMark = (otherId: string) => {
+        setMarkedToArchive(prev => {
             const next = new Set(prev)
-            next.add(otherId)
+            if (next.has(otherId)) next.delete(otherId)
+            else next.add(otherId)
             return next
         })
+    }
+
+    const handleArchiveSelected = () => {
+        const ids = [...markedToArchive].filter(id => !archivedOtherIds.has(id))
+        if (ids.length === 0) return
+        const ok = window.confirm(
+            `Arquivar ${ids.length} card${ids.length !== 1 ? 's' : ''}?\n\nEles vão pra lixeira e podem ser restaurados.`
+        )
+        if (!ok) return
+        archiveBulk(ids)
+        setArchivedOtherIds(prev => new Set([...prev, ...ids]))
+        setMarkedToArchive(new Set())
     }
 
     const actionBadge = {
@@ -754,9 +763,21 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                                 ? 'Ganho Planner ✓'
                                                 : 'sem Ganho Planner'
                                             const isArchived = archivedOtherIds.has(other.id)
+                                            const isMarked = markedToArchive.has(other.id)
                                             return (
-                                                <li key={other.id} className="flex items-start gap-1.5">
-                                                    <span className="text-amber-500 shrink-0 leading-tight">•</span>
+                                                <li key={other.id} className="flex items-start gap-2">
+                                                    {isArchived ? (
+                                                        <span className="text-amber-500 shrink-0 leading-tight">•</span>
+                                                    ) : (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isMarked}
+                                                            onChange={() => toggleMark(other.id)}
+                                                            onClick={e => e.stopPropagation()}
+                                                            className="mt-0.5 rounded border-amber-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0"
+                                                            title="Marcar pra arquivar"
+                                                        />
+                                                    )}
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <Link
@@ -770,23 +791,10 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                                             >
                                                                 {other.titulo}
                                                             </Link>
-                                                            {isArchived ? (
+                                                            {isArchived && (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
                                                                     <Archive className="h-3 w-3" /> Arquivado
                                                                 </span>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={isArchiving}
-                                                                    onClick={e => {
-                                                                        e.stopPropagation()
-                                                                        handleArchiveOther(other.id, other.titulo)
-                                                                    }}
-                                                                    className="inline-flex items-center gap-1 text-[10px] font-medium text-rose-700 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-50"
-                                                                    title="Arquivar este card (vai pra lixeira)"
-                                                                >
-                                                                    <Archive className="h-3 w-3" /> Arquivar
-                                                                </button>
                                                             )}
                                                         </div>
                                                         <div className={cn(
@@ -800,6 +808,30 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                             )
                                         })}
                                     </ul>
+                                    {/* Ação em massa */}
+                                    {(() => {
+                                        const pendingCount = [...markedToArchive].filter(id => !archivedOtherIds.has(id)).length
+                                        if (pendingCount === 0) return null
+                                        return (
+                                            <div className="mt-2 pt-2 border-t border-amber-200/50 flex items-center justify-between gap-2">
+                                                <span className="text-[11px] text-amber-700/80">
+                                                    {pendingCount} marcado{pendingCount !== 1 ? 's' : ''} pra arquivar
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    disabled={isArchiving}
+                                                    onClick={e => {
+                                                        e.stopPropagation()
+                                                        handleArchiveSelected()
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-white bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                                                >
+                                                    <Archive className="h-3 w-3" />
+                                                    Arquivar {pendingCount}
+                                                </button>
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
                             )}
                         </div>
