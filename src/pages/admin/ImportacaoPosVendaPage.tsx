@@ -188,6 +188,12 @@ interface AuditResult {
 
 type Step = 'idle' | 'preview' | 'importing' | 'done'
 
+// Flow:
+// - 'detalhada'   → planilha por produto (CSV Monde original). Criar + atualizar cards.
+// - 'agregada'    → planilha já agregada por viagem (sem CPF). Apenas atualizar cards existentes;
+//                   linhas sem card no CRM ficam como 'skip' com motivo "sem card encontrado".
+type FlowMode = 'detalhada' | 'agregada'
+
 // ─── Auditoria ──────────────────────────────────────────────
 
 /**
@@ -938,6 +944,7 @@ export default function ImportacaoPosVendaPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [step, setStep] = useState<Step>('idle')
+    const [flowMode, setFlowMode] = useState<FlowMode>('detalhada')
     const [fileName, setFileName] = useState('')
     const [trips, setTrips] = useState<TripGroup[]>([])
     const [selectedTrips, setSelectedTrips] = useState<Set<string>>(new Set())
@@ -971,6 +978,7 @@ export default function ImportacaoPosVendaPage() {
                 const parsed = JSON.parse(raw)
                 if (parsed?.step === 'preview' && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
                     setStep('preview')
+                    setFlowMode(parsed.flowMode || 'detalhada')
                     setFileName(parsed.fileName || '')
                     setTrips(parsed.trips)
                     setSelectedTrips(new Set(parsed.selectedTrips || []))
@@ -997,7 +1005,7 @@ export default function ImportacaoPosVendaPage() {
         if (!hasRestored || !storageKey || step !== 'preview') return
         try {
             sessionStorage.setItem(storageKey, JSON.stringify({
-                step, fileName, trips,
+                step, flowMode, fileName, trips,
                 selectedTrips: Array.from(selectedTrips),
                 filterDataFimMin, filterDataFimMax,
                 filterValorMin, filterValorMax,
@@ -1012,7 +1020,7 @@ export default function ImportacaoPosVendaPage() {
     }, [step, fileName, trips, selectedTrips,
         filterDataFimMin, filterDataFimMax, filterValorMin, filterValorMax,
         filterAction, filterVendedor, filterApp, filterVoucher, filterAudit,
-        showFilters, storageKey, hasRestored])
+        showFilters, storageKey, hasRestored, flowMode])
 
     // Auth check: admin or pos_venda phase
     const isAdmin = profile?.is_admin === true
@@ -1318,6 +1326,295 @@ export default function ImportacaoPosVendaPage() {
         }
     }, [plannerProfiles, activeOrgId])
 
+    // ─── Process AGGREGATED rows (planilha por viagem) ──────
+    // Cada linha do CSV/XLSX é uma viagem completa. Sem CPF — match só por número de venda.
+    // Cards não encontrados ficam como 'skip' (não cria cards via planilha agregada).
+    const processAggregatedRows = useCallback(async (rawRows: Record<string, unknown>[], file: string) => {
+        setIsProcessing(true)
+        try {
+            setFileName(file)
+            const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : []
+
+            // Aliases dos cabeçalhos da planilha agregada
+            const colPagante = findColumn(headers, ['pagante', 'cliente', 'titular'])
+            const colInicio = findColumn(headers, ['início', 'inicio', 'data inicio', 'data início', 'check-in', 'checkin', 'embarque', 'partida'])
+            const colFim = findColumn(headers, ['fim', 'final', 'data fim', 'check-out', 'checkout', 'volta', 'retorno'])
+            const colVendas = findColumn(headers, ['vendas', 'venda', 'venda nº', 'venda n°', 'numeros venda', 'números venda', '# vendas'])
+            const colProdutos = findColumn(headers, ['produtos', 'produto', 'serviços', 'servicos'])
+            const colFornecedores = findColumn(headers, ['fornecedores', 'fornecedor', 'operadora', 'operadoras', 'supplier'])
+            const colPassageiros = findColumn(headers, ['passageiros', 'passageiro', 'pax', 'viajantes'])
+            const colVendedor = findColumn(headers, ['vendedor', 'vendedores', 'consultor', 'consultores'])
+            const colValor = findColumn(headers, ['valor (r$)', 'valor', 'total', 'valor total', 'faturamento'])
+
+            if (!colPagante || !colInicio) {
+                toast.error('Planilha por viagem precisa ter pelo menos as colunas: Pagante e Início.')
+                return
+            }
+
+            // Helper: data flexível DD/MM/YYYY ou MM/DD/YYYY ou ISO
+            const parseDateFlex = (val: unknown): string | null => {
+                if (val == null || val === '') return null
+                const s = String(val).trim()
+                if (!s || s === '—' || s === '-') return null
+                // ISO yyyy-mm-dd
+                const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+                if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+                // dd/mm/yyyy ou mm/dd/yyyy — heurística por componente > 12
+                const parts = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})/)
+                if (parts) {
+                    const a = parseInt(parts[1], 10)
+                    const b = parseInt(parts[2], 10)
+                    let yy = parts[3]
+                    if (yy.length === 2) yy = '20' + yy
+                    let mm: number, dd: number
+                    if (a > 12) { dd = a; mm = b }              // BR (DD/MM)
+                    else if (b > 12) { mm = a; dd = b }         // US (MM/DD)
+                    else { mm = a; dd = b }                     // ambíguo: assume US (Excel padrão)
+                    return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+                }
+                // Serial Excel
+                const num = parseFloat(s.replace(',', '.'))
+                if (!isNaN(num) && num > 1000) {
+                    const epoch = new Date(Date.UTC(1899, 11, 30))
+                    const d = new Date(epoch.getTime() + num * 86400000)
+                    return d.toISOString().slice(0, 10)
+                }
+                return null
+            }
+
+            const splitDash = (raw: string, sep: RegExp) => {
+                const t = raw.trim()
+                if (!t || t === '—' || t === '-') return []
+                return t.split(sep).map(s => s.trim()).filter(Boolean)
+            }
+
+            // Parse cada linha em raw trip
+            const rawTrips: RawTripGroup[] = []
+            for (const r of rawRows) {
+                const pagante = String(r[colPagante!] ?? '').trim()
+                if (!pagante) continue
+
+                const dataInicio = parseDateFlex(r[colInicio!])
+                const dataFim = colFim ? parseDateFlex(r[colFim]) : null
+
+                const vendaNumsRaw = colVendas ? String(r[colVendas] ?? '').trim() : ''
+                const vendaNums = splitDash(vendaNumsRaw, /[,;]/)
+
+                const produtos = colProdutos ? splitDash(String(r[colProdutos] ?? ''), /;/) : []
+                const fornecedores = colFornecedores ? splitDash(String(r[colFornecedores] ?? ''), /[|;]/) : []
+                const passageiros = colPassageiros ? splitDash(String(r[colPassageiros] ?? ''), /;/) : []
+                const vendedorRaw = colVendedor ? String(r[colVendedor] ?? '').trim() : ''
+                const vendedor = (vendedorRaw === '—' || vendedorRaw === '-') ? '' : vendedorRaw.split(/[;,]/)[0]?.trim() || ''
+                const valorTotal = colValor ? parseBRNumber(r[colValor]) : 0
+
+                // Pessoas únicas: pagante + passageiros (sem duplicar)
+                const personSet = new Map<string, string>()
+                personSet.set(norm(pagante), pagante)
+                for (const pax of passageiros) {
+                    if (pax.trim()) personSet.set(norm(pax), pax)
+                }
+                const allPassengers = Array.from(personSet.values())
+                const pagNorm = norm(pagante)
+                const acompanhantes = allPassengers.filter(p => norm(p) !== pagNorm)
+
+                // Construir products[] pareando produto-fornecedor-venda 1-pra-1.
+                // Valor distribuído igualmente (não temos detalhe na planilha agregada).
+                const N = Math.max(produtos.length, 1)
+                const valorPorProduto = produtos.length > 0
+                    ? Math.round((valorTotal / N) * 100) / 100
+                    : valorTotal
+                const products: PosVendaCsvRow[] = (produtos.length > 0 ? produtos : ['Viagem']).map((prod, i) => ({
+                    vendaNum: vendaNums[i] || vendaNums[0] || '',
+                    vendedor,
+                    cpf: '',
+                    cpfNorm: '',
+                    pagante,
+                    fornecedor: fornecedores[i] || fornecedores[0] || '',
+                    produto: prod,
+                    dataVenda: null,
+                    dataInicio,
+                    dataFim,
+                    passageiros,
+                    // Planilha agregada: assumimos que app + voucher já estão prontos
+                    // (caso contrário a viagem não estaria em pós-venda no Monde).
+                    appGerado: 'sim',
+                    vouchersNoApp: 'sim',
+                    contratoVoucher: '',
+                    receita: 0,
+                    valorTotal: valorPorProduto,
+                }))
+
+                // Stage por data (mesma lógica do fluxo detalhado, com voucher='sim')
+                let stage: { id: string; name: string }
+                if (dataInicio) {
+                    const days = daysFromNow(dataInicio)
+                    stage = days > 30
+                        ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
+                        : { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
+                } else {
+                    stage = { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
+                }
+
+                rawTrips.push({
+                    id: `${pagante}-${vendaNums.join('_') || dataInicio || ''}`,
+                    cpfPrincipal: '',
+                    cpfNorm: '',
+                    pagantePrincipal: pagante,
+                    vendedor,
+                    dataInicio,
+                    dataFim,
+                    products,
+                    allPassengers,
+                    acompanhantes,
+                    stage,
+                    appEnviadoConcluida: true,
+                    valorTotal,
+                    receita: 0,
+                    vendaNums,
+                })
+            }
+
+            if (rawTrips.length === 0) {
+                toast.error('Nenhuma viagem válida encontrada na planilha.')
+                return
+            }
+
+            // Match vendedor (mesma lógica)
+            const profileMap = new Map(plannerProfiles.map(p => [norm(p.nome || ''), p.id]))
+
+            // Enrichment: busca card existente APENAS por venda monde (sem fallback de CPF).
+            const fullTrips: TripGroup[] = []
+            for (const trip of rawTrips) {
+                const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
+                const vendedorProfileId = profileMap.get(norm(trip.vendedor)) || null
+
+                let existingCardId: string | null = null
+                let existingCardTitle: string | null = null
+                let existingStageId: string | null = null
+                let existingStatusComercial: string | null = null
+                let existingGanhoPlanner: boolean | null = null
+                let existingDonoPosId: string | null = null
+
+                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
+
+                // 1. Por número de venda monde atual
+                if (trip.vendaNums.length > 0) {
+                    for (const vchunk of chunked(trip.vendaNums, 10)) {
+                        let query = supabase
+                            .from('cards')
+                            .select(`${CARD_AUDIT_SELECT}, produto_data`)
+                            .in('produto_data->>numero_venda_monde', vchunk)
+                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                        const { data: cards } = await query
+                        if (cards && cards.length > 0) {
+                            const c = cards[0]
+                            existingCardId = c.id
+                            existingCardTitle = c.titulo as string
+                            existingStageId = (c.pipeline_stage_id as string) || null
+                            existingStatusComercial = (c.status_comercial as string) ?? null
+                            existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                            existingDonoPosId = (c.pos_owner_id as string) ?? null
+                            break
+                        }
+                    }
+                }
+
+                // 2. Histórico (caso renumeração de venda)
+                if (!existingCardId) {
+                    for (const vn of trip.vendaNums.slice(0, 5)) {
+                        let query = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
+                            .limit(1)
+                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                        const { data: cards } = await query
+                        if (cards && cards.length > 0) {
+                            const c = cards[0]
+                            existingCardId = c.id
+                            existingCardTitle = c.titulo as string
+                            existingStageId = (c.pipeline_stage_id as string) || null
+                            existingStatusComercial = (c.status_comercial as string) ?? null
+                            existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                            existingDonoPosId = (c.pos_owner_id as string) ?? null
+                            break
+                        }
+                    }
+                }
+
+                // Sem CPF disponível, NÃO há fallback por contato+datas.
+                // Cards não encontrados viram 'skip' (planilha agregada nunca cria cards).
+                const action: TripGroup['action'] = existingCardId ? 'update' : 'skip'
+                const skipReason = existingCardId
+                    ? null
+                    : (trip.vendaNums.length === 0
+                        ? 'Sem número de venda na planilha — não foi possível localizar o card.'
+                        : 'Não encontrei card com esses números de venda no CRM.')
+
+                fullTrips.push({
+                    ...trip,
+                    id: titulo,
+                    vendedorProfileId,
+                    existingCardId,
+                    existingCardTitle,
+                    existingStageId,
+                    existingStageName: null,
+                    existingPhaseSlug: null,
+                    existingStatusComercial,
+                    existingGanhoPlanner,
+                    existingDonoPosId,
+                    moveStage: true,
+                    action,
+                    skipReason,
+                    audit: { severity: 'ok', issues: [] },
+                })
+            }
+
+            // Batch: nome da etapa + slug da fase
+            const uniqueExistingStageIds = [...new Set(
+                fullTrips.map(t => t.existingStageId).filter(Boolean) as string[]
+            )]
+            if (uniqueExistingStageIds.length > 0) {
+                const { data: stages } = await supabase
+                    .from('pipeline_stages')
+                    .select('id, nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
+                    .in('id', uniqueExistingStageIds)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (stages || []).map((s: any) => [s.id as string, { nome: s.nome as string, phaseSlug: s.phase?.slug as string }])
+                )
+                for (const t of fullTrips) {
+                    if (t.existingStageId) {
+                        const info = stageInfo.get(t.existingStageId)
+                        t.existingStageName = info?.nome || null
+                        t.existingPhaseSlug = info?.phaseSlug || null
+                        if (info?.phaseSlug === 'planner') {
+                            t.action = 'skip'
+                            t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
+                        }
+                    }
+                }
+            }
+
+            for (const t of fullTrips) {
+                t.audit = computeAudit(t)
+            }
+
+            setTrips(fullTrips)
+            setSelectedTrips(new Set(fullTrips.filter(t => t.action !== 'skip').map(t => t.id)))
+            setStep('preview')
+            const matched = fullTrips.filter(t => t.action === 'update').length
+            const unmatched = fullTrips.filter(t => t.action === 'skip').length
+            toast.success(`${fullTrips.length} viagens lidas — ${matched} com card no CRM, ${unmatched} sem card.`)
+        } catch (err) {
+            console.error('Erro ao processar planilha agregada:', err)
+            toast.error(`Erro ao processar arquivo: ${err instanceof Error ? err.message : 'erro desconhecido'}`)
+        } finally {
+            setIsProcessing(false)
+        }
+    }, [plannerProfiles, activeOrgId])
+
     // ─── File upload handler ─────────────────────────────────
     const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -1326,6 +1623,7 @@ export default function ImportacaoPosVendaPage() {
         setFileName(file.name)
         setIsProcessing(true)
         const isCSV = /\.(csv|tsv|txt)$/i.test(file.name)
+        const processor = flowMode === 'agregada' ? processAggregatedRows : processRows
         try {
             if (isCSV) {
                 const text = await readFileText(file)
@@ -1335,7 +1633,7 @@ export default function ImportacaoPosVendaPage() {
                     setIsProcessing(false)
                     return
                 }
-                await processRows(rows, file.name)
+                await processor(rows, file.name)
             } else {
                 const ab = await file.arrayBuffer()
                 const workbook = XLSX.read(ab, { type: 'array', codepage: 65001 })
@@ -1346,14 +1644,14 @@ export default function ImportacaoPosVendaPage() {
                     setIsProcessing(false)
                     return
                 }
-                await processRows(jsonData, file.name)
+                await processor(jsonData, file.name)
             }
         } catch (err) {
             console.error('Erro ao ler arquivo:', err)
             toast.error(`Erro ao ler arquivo: ${err instanceof Error ? err.message : 'formato inválido'}`)
             setIsProcessing(false)
         }
-    }, [processRows])
+    }, [processRows, processAggregatedRows, flowMode])
 
     // ─── Import handler ──────────────────────────────────────
     const handleImport = async () => {
@@ -1679,23 +1977,97 @@ export default function ImportacaoPosVendaPage() {
                 {/* ─── IDLE: Upload ─────────────────────────────── */}
                 {step === 'idle' && (
                     <div className="space-y-6">
-                        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                            <div className="text-center">
-                                {isProcessing ? (
-                                    <>
-                                        <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
-                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Processando {fileName}...</h2>
-                                        <p className="text-sm text-slate-500">Agrupando viagens e detectando cards existentes</p>
-                                    </>
-                                ) : (
-                                    <>
+                        {isProcessing ? (
+                            <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                                <div className="text-center">
+                                    <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
+                                    <h2 className="text-lg font-semibold text-slate-900 mb-1">Processando {fileName}...</h2>
+                                    <p className="text-sm text-slate-500">
+                                        {flowMode === 'agregada'
+                                            ? 'Lendo viagens e localizando cards no CRM'
+                                            : 'Agrupando viagens e detectando cards existentes'}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Seletor de fluxo */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFlowMode('detalhada')}
+                                        className={cn(
+                                            'text-left rounded-xl p-5 border-2 transition-colors',
+                                            flowMode === 'detalhada'
+                                                ? 'border-indigo-500 bg-indigo-50/40 shadow-sm'
+                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                        )}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={cn(
+                                                'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                                                flowMode === 'detalhada' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                                            )}>
+                                                <Plus className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                                                    Importar planilha por produto
+                                                </h3>
+                                                <p className="text-xs text-slate-500 leading-relaxed">
+                                                    Relatório Monde detalhado — cada linha é um produto. Cria cards novos
+                                                    quando não existem e atualiza os existentes. Precisa ter Venda Nº, CPF e Pagante.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setFlowMode('agregada')}
+                                        className={cn(
+                                            'text-left rounded-xl p-5 border-2 transition-colors',
+                                            flowMode === 'agregada'
+                                                ? 'border-indigo-500 bg-indigo-50/40 shadow-sm'
+                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                        )}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={cn(
+                                                'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                                                flowMode === 'agregada' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                                            )}>
+                                                <RefreshCw className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                                                    Conferir e atualizar (planilha por viagem)
+                                                </h3>
+                                                <p className="text-xs text-slate-500 leading-relaxed">
+                                                    Planilha agregada — cada linha é uma viagem inteira. Atualiza apenas
+                                                    cards já existentes (etapa, números de venda e produtos). Sem CPF: viagens
+                                                    que não baterem com nenhum card no CRM ficam de fora.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                {/* Caixa de upload */}
+                                <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                                    <div className="text-center">
                                         <div className="mx-auto w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
                                             <Upload className="h-8 w-8 text-indigo-600" />
                                         </div>
-                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Upload do Relatório Monde</h2>
+                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                                            {flowMode === 'agregada'
+                                                ? 'Upload da Planilha por Viagem'
+                                                : 'Upload do Relatório Monde'}
+                                        </h2>
                                         <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-                                            Faça upload do CSV com os produtos vendidos. O sistema agrupará por viagem,
-                                            detectará cards existentes e criará os novos no pós-venda.
+                                            {flowMode === 'agregada'
+                                                ? 'Cada linha é uma viagem completa. O sistema vai localizar o card no CRM pelos números de venda e mostrar o que está divergente.'
+                                                : 'Faça upload do CSV com os produtos vendidos. O sistema agrupará por viagem, detectará cards existentes e criará os novos no pós-venda.'}
                                         </p>
                                         <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer font-medium text-sm">
                                             <FileSpreadsheet className="h-4 w-4" />
@@ -1708,11 +2080,15 @@ export default function ImportacaoPosVendaPage() {
                                                 onChange={handleFileUpload}
                                             />
                                         </label>
-                                        <p className="text-xs text-slate-400 mt-3">CSV, XLSX ou XLS — colunas obrigatórias: Venda Nº, CPF, Pagante</p>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                                        <p className="text-xs text-slate-400 mt-3">
+                                            {flowMode === 'agregada'
+                                                ? 'CSV, XLSX ou XLS — colunas esperadas: Pagante, Início, Fim, Vendas, Produtos, Fornecedores, Passageiros, Vendedor, Valor (R$)'
+                                                : 'CSV, XLSX ou XLS — colunas obrigatórias: Venda Nº, CPF, Pagante'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
                         {/* History */}
                         {history.length > 0 && (
@@ -2066,7 +2442,9 @@ export default function ImportacaoPosVendaPage() {
                             </div>
                             <Button onClick={handleImport} disabled={toCreate + toUpdate === 0}>
                                 <Upload className="h-4 w-4 mr-1.5" />
-                                Importar {toCreate + toUpdate} viagen{toCreate + toUpdate !== 1 ? 's' : ''}
+                                {flowMode === 'agregada'
+                                    ? `Atualizar ${toUpdate} viagen${toUpdate !== 1 ? 's' : ''}`
+                                    : `Importar ${toCreate + toUpdate} viagen${toCreate + toUpdate !== 1 ? 's' : ''}`}
                             </Button>
                         </div>
 
