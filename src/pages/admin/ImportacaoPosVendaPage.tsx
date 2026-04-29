@@ -169,6 +169,7 @@ interface TripGroup {
     existingStageName: string | null
     existingPhaseSlug: string | null
     existingStatusComercial: string | null
+    existingGanhoPlanner: boolean | null
     existingDonoPosId: string | null
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
@@ -198,7 +199,7 @@ type Step = 'idle' | 'preview' | 'importing' | 'done'
  */
 function computeAudit(trip: Pick<TripGroup,
     'existingCardId' | 'existingPhaseSlug' | 'existingStageName' |
-    'existingStatusComercial' | 'existingDonoPosId'
+    'existingStatusComercial' | 'existingGanhoPlanner' | 'existingDonoPosId'
 >): AuditResult {
     if (!trip.existingCardId) {
         return {
@@ -207,10 +208,19 @@ function computeAudit(trip: Pick<TripGroup,
         }
     }
     const issues: string[] = []
-    const isGanho = trip.existingStatusComercial === 'ganho'
-    if (!isGanho) {
-        issues.push('Card não está marcado como ganho.')
+
+    // Sinais de "venda fechada de verdade":
+    // - status_comercial = 'ganho' é o status geral do card
+    // - ganho_planner = true é o marco específico do Planner (venda fechada)
+    // Os dois precisam estar batendo. Se um falha, a venda foi fechada de jeito incompleto.
+    if (trip.existingStatusComercial !== 'ganho') {
+        const statusLabel = trip.existingStatusComercial || 'desconhecido'
+        issues.push(`Status comercial está como "${statusLabel}", deveria ser "ganho".`)
     }
+    if (trip.existingGanhoPlanner !== true) {
+        issues.push('Falta marcar o Ganho Planner (marco da venda fechada).')
+    }
+
     if (trip.existingPhaseSlug && trip.existingPhaseSlug !== 'pos_venda') {
         const stageLabel = trip.existingStageName ? ` (${trip.existingStageName})` : ''
         issues.push(`Etapa atual${stageLabel} está fora da fase Pós-venda.`)
@@ -299,7 +309,7 @@ type RawTripGroup = Omit<TripGroup,
     | 'vendedorProfileId'
     | 'existingCardId' | 'existingCardTitle'
     | 'existingStageId' | 'existingStageName' | 'existingPhaseSlug'
-    | 'existingStatusComercial' | 'existingDonoPosId'
+    | 'existingStatusComercial' | 'existingGanhoPlanner' | 'existingDonoPosId'
     | 'moveStage' | 'action' | 'skipReason' | 'audit'
 >
 
@@ -1155,9 +1165,10 @@ export default function ImportacaoPosVendaPage() {
             let existingCardTitle: string | null = null
             let existingStageId: string | null = null
             let existingStatusComercial: string | null = null
+            let existingGanhoPlanner: boolean | null = null
             let existingDonoPosId: string | null = null
 
-            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, pos_owner_id'
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
@@ -1174,6 +1185,7 @@ export default function ImportacaoPosVendaPage() {
                     existingCardTitle = c.titulo as string
                     existingStageId = (c.pipeline_stage_id as string) || null
                     existingStatusComercial = (c.status_comercial as string) ?? null
+                    existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
                     existingDonoPosId = (c.pos_owner_id as string) ?? null
                     break
                 }
@@ -1196,7 +1208,8 @@ export default function ImportacaoPosVendaPage() {
                         existingCardTitle = c.titulo as string
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
-                            existingDonoPosId = (c.pos_owner_id as string) ?? null
+                        existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                        existingDonoPosId = (c.pos_owner_id as string) ?? null
                         break
                     }
                 }
@@ -1230,7 +1243,8 @@ export default function ImportacaoPosVendaPage() {
                         existingCardTitle = c.titulo as string
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
-                            existingDonoPosId = (c.pos_owner_id as string) ?? null
+                        existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                        existingDonoPosId = (c.pos_owner_id as string) ?? null
                     }
                 }
             }
@@ -1247,6 +1261,7 @@ export default function ImportacaoPosVendaPage() {
                 existingStageName: null, // preenchido no batch abaixo
                 existingPhaseSlug: null, // preenchido no batch abaixo
                 existingStatusComercial,
+                existingGanhoPlanner,
                 existingDonoPosId,
                 moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
