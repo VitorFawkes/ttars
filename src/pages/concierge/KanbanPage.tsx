@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { ListChecks, Plane, User as UserIcon, Users } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
-import { TIPO_LABEL, type TipoConcierge } from '../../hooks/concierge/types'
+import { type TipoConcierge, type SourceConcierge } from '../../hooks/concierge/types'
+import { type JanelaEmbarque } from '../../hooks/concierge/useKanbanTarefas'
 import { useKanbanTarefas } from '../../hooks/concierge/useKanbanTarefas'
 import { useKanbanViagens } from '../../hooks/concierge/useKanbanViagens'
 import { ConciergeKanbanBoard } from '../../components/concierge/kanban/ConciergeKanbanBoard'
 import { ConciergeViagensBoard } from '../../components/concierge/kanban/ConciergeViagensBoard'
+import { KanbanFiltersBar } from '../../components/concierge/kanban/KanbanFiltersBar'
 import { cn } from '../../lib/utils'
 
 type Modo = 'tarefas' | 'viagens'
@@ -17,10 +19,26 @@ export default function KanbanPage() {
   const [modo, setModo] = useState<Modo>('tarefas')
   const [showAll, setShowAll] = useState(false)
   const [tipoFilter, setTipoFilter] = useState<Set<TipoConcierge>>(new Set())
+  const [sourceFilter, setSourceFilter] = useState<Set<SourceConcierge>>(new Set())
+  const [janelaFilter, setJanelaFilter] = useState<Set<JanelaEmbarque>>(new Set())
+  const [search, setSearch] = useState('')
+  const [cardFilter, setCardFilter] = useState<{ id: string; titulo: string } | null>(null)
 
   const donoId = !showAll && profile?.id ? profile.id : null
 
-  const filters = useMemo(
+  const tarefasFilters = useMemo(
+    () => ({
+      donoId,
+      tipos: tipoFilter.size > 0 ? Array.from(tipoFilter) : undefined,
+      sources: sourceFilter.size > 0 ? Array.from(sourceFilter) : undefined,
+      janelas: janelaFilter.size > 0 ? Array.from(janelaFilter) : undefined,
+      cardIds: cardFilter ? [cardFilter.id] : undefined,
+      search: search.trim() || undefined,
+    }),
+    [donoId, tipoFilter, sourceFilter, janelaFilter, cardFilter, search]
+  )
+
+  const viagensFilters = useMemo(
     () => ({
       donoId,
       tipos: tipoFilter.size > 0 ? Array.from(tipoFilter) : undefined,
@@ -28,22 +46,38 @@ export default function KanbanPage() {
     [donoId, tipoFilter]
   )
 
-  const { data: tarefas } = useKanbanTarefas(modo === 'tarefas' ? filters : { donoId: null })
-  const { data: viagens } = useKanbanViagens(modo === 'viagens' ? filters : { donoId: null })
+  const { data: tarefas } = useKanbanTarefas(modo === 'tarefas' ? tarefasFilters : { donoId: null })
+  const { data: viagens } = useKanbanViagens(modo === 'viagens' ? viagensFilters : { donoId: null })
 
   const totalTarefas = tarefas?.length ?? 0
   const totalViagens = viagens?.length ?? 0
   const count = modo === 'tarefas' ? totalTarefas : totalViagens
 
-  const toggleTipo = (t: TipoConcierge) => {
-    const n = new Set(tipoFilter)
-    if (n.has(t)) n.delete(t); else n.add(t)
-    setTipoFilter(n)
+  const toggleSet = <T,>(set: Set<T>, setter: (s: Set<T>) => void, k: T) => {
+    const next = new Set(set)
+    if (next.has(k)) next.delete(k); else next.add(k)
+    setter(next)
+  }
+
+  const hasAnyFilter = (
+    tipoFilter.size > 0 ||
+    sourceFilter.size > 0 ||
+    janelaFilter.size > 0 ||
+    !!cardFilter ||
+    !!search.trim()
+  )
+
+  const clearAll = () => {
+    setTipoFilter(new Set())
+    setSourceFilter(new Set())
+    setJanelaFilter(new Set())
+    setCardFilter(null)
+    setSearch('')
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] bg-slate-50">
-      <div className="border-b border-slate-200 bg-white px-6 py-3">
+      <div className="border-b border-slate-200 bg-white px-6 py-3 space-y-3">
         <div className="flex items-center gap-3">
           <div className="inline-flex bg-slate-100 rounded-md p-0.5">
             <button
@@ -71,6 +105,10 @@ export default function KanbanPage() {
           <div className="text-[12px] text-slate-500 font-mono">
             {count} {count === 1 ? (modo === 'tarefas' ? 'tarefa' : 'viagem') : (modo === 'tarefas' ? 'tarefas' : 'viagens')}
           </div>
+
+          {produtoAtual && (
+            <span className="text-[10.5px] text-slate-400 font-mono uppercase tracking-wide">{produtoAtual}</span>
+          )}
 
           <div className="flex-1" />
 
@@ -101,50 +139,27 @@ export default function KanbanPage() {
           </div>
         </div>
 
-        <div
-          className="flex items-center gap-2 mt-3 -mb-1 overflow-x-auto"
-          style={{ scrollbarWidth: 'none' }}
-        >
-          <span className="text-[11px] text-slate-500 shrink-0">Tipo:</span>
-          {(Object.entries(TIPO_LABEL) as [TipoConcierge, typeof TIPO_LABEL[TipoConcierge]][]).map(([key, meta]) => {
-            const active = tipoFilter.has(key)
-            return (
-              <button
-                key={key}
-                onClick={() => toggleTipo(key)}
-                className={cn(
-                  'shrink-0 inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11.5px] font-medium border transition-colors',
-                  active
-                    ? `${meta.bgColor} ${meta.color} ${meta.borderColor}`
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                )}
-              >
-                <span className={cn('w-1.5 h-1.5 rounded-full', meta.dotColor)} />
-                {meta.label}
-              </button>
-            )
-          })}
-          {tipoFilter.size > 0 && (
-            <button
-              onClick={() => setTipoFilter(new Set())}
-              className="shrink-0 text-[11.5px] text-slate-500 hover:text-slate-700 ml-1"
-            >
-              limpar
-            </button>
-          )}
-          {produtoAtual && (
-            <>
-              <div className="w-px h-5 bg-slate-200 mx-1" />
-              <span className="shrink-0 text-[11px] text-slate-500 font-mono uppercase tracking-wide">{produtoAtual}</span>
-            </>
-          )}
-        </div>
+        <KanbanFiltersBar
+          search={search}
+          onSearchChange={setSearch}
+          tipoFilter={tipoFilter}
+          onToggleTipo={(t) => toggleSet(tipoFilter, setTipoFilter, t)}
+          janelaFilter={janelaFilter}
+          onToggleJanela={(j) => toggleSet(janelaFilter, setJanelaFilter, j)}
+          sourceFilter={sourceFilter}
+          onToggleSource={(s) => toggleSet(sourceFilter, setSourceFilter, s)}
+          cardFilter={cardFilter}
+          onClearCard={() => setCardFilter(null)}
+          onClearAll={clearAll}
+          hasAnyFilter={hasAnyFilter}
+          showJanelaAndSource={modo === 'tarefas'}
+        />
       </div>
 
       <div className="flex-1 overflow-hidden">
         {modo === 'tarefas'
-          ? <ConciergeKanbanBoard filters={filters} />
-          : <ConciergeViagensBoard filters={filters} />}
+          ? <ConciergeKanbanBoard filters={tarefasFilters} />
+          : <ConciergeViagensBoard filters={viagensFilters} />}
       </div>
     </div>
   )

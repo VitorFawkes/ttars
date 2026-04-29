@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -14,11 +14,13 @@ import { toast } from 'sonner'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
+import { useExecutarEmLote, useNotificarCliente } from '../../../hooks/concierge/useAtendimentoMutations'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
-import { cn } from '../../../lib/utils'
+import { SelectionActionBar } from './SelectionActionBar'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface ConciergeKanbanBoardProps {
   filters: KanbanTarefasFilters
@@ -27,9 +29,16 @@ interface ConciergeKanbanBoardProps {
 export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
+  const executarEmLote = useExecutarEmLote()
+  const notificarCliente = useNotificarCliente()
+  const queryClient = useQueryClient()
+
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
+  const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const containerRef = useRef<HTMLDivElement>(null)
   const { showLeftArrow, showRightArrow, scrollLeft, scrollRight } = useHorizontalScroll(containerRef, {
@@ -40,6 +49,22 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   )
+
+  const selectedItems = useMemo(() => {
+    if (!data) return [] as KanbanTarefaItem[]
+    return data.filter(it => selectedIds.has(it.atendimento_id))
+  }, [data, selectedIds])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
 
   const handleDragStart = (event: DragStartEvent) => {
     const item = event.active.data.current?.item as KanbanTarefaItem | undefined
@@ -70,6 +95,51 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
 
     moverFunil.mutate({ atendimento: item, destino })
   }
+
+  const onBulkFeito = () => {
+    const ids = selectedItems.filter(i => !i.outcome).map(i => i.atendimento_id)
+    if (ids.length === 0) return
+    executarEmLote.mutate(
+      { atendimento_ids: ids, outcome: 'feito' },
+      { onSuccess: () => clearSelection() }
+    )
+  }
+
+  const onBulkAceito = () => {
+    const ids = selectedItems
+      .filter(i => i.tipo_concierge === 'oferta' && !i.outcome)
+      .map(i => i.atendimento_id)
+    if (ids.length === 0) return
+    executarEmLote.mutate(
+      { atendimento_ids: ids, outcome: 'aceito' },
+      { onSuccess: () => clearSelection() }
+    )
+  }
+
+  const onBulkNotificar = async () => {
+    const items = selectedItems.filter(i => !i.notificou_cliente_em && !i.outcome)
+    if (items.length === 0) return
+    let success = 0
+    for (const it of items) {
+      try {
+        await notificarCliente.mutateAsync(it.atendimento_id)
+        success++
+      } catch {
+        // toast individual já cuida
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['concierge'] })
+    if (success > 0) toast.success(`${success} cliente${success === 1 ? '' : 's'} notificado${success === 1 ? '' : 's'}`)
+    clearSelection()
+  }
+
+  const onBulkEncerrar = () => {
+    const items = selectedItems.filter(i => !i.outcome)
+    if (items.length === 0) return
+    setPendingBulkEncerrar(items)
+  }
+
+  const selectionMode = selectedIds.size > 0
 
   if (isLoading) {
     return (
@@ -116,7 +186,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div
           ref={containerRef}
-          className={cn('flex gap-3 overflow-x-auto px-6 py-4 h-full scroll-smooth')}
+          className="flex gap-3 overflow-x-auto px-6 py-4 h-full scroll-smooth"
         >
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
@@ -139,6 +209,9 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                       key={item.atendimento_id}
                       item={item}
                       onClick={() => setSelected(item)}
+                      selected={selectedIds.has(item.atendimento_id)}
+                      onToggleSelect={() => toggleSelect(item.atendimento_id)}
+                      selectionMode={selectionMode}
                     />
                   ))
                 )}
@@ -151,6 +224,16 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           {activeItem && <AtendimentoCard item={activeItem} onClick={() => {}} isOverlay />}
         </DragOverlay>
       </DndContext>
+
+      <SelectionActionBar
+        selected={selectedItems}
+        onClear={clearSelection}
+        onMarcarFeito={onBulkFeito}
+        onMarcarAceito={onBulkAceito}
+        onNotificar={onBulkNotificar}
+        onEncerrar={onBulkEncerrar}
+        isPending={executarEmLote.isPending || notificarCliente.isPending}
+      />
 
       <AtendimentoDetailModal
         item={selected ?? undefined}
@@ -167,6 +250,23 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           moverFunil.mutate(
             { atendimento: pendingEncerrar, destino: 'encerrado', outcomeEncerramento: motivo, observacao },
             { onSettled: () => setPendingEncerrar(null) }
+          )
+        }}
+      />
+
+      <EncerrarAtendimentoModal
+        open={!!pendingBulkEncerrar}
+        onClose={() => setPendingBulkEncerrar(null)}
+        isSubmitting={executarEmLote.isPending}
+        onConfirm={(motivo, observacao) => {
+          if (!pendingBulkEncerrar) return
+          const ids = pendingBulkEncerrar.map(i => i.atendimento_id)
+          executarEmLote.mutate(
+            { atendimento_ids: ids, outcome: motivo, observacao },
+            {
+              onSuccess: () => { clearSelection(); setPendingBulkEncerrar(null) },
+              onError: () => setPendingBulkEncerrar(null),
+            }
           )
         }}
       />

@@ -5,6 +5,8 @@ import { useKanbanViagens, SAUDE_COLUMNS, type KanbanViagensFilters, type Viagem
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { ViagemCard } from './ViagemCard'
 import { ViagemAtendimentosDrawer } from './ViagemAtendimentosDrawer'
+import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
+import type { MeuDiaItem } from '../../../hooks/concierge/types'
 
 interface ConciergeViagensBoardProps {
   filters: KanbanViagensFilters
@@ -12,7 +14,8 @@ interface ConciergeViagensBoardProps {
 
 export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
   const { groupedBySaude, isLoading, data } = useKanbanViagens(filters)
-  const [selected, setSelected] = useState<ViagemKanbanItem | null>(null)
+  const [selectedViagem, setSelectedViagem] = useState<ViagemKanbanItem | null>(null)
+  const [selectedTask, setSelectedTask] = useState<MeuDiaItem | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const { showLeftArrow, showRightArrow, scrollLeft, scrollRight } = useHorizontalScroll(containerRef, {
@@ -81,7 +84,12 @@ export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
                 </div>
               ) : (
                 items.map(v => (
-                  <ViagemCard key={v.card_id} viagem={v} onClick={() => setSelected(v)} />
+                  <ViagemCard
+                    key={v.card_id}
+                    viagem={v}
+                    onOpenDrawer={() => setSelectedViagem(v)}
+                    onOpenTask={(t) => setSelectedTask(t)}
+                  />
                 ))
               )}
             </ConciergeKanbanColumn>
@@ -89,7 +97,8 @@ export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
         })}
       </div>
 
-      <ViagemAtendimentosDrawer viagem={selected} onClose={() => setSelected(null)} />
+      <ViagemAtendimentosDrawer viagem={selectedViagem} onClose={() => setSelectedViagem(null)} />
+      <AtendimentoDetailModal item={selectedTask ?? undefined} open={!!selectedTask} onClose={() => setSelectedTask(null)} />
     </div>
   )
 }

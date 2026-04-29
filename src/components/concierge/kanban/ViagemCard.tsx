@@ -1,5 +1,8 @@
-import { Calendar, Flame, Clock, CheckCircle2 } from 'lucide-react'
-import { TIPO_LABEL } from '../../../hooks/concierge/types'
+import { useState } from 'react'
+import { Calendar, Flame, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { TIPO_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem } from '../../../hooks/concierge/types'
+import { useMarcarOutcome } from '../../../hooks/concierge/useAtendimentoMutations'
 import type { ViagemKanbanItem, SaudeViagem } from '../../../hooks/concierge/useKanbanViagens'
 import { cn } from '../../../lib/utils'
 
@@ -14,89 +17,203 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-interface ViagemCardProps {
-  viagem: ViagemKanbanItem
-  onClick: () => void
+function relPrazo(iso: string | null) {
+  if (!iso) return null
+  const target = new Date(iso).getTime()
+  const now = Date.now()
+  const diffH = Math.round((target - now) / (1000 * 60 * 60))
+  const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
+  if (Math.abs(diffH) < 1) return { label: 'agora', overdue: false }
+  if (diffH < 0 && diffH > -24) return { label: `há ${-diffH}h`, overdue: true }
+  if (diffH < 0) return { label: `há ${-diffD}d`, overdue: true }
+  if (diffH < 24) return { label: `em ${diffH}h`, overdue: false }
+  return { label: `em ${diffD}d`, overdue: false }
 }
 
-export function ViagemCard({ viagem, onClick }: ViagemCardProps) {
+interface ViagemCardProps {
+  viagem: ViagemKanbanItem
+  onOpenDrawer: () => void
+  onOpenTask: (item: MeuDiaItem) => void
+}
+
+const MAX_INLINE_TASKS = 4
+
+export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps) {
   const ini = fmtDate(viagem.data_viagem_inicio)
   const fim = fmtDate(viagem.data_viagem_fim)
   const dataLabel = ini && fim ? `${ini} – ${fim}` : ini ?? 'Sem data'
   const isCritica = viagem.saude === 'critica'
   const isConcluida = viagem.saude === 'concluida'
+  const inlineTasks = viagem.abertos.slice(0, MAX_INLINE_TASKS)
+  const remaining = viagem.abertos.length - inlineTasks.length
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative w-full text-left bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md hover:border-slate-300 transition-all"
+    <div
+      className={cn(
+        'group relative w-full bg-white border rounded-lg shadow-sm hover:shadow-md transition-all overflow-hidden',
+        isCritica ? 'border-red-200' : 'border-slate-200'
+      )}
     >
-      <span className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg', SAUDE_ACCENT[viagem.saude])} />
+      <span className={cn('absolute left-0 top-0 bottom-0 w-[3px]', SAUDE_ACCENT[viagem.saude])} />
 
-      <div className="pl-3 pr-2.5 py-2.5">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
-            {viagem.card_titulo}
-          </h4>
-          {isCritica && <Flame className="w-3.5 h-3.5 text-red-600 shrink-0" strokeWidth={2.5} />}
-          {isConcluida && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.5} />}
-        </div>
+      <div className="pl-3 pr-2.5 pt-2.5 pb-1.5">
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="block w-full text-left hover:bg-slate-50/50 -mx-1 -mt-1 px-1 pt-1 pb-1 rounded"
+        >
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h4 className="text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
+              {viagem.card_titulo}
+            </h4>
+            {isCritica && <Flame className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" strokeWidth={2.5} />}
+            {isConcluida && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" strokeWidth={2.5} />}
+          </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-2">
-          <span className="font-medium text-slate-600 uppercase tracking-wide text-[10px]">{viagem.produto?.toUpperCase()}</span>
-          <span className="text-slate-300">·</span>
-          <span className="inline-flex items-center gap-0.5">
-            <Calendar className="w-2.5 h-2.5" />
-            {dataLabel}
-          </span>
-        </div>
-
-        {viagem.tipos_pendentes.length > 0 && (
-          <div className="flex items-center gap-1 mb-2">
-            {viagem.tipos_pendentes.slice(0, 4).map(t => (
-              <span
-                key={t}
-                className={cn('w-2 h-2 rounded-full', TIPO_LABEL[t].dotColor)}
-                title={TIPO_LABEL[t].label}
-              />
-            ))}
-            <span className="text-[10.5px] text-slate-500 ml-1">
-              {viagem.abertos} {viagem.abertos === 1 ? 'aberto' : 'abertos'}
+          <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500">
+            <span className="font-semibold text-slate-600 uppercase tracking-wide">{viagem.produto?.toUpperCase()}</span>
+            <span className="text-slate-300">·</span>
+            <span className="inline-flex items-center gap-0.5">
+              <Calendar className="w-2.5 h-2.5" />
+              {dataLabel}
             </span>
+            {viagem.dias_pra_embarque != null && viagem.dias_pra_embarque >= 0 && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="font-mono font-semibold text-slate-700">embarca em {viagem.dias_pra_embarque}d</span>
+              </>
+            )}
           </div>
-        )}
+        </button>
+      </div>
 
-        <div className="flex items-center justify-between gap-2 text-[10.5px]">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {viagem.vencidos > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-50 text-red-700 font-bold">
-                <Flame className="w-2.5 h-2.5" strokeWidth={3} />
-                {viagem.vencidos}
-              </span>
-            )}
-            {viagem.hoje > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-bold">
-                <Clock className="w-2.5 h-2.5" />
-                {viagem.hoje}
-              </span>
-            )}
-            {viagem.esta_semana > 0 && viagem.vencidos === 0 && viagem.hoje === 0 && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                {viagem.esta_semana} esta semana
-              </span>
-            )}
-          </div>
-          {viagem.dias_pra_embarque != null && viagem.dias_pra_embarque >= 0 && (
-            <div className="text-right">
-              <div className="font-mono font-semibold text-[11px] text-slate-700">
-                {viagem.dias_pra_embarque}d
-              </div>
-              <div className="text-[9.5px] text-slate-400 uppercase tracking-wide leading-none">embarque</div>
-            </div>
+      {viagem.abertos.length > 0 ? (
+        <ul className="border-t border-slate-100">
+          {inlineTasks.map(task => (
+            <TaskInlineRow
+              key={task.atendimento_id}
+              task={task}
+              onClick={() => onOpenTask(task)}
+            />
+          ))}
+          {remaining > 0 && (
+            <li>
+              <button
+                type="button"
+                onClick={onOpenDrawer}
+                className="w-full text-[10.5px] font-medium text-indigo-600 hover:bg-indigo-50 py-1.5 px-3 text-left transition-colors"
+              >
+                + {remaining} {remaining === 1 ? 'tarefa' : 'tarefas'} a mais…
+              </button>
+            </li>
+          )}
+        </ul>
+      ) : (
+        <div className="border-t border-slate-100 py-2 px-3 text-[10.5px] text-emerald-700 inline-flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} />
+          Tudo concluído
+        </div>
+      )}
+
+      <div className="border-t border-slate-100 px-2.5 py-1 flex items-center justify-between gap-2 bg-slate-50/40">
+        <div className="flex items-center gap-1 text-[10px]">
+          {viagem.vencidos > 0 && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">
+              <Flame className="w-2.5 h-2.5" strokeWidth={3} />
+              {viagem.vencidos}
+            </span>
+          )}
+          {viagem.hoje > 0 && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
+              {viagem.hoje} hj
+            </span>
+          )}
+          {viagem.concluidos > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-slate-500">
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              {viagem.concluidos}
+            </span>
+          )}
+        </div>
+        <Link
+          to={`/cards/${viagem.card_id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 hover:text-indigo-600 font-medium"
+          title="Abrir card da viagem"
+        >
+          ver viagem <ExternalLink className="w-2.5 h-2.5" />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function TaskInlineRow({ task, onClick }: { task: MeuDiaItem; onClick: () => void }) {
+  const meta = TIPO_LABEL[task.tipo_concierge]
+  const cat = CATEGORIAS_CONCIERGE[task.categoria as keyof typeof CATEGORIAS_CONCIERGE]
+  const titulo = task.titulo?.trim() || cat?.label || task.categoria
+  const prazo = relPrazo(task.data_vencimento)
+  const isVencido = task.status_apresentacao === 'vencido'
+  const isOferta = task.tipo_concierge === 'oferta'
+
+  const { mutate: marcarOutcome, isPending } = useMarcarOutcome()
+  const [done, setDone] = useState(false)
+
+  const handleCheck = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (done || isPending) return
+    setDone(true)
+    marcarOutcome({
+      atendimento_id: task.atendimento_id,
+      outcome: isOferta ? 'aceito' : 'feito',
+      valor_final: task.valor ?? null,
+      cobrado_de: task.cobrado_de ?? null,
+    }, {
+      onError: () => setDone(false),
+    })
+  }
+
+  return (
+    <li className={cn('group/row border-t border-slate-50 first:border-t-0 transition-opacity', done && 'opacity-50')}>
+      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors">
+        <button
+          type="button"
+          onClick={handleCheck}
+          disabled={done || isPending}
+          className={cn(
+            'shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors',
+            done
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'bg-white border-slate-300 hover:border-emerald-500 hover:bg-emerald-50'
+          )}
+          title={isOferta ? 'Marcar como aceito' : 'Marcar como feito'}
+        >
+          {isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : done && <CheckCircle2 className="w-3 h-3" strokeWidth={3} />}
+        </button>
+
+        <span className={cn('shrink-0 w-1.5 h-1.5 rounded-full', meta.dotColor)} title={meta.label} />
+
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex-1 min-w-0 text-left flex items-center gap-2"
+        >
+          <span className={cn('text-[12px] truncate', done ? 'line-through text-slate-400' : 'text-slate-800')}>
+            {titulo}
+          </span>
+        </button>
+
+        <div className="shrink-0 flex items-center gap-1.5">
+          {isVencido && !done && (
+            <span className="text-[9.5px] font-bold text-red-700 uppercase tracking-wide">vence</span>
+          )}
+          {prazo && (
+            <span className={cn('font-mono text-[10.5px] font-semibold', prazo.overdue && !done ? 'text-red-600' : 'text-slate-500')}>
+              {prazo.label}
+            </span>
           )}
         </div>
       </div>
-    </button>
+    </li>
   )
 }

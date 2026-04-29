@@ -5,14 +5,57 @@ import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
 
 export type EstadoFunil = 'a_fazer' | 'em_contato' | 'aceito' | 'feito' | 'encerrado'
 
+export type JanelaEmbarque =
+  | 'sem_data'
+  | 'em_viagem'
+  | 'embarca_48h'
+  | 'embarca_semana'
+  | 'embarca_15d'
+  | 'embarca_30d'
+  | 'embarca_futuro'
+
+export const JANELA_LABEL: Record<JanelaEmbarque, string> = {
+  sem_data:        'Sem data',
+  em_viagem:       'Em viagem',
+  embarca_48h:     '48h',
+  embarca_semana:  'Esta semana',
+  embarca_15d:     '15 dias',
+  embarca_30d:     '30 dias',
+  embarca_futuro:  '30+ dias',
+}
+
+export const JANELA_ORDER: JanelaEmbarque[] = [
+  'em_viagem',
+  'embarca_48h',
+  'embarca_semana',
+  'embarca_15d',
+  'embarca_30d',
+  'embarca_futuro',
+  'sem_data',
+]
+
+export function computeJanelaEmbarque(dias: number | null): JanelaEmbarque {
+  if (dias === null || dias === undefined) return 'sem_data'
+  if (dias < 0) return 'em_viagem'
+  if (dias <= 2) return 'embarca_48h'
+  if (dias <= 7) return 'embarca_semana'
+  if (dias <= 15) return 'embarca_15d'
+  if (dias <= 30) return 'embarca_30d'
+  return 'embarca_futuro'
+}
+
 export interface KanbanTarefasFilters {
   donoId?: string | null
   tipos?: TipoConcierge[]
   sources?: SourceConcierge[]
+  cardIds?: string[]
+  janelas?: JanelaEmbarque[]
+  search?: string
 }
 
 export interface KanbanTarefaItem extends MeuDiaItem {
   estado_funil: EstadoFunil
+  janela_embarque: JanelaEmbarque
 }
 
 export interface KanbanColumnSpec {
@@ -39,8 +82,8 @@ export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
 }
 
 export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
-  const query = useQuery({
-    queryKey: ['concierge', 'kanban-tarefas', filters],
+  const baseQuery = useQuery({
+    queryKey: ['concierge', 'kanban-tarefas-base', { donoId: filters.donoId, tipos: filters.tipos, sources: filters.sources }],
     queryFn: async (): Promise<KanbanTarefaItem[]> => {
       let q = sbAny.from('v_meu_dia_concierge').select('*')
 
@@ -56,19 +99,39 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
       return ((data ?? []) as MeuDiaItem[]).map(item => ({
         ...item,
         estado_funil: computeEstadoFunil(item),
+        janela_embarque: computeJanelaEmbarque(item.dias_pra_embarque),
       }))
     },
     staleTime: 30 * 1000,
   })
 
+  const filtered = useMemo(() => {
+    if (!baseQuery.data) return undefined
+    return baseQuery.data.filter(item => {
+      if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
+      if (filters.janelas?.length && !filters.janelas.includes(item.janela_embarque)) return false
+      if (filters.search?.trim()) {
+        const q = filters.search.toLowerCase()
+        const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
+        if (!blob.includes(q)) return false
+      }
+      return true
+    })
+  }, [baseQuery.data, filters.cardIds, filters.janelas, filters.search])
+
   const groupedByEstado = useMemo(() => {
     const groups = new Map<EstadoFunil, KanbanTarefaItem[]>()
     for (const col of ESTADO_FUNIL_COLUMNS) groups.set(col.id, [])
-    for (const item of query.data ?? []) {
+    for (const item of filtered ?? []) {
       groups.get(item.estado_funil)!.push(item)
     }
     return groups
-  }, [query.data])
+  }, [filtered])
 
-  return { ...query, groupedByEstado }
+  return {
+    ...baseQuery,
+    data: filtered,
+    rawData: baseQuery.data,
+    groupedByEstado,
+  }
 }

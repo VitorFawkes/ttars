@@ -21,7 +21,7 @@ export interface ViagemKanbanItem {
   card_valor_final: number | null
   saude: SaudeViagem
   total_atendimentos: number
-  abertos: number
+  abertos_count: number
   vencidos: number
   hoje: number
   esta_semana: number
@@ -29,6 +29,7 @@ export interface ViagemKanbanItem {
   proxima_data_vencimento: string | null
   dias_pra_embarque: number | null
   tipos_pendentes: TipoConcierge[]
+  abertos: MeuDiaItem[]
 }
 
 export interface SaudeColumnSpec {
@@ -46,14 +47,18 @@ export const SAUDE_COLUMNS: SaudeColumnSpec[] = [
 ]
 
 function classifySaude(viagem: {
-  abertos: number
+  abertos_count: number
   vencidos: number
   dias_pra_embarque: number | null
 }): SaudeViagem {
-  if (viagem.abertos === 0) return 'concluida'
+  if (viagem.abertos_count === 0) return 'concluida'
   if (viagem.vencidos > 0) return 'critica'
   if (viagem.dias_pra_embarque !== null && viagem.dias_pra_embarque >= 0 && viagem.dias_pra_embarque <= 2) return 'critica'
   return 'em_andamento'
+}
+
+function isAberto(item: MeuDiaItem) {
+  return !item.outcome && !item.concluida
 }
 
 export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
@@ -78,21 +83,26 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
       const result: ViagemKanbanItem[] = []
       for (const [card_id, items] of byCard.entries()) {
         const head = items[0]
-        const abertos = items.filter(i => !i.outcome && !i.concluida)
-        const vencidos = items.filter(i => i.status_apresentacao === 'vencido' && !i.outcome).length
-        const hoje = items.filter(i => i.status_apresentacao === 'hoje' && !i.outcome).length
-        const esta_semana = items.filter(i => i.status_apresentacao === 'esta_semana' && !i.outcome).length
+        const abertos = items
+          .filter(isAberto)
+          .sort((a, b) => {
+            const da = a.data_vencimento ? new Date(a.data_vencimento).getTime() : Number.MAX_SAFE_INTEGER
+            const db = b.data_vencimento ? new Date(b.data_vencimento).getTime() : Number.MAX_SAFE_INTEGER
+            return da - db
+          })
+        const vencidos = abertos.filter(i => i.status_apresentacao === 'vencido').length
+        const hoje = abertos.filter(i => i.status_apresentacao === 'hoje').length
+        const esta_semana = abertos.filter(i => i.status_apresentacao === 'esta_semana').length
         const concluidos = items.filter(i => i.outcome === 'feito' || i.outcome === 'aceito' || i.concluida).length
 
         const proximaData = abertos
           .map(i => i.data_vencimento)
-          .filter((d): d is string => !!d)
-          .sort()[0] ?? null
+          .filter((d): d is string => !!d)[0] ?? null
 
         const tiposSet = new Set<TipoConcierge>()
         for (const i of abertos) tiposSet.add(i.tipo_concierge)
 
-        const viagem: Omit<ViagemKanbanItem, 'saude'> = {
+        const base = {
           card_id,
           card_titulo: head.card_titulo,
           produto: head.produto,
@@ -102,7 +112,7 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           card_valor_estimado: head.card_valor_estimado,
           card_valor_final: head.card_valor_final,
           total_atendimentos: items.length,
-          abertos: abertos.length,
+          abertos_count: abertos.length,
           vencidos,
           hoje,
           esta_semana,
@@ -110,15 +120,18 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           proxima_data_vencimento: proximaData,
           dias_pra_embarque: head.dias_pra_embarque,
           tipos_pendentes: Array.from(tiposSet),
+          abertos,
         }
 
         result.push({
-          ...viagem,
-          saude: classifySaude(viagem),
+          ...base,
+          saude: classifySaude(base),
         })
       }
 
       return result.sort((a, b) => {
+        const ranks = { critica: 0, em_andamento: 1, concluida: 2 }
+        if (ranks[a.saude] !== ranks[b.saude]) return ranks[a.saude] - ranks[b.saude]
         const da = a.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
         const db = b.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
         return da - db

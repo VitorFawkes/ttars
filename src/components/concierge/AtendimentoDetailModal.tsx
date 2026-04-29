@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { X, AlertCircle } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, Plane } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
-import { TIPO_LABEL, SOURCE_LABEL, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
+import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
@@ -99,7 +100,9 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <p className="text-xs text-slate-600 mb-1">Categoria</p>
-              <p className="font-semibold text-slate-900">{item.categoria}</p>
+              <p className="font-semibold text-slate-900">
+                {CATEGORIAS_CONCIERGE[item.categoria as keyof typeof CATEGORIAS_CONCIERGE]?.label ?? item.categoria}
+              </p>
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -130,16 +133,69 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             )}
           </div>
 
-          {/* Card info */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-            <p className="text-xs text-slate-600 mb-1">Viagem</p>
-            <p className="font-semibold text-slate-900 mb-1">{item.card_titulo}</p>
-            {item.data_viagem_inicio && (
-              <p className="text-sm text-slate-600">
-                {new Date(item.data_viagem_inicio).toLocaleDateString('pt-BR')} a{' '}
-                {item.data_viagem_fim ? new Date(item.data_viagem_fim).toLocaleDateString('pt-BR') : '?'}
-              </p>
-            )}
+          {/* Card / Viagem info enriquecido */}
+          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                <Plane className="w-3.5 h-3.5 text-slate-400" />
+                Viagem
+              </div>
+              <Link
+                to={`/cards/${item.card_id}`}
+                onClick={onClose}
+                className="inline-flex items-center gap-1 text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Abrir card completo
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+
+            <div className="p-4 space-y-2.5">
+              <div className="font-semibold text-slate-900 leading-snug">{item.card_titulo}</div>
+
+              <div className="flex items-center gap-3 text-[12.5px] text-slate-700 flex-wrap">
+                <span className="font-mono uppercase tracking-wide text-[11px] text-slate-500">{item.produto?.toUpperCase()}</span>
+
+                {item.data_viagem_inicio && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-mono">
+                      {new Date(item.data_viagem_inicio).toLocaleDateString('pt-BR')}
+                      {item.data_viagem_fim && ` – ${new Date(item.data_viagem_fim).toLocaleDateString('pt-BR')}`}
+                    </span>
+                  </span>
+                )}
+
+                {item.dias_pra_embarque !== null && (
+                  <span className={cn(
+                    'inline-flex items-center px-2 py-0.5 rounded font-mono text-[11.5px] font-semibold',
+                    item.dias_pra_embarque < 0 ? 'bg-slate-100 text-slate-600' :
+                    item.dias_pra_embarque <= 2 ? 'bg-red-50 text-red-700' :
+                    item.dias_pra_embarque <= 7 ? 'bg-amber-50 text-amber-700' :
+                    'bg-slate-50 text-slate-600'
+                  )}>
+                    {item.dias_pra_embarque < 0
+                      ? `Já voltou há ${-item.dias_pra_embarque}d`
+                      : item.dias_pra_embarque === 0
+                      ? 'Embarca hoje'
+                      : `Embarca em ${item.dias_pra_embarque}d`}
+                  </span>
+                )}
+              </div>
+
+              {(item.card_valor_estimado || item.card_valor_final) && (
+                <div className="flex items-center gap-1.5 text-[12.5px] text-slate-700">
+                  <Wallet className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-slate-500 text-[11.5px]">Valor da viagem:</span>
+                  <span className="font-mono font-semibold text-slate-900">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.card_valor_final ?? item.card_valor_estimado ?? 0)}
+                  </span>
+                  {item.card_valor_final == null && item.card_valor_estimado != null && (
+                    <span className="text-[10.5px] text-slate-400 italic">(estimado)</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Timeline */}
