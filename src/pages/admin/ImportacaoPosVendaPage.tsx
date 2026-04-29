@@ -1420,7 +1420,7 @@ export default function ImportacaoPosVendaPage() {
                 const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
                 if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
                 // dd/mm/yyyy ou mm/dd/yyyy — heurística por componente > 12
-                const parts = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})/)
+                const parts = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/)
                 if (parts) {
                     const a = parseInt(parts[1], 10)
                     const b = parseInt(parts[2], 10)
@@ -1699,7 +1699,6 @@ export default function ImportacaoPosVendaPage() {
                     .from('pipeline_stages')
                     .select('id, nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                     .in('id', uniqueExistingStageIds)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (stages || []).map((s: any) => [s.id as string, { nome: s.nome as string, phaseSlug: s.phase?.slug as string }])
