@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, Phone, Mail, Users as UsersIcon, MessageCircle, AlertTriangle } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
 import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
-import { useCardPeople, type CardPerson } from '../../hooks/useCardPeople'
-import { useCardObservacoes, flattenObservacoes } from '../../hooks/concierge/useCardObservacoes'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { CardContextBlocks } from './CardContextBlocks'
 import { cn } from '../../lib/utils'
 
 interface AtendimentoDetailModalProps {
@@ -32,37 +31,6 @@ function fmtBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 }
 
-function ageFromDate(iso: string | null | undefined): number | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return null
-  const today = new Date()
-  let years = today.getFullYear() - d.getFullYear()
-  const m = today.getMonth() - d.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) years--
-  return years
-}
-
-function fullName(p: CardPerson) {
-  return [p.nome, p.sobrenome].filter(Boolean).join(' ') || 'Sem nome'
-}
-
-function whatsappUrl(phone: string | null | undefined): string | null {
-  if (!phone) return null
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length < 10) return null
-  const withCountry = digits.startsWith('55') ? digits : `55${digits}`
-  return `https://wa.me/${withCountry}`
-}
-
-function formatPhone(phone: string | null | undefined): string {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
-  return phone
-}
-
 export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
   const isOpen = props.open ?? props.isOpen ?? false
@@ -74,10 +42,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
-
-  const { primary, travelers } = useCardPeople(item?.card_id)
-  const { data: observacoes } = useCardObservacoes(item?.card_id)
-  const obsEntries = flattenObservacoes(observacoes)
 
   if (!item) return null
   if (!isOpen) return null
@@ -142,25 +106,11 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
           <ViagemBlock item={item} onClose={onClose} />
 
-          {primary && <ClientePrincipalBlock person={primary} />}
-
-          {travelers.length > 0 && <ViajantesBlock travelers={travelers} primaryId={primary?.id ?? null} />}
-
-          {obsEntries.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
-              <div className="px-3 py-2 border-b border-amber-200 flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold text-amber-800">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Observações importantes
-              </div>
-              <ul className="p-3 space-y-1.5">
-                {obsEntries.map((e, i) => (
-                  <li key={`${e.source}-${e.key}-${i}`} className="text-[12.5px] text-amber-900 leading-snug">
-                    <span className="font-semibold">{e.label}:</span> <span className="text-slate-800">{e.value}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <CardContextBlocks
+            cardId={item.card_id}
+            excludeAtendimentoId={item.atendimento_id}
+            showOutrasPendencias={true}
+          />
 
           {item.descricao && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[13px] text-slate-700 leading-relaxed">
@@ -345,93 +295,6 @@ function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void 
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function ClientePrincipalBlock({ person }: { person: CardPerson }) {
-  const phone = formatPhone(person.telefone)
-  const wa = whatsappUrl(person.telefone)
-  return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <div className="px-3 py-2 border-b border-slate-100 text-[11px] uppercase tracking-wide font-semibold text-slate-500">
-        Cliente principal
-      </div>
-      <div className="p-3 space-y-2">
-        <div className="font-semibold text-slate-900">{fullName(person)}</div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {person.telefone && (
-            <>
-              <a
-                href={`tel:${person.telefone}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-[12px] text-slate-700 transition"
-              >
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-mono">{phone}</span>
-              </a>
-              {wa && (
-                <a
-                  href={wa}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[12px] text-emerald-700 font-medium transition"
-                  title="Abrir conversa no WhatsApp"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp
-                </a>
-              )}
-            </>
-          )}
-          {person.email && (
-            <a
-              href={`mailto:${person.email}`}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-[12px] text-slate-700 transition"
-            >
-              <Mail className="w-3.5 h-3.5 text-slate-400" />
-              {person.email}
-            </a>
-          )}
-          {!person.telefone && !person.email && (
-            <span className="text-[12px] text-slate-400 italic">Sem telefone ou email cadastrado</span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ViajantesBlock({ travelers, primaryId }: { travelers: CardPerson[]; primaryId: string | null }) {
-  // Inclui o primary no count total mas lista só os travelers ainda não-primary
-  const list = travelers.filter(t => t.id !== primaryId)
-  const totalCount = list.length + (primaryId ? 1 : 0)
-  if (list.length === 0) return null
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <div className="px-3 py-2 border-b border-slate-100 text-[11px] uppercase tracking-wide font-semibold text-slate-500 flex items-center gap-1.5">
-        <UsersIcon className="w-3.5 h-3.5" />
-        Outros viajantes
-        <span className="ml-auto font-mono normal-case text-[10.5px] text-slate-400">{totalCount} pessoas no grupo</span>
-      </div>
-      <ul className="divide-y divide-slate-100">
-        {list.map(p => {
-          const idade = ageFromDate(null) // contatos não tem data_nascimento direto na interface CardPerson
-          return (
-            <li key={p.id} className="px-3 py-2 flex items-center gap-2 text-[12.5px]">
-              <span className={cn(
-                'w-1.5 h-1.5 rounded-full shrink-0',
-                p.tipo_pessoa === 'crianca' ? 'bg-pink-400' : 'bg-slate-300'
-              )} />
-              <span className="font-medium text-slate-800 truncate flex-1">{fullName(p)}</span>
-              <span className="text-[10.5px] uppercase tracking-wide text-slate-400 shrink-0">
-                {p.tipo_pessoa === 'crianca' ? 'criança' : 'adulto'}
-                {idade !== null && ` · ${idade}a`}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
     </div>
   )
 }
