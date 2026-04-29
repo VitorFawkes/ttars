@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, Shield, MapPin, Headphones, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, FileSpreadsheet, CheckSquare, Gift, Upload, Sparkles, Shield, MapPin, Headphones, Building2, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
@@ -16,6 +16,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: str
     { name: 'Viagens', href: '/viagens', icon: MapPin, orgsOnly: ['welcome-trips'] },
     { name: 'Grupos', href: '/groups', icon: Users, orgsOnly: ['welcome-trips'] },
     { name: 'Contatos', href: '/people', icon: User },
+    { name: 'Empresas', href: '/empresas', icon: Building2, orgsOnly: ['welcome-corporativo'] },
     { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
     { name: 'Agenda', href: '/calendar', icon: Calendar },
     { name: 'Concierge', href: '/concierge', icon: Headphones },

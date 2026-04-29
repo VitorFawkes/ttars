@@ -21,6 +21,7 @@ import CreateCardFromEcho from './pages/CreateCardFromEcho'
 import Cards from './pages/Cards'
 import Leads from './pages/Leads'
 import People from './pages/People'
+import Empresas from './pages/Empresas'
 import GroupsPage from './pages/GroupsPage'
 import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import BuilderPageV5 from './components/proposals/v5/BuilderPage'
@@ -244,6 +245,7 @@ function App() {
                   <Route path="/importacao-pos-venda" element={<ImportacaoPosVendaPage />} />
                   <Route path="/presentes" element={<PresentesHubPage />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/empresas" element={<Empresas />} />
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
