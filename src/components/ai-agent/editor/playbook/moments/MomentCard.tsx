@@ -60,6 +60,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(moment.trigger_config ?? {})
   const [mode, setMode] = useState(moment.message_mode)
   const [deliveryMode, setDeliveryMode] = useState<PlaybookMoment['delivery_mode']>(moment.delivery_mode ?? 'all_at_once')
+  const [intent, setIntent] = useState(moment.intent ?? '')
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
   const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(moment.discovery_config ?? null)
@@ -113,6 +114,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         trigger_type: triggerType,
         trigger_config: triggerConfig,
         message_mode: mode,
+        intent: intent.trim() || null,
         anchor_text: (mode === 'literal' || mode === 'faithful') ? anchor.trim() : (anchor.trim() || null),
         red_lines: redLines,
         collects_fields: moment.collects_fields ?? [],
@@ -205,6 +207,22 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                 <span className="text-xs text-slate-500">(threshold do score)</span>
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Por quê dessa fase? <span className="text-slate-400 font-normal">(opcional, ajuda a agente a entender a intenção mesmo se você mudar o modo)</span>
+            </label>
+            <textarea
+              value={intent}
+              onChange={(e) => { setIntent(e.target.value); markDirty() }}
+              placeholder="Ex: descobrir a visão dos noivos sobre o casamento e o que é importante pra eles."
+              className="w-full min-h-[60px] rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-50/50"
+              rows={2}
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              💡 A agente lê isso como contexto. Em <strong>Texto exato</strong> serve como guarda-corpo (ela não sai do texto, mas sabe o objetivo). Em <strong>Diretriz fiel</strong> e <strong>Estilo livre</strong>, ela usa pra adaptar com sentido.
+            </p>
           </div>
 
           <div>

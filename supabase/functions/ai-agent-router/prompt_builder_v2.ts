@@ -413,6 +413,14 @@ function renderOneMoment(
   const marker = m.moment_key === currentMomentKey ? '★' : '•';
   lines.push(`${marker} ${m.moment_key} — ${m.moment_label}`);
 
+  // Intent: o "POR QUÊ" da fase, separado do texto. Ajuda LLM a entender
+  // o objetivo independente do modo. Em literal serve como guarda-corpo;
+  // em faithful/free guia adaptação. Aparece SÓ se admin preencheu.
+  if (m.intent && m.intent.trim()) {
+    const intentSubstituted = applySubstitutions(m.intent.trim(), subs);
+    lines.push(`    [intenção: ${intentSubstituted}]`);
+  }
+
   // Step sequencial: quando momento usa wait_for_reply E anchor está dividido
   // em N steps com "---", mostra só o step ATUAL pra LLM (não toda a seq).
   // Pra outros momentos (ou quando não é o atual), mostra texto inteiro como

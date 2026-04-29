@@ -29,6 +29,7 @@ export function MomentLibraryModal({ agentId, existingKeys, nextDisplayOrder, on
         trigger_type: s.trigger_type,
         trigger_config: s.trigger_config ?? {},
         message_mode: s.message_mode,
+        intent: null,
         anchor_text: s.anchor_text ?? null,
         red_lines: s.red_lines ?? [],
         collects_fields: [],

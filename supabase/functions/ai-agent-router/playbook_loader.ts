@@ -56,6 +56,8 @@ export interface PlaybookMoment {
   trigger_type: 'primeiro_contato' | 'lead_respondeu' | 'keyword' | 'score_threshold' | 'always' | 'custom' | 'manual';
   trigger_config: Record<string, unknown>;
   message_mode: 'literal' | 'faithful' | 'free';
+  /** Intenção da fase (POR QUÊ existe), separada do anchor_text (COMO falar). */
+  intent?: string | null;
   anchor_text: string | null;
   red_lines: string[];
   collects_fields: string[];

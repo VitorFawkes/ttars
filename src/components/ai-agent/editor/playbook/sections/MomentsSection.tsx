@@ -51,6 +51,7 @@ export function MomentsSection({ agentId, agentName, companyName }: Props) {
         trigger_type: kind === 'flow' ? 'lead_respondeu' : 'keyword',
         trigger_config: kind === 'play' ? { keywords: [] } : {},
         message_mode: 'free',
+        intent: null,
         anchor_text: null,
         red_lines: [],
         collects_fields: [],

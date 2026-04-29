@@ -52,6 +52,12 @@ export interface PlaybookMoment {
   trigger_type: 'primeiro_contato' | 'lead_respondeu' | 'keyword' | 'score_threshold' | 'always' | 'custom' | 'manual'
   trigger_config: Record<string, unknown>
   message_mode: 'literal' | 'faithful' | 'free'
+  /**
+   * "Por quê" desta fase — 1-2 frases descrevendo a intenção
+   * (o que queremos descobrir/transmitir aqui). Separado do anchor_text
+   * (que é o "como falar"). Persiste entre trocas de modo.
+   */
+  intent: string | null
   anchor_text: string | null
   red_lines: string[]
   collects_fields: string[]
