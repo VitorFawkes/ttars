@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-04-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 144 paginas | 155 hooks | 22 views | 628 components
+> **Stats:** 191 tabelas | 144 paginas | 156 hooks | 22 views | 631 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **155 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **156 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -249,6 +249,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useContatoChangeLog()` | `useContatoChangeLog.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
+| `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |

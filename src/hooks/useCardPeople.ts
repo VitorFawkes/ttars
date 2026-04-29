@@ -11,6 +11,9 @@ interface Contact {
     email: string | null
     telefone: string | null
     tipo_pessoa: 'adulto' | 'crianca'
+    tipo_contato?: 'pessoa' | 'empresa' | null
+    empresa_id?: string | null
+    cargo?: string | null
     // Add other fields as needed
 }
 
