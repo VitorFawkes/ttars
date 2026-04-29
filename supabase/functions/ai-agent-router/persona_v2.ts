@@ -473,7 +473,50 @@ export async function runPersonaAgent_v2(
     bookMeeting: bookMeetingForPrompt,
   });
 
-  // 6. Chama LLM (sem tools nesta v2.0)
+  // 6. Modo TEXTO LITERAL: bypass do LLM. O admin escolheu palavras exatas
+  // — sem chamada de LLM, sem paráfrase, sem corte de pergunta. Saída
+  // determinística a partir do anchor processado:
+  //   - substituições de variáveis aplicadas ({contact_name}, {saudacao}, etc)
+  //   - smart-replace de saudação contextual
+  //   - step correto quando wait_for_reply + "---"
+  //   - trechos que o lead já antecipou removidos (fact_omission_detector)
+  //
+  // Bug observado em prod 29/04 (conv c53b9f7b): mesmo com modo "literal" e
+  // instrução "MANDE AS DUAS perguntas" no prompt, o LLM cortou a 2ª pergunta
+  // E parafraseou frase do meio. Confirmado: 60-70% confiabilidade de
+  // instrução fuzzy é insuficiente. Bypass do LLM = 100%.
+  //
+  // Tools (update_contact, create_task, check_calendar, etc) NÃO rodam neste
+  // turno em modo literal — admin escolheu controle total da fala. Tools voltam
+  // a rodar em fases de modo faithful/free. Pra fases que precisam agir (ex:
+  // desfecho com agendamento), use modo Diretriz fiel ou Estilo livre.
+  if (cur.message_mode === 'literal') {
+    const literalResponse = renderLiteralResponse({
+      moment: cur,
+      stepIndex: currentMomentStepIndex,
+      usesSteps,
+      contactNameKnown: ctx.contact_name_known,
+      contactName: ctx.contact_name,
+      agentName: agent.nome,
+      companyName: business?.company_name ?? '',
+      bookMeeting: bookMeetingForPrompt,
+      historicoCompacto: ctx.historico_compacto,
+      omitExcerpts: trechosAOmitir,
+    });
+    return {
+      response: literalResponse,
+      inputTokens: 0,
+      outputTokens: literalResponse.length / 4 | 0, // estimativa rough
+      v2Metadata: {
+        current_moment_key: detected.moment.moment_key,
+        qualification_score_at_turn: scoreInfo.score,
+        moment_detection_method: detected.method,
+        moment_transition_reason: backoffice.moment_transition_reason || detected.reason || 'literal_bypass',
+      },
+    };
+  }
+
+  // 6b. Outros modos (faithful, free): chama LLM normalmente.
   const personaModel = agent.pipeline_models?.main?.model || agent.modelo;
   const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
@@ -494,6 +537,89 @@ export async function runPersonaAgent_v2(
       moment_transition_reason: backoffice.moment_transition_reason || detected.reason,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: render LITERAL response (bypass do LLM)
+// ---------------------------------------------------------------------------
+
+interface RenderLiteralInput {
+  moment: PlaybookMoment;
+  stepIndex: number;
+  usesSteps: boolean;
+  contactNameKnown: boolean;
+  contactName: string;
+  agentName: string;
+  companyName: string;
+  bookMeeting: Parameters<typeof buildPromptV2>[0]['bookMeeting'];
+  historicoCompacto: string;
+  omitExcerpts: string[];
+}
+
+function renderLiteralResponse(input: RenderLiteralInput): string {
+  const { moment, stepIndex, usesSteps, contactNameKnown, contactName,
+          agentName, companyName, bookMeeting, historicoCompacto, omitExcerpts } = input;
+
+  if (!moment.anchor_text) return '';
+
+  // 1. Pega o step certo se for wait_for_reply + "---"
+  let text = moment.anchor_text;
+  if (usesSteps) {
+    const steps = text.split(/\n\s*-{3,}\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+    text = steps[Math.min(stepIndex, steps.length - 1)] ?? text;
+  }
+
+  // 2. Aplica omissões (trechos que o lead já antecipou)
+  for (const trecho of omitExcerpts) {
+    text = text.split(trecho).join('').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  // 3. Substitui variáveis
+  const subs: Record<string, string> = {
+    '{contact_name}': contactNameKnown ? contactName : '',
+    '{agent_name}': agentName,
+    '{company_name}': companyName,
+  };
+  if (bookMeeting?.responsavel_name) {
+    subs['{responsavel_name}'] = bookMeeting.responsavel_name;
+    subs['{responsavel_first_name}'] = bookMeeting.responsavel_name.trim().split(/\s+/)[0];
+  }
+  // Saudação detectada da última msg do lead (boa noite/tarde/dia)
+  const leadLines = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
+  const lastLead = leadLines.length > 0 ? leadLines[leadLines.length - 1].replace(/^\[lead\]:\s*/, '').trim() : '';
+  let detectedGreeting: string | null = null;
+  if (lastLead) {
+    const head = lastLead.toLowerCase().slice(0, 30);
+    if (/\bboa\s+noite\b/.test(head)) detectedGreeting = 'Boa noite';
+    else if (/\bboa\s+tarde\b/.test(head)) detectedGreeting = 'Boa tarde';
+    else if (/\bbom\s+dia\b/.test(head)) detectedGreeting = 'Bom dia';
+  }
+  subs['{saudacao}'] = detectedGreeting ?? 'Olá';
+  // Saudação por horário SP
+  const sp = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const hr = sp.getHours();
+  subs['{saudacao_horario}'] = hr >= 5 && hr < 12 ? 'Bom dia' : hr >= 12 && hr < 18 ? 'Boa tarde' : 'Boa noite';
+
+  // Smart-replace de "Olá|Oi" no início se lead deu saudação contextual
+  if (detectedGreeting) {
+    text = text.replace(/(^|\n)(Olá|Oi)([\s,!])/i, `$1${detectedGreeting}$3`);
+  }
+
+  // Aplica substituições
+  for (const [token, value] of Object.entries(subs)) {
+    text = text.split(token).join(value);
+  }
+
+  // 4. Cleanup de pontuação após substituições vazias
+  text = text
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/,\s*([.!?])/g, '$1')
+    .replace(/([,.!?;:])\1+/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .trim();
+
+  return text;
 }
 
 // ---------------------------------------------------------------------------
