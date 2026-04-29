@@ -230,8 +230,10 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             const rollback = applyOptimisticMove(cardId, stageId)
             return { rollback }
         },
-        onError: (_err, _variables, context) => {
+        onError: (err, _variables, context) => {
             context?.rollback?.()
+            const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+            toast.error('Não foi possível mover o card', { description: msg })
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['cards'] })
@@ -485,6 +487,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
         } catch (err) {
             console.error('Error moving card:', err)
+            const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+            toast.error('Não foi possível mover o card', { description: msg })
             rollback()
         }
     }
@@ -539,6 +543,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             queryClient.invalidateQueries({ queryKey: ['card-detail', pendingMove.cardId] })
         } catch (err) {
             console.error('Error moving card:', err)
+            const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+            toast.error('Não foi possível mover o card', { description: msg })
             fieldConfirmationRollback?.()
         }
         setFieldConfirmationModalOpen(false)
@@ -599,6 +605,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
                     } catch (err) {
                         console.error('Erro ao marcar como ganho:', err)
+                        const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+                        toast.error('Erro ao marcar como ganho', { description: msg })
                     }
                 } else {
                     // Normal cross-phase move — update owner then move
@@ -609,7 +617,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
                     if (error) {
                         console.error('Error updating owner:', error)
-                        alert('Erro ao atualizar responsável.')
+                        toast.error('Erro ao atualizar responsável', { description: error.message })
                         return
                     }
 
