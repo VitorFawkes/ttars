@@ -605,35 +605,16 @@ interface ImportLogItemRow {
 
 // ─── Expandable Trip Card ───────────────────────────────────
 
-function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void; onToggleMoveStage: (id: string) => void }) {
+function TripCard({ trip, selected, onToggle, onToggleMoveStage, cardsToArchive, onToggleArchiveMark }: {
+    trip: TripGroup
+    selected: boolean
+    onToggle: (id: string) => void
+    onToggleMoveStage: (id: string) => void
+    cardsToArchive: Set<string>
+    onToggleArchiveMark: (id: string) => void
+}) {
     const [expanded, setExpanded] = useState(false)
     const Chevron = expanded ? ChevronDown : ChevronRight
-    const { archiveBulk, isArchiving } = useArchiveCard()
-    // markedToArchive: usuário marcou pra arquivar mas ainda não confirmou
-    const [markedToArchive, setMarkedToArchive] = useState<Set<string>>(new Set())
-    // archivedOtherIds: já foram arquivados (UI riscada)
-    const [archivedOtherIds, setArchivedOtherIds] = useState<Set<string>>(new Set())
-
-    const toggleMark = (otherId: string) => {
-        setMarkedToArchive(prev => {
-            const next = new Set(prev)
-            if (next.has(otherId)) next.delete(otherId)
-            else next.add(otherId)
-            return next
-        })
-    }
-
-    const handleArchiveSelected = () => {
-        const ids = [...markedToArchive].filter(id => !archivedOtherIds.has(id))
-        if (ids.length === 0) return
-        const ok = window.confirm(
-            `Arquivar ${ids.length} card${ids.length !== 1 ? 's' : ''}?\n\nEles vão pra lixeira e podem ser restaurados.`
-        )
-        if (!ok) return
-        archiveBulk(ids)
-        setArchivedOtherIds(prev => new Set([...prev, ...ids]))
-        setMarkedToArchive(new Set())
-    }
 
     const actionBadge = {
         create: { label: 'Criar', cls: 'bg-emerald-50 text-emerald-700' },
@@ -755,6 +736,9 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                     <div className="font-medium mb-1">
                                         Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda (não vão ser tocados):
                                     </div>
+                                    <p className="text-[10px] text-amber-700/70 mb-1 italic">
+                                        Já marcamos pra arquivar (vai pra lixeira ao clicar Atualizar). Desmarque os que quer manter.
+                                    </p>
                                     <ul className="space-y-1.5">
                                         {trip.otherCardCandidates.map(other => {
                                             const status = other.statusComercial ?? '—'
@@ -762,45 +746,34 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                             const ganhoPlannerLabel = other.ganhoPlanner === true
                                                 ? 'Ganho Planner ✓'
                                                 : 'sem Ganho Planner'
-                                            const isArchived = archivedOtherIds.has(other.id)
-                                            const isMarked = markedToArchive.has(other.id)
+                                            const willArchive = cardsToArchive.has(other.id)
                                             return (
                                                 <li key={other.id} className="flex items-start gap-2">
-                                                    {isArchived ? (
-                                                        <span className="text-amber-500 shrink-0 leading-tight">•</span>
-                                                    ) : (
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isMarked}
-                                                            onChange={() => toggleMark(other.id)}
-                                                            onClick={e => e.stopPropagation()}
-                                                            className="mt-0.5 rounded border-amber-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0"
-                                                            title="Marcar pra arquivar"
-                                                        />
-                                                    )}
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={willArchive}
+                                                        onChange={() => onToggleArchiveMark(other.id)}
+                                                        onClick={e => e.stopPropagation()}
+                                                        className="mt-0.5 rounded border-amber-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0"
+                                                        title={willArchive ? 'Desmarcar (manter este card)' : 'Marcar pra arquivar'}
+                                                    />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <Link
                                                                 to={`/cards/${other.id}`}
-                                                                className={cn(
-                                                                    'underline hover:no-underline truncate',
-                                                                    isArchived && 'line-through opacity-60'
-                                                                )}
+                                                                className="underline hover:no-underline truncate"
                                                                 onClick={e => e.stopPropagation()}
                                                                 title={other.titulo}
                                                             >
                                                                 {other.titulo}
                                                             </Link>
-                                                            {isArchived && (
-                                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                                                                    <Archive className="h-3 w-3" /> Arquivado
+                                                            {willArchive && (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded shrink-0">
+                                                                    <Archive className="h-3 w-3" /> vai arquivar
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className={cn(
-                                                            'text-[10px] text-amber-700/80 leading-tight',
-                                                            isArchived && 'line-through opacity-60'
-                                                        )}>
+                                                        <div className="text-[10px] text-amber-700/80 leading-tight">
                                                             status: <span className="font-medium">{status}</span> • etapa: <span className="font-medium">{etapa}</span> • {ganhoPlannerLabel}
                                                         </div>
                                                     </div>
@@ -808,30 +781,6 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                             )
                                         })}
                                     </ul>
-                                    {/* Ação em massa */}
-                                    {(() => {
-                                        const pendingCount = [...markedToArchive].filter(id => !archivedOtherIds.has(id)).length
-                                        if (pendingCount === 0) return null
-                                        return (
-                                            <div className="mt-2 pt-2 border-t border-amber-200/50 flex items-center justify-between gap-2">
-                                                <span className="text-[11px] text-amber-700/80">
-                                                    {pendingCount} marcado{pendingCount !== 1 ? 's' : ''} pra arquivar
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    disabled={isArchiving}
-                                                    onClick={e => {
-                                                        e.stopPropagation()
-                                                        handleArchiveSelected()
-                                                    }}
-                                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-white bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded transition-colors disabled:opacity-50"
-                                                >
-                                                    <Archive className="h-3 w-3" />
-                                                    Arquivar {pendingCount}
-                                                </button>
-                                            </div>
-                                        )
-                                    })()}
                                 </div>
                             )}
                         </div>
@@ -1102,8 +1051,14 @@ export default function ImportacaoPosVendaPage() {
     const [trips, setTrips] = useState<TripGroup[]>([])
     const [selectedTrips, setSelectedTrips] = useState<Set<string>>(new Set())
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
-    const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number } | null>(null)
+    const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number; cardsArchived?: number } | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
+
+    // Arquivar cards ambíguos: pré-marca todos os "outros" cards que apareceram com a
+    // mesma venda. Usuário desmarca o que NÃO quer arquivar. Tudo é arquivado de uma
+    // vez quando o usuário clicar em Atualizar.
+    const [cardsToArchive, setCardsToArchive] = useState<Set<string>>(new Set())
+    const { archiveBulk } = useArchiveCard()
 
     // Filters
     const [filterDataFimMin, setFilterDataFimMin] = useState('')
@@ -1160,6 +1115,7 @@ export default function ImportacaoPosVendaPage() {
                     setFilterVoucher(parsed.filterVoucher || 'all')
                     setFilterAudit(parsed.filterAudit || 'all')
                     setShowFilters(!!parsed.showFilters)
+                    setCardsToArchive(new Set(parsed.cardsToArchive || []))
                 }
             }
         } catch (err) {
@@ -1175,6 +1131,7 @@ export default function ImportacaoPosVendaPage() {
             sessionStorage.setItem(storageKey, JSON.stringify({
                 step, flowMode, fileName, trips,
                 selectedTrips: Array.from(selectedTrips),
+                cardsToArchive: Array.from(cardsToArchive),
                 filterDataFimMin, filterDataFimMax,
                 filterValorMin, filterValorMax,
                 filterAction, filterVendedor,
@@ -1188,7 +1145,7 @@ export default function ImportacaoPosVendaPage() {
     }, [step, fileName, trips, selectedTrips,
         filterDataFimMin, filterDataFimMax, filterValorMin, filterValorMax,
         filterAction, filterVendedor, filterApp, filterVoucher, filterAudit,
-        showFilters, storageKey, hasRestored, flowMode])
+        showFilters, storageKey, hasRestored, flowMode, cardsToArchive])
 
     // Auth check: admin or pos_venda phase
     const isAdmin = profile?.is_admin === true
@@ -1489,6 +1446,9 @@ export default function ImportacaoPosVendaPage() {
 
         setTrips(fullTrips)
         setSelectedTrips(new Set(fullTrips.map(t => t.id)))
+        // Pré-marca pra arquivar TODOS os cards ambíguos de TODAS as viagens.
+        // Usuário desmarca o que quer manter.
+        setCardsToArchive(new Set(fullTrips.flatMap(t => (t.otherCardCandidates || []).map(o => o.id))))
         setStep('preview')
         toast.success(`${fullTrips.length} viagens identificadas (${parsed.length} linhas)`)
         } catch (err) {
@@ -1857,6 +1817,8 @@ export default function ImportacaoPosVendaPage() {
 
             setTrips(fullTrips)
             setSelectedTrips(new Set(fullTrips.filter(t => t.action !== 'skip').map(t => t.id)))
+            // Pré-marca pra arquivar TODOS os cards ambíguos de TODAS as viagens.
+            setCardsToArchive(new Set(fullTrips.flatMap(t => (t.otherCardCandidates || []).map(o => o.id))))
             setStep('preview')
             const matched = fullTrips.filter(t => t.action === 'update').length
             const unmatched = fullTrips.filter(t => t.action === 'skip').length
@@ -2067,10 +2029,24 @@ export default function ImportacaoPosVendaPage() {
                 console.error('Erro ao salvar log:', logErr)
             }
 
+            // Arquivar cards ambíguos marcados (limpa duplicatas legadas detectadas no preview)
+            const archiveIds = Array.from(cardsToArchive)
+            let cardsArchived = 0
+            if (archiveIds.length > 0) {
+                try {
+                    archiveBulk(archiveIds)
+                    cardsArchived = archiveIds.length
+                } catch (archErr) {
+                    console.error('Erro ao arquivar cards ambíguos:', archErr)
+                }
+            }
+
             queryClient.invalidateQueries({ queryKey: ['pv-import-logs'] })
             if (storageKey) sessionStorage.removeItem(storageKey)
+            setImportResult(prev => prev ? { ...prev, cardsArchived } : prev)
             setStep('done')
-            toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados`)
+            const archiveMsg = cardsArchived > 0 ? `, ${cardsArchived} arquivados` : ''
+            toast.success(`${cardsCreated} cards criados, ${cardsUpdated} atualizados${archiveMsg}`)
         } catch (err) {
             console.error('Erro na importação:', err)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2087,6 +2063,7 @@ export default function ImportacaoPosVendaPage() {
         setFileName('')
         setTrips([])
         setSelectedTrips(new Set())
+        setCardsToArchive(new Set())
         setImportResult(null)
         setImportProgress({ current: 0, total: 0 })
         setFilterDataFimMin('')
@@ -2171,6 +2148,15 @@ export default function ImportacaoPosVendaPage() {
         setTrips(prev => prev.map(t =>
             t.id === id ? { ...t, moveStage: !t.moveStage } : t
         ))
+    }, [])
+
+    const toggleArchiveMark = useCallback((cardId: string) => {
+        setCardsToArchive(prev => {
+            const next = new Set(prev)
+            if (next.has(cardId)) next.delete(cardId)
+            else next.add(cardId)
+            return next
+        })
     }, [])
 
     const toggleAllTrips = useCallback(() => {
@@ -2698,11 +2684,16 @@ export default function ImportacaoPosVendaPage() {
                                     <span className="font-medium">{fileName}</span>
                                 </div>
                             </div>
-                            <Button onClick={handleImport} disabled={toCreate + toUpdate === 0}>
+                            <Button onClick={handleImport} disabled={toCreate + toUpdate === 0 && cardsToArchive.size === 0}>
                                 <Upload className="h-4 w-4 mr-1.5" />
                                 {flowMode === 'agregada'
                                     ? `Atualizar ${toUpdate} viagen${toUpdate !== 1 ? 's' : ''}`
                                     : `Importar ${toCreate + toUpdate} viagen${toCreate + toUpdate !== 1 ? 's' : ''}`}
+                                {cardsToArchive.size > 0 && (
+                                    <span className="ml-1.5 text-[10px] font-normal opacity-90">
+                                        + arquivar {cardsToArchive.size}
+                                    </span>
+                                )}
                             </Button>
                         </div>
 
@@ -2724,6 +2715,8 @@ export default function ImportacaoPosVendaPage() {
                                         selected={selectedTrips.has(trip.id)}
                                         onToggle={toggleTrip}
                                         onToggleMoveStage={toggleMoveStage}
+                                        cardsToArchive={cardsToArchive}
+                                        onToggleArchiveMark={toggleArchiveMark}
                                     />
                                 ))
                             )}
