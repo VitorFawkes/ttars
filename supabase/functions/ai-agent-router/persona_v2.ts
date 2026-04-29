@@ -20,6 +20,7 @@ import {
   loadPlaybookSilentSignals,
   loadPlaybookFewShotExamples,
   loadScoringRulesForPlaybook,
+  resolveSlotPriority,
   type PlaybookMoment,
   type IdentityConfig,
   type VoiceConfig,
@@ -226,28 +227,27 @@ export async function runPersonaAgent_v2(
     });
   }
 
-  // 3b. Gate de obrigatórias: se há slots required em moments ANTERIORES
-  // (display_order menor) que ainda não foram preenchidos, força ficar no
-  // moment com pendência. Sem isso, lead que dispara score_threshold antes
-  // de coletar todos os obrigatórios (ex: disse "Caribe" → +30 pontos > 25)
-  // pulava direto pro desfecho — fechando reunião sem ter data, número de
-  // convidados ou orçamento. Wedding Planner chegava cega na reunião.
+  // 3b. Gate de slots CRÍTICOS: se há slots de priority='critical' (ou required=true
+  // legado) em moments anteriores que ainda não foram preenchidos, força ficar.
+  // Slots 'preferred' e 'nice_to_have' não entram no gate — eles permitem atalho
+  // quando score atingiu. Lead que disse "Caribe" (+30 > 25) só vai pro Desfecho
+  // se TAMBÉM já tem data/destino/convidados/orçamento (slots críticos).
   //
-  // Critério: slot é "preenchido" quando crm_field_key tem valor em
-  // form_data OU em qualificationSignals. Slots sem crm_field_key não entram
-  // no gate (não dá pra saber se foram preenchidos).
-  type RequiredSlotPending = { momentKey: string; momentDisplayOrder: number; slotLabel: string; crmFieldKey: string };
-  const requiredPending: RequiredSlotPending[] = [];
+  // Critério "preenchido": crm_field_key tem valor em form_data OU qualificationSignals.
+  // Slots sem crm_field_key não entram no gate (sem como saber se coletou).
+  type CriticalSlotPending = { momentKey: string; momentDisplayOrder: number; slotLabel: string; crmFieldKey: string };
+  const criticalPending: CriticalSlotPending[] = [];
   for (const m of moments) {
     if ((m.kind ?? 'flow') !== 'flow') continue;
     const slots = m.discovery_config?.slots ?? [];
     for (const s of slots) {
-      if (!s.required) continue;
+      const prio = resolveSlotPriority(s);
+      if (prio !== 'critical') continue;
       if (!s.crm_field_key) continue;
       const filled = (ctx.form_data[s.crm_field_key] && String(ctx.form_data[s.crm_field_key]).trim())
         || (qualificationSignals[s.crm_field_key] && String(qualificationSignals[s.crm_field_key]).trim());
       if (!filled) {
-        requiredPending.push({
+        criticalPending.push({
           momentKey: m.moment_key,
           momentDisplayOrder: m.display_order,
           slotLabel: s.label,
@@ -256,6 +256,7 @@ export async function runPersonaAgent_v2(
       }
     }
   }
+  const requiredPending = criticalPending; // alias pra reduzir diff abaixo
 
   // Se há slots required pendentes E o detector apontou pra moment POSTERIOR
   // ao primeiro moment com pendência, override pra esse moment. Mantém a

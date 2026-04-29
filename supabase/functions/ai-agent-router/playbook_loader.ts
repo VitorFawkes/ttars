@@ -13,15 +13,32 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export type MomentKind = 'flow' | 'play';
 
+/**
+ * Prioridade de coleta — define comportamento da agente:
+ *   critical:     bloqueia avanço pro Desfecho até coletar
+ *   preferred:    pergunta enquanto não qualificou; pula quando score+criticals OK
+ *   nice_to_have: nunca bloqueia; pergunta opcional/oportunística
+ */
+export type SlotPriority = 'critical' | 'preferred' | 'nice_to_have';
+
 export interface DiscoverySlot {
   key: string;
   label: string;
   icon?: string | null;
+  /** @deprecated Use priority. Mantido pra backward compat. */
   required: boolean;
+  /** Substitui required. Default 'preferred' (compat: required=true→critical, false→preferred). */
+  priority?: SlotPriority;
   /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
   questions: string[];
   /** Liga ao campo do CRM (system_fields.field_key). */
   crm_field_key?: string | null;
+}
+
+/** Resolve priority efetiva (backward compat com required). */
+export function resolveSlotPriority(slot: DiscoverySlot): SlotPriority {
+  if (slot.priority) return slot.priority;
+  return slot.required ? 'critical' : 'preferred';
 }
 
 export interface DiscoveryConfig {

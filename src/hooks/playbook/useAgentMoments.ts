@@ -3,16 +3,35 @@ import { supabase } from '../../lib/supabase'
 
 export type MomentKind = 'flow' | 'play'
 
+/**
+ * Prioridade de coleta do slot — define comportamento da agente:
+ * - critical:     bloqueia avanço pro Desfecho até preencher (igual required=true legado)
+ * - preferred:    pergunta enquanto não qualificou; pula silenciosamente quando atinge score+criticals
+ * - nice_to_have: nunca bloqueia; só pergunta se conversa fluir naturalmente, atalho rápido
+ *
+ * Backward compat: slots antigos sem priority caem em 'critical' se required=true, senão 'preferred'.
+ */
+export type SlotPriority = 'critical' | 'preferred' | 'nice_to_have'
+
 /** Cada slot da Sondagem: informação a coletar + perguntas escritas (opcionais). */
 export interface DiscoverySlot {
   key: string
   label: string
   icon?: string | null
+  /** @deprecated Use priority. Mantido pra backward compat. */
   required: boolean
+  /** Substitui required. Default 'preferred'. */
+  priority?: SlotPriority
   /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
   questions: string[]
   /** Liga ao campo do CRM (system_fields.field_key) — usado pra ligação visual com critérios. */
   crm_field_key?: string | null
+}
+
+/** Resolve priority efetiva considerando backward compat com required. */
+export function resolveSlotPriority(slot: DiscoverySlot): SlotPriority {
+  if (slot.priority) return slot.priority
+  return slot.required ? 'critical' : 'preferred'
 }
 
 export interface DiscoveryConfig {

@@ -471,9 +471,16 @@ function renderOneMoment(
   if (m.discovery_config && m.discovery_config.slots && m.discovery_config.slots.length > 0) {
     lines.push('    Informações que você precisa coletar nesta fase:');
     for (const slot of m.discovery_config.slots) {
-      const reqMark = slot.required ? ' [obrigatória]' : '';
+      // Compute effective priority (compat: priority overrides required if present)
+      const prio: 'critical' | 'preferred' | 'nice_to_have' = slot.priority
+        ?? (slot.required ? 'critical' : 'preferred');
+      const prioLabel = prio === 'critical'
+        ? ' [CRÍTICA — bloqueia avanço pro Desfecho até ser coletada]'
+        : prio === 'preferred'
+          ? ' [importante — pergunta enquanto não bateu score; pula se já qualificou]'
+          : ' [extra — só pergunta se a conversa fluir natural; nunca trava]';
       const ico = slot.icon ? `${slot.icon} ` : '';
-      lines.push(`      - ${ico}${slot.label}${reqMark}`);
+      lines.push(`      - ${ico}${slot.label}${prioLabel}`);
       if (slot.questions && slot.questions.length > 0) {
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
         slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
