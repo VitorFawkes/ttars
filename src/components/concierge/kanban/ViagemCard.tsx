@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Calendar, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
+import { Calendar, CheckCircle2, ExternalLink, Loader2, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem } from '../../../hooks/concierge/types'
 import { useMarcarOutcome } from '../../../hooks/concierge/useAtendimentoMutations'
+import { useToggleCardCritical } from '../../../hooks/concierge/useToggleCritical'
 import type { ViagemKanbanItem, SaudeViagem } from '../../../hooks/concierge/useKanbanViagens'
 import { cn } from '../../../lib/utils'
 
@@ -43,19 +44,42 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
   const fim = fmtDate(viagem.data_viagem_fim)
   const dataLabel = ini && fim ? `${ini} – ${fim}` : ini ?? 'Sem data'
   const isCritica = viagem.saude === 'critica'
+  const isManualCritical = viagem.card_is_critical
   const inlineTasks = viagem.abertos.slice(0, MAX_INLINE_TASKS)
   const remaining = viagem.abertos.length - inlineTasks.length
+
+  const { mutate: toggleCritical, isPending: togglingCritical } = useToggleCardCritical()
 
   return (
     <div
       className={cn(
         'group relative w-full bg-white border rounded-lg shadow-sm hover:shadow-md transition-all overflow-hidden',
-        isCritica ? 'border-red-200' : 'border-slate-200'
+        isManualCritical
+          ? 'border-red-400 ring-2 ring-red-100'
+          : isCritica
+            ? 'border-red-200'
+            : 'border-slate-200'
       )}
     >
       <span className={cn('absolute left-0 top-0 bottom-0 w-[3px]', SAUDE_ACCENT[viagem.saude])} />
 
-      <div className="pl-3 pr-2.5 pt-2.5 pb-1.5">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); toggleCritical({ card_id: viagem.card_id, isCritical: !isManualCritical }) }}
+        disabled={togglingCritical}
+        className={cn(
+          'absolute top-2 right-2 z-10 w-5 h-5 rounded flex items-center justify-center transition-all',
+          isManualCritical
+            ? 'bg-red-100 text-red-600 hover:bg-red-200 opacity-100'
+            : 'text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+        )}
+        aria-label={isManualCritical ? 'Remover marcação crítica' : 'Marcar viagem como crítica'}
+        title={isManualCritical ? 'Viagem crítica — clique pra remover' : 'Marcar viagem como crítica'}
+      >
+        <Flame className="w-3 h-3" strokeWidth={2.5} />
+      </button>
+
+      <div className="pl-3 pr-9 pt-2.5 pb-1.5">
         <button
           type="button"
           onClick={onOpenDrawer}

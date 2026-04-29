@@ -128,6 +128,8 @@ export interface MeuDiaItem {
   pessoa_principal_id: string | null
   card_valor_estimado: number | null
   card_valor_final: number | null
+  /** Pode estar undefined em registros antigos antes da migration de criticidade */
+  card_is_critical?: boolean
 
   atendimento_id: string
   tipo_concierge: TipoConcierge

@@ -48,9 +48,17 @@ export default function KanbanPage() {
     () => ({
       donoId,
       tipos: prefs.tipos.length > 0 ? prefs.tipos : undefined,
+      sources: prefs.sources.length > 0 ? prefs.sources : undefined,
+      janelas: prefs.janelas.length > 0 ? prefs.janelas : undefined,
+      categorias: prefs.categorias.length > 0 ? prefs.categorias : undefined,
+      tagFilter: prefs.tagIds.length > 0 && tagLookup
+        ? { tagIds: prefs.tagIds, lookup: tagLookup }
+        : undefined,
+      cardIds: cardFilter ? [cardFilter.id] : undefined,
+      search: search.trim() || undefined,
       pipelineId: pipelineId ?? null,
     }),
-    [donoId, prefs.tipos, pipelineId]
+    [donoId, prefs.tipos, prefs.sources, prefs.janelas, prefs.categorias, prefs.tagIds, tagLookup, cardFilter, search, pipelineId]
   )
 
   const { data: tarefas, rawData: rawTarefas } = useKanbanTarefas(prefs.modo === 'tarefas' ? tarefasFilters : { donoId: null })
@@ -125,7 +133,7 @@ export default function KanbanPage() {
           onSelectCard={setCardFilter}
           onClearAll={handleClearAll}
           hasAnyFilter={filterBarHasAny}
-          showAdvanced={prefs.modo === 'tarefas'}
+          showAdvanced={true}
           tarefas={rawTarefas ?? []}
         />
       </div>

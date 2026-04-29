@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
+import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -42,11 +43,13 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
+  const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
 
   if (!item) return null
   if (!isOpen) return null
 
   const isVencido = item.status_apresentacao === 'vencido'
+  const isCritical = item.prioridade === 'critica'
   const tipoMeta = TIPO_LABEL[item.tipo_concierge]
   const sourceLabel = SOURCE_LABEL[item.source].label
   const cat = CATEGORIAS_CONCIERGE[item.categoria as keyof typeof CATEGORIAS_CONCIERGE]
@@ -81,9 +84,33 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               <span className="text-slate-500">{catLabel}</span>
               <span className="text-slate-300">·</span>
               <span className="text-slate-400">{sourceLabel}</span>
+              {isCritical && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="inline-flex items-center gap-0.5 text-red-600">
+                    <Flame className="w-3 h-3" strokeWidth={2.5} />
+                    Crítica
+                  </span>
+                </>
+              )}
             </div>
             <h2 className="text-base font-bold text-slate-900 leading-snug truncate">{titulo}</h2>
           </div>
+          <button
+            type="button"
+            onClick={() => toggleCritica({ tarefa_id: item.tarefa_id, isCritical: !isCritical })}
+            disabled={togglingCritica}
+            className={cn(
+              'shrink-0 p-1.5 rounded-lg transition-colors',
+              isCritical
+                ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+            )}
+            aria-label={isCritical ? 'Remover marcação crítica' : 'Marcar como crítica'}
+            title={isCritical ? 'Tarefa crítica — clique pra remover' : 'Marcar como crítica'}
+          >
+            <Flame className="w-4 h-4" strokeWidth={2.5} />
+          </button>
           <button
             onClick={onClose}
             className="shrink-0 p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-700"

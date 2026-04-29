@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { X, ExternalLink, Calendar, Wallet, AlertCircle, Clock, CheckCircle2 } from 'lucide-react'
+import { X, ExternalLink, Calendar, Wallet, AlertCircle, Clock, CheckCircle2, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAtendimentosCard } from '../../../hooks/concierge/useAtendimentosCard'
+import { useToggleCardCritical } from '../../../hooks/concierge/useToggleCritical'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { CardContextBlocks } from '../CardContextBlocks'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem } from '../../../hooks/concierge/types'
@@ -36,8 +37,10 @@ interface ViagemAtendimentosDrawerProps {
 export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentosDrawerProps) {
   const { data: items = [], isLoading } = useAtendimentosCard(viagem?.card_id ?? null)
   const [selected, setSelected] = useState<MeuDiaItem | null>(null)
+  const { mutate: toggleCritical, isPending: togglingCritical } = useToggleCardCritical()
 
   if (!viagem) return null
+  const isManualCritical = viagem.card_is_critical
 
   const abertos = items.filter(i => !i.outcome && !i.concluida)
   const concluidos = items.filter(i => i.outcome || i.concluida)
@@ -54,11 +57,32 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
           <div className="pl-2">
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1 min-w-0">
-                <div className="text-[10.5px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">
-                  Viagem · {viagem.produto?.toUpperCase()}
+                <div className="text-[10.5px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5 flex items-center gap-1.5">
+                  <span>Viagem · {viagem.produto?.toUpperCase()}</span>
+                  {isManualCritical && (
+                    <span className="inline-flex items-center gap-0.5 text-red-600 normal-case">
+                      <Flame className="w-3 h-3" strokeWidth={2.5} />
+                      Crítica
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-base font-bold text-slate-900 leading-snug">{viagem.card_titulo}</h3>
               </div>
+              <button
+                type="button"
+                onClick={() => toggleCritical({ card_id: viagem.card_id, isCritical: !isManualCritical })}
+                disabled={togglingCritical}
+                className={cn(
+                  'shrink-0 p-1.5 rounded transition-colors',
+                  isManualCritical
+                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                    : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                )}
+                aria-label={isManualCritical ? 'Remover marcação crítica' : 'Marcar viagem como crítica'}
+                title={isManualCritical ? 'Viagem crítica — clique pra remover' : 'Marcar viagem como crítica'}
+              >
+                <Flame className="w-4 h-4" strokeWidth={2.5} />
+              </button>
               <Link
                 to={`/cards/${viagem.card_id}`}
                 className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-[11.5px] font-medium text-indigo-600 hover:bg-indigo-50"
