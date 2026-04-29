@@ -50,6 +50,9 @@ export interface KanbanTarefasFilters {
   sources?: SourceConcierge[]
   cardIds?: string[]
   janelas?: JanelaEmbarque[]
+  categorias?: string[]
+  /** Map<cardId, Set<tagId>> + lista de tagIds desejadas — filtra cards que tem qualquer uma das tags */
+  tagFilter?: { tagIds: string[]; lookup: Map<string, Set<string>> }
   search?: string
 }
 
@@ -107,9 +110,18 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
 
   const filtered = useMemo(() => {
     if (!baseQuery.data) return undefined
+    const wantedTagIds = filters.tagFilter?.tagIds ?? []
+    const tagLookup = filters.tagFilter?.lookup
     return baseQuery.data.filter(item => {
       if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
       if (filters.janelas?.length && !filters.janelas.includes(item.janela_embarque)) return false
+      if (filters.categorias?.length && !filters.categorias.includes(item.categoria)) return false
+      if (wantedTagIds.length > 0 && tagLookup) {
+        const cardTags = tagLookup.get(item.card_id)
+        if (!cardTags) return false
+        const intersects = wantedTagIds.some(t => cardTags.has(t))
+        if (!intersects) return false
+      }
       if (filters.search?.trim()) {
         const q = filters.search.toLowerCase()
         const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
@@ -117,7 +129,7 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
       }
       return true
     })
-  }, [baseQuery.data, filters.cardIds, filters.janelas, filters.search])
+  }, [baseQuery.data, filters.cardIds, filters.janelas, filters.categorias, filters.tagFilter, filters.search])
 
   const groupedByEstado = useMemo(() => {
     const groups = new Map<EstadoFunil, KanbanTarefaItem[]>()
