@@ -1483,10 +1483,105 @@ export default function ImportacaoPosVendaPage() {
             const profileMap = new Map(plannerProfiles.map(p => [norm(p.nome || ''), p.id]))
 
             // Enrichment: busca card existente APENAS por venda monde (sem fallback de CPF).
+            //
+            // ⚠ O banco pode ter MÚLTIPLOS cards com a mesma venda (importações
+            // repetidas, sub-cards, cards de teste). Por isso buscamos todos os
+            // candidatos e escolhemos o mais saudável: status=ganho, ganho_planner=true,
+            // pos_owner preenchido. Se houver mais de um candidato qualificado,
+            // alertamos na auditoria.
+            type CardCandidate = {
+                id: string
+                titulo: string
+                pipeline_stage_id: string | null
+                status_comercial: string | null
+                ganho_planner: boolean | null
+                pos_owner_id: string | null
+                _matchType: 'venda_atual' | 'venda_historico'
+            }
+
+            const scoreCard = (c: CardCandidate): number => {
+                // Maior score = mais "saudável" = preferível
+                let s = 0
+                if (c.status_comercial === 'ganho') s += 100
+                if (c.ganho_planner === true) s += 50
+                if (c.pos_owner_id) s += 10
+                if (c._matchType === 'venda_atual') s += 5  // venda atual > histórico
+                return s
+            }
+
             const fullTrips: TripGroup[] = []
+            // trip.id → aviso extra (ambiguidade de match), aplicado depois do computeAudit
+            const extraAuditIssues = new Map<string, string>()
             for (const trip of rawTrips) {
                 const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
                 const vendedorProfileId = profileMap.get(norm(trip.vendedor)) || null
+
+                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
+
+                const candidates: CardCandidate[] = []
+
+                // 1. Por número de venda monde atual (TODOS os matches)
+                if (trip.vendaNums.length > 0) {
+                    for (const vchunk of chunked(trip.vendaNums, 10)) {
+                        let query = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .in('produto_data->>numero_venda_monde', vchunk)
+                            .limit(20)
+                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                        const { data: cards } = await query
+                        for (const c of (cards || [])) {
+                            candidates.push({
+                                id: c.id,
+                                titulo: c.titulo as string,
+                                pipeline_stage_id: (c.pipeline_stage_id as string) || null,
+                                status_comercial: (c.status_comercial as string) ?? null,
+                                ganho_planner: (c.ganho_planner as boolean) ?? null,
+                                pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                _matchType: 'venda_atual',
+                            })
+                        }
+                    }
+                }
+
+                // 2. Histórico (renumeração de venda) — só busca se não achou nada na atual
+                if (candidates.length === 0 && trip.vendaNums.length > 0) {
+                    for (const vn of trip.vendaNums.slice(0, 5)) {
+                        let query = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
+                            .limit(10)
+                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
+                        const { data: cards } = await query
+                        for (const c of (cards || [])) {
+                            // Evita duplicar se já tinha vindo na busca atual
+                            if (candidates.some(x => x.id === c.id)) continue
+                            candidates.push({
+                                id: c.id,
+                                titulo: c.titulo as string,
+                                pipeline_stage_id: (c.pipeline_stage_id as string) || null,
+                                status_comercial: (c.status_comercial as string) ?? null,
+                                ganho_planner: (c.ganho_planner as boolean) ?? null,
+                                pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                _matchType: 'venda_historico',
+                            })
+                        }
+                    }
+                }
+
+                // Dedup por id
+                const uniqueCandidates = Array.from(
+                    new Map(candidates.map(c => [c.id, c])).values()
+                )
+                // Ordena por score descendente
+                uniqueCandidates.sort((a, b) => scoreCard(b) - scoreCard(a))
+
+                // O melhor candidato vence
+                const winner = uniqueCandidates[0] || null
+                const ambiguidade = uniqueCandidates.length > 1
+                    ? `Atenção: existem outros ${uniqueCandidates.length - 1} card(s) no CRM com essa mesma venda.`
+                    : null
 
                 let existingCardId: string | null = null
                 let existingCardTitle: string | null = null
@@ -1495,51 +1590,13 @@ export default function ImportacaoPosVendaPage() {
                 let existingGanhoPlanner: boolean | null = null
                 let existingDonoPosId: string | null = null
 
-                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
-
-                // 1. Por número de venda monde atual
-                if (trip.vendaNums.length > 0) {
-                    for (const vchunk of chunked(trip.vendaNums, 10)) {
-                        let query = supabase
-                            .from('cards')
-                            .select(`${CARD_AUDIT_SELECT}, produto_data`)
-                            .in('produto_data->>numero_venda_monde', vchunk)
-                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
-                        const { data: cards } = await query
-                        if (cards && cards.length > 0) {
-                            const c = cards[0]
-                            existingCardId = c.id
-                            existingCardTitle = c.titulo as string
-                            existingStageId = (c.pipeline_stage_id as string) || null
-                            existingStatusComercial = (c.status_comercial as string) ?? null
-                            existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
-                            existingDonoPosId = (c.pos_owner_id as string) ?? null
-                            break
-                        }
-                    }
-                }
-
-                // 2. Histórico (caso renumeração de venda)
-                if (!existingCardId) {
-                    for (const vn of trip.vendaNums.slice(0, 5)) {
-                        let query = supabase
-                            .from('cards')
-                            .select(CARD_AUDIT_SELECT)
-                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
-                            .limit(1)
-                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
-                        const { data: cards } = await query
-                        if (cards && cards.length > 0) {
-                            const c = cards[0]
-                            existingCardId = c.id
-                            existingCardTitle = c.titulo as string
-                            existingStageId = (c.pipeline_stage_id as string) || null
-                            existingStatusComercial = (c.status_comercial as string) ?? null
-                            existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
-                            existingDonoPosId = (c.pos_owner_id as string) ?? null
-                            break
-                        }
-                    }
+                if (winner) {
+                    existingCardId = winner.id
+                    existingCardTitle = winner.titulo
+                    existingStageId = winner.pipeline_stage_id
+                    existingStatusComercial = winner.status_comercial
+                    existingGanhoPlanner = winner.ganho_planner
+                    existingDonoPosId = winner.pos_owner_id
                 }
 
                 // Sem CPF disponível, NÃO há fallback por contato+datas.
@@ -1568,6 +1625,7 @@ export default function ImportacaoPosVendaPage() {
                     skipReason,
                     audit: { severity: 'ok', issues: [] },
                 })
+                if (ambiguidade) extraAuditIssues.set(titulo, ambiguidade)
             }
 
             // Batch: nome da etapa + slug da fase
@@ -1599,6 +1657,15 @@ export default function ImportacaoPosVendaPage() {
 
             for (const t of fullTrips) {
                 t.audit = computeAudit(t)
+                const extra = extraAuditIssues.get(t.id)
+                if (extra) {
+                    t.audit = {
+                        ...t.audit,
+                        issues: [...t.audit.issues, extra],
+                        // ambiguidade só sobe pra warn quando não é error (sem card já é error)
+                        severity: t.audit.severity === 'error' ? 'error' : 'warn',
+                    }
+                }
             }
 
             setTrips(fullTrips)
