@@ -6,10 +6,11 @@ import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, Clock, ChevronDown, ChevronRight, XCircle,
     Package, Users, Plus, RefreshCw, Undo2, SquareCheck, Square, MinusSquare,
-    Filter, X,
+    Filter, X, Archive,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
+import { useArchiveCard } from '@/hooks/useArchiveCard'
 import { useAuth } from '@/contexts/AuthContext'
 import { useOrg } from '@/contexts/OrgContext'
 import { parseBRNumber } from '@/lib/parseBRNumber'
@@ -607,6 +608,23 @@ interface ImportLogItemRow {
 function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripGroup; selected: boolean; onToggle: (id: string) => void; onToggleMoveStage: (id: string) => void }) {
     const [expanded, setExpanded] = useState(false)
     const Chevron = expanded ? ChevronDown : ChevronRight
+    const { archive, isArchiving } = useArchiveCard()
+    // Marca local: cards ambíguos arquivados nesta sessão (UI fica riscada).
+    // Estado local porque o backend retorna sucesso assíncrono e a lista é prop.
+    const [archivedOtherIds, setArchivedOtherIds] = useState<Set<string>>(new Set())
+
+    const handleArchiveOther = (otherId: string, otherTitle: string) => {
+        const ok = window.confirm(
+            `Arquivar este card?\n\n"${otherTitle}"\n\nEle vai pra lixeira e pode ser restaurado lá.`
+        )
+        if (!ok) return
+        archive(otherId)
+        setArchivedOtherIds(prev => {
+            const next = new Set(prev)
+            next.add(otherId)
+            return next
+        })
+    }
 
     const actionBadge = {
         create: { label: 'Criar', cls: 'bg-emerald-50 text-emerald-700' },
@@ -728,26 +746,53 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                     <div className="font-medium mb-1">
                                         Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda (não vão ser tocados):
                                     </div>
-                                    <ul className="space-y-1">
+                                    <ul className="space-y-1.5">
                                         {trip.otherCardCandidates.map(other => {
                                             const status = other.statusComercial ?? '—'
                                             const etapa = other.stageName || '(etapa desconhecida)'
                                             const ganhoPlannerLabel = other.ganhoPlanner === true
                                                 ? 'Ganho Planner ✓'
                                                 : 'sem Ganho Planner'
+                                            const isArchived = archivedOtherIds.has(other.id)
                                             return (
                                                 <li key={other.id} className="flex items-start gap-1.5">
                                                     <span className="text-amber-500 shrink-0 leading-tight">•</span>
-                                                    <div className="min-w-0">
-                                                        <Link
-                                                            to={`/cards/${other.id}`}
-                                                            className="underline hover:no-underline truncate block"
-                                                            onClick={e => e.stopPropagation()}
-                                                            title={other.titulo}
-                                                        >
-                                                            {other.titulo}
-                                                        </Link>
-                                                        <div className="text-[10px] text-amber-700/80 leading-tight">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <Link
+                                                                to={`/cards/${other.id}`}
+                                                                className={cn(
+                                                                    'underline hover:no-underline truncate',
+                                                                    isArchived && 'line-through opacity-60'
+                                                                )}
+                                                                onClick={e => e.stopPropagation()}
+                                                                title={other.titulo}
+                                                            >
+                                                                {other.titulo}
+                                                            </Link>
+                                                            {isArchived ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                                                                    <Archive className="h-3 w-3" /> Arquivado
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isArchiving}
+                                                                    onClick={e => {
+                                                                        e.stopPropagation()
+                                                                        handleArchiveOther(other.id, other.titulo)
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 text-[10px] font-medium text-rose-700 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-50"
+                                                                    title="Arquivar este card (vai pra lixeira)"
+                                                                >
+                                                                    <Archive className="h-3 w-3" /> Arquivar
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div className={cn(
+                                                            'text-[10px] text-amber-700/80 leading-tight',
+                                                            isArchived && 'line-through opacity-60'
+                                                        )}>
                                                             status: <span className="font-medium">{status}</span> • etapa: <span className="font-medium">{etapa}</span> • {ganhoPlannerLabel}
                                                         </div>
                                                     </div>
