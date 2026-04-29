@@ -473,47 +473,59 @@ export async function runPersonaAgent_v2(
     bookMeeting: bookMeetingForPrompt,
   });
 
-  // 6. Modo TEXTO LITERAL: bypass do LLM. O admin escolheu palavras exatas
-  // — sem chamada de LLM, sem paráfrase, sem corte de pergunta. Saída
-  // determinística a partir do anchor processado:
-  //   - substituições de variáveis aplicadas ({contact_name}, {saudacao}, etc)
-  //   - smart-replace de saudação contextual
-  //   - step correto quando wait_for_reply + "---"
-  //   - trechos que o lead já antecipou removidos (fact_omission_detector)
+  // 6. Modo TEXTO LITERAL: bypass do LLM por padrão, MAS com escape pra
+  // perguntas off-script. Pesquisa de 3 especialistas Opus convergiu:
   //
-  // Bug observado em prod 29/04 (conv c53b9f7b): mesmo com modo "literal" e
-  // instrução "MANDE AS DUAS perguntas" no prompt, o LLM cortou a 2ª pergunta
-  // E parafraseou frase do meio. Confirmado: 60-70% confiabilidade de
-  // instrução fuzzy é insuficiente. Bypass do LLM = 100%.
+  // - Bypass total resolve o bug de paráfrase/corte de pergunta (LLM só
+  //   acerta ~60-70% com instrução fuzzy; bypass = 100%).
+  // - Mas tem um furo: se lead manda "Boa noite, vocês trabalham com
+  //   casamento no Brasil?", literal puro IGNORA a pergunta e só envia
+  //   o anchor. Lead se sente robô (47% taxa de abandono em UX studies).
   //
-  // Tools (update_contact, create_task, check_calendar, etc) NÃO rodam neste
-  // turno em modo literal — admin escolheu controle total da fala. Tools voltam
-  // a rodar em fases de modo faithful/free. Pra fases que precisam agir (ex:
-  // desfecho com agendamento), use modo Diretriz fiel ou Estilo livre.
+  // Solução: detectar pergunta off-script via heurística determinística
+  // (regex). Se detectada, fallback pra diretriz fiel SÓ nesse turno:
+  // o LLM lê a pergunta + responde curto + ainda usa anchor como base.
+  //
+  // Saudação contextual ("boa noite" → trocar "Olá" no anchor) já é
+  // determinística no renderLiteralResponse — funciona em ambos branches.
   if (cur.message_mode === 'literal') {
-    const literalResponse = renderLiteralResponse({
-      moment: cur,
-      stepIndex: currentMomentStepIndex,
-      usesSteps,
-      contactNameKnown: ctx.contact_name_known,
-      contactName: ctx.contact_name,
-      agentName: agent.nome,
-      companyName: business?.company_name ?? '',
-      bookMeeting: bookMeetingForPrompt,
-      historicoCompacto: ctx.historico_compacto,
-      omitExcerpts: trechosAOmitir,
-    });
-    return {
-      response: literalResponse,
-      inputTokens: 0,
-      outputTokens: literalResponse.length / 4 | 0, // estimativa rough
-      v2Metadata: {
-        current_moment_key: detected.moment.moment_key,
-        qualification_score_at_turn: scoreInfo.score,
-        moment_detection_method: detected.method,
-        moment_transition_reason: backoffice.moment_transition_reason || detected.reason || 'literal_bypass',
-      },
-    };
+    const offScript = detectOffScriptQuestion(userMessage, cur.anchor_text ?? '');
+    if (!offScript) {
+      // Caminho normal: bypass do LLM. Output determinístico do anchor.
+      const literalResponse = renderLiteralResponse({
+        moment: cur,
+        stepIndex: currentMomentStepIndex,
+        usesSteps,
+        contactNameKnown: ctx.contact_name_known,
+        contactName: ctx.contact_name,
+        agentName: agent.nome,
+        companyName: business?.company_name ?? '',
+        bookMeeting: bookMeetingForPrompt,
+        historicoCompacto: ctx.historico_compacto,
+        omitExcerpts: trechosAOmitir,
+      });
+      return {
+        response: literalResponse,
+        inputTokens: 0,
+        outputTokens: literalResponse.length / 4 | 0,
+        v2Metadata: {
+          current_moment_key: detected.moment.moment_key,
+          qualification_score_at_turn: scoreInfo.score,
+          moment_detection_method: detected.method,
+          moment_transition_reason: backoffice.moment_transition_reason || detected.reason || 'literal_bypass',
+        },
+      };
+    }
+    // Off-script detectada — segue pro LLM com instrução de comportamento
+    // híbrido: reconhece a pergunta + mantém anchor como base. Não retorna
+    // aqui; cai no fluxo normal abaixo (callLLM com prompt original do
+    // modo literal — tem instrução pra responder antes de redirecionar).
+    console.log(JSON.stringify({
+      event: 'literal_off_script_fallback',
+      agent_id: agent.id,
+      moment_key: cur.moment_key,
+      user_message: userMessage.slice(0, 120),
+    }));
   }
 
   // 6b. Outros modos (faithful, free): chama LLM normalmente.
@@ -537,6 +549,56 @@ export async function runPersonaAgent_v2(
       moment_transition_reason: backoffice.moment_transition_reason || detected.reason,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: detectOffScriptQuestion — heurística determinística pra decidir se
+// o lead fez pergunta que NÃO está coberta pelo anchor literal. Usa regex e
+// overlap de palavras-chave; sem chamada LLM (zero custo, zero latência).
+//
+// Retorna true quando:
+//   1. Mensagem do lead tem indicador de pergunta (?, "vocês", "qual", etc), E
+//   2. Mensagem tem ≥2 palavras significativas com pouca/nenhuma sobreposição
+//      com palavras significativas do anchor (lead falou de tema novo).
+//
+// Conservador por design — quando em dúvida, retorna false (segue literal puro).
+// ---------------------------------------------------------------------------
+
+const STOP_WORDS_PT = new Set([
+  'sobre', 'esse', 'essa', 'isso', 'aqui', 'tudo', 'então', 'depois', 'antes',
+  'porque', 'pode', 'estão', 'estou', 'estar', 'tenho', 'pra', 'para',
+  'tipo', 'mais', 'menos', 'muito', 'pouco', 'agora', 'certo',
+  'outro', 'outra', 'gente', 'sendo', 'sido', 'sido', 'também', 'tambem',
+  'gostaria', 'queria', 'falar', 'saber', 'pensar', 'mesmo',
+]);
+
+const QUESTION_INDICATORS_PT = /\b(vocês|voces|trabalham|fazem|qual|como|quando|onde|quanto|tem|atendem|aceitam|conseguem|funciona|tipo|quanto)\b/i;
+
+function detectOffScriptQuestion(userMessage: string, anchorText: string): boolean {
+  if (!userMessage || !anchorText) return false;
+  const msg = userMessage.toLowerCase().trim();
+  if (msg.length < 5) return false; // muito curto pra ser pergunta substantiva
+
+  const hasQuestionMark = msg.includes('?');
+  const hasIndicator = QUESTION_INDICATORS_PT.test(msg);
+  if (!hasQuestionMark && !hasIndicator) return false;
+
+  // Palavras significativas (4+ chars, não-stopword)
+  const extract = (s: string) => (s.toLowerCase().match(/\b[a-záéíóúâêôãõç]{4,}\b/g) || [])
+    .filter(w => !STOP_WORDS_PT.has(w));
+
+  const userWords = new Set(extract(msg));
+  const anchorWords = new Set(extract(anchorText));
+
+  if (userWords.size < 2) return false;
+
+  // Overlap: quantas palavras do user também estão no anchor
+  let overlap = 0;
+  for (const w of userWords) {
+    if (anchorWords.has(w)) overlap += 1;
+  }
+  // Se overlap baixo (<2 palavras em comum), tema é novo
+  return overlap < 2;
 }
 
 // ---------------------------------------------------------------------------
