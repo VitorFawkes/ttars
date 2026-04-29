@@ -612,7 +612,9 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
         warn: { label: 'Divergência', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle },
         error: { label: 'Sem card', cls: 'bg-rose-50 text-rose-700 border-rose-200', Icon: XCircle },
     }
-    const auditInfo = auditBadge[trip.audit.severity]
+    const auditSeverity = trip.audit?.severity ?? 'ok'
+    const auditIssues = trip.audit?.issues ?? []
+    const auditInfo = auditBadge[auditSeverity]
     const AuditIcon = auditInfo.Icon
 
     const showStageDecision = trip.action === 'update' && !!trip.existingStageId && trip.existingStageId !== trip.stage.id
@@ -652,7 +654,7 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                         </span>
                         <span
                             className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border', auditInfo.cls)}
-                            title={trip.audit.issues.length > 0 ? trip.audit.issues.join(' • ') : 'Card já está com tudo certo no CRM'}
+                            title={auditIssues.length > 0 ? auditIssues.join(' • ') : 'Card já está com tudo certo no CRM'}
                         >
                             <AuditIcon className="h-3 w-3" />
                             {auditInfo.label}
@@ -692,17 +694,17 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
             )}
 
             {/* Auditoria — lista de divergências + outros cards com mesma venda (visível sem expandir) */}
-            {(trip.audit.issues.length > 0 || trip.otherCardCandidates.length > 0) && (
+            {((trip.audit?.issues?.length ?? 0) > 0 || (trip.otherCardCandidates?.length ?? 0) > 0) && (
                 <div className={cn(
                     'border-t px-4 py-2 text-xs',
-                    trip.audit.severity === 'error'
+                    auditSeverity === 'error'
                         ? 'border-rose-100 bg-rose-50/60 text-rose-800'
                         : 'border-amber-100 bg-amber-50/60 text-amber-800'
                 )}>
                     <div className="flex items-start gap-2">
-                        <AuditIcon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', trip.audit.severity === 'error' ? 'text-rose-600' : 'text-amber-600')} />
+                        <AuditIcon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', trip.audit?.severity === 'error' ? 'text-rose-600' : 'text-amber-600')} />
                         <div className="space-y-1 flex-1 min-w-0">
-                            {trip.audit.issues.map((issue, idx) => (
+                            {(trip.audit?.issues ?? []).map((issue, idx) => (
                                 <div key={idx}>{issue}</div>
                             ))}
                             {trip.existingCardId && (
@@ -714,7 +716,7 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                                     Abrir card para conferir
                                 </Link>
                             )}
-                            {trip.otherCardCandidates.length > 0 && (
+                            {(trip.otherCardCandidates?.length ?? 0) > 0 && (
                                 <div className="mt-1.5 pt-1.5 border-t border-amber-200/50">
                                     <div className="font-medium mb-0.5">
                                         Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda:
@@ -1035,7 +1037,22 @@ export default function ImportacaoPosVendaPage() {
                     setStep('preview')
                     setFlowMode(parsed.flowMode || 'detalhada')
                     setFileName(parsed.fileName || '')
-                    setTrips(parsed.trips)
+                    // Normaliza trips antigos: garante que campos novos existam
+                    // (sessões salvas antes de campos como otherCardCandidates / audit)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const normalizedTrips = parsed.trips.map((t: any) => ({
+                        ...t,
+                        otherCardCandidates: Array.isArray(t.otherCardCandidates) ? t.otherCardCandidates : [],
+                        audit: t.audit && Array.isArray(t.audit.issues)
+                            ? t.audit
+                            : { severity: 'ok' as const, issues: [] },
+                        existingGanhoPos: t.existingGanhoPos ?? null,
+                        existingGanhoPlanner: t.existingGanhoPlanner ?? null,
+                        existingStatusComercial: t.existingStatusComercial ?? null,
+                        existingDonoPosId: t.existingDonoPosId ?? null,
+                        existingPhaseSlug: t.existingPhaseSlug ?? null,
+                    }))
+                    setTrips(normalizedTrips)
                     setSelectedTrips(new Set(parsed.selectedTrips || []))
                     setFilterDataFimMin(parsed.filterDataFimMin || '')
                     setFilterDataFimMax(parsed.filterDataFimMax || '')
@@ -1977,7 +1994,7 @@ export default function ImportacaoPosVendaPage() {
 
     const filteredTrips = trips.filter(trip => {
         if (filterAction !== 'all' && trip.action !== filterAction) return false
-        if (filterAudit !== 'all' && trip.audit.severity !== filterAudit) return false
+        if (filterAudit !== 'all' && (trip.audit?.severity ?? 'ok') !== filterAudit) return false
         if (filterDataFimMin && (!trip.dataFim || trip.dataFim < filterDataFimMin)) return false
         if (filterDataFimMax && (!trip.dataFim || trip.dataFim > filterDataFimMax)) return false
         if (filterValorMin && trip.valorTotal < parseFloat(filterValorMin)) return false
@@ -2075,9 +2092,9 @@ export default function ImportacaoPosVendaPage() {
 
     // Auditoria — sempre calculada sobre todas as viagens (não respeita filtro de Saúde,
     // senão clicar num cartão zera os outros contadores).
-    const auditOk = trips.filter(t => t.audit.severity === 'ok').length
-    const auditWarn = trips.filter(t => t.audit.severity === 'warn').length
-    const auditError = trips.filter(t => t.audit.severity === 'error').length
+    const auditOk = trips.filter(t => (t.audit?.severity ?? 'ok') === 'ok').length
+    const auditWarn = trips.filter(t => t.audit?.severity === 'warn').length
+    const auditError = trips.filter(t => t.audit?.severity === 'error').length
 
     return (
         <div className="h-full overflow-y-auto">
