@@ -1052,6 +1052,12 @@ export default function ImportacaoPosVendaPage() {
     const [selectedTrips, setSelectedTrips] = useState<Set<string>>(new Set())
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
     const [importResult, setImportResult] = useState<{ cardsCreated: number; cardsUpdated: number; productsImported: number; skipped: number; errors: number; cardsArchived?: number } | null>(null)
+    // Detalhe por viagem após o import — alimenta a tela "done" com lista do que subiu/falhou
+    const [importDetails, setImportDetails] = useState<{
+        success: Array<{ pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; action: 'created' | 'updated' }>
+        failed: Array<{ pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; error: string }>
+        skipped: Array<{ pagante: string; titulo: string; vendaNums: string[]; reason: string }>
+    } | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
     // Arquivar cards ambíguos: pré-marca todos os "outros" cards que apareceram com a
@@ -2085,6 +2091,34 @@ export default function ImportacaoPosVendaPage() {
             }
 
             setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: totalErrors })
+
+            // Detalhe por viagem pra tela "done" mostrar exatamente o que subiu / falhou
+            const success: { pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; action: 'created' | 'updated' }[] = []
+            const failed: { pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; error: string }[] = []
+            const skipped: { pagante: string; titulo: string; vendaNums: string[]; reason: string }[] = []
+            for (const res of allRpcResults) {
+                const trip = toProcess[res.idx]
+                if (!trip) continue
+                const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
+                const base = { pagante: trip.pagantePrincipal, titulo, vendaNums: trip.vendaNums, cardId: (res.card_id as string) || trip.existingCardId || null }
+                if (res.action === 'error') {
+                    failed.push({ ...base, error: res.error || 'erro desconhecido' })
+                } else if (res.action === 'created' || res.action === 'updated') {
+                    success.push({ ...base, action: res.action })
+                }
+            }
+            // Viagens com action='skip' (T. Planner ou sem match) na lista — não vão pro RPC
+            for (const trip of trips.filter(t => t.action === 'skip')) {
+                const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
+                skipped.push({
+                    pagante: trip.pagantePrincipal,
+                    titulo,
+                    vendaNums: trip.vendaNums,
+                    reason: trip.skipReason || 'pulada',
+                })
+            }
+            setImportDetails({ success, failed, skipped })
+
             if (allErrors.length > 0) {
                 const firstErr = allErrors[0]
                 toast.error(`${allErrors.length} viagem(ns) com erro. Ex: ${firstErr.error || 'sem detalhe'}`, { duration: 12000 })
@@ -2196,6 +2230,7 @@ export default function ImportacaoPosVendaPage() {
         setSelectedTrips(new Set())
         setCardsToArchive(new Set())
         setImportResult(null)
+        setImportDetails(null)
         setImportProgress({ current: 0, total: 0 })
         setFilterDataFimMin('')
         setFilterDataFimMax('')
@@ -2878,43 +2913,174 @@ export default function ImportacaoPosVendaPage() {
 
                 {/* ─── DONE ────────────────────────────────────── */}
                 {step === 'done' && importResult && (
-                    <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm text-center">
-                        {importResult.errors === 0 ? (
-                            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
-                        ) : (
-                            <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                        )}
-                        <h2 className="text-lg font-semibold text-slate-900 mb-4">Importação concluída</h2>
-                        <div className="flex items-center justify-center gap-6 mb-6">
-                            {importResult.cardsCreated > 0 && (
-                                <div>
-                                    <p className="text-3xl font-bold text-emerald-600">{importResult.cardsCreated}</p>
-                                    <p className="text-xs text-slate-500">Cards criados</p>
+                    <div className="space-y-4">
+                        {/* Resumo */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                            <div className="flex items-start gap-4">
+                                {importResult.errors === 0 ? (
+                                    <CheckCircle2 className="h-10 w-10 text-emerald-500 shrink-0" />
+                                ) : (
+                                    <AlertTriangle className="h-10 w-10 text-amber-500 shrink-0" />
+                                )}
+                                <div className="flex-1">
+                                    <h2 className="text-lg font-semibold text-slate-900 mb-3">
+                                        {importResult.errors === 0 ? 'Importação concluída' : 'Importação concluída — com erros'}
+                                    </h2>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        {importResult.cardsCreated > 0 && (
+                                            <div>
+                                                <p className="text-2xl font-bold text-emerald-600">{importResult.cardsCreated}</p>
+                                                <p className="text-xs text-slate-500">Cards criados</p>
+                                            </div>
+                                        )}
+                                        {importResult.cardsUpdated > 0 && (
+                                            <div>
+                                                <p className="text-2xl font-bold text-blue-600">{importResult.cardsUpdated}</p>
+                                                <p className="text-xs text-slate-500">Cards atualizados</p>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="text-2xl font-bold text-slate-900">{importResult.productsImported}</p>
+                                            <p className="text-xs text-slate-500">Produtos</p>
+                                        </div>
+                                        {importResult.errors > 0 && (
+                                            <div>
+                                                <p className="text-2xl font-bold text-rose-600">{importResult.errors}</p>
+                                                <p className="text-xs text-slate-500">Com erro</p>
+                                            </div>
+                                        )}
+                                        {(importResult.skipped > 0 || (importDetails?.skipped.length ?? 0) > 0) && (
+                                            <div>
+                                                <p className="text-2xl font-bold text-slate-400">{Math.max(importResult.skipped, importDetails?.skipped.length ?? 0)}</p>
+                                                <p className="text-xs text-slate-500">Puladas</p>
+                                            </div>
+                                        )}
+                                        {(importResult.cardsArchived ?? 0) > 0 && (
+                                            <div>
+                                                <p className="text-2xl font-bold text-rose-500">{importResult.cardsArchived}</p>
+                                                <p className="text-xs text-slate-500">Arquivados</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                            {importResult.cardsUpdated > 0 && (
-                                <div>
-                                    <p className="text-3xl font-bold text-blue-600">{importResult.cardsUpdated}</p>
-                                    <p className="text-xs text-slate-500">Cards atualizados</p>
-                                </div>
-                            )}
-                            <div>
-                                <p className="text-3xl font-bold text-slate-900">{importResult.productsImported}</p>
-                                <p className="text-xs text-slate-500">Produtos importados</p>
                             </div>
-                            {importResult.skipped > 0 && (
-                                <div>
-                                    <p className="text-3xl font-bold text-slate-400">{importResult.skipped}</p>
-                                    <p className="text-xs text-slate-500">Viagens puladas</p>
+                            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-slate-100">
+                                <Button variant="outline" onClick={handleReset}>Nova importação</Button>
+                                <Link to="/pipeline">
+                                    <Button>Ver no Funil</Button>
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Lista detalhada de erros */}
+                        {(importDetails?.failed.length ?? 0) > 0 && (
+                            <div className="bg-white border border-rose-200 rounded-xl shadow-sm overflow-hidden">
+                                <div className="px-4 py-3 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
+                                    <h3 className="text-sm font-semibold text-rose-900 flex items-center gap-2">
+                                        <XCircle className="h-4 w-4" />
+                                        Viagens que NÃO subiram ({importDetails?.failed.length})
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const lines = (importDetails?.failed || []).map(f =>
+                                                `${f.pagante} | vendas: ${f.vendaNums.join(', ') || '—'} | ${f.error}${f.cardId ? ` | card: ${f.cardId}` : ''}`
+                                            ).join('\n')
+                                            navigator.clipboard.writeText(lines)
+                                            toast.success('Lista copiada')
+                                        }}
+                                        className="text-xs text-rose-700 hover:text-rose-900 underline"
+                                    >
+                                        copiar lista
+                                    </button>
                                 </div>
-                            )}
-                        </div>
-                        <div className="flex items-center justify-center gap-3">
-                            <Button variant="outline" onClick={handleReset}>Nova importação</Button>
-                            <Link to="/pipeline">
-                                <Button>Ver no Funil</Button>
-                            </Link>
-                        </div>
+                                <ul className="divide-y divide-rose-100">
+                                    {(importDetails?.failed || []).map((f, idx) => (
+                                        <li key={idx} className="px-4 py-2.5 text-sm">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-rose-500 shrink-0 mt-0.5">✗</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="font-medium text-slate-900 truncate">{f.titulo}</span>
+                                                        {f.cardId && (
+                                                            <Link
+                                                                to={`/cards/${f.cardId}`}
+                                                                className="text-xs text-indigo-600 hover:underline shrink-0"
+                                                            >
+                                                                abrir card
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 mb-1">
+                                                        {f.pagante} • vendas: {f.vendaNums.join(', ') || '—'}
+                                                    </div>
+                                                    <div className="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded">
+                                                        {f.error}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Lista de puladas */}
+                        {(importDetails?.skipped.length ?? 0) > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                                    <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                                        <MinusSquare className="h-4 w-4 text-slate-400" />
+                                        Viagens puladas ({importDetails?.skipped.length})
+                                    </h3>
+                                </div>
+                                <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                                    {(importDetails?.skipped || []).map((s, idx) => (
+                                        <li key={idx} className="px-4 py-2 text-sm">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-slate-400 shrink-0 mt-0.5">→</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-slate-700 text-sm truncate">{s.titulo}</div>
+                                                    <div className="text-xs text-slate-500">
+                                                        {s.pagante} • vendas: {s.vendaNums.join(', ') || '—'} • <span className="text-slate-600">{s.reason}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Lista de sucesso (collapsada por padrão) */}
+                        {(importDetails?.success.length ?? 0) > 0 && (
+                            <details className="bg-white border border-emerald-200 rounded-xl shadow-sm overflow-hidden group">
+                                <summary className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 cursor-pointer flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Viagens que subiram ({importDetails?.success.length}) — clique pra expandir
+                                </summary>
+                                <ul className="divide-y divide-emerald-100 max-h-96 overflow-y-auto">
+                                    {(importDetails?.success || []).map((s, idx) => (
+                                        <li key={idx} className="px-4 py-2 text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0', s.action === 'created' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>
+                                                    {s.action === 'created' ? 'criado' : 'atualizado'}
+                                                </span>
+                                                <span className="font-medium text-slate-700 truncate flex-1">{s.titulo}</span>
+                                                {s.cardId && (
+                                                    <Link
+                                                        to={`/cards/${s.cardId}`}
+                                                        className="text-xs text-indigo-600 hover:underline shrink-0"
+                                                    >
+                                                        ver
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
+                        )}
                     </div>
                 )}
             </div>
