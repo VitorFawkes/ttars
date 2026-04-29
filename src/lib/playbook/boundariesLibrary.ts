@@ -97,8 +97,14 @@ export const BOUNDARIES_LIBRARY: BoundaryItem[] = [
   {
     id: 'never_invent',
     label: 'Nunca inventar dados',
-    description: 'Não fabrica prêmios, números, prazos, features.',
+    description: 'Não fabrica prêmios, números, prazos, features. Inclui cases de clientes ("fizemos um em Trancoso"): só cita se vier da Knowledge Base. Não invente exemplos pra parecer experiente.',
     category: 'marca',
+  },
+  {
+    id: 'never_assume_in_question',
+    label: 'Pergunta aberta, sem presumir',
+    description: 'Não embute fato na pergunta ("avós moram lá?" presume avós). Pergunta aberto: "qual parte da família é de lá?". Deixa o lead contar.',
+    category: 'comunicacao',
   },
   // Comportamento
   {

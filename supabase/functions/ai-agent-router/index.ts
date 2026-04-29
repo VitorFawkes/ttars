@@ -1858,8 +1858,31 @@ async function executeToolCall(
         if (taskErr) {
           result = JSON.stringify({ error: taskErr.message });
         } else {
-          // Se book_meeting está ativo, retorna info estruturada pro LLM montar
-          // a mensagem de confirmação pro lead com os campos certos
+          // Se book_meeting está ativo (= reunião com closer), também aplica
+          // handoff_actions completas: muda etapa, aplica tag, notifica responsável.
+          // Antes essas 3 ações só rodavam em request_handoff explícito; agendar
+          // reunião com closer É um handoff de fato, então deve disparar tudo
+          // automaticamente. Bug observado em prod 29/04 (conv 7648893e):
+          // tarefa criada mas card ficou em "Novo Lead", tag não colada,
+          // Cyntya não notificada — Wedding Planner cega.
+          if (useBookCfg) {
+            try {
+              // Override notify pra usar responsavel do book_meeting (closer),
+              // não o sdr_owner_id do card (que pode ser null em leads novos).
+              const ctxOverride: ConversationContext = {
+                ...ctx,
+                sdr_owner_id: responsavelId ?? ctx.sdr_owner_id,
+              };
+              await applyHandoffActions(supabase, agent, ctxOverride);
+            } catch (haErr) {
+              console.warn("[create_task → handoff_actions] failed:", haErr);
+            }
+          }
+
+          // Retorna info estruturada pro LLM montar a confirmação. responsavel_first_name
+          // é primeiro nome (Wedding Planner BR usa primeiro nome no template, não nome
+          // completo — soa menos corporativo).
+          const firstName = (responsavelName ?? '').trim().split(/\s+/)[0] || responsavelName;
           const payload: Record<string, unknown> = {
             success: true,
             tipo: tipoFinal,
@@ -1867,8 +1890,10 @@ async function executeToolCall(
           };
           if (useBookCfg) {
             payload.responsavel_name = responsavelName;
+            payload.responsavel_first_name = firstName;
             payload.duracao_minutos = bookCfg.duracao_minutos ?? 60;
             payload.mensagem_confirmacao_template = bookCfg.mensagem_confirmacao_template ?? null;
+            payload.handoff_actions_applied = true;
           }
           result = JSON.stringify(payload);
         }

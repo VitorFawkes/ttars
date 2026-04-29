@@ -354,7 +354,7 @@ export async function runPersonaAgent_v2(
       duracao_minutos: bookCfg.duracao_minutos ?? 60,
       titulo_template: bookCfg.titulo_template ?? 'Reunião com {contact_name}',
       mensagem_confirmacao_template: bookCfg.mensagem_confirmacao_template ??
-        'Perfeito! Marquei {responsavel_name} pra falar com vocês {data} às {hora}.',
+        'Perfeito! Marquei {responsavel_first_name} pra falar com vocês {data} às {hora}.',
       available_slots: availableSlots,
     };
   }

@@ -45,7 +45,8 @@ const BOUNDARIES_LIBRARY: Record<string, string> = {
   never_price: "Nunca falar preço, faixa, 'a partir de' ou valor de mercado",
   never_transfer_explicit: "Nunca dizer 'vou passar', 'vou transferir' ou 'outra pessoa vai te atender'",
   never_ai_mention: "Nunca citar IA, prompt, sistema, formulário, regras internas",
-  never_invent: "Nunca inventar prêmio, prazo, feature, dado ou benefício",
+  never_invent: "Nunca inventar prêmio, prazo, feature, dado, benefício, OU CASES/EXEMPLOS de clientes anteriores. Se quiser citar um caso (ex: 'fizemos um casamento em Trancoso'), só cite se VEIO da Knowledge Base ou dos dados estruturados que você recebeu — nunca invente cenário pra parecer mais experiente.",
+  never_assume_in_question: "Quando explorar info do lead, faça PERGUNTAS ABERTAS sem presumir respostas. Errado: 'avós moram lá?' (presume que tem avós lá). Certo: 'qual parte da família é de lá?'. A regra: se você não tem certeza de um fato sobre o lead, não embuta o fato na sua pergunta — pergunte aberto e deixe ele contar.",
   never_blame_customer: "Nunca culpar o cliente pelo problema",
   never_cliche: "Nunca usar clichês: 'casamento dos sonhos', 'experiência premium', 'deixe conosco'",
   never_emoji_first: "Nunca usar emoji na primeira mensagem (depois máximo 1 natural)",
@@ -314,6 +315,10 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
 
   const cfg = input.bookMeeting;
   subs['{responsavel_name}'] = cfg?.responsavel_name ?? '(especialista)';
+  // Primeiro nome do responsável — Wedding Planner BR usa primeiro nome
+  // ("Marquei Cyntya" soa mais natural que "Marquei Cyntya Joici Nishino de Almeida").
+  const respFirst = (cfg?.responsavel_name ?? '').trim().split(/\s+/)[0];
+  subs['{responsavel_first_name}'] = respFirst || '(especialista)';
 
   const slots = cfg?.available_slots ?? [];
   const formatted = slots.map(formatSlotLabel);
@@ -792,11 +797,18 @@ function renderMeetingBookingBlock(input: BuildPromptV2Input): string {
 
   // ---- Quando lead aceita ----
   lines.push('## Quando o lead aceitar um horário');
-  lines.push('Chame **create_task** imediatamente, com:');
-  lines.push('- tipo: "reuniao"');
-  lines.push('- data_vencimento: ISO 8601 (YYYY-MM-DDTHH:MM:SS) — combine a data acordada com o horário aceito');
-  lines.push('- titulo: pode mandar curto ("Reunião com lead"). O backend sobrescreve via template configurado.');
-  lines.push('- descricao: 1-2 frases com contexto (destino, data do casamento, número de convidados, orçamento). Isso aparece pra ' + responsavelLabel + ' chegar com contexto.');
+  lines.push('**IMPORTANTE**: ANTES de chamar create_task, você DEVE chamar **check_calendar** com a data/hora proposta pra confirmar que está livre na agenda real. Mesmo que o horário esteja na lista pré-carregada acima — slots podem ter sido ocupados depois. Sem essa verificação você corre risco de gerar conflito de agenda na ' + responsavelLabel + '.');
+  lines.push('');
+  lines.push('Fluxo obrigatório:');
+  lines.push('1. **check_calendar** com date_from = data proposta, date_to = mesmo dia.');
+  lines.push('2. Se `available_slots` contém o horário pedido → segue pro passo 3 (criar tarefa).');
+  lines.push('3. **create_task** com:');
+  lines.push('   - tipo: "reuniao"');
+  lines.push('   - data_vencimento: ISO 8601 (YYYY-MM-DDTHH:MM:SS) — combine a data acordada com o horário aceito');
+  lines.push('   - titulo: pode mandar curto ("Reunião com lead"). O backend sobrescreve via template configurado.');
+  lines.push('   - descricao: 1-2 frases com contexto (destino, data do casamento, número de convidados, orçamento). Isso aparece pra ' + responsavelLabel + ' chegar com contexto.');
+  lines.push('');
+  lines.push('Se check_calendar mostrar que o horário NÃO está livre, propõe os 2 horários disponíveis mais próximos da preferência do lead (sem rejeitar seco). Loop até fechar um horário que existe na agenda.');
   lines.push('');
   lines.push(`Tipo configurado pela admin: ${cfg.tipo} (${cfg.duracao_minutos} min). Você não precisa passar isso — o backend aplica.`);
   lines.push('');
@@ -810,7 +822,9 @@ function renderMeetingBookingBlock(input: BuildPromptV2Input): string {
   lines.push('Substitua as variáveis com valores reais antes de mandar:');
   lines.push('- {contact_name} → primeiro nome do lead');
   if (cfg.responsavel_name) {
-    lines.push(`- {responsavel_name} → "${cfg.responsavel_name}"`);
+    const respFirst = cfg.responsavel_name.trim().split(/\s+/)[0];
+    lines.push(`- {responsavel_first_name} → "${respFirst}" (recomendado — soa natural)`);
+    lines.push(`- {responsavel_name} → "${cfg.responsavel_name}" (nome completo, formal)`);
   }
   lines.push('- {data} → data legível em PT-BR (ex: "quinta-feira, 15 de maio")');
   lines.push('- {hora} → horário em formato HH:MM (ex: "14h" ou "14:30")');
@@ -818,6 +832,7 @@ function renderMeetingBookingBlock(input: BuildPromptV2Input): string {
 
   // ---- Regras de ouro ----
   lines.push('## Regras');
+  lines.push('- NÃO chame create_task sem antes verificar disponibilidade via check_calendar.');
   lines.push('- NÃO fale "vou agendar" antes de chamar create_task. Aja, depois confirme.');
   lines.push('- NÃO invente disponibilidade. Use só horários da lista pré-carregada OU retornados por check_calendar.');
   lines.push('- NÃO peça email — o sistema cria a reunião pelo card.');

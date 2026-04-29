@@ -16,7 +16,7 @@ const DEFAULT_BOOK_MEETING: BookMeetingConfig = {
   tipo: 'reuniao_video',
   duracao_minutos: 60,
   titulo_template: 'Reunião com {contact_name} — {agent_name}',
-  mensagem_confirmacao_template: 'Perfeito! Marquei {responsavel_name} pra falar com vocês {data} às {hora}. Vocês vão receber o convite e ela já chega com contexto.',
+  mensagem_confirmacao_template: 'Perfeito! Marquei {responsavel_first_name} pra falar com vocês {data} às {hora}. Vocês vão receber o convite e ela já chega com contexto.',
 }
 
 interface Props {
