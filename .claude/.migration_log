@@ -674,3 +674,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-29T16:03:49Z | supabase/migrations/20260429a_ai_agent_moments_intent.sql | applied_to_prod
 2026-04-29T18:03:11Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429a_corporativo_provision.sql | applied_to_prod
 2026-04-29T18:05:50Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429a_corporativo_provision.sql | applied_to_prod
+2026-04-29T19:10:48Z | supabase/migrations/20260429b_corporativo_features.sql | applied_to_prod
+2026-04-29T19:11:10Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429b_corporativo_features.sql | applied_to_prod

@@ -86,6 +86,26 @@ function renderTripDate(ev: any, fallbackStart?: string | null): string | null {
     return `${start.d} ${MONTHS_PT[start.m - 1]} ${start.y} – ${end.d} ${MONTHS_PT[end.m - 1]} ${end.y}`
 }
 
+type TempoAberto = { label: string; level: 'fresh' | 'warn' | 'late' }
+
+function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | null {
+    if (!createdAt) return null
+    const created = new Date(createdAt).getTime()
+    if (Number.isNaN(created)) return null
+    const diffMs = Date.now() - created
+    const minutes = Math.floor(diffMs / 60000)
+    const hours = minutes / 60
+    const level: TempoAberto['level'] = hours >= 24 ? 'late' : hours >= 4 ? 'warn' : 'fresh'
+    let label: string
+    if (minutes < 60) label = minutes <= 1 ? 'agora' : `há ${minutes}min`
+    else if (hours < 24) label = hours < 2 ? 'há 1h' : `há ${Math.floor(hours)}h`
+    else {
+        const days = Math.floor(hours / 24)
+        label = days === 1 ? 'há 1 dia' : `há ${days} dias`
+    }
+    return { label, level }
+}
+
 export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
@@ -745,6 +765,28 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                     <span className="truncate text-gray-700 font-medium">{card.pessoa_nome}</span>
                 </div>
             )}
+
+            {/* Tempo aberto — exclusivo CORP, só em cards ainda abertos */}
+            {card.produto === 'CORP' && !isClosedCard && (() => {
+                const tempo = formatTempoAberto(card.created_at)
+                if (!tempo) return null
+                const colorCls = tempo.level === 'late'
+                    ? 'bg-rose-50 text-rose-700 border-rose-100'
+                    : tempo.level === 'warn'
+                    ? 'bg-amber-50 text-amber-700 border-amber-100'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                return (
+                    <div className="flex items-center -mt-0.5">
+                        <span className={cn(
+                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border',
+                            colorCls
+                        )}>
+                            <Clock className="w-3 h-3" />
+                            Aberto {tempo.label}
+                        </span>
+                    </div>
+                )
+            })()}
 
             <div className="flex flex-col gap-0.5">
                 {/* Always show product/value if available as header info */}
