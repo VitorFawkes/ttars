@@ -49,7 +49,7 @@ const BOUNDARIES_LIBRARY: Record<string, string> = {
   never_blame_customer: "Nunca culpar o cliente pelo problema",
   never_cliche: "Nunca usar clichês: 'casamento dos sonhos', 'experiência premium', 'deixe conosco'",
   never_emoji_first: "Nunca usar emoji na primeira mensagem (depois máximo 1 natural)",
-  never_stack_questions: "Nunca empilhar 2+ perguntas soltas sobre temas diferentes na mesma mensagem",
+  never_stack_questions: "Nunca empilhar 2+ perguntas sobre TEMAS DIFERENTES na mesma mensagem (ex: 'qual seu nome? e o orçamento? e a data?' — confunde). Múltiplas perguntas sobre o MESMO tema, complementares e curtas, são OK e até desejáveis (ex: 'o que é o casamento pra vocês? e como imaginam ele?' — duas perguntas, mesmo tema, fluem natural).",
   never_dash_separator: "Nunca usar travessão como separador (use vírgula, ponto, reticências)",
   never_justify_question: "Nunca justificar pergunta ('pra te ajudar melhor...')",
   never_promise_deadline: "Nunca prometer prazo exato sem validar",
@@ -449,6 +449,10 @@ function renderOneMoment(
       'As variáveis ({contact_name}, {responsavel_name}, etc) já foram substituídas. ' +
       'NÃO reformule frases. NÃO troque sinônimos. NÃO acrescente saudações extras. NÃO mude o tom. ' +
       'NÃO antecipe nada que viria nos próximos passos. ' +
+      'NÃO corte perguntas, frases ou parágrafos do texto-âncora — se o admin escreveu duas perguntas, MANDE AS DUAS. ' +
+      'Se houver conflito entre o texto-âncora e algum boundary de FORMA (número de perguntas, separadores, emojis), ' +
+      'o TEXTO-ÂNCORA vence — o admin já decidiu a forma; boundaries de forma valem só pra modo livre. ' +
+      'Boundaries de CONTEÚDO (nunca falar preço, nunca inventar fatos, nunca citar IA) continuam valendo sempre. ' +
       'Se o sistema injetou um bloco <lead_already_mentioned>, OMITA SOMENTE os trechos listados lá ' +
       '(o sistema já validou que o lead os mencionou). Resto: literal palavra-por-palavra. ' +
       'Se uma variável veio vazia (ex: nome desconhecido), pule a parte que dependeria dela de forma natural.]'
@@ -462,6 +466,8 @@ function renderOneMoment(
       'Adapte SOMENTE: (a) substituir nome do lead; (b) ajustar concordância de gênero/plural quando aplicável; ' +
       '(c) corrigir uma ou outra palavra pra fluir naturalmente. ' +
       'NÃO reescreva frases. NÃO substitua trechos por sinônimos. NÃO mude o tom. NÃO acrescente nem omita ideias. ' +
+      'NÃO corte perguntas que o admin escreveu — se o anchor tem 2 perguntas, mantenha as 2. ' +
+      'Boundaries de FORMA não vencem o anchor; só os de CONTEÚDO (preço, fatos inventados, etc) sempre valem. ' +
       'Se o sistema injetou bloco <lead_already_mentioned>, omita os trechos listados lá. Resto: fiel.]'
     );
   } else {

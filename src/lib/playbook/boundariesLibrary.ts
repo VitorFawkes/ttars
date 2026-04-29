@@ -65,8 +65,8 @@ export const BOUNDARIES_LIBRARY: BoundaryItem[] = [
   },
   {
     id: 'never_stack_questions',
-    label: 'Uma pergunta por turno',
-    description: 'Não empilha 2+ perguntas soltas sobre temas diferentes.',
+    label: 'Uma pergunta por tema',
+    description: 'Não empilha perguntas sobre temas DIFERENTES (nome + orçamento + data). Mas pode fazer duas perguntas COMPLEMENTARES sobre o mesmo tema (o que é o casamento? E como imaginam?) — fluem natural.',
     category: 'comunicacao',
   },
   {
