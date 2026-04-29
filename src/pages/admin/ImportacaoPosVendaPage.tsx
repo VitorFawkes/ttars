@@ -1984,6 +1984,32 @@ export default function ImportacaoPosVendaPage() {
         setImportProgress({ current: 0, total: toProcess.length })
 
         try {
+            // Pré-correção: cards que estão com ganho_pos=true em etapa pré-Pós-Viagem
+            // (estado errado herdado de imports antigos) precisam ser corrigidos ANTES
+            // do RPC, senão o trigger enforce_trips_ganho_pos_only_in_pos_viagem bloqueia
+            // qualquer UPDATE neles. Movemos status pra 'aberto' e zeramos ganho_pos —
+            // estado correto pra etapas pré-Pós-Viagem.
+            const cardsToFixBeforeUpdate = toProcess
+                .filter(t => t.action === 'update'
+                    && t.existingCardId
+                    && t.existingGanhoPos === true
+                    && t.existingStageId !== STAGE_POS_VIAGEM)
+                .map(t => t.existingCardId as string)
+            if (cardsToFixBeforeUpdate.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: fixErr } = await (supabase.from('cards') as any)
+                    .update({
+                        ganho_pos: false,
+                        ganho_pos_at: null,
+                        status_comercial: 'aberto',
+                    })
+                    .in('id', cardsToFixBeforeUpdate)
+                if (fixErr) {
+                    console.error('Erro ao pré-corrigir ganho_pos:', fixErr)
+                    // Continua mesmo assim — alguns cards podem dar erro no RPC e o usuário vê
+                }
+            }
+
             const payload = toProcess.map(trip => ({
                 existing_card_id: trip.existingCardId,
                 titulo: buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim),
