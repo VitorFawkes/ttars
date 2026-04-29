@@ -220,40 +220,51 @@ function computeAudit(trip: Pick<TripGroup,
     }
     const issues: string[] = []
 
-    // Sinais de "venda fechada de verdade":
-    // - status_comercial = 'ganho' é o status geral do card
-    // - ganho_planner = true é o marco específico do Planner (venda fechada)
-    // Os dois precisam estar batendo. Se um falha, a venda foi fechada de jeito incompleto.
-    if (trip.existingStatusComercial !== 'ganho') {
-        const statusLabel = trip.existingStatusComercial || 'desconhecido'
-        issues.push(`Status comercial está como "${statusLabel}", deveria ser "ganho".`)
-    }
-    if (trip.existingGanhoPlanner !== true) {
-        issues.push('Falta marcar o Ganho Planner (marco da venda fechada).')
-    }
-
+    // 1. Etapa: card precisa estar na fase Pós-venda
     if (trip.existingPhaseSlug && trip.existingPhaseSlug !== 'pos_venda') {
         const stageLabel = trip.existingStageName ? ` (${trip.existingStageName})` : ''
         issues.push(`Etapa atual${stageLabel} está fora da fase Pós-venda.`)
     } else if (!trip.existingPhaseSlug) {
         issues.push('Etapa do card não pôde ser identificada.')
     }
+
+    // 2. Ganho Planner: deve estar marcado em qualquer etapa de pós-venda
+    // (venda foi fechada antes do card chegar aqui)
+    if (trip.existingGanhoPlanner !== true) {
+        issues.push('Falta marcar o Ganho Planner (marco da venda fechada).')
+    }
+
+    // 3. Dono pós-venda preenchido
     if (!trip.existingDonoPosId) {
         issues.push('Sem dono pós-venda atribuído.')
     }
 
-    // ganho_pos só pode ser true na etapa "Pós-viagem & Reativação" (viagem terminada,
-    // pós-NPS). Em qualquer etapa anterior (App & Conteúdo, Pré-embarque, Em Viagem) ele
-    // deveria ser false. Trigger no banco impede novos casos, mas cards legados podem
-    // estar com ganho_pos=true erroneamente.
+    // 4. status_comercial='ganho' E ganho_pos=true SÓ podem aparecer na etapa
+    //    "Pós-viagem & Reativação" (a viagem aconteceu, ciclo completo, sem risco residual).
+    //    Em pré-embarque / Em Viagem ainda há risco de cancelamento/reembolso, então o
+    //    status_comercial deve estar como 'aberto' e ganho_pos como false.
     if (trip.existingPhaseSlug === 'pos_venda' && trip.existingStageId) {
         const isPostTrip = trip.existingStageId === STAGE_POS_VIAGEM
-        if (trip.existingGanhoPos === true && !isPostTrip) {
-            const stageLabel = trip.existingStageName ? ` ("${trip.existingStageName}")` : ''
-            issues.push(`Card marcado como Ganho Pós-venda mas a viagem ainda não aconteceu (etapa atual${stageLabel}).`)
-        }
-        if (trip.existingGanhoPos !== true && isPostTrip) {
-            issues.push('Etapa é Pós-viagem mas o Ganho Pós-venda ainda não foi marcado.')
+        const stageLabel = trip.existingStageName ? ` ("${trip.existingStageName}")` : ''
+
+        if (isPostTrip) {
+            // Etapa Pós-viagem: status='ganho' E ganho_pos=true são esperados
+            if (trip.existingStatusComercial !== 'ganho') {
+                const statusLabel = trip.existingStatusComercial || 'desconhecido'
+                issues.push(`Etapa é Pós-viagem mas status comercial está como "${statusLabel}" — deveria estar como "ganho".`)
+            }
+            if (trip.existingGanhoPos !== true) {
+                issues.push('Etapa é Pós-viagem mas o Ganho Pós-venda ainda não foi marcado.')
+            }
+        } else {
+            // Etapas pré-Pós-viagem (App & Conteúdo, Pré-embarque, Em Viagem):
+            // status='ganho' OU ganho_pos=true são divergência (viagem ainda não aconteceu)
+            if (trip.existingStatusComercial === 'ganho') {
+                issues.push(`Card marcado como Ganho comercial mas a viagem ainda não aconteceu (etapa atual${stageLabel}). Deveria estar como "aberto".`)
+            }
+            if (trip.existingGanhoPos === true) {
+                issues.push(`Card marcado como Ganho Pós-venda mas a viagem ainda não aconteceu (etapa atual${stageLabel}).`)
+            }
         }
     }
 
@@ -1341,7 +1352,6 @@ export default function ImportacaoPosVendaPage() {
                 .from('pipeline_stages')
                 .select('id, nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)')
                 .in('id', uniqueExistingStageIds)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const stageInfo = new Map<string, { nome: string; phaseSlug: string }>(
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (stages || []).map((s: any) => [s.id as string, { nome: s.nome as string, phaseSlug: s.phase?.slug as string }])
