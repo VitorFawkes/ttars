@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-04-27
+> **Last Updated:** 2026-04-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 190 tabelas | 144 paginas | 155 hooks | 22 views | 615 components
+> **Stats:** 191 tabelas | 144 paginas | 155 hooks | 22 views | 622 components
 
 ---
 
@@ -523,7 +523,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
 | `ConciergeLayout` | `src/pages/concierge/ConciergeLayout.tsx` |
-| `EmLotePage` | `src/pages/concierge/EmLotePage.tsx` |
+| `KanbanPage` | `src/pages/concierge/KanbanPage.tsx` |
 | `MeuDiaPage` | `src/pages/concierge/MeuDiaPage.tsx` |
 | `ModelosPage` | `src/pages/concierge/ModelosPage.tsx` |
 | `PainelGestorPage` | `src/pages/concierge/PainelGestorPage.tsx` |

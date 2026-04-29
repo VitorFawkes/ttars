@@ -54,7 +54,7 @@ import Tasks from './pages/Tasks'
 import ReactivationPage from './pages/ReactivationPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import MeuDiaPage from './pages/concierge/MeuDiaPage'
-import EmLotePage from './pages/concierge/EmLotePage'
+import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
 import ModelosPage from './pages/concierge/ModelosPage'
 
@@ -250,7 +250,7 @@ function App() {
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<MeuDiaPage />} />
-                    <Route path="em-lote" element={<EmLotePage />} />
+                    <Route path="kanban" element={<KanbanPage />} />
                     <Route path="painel" element={<PainelGestorPage />} />
                     <Route path="modelos" element={<ModelosPage />} />
                   </Route>

@@ -160,24 +160,3 @@ export interface CardConciergeStats {
   tipo_prioritario: TipoConcierge | null
 }
 
-export interface AtendimentoLote {
-  categoria: string
-  tipo_concierge: TipoConcierge
-  janela_embarque: 'sem_data' | 'em_andamento' | 'embarca_48h' | 'embarca_semana' | 'embarca_15d' | 'embarca_30d' | 'embarca_futuro'
-  total_pendentes: number
-  atendimento_ids: string[]
-  tarefa_ids: string[]
-  card_ids: string[]
-  primeira_data_embarque: string | null
-  ultima_data_embarque: string | null
-}
-
-export const JANELA_LABEL: Record<AtendimentoLote['janela_embarque'], string> = {
-  sem_data:        'Sem data de embarque',
-  em_andamento:    'Em viagem',
-  embarca_48h:     'Embarca em 48h',
-  embarca_semana:  'Embarca esta semana',
-  embarca_15d:     'Embarca em 15 dias',
-  embarca_30d:     'Embarca em 30 dias',
-  embarca_futuro:  'Embarca em mais de 30 dias',
-}

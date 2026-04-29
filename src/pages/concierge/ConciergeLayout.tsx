@@ -7,7 +7,7 @@ import { NovoAtendimentoModal } from '../../components/concierge/NovoAtendimento
 
 const tabs = [
   { name: 'Meu Dia', path: '/concierge', exact: true },
-  { name: 'Em Lote', path: '/concierge/em-lote' },
+  { name: 'Kanban', path: '/concierge/kanban' },
   { name: 'Painel', path: '/concierge/painel' },
   { name: 'Modelos', path: '/concierge/modelos' },
 ]
