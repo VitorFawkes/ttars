@@ -28,10 +28,12 @@ import {
 const STAGE_APP_CONTEUDO = 'b2b0679c-ea06-4b46-9dd4-ee02abff1a36'
 const STAGE_PRE_EMBARQUE_GT30 = '1f684773-f8f3-434a-a44d-4994750c41aa'
 const STAGE_PRE_EMBARQUE_LT30 = '3ce80249-b579-4a9c-9b82-f8569735cea9'
+const STAGE_EM_VIAGEM = '0ebab355-6d0e-4b19-af13-b4b31268275f'
+const STAGE_POS_VIAGEM = '2c07134a-cb83-4075-bc86-4750beec9393'
 const SAMANTHA_ID = 'b2e26ddf-ebe8-4649-b367-40d2cf3a6bc5'
 
 const POS_VENDA_STAGES = [STAGE_APP_CONTEUDO, STAGE_PRE_EMBARQUE_GT30, STAGE_PRE_EMBARQUE_LT30,
-    '0ebab355-6d0e-4b19-af13-b4b31268275f', '2c07134a-cb83-4075-bc86-4750beec9393']
+    STAGE_EM_VIAGEM, STAGE_POS_VIAGEM]
 
 // Column aliases specific to this CSV
 const CPF_ALIASES = ['cpf']
@@ -170,7 +172,10 @@ interface TripGroup {
     existingPhaseSlug: string | null
     existingStatusComercial: string | null
     existingGanhoPlanner: boolean | null
+    existingGanhoPos: boolean | null
     existingDonoPosId: string | null
+    /** Quando há mais de um card no CRM com a mesma venda, lista os outros (id + titulo). */
+    otherCardCandidates: Array<{ id: string; titulo: string }>
     moveStage: boolean
     action: 'create' | 'update' | 'skip'
     skipReason: string | null
@@ -204,8 +209,8 @@ type FlowMode = 'detalhada' | 'agregada'
  * - ok    → tudo certo
  */
 function computeAudit(trip: Pick<TripGroup,
-    'existingCardId' | 'existingPhaseSlug' | 'existingStageName' |
-    'existingStatusComercial' | 'existingGanhoPlanner' | 'existingDonoPosId'
+    'existingCardId' | 'existingPhaseSlug' | 'existingStageId' | 'existingStageName' |
+    'existingStatusComercial' | 'existingGanhoPlanner' | 'existingGanhoPos' | 'existingDonoPosId'
 >): AuditResult {
     if (!trip.existingCardId) {
         return {
@@ -236,6 +241,22 @@ function computeAudit(trip: Pick<TripGroup,
     if (!trip.existingDonoPosId) {
         issues.push('Sem dono pós-venda atribuído.')
     }
+
+    // ganho_pos só pode ser true na etapa "Pós-viagem & Reativação" (viagem terminada,
+    // pós-NPS). Em qualquer etapa anterior (App & Conteúdo, Pré-embarque, Em Viagem) ele
+    // deveria ser false. Trigger no banco impede novos casos, mas cards legados podem
+    // estar com ganho_pos=true erroneamente.
+    if (trip.existingPhaseSlug === 'pos_venda' && trip.existingStageId) {
+        const isPostTrip = trip.existingStageId === STAGE_POS_VIAGEM
+        if (trip.existingGanhoPos === true && !isPostTrip) {
+            const stageLabel = trip.existingStageName ? ` ("${trip.existingStageName}")` : ''
+            issues.push(`Card marcado como Ganho Pós-venda mas a viagem ainda não aconteceu (etapa atual${stageLabel}).`)
+        }
+        if (trip.existingGanhoPos !== true && isPostTrip) {
+            issues.push('Etapa é Pós-viagem mas o Ganho Pós-venda ainda não foi marcado.')
+        }
+    }
+
     return {
         severity: issues.length === 0 ? 'ok' : 'warn',
         issues,
@@ -315,7 +336,8 @@ type RawTripGroup = Omit<TripGroup,
     | 'vendedorProfileId'
     | 'existingCardId' | 'existingCardTitle'
     | 'existingStageId' | 'existingStageName' | 'existingPhaseSlug'
-    | 'existingStatusComercial' | 'existingGanhoPlanner' | 'existingDonoPosId'
+    | 'existingStatusComercial' | 'existingGanhoPlanner' | 'existingGanhoPos' | 'existingDonoPosId'
+    | 'otherCardCandidates'
     | 'moveStage' | 'action' | 'skipReason' | 'audit'
 >
 
@@ -658,8 +680,8 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                 </div>
             )}
 
-            {/* Auditoria — lista de divergências (visível sem precisar expandir) */}
-            {trip.audit.issues.length > 0 && (
+            {/* Auditoria — lista de divergências + outros cards com mesma venda (visível sem expandir) */}
+            {(trip.audit.issues.length > 0 || trip.otherCardCandidates.length > 0) && (
                 <div className={cn(
                     'border-t px-4 py-2 text-xs',
                     trip.audit.severity === 'error'
@@ -668,18 +690,40 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage }: { trip: TripG
                 )}>
                     <div className="flex items-start gap-2">
                         <AuditIcon className={cn('h-3.5 w-3.5 mt-0.5 shrink-0', trip.audit.severity === 'error' ? 'text-rose-600' : 'text-amber-600')} />
-                        <div className="space-y-0.5">
+                        <div className="space-y-1 flex-1 min-w-0">
                             {trip.audit.issues.map((issue, idx) => (
                                 <div key={idx}>{issue}</div>
                             ))}
                             {trip.existingCardId && (
                                 <Link
                                     to={`/cards/${trip.existingCardId}`}
-                                    className="inline-block mt-1 text-[11px] underline hover:no-underline"
+                                    className="inline-block text-[11px] underline hover:no-underline"
                                     onClick={e => e.stopPropagation()}
                                 >
                                     Abrir card para conferir
                                 </Link>
+                            )}
+                            {trip.otherCardCandidates.length > 0 && (
+                                <div className="mt-1.5 pt-1.5 border-t border-amber-200/50">
+                                    <div className="font-medium mb-0.5">
+                                        Existem outros {trip.otherCardCandidates.length} card{trip.otherCardCandidates.length !== 1 ? 's' : ''} no CRM com essa mesma venda:
+                                    </div>
+                                    <ul className="space-y-0.5">
+                                        {trip.otherCardCandidates.map(other => (
+                                            <li key={other.id} className="flex items-start gap-1">
+                                                <span className="text-amber-500 shrink-0">•</span>
+                                                <Link
+                                                    to={`/cards/${other.id}`}
+                                                    className="underline hover:no-underline truncate"
+                                                    onClick={e => e.stopPropagation()}
+                                                    title={other.titulo}
+                                                >
+                                                    {other.titulo}
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -1174,9 +1218,10 @@ export default function ImportacaoPosVendaPage() {
             let existingStageId: string | null = null
             let existingStatusComercial: string | null = null
             let existingGanhoPlanner: boolean | null = null
+            let existingGanhoPos: boolean | null = null
             let existingDonoPosId: string | null = null
 
-            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
@@ -1194,6 +1239,7 @@ export default function ImportacaoPosVendaPage() {
                     existingStageId = (c.pipeline_stage_id as string) || null
                     existingStatusComercial = (c.status_comercial as string) ?? null
                     existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                    existingGanhoPos = (c.ganho_pos as boolean) ?? null
                     existingDonoPosId = (c.pos_owner_id as string) ?? null
                     break
                 }
@@ -1217,6 +1263,7 @@ export default function ImportacaoPosVendaPage() {
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
                         existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
                         existingDonoPosId = (c.pos_owner_id as string) ?? null
                         break
                     }
@@ -1252,6 +1299,7 @@ export default function ImportacaoPosVendaPage() {
                         existingStageId = (c.pipeline_stage_id as string) || null
                         existingStatusComercial = (c.status_comercial as string) ?? null
                         existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
+                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
                         existingDonoPosId = (c.pos_owner_id as string) ?? null
                     }
                 }
@@ -1270,7 +1318,9 @@ export default function ImportacaoPosVendaPage() {
                 existingPhaseSlug: null, // preenchido no batch abaixo
                 existingStatusComercial,
                 existingGanhoPlanner,
+                existingGanhoPos,
                 existingDonoPosId,
+                otherCardCandidates: [],
                 moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
                 action,
                 skipReason: null, // preenchido no batch abaixo se for T. Planner
@@ -1495,6 +1545,7 @@ export default function ImportacaoPosVendaPage() {
                 pipeline_stage_id: string | null
                 status_comercial: string | null
                 ganho_planner: boolean | null
+                ganho_pos: boolean | null
                 pos_owner_id: string | null
                 _matchType: 'venda_atual' | 'venda_historico'
             }
@@ -1510,13 +1561,11 @@ export default function ImportacaoPosVendaPage() {
             }
 
             const fullTrips: TripGroup[] = []
-            // trip.id → aviso extra (ambiguidade de match), aplicado depois do computeAudit
-            const extraAuditIssues = new Map<string, string>()
             for (const trip of rawTrips) {
                 const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
                 const vendedorProfileId = profileMap.get(norm(trip.vendedor)) || null
 
-                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, pos_owner_id'
+                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id'
 
                 const candidates: CardCandidate[] = []
 
@@ -1537,6 +1586,7 @@ export default function ImportacaoPosVendaPage() {
                                 pipeline_stage_id: (c.pipeline_stage_id as string) || null,
                                 status_comercial: (c.status_comercial as string) ?? null,
                                 ganho_planner: (c.ganho_planner as boolean) ?? null,
+                                ganho_pos: (c.ganho_pos as boolean) ?? null,
                                 pos_owner_id: (c.pos_owner_id as string) ?? null,
                                 _matchType: 'venda_atual',
                             })
@@ -1563,6 +1613,7 @@ export default function ImportacaoPosVendaPage() {
                                 pipeline_stage_id: (c.pipeline_stage_id as string) || null,
                                 status_comercial: (c.status_comercial as string) ?? null,
                                 ganho_planner: (c.ganho_planner as boolean) ?? null,
+                                ganho_pos: (c.ganho_pos as boolean) ?? null,
                                 pos_owner_id: (c.pos_owner_id as string) ?? null,
                                 _matchType: 'venda_historico',
                             })
@@ -1577,17 +1628,16 @@ export default function ImportacaoPosVendaPage() {
                 // Ordena por score descendente
                 uniqueCandidates.sort((a, b) => scoreCard(b) - scoreCard(a))
 
-                // O melhor candidato vence
+                // O melhor candidato vence; o resto fica em otherCardCandidates pra mostrar na UI
                 const winner = uniqueCandidates[0] || null
-                const ambiguidade = uniqueCandidates.length > 1
-                    ? `Atenção: existem outros ${uniqueCandidates.length - 1} card(s) no CRM com essa mesma venda.`
-                    : null
+                const others = uniqueCandidates.slice(1).map(c => ({ id: c.id, titulo: c.titulo }))
 
                 let existingCardId: string | null = null
                 let existingCardTitle: string | null = null
                 let existingStageId: string | null = null
                 let existingStatusComercial: string | null = null
                 let existingGanhoPlanner: boolean | null = null
+                let existingGanhoPos: boolean | null = null
                 let existingDonoPosId: string | null = null
 
                 if (winner) {
@@ -1596,6 +1646,7 @@ export default function ImportacaoPosVendaPage() {
                     existingStageId = winner.pipeline_stage_id
                     existingStatusComercial = winner.status_comercial
                     existingGanhoPlanner = winner.ganho_planner
+                    existingGanhoPos = winner.ganho_pos
                     existingDonoPosId = winner.pos_owner_id
                 }
 
@@ -1619,13 +1670,14 @@ export default function ImportacaoPosVendaPage() {
                     existingPhaseSlug: null,
                     existingStatusComercial,
                     existingGanhoPlanner,
+                    existingGanhoPos,
                     existingDonoPosId,
+                    otherCardCandidates: others,
                     moveStage: true,
                     action,
                     skipReason,
                     audit: { severity: 'ok', issues: [] },
                 })
-                if (ambiguidade) extraAuditIssues.set(titulo, ambiguidade)
             }
 
             // Batch: nome da etapa + slug da fase
@@ -1657,14 +1709,10 @@ export default function ImportacaoPosVendaPage() {
 
             for (const t of fullTrips) {
                 t.audit = computeAudit(t)
-                const extra = extraAuditIssues.get(t.id)
-                if (extra) {
-                    t.audit = {
-                        ...t.audit,
-                        issues: [...t.audit.issues, extra],
-                        // ambiguidade só sobe pra warn quando não é error (sem card já é error)
-                        severity: t.audit.severity === 'error' ? 'error' : 'warn',
-                    }
+                // Se há outros cards com a mesma venda, sobe a severidade pra warn (se ainda 'ok'),
+                // a issue propriamente dita é renderizada inline na UI via otherCardCandidates
+                if (t.otherCardCandidates.length > 0 && t.audit.severity === 'ok') {
+                    t.audit = { ...t.audit, severity: 'warn' }
                 }
             }
 
