@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
 import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
 
-export type EstadoFunil = 'a_fazer' | 'em_contato' | 'aceito' | 'feito' | 'encerrado'
+export type EstadoFunil = 'em_contato' | 'aguardando_retorno' | 'aceito' | 'feito' | 'encerrado'
 
 export type JanelaEmbarque =
   | 'sem_data'
@@ -69,19 +69,19 @@ export interface KanbanColumnSpec {
 }
 
 export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
-  { id: 'a_fazer',    label: 'A fazer',    hint: 'Sem contato com cliente ainda',  tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-400'   } },
-  { id: 'em_contato', label: 'Em contato', hint: 'Cliente foi notificado',          tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
-  { id: 'aceito',     label: 'Aceito',     hint: 'Oferta aceita pelo cliente',      tone: { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200',  accent: 'bg-purple-500'  } },
-  { id: 'feito',      label: 'Feito',      hint: 'Atendimento concluído',           tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
-  { id: 'encerrado',  label: 'Encerrado',  hint: 'Recusado ou cancelado',           tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
+  { id: 'em_contato',         label: 'Em contato',         hint: 'Você está cuidando agora',        tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-400'   } },
+  { id: 'aguardando_retorno', label: 'Aguardando retorno', hint: 'Cliente notificado, esperando',   tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
+  { id: 'aceito',             label: 'Aceito',             hint: 'Oferta aceita pelo cliente',      tone: { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200',  accent: 'bg-purple-500'  } },
+  { id: 'feito',              label: 'Feito',              hint: 'Atendimento concluído',           tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
+  { id: 'encerrado',          label: 'Encerrado',          hint: 'Recusado ou cancelado',           tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
 ]
 
 export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
   if (item.outcome === 'aceito')                              return 'aceito'
   if (item.outcome === 'feito')                               return 'feito'
   if (item.outcome === 'recusado' || item.outcome === 'cancelado') return 'encerrado'
-  if (item.notificou_cliente_em)                              return 'em_contato'
-  return 'a_fazer'
+  if (item.notificou_cliente_em)                              return 'aguardando_retorno'
+  return 'em_contato'
 }
 
 export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {

@@ -78,8 +78,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     if (!item || !destino) return
     if (item.estado_funil === destino) return
 
-    if (destino === 'a_fazer') {
-      toast.error('Não dá pra voltar para "A fazer"')
+    if (destino === 'em_contato') {
+      toast.error('Não dá pra voltar para "Em contato"')
       return
     }
 

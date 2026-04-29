@@ -1,13 +1,19 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
+import { usePipelineStages } from '../usePipelineStages'
 import type { MeuDiaItem, TipoConcierge } from './types'
 
+/**
+ * Saúde da viagem permanece como sinal visual no card (cor da accent bar),
+ * mas o agrupamento no Kanban-por-viagem agora é por etapa do pipeline.
+ */
 export type SaudeViagem = 'critica' | 'em_andamento' | 'concluida'
 
 export interface KanbanViagensFilters {
   donoId?: string | null
   tipos?: TipoConcierge[]
+  pipelineId?: string | null
 }
 
 export interface ViagemKanbanItem {
@@ -19,6 +25,7 @@ export interface ViagemKanbanItem {
   pessoa_principal_id: string | null
   card_valor_estimado: number | null
   card_valor_final: number | null
+  pipeline_stage_id: string
   saude: SaudeViagem
   total_atendimentos: number
   abertos_count: number
@@ -32,19 +39,22 @@ export interface ViagemKanbanItem {
   abertos: MeuDiaItem[]
 }
 
-export interface SaudeColumnSpec {
-  id: SaudeViagem
+export interface StageColumnSpec {
+  id: string
   label: string
-  emoji: string
-  hint: string
+  hint?: string
+  phase: string | null
   tone: { bg: string; text: string; border: string; accent: string }
 }
 
-export const SAUDE_COLUMNS: SaudeColumnSpec[] = [
-  { id: 'critica',       label: 'Crítica',       emoji: '🔴', hint: 'Vencida ou embarca em até 48h',     tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
-  { id: 'em_andamento',  label: 'Em andamento',  emoji: '🟡', hint: 'Tem atendimentos abertos',            tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
-  { id: 'concluida',     label: 'Concluída',     emoji: '✅', hint: 'Sem pendências no momento',           tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
-]
+/** Cores da accent bar conforme a fase do pipeline */
+const PHASE_TONE: Record<string, StageColumnSpec['tone']> = {
+  planner:    { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200',     accent: 'bg-sky-500'     },
+  pos_venda:  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' },
+  entrega:    { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   },
+  resolucao:  { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-400'   },
+}
+const DEFAULT_TONE: StageColumnSpec['tone'] = { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', accent: 'bg-slate-400' }
 
 function classifySaude(viagem: {
   abertos_count: number
@@ -62,8 +72,10 @@ function isAberto(item: MeuDiaItem) {
 }
 
 export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
+  const stagesQuery = usePipelineStages(filters.pipelineId ?? undefined)
+
   const query = useQuery({
-    queryKey: ['concierge', 'kanban-viagens', filters],
+    queryKey: ['concierge', 'kanban-viagens', { donoId: filters.donoId, tipos: filters.tipos }],
     queryFn: async (): Promise<ViagemKanbanItem[]> => {
       let q = sbAny.from('v_meu_dia_concierge').select('*')
 
@@ -111,6 +123,7 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           pessoa_principal_id: head.pessoa_principal_id,
           card_valor_estimado: head.card_valor_estimado,
           card_valor_final: head.card_valor_final,
+          pipeline_stage_id: head.pipeline_stage_id,
           total_atendimentos: items.length,
           abertos_count: abertos.length,
           vencidos,
@@ -129,25 +142,62 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
         })
       }
 
-      return result.sort((a, b) => {
-        const ranks = { critica: 0, em_andamento: 1, concluida: 2 }
-        if (ranks[a.saude] !== ranks[b.saude]) return ranks[a.saude] - ranks[b.saude]
-        const da = a.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
-        const db = b.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
-        return da - db
-      })
+      return result
     },
     staleTime: 30 * 1000,
   })
 
-  const groupedBySaude = useMemo(() => {
-    const groups = new Map<SaudeViagem, ViagemKanbanItem[]>()
-    for (const col of SAUDE_COLUMNS) groups.set(col.id, [])
+  const stageColumns = useMemo<StageColumnSpec[]>(() => {
+    const stages = stagesQuery.data ?? []
+    return stages.map(s => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stage = s as any
+      const phaseSlug: string | null = stage.pipeline_phases?.slug ?? null
+      const tone = phaseSlug && PHASE_TONE[phaseSlug] ? PHASE_TONE[phaseSlug] : DEFAULT_TONE
+      return {
+        id: stage.id,
+        label: stage.nome ?? stage.name ?? 'Etapa',
+        phase: phaseSlug,
+        tone,
+      }
+    })
+  }, [stagesQuery.data])
+
+  const groupedByStage = useMemo(() => {
+    const groups = new Map<string, ViagemKanbanItem[]>()
+    for (const col of stageColumns) groups.set(col.id, [])
     for (const v of query.data ?? []) {
-      groups.get(v.saude)!.push(v)
+      const arr = groups.get(v.pipeline_stage_id)
+      if (arr) {
+        arr.push(v)
+      } else {
+        // Etapa não está no pipeline atual (raro: viagem de outro produto/pipeline) — agrupa em "_outras"
+        const others = groups.get('_outras') ?? []
+        others.push(v)
+        groups.set('_outras', others)
+      }
+    }
+    // Ordenar viagens dentro de cada coluna por dias pra embarque (próximas primeiro)
+    for (const [, viagens] of groups) {
+      viagens.sort((a, b) => {
+        const da = a.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
+        const db = b.dias_pra_embarque ?? Number.MAX_SAFE_INTEGER
+        return da - db
+      })
     }
     return groups
-  }, [query.data])
+  }, [query.data, stageColumns])
 
-  return { ...query, groupedBySaude }
+  /** Retorna apenas as colunas (etapas) que têm viagens — esconde etapas vazias */
+  const visibleColumns = useMemo<StageColumnSpec[]>(() => {
+    return stageColumns.filter(c => (groupedByStage.get(c.id)?.length ?? 0) > 0)
+  }, [stageColumns, groupedByStage])
+
+  return {
+    ...query,
+    isLoading: query.isLoading || stagesQuery.isLoading,
+    groupedByStage,
+    stageColumns,
+    visibleColumns,
+  }
 }

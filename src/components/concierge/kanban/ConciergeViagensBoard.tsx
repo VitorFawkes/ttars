@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, Plane } from 'lucide-react'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
-import { useKanbanViagens, SAUDE_COLUMNS, type KanbanViagensFilters, type ViagemKanbanItem } from '../../../hooks/concierge/useKanbanViagens'
+import { useKanbanViagens, type KanbanViagensFilters, type ViagemKanbanItem } from '../../../hooks/concierge/useKanbanViagens'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { ViagemCard } from './ViagemCard'
 import { ViagemAtendimentosDrawer } from './ViagemAtendimentosDrawer'
@@ -13,7 +13,7 @@ interface ConciergeViagensBoardProps {
 }
 
 export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
-  const { groupedBySaude, isLoading, data } = useKanbanViagens(filters)
+  const { groupedByStage, visibleColumns, isLoading, data } = useKanbanViagens(filters)
   const [selectedViagem, setSelectedViagem] = useState<ViagemKanbanItem | null>(null)
   const [selectedTask, setSelectedTask] = useState<MeuDiaItem | null>(null)
 
@@ -65,8 +65,8 @@ export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
       )}
 
       <div ref={containerRef} className="flex gap-3 overflow-x-auto px-6 py-4 h-full scroll-smooth">
-        {SAUDE_COLUMNS.map(col => {
-          const items = groupedBySaude.get(col.id) ?? []
+        {visibleColumns.map(col => {
+          const items = groupedByStage.get(col.id) ?? []
           return (
             <ConciergeKanbanColumn
               key={col.id}
@@ -75,12 +75,11 @@ export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
               hint={col.hint}
               count={items.length}
               tone={col.tone}
-              emoji={col.emoji}
               droppable={false}
             >
               {items.length === 0 ? (
                 <div className="text-[10.5px] text-slate-400 italic py-6 text-center">
-                  vazio
+                  Nenhuma viagem
                 </div>
               ) : (
                 items.map(v => (
