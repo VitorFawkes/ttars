@@ -1107,12 +1107,40 @@ type DuplicateCardRow = {
     titulo: string | null
     pipeline_stage_id: string | null
     pessoa_principal_id: string | null
+    status_comercial: string | null
+    ganho_planner: boolean | null
+    pos_owner_id: string | null
     numeroAtual: string | null
     numerosHistorico: string[]
 }
 
+/**
+ * Score de "qual card manter" num grupo de duplicatas. Quanto maior, melhor.
+ * Componentes (transparentes, mostrados ao usuário como "razões"):
+ *  - status='ganho' (100): viagem fechada
+ *  - ganho_planner=true (50): marco da venda fechada batido
+ *  - pos_owner_id (25): tem dono pós-venda atribuído
+ *  - etapa-fase mais avançada (0-20): pós-viagem > em viagem > pré-embarque > app
+ */
+function scoreCardForKeep(c: DuplicateCardRow): { score: number; reasons: string[] } {
+    let s = 0
+    const reasons: string[] = []
+    if (c.status_comercial === 'ganho') { s += 100; reasons.push('status Ganho') }
+    if (c.ganho_planner === true) { s += 50; reasons.push('Ganho Planner ✓') }
+    if (c.pos_owner_id) { s += 25; reasons.push('dono Pós ✓') }
+    const stageWeights: Record<string, number> = {
+        '2c07134a-cb83-4075-bc86-4750beec9393': 20, // STAGE_POS_VIAGEM
+        '0ebab355-6d0e-4b19-af13-b4b31268275f': 15, // STAGE_EM_VIAGEM
+        '3ce80249-b579-4a9c-9b82-f8569735cea9': 10, // STAGE_PRE_EMBARQUE_LT30
+        '1f684773-f8f3-434a-a44d-4994750c41aa': 5,  // STAGE_PRE_EMBARQUE_GT30
+        'b2b0679c-ea06-4b46-9dd4-ee02abff1a36': 0,  // STAGE_APP_CONTEUDO
+    }
+    s += stageWeights[c.pipeline_stage_id || ''] || 0
+    return { score: s, reasons }
+}
+
 function DuplicatesPanel({
-    groups, loading, tripExistingIds, stageNameById,
+    groups, loading, tripExistingIds, stageNameById, cardsToArchive, onToggleArchiveMark,
 }: {
     groups: Array<{ numero: string; cards: DuplicateCardRow[] }>
     loading: boolean
@@ -1120,6 +1148,10 @@ function DuplicatesPanel({
     tripExistingIds: Set<string>
     /** id da etapa → nome legível, pra mostrar onde o card está hoje */
     stageNameById: Record<string, string>
+    /** Set compartilhado de cards a arquivar — single source of truth */
+    cardsToArchive: Set<string>
+    /** Toggle individual: marca/desmarca um card pra arquivar */
+    onToggleArchiveMark: (cardId: string) => void
 }) {
     const [expanded, setExpanded] = useState(false)
 
@@ -1134,6 +1166,11 @@ function DuplicatesPanel({
     if (groups.length === 0) return null
 
     const totalCards = groups.reduce((s, g) => s + g.cards.length, 0)
+    // Quantos cards de duplicatas estão marcados pra arquivar (intersection)
+    const dupIds = new Set<string>()
+    for (const g of groups) for (const c of g.cards) dupIds.add(c.id)
+    let markedFromDups = 0
+    for (const id of dupIds) if (cardsToArchive.has(id)) markedFromDups++
 
     return (
         <div className="bg-white border border-rose-200 rounded-xl shadow-sm overflow-hidden">
@@ -1149,7 +1186,12 @@ function DuplicatesPanel({
                             {groups.length} {groups.length === 1 ? 'número Monde aparece' : 'números Monde aparecem'} em mais de um card ativo
                         </h3>
                         <p className="text-xs text-slate-600 mt-0.5">
-                            Total: {totalCards} cards envolvidos. Auditoria do funil — independe da planilha que você subiu. Clique pra ver.
+                            {totalCards} cards envolvidos. Sistema sugere manter o "melhor" e arquivar os outros — clique pra revisar.
+                            {markedFromDups > 0 && (
+                                <span className="ml-1 font-medium text-rose-700">
+                                    ({markedFromDups} marcado{markedFromDups !== 1 ? 's' : ''} pra arquivar)
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -1157,65 +1199,109 @@ function DuplicatesPanel({
             </button>
 
             {expanded && (
-                <div className="border-t border-rose-100 max-h-[480px] overflow-y-auto">
-                    {groups.map(group => (
-                        <div key={group.numero} className="px-4 py-3 border-b border-rose-100 last:border-b-0">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
-                                    Venda Monde
-                                </span>
-                                <span className="font-mono text-sm font-bold text-slate-900">{group.numero}</span>
-                                <span className="text-[10px] text-slate-500">
-                                    em {group.cards.length} cards
-                                </span>
-                            </div>
-                            <ul className="space-y-1">
-                                {group.cards.map(card => {
-                                    const inFile = tripExistingIds.has(card.id)
-                                    const stageName = stageNameById[card.pipeline_stage_id || ''] || '(etapa desconhecida)'
-                                    const isCurrentNumber = card.numeroAtual === group.numero
-                                    return (
-                                        <li key={card.id} className="flex items-start gap-2 text-xs">
-                                            {inFile ? (
-                                                <span
-                                                    className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0"
-                                                    title="Esse card veio na planilha"
-                                                >
-                                                    ✓ na planilha
-                                                </span>
-                                            ) : (
-                                                <span
-                                                    className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded shrink-0"
-                                                    title="Esse card NÃO veio na planilha de auditoria"
-                                                >
-                                                    ⚠ fora da planilha
-                                                </span>
-                                            )}
-                                            <Link
-                                                to={`/cards/${card.id}`}
-                                                className="text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline truncate flex-1 min-w-0"
-                                                title={card.titulo || card.id}
-                                                onClick={e => e.stopPropagation()}
+                <div className="border-t border-rose-100 max-h-[600px] overflow-y-auto">
+                    {groups.map(group => {
+                        // Identifica o card vencedor (maior score). Empate vence o primeiro.
+                        const ranked = [...group.cards]
+                            .map(card => ({ card, ...scoreCardForKeep(card) }))
+                            .sort((a, b) => b.score - a.score)
+                        const winnerId = ranked[0]?.card.id
+                        return (
+                            <div key={group.numero} className="px-4 py-3 border-b border-rose-100 last:border-b-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
+                                        Venda Monde
+                                    </span>
+                                    <span className="font-mono text-sm font-bold text-slate-900">{group.numero}</span>
+                                    <span className="text-[10px] text-slate-500">
+                                        em {group.cards.length} cards
+                                    </span>
+                                </div>
+                                <ul className="space-y-1.5">
+                                    {ranked.map(({ card, score, reasons }) => {
+                                        const inFile = tripExistingIds.has(card.id)
+                                        const stageName = stageNameById[card.pipeline_stage_id || ''] || '(etapa desconhecida)'
+                                        const isCurrentNumber = card.numeroAtual === group.numero
+                                        const isWinner = card.id === winnerId
+                                        const willArchive = cardsToArchive.has(card.id)
+                                        return (
+                                            <li
+                                                key={card.id}
+                                                className={cn(
+                                                    'flex items-start gap-2 text-xs px-2 py-1.5 rounded-md border',
+                                                    isWinner
+                                                        ? 'bg-emerald-50/50 border-emerald-200'
+                                                        : willArchive
+                                                            ? 'bg-rose-50/50 border-rose-200'
+                                                            : 'bg-white border-slate-200'
+                                                )}
                                             >
-                                                {card.titulo || '(sem título)'}
-                                            </Link>
-                                            <span className="text-[10px] text-slate-500 shrink-0">
-                                                {stageName}
-                                            </span>
-                                            {!isCurrentNumber && (
-                                                <span
-                                                    className="text-[10px] text-slate-400 shrink-0 italic"
-                                                    title="Esse número está no histórico do card, não como venda atual"
-                                                >
-                                                    (histórico)
-                                                </span>
-                                            )}
-                                        </li>
-                                    )
-                                })}
-                            </ul>
-                        </div>
-                    ))}
+                                                {/* Checkbox / badge "manter": vencedor não tem checkbox, tem badge fixo */}
+                                                {isWinner ? (
+                                                    <span
+                                                        className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded shrink-0 mt-0.5"
+                                                        title={`Sistema sugere manter este. Razões: ${reasons.join(', ') || 'maior score do grupo'} (score ${score})`}
+                                                    >
+                                                        🏆 manter
+                                                    </span>
+                                                ) : (
+                                                    <label
+                                                        className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0 mt-0.5"
+                                                        title={willArchive ? 'Vai arquivar — clique pra manter' : 'Manter ativo — clique pra arquivar'}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={willArchive}
+                                                            onChange={() => onToggleArchiveMark(card.id)}
+                                                            className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                                        />
+                                                        <span className={cn(
+                                                            'text-[10px] font-semibold px-1 rounded',
+                                                            willArchive ? 'text-rose-700' : 'text-slate-500'
+                                                        )}>
+                                                            {willArchive ? 'arquivar' : 'manter'}
+                                                        </span>
+                                                    </label>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <Link
+                                                            to={`/cards/${card.id}`}
+                                                            className="text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline truncate"
+                                                            title={card.titulo || card.id}
+                                                            onClick={e => e.stopPropagation()}
+                                                        >
+                                                            {card.titulo || '(sem título)'}
+                                                        </Link>
+                                                        {inFile ? (
+                                                            <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 rounded shrink-0" title="Esse card veio na planilha">
+                                                                ✓ na planilha
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded shrink-0" title="Esse card NÃO veio na planilha de auditoria">
+                                                                ⚠ fora da planilha
+                                                            </span>
+                                                        )}
+                                                        {!isCurrentNumber && (
+                                                            <span className="text-[9px] text-slate-400 italic" title="Esse número está só no histórico do card">
+                                                                (histórico)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                                                        <span>{stageName}</span>
+                                                        {reasons.length > 0 && (
+                                                            <span className="opacity-70">·  {reasons.join(' · ')}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>
@@ -2082,6 +2168,9 @@ export default function ImportacaoPosVendaPage() {
         titulo: string | null
         pipeline_stage_id: string | null
         pessoa_principal_id: string | null
+        status_comercial: string | null
+        ganho_planner: boolean | null
+        pos_owner_id: string | null
         numeroAtual: string | null
         numerosHistorico: string[]
     }
@@ -2094,7 +2183,7 @@ export default function ImportacaoPosVendaPage() {
             if (!activeOrgId) return []
             const { data } = await supabase
                 .from('cards')
-                .select('id, titulo, pipeline_stage_id, pessoa_principal_id, produto_data')
+                .select('id, titulo, pipeline_stage_id, pessoa_principal_id, status_comercial, ganho_planner, pos_owner_id, produto_data')
                 .eq('org_id', activeOrgId)
                 .in('pipeline_stage_id', POS_VENDA_STAGES)
                 .is('archived_at', null)
@@ -2114,6 +2203,9 @@ export default function ImportacaoPosVendaPage() {
                     titulo: (c.titulo as string) ?? null,
                     pipeline_stage_id: (c.pipeline_stage_id as string) ?? null,
                     pessoa_principal_id: (c.pessoa_principal_id as string) ?? null,
+                    status_comercial: (c.status_comercial as string) ?? null,
+                    ganho_planner: (c.ganho_planner as boolean) ?? null,
+                    pos_owner_id: (c.pos_owner_id as string) ?? null,
                     numeroAtual,
                     numerosHistorico,
                 }
@@ -2140,6 +2232,32 @@ export default function ImportacaoPosVendaPage() {
             return groups.sort((a, b) => b.cards.length - a.cards.length)
         },
     })
+
+    // Pré-marca pra arquivar os "perdedores" de cada grupo de duplicatas — só uma vez
+    // (quando os groups carregam pela primeira vez na sessão). Se user mexer depois,
+    // não sobrescreve a escolha. Sessão antiga já tem o cardsToArchive restaurado.
+    const [duplicatesAutoSeeded, setDuplicatesAutoSeeded] = useState(false)
+    useEffect(() => {
+        if (duplicatesAutoSeeded) return
+        if (loadingDuplicates) return
+        if (duplicateGroups.length === 0) return
+        const losersToArchive = new Set<string>()
+        for (const group of duplicateGroups) {
+            const ranked = [...group.cards]
+                .map(card => ({ card, ...scoreCardForKeep(card) }))
+                .sort((a, b) => b.score - a.score)
+            const winnerId = ranked[0]?.card.id
+            for (const { card } of ranked) {
+                if (card.id !== winnerId) losersToArchive.add(card.id)
+            }
+        }
+        setCardsToArchive(prev => {
+            const next = new Set(prev)
+            for (const id of losersToArchive) next.add(id)
+            return next
+        })
+        setDuplicatesAutoSeeded(true)
+    }, [duplicateGroups, loadingDuplicates, duplicatesAutoSeeded])
 
     // ─── Process CSV rows ────────────────────────────────────
     const processRows = useCallback(async (rawRows: Record<string, unknown>[], file: string) => {
@@ -3590,6 +3708,8 @@ export default function ImportacaoPosVendaPage() {
                             loading={loadingDuplicates}
                             tripExistingIds={new Set(trips.map(t => t.existingCardId).filter((id): id is string => !!id))}
                             stageNameById={Object.fromEntries(TARGET_STAGE_ORDER.map(s => [s.id, s.name]))}
+                            cardsToArchive={cardsToArchive}
+                            onToggleArchiveMark={toggleArchiveMark}
                         />
 
                         {/* Auditoria — saúde das viagens já existentes no CRM */}
