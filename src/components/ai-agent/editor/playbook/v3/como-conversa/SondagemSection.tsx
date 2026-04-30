@@ -31,6 +31,7 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
   const { signals } = useAgentSilentSignals(agentId)
   const { rules: scoringRules, config: scoringConfig } = useAgentScoring(agentId)
   const [drawerMomentId, setDrawerMomentId] = useState<string | null>(null)
+  const [focusedSlot, setFocusedSlot] = useState<{ key: string; label: string } | null>(null)
 
   // Encontra o moment de descoberta principal (geralmente "sondagem")
   const sondagemMoment = useMemo(
@@ -109,12 +110,12 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Dados que a agente pergunta explicitamente, na fase <strong>{sondagemMoment.moment_label}</strong>.
-              Clique pra editar.
+              Clique num slot pra editar — abre a fase inteira com foco no slot escolhido.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setDrawerMomentId(sondagemMoment.id)}
+            onClick={() => { setFocusedSlot(null); setDrawerMomentId(sondagemMoment.id) }}
             className="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1"
           >
             Editar fase <ChevronRight className="w-3 h-3" />
@@ -127,7 +128,10 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
             subtitle="Bloqueiam avanço pro Desfecho até serem preenchidos"
             tone="rose"
             slots={requiredSlots}
-            onEditMoment={() => setDrawerMomentId(sondagemMoment.id)}
+            onSlotClick={(slot) => {
+              setFocusedSlot({ key: slot.key, label: slot.label || slot.key })
+              setDrawerMomentId(sondagemMoment.id)
+            }}
           />
         )}
         {preferredSlots.length > 0 && (
@@ -137,7 +141,10 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
               subtitle="Pergunta enquanto não bateu score; pula se já qualificou"
               tone="amber"
               slots={preferredSlots}
-              onEditMoment={() => setDrawerMomentId(sondagemMoment.id)}
+              onSlotClick={(slot) => {
+                setFocusedSlot({ key: slot.key, label: slot.label || slot.key })
+                setDrawerMomentId(sondagemMoment.id)
+              }}
             />
           </div>
         )}
@@ -148,7 +155,10 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
               subtitle="Só pergunta se a conversa fluir natural"
               tone="slate"
               slots={niceToHaveSlots}
-              onEditMoment={() => setDrawerMomentId(sondagemMoment.id)}
+              onSlotClick={(slot) => {
+                setFocusedSlot({ key: slot.key, label: slot.label || slot.key })
+                setDrawerMomentId(sondagemMoment.id)
+              }}
             />
           </div>
         )}
@@ -207,7 +217,14 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
         companyName={companyName}
         moment={drawerMoment}
         open={!!drawerMomentId}
-        onOpenChange={(open) => { if (!open) setDrawerMomentId(null) }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDrawerMomentId(null)
+            setFocusedSlot(null)
+          }
+        }}
+        focusSlotKey={focusedSlot?.key}
+        focusSlotLabel={focusedSlot?.label}
       />
     </div>
   )
@@ -215,14 +232,16 @@ export function SondagemSection({ agentId, agentName, companyName }: Props) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
+type SlotData = NonNullable<PlaybookMoment['discovery_config']>['slots'][number]
+
 function SlotGroup({
-  title, subtitle, tone, slots, onEditMoment,
+  title, subtitle, tone, slots, onSlotClick,
 }: {
   title: string
   subtitle: string
   tone: 'rose' | 'amber' | 'slate'
   slots: NonNullable<PlaybookMoment['discovery_config']>['slots']
-  onEditMoment: () => void
+  onSlotClick: (slot: SlotData) => void
 }) {
   // Cores mais distintas: dot colorido + label tom forte. Slate-400 ainda
   // sinaliza "menos importante" sem parecer disabled.
@@ -248,7 +267,7 @@ function SlotGroup({
             <button
               key={slot.key}
               type="button"
-              onClick={onEditMoment}
+              onClick={() => onSlotClick(slot)}
               className="group w-full text-left bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
             >
               <div className="flex items-start gap-3">

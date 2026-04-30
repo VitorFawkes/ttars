@@ -146,7 +146,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   return (
     <div className={cn(
       hideToggle
-        ? 'bg-white border border-slate-200 rounded-xl shadow-sm'
+        ? 'bg-white border border-slate-300 rounded-xl shadow-md'
         : cn(
             'bg-white border rounded-lg',
             expanded
