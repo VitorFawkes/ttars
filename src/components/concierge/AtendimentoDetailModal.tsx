@@ -158,8 +158,10 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             <div className="space-y-3">
               <div>
                 <div className="text-xs font-semibold text-slate-700 mb-2">Marcar como</div>
-                <div className="grid grid-cols-4 gap-2">
-                  {OUTCOME_OPTIONS.map(opt => (
+                <div className={cn('grid gap-2', item.tipo_concierge === 'oferta' ? 'grid-cols-4' : 'grid-cols-3')}>
+                  {OUTCOME_OPTIONS
+                    .filter(opt => opt.value !== 'aceito' || item.tipo_concierge === 'oferta')
+                    .map(opt => (
                     <button
                       key={opt.value}
                       onClick={() => setSelectedOutcome(opt.value)}
@@ -174,6 +176,9 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                     </button>
                   ))}
                 </div>
+                {item.tipo_concierge !== 'oferta' && (
+                  <p className="text-[10.5px] text-slate-400 mt-1.5">"Aceito" só faz sentido pra ofertas comerciais.</p>
+                )}
               </div>
 
               {item.tipo_concierge === 'oferta' && (selectedOutcome === 'aceito' || selectedOutcome === 'feito') && (

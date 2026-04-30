@@ -30,6 +30,9 @@ export function useMoverEstadoFunil() {
       }
 
       if (destino === 'aguardando_retorno') {
+        if (atendimento.outcome) {
+          throw new Error('Esta tarefa já foi fechada — abra o detalhe pra ajustar')
+        }
         if (atendimento.notificou_cliente_em) return
         const { error } = await sbAny.rpc('rpc_notificar_cliente', {
           p_atendimento_id: atendimento.atendimento_id,
