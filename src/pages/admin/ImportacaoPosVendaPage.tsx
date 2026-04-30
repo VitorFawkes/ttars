@@ -943,7 +943,9 @@ function DestinationStageSummary({
                     const isSelected = filterTargetStage === stage.id
                     const hasInteraction = fileGoing > 0 || fileHere > 0  // tem viagem do arquivo nessa etapa de algum jeito
                     const isOutListOpen = expandedOutStage === stage.id
-                    const outOfFileCount = Math.max(0, projected - fileGoing)
+                    // "Fora da planilha" = cards atuais na etapa que NÃO vieram na planilha
+                    // (current - fileHere). Não muda com aplicar — importação só toca cards da planilha.
+                    const outOfFileCount = Math.max(0, current - fileHere)
                     return (
                         <div key={stage.id} className="space-y-1">
                         <button
@@ -1012,37 +1014,49 @@ function DestinationStageSummary({
                                 </span>
                             </span>
 
-                            {/* Bloco 3: FORA DA PLANILHA — cards depois - vagens da planilha que terminam aqui.
-                                Esses são candidatos a estar errados (estão na etapa mas não vieram na planilha de auditoria). */}
+                            {/* Bloco 3: FORA DA PLANILHA — cards na etapa HOJE que não vieram na planilha.
+                                Cálculo: current - fileHere. Sempre renderizado pra consistência visual.
+                                Quando = 0, fica acinzentado e não-clicável; quando > 0, vermelho e expansível. */}
                             {(() => {
-                                const outOfFile = Math.max(0, projected - fileGoing)
-                                if (outOfFile === 0) return null
+                                const outOfFile = Math.max(0, current - fileHere)
                                 const isOpen = expandedOutStage === stage.id
+                                const isClickable = outOfFile > 0
                                 return (
                                     <span
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={(e) => {
+                                        role={isClickable ? 'button' : undefined}
+                                        tabIndex={isClickable ? 0 : -1}
+                                        onClick={isClickable ? (e) => {
                                             e.stopPropagation()
                                             setExpandedOutStage(isOpen ? null : stage.id)
-                                        }}
-                                        onKeyDown={(e) => {
+                                        } : undefined}
+                                        onKeyDown={isClickable ? (e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
                                                 e.stopPropagation(); e.preventDefault()
                                                 setExpandedOutStage(isOpen ? null : stage.id)
                                             }
-                                        }}
+                                        } : undefined}
                                         className={cn(
-                                            'shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20 cursor-pointer rounded-md transition-colors',
-                                            isOpen ? 'ring-2 ring-rose-300' : 'hover:bg-rose-50/40'
+                                            'shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20 rounded-md transition-colors',
+                                            isClickable && 'cursor-pointer',
+                                            isClickable && (isOpen ? 'ring-2 ring-rose-300' : 'hover:bg-rose-50/40'),
                                         )}
-                                        title="Cards na etapa que NÃO vieram na planilha — clica pra ver quais"
+                                        title={isClickable
+                                            ? 'Cards na etapa que NÃO vieram na planilha — clica pra ver quais'
+                                            : 'Todos os cards da etapa estão cobertos pela planilha'}
                                     >
-                                        <span className="inline-flex items-center gap-1 text-base font-bold text-rose-700">
+                                        <span className={cn(
+                                            'inline-flex items-center gap-1 text-base font-bold',
+                                            isClickable ? 'text-rose-700' : 'text-slate-300',
+                                        )}>
                                             {outOfFile}
-                                            <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+                                            {isClickable && (
+                                                <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+                                            )}
                                         </span>
-                                        <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5 text-rose-700">
+                                        <span className={cn(
+                                            'text-[9px] uppercase tracking-wide -mt-0.5',
+                                            isClickable ? 'text-rose-700 opacity-60' : 'text-slate-300',
+                                        )}>
                                             fora da planilha
                                         </span>
                                     </span>
