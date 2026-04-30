@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope,
+  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -37,6 +37,7 @@ import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
 import { TabPlaybook } from '@/components/ai-agent/editor/playbook/TabPlaybook'
 import { HealthSection } from '@/components/ai-agent/editor/playbook/v3/health/HealthSection'
 import { HandoffSection as HandoffSectionV3 } from '@/components/ai-agent/editor/playbook/v3/handoff/HandoffSection'
+import { TecnicoSection } from '@/components/ai-agent/editor/playbook/v3/tecnico/TecnicoSection'
 import { useV3Layout } from '@/components/ai-agent/editor/playbook/v3/useV3Layout'
 import { TabPontuacao } from '@/components/ai-agent/editor/TabPontuacao'
 import {
@@ -319,6 +320,19 @@ export default function AiAgentDetailPage() {
       { id: 'apresentacao', label: 'Apresentação', icon: MessageCircle },
       { id: 'funil', label: 'Funil de qualificação', icon: GitBranch },
     ]
+    // Quando UI v3 está ativa, fundimos 5 abas técnicas (modelos, memoria,
+    // contexto, multimodal, validador) numa única "Técnico". As outras abas
+    // técnicas (prompts, decisoes) ficam pra Fase 6 — limpeza de deprecated.
+    const technicalTabs: EditorTab[] = v3Enabled
+      ? [{ id: 'tecnico', label: 'Técnico', icon: Cog } as EditorTab]
+      : [
+          { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
+          { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
+          { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
+          { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
+          { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
+        ]
+
     const sharedTabs: EditorTab[] = [
       { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
       // Aba Pontuação só aparece em modo clássico — no Playbook v2 a qualificação
@@ -326,22 +340,18 @@ export default function AiAgentDetailPage() {
       ...(form.playbook_enabled ? [] : [{ id: 'pontuacao', label: 'Pontuação', icon: Target } as EditorTab]),
       { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
       { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
-      { id: 'modelos', label: 'Modelos & Comportamento', icon: Brain, disabled: isN8n, disabledHint: 'Configuração mora no n8n' },
       { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
       { id: 'conhecimento', label: 'Conhecimento', icon: BookOpen },
-      { id: 'memoria', label: 'Memória', icon: Database, disabled: isN8n, disabledHint: 'Memória mora no n8n' },
-      { id: 'contexto', label: 'Contexto & Campos', icon: Radio },
-      { id: 'multimodal', label: 'Multimodal', icon: ImageIcon, disabled: isN8n, disabledHint: 'Config mora no n8n' },
+      ...technicalTabs,
       { id: 'handoff', label: 'Handoff', icon: Handshake },
       { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
-      { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
       { id: 'ativacao', label: 'Ativação', icon: Power },
       { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
     ]
     return form.playbook_enabled
       ? [...base, ...playbookTab, ...sharedTabs, ...healthTab]
       : [...base, ...classicoTabs, ...sharedTabs, ...healthTab]
-  }, [isN8n, form.playbook_enabled, isNew])
+  }, [isN8n, form.playbook_enabled, isNew, v3Enabled])
 
   if (!isNew && loadingAgent) {
     return (
@@ -465,6 +475,9 @@ export default function AiAgentDetailPage() {
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
+        {activeTab === 'tecnico' && (
+          <TecnicoSection form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} isN8n={isN8n} />
+        )}
         {activeTab === 'handoff' && (
           v3Enabled
             ? <HandoffSectionV3 form={form} setForm={setFormWrapper} agentOrgId={existingAgent?.org_id ?? null} />
