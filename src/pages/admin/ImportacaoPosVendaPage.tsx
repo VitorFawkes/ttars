@@ -739,14 +739,17 @@ const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
 ]
 
 function DestinationStageSummary({
-    trips, filterTargetStage, onSelectStage,
+    trips, filterTargetStage, onSelectStage, stageCounts,
 }: {
     trips: TripGroup[]
     filterTargetStage: string
     onSelectStage: (stageId: string) => void
+    /** Contagem ATUAL no CRM por stage_id (ativos em fluxo, sem arquivados) */
+    stageCounts: Record<string, number>
 }) {
     if (trips.length === 0) return null
 
+    // Mapa por etapa-destino: total no arquivo + quantos já estão lá no CRM
     const counts = new Map<string, { total: number; alreadyThere: number }>()
     for (const t of trips) {
         if (t.action === 'skip') continue
@@ -761,7 +764,29 @@ function DestinationStageSummary({
     const totalActionable = [...counts.values()].reduce((s, c) => s + c.total, 0)
     if (totalActionable === 0) return null
 
-    const visibleStages = TARGET_STAGE_ORDER.filter(s => (counts.get(s.id)?.total ?? 0) > 0)
+    // Calcula DELTA por etapa, considerando toggles ativos por viagem.
+    // Regras de movimento:
+    //  - action='create' → +1 na etapa-destino
+    //  - action='update' + moveStage=true + existingStageId !== stage.id → +1 destino, -1 da atual
+    //  - action='update' + moveStage=false → fica onde está (sem delta de etapa)
+    const delta: Record<string, number> = {}
+    for (const t of trips) {
+        if (t.action === 'skip') continue
+        if (t.action === 'create') {
+            delta[t.stage.id] = (delta[t.stage.id] || 0) + 1
+            continue
+        }
+        // update
+        if (t.moveStage && t.existingStageId && t.existingStageId !== t.stage.id) {
+            delta[t.stage.id] = (delta[t.stage.id] || 0) + 1
+            delta[t.existingStageId] = (delta[t.existingStageId] || 0) - 1
+        }
+        // se !moveStage, fica onde está → sem delta
+    }
+
+    // Mostra TODAS as etapas pós-venda (mesmo que não venham do arquivo) para
+    // dar a visão completa de "como vai ficar o funil depois".
+    const visibleStages = TARGET_STAGE_ORDER
 
     return (
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -770,43 +795,74 @@ function DestinationStageSummary({
                     Para onde vão essas {totalActionable} {totalActionable === 1 ? 'viagem' : 'viagens'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                    Etapa de destino calculada pelas datas e pelo status de app/voucher de cada viagem. Clique para filtrar.
+                    Etapa de destino calculada pelas datas e pelo status de app/voucher. Os números mostram <span className="font-medium">como o funil vai ficar</span> se você aplicar com os toggles atuais.
                 </p>
             </div>
             <div className="space-y-1.5">
                 {visibleStages.map(stage => {
-                    const c = counts.get(stage.id)!
+                    const c = counts.get(stage.id) || { total: 0, alreadyThere: 0 }
+                    const current = stageCounts[stage.id] ?? 0
+                    const stageDelta = delta[stage.id] || 0
+                    const projected = current + stageDelta
                     const migrating = c.total - c.alreadyThere
                     const isSelected = filterTargetStage === stage.id
+                    const hasInFile = c.total > 0
                     return (
                         <button
                             key={stage.id}
                             type="button"
-                            onClick={() => onSelectStage(stage.id)}
+                            onClick={() => hasInFile && onSelectStage(stage.id)}
+                            disabled={!hasInFile}
                             className={cn(
                                 'w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left',
-                                isSelected
-                                    ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300`
-                                    : `${stage.color} hover:brightness-95`
+                                hasInFile
+                                    ? (isSelected
+                                        ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 cursor-pointer`
+                                        : `${stage.color} hover:brightness-95 cursor-pointer`)
+                                    : 'bg-slate-50 border-slate-100 text-slate-400 cursor-default'
                             )}
-                            title={migrating > 0
-                                ? `${migrating} mudando de etapa, ${c.alreadyThere} já estão lá`
-                                : `${c.alreadyThere} já estão nessa etapa`}
+                            title={hasInFile
+                                ? (migrating > 0 ? `${migrating} mudando de etapa, ${c.alreadyThere} já estão lá` : `${c.alreadyThere} já estão nessa etapa`)
+                                : 'Nenhuma viagem do arquivo vai pra essa etapa'}
                         >
-                            <span className="font-medium text-sm">{stage.name}</span>
-                            <span className="flex items-center gap-2">
-                                {c.alreadyThere > 0 && migrating > 0 && (
-                                    <span className="text-[10px] opacity-70">
+                            <span className="flex items-center gap-2 min-w-0">
+                                <span className="font-medium text-sm truncate">{stage.name}</span>
+                                {hasInFile && migrating > 0 && c.alreadyThere > 0 && (
+                                    <span className="text-[10px] opacity-70 shrink-0">
                                         {migrating} migrando · {c.alreadyThere} já estão
                                     </span>
                                 )}
-                                {c.alreadyThere > 0 && migrating === 0 && (
-                                    <span className="text-[10px] opacity-70">já estão lá</span>
+                                {hasInFile && c.alreadyThere > 0 && migrating === 0 && (
+                                    <span className="text-[10px] opacity-70 shrink-0">já estão lá</span>
                                 )}
-                                {c.alreadyThere === 0 && migrating > 0 && (
-                                    <span className="text-[10px] opacity-70">todas migrando</span>
+                                {hasInFile && c.alreadyThere === 0 && migrating > 0 && (
+                                    <span className="text-[10px] opacity-70 shrink-0">todas migrando</span>
                                 )}
-                                <span className="text-base font-bold tabular-nums">{c.total}</span>
+                            </span>
+                            <span className="flex items-center gap-2 shrink-0 tabular-nums">
+                                <span className={cn(
+                                    'text-sm',
+                                    hasInFile ? 'text-slate-500' : 'text-slate-400'
+                                )}>
+                                    {current}
+                                </span>
+                                <ArrowRight className={cn('h-3 w-3', hasInFile ? 'opacity-60' : 'opacity-30')} />
+                                <span className={cn(
+                                    'text-base font-bold',
+                                    stageDelta > 0 && 'text-emerald-700',
+                                    stageDelta < 0 && 'text-rose-700',
+                                    stageDelta === 0 && (hasInFile ? 'text-slate-700' : 'text-slate-400'),
+                                )}>
+                                    {projected}
+                                </span>
+                                {stageDelta !== 0 && (
+                                    <span className={cn(
+                                        'text-[10px] font-semibold',
+                                        stageDelta > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                    )}>
+                                        {stageDelta > 0 ? `+${stageDelta}` : stageDelta}
+                                    </span>
+                                )}
                             </span>
                         </button>
                     )
@@ -1627,6 +1683,30 @@ export default function ImportacaoPosVendaPage() {
             return (data || []) as { id: string; nome: string }[]
         },
         staleTime: 1000 * 60 * 10,
+    })
+
+    // Contagem ATUAL de cards ativos em cada etapa pós-venda do workspace.
+    // Usado pelo widget DestinationStageSummary pra mostrar "depois" projetado.
+    // Filtros iguais ao kanban (em fluxo): aberto OU ganho-com-ganho_pos-false, sem arquivados.
+    const { data: stageCounts = {} } = useQuery<Record<string, number>>({
+        queryKey: ['pos-venda-stage-counts', activeOrgId],
+        enabled: !!activeOrgId,
+        staleTime: 1000 * 30,
+        queryFn: async () => {
+            if (!activeOrgId) return {}
+            const counts: Record<string, number> = {}
+            await Promise.all(POS_VENDA_STAGES.map(async (stageId) => {
+                const { count } = await supabase
+                    .from('cards')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('org_id', activeOrgId)
+                    .eq('pipeline_stage_id', stageId)
+                    .is('archived_at', null)
+                    .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                counts[stageId] = count || 0
+            }))
+            return counts
+        },
     })
 
     // ─── Process CSV rows ────────────────────────────────────
@@ -3036,10 +3116,11 @@ export default function ImportacaoPosVendaPage() {
                 {/* ─── PREVIEW ─────────────────────────────────── */}
                 {step === 'preview' && (
                     <div className="space-y-4">
-                        {/* Para onde vão essas viagens — agrupado por etapa-destino */}
+                        {/* Para onde vão essas viagens — agrupado por etapa-destino + projeção */}
                         <DestinationStageSummary
                             trips={trips}
                             filterTargetStage={filterTargetStage}
+                            stageCounts={stageCounts}
                             onSelectStage={(stageId) => {
                                 setFilterTargetStage(prev => prev === stageId ? 'all' : stageId)
                                 setShowFilters(true)
