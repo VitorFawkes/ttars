@@ -41,7 +41,12 @@ export interface ViagemKanbanItem {
   vencidos: number
   hoje: number
   esta_semana: number
-  concluidos: number
+  /** Total fechados (qualquer estado terminal: feito, aceito, recusado, cancelado, ou concluida=true) */
+  fechados: number
+  /** Subset de fechados que terminaram OK (feito ou aceito) */
+  fechados_ok: number
+  /** Subset de fechados que terminaram negativo (recusado ou cancelado) */
+  fechados_negativo: number
   proxima_data_vencimento: string | null
   dias_pra_embarque: number | null
   tipos_pendentes: TipoConcierge[]
@@ -147,7 +152,10 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
         const vencidos = abertos.filter(i => i.status_apresentacao === 'vencido').length
         const hoje = abertos.filter(i => i.status_apresentacao === 'hoje').length
         const esta_semana = abertos.filter(i => i.status_apresentacao === 'esta_semana').length
-        const concluidos = items.filter(i => i.outcome === 'feito' || i.outcome === 'aceito' || i.concluida).length
+        const fechadosItems = items.filter(i => !isAberto(i))
+        const fechados = fechadosItems.length
+        const fechados_ok = fechadosItems.filter(i => i.outcome === 'feito' || i.outcome === 'aceito' || (i.concluida && !i.outcome)).length
+        const fechados_negativo = fechadosItems.filter(i => i.outcome === 'recusado' || i.outcome === 'cancelado').length
 
         const proximaData = abertos
           .map(i => i.data_vencimento)
@@ -172,7 +180,9 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           vencidos,
           hoje,
           esta_semana,
-          concluidos,
+          fechados,
+          fechados_ok,
+          fechados_negativo,
           proxima_data_vencimento: proximaData,
           dias_pra_embarque: head.dias_pra_embarque,
           tipos_pendentes: Array.from(tiposSet),

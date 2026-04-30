@@ -135,28 +135,40 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
       )}
 
       <div className="border-t border-slate-100 px-2.5 py-1.5 flex items-center justify-between gap-2 bg-slate-50/40">
-        <div className="flex items-center gap-1 text-[10.5px]">
-          {viagem.vencidos > 0 && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">
-              {viagem.vencidos} vencido{viagem.vencidos === 1 ? '' : 's'}
+        <div className="flex items-center gap-2 text-[10.5px] flex-wrap">
+          {viagem.abertos_count > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <span className="font-mono font-bold text-slate-900">{viagem.abertos_count}</span>
+              <span className="text-slate-600">abert{viagem.abertos_count === 1 ? 'a' : 'as'}</span>
+              {viagem.vencidos > 0 && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold ml-0.5">
+                  {viagem.vencidos} venc.
+                </span>
+              )}
             </span>
           )}
-          {viagem.hoje > 0 && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
-              {viagem.hoje} hoje
-            </span>
+
+          {viagem.abertos_count > 0 && viagem.fechados > 0 && (
+            <span className="text-slate-300">·</span>
           )}
-          {viagem.concluidos > 0 && (
-            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
-              <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} />
-              {viagem.concluidos} concluída{viagem.concluidos === 1 ? '' : 's'}
+
+          {viagem.fechados > 0 && (
+            <span className="inline-flex items-center gap-1 text-slate-500">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" strokeWidth={2.5} />
+              <span className="font-mono font-bold text-slate-900">{viagem.fechados}</span>
+              <span>fechad{viagem.fechados === 1 ? 'a' : 'as'}</span>
+              {viagem.fechados_negativo > 0 && (
+                <span className="text-slate-400 normal-case">
+                  ({viagem.fechados_ok} ok, {viagem.fechados_negativo} neg.)
+                </span>
+              )}
             </span>
           )}
         </div>
         <Link
           to={`/cards/${viagem.card_id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-500 hover:text-indigo-600 font-medium"
+          className="shrink-0 inline-flex items-center gap-0.5 text-[10.5px] text-slate-500 hover:text-indigo-600 font-medium"
           title="Abrir card da viagem"
         >
           ver viagem <ExternalLink className="w-2.5 h-2.5" />
