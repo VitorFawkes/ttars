@@ -956,12 +956,16 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
     const auditInfo = auditBadge[auditSeverity]
     const AuditIcon = auditInfo.Icon
 
-    const showDiff = trip.action === 'update' && trip.diff.hasAny
+    // Defesa: trip.diff pode estar undefined em sessões antigas restauradas do
+    // sessionStorage que foram salvas antes do deploy de 2026-04-30. computeTripDiff
+    // sempre retorna estrutura válida, então recalcula no fly se faltar.
+    const tripDiff: TripDiff = trip.diff ?? computeTripDiff(trip)
+    const showDiff = trip.action === 'update' && tripDiff.hasAny
     // Conta quantos toggles aplicáveis estão ativos — pra mostrar chip "X mudanças"
     const pendingChanges = trip.action === 'update'
-        ? (trip.diff.etapa.changed && trip.moveStage ? 1 : 0)
-            + (trip.diff.datas.changed && trip.updateDates ? 1 : 0)
-            + (trip.diff.monde.changed && trip.syncMondeNums ? 1 : 0)
+        ? (tripDiff.etapa.changed && trip.moveStage ? 1 : 0)
+            + (tripDiff.datas.changed && trip.updateDates ? 1 : 0)
+            + (tripDiff.monde.changed && trip.syncMondeNums ? 1 : 0)
         : 0
     const computedTitle = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
@@ -1139,11 +1143,11 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
                     </div>
 
                     <div className="space-y-2">
-                        {trip.diff.etapa.changed && (
+                        {tripDiff.etapa.changed && (
                             <DiffRow
                                 Icon={MapPin}
                                 label="Etapa"
-                                from={trip.diff.etapa.fromName || '—'}
+                                from={tripDiff.etapa.fromName || '—'}
                                 to={trip.stage.name}
                                 toggleLabel="mover"
                                 checked={trip.moveStage}
@@ -1151,32 +1155,32 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
                             />
                         )}
 
-                        {trip.diff.datas.changed && (
+                        {tripDiff.datas.changed && (
                             <DiffRow
                                 Icon={Calendar}
                                 label="Datas da viagem"
-                                from={`${formatDateBR(trip.diff.datas.inicio.from) || '—'} → ${formatDateBR(trip.diff.datas.fim.from) || '—'}`}
-                                to={`${formatDateBR(trip.diff.datas.inicio.to) || '—'} → ${formatDateBR(trip.diff.datas.fim.to) || '—'}`}
+                                from={`${formatDateBR(tripDiff.datas.inicio.from) || '—'} → ${formatDateBR(tripDiff.datas.fim.from) || '—'}`}
+                                to={`${formatDateBR(tripDiff.datas.inicio.to) || '—'} → ${formatDateBR(tripDiff.datas.fim.to) || '—'}`}
                                 toggleLabel="atualizar"
                                 checked={trip.updateDates}
                                 onToggle={() => onToggleUpdateDates(trip.id)}
                             />
                         )}
 
-                        {trip.diff.monde.changed && (
+                        {tripDiff.monde.changed && (
                             <MondeDiffRow
-                                diff={trip.diff.monde}
+                                diff={tripDiff.monde}
                                 checked={trip.syncMondeNums}
                                 onToggle={() => onToggleSyncMondeNums(trip.id)}
                             />
                         )}
 
-                        {trip.diff.valor.changed && (
+                        {tripDiff.valor.changed && (
                             <DiffRow
                                 Icon={Hash}
                                 label="Valor total"
-                                from={formatBRL(trip.diff.valor.from)}
-                                to={formatBRL(trip.diff.valor.to)}
+                                from={formatBRL(tripDiff.valor.from)}
+                                to={formatBRL(tripDiff.valor.to)}
                                 informational
                             />
                         )}
@@ -1488,20 +1492,36 @@ export default function ImportacaoPosVendaPage() {
                     setFlowMode(parsed.flowMode || 'detalhada')
                     setFileName(parsed.fileName || '')
                     // Normaliza trips antigos: garante que campos novos existam
-                    // (sessões salvas antes de campos como otherCardCandidates / audit)
+                    // (sessões salvas antes de campos como otherCardCandidates / audit / diff)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const normalizedTrips = parsed.trips.map((t: any) => ({
-                        ...t,
-                        otherCardCandidates: Array.isArray(t.otherCardCandidates) ? t.otherCardCandidates : [],
-                        audit: t.audit && Array.isArray(t.audit.issues)
-                            ? t.audit
-                            : { severity: 'ok' as const, issues: [] },
-                        existingGanhoPos: t.existingGanhoPos ?? null,
-                        existingGanhoPlanner: t.existingGanhoPlanner ?? null,
-                        existingStatusComercial: t.existingStatusComercial ?? null,
-                        existingDonoPosId: t.existingDonoPosId ?? null,
-                        existingPhaseSlug: t.existingPhaseSlug ?? null,
-                    }))
+                    const normalizedTrips: TripGroup[] = parsed.trips.map((t: any) => {
+                        const filled: TripGroup = {
+                            ...t,
+                            otherCardCandidates: Array.isArray(t.otherCardCandidates) ? t.otherCardCandidates : [],
+                            audit: t.audit && Array.isArray(t.audit.issues)
+                                ? t.audit
+                                : { severity: 'ok', issues: [] },
+                            existingGanhoPos: t.existingGanhoPos ?? null,
+                            existingGanhoPlanner: t.existingGanhoPlanner ?? null,
+                            existingStatusComercial: t.existingStatusComercial ?? null,
+                            existingDonoPosId: t.existingDonoPosId ?? null,
+                            existingPhaseSlug: t.existingPhaseSlug ?? null,
+                            // Campos novos do diff (sessions antes do deploy de 2026-04-30 não tinham)
+                            existingDataInicio: t.existingDataInicio ?? null,
+                            existingDataFim: t.existingDataFim ?? null,
+                            existingValorFinal: t.existingValorFinal ?? null,
+                            existingNumeroVendaMonde: t.existingNumeroVendaMonde ?? null,
+                            existingHistoricoNums: Array.isArray(t.existingHistoricoNums) ? t.existingHistoricoNums : [],
+                            moveStage: t.moveStage ?? true,
+                            updateDates: t.updateDates ?? false,
+                            syncMondeNums: t.syncMondeNums ?? false,
+                            diff: t.diff && typeof t.diff.hasAny === 'boolean' ? t.diff : undefined as unknown as TripDiff,
+                        }
+                        // Recalcula diff a partir dos snapshots — funciona mesmo em sessões antigas
+                        // que não tinham diff (apenas datas/etapas/Monde antigos no card).
+                        filled.diff = computeTripDiff(filled)
+                        return filled
+                    })
                     setTrips(normalizedTrips)
                     setSelectedTrips(new Set(parsed.selectedTrips || []))
                     setFilterDataFimMin(parsed.filterDataFimMin || '')
