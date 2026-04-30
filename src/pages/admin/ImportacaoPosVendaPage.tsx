@@ -1207,12 +1207,16 @@ function scoreCardForKeep(c: DuplicateCardRow): { score: number; reasons: string
 }
 
 function DuplicatesPanel({
-    groups, loading, tripExistingIds, stageNameById, cardsToArchive, onToggleArchiveMark,
+    groups, loading, tripExistingIds, tripVendaNumsByCardId, stageNameById, cardsToArchive, onToggleArchiveMark,
 }: {
     groups: Array<{ numero: string; cards: DuplicateCardRow[] }>
     loading: boolean
     /** Cards que vieram da planilha (matched). Pra mostrar "✓ na planilha" no item */
     tripExistingIds: Set<string>
+    /** Map cardId → conjunto de números de venda Monde da viagem da planilha que casou esse card.
+     *  Se o número do grupo está no set, a viagem foi trazida POR ESSE número. Senão foi por outro
+     *  caminho (CPF, outro número, histórico) — info crucial pra desambiguar duplicatas. */
+    tripVendaNumsByCardId: Map<string, Set<string>>
     /** id da etapa → nome legível, pra mostrar onde o card está hoje */
     stageNameById: Record<string, string>
     /** Set compartilhado de cards a arquivar — single source of truth */
@@ -1340,18 +1344,45 @@ function DuplicatesPanel({
                                                         >
                                                             {card.titulo || '(sem título)'}
                                                         </Link>
-                                                        {inFile ? (
-                                                            <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 rounded shrink-0" title="Esse card veio na planilha">
-                                                                ✓ na planilha
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded shrink-0" title="Esse card NÃO veio na planilha de auditoria">
-                                                                ⚠ fora da planilha
-                                                            </span>
-                                                        )}
+                                                        {(() => {
+                                                            // Por qual venda da planilha esse card foi trazido?
+                                                            // Se a planilha trouxe esse card POR ESTE número (do grupo),
+                                                            // mostra "✓ na planilha". Se trouxe por OUTRO número, mostra
+                                                            // "✓ na planilha (por venda X)" — assim o user entende que
+                                                            // 67552 está nesse card por legado/histórico, não como venda atual.
+                                                            const tripNums = tripVendaNumsByCardId.get(card.id)
+                                                            if (!inFile || !tripNums) {
+                                                                return (
+                                                                    <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded shrink-0" title="Esse card NÃO veio na planilha de auditoria">
+                                                                        ⚠ fora da planilha
+                                                                    </span>
+                                                                )
+                                                            }
+                                                            const matchedByThisNumber = tripNums.has(group.numero)
+                                                            if (matchedByThisNumber) {
+                                                                return (
+                                                                    <span className="text-[9px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 rounded shrink-0" title={`A planilha trouxe esse card pela venda ${group.numero}`}>
+                                                                        ✓ na planilha (esta venda)
+                                                                    </span>
+                                                                )
+                                                            }
+                                                            // Veio na planilha mas por OUTRA venda (CPF, número diferente, etc)
+                                                            const otherNums = [...tripNums].filter(n => n !== group.numero)
+                                                            const label = otherNums.length > 0
+                                                                ? `por venda ${otherNums.slice(0, 2).join(', ')}${otherNums.length > 2 ? '…' : ''}`
+                                                                : 'por CPF/datas'
+                                                            return (
+                                                                <span
+                                                                    className="text-[9px] font-medium text-blue-700 bg-blue-50 border border-blue-200 px-1 rounded shrink-0"
+                                                                    title={`A planilha trouxe esse card por OUTRA venda (não a ${group.numero}). ${otherNums.length > 0 ? `Vendas da planilha: ${otherNums.join(', ')}` : 'Match foi por CPF + datas'}`}
+                                                                >
+                                                                    ✓ na planilha ({label})
+                                                                </span>
+                                                            )
+                                                        })()}
                                                         {!isCurrentNumber && (
-                                                            <span className="text-[9px] text-slate-400 italic" title="Esse número está só no histórico do card">
-                                                                (histórico)
+                                                            <span className="text-[9px] text-slate-400 italic" title="Esse número está só no histórico do card, não é a venda atual">
+                                                                (histórico do card)
                                                             </span>
                                                         )}
                                                     </div>
@@ -3777,6 +3808,14 @@ export default function ImportacaoPosVendaPage() {
                             groups={duplicateGroups}
                             loading={loadingDuplicates}
                             tripExistingIds={new Set(trips.map(t => t.existingCardId).filter((id): id is string => !!id))}
+                            tripVendaNumsByCardId={(() => {
+                                const map = new Map<string, Set<string>>()
+                                for (const t of trips) {
+                                    if (!t.existingCardId) continue
+                                    map.set(t.existingCardId, new Set(t.vendaNums))
+                                }
+                                return map
+                            })()}
                             stageNameById={Object.fromEntries(TARGET_STAGE_ORDER.map(s => [s.id, s.name]))}
                             cardsToArchive={cardsToArchive}
                             onToggleArchiveMark={toggleArchiveMark}
