@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Handshake, Tag, Bell, MessageCircle, Pause, GitBranch, CalendarPlus, AlertTriangle, LifeBuoy, Info, CheckCircle2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/Input'
@@ -5,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/Select'
 import { HANDOFF_SIGNALS_CATALOG, type AgentEditorForm, type BookMeetingConfig } from '../../../types'
-import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useCurrentProductMeta, useProductBySlug } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,12 @@ interface Props {
   setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
   /** Org ID do agente — usada pra cross-check de responsável. */
   agentOrgId?: string | null
+  /**
+   * Slug do produto do agente (TRIPS/WEDDING/etc). Usado pra buscar
+   * pipeline correto do agente, não da sessão atual do admin.
+   * Se não passado, fallback pra useCurrentProductMeta (sessão atual).
+   */
+  agentProductSlug?: string | null
 }
 
 /**
@@ -41,8 +48,51 @@ interface Props {
  *
  * Reusa todos os hooks existentes (zero duplicação).
  */
-export function HandoffSection({ form, setForm, agentOrgId }: Props) {
-  const { pipelineId } = useCurrentProductMeta()
+export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: Props) {
+  const tituloRef = useRef<HTMLInputElement>(null)
+  const mensagemRef = useRef<HTMLTextAreaElement>(null)
+
+  /** Insere `{token}` na posição do cursor do campo, ou no fim se sem foco. */
+  const insertAtCursor = (target: 'titulo' | 'mensagem', token: string) => {
+    const wrapped = `{${token}}`
+    if (target === 'titulo') {
+      const el = tituloRef.current
+      if (!el) {
+        updateBookMeeting({ titulo_template: (bookMeeting?.titulo_template ?? '') + wrapped })
+        return
+      }
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      const next = el.value.slice(0, start) + wrapped + el.value.slice(end)
+      updateBookMeeting({ titulo_template: next })
+      requestAnimationFrame(() => {
+        el.focus()
+        const pos = start + wrapped.length
+        el.setSelectionRange(pos, pos)
+      })
+    } else {
+      const el = mensagemRef.current
+      if (!el) {
+        updateBookMeeting({ mensagem_confirmacao_template: (bookMeeting?.mensagem_confirmacao_template ?? '') + wrapped })
+        return
+      }
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      const next = el.value.slice(0, start) + wrapped + el.value.slice(end)
+      updateBookMeeting({ mensagem_confirmacao_template: next })
+      requestAnimationFrame(() => {
+        el.focus()
+        const pos = start + wrapped.length
+        el.setSelectionRange(pos, pos)
+      })
+    }
+  }
+
+  // Resolve pipelineId baseado no produto do AGENTE (não da sessão).
+  // Garante que stages mostradas são do pipeline correto em multi-org.
+  const productOfAgent = useProductBySlug(agentProductSlug)
+  const { pipelineId: currentPipelineId } = useCurrentProductMeta()
+  const pipelineId = productOfAgent?.pipeline_id ?? currentPipelineId
   const { data: stages = [] } = usePipelineStages(pipelineId)
   const { data: profiles = [] } = useFilterProfiles()
 
@@ -257,38 +307,32 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
               <Tag className="w-4 h-4 text-slate-400" />
               Aplicar tag (opcional)
             </Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <Input
-                value={form.handoff_actions.apply_tag?.name ?? ''}
-                onChange={e => {
-                  const name = e.target.value
-                  setForm(f => ({
-                    ...f,
-                    handoff_actions: {
-                      ...f.handoff_actions,
-                      apply_tag: name ? { name, color: f.handoff_actions.apply_tag?.color || '#f59e0b' } : null,
-                    },
-                  }))
-                }}
-                placeholder="Nome da tag"
-              />
-              <Input
-                type="color"
+            <Input
+              value={form.handoff_actions.apply_tag?.name ?? ''}
+              onChange={e => {
+                const name = e.target.value
+                setForm(f => ({
+                  ...f,
+                  handoff_actions: {
+                    ...f.handoff_actions,
+                    apply_tag: name ? { name, color: f.handoff_actions.apply_tag?.color || '#f59e0b' } : null,
+                  },
+                }))
+              }}
+              placeholder="Nome da tag"
+            />
+            {form.handoff_actions.apply_tag?.name && (
+              <TagColorPicker
                 value={form.handoff_actions.apply_tag?.color ?? '#f59e0b'}
-                onChange={e => {
-                  const color = e.target.value
-                  setForm(f => ({
-                    ...f,
-                    handoff_actions: {
-                      ...f.handoff_actions,
-                      apply_tag: f.handoff_actions.apply_tag ? { ...f.handoff_actions.apply_tag, color } : null,
-                    },
-                  }))
-                }}
-                disabled={!form.handoff_actions.apply_tag?.name}
-                className="h-10"
+                onChange={color => setForm(f => ({
+                  ...f,
+                  handoff_actions: {
+                    ...f.handoff_actions,
+                    apply_tag: f.handoff_actions.apply_tag ? { ...f.handoff_actions.apply_tag, color } : null,
+                  },
+                }))}
               />
-            </div>
+            )}
           </div>
         </div>
       </Section>
@@ -360,25 +404,29 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
             <div className="space-y-2">
               <Label>Título da reunião na agenda</Label>
               <Input
+                ref={tituloRef}
                 value={bookMeeting.titulo_template}
                 onChange={e => updateBookMeeting({ titulo_template: e.target.value })}
                 placeholder="Ex: Reunião com {contact_name} — Wedding Planner"
+              />
+              <VariableChips
+                variables={['contact_name', 'responsavel_name', 'agent_name']}
+                onInsert={(token) => insertAtCursor('titulo', token)}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Mensagem de confirmação pro lead</Label>
               <Textarea
+                ref={mensagemRef}
                 rows={3}
                 value={bookMeeting.mensagem_confirmacao_template}
                 onChange={e => updateBookMeeting({ mensagem_confirmacao_template: e.target.value })}
               />
-              <p className="text-[11px] text-slate-400">
-                Variáveis: <code className="bg-slate-100 px-1 rounded">{'{contact_name}'}</code> ·{' '}
-                <code className="bg-slate-100 px-1 rounded">{'{responsavel_name}'}</code> ·{' '}
-                <code className="bg-slate-100 px-1 rounded">{'{data}'}</code> ·{' '}
-                <code className="bg-slate-100 px-1 rounded">{'{hora}'}</code>
-              </p>
+              <VariableChips
+                variables={['contact_name', 'responsavel_name', 'data', 'hora']}
+                onInsert={(token) => insertAtCursor('mensagem', token)}
+              />
             </div>
           </div>
         )}
@@ -501,6 +549,102 @@ function ResponsavelOrgCheckBanner({
           A reunião pode falhar com erro 406. Adicione esta pessoa como membro da org do agente
           (via Configurações → Usuários) ou escolha outro responsável.
         </p>
+      </div>
+    </div>
+  )
+}
+
+// ── TagColorPicker ──────────────────────────────────────────────────────
+//
+// Substitui o input type="color" nativo (que abre picker macOS gigante e
+// aceita qualquer cor — fora da paleta do produto) por uma grade de
+// 12 cores curadas da paleta Tailwind, alinhadas com o resto do design.
+const TAG_COLORS: Array<{ value: string; label: string }> = [
+  { value: '#ef4444', label: 'Vermelho' },
+  { value: '#f97316', label: 'Laranja' },
+  { value: '#f59e0b', label: 'Âmbar' },
+  { value: '#eab308', label: 'Amarelo' },
+  { value: '#22c55e', label: 'Verde' },
+  { value: '#10b981', label: 'Esmeralda' },
+  { value: '#06b6d4', label: 'Ciano' },
+  { value: '#3b82f6', label: 'Azul' },
+  { value: '#6366f1', label: 'Índigo' },
+  { value: '#8b5cf6', label: 'Violeta' },
+  { value: '#ec4899', label: 'Rosa' },
+  { value: '#64748b', label: 'Cinza' },
+]
+
+function TagColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const current = TAG_COLORS.find(c => c.value.toLowerCase() === value.toLowerCase()) ?? null
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-[11px] text-slate-500">Cor:</span>
+        {current && (
+          <span className="text-[11px] text-slate-700 font-medium">{current.label}</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {TAG_COLORS.map(c => {
+          const selected = c.value.toLowerCase() === value.toLowerCase()
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => onChange(c.value)}
+              title={c.label}
+              aria-label={`Cor ${c.label}`}
+              className={cn(
+                'w-7 h-7 rounded-lg border-2 transition-all',
+                selected ? 'border-slate-900 scale-110 shadow-md' : 'border-white shadow-sm hover:scale-105',
+              )}
+              style={{ backgroundColor: c.value }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── VariableChips ──────────────────────────────────────────────────────
+//
+// Chips clicáveis que inserem variáveis no campo do form (cursor position).
+// Antes era apenas <code> mostrando o nome da variável — agora copy-on-click.
+const VARIABLE_LABELS: Record<string, string> = {
+  contact_name: 'Nome do lead',
+  responsavel_name: 'Wedding Planner',
+  agent_name: 'Nome do agente',
+  data: 'Data',
+  hora: 'Hora',
+}
+
+function VariableChips({
+  variables, onInsert,
+}: {
+  variables: string[]
+  onInsert: (token: string) => void
+}) {
+  return (
+    <div>
+      <p className="text-[11px] text-slate-500 mb-1">
+        Variáveis disponíveis (clique pra inserir onde o cursor está):
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {variables.map(v => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onInsert(v)}
+            className="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 font-mono inline-flex items-center gap-1 transition-colors"
+            title={VARIABLE_LABELS[v] ?? v}
+          >
+            {`{${v}}`}
+            {VARIABLE_LABELS[v] && (
+              <span className="text-[10px] text-slate-400 font-sans">{VARIABLE_LABELS[v]}</span>
+            )}
+          </button>
+        ))}
       </div>
     </div>
   )

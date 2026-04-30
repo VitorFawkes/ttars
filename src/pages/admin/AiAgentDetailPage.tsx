@@ -524,7 +524,12 @@ export default function AiAgentDetailPage() {
         )}
         {activeTab === 'handoff' && (
           v3Enabled
-            ? <HandoffSectionV3 form={form} setForm={setFormWrapper} agentOrgId={existingAgent?.org_id ?? null} />
+            ? <HandoffSectionV3
+                form={form}
+                setForm={setFormWrapper}
+                agentOrgId={existingAgent?.org_id ?? null}
+                agentProductSlug={existingAgent?.produto ? existingAgent.produto.toLowerCase() : null}
+              />
             : <TabHandoff form={form} setForm={setFormWrapper} />
         )}
         {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}

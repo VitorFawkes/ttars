@@ -255,8 +255,29 @@ function groupBySeverity(alerts: HealthAlert[]): Array<{ severity: HealthSeverit
     .filter(g => g.items.length > 0)
 }
 
+// Catálogo de tradução de error_source. Sempre que adicionar uma nova
+// origem de erro no banco/edge function, atualizar aqui.
+const ERROR_SOURCE_LABELS: Record<string, string> = {
+  tool_failure: 'Falha em ferramenta',
+  whatsapp_send: 'Erro de envio WhatsApp',
+  llm_call: 'Erro do modelo de IA',
+  llm_timeout: 'Timeout do modelo de IA',
+  rate_limit: 'Limite de uso atingido',
+  validator_block: 'Resposta bloqueada pelo validador',
+  validator_correct: 'Resposta corrigida pelo validador',
+  edge_function_error: 'Erro interno do agente',
+  rpc_error: 'Erro em consulta ao banco',
+  webhook_failed: 'Webhook externo falhou',
+  prompt_too_long: 'Prompt longo demais (truncado)',
+  invalid_response: 'Resposta inválida do modelo',
+  network_error: 'Erro de conexão',
+  unknown: 'Erro desconhecido',
+}
+
 function translateErrorSource(s: string): string {
-  if (s === 'tool_failure') return 'Falha em ferramenta'
-  if (s === 'whatsapp_send') return 'Erro de envio WhatsApp'
+  if (s in ERROR_SOURCE_LABELS) return ERROR_SOURCE_LABELS[s]
+  // Fallback: humaniza snake_case ("api_timeout" → "Api timeout")
   return s
+    .replace(/_/g, ' ')
+    .replace(/^./, c => c.toUpperCase())
 }

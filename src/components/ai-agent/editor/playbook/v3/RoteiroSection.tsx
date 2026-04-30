@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Loader2, Plus, BookOpen, Zap, Target } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useAgentMoments, type PlaybookMoment, type MomentKind } from '@/hooks/playbook/useAgentMoments'
@@ -9,6 +9,7 @@ import { MomentLibraryModal } from '../moments/MomentLibraryModal'
 import { MomentRowCard } from './MomentRowCard'
 import { MomentDrawer } from './MomentDrawer'
 import { detectMomentAlerts } from './detectMomentAlerts'
+import { MOMENTS_LIBRARY, type LibraryMoment } from '@/lib/playbook/momentsLibrary'
 import { toast } from 'sonner'
 
 interface Props {
@@ -148,8 +149,14 @@ function FlowGroup({
   onLibrary: () => void
   creating: boolean
 }) {
+  // MouseSensor + TouchSensor separados pra cobrir desktop e mobile.
+  // PointerSensor consolidaria ambos mas tem bug histórico no iOS Safari
+  // (touch sometimes falha activation). Pares separados garantem drag em
+  // qualquer device. TouchSensor com delay 200ms evita disparo acidental
+  // ao scrollar a página com o dedo.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -259,6 +266,12 @@ function PlayGroup({
   onLibrary: () => void
   creating: boolean
 }) {
+  // Detecta jogadas comuns da biblioteca que ainda não foram adicionadas.
+  // Exibe como sugestão clicável — admin clica e adiciona em 1 toque.
+  const playsLibrary = MOMENTS_LIBRARY.filter(m => m.suggested.kind === 'play')
+  const presentKeys = new Set(plays.map(p => p.moment_key))
+  const suggestedMissing = playsLibrary.filter(m => !presentKeys.has(m.suggested.moment_key))
+
   return (
     <section>
       <header className="mb-3 flex items-center gap-2">
@@ -303,7 +316,62 @@ function PlayGroup({
           </Button>
         </div>
       )}
+
+      {/* Sugestões — jogadas comuns da biblioteca que ainda não estão no agente */}
+      {plays.length > 0 && suggestedMissing.length > 0 && (
+        <SuggestedPlays missing={suggestedMissing} onOpenLibrary={onLibrary} />
+      )}
     </section>
+  )
+}
+
+function SuggestedPlays({
+  missing, onOpenLibrary,
+}: {
+  missing: LibraryMoment[]
+  onOpenLibrary: () => void
+}) {
+  return (
+    <div className="mt-5 rounded-xl border border-rose-100 bg-rose-50/30 p-3">
+      <div className="flex items-start gap-2 mb-2">
+        <Zap className="w-3.5 h-3.5 text-rose-500 mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <h4 className="text-xs font-semibold text-slate-900">
+            Jogadas comuns que esta agente não tem ainda
+          </h4>
+          <p className="text-[11px] text-slate-600 mt-0.5">
+            Da biblioteca padrão. Se faz sentido pra sua agente, adicione.
+          </p>
+        </div>
+      </div>
+      <ul className="space-y-1">
+        {missing.slice(0, 5).map(m => (
+          <li key={m.key} className="flex items-start gap-2 text-xs">
+            <span className="text-rose-400 mt-0.5">•</span>
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-slate-800">{m.label}</span>
+              {m.description && (
+                <span className="text-slate-500"> — {m.description}</span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {missing.length > 5 && (
+        <p className="text-[11px] text-slate-500 mt-1.5">
+          + {missing.length - 5} outras jogadas na biblioteca.
+        </p>
+      )}
+      <Button
+        onClick={onOpenLibrary}
+        variant="outline"
+        size="sm"
+        className="mt-2.5 gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
+      >
+        <BookOpen className="w-3.5 h-3.5" />
+        Abrir biblioteca
+      </Button>
+    </div>
   )
 }
 
