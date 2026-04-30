@@ -50,33 +50,59 @@ const ETAPA_ALIASES = ['etapa', 'etapa atual', 'etapa correta', 'etapa alvo', 'f
 /**
  * Tenta resolver um texto livre da coluna "etapa" do CSV num stage_id conhecido.
  * Heurística: normaliza (sem acento, lower, sem pontuação) e procura por palavras-chave.
+ * Detecta também os comparadores < e > ANTES de remover a pontuação, pra distinguir
+ * "Pré-embarque <30" (LT30) de "Pré-embarque >30" (GT30).
  * Retorna null se o texto está vazio ou não casa com nenhuma etapa.
  */
 function resolveTargetStage(rawText: string): { id: string; name: string } | null {
     const text = (rawText || '').trim()
     if (!text) return null
+
+    // 1) Detecta comparadores na string ORIGINAL antes de normalizar (lá o `<`/`>` somem)
+    const original = text.toLowerCase()
+    const hasLess = original.includes('<')           // <30, <<<, <= etc
+    const hasGreater = original.includes('>')        // >30, >>>, >= etc
+
+    // 2) Normaliza pra busca por palavra-chave (sem acento, sem pontuação)
     const n = text.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9 ]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
 
+    // App & Conteúdo (também: "montagem", "criar app", "produzindo")
     if (n.includes('app') || n.includes('conteudo') || n.includes('montagem') || n.includes('produzindo')) {
         return { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
     }
-    if ((n.includes('pre embarque') || n.includes('preembarque') || n.includes('embarque')) &&
-        (n.includes('30') || n.includes('mais') || n.includes('maior') || n.includes('longe') || n.includes('longo') || n.includes('gt'))) {
-        return { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
-    }
-    if (n.includes('pre embarque') || n.includes('preembarque') || n.includes('embarque')) {
-        return { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
-    }
+
+    // Em viagem (precisa testar antes de "embarque" pra evitar falsos)
     if (n.includes('em viagem') || n === 'viagem' || n.includes('viajando') || n.includes('em curso')) {
         return { id: STAGE_EM_VIAGEM, name: 'Em Viagem' }
     }
+
+    // Pós-viagem / Reativação
     if (n.includes('pos viagem') || n.includes('posviagem') || n.includes('reativacao') || n === 'pos' || n.startsWith('pos ')) {
         return { id: STAGE_POS_VIAGEM, name: 'Pós-viagem & Reativação' }
     }
+
+    // Pré-embarque: distingue por comparador OU palavras-chave de tempo
+    const isPreEmbarque = n.includes('pre embarque') || n.includes('preembarque') || n.includes('embarque')
+    if (isPreEmbarque) {
+        // GT30: tem `>` OU palavras "mais", "maior", "longe", "longo", "gt"
+        const isGt = hasGreater || n.includes('mais') || n.includes('maior') || n.includes('longe') || n.includes('longo') || n.includes(' gt ')
+        // LT30: tem `<` OU palavras "menor", "menos", "perto", "proximo", "lt"
+        const isLt = hasLess || n.includes('menor') || n.includes('menos') || n.includes('perto') || n.includes('proximo') || n.includes(' lt ')
+
+        if (isGt && !isLt) {
+            return { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque - >>> 30 dias' }
+        }
+        if (isLt && !isGt) {
+            return { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
+        }
+        // Sem qualificador claro → assume LT30 (caso mais comum, viagem próxima)
+        return { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
+    }
+
     return null
 }
 
@@ -705,7 +731,7 @@ function groupRowsIntoTrips(rows: PosVendaCsvRow[]): RawTripGroup[] {
         } else if (allReady && dataInicio) {
             const days = daysFromNow(dataInicio)
             stage = days > 30
-                ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
+                ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque - >>> 30 dias' }
                 : { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
         } else {
             stage = { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
@@ -775,7 +801,7 @@ interface ImportLogItemRow {
  */
 const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
     { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem', color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque - >>> 30 dias', color: 'bg-blue-50 text-blue-700 border-blue-200' },
     { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     { id: STAGE_EM_VIAGEM, name: 'Em Viagem', color: 'bg-violet-50 text-violet-700 border-violet-200' },
     { id: STAGE_POS_VIAGEM, name: 'Pós-viagem & Reativação', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -2339,7 +2365,7 @@ export default function ImportacaoPosVendaPage() {
                 } else if (dataInicio) {
                     const days = daysFromNow(dataInicio)
                     stage = days > 30
-                        ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
+                        ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque - >>> 30 dias' }
                         : { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
                 } else {
                     stage = { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
