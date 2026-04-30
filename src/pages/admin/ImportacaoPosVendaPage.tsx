@@ -44,6 +44,41 @@ const APP_GERADO_ALIASES = ['app gerado']
 const VOUCHERS_APP_ALIASES = ['vouchers no app']
 const CONTRATO_VOUCHER_ALIASES = ['contr/ voucher', 'contr./voucher', 'contr./ voucher', 'contrato voucher', 'contrato/voucher']
 const DATA_VENDA_ALIASES = ['data venda']
+/** Coluna opcional onde o usuário declara em qual etapa a viagem deveria estar. */
+const ETAPA_ALIASES = ['etapa', 'etapa atual', 'etapa correta', 'etapa alvo', 'fase', 'situacao', 'situação', 'status etapa', 'em qual etapa', 'estado']
+
+/**
+ * Tenta resolver um texto livre da coluna "etapa" do CSV num stage_id conhecido.
+ * Heurística: normaliza (sem acento, lower, sem pontuação) e procura por palavras-chave.
+ * Retorna null se o texto está vazio ou não casa com nenhuma etapa.
+ */
+function resolveTargetStage(rawText: string): { id: string; name: string } | null {
+    const text = (rawText || '').trim()
+    if (!text) return null
+    const n = text.toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9 ]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+    if (n.includes('app') || n.includes('conteudo') || n.includes('montagem') || n.includes('produzindo')) {
+        return { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem' }
+    }
+    if ((n.includes('pre embarque') || n.includes('preembarque') || n.includes('embarque')) &&
+        (n.includes('30') || n.includes('mais') || n.includes('maior') || n.includes('longe') || n.includes('longo') || n.includes('gt'))) {
+        return { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
+    }
+    if (n.includes('pre embarque') || n.includes('preembarque') || n.includes('embarque')) {
+        return { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias' }
+    }
+    if (n.includes('em viagem') || n === 'viagem' || n.includes('viajando') || n.includes('em curso')) {
+        return { id: STAGE_EM_VIAGEM, name: 'Em Viagem' }
+    }
+    if (n.includes('pos viagem') || n.includes('posviagem') || n.includes('reativacao') || n === 'pos' || n.startsWith('pos ')) {
+        return { id: STAGE_POS_VIAGEM, name: 'Pós-viagem & Reativação' }
+    }
+    return null
+}
 
 // ─── Title formatting helpers ──────────────────────────────
 
@@ -150,6 +185,8 @@ interface PosVendaCsvRow {
     contratoVoucher: string
     receita: number
     valorTotal: number
+    /** Coluna opcional do CSV onde o usuário declara a etapa-alvo (texto cru). */
+    etapaCsv: string
 }
 
 interface TripDiff {
@@ -658,8 +695,14 @@ function groupRowsIntoTrips(rows: PosVendaCsvRow[]): RawTripGroup[] {
             isSim(r.appGerado) && (isSim(r.vouchersNoApp) || isSim(r.contratoVoucher))
         )
 
+        // Se o CSV trouxer coluna "etapa" preenchida e reconhecida, ela vence.
+        const etapaCsvText = allProducts.map(r => r.etapaCsv).find(s => s && s.trim()) || ''
+        const stageFromCsv = etapaCsvText ? resolveTargetStage(etapaCsvText) : null
+
         let stage: { id: string; name: string }
-        if (allReady && dataInicio) {
+        if (stageFromCsv) {
+            stage = stageFromCsv
+        } else if (allReady && dataInicio) {
             const days = daysFromNow(dataInicio)
             stage = days > 30
                 ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
@@ -1731,6 +1774,7 @@ export default function ImportacaoPosVendaPage() {
         const colVouchersApp = findColumn(headers, VOUCHERS_APP_ALIASES)
         const colContratoVoucher = findColumn(headers, CONTRATO_VOUCHER_ALIASES)
         const colDataVenda = findColumn(headers, DATA_VENDA_ALIASES)
+        const colEtapa = findColumn(headers, ETAPA_ALIASES)
 
         if (!colVenda || !colCpf || !colPagante) {
             toast.error('CSV deve ter colunas: Venda Nº, CPF e Pagante')
@@ -1767,6 +1811,7 @@ export default function ImportacaoPosVendaPage() {
                     contratoVoucher: colContratoVoucher ? String(r[colContratoVoucher] ?? '').trim() : '',
                     receita: colReceita ? parseBRNumber(r[colReceita]) : 0,
                     valorTotal: colValorTotal ? parseBRNumber(r[colValorTotal]) : 0,
+                    etapaCsv: colEtapa ? String(r[colEtapa] ?? '').trim() : '',
                 }
             })
 
@@ -1994,6 +2039,7 @@ export default function ImportacaoPosVendaPage() {
             const colVendedor = findColumn(headers, ['vendedor', 'vendedores', 'consultor', 'consultores'])
             const colValor = findColumn(headers, ['valor (r$)', 'valor', 'total', 'valor total', 'faturamento'])
             const colReceita = findColumn(headers, RECEITA_ALIASES)
+            const colEtapa = findColumn(headers, ETAPA_ALIASES)
 
             if (!colPagante || !colInicio) {
                 toast.error('Planilha por viagem precisa ter pelo menos as colunas: Pagante e Início.')
@@ -2099,11 +2145,18 @@ export default function ImportacaoPosVendaPage() {
                     contratoVoucher: '',
                     receita: receitaPorProduto,
                     valorTotal: valorPorProduto,
+                    etapaCsv: '',
                 }))
 
-                // Stage por data (mesma lógica do fluxo detalhado, com voucher='sim')
+                // Se o CSV tem coluna "etapa" e ela for reconhecida, usa ela.
+                // Senão deduz pela data (lógica antiga).
+                const etapaCsvText = colEtapa ? String(r[colEtapa] ?? '').trim() : ''
+                const stageFromCsv = etapaCsvText ? resolveTargetStage(etapaCsvText) : null
+
                 let stage: { id: string; name: string }
-                if (dataInicio) {
+                if (stageFromCsv) {
+                    stage = stageFromCsv
+                } else if (dataInicio) {
                     const days = daysFromNow(dataInicio)
                     stage = days > 30
                         ? { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias' }
