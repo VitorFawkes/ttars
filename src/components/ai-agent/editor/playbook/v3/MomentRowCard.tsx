@@ -61,27 +61,29 @@ export function MomentRowCard({ moment, index, alertCount = 0, onOpen, dragHandl
     return moment.intent ?? moment.anchor_text?.slice(0, 90) ?? '(sem gatilho configurado)'
   })()
 
+  // Anti-pattern HTML: <button> dentro de <button>. Pra suportar drag handle
+  // sem conflito com o click do card, usamos <div role="button"> e separamos
+  // o drag handle como elemento próprio.
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       className={cn(
-        'group w-full text-left bg-white border rounded-xl p-3 shadow-sm transition-all',
-        'hover:border-indigo-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-200',
+        'group relative bg-white border rounded-xl shadow-sm transition-all',
+        'hover:border-indigo-300 hover:shadow-md focus-within:ring-2 focus-within:ring-indigo-200',
         moment.enabled ? 'border-slate-200' : 'border-slate-200 opacity-70',
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 p-3">
         {isFlow && dragHandleProps ? (
-          <span
+          <button
+            type="button"
             {...(dragHandleProps?.attributes ?? {})}
             {...(dragHandleProps?.listeners ?? {})}
-            className="text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing mt-0.5"
+            className="relative z-10 text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing mt-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded"
             title="Arraste pra reordenar"
-            onClick={(e) => e.stopPropagation()}
+            aria-label="Reordenar momento"
           >
             <GripVertical className="w-4 h-4" />
-          </span>
+          </button>
         ) : isFlow ? (
           <span className="w-7 h-7 flex-shrink-0 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
             {index ?? '?'}
@@ -137,6 +139,14 @@ export function MomentRowCard({ moment, index, alertCount = 0, onOpen, dragHandl
 
         <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 mt-1.5 flex-shrink-0" />
       </div>
-    </button>
+
+      {/* Click target invisível cobrindo o card todo, exceto o drag handle (z-0 fica abaixo do handle) */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="absolute inset-0 w-full h-full focus:outline-none focus:ring-2 focus:ring-indigo-200 rounded-xl"
+        aria-label={`Abrir ${moment.moment_label || moment.moment_key}`}
+      />
+    </div>
   )
 }

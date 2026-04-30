@@ -33,9 +33,9 @@ export function MomentDrawer({ agentId, agentName, companyName, moment, open, on
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-2xl p-0 flex flex-col h-full"
+        className="w-full sm:max-w-3xl lg:max-w-4xl p-0 flex flex-col h-full bg-slate-50"
       >
-        <SheetHeader className="px-6 py-4 border-b border-slate-100 bg-white">
+        <SheetHeader className="px-6 py-4 border-b border-slate-200 bg-white shadow-sm">
           <div className="flex items-start gap-3">
             <span className={`mt-1 ${tone}`}>
               <Icon className="w-5 h-5" />
@@ -51,7 +51,7 @@ export function MomentDrawer({ agentId, agentName, companyName, moment, open, on
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100"
+              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 -mr-1"
               aria-label="Fechar"
             >
               <X className="w-4 h-4" />
@@ -59,7 +59,7 @@ export function MomentDrawer({ agentId, agentName, companyName, moment, open, on
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 bg-slate-50/30">
+        <div className="flex-1 overflow-y-auto p-6">
           <MomentCard
             agentId={agentId}
             agentName={agentName}
