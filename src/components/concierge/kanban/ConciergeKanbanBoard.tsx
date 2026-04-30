@@ -120,16 +120,33 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     const items = selectedItems.filter(i => !i.notificou_cliente_em && !i.outcome)
     if (items.length === 0) return
     let success = 0
+    const failed: { item: KanbanTarefaItem; reason: string }[] = []
     for (const it of items) {
       try {
         await notificarCliente.mutateAsync(it.atendimento_id)
         success++
-      } catch {
-        // toast individual já cuida
+      } catch (err) {
+        failed.push({
+          item: it,
+          reason: err instanceof Error ? err.message : 'erro desconhecido',
+        })
       }
     }
     queryClient.invalidateQueries({ queryKey: ['concierge'] })
-    if (success > 0) toast.success(`${success} cliente${success === 1 ? '' : 's'} notificado${success === 1 ? '' : 's'}`)
+
+    if (failed.length === 0 && success > 0) {
+      toast.success(`${success} cliente${success === 1 ? '' : 's'} notificado${success === 1 ? '' : 's'}`)
+    } else if (success > 0 && failed.length > 0) {
+      toast.warning(
+        `${success} notificado${success === 1 ? '' : 's'}, ${failed.length} falhou${failed.length === 1 ? '' : 'ram'}`,
+        { description: failed.slice(0, 3).map(f => `• ${f.item.titulo || f.item.categoria}: ${f.reason}`).join('\n') + (failed.length > 3 ? `\n• +${failed.length - 3} outras` : '') }
+      )
+    } else if (failed.length > 0) {
+      toast.error(`Nenhum notificado — ${failed.length} falha${failed.length === 1 ? '' : 's'}`, {
+        description: failed[0].reason,
+      })
+    }
+
     clearSelection()
   }
 
