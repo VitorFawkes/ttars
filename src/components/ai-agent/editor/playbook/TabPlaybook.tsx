@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, User, UserCircle, Volume2, Clock, Target, Shield, Eye, MessageSquareQuote, Sparkles } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, User, UserCircle, Volume2, Clock, MessagesSquare, Target, Shield, Eye, MessageSquareQuote, Sparkles } from 'lucide-react'
 import { IdentitySection } from './sections/IdentitySection'
 import { VoiceSection } from './sections/VoiceSection'
 import { MomentsSection } from './sections/MomentsSection'
@@ -8,9 +8,9 @@ import { BoundariesSection } from './sections/BoundariesSection'
 import { SilentSignalsSection } from './sections/SilentSignalsSection'
 import { ExamplesSection } from './sections/ExamplesSection'
 import { V1V2ComparisonCard } from './V1V2ComparisonCard'
-import { RoteiroSection } from './v3/RoteiroSection'
 import { useV3Layout } from './v3/useV3Layout'
 import { QuemElaESection } from './v3/quem-ela-e/QuemElaESection'
+import { ComoConversaSection } from './v3/como-conversa/ComoConversaSection'
 
 interface Props {
   agentId: string
@@ -19,33 +19,36 @@ interface Props {
 }
 
 type SectionKey =
-  | 'quem_ela_e'    // v3: agrega identity + voice + boundaries em uma só
-  | 'identity'      // legado v2
-  | 'voice'         // legado v2
-  | 'moments'
-  | 'qualification'
-  | 'boundaries'    // legado v2
-  | 'signals'
+  | 'quem_ela_e'        // v3: agrega identity + voice + boundaries
+  | 'como_ela_conversa' // v3: agrega moments + sondagem + pontuação + conhecimento
+  | 'identity'          // legado v2
+  | 'voice'             // legado v2
+  | 'moments'           // legado v2
+  | 'qualification'     // legado v2
+  | 'boundaries'        // legado v2
+  | 'signals'           // legado v2
   | 'examples'
 
 const SECTION_DEF: Record<SectionKey, { title: string; subtitle: string; icon: typeof User }> = {
-  quem_ela_e: { title: 'Quem ela é', subtitle: 'Identidade, voz e linhas vermelhas — tudo que define a personalidade', icon: UserCircle },
-  identity:   { title: 'Identidade', subtitle: 'Quem é a agente e qual a missão dela', icon: User },
-  voice:      { title: 'Voz', subtitle: 'Como ela soa: tom, frases típicas e proibidas', icon: Volume2 },
-  moments:    { title: 'Momentos da conversa', subtitle: 'Fases do funil + jogadas situacionais (objeções, etc.)', icon: Clock },
-  qualification: { title: 'Critérios de qualificação', subtitle: 'O que torna um cliente bom — somam pontos ou desqualificam', icon: Target },
-  boundaries: { title: 'Linhas vermelhas gerais', subtitle: 'Coisas que a agente NUNCA faz, em qualquer momento', icon: Shield },
-  signals:    { title: 'Sinais silenciosos', subtitle: 'O que ela observa e anota sem comentar com o cliente', icon: Eye },
-  examples:   { title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
+  quem_ela_e:        { title: 'Quem ela é', subtitle: 'Identidade, voz e linhas vermelhas — tudo que define a personalidade', icon: UserCircle },
+  como_ela_conversa: { title: 'Como ela conversa', subtitle: 'Roteiro, sondagem, pontuação e conhecimento', icon: MessagesSquare },
+  identity:          { title: 'Identidade', subtitle: 'Quem é a agente e qual a missão dela', icon: User },
+  voice:             { title: 'Voz', subtitle: 'Como ela soa: tom, frases típicas e proibidas', icon: Volume2 },
+  moments:           { title: 'Momentos da conversa', subtitle: 'Fases do funil + jogadas situacionais (objeções, etc.)', icon: Clock },
+  qualification:     { title: 'Critérios de qualificação', subtitle: 'O que torna um cliente bom — somam pontos ou desqualificam', icon: Target },
+  boundaries:        { title: 'Linhas vermelhas gerais', subtitle: 'Coisas que a agente NUNCA faz, em qualquer momento', icon: Shield },
+  signals:           { title: 'Sinais silenciosos', subtitle: 'O que ela observa e anota sem comentar com o cliente', icon: Eye },
+  examples:          { title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
 }
 
-const V3_SECTIONS: SectionKey[] = ['quem_ela_e', 'moments', 'qualification', 'signals', 'examples']
+const V3_SECTIONS: SectionKey[] = ['quem_ela_e', 'como_ela_conversa', 'examples']
 const V2_SECTIONS: SectionKey[] = ['identity', 'voice', 'moments', 'qualification', 'boundaries', 'signals', 'examples']
 
 export function TabPlaybook({ agentId, agentName, companyName }: Props) {
   const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     quem_ela_e: true,
+    como_ela_conversa: true,
     identity: true,
     voice: false,
     moments: false,
@@ -112,13 +115,10 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
                 {expanded[key] && (
                   <div className="px-4 py-4 border-t border-slate-100 bg-slate-50/30">
                     {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'como_ela_conversa' && <ComoConversaSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'voice' && <VoiceSection agentId={agentId} agentName={agentName} companyName={companyName} />}
-                    {key === 'moments' && (
-                      v3Enabled
-                        ? <RoteiroSection agentId={agentId} agentName={agentName} companyName={companyName} />
-                        : <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />
-                    )}
+                    {key === 'moments' && <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'qualification' && <QualificationSection agentId={agentId} />}
                     {key === 'boundaries' && <BoundariesSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'signals' && <SilentSignalsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
