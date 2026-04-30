@@ -30,10 +30,15 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
   const [regT, setRegT] = useState(false)
   const [typical, setTypical] = useState<string[]>([])
   const [forbidden, setForbidden] = useState<string[]>([])
+  const [customRules, setCustomRules] = useState<string[]>([])
   const [newTypical, setNewTypical] = useState('')
   const [newForbidden, setNewForbidden] = useState('')
+  const [newCustomRule, setNewCustomRule] = useState('')
   const [dirty, setDirty] = useState(false)
 
+  // Hidrata estado local quando voice carrega/muda do servidor.
+  // Padrão de hidratação de form — setState em effect é o caminho aqui.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (voice) {
       setToneTags(voice.tone_tags ?? [])
@@ -45,9 +50,11 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
       setRegT(voice.regionalisms?.casual_tu_mano ?? false)
       setTypical(voice.typical_phrases ?? [])
       setForbidden(voice.forbidden_phrases ?? [])
+      setCustomRules(voice.custom_rules ?? [])
       setDirty(false)
     }
-  }, [voice?.tone_tags, voice?.formality, voice?.emoji_policy])
+  }, [voice])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const markDirty = () => setDirty(true)
 
@@ -67,6 +74,7 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
       regionalisms: { uses_a_gente: regA, uses_voces_casal: regV, uses_gerundio: regG, casual_tu_mano: regT },
       typical_phrases: typical,
       forbidden_phrases: forbidden,
+      custom_rules: customRules,
     }
     try {
       await save.mutateAsync(config); toast.success('Voz salva'); setDirty(false)
@@ -113,7 +121,8 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">Regionalismos</label>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Regionalismos comuns</label>
+        <p className="text-[11px] text-slate-500 mb-2">Toggles rápidos pros padrões mais comuns. Se quiser uma regra específica que não tá aqui, use "Outras regras de tom" embaixo.</p>
         {[
           { v: regA, s: setRegA, l: 'Usa "a gente" em vez de "nós"' },
           { v: regV, s: setRegV, l: 'Usa "vocês" pro casal/grupo' },
@@ -125,6 +134,55 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
             {r.l}
           </label>
         ))}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-slate-700">Outras regras de tom</label>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-2">
+          Escreva qualquer regra de como ela soa que não cabe nos toggles acima. Vai pro prompt como instrução
+          adicional. Ex: <span className="italic">"Usa diminutivo com cliente"</span> ·{' '}
+          <span className="italic">"Nunca termina mensagem com '?' duplo"</span> ·{' '}
+          <span className="italic">"Sotaque levemente carioca"</span>.
+        </p>
+        <ChipList
+          items={customRules}
+          onRemove={(i) => { setCustomRules(customRules.filter((_, j) => j !== i)); markDirty() }}
+          variant="info"
+        />
+        <div className="flex gap-2 mt-2">
+          <input
+            value={newCustomRule}
+            onChange={(e) => setNewCustomRule(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (newCustomRule.trim()) {
+                  setCustomRules([...customRules, newCustomRule.trim()])
+                  setNewCustomRule('')
+                  markDirty()
+                }
+              }
+            }}
+            placeholder="Ex: Sempre cumprimenta pelo primeiro nome"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (newCustomRule.trim()) {
+                setCustomRules([...customRules, newCustomRule.trim()])
+                setNewCustomRule('')
+                markDirty()
+              }
+            }}
+            className="gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div>
@@ -183,15 +241,19 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
   )
 }
 
-function ChipList({ items, onRemove, variant = 'default' }: { items: string[]; onRemove: (i: number) => void; variant?: 'default' | 'danger' }) {
+function ChipList({ items, onRemove, variant = 'default' }: { items: string[]; onRemove: (i: number) => void; variant?: 'default' | 'danger' | 'info' }) {
   if (items.length === 0) return <p className="text-xs text-slate-400 italic">(nenhuma configurada)</p>
+  const toneClass = variant === 'danger'
+    ? 'bg-rose-50 border-rose-100 text-rose-700'
+    : variant === 'info'
+      ? 'bg-indigo-50 border-indigo-100 text-indigo-700'
+      : 'bg-slate-50 border-slate-200 text-slate-700'
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((t, i) => (
-        <span key={i} className={cn('text-xs px-2 py-1 rounded-md border inline-flex items-center gap-1.5',
-          variant === 'danger' ? 'bg-rose-50 border-rose-100 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-700')}>
+        <span key={i} className={cn('text-xs px-2 py-1 rounded-md border inline-flex items-center gap-1.5', toneClass)}>
           {t}
-          <button type="button" onClick={() => onRemove(i)} className="hover:text-slate-900"><X className="w-3 h-3" /></button>
+          <button type="button" onClick={() => onRemove(i)} className="hover:opacity-70"><X className="w-3 h-3" /></button>
         </span>
       ))}
     </div>
