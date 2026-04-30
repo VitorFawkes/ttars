@@ -41,6 +41,7 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
 
   if (!viagem) return null
   const isManualCritical = viagem.card_is_critical
+  const isCriticalEffective = isManualCritical || viagem.has_tarefa_critica
 
   const abertos = items.filter(i => !i.outcome && !i.concluida)
   const concluidos = items.filter(i => i.outcome || i.concluida)
@@ -59,10 +60,10 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
               <div className="flex-1 min-w-0">
                 <div className="text-[10.5px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5 flex items-center gap-1.5">
                   <span>Viagem · {viagem.produto?.toUpperCase()}</span>
-                  {isManualCritical && (
+                  {isCriticalEffective && (
                     <span className="inline-flex items-center gap-0.5 text-red-600 normal-case">
                       <Flame className="w-3 h-3" strokeWidth={2.5} />
-                      Crítica
+                      {isManualCritical ? 'Crítica' : 'Tarefa crítica nesta viagem'}
                     </span>
                   )}
                 </div>
@@ -76,10 +77,18 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
                   'shrink-0 p-1.5 rounded transition-colors',
                   isManualCritical
                     ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                    : isCriticalEffective
+                    ? 'bg-red-50 text-red-400 hover:bg-red-100'
                     : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
                 )}
                 aria-label={isManualCritical ? 'Remover marcação crítica' : 'Marcar viagem como crítica'}
-                title={isManualCritical ? 'Viagem crítica — clique pra remover' : 'Marcar viagem como crítica'}
+                title={
+                  isManualCritical
+                    ? 'Viagem crítica — clique pra remover'
+                    : isCriticalEffective
+                    ? 'Já tem tarefa crítica nesta viagem — clique para marcar a viagem inteira também'
+                    : 'Marcar viagem como crítica'
+                }
               >
                 <Flame className="w-4 h-4" strokeWidth={2.5} />
               </button>
