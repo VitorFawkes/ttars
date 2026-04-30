@@ -34,7 +34,6 @@ import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { usePhaseCapabilities } from '../../hooks/usePhaseCapabilities'
 import { useProducts } from '../../hooks/useProducts'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
-import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import { ScrollArrows } from '../ui/ScrollArrows'
 import { FilterEmptyState } from './FilterEmptyState'
 import { usePipelineCards } from '../../hooks/usePipelineCards'
@@ -74,7 +73,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const { data: phasesData } = usePipelinePhases(pipelineId)
     const { getNextPhase } = usePhaseCapabilities(pipelineId)
-    const receitaPerm = useReceitaPermission()
     const { getStageSortConfig, setStageSortConfig, clearStageSortConfig, hasStageSortOverride } = useStageSort(pipelineId ?? '')
 
     // Elite horizontal scroll with Shift+Wheel, Drag-to-Pan, and arrow indicators
@@ -911,11 +909,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         }
     }
 
-    // Calculate Totals for Sticky Footer (usar allCards para incluir terminal)
-    const totalPipelineValue = allCards.reduce((acc, c) => acc + (c.valor_display || c.valor_estimado || 0), 0)
-    const totalPipelineReceita = allCards.reduce((acc, c) => acc + (c.receita || 0), 0)
-    const totalCards = allCards.length
-
     return (
         <div className={cn("flex flex-col h-full", className)}>
             {/* Scroll Area with Arrows */}
@@ -1095,72 +1088,6 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                 </div>
             </div>
 
-            {/* Footer - Part of flex layout, not fixed */}
-            <div className="flex-shrink-0 h-16 bg-white/95 backdrop-blur-2xl border-t border-primary/10 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex items-center justify-between px-6 z-50">
-                <div className="flex items-center gap-8">
-                    <div className="flex flex-col">
-                        <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-1">Total Pipeline</span>
-                        <div className="flex items-baseline gap-3">
-                            <span className="text-2xl font-bold text-primary-dark">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPipelineValue)}
-                            </span>
-                            <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                {totalCards} cards
-                            </span>
-                        </div>
-                    </div>
-
-                    {receitaPerm.canView && totalPipelineReceita > 0 && (
-                        <>
-                            <div className="h-10 w-px bg-gray-200" />
-                            <div className="flex flex-col">
-                                <span className="text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Receita Total</span>
-                                <span className="text-lg font-bold text-amber-700">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPipelineReceita)}
-                                </span>
-                            </div>
-                        </>
-                    )}
-
-                    {/* Vertical Divider */}
-                    <div className="h-10 w-px bg-gray-200" />
-
-                    {/* Quick Stats / Mini Forecast (Placeholder for now) */}
-                    <div className="flex flex-col">
-                        <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-1">Forecast Mês</span>
-                        <span className="text-lg font-semibold text-gray-700">
-                            R$ --
-                        </span>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-6">
-                    {/* Phase Summaries (Mini) */}
-                    {displayPhases.map(phase => {
-                        const phaseStages = (stages || []).filter((s) =>
-                            s.phase_id === phase.id ||
-                            (!s.phase_id && s.fase === phase.name)
-                        )
-                        if (phaseStages.length === 0) return null
-
-                        const phaseCards = allCards.filter(c => phaseStages.some((s) => s.id === c.pipeline_stage_id))
-                        const val = phaseCards.reduce((acc, c) => acc + (c.valor_estimado || 0), 0)
-                        const count = phaseCards.length
-
-                        return (
-                            <div key={phase.id} className="flex flex-col items-end group cursor-default">
-                                <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-0.5 group-hover:text-primary transition-colors">{phase.name}</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-400 font-medium bg-gray-50 px-1.5 rounded">{count}</span>
-                                    <span className="text-sm font-bold text-gray-700 group-hover:text-primary-dark transition-colors">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(val)}
-                                    </span>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
         </div>
     )
 }
