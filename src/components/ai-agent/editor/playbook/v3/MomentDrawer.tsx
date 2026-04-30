@@ -1,4 +1,4 @@
-import { X, Zap, Target } from 'lucide-react'
+import { Zap, Target } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { MomentCard } from '../moments/MomentCard'
 import type { PlaybookMoment } from '@/hooks/playbook/useAgentMoments'
@@ -31,44 +31,36 @@ export function MomentDrawer({ agentId, agentName, companyName, moment, open, on
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
+      {/* SheetContent já tem overflow-y-auto + p-6 + max-h-screen por padrão.
+          Removemos o p-0 e o wrapper interno com overflow pra evitar scroll duplo. */}
       <SheetContent
         side="right"
-        className="w-full sm:max-w-3xl lg:max-w-4xl p-0 flex flex-col h-full bg-slate-50"
+        className="w-full sm:max-w-3xl lg:max-w-4xl bg-slate-50 gap-0"
       >
-        <SheetHeader className="px-6 py-4 border-b border-slate-200 bg-white shadow-sm">
-          <div className="flex items-start gap-3">
+        <SheetHeader className="-mx-6 -mt-6 px-6 py-4 mb-6 border-b border-slate-200 bg-white shadow-sm sticky top-0 z-10">
+          <div className="flex items-start gap-3 pr-8">
             <span className={`mt-1 ${tone}`}>
               <Icon className="w-5 h-5" />
             </span>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-lg font-semibold text-slate-900 tracking-tight">
+              <SheetTitle className="text-lg font-semibold text-slate-900 tracking-tight text-left">
                 {moment.moment_label || moment.moment_key}
               </SheetTitle>
-              <SheetDescription className="text-xs text-slate-500 mt-0.5">
+              <SheetDescription className="text-xs text-slate-500 mt-0.5 text-left">
                 {isFlow ? 'Fase do funil' : 'Jogada situacional'} · key {moment.moment_key}
               </SheetDescription>
             </div>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 -mr-1"
-              aria-label="Fechar"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <MomentCard
-            agentId={agentId}
-            agentName={agentName}
-            companyName={companyName}
-            moment={moment}
-            defaultExpanded={true}
-            hideToggle={true}
-          />
-        </div>
+        <MomentCard
+          agentId={agentId}
+          agentName={agentName}
+          companyName={companyName}
+          moment={moment}
+          defaultExpanded={true}
+          hideToggle={true}
+        />
       </SheetContent>
     </Sheet>
   )
