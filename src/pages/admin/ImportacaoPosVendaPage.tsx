@@ -3027,6 +3027,67 @@ export default function ImportacaoPosVendaPage() {
                     }
                 }
 
+                // 4. Fallback por NOME do pagante + datas próximas — só se tudo acima falhou.
+                // Pra planilhas agregadas que não trazem CPF nem número Monde da viagem,
+                // mas têm o nome do cliente e as datas. Match por similaridade de primeiro
+                // nome + sobrenome + sobreposição de datas.
+                if (candidates.length === 0 && trip.pagantePrincipal && trip.dataInicio) {
+                    const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
+                    const primeiroNome = partes[0] || ''
+                    const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
+                    if (primeiroNome.length >= 2) {
+                        // Busca contatos por primeiro nome (ilike)
+                        const { data: contatos } = await supabase
+                            .from('contatos')
+                            .select('id, nome, sobrenome')
+                            .ilike('nome', `${primeiroNome.replace(/[%_]/g, '')}%`)
+                            .is('deleted_at', null)
+                            .limit(50)
+                        const tripNome = norm(trip.pagantePrincipal)
+                        const matchingContatos = (contatos || []).filter(c => {
+                            const fullName = `${(c as { nome?: string }).nome || ''} ${(c as { sobrenome?: string }).sobrenome || ''}`.trim()
+                            const fullNorm = norm(fullName)
+                            // Match se nome completo bate OU se primeiro+último sobrenome batem
+                            if (fullNorm === tripNome) return true
+                            if (fullNorm.includes(tripNome) || tripNome.includes(fullNorm)) return true
+                            if (ultimoSobrenome) {
+                                const ultimoNorm = norm(ultimoSobrenome)
+                                if (fullNorm.includes(norm(primeiroNome)) && fullNorm.includes(ultimoNorm)) return true
+                            }
+                            return false
+                        })
+                        if (matchingContatos.length > 0) {
+                            const contatoIds = matchingContatos.map(c => (c as { id: string }).id)
+                            let q = supabase
+                                .from('cards')
+                                .select(CARD_AUDIT_SELECT)
+                                .in('pessoa_principal_id', contatoIds)
+                                .in('pipeline_stage_id', POS_VENDA_STAGES)
+                                .is('archived_at', null)
+                                .is('deleted_at', null)
+                                .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                                .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
+                                .gte('data_viagem_fim', trip.dataInicio)
+                                .limit(5)
+                            if (activeOrgId) q = q.eq('org_id', activeOrgId)
+                            const { data: cards } = await q
+                            for (const c of (cards || [])) {
+                                if (candidates.some(x => x.id === (c as { id: string }).id)) continue
+                                candidates.push({
+                                    id: (c as { id: string }).id,
+                                    titulo: (c as { titulo?: string }).titulo as string,
+                                    pipeline_stage_id: ((c as { pipeline_stage_id?: string }).pipeline_stage_id as string) || null,
+                                    status_comercial: ((c as { status_comercial?: string }).status_comercial as string) ?? null,
+                                    ganho_planner: ((c as { ganho_planner?: boolean }).ganho_planner as boolean) ?? null,
+                                    ganho_pos: ((c as { ganho_pos?: boolean }).ganho_pos as boolean) ?? null,
+                                    pos_owner_id: ((c as { pos_owner_id?: string }).pos_owner_id as string) ?? null,
+                                    _matchType: 'venda_historico', // score baixo, último recurso
+                                })
+                            }
+                        }
+                    }
+                }
+
                 // Dedup por id
                 const uniqueCandidates = Array.from(
                     new Map(candidates.map(c => [c.id, c])).values()
