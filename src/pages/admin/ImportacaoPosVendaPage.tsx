@@ -1100,6 +1100,128 @@ function DestinationStageSummary({
     )
 }
 
+// ─── Painel de duplicatas (raio-X do CRM, independe da planilha) ────
+
+type DuplicateCardRow = {
+    id: string
+    titulo: string | null
+    pipeline_stage_id: string | null
+    pessoa_principal_id: string | null
+    numeroAtual: string | null
+    numerosHistorico: string[]
+}
+
+function DuplicatesPanel({
+    groups, loading, tripExistingIds, stageNameById,
+}: {
+    groups: Array<{ numero: string; cards: DuplicateCardRow[] }>
+    loading: boolean
+    /** Cards que vieram da planilha (matched). Pra mostrar "✓ na planilha" no item */
+    tripExistingIds: Set<string>
+    /** id da etapa → nome legível, pra mostrar onde o card está hoje */
+    stageNameById: Record<string, string>
+}) {
+    const [expanded, setExpanded] = useState(false)
+
+    if (loading && groups.length === 0) {
+        return (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-900">Verificando duplicatas no CRM…</h3>
+            </div>
+        )
+    }
+
+    if (groups.length === 0) return null
+
+    const totalCards = groups.reduce((s, g) => s + g.cards.length, 0)
+
+    return (
+        <div className="bg-white border border-rose-200 rounded-xl shadow-sm overflow-hidden">
+            <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-rose-50/30 transition-colors text-left"
+            >
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                    <div>
+                        <h3 className="text-sm font-semibold text-rose-900">
+                            {groups.length} {groups.length === 1 ? 'número Monde aparece' : 'números Monde aparecem'} em mais de um card ativo
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                            Total: {totalCards} cards envolvidos. Auditoria do funil — independe da planilha que você subiu. Clique pra ver.
+                        </p>
+                    </div>
+                </div>
+                <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform shrink-0', expanded && 'rotate-180')} />
+            </button>
+
+            {expanded && (
+                <div className="border-t border-rose-100 max-h-[480px] overflow-y-auto">
+                    {groups.map(group => (
+                        <div key={group.numero} className="px-4 py-3 border-b border-rose-100 last:border-b-0">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
+                                    Venda Monde
+                                </span>
+                                <span className="font-mono text-sm font-bold text-slate-900">{group.numero}</span>
+                                <span className="text-[10px] text-slate-500">
+                                    em {group.cards.length} cards
+                                </span>
+                            </div>
+                            <ul className="space-y-1">
+                                {group.cards.map(card => {
+                                    const inFile = tripExistingIds.has(card.id)
+                                    const stageName = stageNameById[card.pipeline_stage_id || ''] || '(etapa desconhecida)'
+                                    const isCurrentNumber = card.numeroAtual === group.numero
+                                    return (
+                                        <li key={card.id} className="flex items-start gap-2 text-xs">
+                                            {inFile ? (
+                                                <span
+                                                    className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0"
+                                                    title="Esse card veio na planilha"
+                                                >
+                                                    ✓ na planilha
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded shrink-0"
+                                                    title="Esse card NÃO veio na planilha de auditoria"
+                                                >
+                                                    ⚠ fora da planilha
+                                                </span>
+                                            )}
+                                            <Link
+                                                to={`/cards/${card.id}`}
+                                                className="text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline truncate flex-1 min-w-0"
+                                                title={card.titulo || card.id}
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                {card.titulo || '(sem título)'}
+                                            </Link>
+                                            <span className="text-[10px] text-slate-500 shrink-0">
+                                                {stageName}
+                                            </span>
+                                            {!isCurrentNumber && (
+                                                <span
+                                                    className="text-[10px] text-slate-400 shrink-0 italic"
+                                                    title="Esse número está no histórico do card, não como venda atual"
+                                                >
+                                                    (histórico)
+                                                </span>
+                                            )}
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Diff row helpers (uma linha por campo divergente) ──────
 
 type LucideIcon = typeof CheckCircle2
@@ -1949,6 +2071,73 @@ export default function ImportacaoPosVendaPage() {
                 counts[stageId] = count || 0
             }))
             return counts
+        },
+    })
+
+    // Auditoria de duplicatas — escaneia TODOS os cards ativos do funil pós-venda
+    // procurando números Monde repetidos em cards diferentes (atual ou histórico).
+    // Independe da planilha que o user subiu — é raio-X do CRM.
+    type DuplicateCard = {
+        id: string
+        titulo: string | null
+        pipeline_stage_id: string | null
+        pessoa_principal_id: string | null
+        numeroAtual: string | null
+        numerosHistorico: string[]
+    }
+    type DuplicateGroup = { numero: string; cards: DuplicateCard[] }
+    const { data: duplicateGroups = [], isLoading: loadingDuplicates } = useQuery<DuplicateGroup[]>({
+        queryKey: ['monde-duplicates', activeOrgId],
+        enabled: !!activeOrgId,
+        staleTime: 1000 * 60,
+        queryFn: async () => {
+            if (!activeOrgId) return []
+            const { data } = await supabase
+                .from('cards')
+                .select('id, titulo, pipeline_stage_id, pessoa_principal_id, produto_data')
+                .eq('org_id', activeOrgId)
+                .in('pipeline_stage_id', POS_VENDA_STAGES)
+                .is('archived_at', null)
+                .is('deleted_at', null)
+                .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                .limit(3000)
+
+            const cards = (data || []).map((c: Record<string, unknown>): DuplicateCard => {
+                const pd = (c.produto_data ?? {}) as Record<string, unknown>
+                const numeroAtual = typeof pd.numero_venda_monde === 'string' ? pd.numero_venda_monde : null
+                const histRaw = Array.isArray(pd.numeros_venda_monde_historico) ? pd.numeros_venda_monde_historico : []
+                const numerosHistorico = (histRaw as Array<{ numero?: unknown }>)
+                    .map(h => typeof h?.numero === 'string' ? h.numero : null)
+                    .filter((n): n is string => !!n)
+                return {
+                    id: c.id as string,
+                    titulo: (c.titulo as string) ?? null,
+                    pipeline_stage_id: (c.pipeline_stage_id as string) ?? null,
+                    pessoa_principal_id: (c.pessoa_principal_id as string) ?? null,
+                    numeroAtual,
+                    numerosHistorico,
+                }
+            })
+
+            // Agrupa por número Monde (atual + histórico). Cada card aparece UMA vez por número.
+            const byNum = new Map<string, Map<string, DuplicateCard>>()
+            for (const card of cards) {
+                const nums = new Set<string>()
+                if (card.numeroAtual) nums.add(card.numeroAtual)
+                for (const n of card.numerosHistorico) nums.add(n)
+                for (const n of nums) {
+                    if (!byNum.has(n)) byNum.set(n, new Map())
+                    byNum.get(n)!.set(card.id, card)
+                }
+            }
+
+            const groups: DuplicateGroup[] = []
+            for (const [numero, cardMap] of byNum) {
+                if (cardMap.size < 2) continue
+                groups.push({ numero, cards: [...cardMap.values()] })
+            }
+            // Ordena: maior número de cards duplicados primeiro
+            return groups.sort((a, b) => b.cards.length - a.cards.length)
         },
     })
 
@@ -3393,6 +3582,14 @@ export default function ImportacaoPosVendaPage() {
                                 setFilterTargetStage(prev => prev === stageId ? 'all' : stageId)
                                 setShowFilters(true)
                             }}
+                        />
+
+                        {/* Auditoria de duplicatas no CRM (raio-X — independe da planilha) */}
+                        <DuplicatesPanel
+                            groups={duplicateGroups}
+                            loading={loadingDuplicates}
+                            tripExistingIds={new Set(trips.map(t => t.existingCardId).filter((id): id is string => !!id))}
+                            stageNameById={Object.fromEntries(TARGET_STAGE_ORDER.map(s => [s.id, s.name]))}
                         />
 
                         {/* Auditoria — saúde das viagens já existentes no CRM */}
