@@ -46,6 +46,8 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const valor = fmtBRL(item.valor)
   const isVencido = item.status_apresentacao === 'vencido'
   const isCritical = item.prioridade === 'critica'
+  /** Crítica efetiva: se a tarefa é crítica direta OU a viagem inteira é crítica */
+  const isCriticalEffective = isCritical || !!item.card_is_critical
   const titulo = item.titulo?.trim() || catLabel
   const showCatPill = titulo !== catLabel
 
@@ -58,8 +60,8 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
       data-draggable
       className={cn(
         'group relative bg-white border rounded-lg shadow-sm cursor-grab active:cursor-grabbing transition-all hover:shadow-md',
-        isCritical && !selected && 'border-red-400 ring-2 ring-red-100',
-        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : !isCritical && 'border-slate-200',
+        isCriticalEffective && !selected && 'border-red-400 ring-2 ring-red-100',
+        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : !isCriticalEffective && 'border-slate-200',
         isDragging && !isOverlay && 'opacity-40',
         isOverlay && 'shadow-xl ring-2 ring-indigo-400 cursor-grabbing rotate-1'
       )}
@@ -83,10 +85,18 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
             'w-5 h-5 rounded flex items-center justify-center transition-all',
             isCritical
               ? 'bg-red-100 text-red-600 hover:bg-red-200 opacity-100'
+              : isCriticalEffective
+              ? 'bg-red-50 text-red-400 hover:bg-red-100 opacity-100'
               : 'text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
           )}
           aria-label={isCritical ? 'Remover marcação crítica' : 'Marcar como crítica'}
-          title={isCritical ? 'Tarefa crítica — clique pra remover' : 'Marcar como crítica'}
+          title={
+            isCritical
+              ? 'Tarefa crítica — clique pra remover'
+              : isCriticalEffective
+              ? 'Crítica porque a viagem está marcada como crítica'
+              : 'Marcar como crítica'
+          }
         >
           <Flame className="w-3 h-3" strokeWidth={2.5} />
         </button>

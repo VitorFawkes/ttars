@@ -36,6 +36,8 @@ export interface ViagemKanbanItem {
   card_is_critical: boolean
   pipeline_stage_id: string
   saude: SaudeViagem
+  /** Verdadeiro se algum atendimento aberto desta viagem tem prioridade='critica' */
+  has_tarefa_critica: boolean
   total_atendimentos: number
   abertos_count: number
   vencidos: number
@@ -156,6 +158,7 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
         const fechados = fechadosItems.length
         const fechados_ok = fechadosItems.filter(i => i.outcome === 'feito' || i.outcome === 'aceito' || (i.concluida && !i.outcome)).length
         const fechados_negativo = fechadosItems.filter(i => i.outcome === 'recusado' || i.outcome === 'cancelado').length
+        const has_tarefa_critica = abertos.some(i => i.prioridade === 'critica')
 
         const proximaData = abertos
           .map(i => i.data_vencimento)
@@ -183,6 +186,7 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
           fechados,
           fechados_ok,
           fechados_negativo,
+          has_tarefa_critica,
           proxima_data_vencimento: proximaData,
           dias_pra_embarque: head.dias_pra_embarque,
           tipos_pendentes: Array.from(tiposSet),

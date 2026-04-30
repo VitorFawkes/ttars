@@ -50,6 +50,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
   const isVencido = item.status_apresentacao === 'vencido'
   const isCritical = item.prioridade === 'critica'
+  const isCriticalEffective = isCritical || !!item.card_is_critical
   const tipoMeta = TIPO_LABEL[item.tipo_concierge]
   const sourceLabel = SOURCE_LABEL[item.source].label
   const cat = CATEGORIAS_CONCIERGE[item.categoria as keyof typeof CATEGORIAS_CONCIERGE]
@@ -84,12 +85,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               <span className="text-slate-500">{catLabel}</span>
               <span className="text-slate-300">·</span>
               <span className="text-slate-400">{sourceLabel}</span>
-              {isCritical && (
+              {isCriticalEffective && (
                 <>
                   <span className="text-slate-300">·</span>
                   <span className="inline-flex items-center gap-0.5 text-red-600">
                     <Flame className="w-3 h-3" strokeWidth={2.5} />
-                    Crítica
+                    {isCritical ? 'Crítica' : 'Viagem crítica'}
                   </span>
                 </>
               )}
@@ -104,10 +105,18 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               'shrink-0 p-1.5 rounded-lg transition-colors',
               isCritical
                 ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                : isCriticalEffective
+                ? 'bg-red-50 text-red-400 hover:bg-red-100'
                 : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
             )}
             aria-label={isCritical ? 'Remover marcação crítica' : 'Marcar como crítica'}
-            title={isCritical ? 'Tarefa crítica — clique pra remover' : 'Marcar como crítica'}
+            title={
+              isCritical
+                ? 'Tarefa crítica — clique pra remover'
+                : isCriticalEffective
+                ? 'Crítica porque a viagem está marcada como crítica — clique para marcar a tarefa também'
+                : 'Marcar como crítica'
+            }
           >
             <Flame className="w-4 h-4" strokeWidth={2.5} />
           </button>

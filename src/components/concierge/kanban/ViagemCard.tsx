@@ -45,6 +45,7 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
   const dataLabel = ini && fim ? `${ini} – ${fim}` : ini ?? 'Sem data'
   const isCritica = viagem.saude === 'critica'
   const isManualCritical = viagem.card_is_critical
+  const isCriticalEffective = isManualCritical || viagem.has_tarefa_critica
   const inlineTasks = viagem.abertos.slice(0, MAX_INLINE_TASKS)
   const remaining = viagem.abertos.length - inlineTasks.length
 
@@ -54,7 +55,7 @@ export function ViagemCard({ viagem, onOpenDrawer, onOpenTask }: ViagemCardProps
     <div
       className={cn(
         'group relative w-full bg-white border rounded-lg shadow-sm hover:shadow-md transition-all overflow-hidden',
-        isManualCritical
+        isCriticalEffective
           ? 'border-red-400 ring-2 ring-red-100'
           : isCritica
             ? 'border-red-200'
