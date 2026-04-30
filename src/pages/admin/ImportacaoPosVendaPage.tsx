@@ -856,7 +856,10 @@ function DestinationStageSummary({
                     const c = counts.get(stage.id) || { total: 0, alreadyThere: 0 }
                     const current = stageCounts[stage.id] ?? 0
                     const stageDelta = delta[stage.id] || 0
-                    const projected = current + stageDelta
+                    // Clamp pra evitar negativo absurdo se houver mismatch entre filtros
+                    // de stageCounts e match (ex: planilha aponta pra cards já fechados que
+                    // não estão sendo contados no kanban).
+                    const projected = Math.max(0, current + stageDelta)
                     const fileHere = fileNowInStage[stage.id] || 0  // arquivo: quantas estão AQUI hoje no CRM
                     const fileGoing = c.total                        // arquivo: quantas vão TERMINAR aqui
                     const isSelected = filterTargetStage === stage.id
@@ -881,24 +884,26 @@ function DestinationStageSummary({
                                     ? `Arquivo: ${fileHere} estão hoje aqui (vão sair pra outras etapas)`
                                     : 'Nenhuma viagem do arquivo nessa etapa')}
                         >
-                            <span className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <span className="flex flex-col min-w-0 flex-1">
                                 <span className="font-medium text-sm truncate">{stage.name}</span>
-                                {/* Contagem do ARQUIVO por etapa: quantas estão hoje + quantas vão chegar.
-                                    Mostra só os números relevantes (não-zero). */}
-                                {(fileHere > 0 || fileGoing > 0) && (
-                                    <span className="text-[10px] opacity-75 shrink-0 inline-flex items-center gap-1">
-                                        <span className="font-semibold uppercase tracking-wide opacity-60">arq:</span>
-                                        {fileHere > 0 && <span>{fileHere} hoje aqui</span>}
-                                        {fileHere > 0 && fileGoing > 0 && <span className="opacity-50">·</span>}
-                                        {fileGoing > 0 && <span>{fileGoing} chegando</span>}
+                                {/* Sub-linha pequena: contagem da planilha. Só aparece se há
+                                    viagens da planilha que tocam essa etapa de alguma forma. */}
+                                {(fileGoing > 0 || fileHere > 0) && (
+                                    <span className="text-[10px] opacity-70 mt-0.5">
+                                        {fileGoing > 0 && (
+                                            <>{fileGoing} {fileGoing === 1 ? 'viagem da planilha' : 'viagens da planilha'} {fileGoing === 1 ? 'vai' : 'vão'} terminar aqui</>
+                                        )}
+                                        {fileGoing === 0 && fileHere > 0 && (
+                                            <>{fileHere} {fileHere === 1 ? 'viagem da planilha está aqui hoje' : 'viagens da planilha estão aqui hoje'} (todas saem)</>
+                                        )}
                                     </span>
                                 )}
                             </span>
                             <span className="flex items-center gap-2 shrink-0 tabular-nums">
                                 <span className={cn(
                                     'text-sm',
-                                    hasInteraction ? 'text-slate-500' : 'text-slate-400'
-                                )}>
+                                    hasInteraction ? 'text-slate-600' : 'text-slate-400'
+                                )} title="Cards no funil hoje">
                                     {current}
                                 </span>
                                 <ArrowRight className={cn('h-3 w-3', hasInteraction ? 'opacity-60' : 'opacity-30')} />
@@ -907,7 +912,7 @@ function DestinationStageSummary({
                                     stageDelta > 0 && 'text-emerald-700',
                                     stageDelta < 0 && 'text-rose-700',
                                     stageDelta === 0 && (hasInteraction ? 'text-slate-700' : 'text-slate-400'),
-                                )}>
+                                )} title="Cards depois de aplicar">
                                     {projected}
                                 </span>
                                 {stageDelta !== 0 && (
@@ -2345,6 +2350,7 @@ export default function ImportacaoPosVendaPage() {
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
                             .is('archived_at', null)
                             .is('deleted_at', null)
+                            .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
                             .gte('data_viagem_fim', trip.dataInicio)
                             .limit(5)
