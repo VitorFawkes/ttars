@@ -105,6 +105,14 @@ export interface IdentityConfig {
 export interface VoiceConfig {
   tone_tags?: string[];
   formality?: number;
+  /**
+   * Lista LIVRE de regras de tom — substituiu emoji_policy + regionalisms
+   * em 2026-04-30. Cada string é renderizada como bullet em <voice>.
+   */
+  rules?: string[];
+  typical_phrases?: string[];
+  forbidden_phrases?: string[];
+  // Campos legados — mantidos pra agentes ainda não migrados.
   emoji_policy?: 'never' | 'after_rapport' | 'anytime';
   regionalisms?: {
     uses_a_gente?: boolean;
@@ -112,8 +120,8 @@ export interface VoiceConfig {
     uses_gerundio?: boolean;
     casual_tu_mano?: boolean;
   };
-  typical_phrases?: string[];
-  forbidden_phrases?: string[];
+  /** @deprecated Renomeado pra `rules`. */
+  custom_rules?: string[];
 }
 
 export interface BoundariesConfig {

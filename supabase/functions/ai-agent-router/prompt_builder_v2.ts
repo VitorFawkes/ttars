@@ -206,13 +206,30 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
     : `Formalidade ${formality}/5. Emoji: ${emojiPolicy === 'never' ? 'nunca' : emojiPolicy === 'anytime' ? 'à vontade' : 'só depois de rapport'}.`;
   lines.push(toneLine);
 
-  const r = voice.regionalisms ?? {};
-  const regs: string[] = [];
-  if (r.uses_a_gente) regs.push('"A gente" (nunca "nós").');
-  if (r.uses_voces_casal) regs.push('"Vocês" pro casal (nunca separar em "você e seu parceiro").');
-  if (r.uses_gerundio) regs.push('Gerúndio natural ("tô vendo").');
-  if (r.casual_tu_mano) regs.push('Tratamento casual com "cara/mano" quando o lead usar primeiro.');
-  if (regs.length > 0) lines.push(regs.join(' '));
+  // Regras de tom — totalmente livres a partir de 2026-04-30.
+  // Prioridade: voice.rules → voice.custom_rules (legado renomeado) →
+  // derivado de emoji_policy + regionalisms (compat com agentes não migrados).
+  const explicitRules = voice.rules?.length ? voice.rules : voice.custom_rules;
+  let rules: string[];
+  if (explicitRules && explicitRules.length > 0) {
+    rules = explicitRules;
+  } else {
+    // Fallback: deriva de campos legados.
+    const derived: string[] = [];
+    if (voice.emoji_policy === 'never') derived.push('Nunca usa emoji.');
+    else if (voice.emoji_policy === 'after_rapport') derived.push('Não usa emoji na primeira mensagem. Depois de rapport, máximo 1 emoji por mensagem.');
+    else if (voice.emoji_policy === 'anytime') derived.push('Pode usar emoji livremente quando fizer sentido.');
+    const r = voice.regionalisms ?? {};
+    if (r.uses_a_gente) derived.push('Diz "a gente" em vez de "nós".');
+    if (r.uses_voces_casal) derived.push('Trata casal/grupo como "vocês" (sem separar em "você e seu parceiro").');
+    if (r.uses_gerundio) derived.push('Usa gerúndio natural ("tô vendo").');
+    if (r.casual_tu_mano) derived.push('Casual com "cara/mano" quando o lead usar primeiro.');
+    rules = derived;
+  }
+  if (rules.length > 0) {
+    lines.push('Regras de tom:');
+    rules.forEach(rule => lines.push(`  • ${rule}`));
+  }
 
   const typical = voice.typical_phrases ?? [];
   if (typical.length > 0) {
