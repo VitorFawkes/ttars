@@ -782,14 +782,60 @@ const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
 ]
 
 function DestinationStageSummary({
-    trips, filterTargetStage, onSelectStage, stageCounts,
+    trips, filterTargetStage, onSelectStage, stageCounts, activeOrgId,
 }: {
     trips: TripGroup[]
     filterTargetStage: string
     onSelectStage: (stageId: string) => void
     /** Contagem ATUAL no CRM por stage_id (ativos em fluxo, sem arquivados) */
     stageCounts: Record<string, number>
+    /** Workspace ativo — necessário pra buscar a lista dos cards "fora da planilha" */
+    activeOrgId: string | null
 }) {
+    // Estado: qual etapa teve a lista "fora da planilha" expandida pelo usuário
+    const [expandedOutStage, setExpandedOutStage] = useState<string | null>(null)
+
+    // IDs de cards da planilha que estão atualmente em cada etapa (action=update).
+    // Usado para excluir esses IDs da query de "fora da planilha".
+    const fileIdsCurrentlyInStage: Record<string, string[]> = {}
+    for (const t of trips) {
+        if (!t.existingCardId || !t.existingStageId) continue
+        if (!fileIdsCurrentlyInStage[t.existingStageId]) fileIdsCurrentlyInStage[t.existingStageId] = []
+        fileIdsCurrentlyInStage[t.existingStageId].push(t.existingCardId)
+    }
+
+    // Busca dos cards "fora da planilha" da etapa expandida — só roda quando o user clica.
+    const idsToExcludeKey = expandedOutStage ? (fileIdsCurrentlyInStage[expandedOutStage] || []).join(',') : ''
+    const { data: outOfFileCards = [], isLoading: loadingOutOfFile } = useQuery({
+        queryKey: ['out-of-file-cards', activeOrgId, expandedOutStage, idsToExcludeKey],
+        enabled: !!expandedOutStage && !!activeOrgId,
+        staleTime: 1000 * 30,
+        queryFn: async () => {
+            if (!expandedOutStage || !activeOrgId) return []
+            let q = supabase
+                .from('cards')
+                .select('id, titulo, data_viagem_inicio, data_viagem_fim, pessoa_principal_id')
+                .eq('org_id', activeOrgId)
+                .eq('pipeline_stage_id', expandedOutStage)
+                .is('archived_at', null)
+                .is('deleted_at', null)
+                .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                .order('data_viagem_inicio', { ascending: true, nullsFirst: false })
+                .limit(200)
+            const idsInFile = fileIdsCurrentlyInStage[expandedOutStage] || []
+            if (idsInFile.length > 0) {
+                // PostgREST: NOT IN com lista
+                q = q.not('id', 'in', `(${idsInFile.join(',')})`)
+            }
+            const { data } = await q
+            return (data || []) as Array<{
+                id: string; titulo: string;
+                data_viagem_inicio: string | null; data_viagem_fim: string | null;
+                pessoa_principal_id: string | null
+            }>
+        },
+    })
+
     if (trips.length === 0) return null
 
     // Mapa por etapa-destino (vão chegar):
@@ -807,7 +853,6 @@ function DestinationStageSummary({
     }
 
     // Mapa por etapa-atual no CRM: quantas viagens do arquivo ESTÃO HOJE em cada etapa.
-    // Útil pra mostrar "a planilha tem X viagens cujo card está hoje em App & Conteúdo".
     const fileNowInStage: Record<string, number> = {}
     for (const t of trips) {
         if (t.action !== 'update' || !t.existingStageId) continue
@@ -864,9 +909,11 @@ function DestinationStageSummary({
                     const fileGoing = c.total                        // arquivo: quantas vão TERMINAR aqui
                     const isSelected = filterTargetStage === stage.id
                     const hasInteraction = fileGoing > 0 || fileHere > 0  // tem viagem do arquivo nessa etapa de algum jeito
+                    const isOutListOpen = expandedOutStage === stage.id
+                    const outOfFileCount = Math.max(0, projected - fileGoing)
                     return (
+                        <div key={stage.id} className="space-y-1">
                         <button
-                            key={stage.id}
                             type="button"
                             onClick={() => fileGoing > 0 && onSelectStage(stage.id)}
                             disabled={fileGoing === 0}
@@ -931,7 +978,86 @@ function DestinationStageSummary({
                                     cards no CRM
                                 </span>
                             </span>
+
+                            {/* Bloco 3: FORA DA PLANILHA — cards depois - vagens da planilha que terminam aqui.
+                                Esses são candidatos a estar errados (estão na etapa mas não vieram na planilha de auditoria). */}
+                            {(() => {
+                                const outOfFile = Math.max(0, projected - fileGoing)
+                                if (outOfFile === 0) return null
+                                const isOpen = expandedOutStage === stage.id
+                                return (
+                                    <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setExpandedOutStage(isOpen ? null : stage.id)
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.stopPropagation(); e.preventDefault()
+                                                setExpandedOutStage(isOpen ? null : stage.id)
+                                            }
+                                        }}
+                                        className={cn(
+                                            'shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20 cursor-pointer rounded-md transition-colors',
+                                            isOpen ? 'ring-2 ring-rose-300' : 'hover:bg-rose-50/40'
+                                        )}
+                                        title="Cards na etapa que NÃO vieram na planilha — clica pra ver quais"
+                                    >
+                                        <span className="inline-flex items-center gap-1 text-base font-bold text-rose-700">
+                                            {outOfFile}
+                                            <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+                                        </span>
+                                        <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5 text-rose-700">
+                                            fora da planilha
+                                        </span>
+                                    </span>
+                                )
+                            })()}
                         </button>
+
+                        {/* Lista expandida: cards na etapa que não vieram na planilha (suspeitos).
+                            Aparece quando user clica no contador "fora da planilha" da linha. */}
+                        {isOutListOpen && outOfFileCount > 0 && (
+                            <div className="bg-rose-50/50 border border-rose-200 rounded-lg px-3 py-2.5 ml-3 mr-3">
+                                <div className="text-[11px] font-medium text-rose-900 mb-2">
+                                    {outOfFileCount} {outOfFileCount === 1 ? 'card está' : 'cards estão'} em "{stage.name}" mas não {outOfFileCount === 1 ? 'veio' : 'vieram'} na planilha:
+                                </div>
+                                {loadingOutOfFile && (
+                                    <div className="text-xs text-slate-500">Carregando…</div>
+                                )}
+                                {!loadingOutOfFile && outOfFileCards.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">Nenhum card encontrado.</div>
+                                )}
+                                {!loadingOutOfFile && outOfFileCards.length > 0 && (
+                                    <ul className="space-y-1 max-h-64 overflow-y-auto">
+                                        {outOfFileCards.map(card => (
+                                            <li key={card.id} className="text-xs flex items-center gap-2 hover:bg-rose-100/50 px-2 py-1 rounded">
+                                                <Link
+                                                    to={`/cards/${card.id}`}
+                                                    className="flex-1 min-w-0 truncate text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline"
+                                                    title={card.titulo}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {card.titulo || '(sem título)'}
+                                                </Link>
+                                                <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                                                    {card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : '—'}
+                                                    {card.data_viagem_fim && ` → ${formatDateBR(card.data_viagem_fim)}`}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {outOfFileCards.length === 200 && (
+                                    <div className="text-[10px] text-rose-600 mt-1.5 italic">
+                                        Mostrando os primeiros 200. Há mais cards fora da planilha nessa etapa.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        </div>
                     )
                 })}
             </div>
@@ -3236,6 +3362,7 @@ export default function ImportacaoPosVendaPage() {
                             trips={trips}
                             filterTargetStage={filterTargetStage}
                             stageCounts={stageCounts}
+                            activeOrgId={activeOrgId ?? null}
                             onSelectStage={(stageId) => {
                                 setFilterTargetStage(prev => prev === stageId ? 'all' : stageId)
                                 setShowFilters(true)
