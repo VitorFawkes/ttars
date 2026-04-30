@@ -145,12 +145,14 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
 
   return (
     <div className={cn(
-      'bg-white border rounded-lg',
-      hideToggle ? 'border-transparent' : (
-        expanded
-          ? (isFlow ? 'border-indigo-200' : 'border-rose-200')
-          : 'border-slate-200'
-      ),
+      hideToggle
+        ? 'bg-white border border-slate-200 rounded-xl shadow-sm'
+        : cn(
+            'bg-white border rounded-lg',
+            expanded
+              ? (isFlow ? 'border-indigo-200' : 'border-rose-200')
+              : 'border-slate-200'
+          ),
     )}>
       {!hideToggle && (
         <header className="flex items-center gap-2 px-3 py-2.5">
@@ -177,8 +179,8 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
 
       {expanded && (
         <div className={cn(
-          'space-y-3',
-          hideToggle ? 'p-0' : 'px-4 pb-4 border-t border-slate-100 pt-3',
+          'space-y-4',
+          hideToggle ? 'p-5' : 'px-4 pb-4 border-t border-slate-100 pt-3',
         )}>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">

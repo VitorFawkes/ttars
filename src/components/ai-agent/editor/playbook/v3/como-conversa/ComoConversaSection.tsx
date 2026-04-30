@@ -43,8 +43,8 @@ export function ComoConversaSection({ agentId, agentName, companyName }: Props) 
 
   return (
     <div className="space-y-5">
-      {/* Sub-tabs nav */}
-      <nav className="flex flex-wrap gap-1 border-b border-slate-200 -mx-4 px-4">
+      {/* Sub-tabs nav — scroll horizontal em mobile pra não quebrar layout */}
+      <nav className="flex gap-1 border-b border-slate-200 -mx-4 px-4 overflow-x-auto scrollbar-thin">
         {SUB_TABS.map(t => {
           const Icon = t.icon
           const active = activeTab === t.key
@@ -54,7 +54,7 @@ export function ComoConversaSection({ agentId, agentName, companyName }: Props) 
               type="button"
               onClick={() => setActiveTab(t.key)}
               className={cn(
-                'inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                'inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex-shrink-0',
                 active
                   ? 'border-indigo-500 text-indigo-700'
                   : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-200'
@@ -63,7 +63,7 @@ export function ComoConversaSection({ agentId, agentName, companyName }: Props) 
               <Icon className="w-3.5 h-3.5" />
               <span>{t.label}</span>
               <span className={cn(
-                'text-[10px] hidden sm:inline',
+                'text-[10px] hidden md:inline',
                 active ? 'text-indigo-500' : 'text-slate-400',
               )}>
                 · {t.subtitle}

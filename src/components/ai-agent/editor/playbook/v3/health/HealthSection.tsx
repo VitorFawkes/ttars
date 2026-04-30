@@ -107,18 +107,18 @@ export function HealthSection({ agentId }: Props) {
               Sem atividade registrada ainda.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <Stat label="Conversas (24h)" value={stats.conversations_24h} />
               <Stat label="Respostas (24h)" value={stats.agent_turns_24h} />
               <Stat label="Conversas (7d)" value={stats.user_turns_7d} />
               <Stat label="Encaminhadas (24h)" value={stats.escalated_24h} />
               <Stat
-                label="Falhas de envio WA (24h)"
+                label="Falhas WA (24h)"
                 value={stats.whatsapp_failed_24h}
                 tone={stats.whatsapp_failed_24h > 0 ? 'warning' : 'normal'}
               />
               <Stat
-                label="Falhas em ferramentas (24h)"
+                label="Falhas tool (24h)"
                 value={stats.tool_failures_24h}
                 tone={stats.tool_failures_24h > 0 ? 'warning' : 'normal'}
               />

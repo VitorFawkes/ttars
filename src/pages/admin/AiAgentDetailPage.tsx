@@ -333,15 +333,19 @@ export default function AiAgentDetailPage() {
           { id: 'validador', label: 'Regras do validador', icon: ShieldAlert, disabled: isN8n, disabledHint: 'Validador mora no n8n' },
         ]
 
+    // Fase 6 — quando UI v3 ativa, escondemos 3 abas redundantes:
+    //   cenarios     → já existe como "Jogadas" dentro de Como conversa
+    //   conhecimento → já existe como sub-aba dentro de Como conversa
+    //   prompts      → system_prompt deprecated; tom mora em Voz, regras em Linhas vermelhas
     const sharedTabs: EditorTab[] = [
       { id: 'regras_negocio', label: 'Regras de negócio', icon: Settings },
       // Aba Pontuação só aparece em modo clássico — no Playbook v2 a qualificação
       // vive dentro da seção Qualificação (inline, CRUD completo).
       ...(form.playbook_enabled ? [] : [{ id: 'pontuacao', label: 'Pontuação', icon: Target } as EditorTab]),
-      { id: 'cenarios', label: 'Cenários especiais', icon: Zap },
-      { id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' },
+      ...(v3Enabled ? [] : [{ id: 'cenarios', label: 'Cenários especiais', icon: Zap } as EditorTab]),
+      ...(v3Enabled ? [] : [{ id: 'prompts', label: 'Prompts', icon: Sparkles, disabled: isN8n, disabledHint: 'Este agente usa n8n — edite os prompts no workflow' } as EditorTab]),
       { id: 'ferramentas', label: 'Ferramentas', icon: Wrench },
-      { id: 'conhecimento', label: 'Conhecimento', icon: BookOpen },
+      ...(v3Enabled ? [] : [{ id: 'conhecimento', label: 'Conhecimento', icon: BookOpen } as EditorTab]),
       ...technicalTabs,
       { id: 'handoff', label: 'Handoff', icon: Handshake },
       { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
