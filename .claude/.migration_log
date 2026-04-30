@@ -679,3 +679,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-29T19:17:19Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260429c_corporativo_ai_classifier.sql | applied_to_prod
 2026-04-29T20:48:49Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430a_corp_company_contacts.sql | applied_to_prod
 2026-04-30T16:20:55Z | supabase/migrations/20260430_bulk_pos_venda_dates_and_monde_sync.sql | applied_to_prod
+2026-04-30T16:48:54Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430b_corp_demo_seed.sql | applied_to_prod
+2026-04-30T16:49:27Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430b_corp_demo_seed.sql | applied_to_prod
+2026-04-30T16:51:02Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430b_corp_demo_seed.sql | applied_to_prod
+2026-04-30T16:52:07Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430b_corp_demo_seed.sql | applied_to_prod
