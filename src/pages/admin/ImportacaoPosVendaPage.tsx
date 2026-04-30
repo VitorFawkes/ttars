@@ -1501,6 +1501,7 @@ export default function ImportacaoPosVendaPage() {
             const colPassageiros = findColumn(headers, ['passageiros', 'passageiro', 'pax', 'viajantes'])
             const colVendedor = findColumn(headers, ['vendedor', 'vendedores', 'consultor', 'consultores'])
             const colValor = findColumn(headers, ['valor (r$)', 'valor', 'total', 'valor total', 'faturamento'])
+            const colReceita = findColumn(headers, RECEITA_ALIASES)
 
             if (!colPagante || !colInicio) {
                 toast.error('Planilha por viagem precisa ter pelo menos as colunas: Pagante e Início.')
@@ -1566,6 +1567,7 @@ export default function ImportacaoPosVendaPage() {
                 const vendedorRaw = colVendedor ? String(r[colVendedor] ?? '').trim() : ''
                 const vendedor = (vendedorRaw === '—' || vendedorRaw === '-') ? '' : vendedorRaw.split(/[;,]/)[0]?.trim() || ''
                 const valorTotal = colValor ? parseBRNumber(r[colValor]) : 0
+                const receita = colReceita ? parseBRNumber(r[colReceita]) : 0
 
                 // Pessoas únicas: pagante + passageiros (sem duplicar)
                 const personSet = new Map<string, string>()
@@ -1578,11 +1580,14 @@ export default function ImportacaoPosVendaPage() {
                 const acompanhantes = allPassengers.filter(p => norm(p) !== pagNorm)
 
                 // Construir products[] pareando produto-fornecedor-venda 1-pra-1.
-                // Valor distribuído igualmente (não temos detalhe na planilha agregada).
+                // Valor e receita distribuídos igualmente (não temos detalhe por produto).
                 const N = Math.max(produtos.length, 1)
                 const valorPorProduto = produtos.length > 0
                     ? Math.round((valorTotal / N) * 100) / 100
                     : valorTotal
+                const receitaPorProduto = produtos.length > 0
+                    ? Math.round((receita / N) * 100) / 100
+                    : receita
                 const products: PosVendaCsvRow[] = (produtos.length > 0 ? produtos : ['Viagem']).map((prod, i) => ({
                     vendaNum: vendaNums[i] || vendaNums[0] || '',
                     vendedor,
@@ -1600,7 +1605,7 @@ export default function ImportacaoPosVendaPage() {
                     appGerado: 'sim',
                     vouchersNoApp: 'sim',
                     contratoVoucher: '',
-                    receita: 0,
+                    receita: receitaPorProduto,
                     valorTotal: valorPorProduto,
                 }))
 
@@ -1629,7 +1634,7 @@ export default function ImportacaoPosVendaPage() {
                     stage,
                     appEnviadoConcluida: true,
                     valorTotal,
-                    receita: 0,
+                    receita,
                     vendaNums,
                 })
             }
@@ -1882,7 +1887,9 @@ export default function ImportacaoPosVendaPage() {
             // Quando uma viagem da planilha agregada vai CRIAR card novo, a receita
             // não vem na planilha — buscamos no log de imports anteriores (que vieram
             // da planilha detalhada com a coluna Receita) usando os números de venda.
-            const tripsThatNeedReceita = fullTrips.filter(t => t.action === 'create' && t.vendaNums.length > 0)
+            // Só faz lookup do histórico pra trips CREATE que NÃO trouxeram receita na planilha
+            // (fallback). Se a planilha já tem coluna Receita preenchida, usa direto.
+            const tripsThatNeedReceita = fullTrips.filter(t => t.action === 'create' && t.vendaNums.length > 0 && (t.receita || 0) === 0)
             if (tripsThatNeedReceita.length > 0) {
                 const allVendaNums = [...new Set(tripsThatNeedReceita.flatMap(t => t.vendaNums))]
                 if (allVendaNums.length > 0) {
