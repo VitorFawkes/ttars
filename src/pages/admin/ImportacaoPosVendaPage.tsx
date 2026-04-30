@@ -884,53 +884,52 @@ function DestinationStageSummary({
                                     ? `Arquivo: ${fileHere} estão hoje aqui (vão sair pra outras etapas)`
                                     : 'Nenhuma viagem do arquivo nessa etapa')}
                         >
-                            <span className="flex flex-col min-w-0 flex-1">
-                                <span className="font-medium text-sm truncate">{stage.name}</span>
-                                {/* Sub-linha: o que a planilha faz nessa etapa, sem somar conceitos.
-                                    - chegam: viagens VINDO de outras etapas pra cá
-                                    - saem: viagens cujo card está aqui hoje E vão pra outra etapa
-                                    - ficam: já estão aqui hoje E continuam aqui
-                                    Só mostra termos com valor > 0, separados por ponto. */}
-                                {(() => {
-                                    const chegam = c.total - c.alreadyThere       // vão chegar de fora
-                                    const ficam = c.alreadyThere                   // já estão aqui e ficam
-                                    const saem = Math.max(0, fileHere - c.alreadyThere) // estão hoje aqui e vão sair
-                                    const parts: string[] = []
-                                    if (chegam > 0) parts.push(`${chegam} ${chegam === 1 ? 'chega aqui' : 'chegam aqui'}`)
-                                    if (saem > 0) parts.push(`${saem} ${saem === 1 ? 'sai daqui' : 'saem daqui'}`)
-                                    if (ficam > 0) parts.push(`${ficam} ${ficam === 1 ? 'já está e fica' : 'já estão e ficam'}`)
-                                    if (parts.length === 0) return null
-                                    return (
-                                        <span className="text-[10px] opacity-70 mt-0.5">
-                                            {parts.join(' · ')}
-                                        </span>
-                                    )
-                                })()}
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0 tabular-nums">
-                                <span className={cn(
-                                    'text-sm',
-                                    hasInteraction ? 'text-slate-600' : 'text-slate-400'
-                                )} title="Cards no funil hoje">
-                                    {current}
-                                </span>
-                                <ArrowRight className={cn('h-3 w-3', hasInteraction ? 'opacity-60' : 'opacity-30')} />
+                            {/* Nome da etapa */}
+                            <span className="font-medium text-sm truncate flex-1 min-w-0">{stage.name}</span>
+
+                            {/* Bloco 1: PLANILHA — quantas viagens da planilha vão terminar nessa etapa */}
+                            <span className="shrink-0 inline-flex flex-col items-end tabular-nums">
                                 <span className={cn(
                                     'text-base font-bold',
-                                    stageDelta > 0 && 'text-emerald-700',
-                                    stageDelta < 0 && 'text-rose-700',
-                                    stageDelta === 0 && (hasInteraction ? 'text-slate-700' : 'text-slate-400'),
-                                )} title="Cards depois de aplicar">
-                                    {projected}
+                                    fileGoing > 0 ? 'text-slate-900' : 'text-slate-300'
+                                )}>
+                                    {fileGoing}
                                 </span>
-                                {stageDelta !== 0 && (
+                                <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
+                                    da planilha
+                                </span>
+                            </span>
+
+                            {/* Bloco 2: CRM — cards hoje → depois (com delta) */}
+                            <span className="shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20">
+                                <span className="inline-flex items-center gap-1.5">
                                     <span className={cn(
-                                        'text-[10px] font-semibold',
-                                        stageDelta > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                        'text-sm',
+                                        hasInteraction ? 'text-slate-500' : 'text-slate-400'
                                     )}>
-                                        {stageDelta > 0 ? `+${stageDelta}` : stageDelta}
+                                        {current}
                                     </span>
-                                )}
+                                    <ArrowRight className={cn('h-3 w-3', hasInteraction ? 'opacity-60' : 'opacity-30')} />
+                                    <span className={cn(
+                                        'text-base font-bold',
+                                        stageDelta > 0 && 'text-emerald-700',
+                                        stageDelta < 0 && 'text-rose-700',
+                                        stageDelta === 0 && (hasInteraction ? 'text-slate-700' : 'text-slate-400'),
+                                    )}>
+                                        {projected}
+                                    </span>
+                                    {stageDelta !== 0 && (
+                                        <span className={cn(
+                                            'text-[10px] font-semibold',
+                                            stageDelta > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                        )}>
+                                            {stageDelta > 0 ? `+${stageDelta}` : stageDelta}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
+                                    cards no CRM
+                                </span>
                             </span>
                         </button>
                     )
