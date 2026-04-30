@@ -892,6 +892,15 @@ function DestinationStageSummary({
         fileNowInStage[t.existingStageId] = (fileNowInStage[t.existingStageId] || 0) + 1
     }
 
+    // Por etapa-destino: quantas viagens da planilha vão CRIAR card novo lá.
+    // Auditoria completa: além de "CRM tem a mais" (fora da planilha), também
+    // saber "planilha tem a mais" (viagens novas que ainda não existem no CRM).
+    const creatingByStage: Record<string, number> = {}
+    for (const t of trips) {
+        if (t.action !== 'create') continue
+        creatingByStage[t.stage.id] = (creatingByStage[t.stage.id] || 0) + 1
+    }
+
     const totalActionable = [...counts.values()].reduce((s, c) => s + c.total, 0)
     if (totalActionable === 0) return null
 
@@ -969,18 +978,32 @@ function DestinationStageSummary({
                             {/* Nome da etapa */}
                             <span className="font-medium text-sm truncate flex-1 min-w-0">{stage.name}</span>
 
-                            {/* Bloco 1: PLANILHA — quantas viagens da planilha vão terminar nessa etapa */}
-                            <span className="shrink-0 inline-flex flex-col items-end tabular-nums">
-                                <span className={cn(
-                                    'text-base font-bold',
-                                    fileGoing > 0 ? 'text-slate-900' : 'text-slate-300'
-                                )}>
-                                    {fileGoing}
-                                </span>
-                                <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
-                                    da planilha
-                                </span>
-                            </span>
+                            {/* Bloco 1: PLANILHA — total que termina nessa etapa + breakdown criar/atualizar */}
+                            {(() => {
+                                const creating = creatingByStage[stage.id] || 0
+                                const updating = fileGoing - creating
+                                return (
+                                    <span className="shrink-0 inline-flex flex-col items-end tabular-nums">
+                                        <span className={cn(
+                                            'text-base font-bold',
+                                            fileGoing > 0 ? 'text-slate-900' : 'text-slate-300'
+                                        )}>
+                                            {fileGoing}
+                                        </span>
+                                        <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
+                                            da planilha
+                                        </span>
+                                        {/* Breakdown: cards a criar (planilha tem, CRM não tem) — auditoria do "tem a mais na planilha" */}
+                                        {fileGoing > 0 && (updating > 0 || creating > 0) && (
+                                            <span className="text-[9px] opacity-70 mt-0.5 whitespace-nowrap">
+                                                {updating > 0 && <span>{updating} atualizar</span>}
+                                                {updating > 0 && creating > 0 && <span> · </span>}
+                                                {creating > 0 && <span className="text-emerald-700 font-medium">{creating} criar</span>}
+                                            </span>
+                                        )}
+                                    </span>
+                                )
+                            })()}
 
                             {/* Bloco 2: CRM — cards hoje → depois (com delta) */}
                             <span className="shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20">
@@ -2356,6 +2379,74 @@ export default function ImportacaoPosVendaPage() {
         })
         setDuplicatesAutoSeeded(true)
     }, [duplicateGroups, loadingDuplicates, duplicatesAutoSeeded])
+
+    // Cards atualmente em App & Conteúdo que a planilha quer mover pra outra etapa.
+    // Pra cada um, verificar se tarefas críticas ("Criar App", "Liberar App", "Conferir
+    // Vouchers", "Adicionar vouchers no App") estão concluídas — se não, BLOQUEAR a
+    // mudança de etapa por padrão (regra do negócio: card só sai do App quando o app
+    // está pronto). User pode forçar manualmente desmarcando o aviso.
+    const cardsLeavingAppConteudo = trips
+        .filter(t => t.action === 'update'
+            && t.existingStageId === STAGE_APP_CONTEUDO
+            && t.stage.id !== STAGE_APP_CONTEUDO
+            && !!t.existingCardId)
+        .map(t => t.existingCardId as string)
+    const cardsLeavingAppKey = [...new Set(cardsLeavingAppConteudo)].sort().join(',')
+
+    const { data: appPendingTasksByCard = {} } = useQuery<Record<string, string[]>>({
+        queryKey: ['app-conteudo-tasks-pending', cardsLeavingAppKey],
+        enabled: cardsLeavingAppConteudo.length > 0,
+        staleTime: 1000 * 60,
+        queryFn: async () => {
+            if (cardsLeavingAppConteudo.length === 0) return {}
+            const ids = [...new Set(cardsLeavingAppConteudo)]
+            const { data } = await supabase
+                .from('tarefas')
+                .select('card_id, titulo, concluida')
+                .in('card_id', ids)
+                .in('titulo', ['Criar App', 'App Enviado para o Cliente', 'Conferir Vouchers', 'Adicionar vouchers no App', 'Liberar App'])
+            const map: Record<string, string[]> = {}
+            for (const t of (data || []) as Array<{ card_id: string; titulo: string; concluida: boolean }>) {
+                if (!t.concluida) {
+                    if (!map[t.card_id]) map[t.card_id] = []
+                    map[t.card_id].push(t.titulo)
+                }
+            }
+            return map
+        },
+    })
+
+    // Bloqueia moveStage automaticamente quando o card está em App & Conteúdo
+    // com tarefas pendentes (1x por trip — não sobrescreve escolhas manuais).
+    const [appBlockApplied, setAppBlockApplied] = useState(false)
+    useEffect(() => {
+        if (appBlockApplied) return
+        if (cardsLeavingAppConteudo.length === 0) return
+        if (Object.keys(appPendingTasksByCard).length === 0) return
+        setTrips(prev => prev.map(t => {
+            if (t.action !== 'update') return t
+            if (t.existingStageId !== STAGE_APP_CONTEUDO) return t
+            if (!t.existingCardId) return t
+            const pending = appPendingTasksByCard[t.existingCardId]
+            if (pending && pending.length > 0) {
+                // Adiciona issue ao audit pra mostrar o aviso visual + força moveStage=false
+                const newIssues = [
+                    ...t.audit.issues,
+                    `Tarefas pendentes em App & Conteúdo (${pending.join(', ')}) — não recomendamos mover pra outra etapa.`,
+                ]
+                return {
+                    ...t,
+                    moveStage: false,
+                    audit: {
+                        severity: t.audit.severity === 'error' ? 'error' : 'warn',
+                        issues: newIssues,
+                    },
+                }
+            }
+            return t
+        }))
+        setAppBlockApplied(true)
+    }, [appPendingTasksByCard, appBlockApplied, cardsLeavingAppConteudo.length])
 
     // ─── Process CSV rows ────────────────────────────────────
     const processRows = useCallback(async (rawRows: Record<string, unknown>[], file: string) => {
