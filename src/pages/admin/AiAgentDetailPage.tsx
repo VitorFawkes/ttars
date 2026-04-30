@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send, MessageCircle, Target,
+  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -35,6 +35,7 @@ import { TabCenariosEspeciais } from '@/components/ai-agent/editor/TabCenariosEs
 import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
 import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
 import { TabPlaybook } from '@/components/ai-agent/editor/playbook/TabPlaybook'
+import { HealthSection } from '@/components/ai-agent/editor/playbook/v3/health/HealthSection'
 import { TabPontuacao } from '@/components/ai-agent/editor/TabPontuacao'
 import {
   type AgentEditorForm,
@@ -304,6 +305,10 @@ export default function AiAgentDetailPage() {
       { id: 'identidade', label: 'Identidade', icon: Bot },
       { id: 'modo', label: 'Modo de interação', icon: Send },
     ]
+    // Aba Saúde só faz sentido em agentes existentes (precisa carregar config)
+    const healthTab: EditorTab[] = isNew
+      ? []
+      : [{ id: 'saude', label: 'Saúde', icon: Stethoscope } as EditorTab]
     const playbookTab: EditorTab[] = [
       { id: 'playbook', label: 'Playbook', icon: BookOpen },
     ]
@@ -331,9 +336,9 @@ export default function AiAgentDetailPage() {
       { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
     ]
     return form.playbook_enabled
-      ? [...base, ...playbookTab, ...sharedTabs]
-      : [...base, ...classicoTabs, ...sharedTabs]
-  }, [isN8n, form.playbook_enabled])
+      ? [...base, ...playbookTab, ...sharedTabs, ...healthTab]
+      : [...base, ...classicoTabs, ...sharedTabs, ...healthTab]
+  }, [isN8n, form.playbook_enabled, isNew])
 
   if (!isNew && loadingAgent) {
     return (
@@ -438,6 +443,7 @@ export default function AiAgentDetailPage() {
             companyName={''}
           />
         )}
+        {activeTab === 'saude' && !isNew && id && <HealthSection agentId={id} />}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}

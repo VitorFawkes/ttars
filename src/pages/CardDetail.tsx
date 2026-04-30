@@ -9,6 +9,7 @@ import { DynamicSectionsList } from '../components/card/DynamicSectionWidget'
 import { SectionConciergeOverview } from '../components/card/SectionConciergeOverview'
 import ConversationHistory from '../components/card/ConversationHistory'
 import PessoasWidget from '../components/card/PessoasWidget'
+import CardCorpTimingPanel from '../components/card/CardCorpTimingPanel'
 
 import ActivityFeed from '../components/card/ActivityFeed'
 import { ParentLinkBanner } from '../components/cards/group/ParentLinkBanner'
@@ -362,6 +363,11 @@ export default function CardDetail() {
                                 posOwnerId={card.pos_owner_id}
                             />
                         </div>
+                    )}
+
+                    {/* Status do atendimento — só Corporativo */}
+                    {card.produto === 'CORP' && (
+                        <CardCorpTimingPanel cardId={card.id!} createdAt={card.created_at} />
                     )}
 
                     {/* Pessoas — hardcoded */}
