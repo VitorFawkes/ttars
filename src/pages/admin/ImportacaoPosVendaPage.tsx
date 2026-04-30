@@ -886,18 +886,26 @@ function DestinationStageSummary({
                         >
                             <span className="flex flex-col min-w-0 flex-1">
                                 <span className="font-medium text-sm truncate">{stage.name}</span>
-                                {/* Sub-linha pequena: contagem da planilha. Só aparece se há
-                                    viagens da planilha que tocam essa etapa de alguma forma. */}
-                                {(fileGoing > 0 || fileHere > 0) && (
-                                    <span className="text-[10px] opacity-70 mt-0.5">
-                                        {fileGoing > 0 && (
-                                            <>{fileGoing} {fileGoing === 1 ? 'viagem da planilha' : 'viagens da planilha'} {fileGoing === 1 ? 'vai' : 'vão'} terminar aqui</>
-                                        )}
-                                        {fileGoing === 0 && fileHere > 0 && (
-                                            <>{fileHere} {fileHere === 1 ? 'viagem da planilha está aqui hoje' : 'viagens da planilha estão aqui hoje'} (todas saem)</>
-                                        )}
-                                    </span>
-                                )}
+                                {/* Sub-linha: o que a planilha faz nessa etapa, sem somar conceitos.
+                                    - chegam: viagens VINDO de outras etapas pra cá
+                                    - saem: viagens cujo card está aqui hoje E vão pra outra etapa
+                                    - ficam: já estão aqui hoje E continuam aqui
+                                    Só mostra termos com valor > 0, separados por ponto. */}
+                                {(() => {
+                                    const chegam = c.total - c.alreadyThere       // vão chegar de fora
+                                    const ficam = c.alreadyThere                   // já estão aqui e ficam
+                                    const saem = Math.max(0, fileHere - c.alreadyThere) // estão hoje aqui e vão sair
+                                    const parts: string[] = []
+                                    if (chegam > 0) parts.push(`${chegam} ${chegam === 1 ? 'chega aqui' : 'chegam aqui'}`)
+                                    if (saem > 0) parts.push(`${saem} ${saem === 1 ? 'sai daqui' : 'saem daqui'}`)
+                                    if (ficam > 0) parts.push(`${ficam} ${ficam === 1 ? 'já está e fica' : 'já estão e ficam'}`)
+                                    if (parts.length === 0) return null
+                                    return (
+                                        <span className="text-[10px] opacity-70 mt-0.5">
+                                            {parts.join(' · ')}
+                                        </span>
+                                    )
+                                })()}
                             </span>
                             <span className="flex items-center gap-2 shrink-0 tabular-nums">
                                 <span className={cn(
