@@ -2607,14 +2607,59 @@ export default function ImportacaoPosVendaPage() {
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .is('archived_at', null)
                         .is('deleted_at', null)
-                        .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
-                        .gte('data_viagem_fim', trip.dataInicio)
+                        .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                         .limit(1)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
                     const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
                         snapshot = cards[0] as unknown as CardSnapshotDet
+                    }
+                }
+            }
+
+            // 5º caminho: match por NOME do pagante (qualquer card pós-venda dele).
+            // Só roda se tudo acima falhou. Sem filtro estrito de datas — cliente pode
+            // ter só 1 card pós-venda ativo, basta achar pra fazer match.
+            if (!snapshot && trip.pagantePrincipal) {
+                const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
+                const primeiroNome = partes[0] || ''
+                const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
+                if (primeiroNome.length >= 2) {
+                    const { data: contatos } = await supabase
+                        .from('contatos')
+                        .select('id, nome, sobrenome')
+                        .ilike('nome', `${primeiroNome.replace(/[%_]/g, '')}%`)
+                        .is('deleted_at', null)
+                        .limit(50)
+                    const tripNome = norm(trip.pagantePrincipal)
+                    const matchingContatos = (contatos || []).filter(c => {
+                        const fullName = `${(c as { nome?: string }).nome || ''} ${(c as { sobrenome?: string }).sobrenome || ''}`.trim()
+                        const fullNorm = norm(fullName)
+                        if (fullNorm === tripNome) return true
+                        if (fullNorm.includes(tripNome) || tripNome.includes(fullNorm)) return true
+                        if (ultimoSobrenome) {
+                            const ultimoNorm = norm(ultimoSobrenome)
+                            if (fullNorm.includes(norm(primeiroNome)) && fullNorm.includes(ultimoNorm)) return true
+                        }
+                        return false
+                    })
+                    if (matchingContatos.length > 0) {
+                        const contatoIds = matchingContatos.map(c => (c as { id: string }).id)
+                        let q = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .in('pessoa_principal_id', contatoIds)
+                            .in('pipeline_stage_id', POS_VENDA_STAGES)
+                            .is('archived_at', null)
+                            .is('deleted_at', null)
+                            .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                            .limit(5)
+                        if (activeOrgId) q = q.eq('org_id', activeOrgId)
+                        const { data: cards } = await q
+                        if (cards && cards.length > 0) {
+                            snapshot = cards[0] as unknown as CardSnapshotDet
+                        }
                     }
                 }
             }
@@ -3027,11 +3072,12 @@ export default function ImportacaoPosVendaPage() {
                     }
                 }
 
-                // 4. Fallback por NOME do pagante + datas próximas — só se tudo acima falhou.
+                // 4. Fallback por NOME do pagante — só se tudo acima falhou.
                 // Pra planilhas agregadas que não trazem CPF nem número Monde da viagem,
-                // mas têm o nome do cliente e as datas. Match por similaridade de primeiro
-                // nome + sobrenome + sobreposição de datas.
-                if (candidates.length === 0 && trip.pagantePrincipal && trip.dataInicio) {
+                // mas têm o nome do cliente. Match por similaridade de primeiro nome +
+                // sobrenome. SEM filtro estrito de datas (overlap pode falhar mesmo em
+                // viagens da mesma pessoa quando só temos uma viagem ativa).
+                if (candidates.length === 0 && trip.pagantePrincipal) {
                     const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
                     const primeiroNome = partes[0] || ''
                     const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
@@ -3066,8 +3112,6 @@ export default function ImportacaoPosVendaPage() {
                                 .is('archived_at', null)
                                 .is('deleted_at', null)
                                 .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
-                                .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
-                                .gte('data_viagem_fim', trip.dataInicio)
                                 .limit(5)
                             if (activeOrgId) q = q.eq('org_id', activeOrgId)
                             const { data: cards } = await q
