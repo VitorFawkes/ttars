@@ -59,6 +59,10 @@ export interface KanbanTarefasFilters {
 export interface KanbanTarefaItem extends MeuDiaItem {
   estado_funil: EstadoFunil
   janela_embarque: JanelaEmbarque
+  /** Posição cronológica desta tarefa entre todas as tarefas da viagem (1-based) */
+  posicao_na_viagem?: number
+  /** Total de tarefas (atendimentos) da viagem, ignorando filtros */
+  total_na_viagem?: number
 }
 
 export interface KanbanColumnSpec {
@@ -85,6 +89,31 @@ export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
 }
 
 export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
+  // Lookup global de "X de N" — total real por viagem, ignorando filtros do usuário.
+  // Cacheado por 60s; uma query enxuta retorna só (card_id, atendimento_id, criado_em).
+  const totalsQuery = useQuery({
+    queryKey: ['concierge', 'card-totals-lookup'],
+    queryFn: async () => {
+      const { data, error } = await sbAny
+        .from('v_meu_dia_concierge')
+        .select('card_id, atendimento_id, atendimento_criado_em')
+      if (error) throw error
+      const byCard = new Map<string, Array<{ id: string; t: number }>>()
+      for (const row of (data ?? []) as Array<{ card_id: string; atendimento_id: string; atendimento_criado_em: string }>) {
+        const arr = byCard.get(row.card_id) ?? []
+        arr.push({ id: row.atendimento_id, t: new Date(row.atendimento_criado_em).getTime() })
+        byCard.set(row.card_id, arr)
+      }
+      const lookup = new Map<string, { posicao: number; total: number }>()
+      for (const list of byCard.values()) {
+        list.sort((a, b) => a.t - b.t)
+        list.forEach((it, idx) => lookup.set(it.id, { posicao: idx + 1, total: list.length }))
+      }
+      return lookup
+    },
+    staleTime: 60 * 1000,
+  })
+
   const baseQuery = useQuery({
     queryKey: ['concierge', 'kanban-tarefas-base', { donoId: filters.donoId, tipos: filters.tipos, sources: filters.sources }],
     queryFn: async (): Promise<KanbanTarefaItem[]> => {
@@ -108,11 +137,21 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
     staleTime: 30 * 1000,
   })
 
-  const filtered = useMemo(() => {
+  const enriched = useMemo(() => {
     if (!baseQuery.data) return undefined
+    const lookup = totalsQuery.data
+    if (!lookup) return baseQuery.data
+    return baseQuery.data.map(item => {
+      const pos = lookup.get(item.atendimento_id)
+      return pos ? { ...item, posicao_na_viagem: pos.posicao, total_na_viagem: pos.total } : item
+    })
+  }, [baseQuery.data, totalsQuery.data])
+
+  const filtered = useMemo(() => {
+    if (!enriched) return undefined
     const wantedTagIds = filters.tagFilter?.tagIds ?? []
     const tagLookup = filters.tagFilter?.lookup
-    return baseQuery.data.filter(item => {
+    return enriched.filter(item => {
       if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
       if (filters.janelas?.length && !filters.janelas.includes(item.janela_embarque)) return false
       if (filters.categorias?.length && !filters.categorias.includes(item.categoria)) return false
@@ -129,7 +168,7 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
       }
       return true
     })
-  }, [baseQuery.data, filters.cardIds, filters.janelas, filters.categorias, filters.tagFilter, filters.search])
+  }, [enriched, filters.cardIds, filters.janelas, filters.categorias, filters.tagFilter, filters.search])
 
   const groupedByEstado = useMemo(() => {
     const groups = new Map<EstadoFunil, KanbanTarefaItem[]>()
@@ -143,7 +182,7 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
   return {
     ...baseQuery,
     data: filtered,
-    rawData: baseQuery.data,
+    rawData: enriched,
     groupedByEstado,
   }
 }

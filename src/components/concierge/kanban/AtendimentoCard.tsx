@@ -118,7 +118,17 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           {titulo}
         </h4>
 
-        <div className="text-[11.5px] text-slate-600 truncate mb-2">{item.card_titulo}</div>
+        <div className="flex items-center gap-1.5 text-[11.5px] text-slate-600 mb-2">
+          <span className="truncate flex-1">{item.card_titulo}</span>
+          {item.posicao_na_viagem != null && item.total_na_viagem != null && item.total_na_viagem > 1 && (
+            <span
+              className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold"
+              title={`${item.posicao_na_viagem}ª tarefa de ${item.total_na_viagem} desta viagem`}
+            >
+              {item.posicao_na_viagem}/{item.total_na_viagem}
+            </span>
+          )}
+        </div>
 
         {showCatPill && (
           <div className="mb-2">
