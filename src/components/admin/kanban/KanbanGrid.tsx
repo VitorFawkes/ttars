@@ -42,8 +42,8 @@ export function KanbanGrid({ phases, systemFields, settings, isLoading }: Kanban
                 }
             })
 
-            setVisibilityMap(initialMap)
             // eslint-disable-next-line react-hooks/set-state-in-effect
+            setVisibilityMap(initialMap)
             setIsDirty(false)
         }
     }, [settings, phases])
