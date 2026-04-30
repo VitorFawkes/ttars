@@ -65,6 +65,8 @@ export function MomentDrawer({ agentId, agentName, companyName, moment, open, on
             agentName={agentName}
             companyName={companyName}
             moment={moment}
+            defaultExpanded={true}
+            hideToggle={true}
           />
         </div>
       </SheetContent>
