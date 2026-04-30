@@ -36,6 +36,8 @@ import { TabModoInteracao } from '@/components/ai-agent/editor/TabModoInteracao'
 import { TabApresentacao } from '@/components/ai-agent/editor/TabApresentacao'
 import { TabPlaybook } from '@/components/ai-agent/editor/playbook/TabPlaybook'
 import { HealthSection } from '@/components/ai-agent/editor/playbook/v3/health/HealthSection'
+import { HandoffSection as HandoffSectionV3 } from '@/components/ai-agent/editor/playbook/v3/handoff/HandoffSection'
+import { useV3Layout } from '@/components/ai-agent/editor/playbook/v3/useV3Layout'
 import { TabPontuacao } from '@/components/ai-agent/editor/TabPontuacao'
 import {
   type AgentEditorForm,
@@ -95,6 +97,7 @@ export default function AiAgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const isNew = id === 'new'
   const { slug: currentProduct } = useCurrentProductMeta()
+  const { enabled: v3Enabled } = useV3Layout()
 
   const { data: existingAgent, isLoading: loadingAgent } = useAiAgentDetail(isNew ? undefined : id)
 
@@ -462,7 +465,11 @@ export default function AiAgentDetailPage() {
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
-        {activeTab === 'handoff' && <TabHandoff form={form} setForm={setFormWrapper} />}
+        {activeTab === 'handoff' && (
+          v3Enabled
+            ? <HandoffSectionV3 form={form} setForm={setFormWrapper} agentOrgId={existingAgent?.org_id ?? null} />
+            : <TabHandoff form={form} setForm={setFormWrapper} />
+        )}
         {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'validador' && !isN8n && <TabValidatorRules form={form} setForm={setFormWrapper} />}
         {activeTab === 'ativacao' && (
