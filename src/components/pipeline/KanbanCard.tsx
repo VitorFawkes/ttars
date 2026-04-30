@@ -754,6 +754,15 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 return null;
             })()}
 
+            {/* Aviso: card criado pela importação Pós-Venda sem CPF do contato principal.
+                Usuário deve passar pelo card e completar (ver tarefa "Atualizar CPF do contato principal"). */}
+            {(card.produto_data as any)?.precisa_cpf === true && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>PRECISA CPF</span>
+                </div>
+            )}
+
             <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
                 {card.titulo}
             </span>
