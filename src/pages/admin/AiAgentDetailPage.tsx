@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog,
+  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog, Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -98,7 +98,7 @@ export default function AiAgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const isNew = id === 'new'
   const { slug: currentProduct } = useCurrentProductMeta()
-  const { enabled: v3Enabled } = useV3Layout()
+  const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
 
   const { data: existingAgent, isLoading: loadingAgent } = useAiAgentDetail(isNew ? undefined : id)
 
@@ -378,6 +378,23 @@ export default function AiAgentDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {!isNew && (
+            <button
+              type="button"
+              onClick={toggleV3}
+              className={`text-xs px-3 py-1.5 rounded-md border font-medium inline-flex items-center gap-1.5 transition-colors ${
+                v3Enabled
+                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+              title={v3Enabled
+                ? 'Você está vendo a UI nova. Clique pra voltar à antiga.'
+                : 'Ativar o layout novo (5 áreas em vez de 17 abas) — fica salvo só pra você.'}
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              {v3Enabled ? 'UI nova ligada' : 'Experimentar UI nova'}
+            </button>
+          )}
           {dirty && <span className="text-xs text-amber-600">• alterações não salvas</span>}
           <Button onClick={handleSave} disabled={saving || !dirty} className="gap-2">
             <Save className="w-4 h-4" />
