@@ -2905,6 +2905,7 @@ async function runPersonaAgent(
       if (s.auto_assign_tag) actions.push(`Chame assign_tag("${s.auto_assign_tag}") pra marcar o card.`);
       return `${header}\n  → ${actions.join(" ")}`;
     })
+    .filter(Boolean)
     .join("\n");
 
   // Apresentação configurável (ai_agent_presentations) — injeta bloco dedicado

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Wrench, Plus, ShieldCheck, ChevronUp, ChevronDown, Info, Search, Settings2, Sparkles, X } from 'lucide-react'
+import { Wrench, Plus, ShieldCheck, ChevronUp, ChevronDown, Info, Search, Settings2, Sparkles, Eye, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -67,6 +67,7 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
   const [search, setSearch] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<string>('all')
   const [editingOverrideSkill, setEditingOverrideSkill] = useState<AiSkill | null>(null)
+  const [viewingSkill, setViewingSkill] = useState<AiSkill | null>(null)
 
   // Categorias presentes
   const categorias = useMemo(() => {
@@ -188,9 +189,14 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
                     <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-semibold text-indigo-700 flex-shrink-0">
                       {idx + 1}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setViewingSkill(skill)}
+                      className="flex-1 min-w-0 text-left group/info"
+                      title="Ver detalhes da skill"
+                    >
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-indigo-900 truncate">{skill.nome}</p>
+                        <p className="text-sm font-semibold text-indigo-900 truncate group-hover/info:underline">{skill.nome}</p>
                         {customized && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 font-medium inline-flex items-center gap-1">
                             <Sparkles className="w-2.5 h-2.5" />
@@ -209,14 +215,23 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
                           {labelTipo(skill.tipo)}
                         </Badge>
                       </div>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setViewingSkill(skill)}
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-700 hover:bg-indigo-100"
+                        title="Ver detalhes"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setEditingOverrideSkill(skill)}
                         className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-700 hover:bg-indigo-100"
-                        title="Customizar config para este agente"
+                        title="Customizar config pra este agente"
                       >
                         <Settings2 className="w-4 h-4" />
                       </Button>
@@ -227,7 +242,7 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
                         className="text-red-500 hover:bg-red-50 h-8 w-8 p-0"
                         title="Remover do agente"
                       >
-                        <X className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -237,7 +252,11 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-2">
             <ShieldCheck className="w-3 h-3" />
-            <span>Use ⚙️ pra customizar uma skill só pra este agente. Use × pra remover.</span>
+            <span>
+              <Eye className="w-3 h-3 inline mb-0.5" /> ver detalhes ·{' '}
+              <Settings2 className="w-3 h-3 inline mb-0.5" /> customizar pra este agente ·{' '}
+              <Trash2 className="w-3 h-3 inline mb-0.5" /> remover
+            </span>
           </div>
         </div>
       )}
@@ -305,13 +324,16 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {skillsInGroup.map(skill => (
-                      <button
+                      <div
                         key={skill.id}
-                        type="button"
-                        onClick={() => toggleAssign(skill.id)}
-                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 text-left transition-colors group"
+                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors group"
                       >
-                        <div className="flex-1 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewingSkill(skill)}
+                          className="flex-1 min-w-0 text-left"
+                          title="Ver detalhes"
+                        >
                           <p className="text-sm font-medium text-slate-900 group-hover:text-indigo-900">{skill.nome}</p>
                           {skill.descricao && (
                             <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{skill.descricao}</p>
@@ -319,11 +341,17 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
                           <div className="flex gap-1 mt-1.5">
                             <Badge variant="outline" className="text-[10px]">{labelTipo(skill.tipo)}</Badge>
                           </div>
-                        </div>
-                        <div className="text-slate-400 group-hover:text-indigo-500 mt-0.5 flex-shrink-0">
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleAssign(skill.id)}
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-700 hover:bg-indigo-100 flex-shrink-0"
+                          title="Adicionar ao agente"
+                        >
                           <Plus className="w-4 h-4" />
-                        </div>
-                      </button>
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -337,6 +365,18 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
         <p className="text-sm text-slate-500 py-6 text-center border border-dashed border-slate-200 rounded-lg">
           Nenhuma skill cadastrada na organização. Clique em "Criar nova skill" pra começar.
         </p>
+      )}
+
+      {/* Modal de detalhes da skill */}
+      {viewingSkill && (
+        <SkillInfoModal
+          skill={viewingSkill}
+          isAssigned={assigned.includes(viewingSkill.id)}
+          isCustomized={hasOverride(viewingSkill.id)}
+          onCustomize={() => { setEditingOverrideSkill(viewingSkill); setViewingSkill(null) }}
+          onAssign={() => { toggleAssign(viewingSkill.id); setViewingSkill(null) }}
+          onClose={() => setViewingSkill(null)}
+        />
       )}
 
       {/* Modal de edição de override */}
@@ -463,6 +503,135 @@ function SkillOverrideModal({
             <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
             <Button size="sm" onClick={handleSave}>Salvar customização</Button>
           </div>
+        </footer>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Modal de detalhes da skill ─────────────────────────────────────────
+
+function SkillInfoModal({
+  skill, isAssigned, isCustomized, onCustomize, onAssign, onClose,
+}: {
+  skill: AiSkill
+  isAssigned: boolean
+  isCustomized: boolean
+  onCustomize: () => void
+  onAssign: () => void
+  onClose: () => void
+}) {
+  const baseConfig = (skill as unknown as { config?: Record<string, unknown> }).config ?? {}
+  const inputSchema = (skill as unknown as { input_schema?: Record<string, unknown> }).input_schema ?? {}
+  const outputSchema = (skill as unknown as { output_schema?: Record<string, unknown> }).output_schema ?? {}
+
+  // Extrai campos top-level do input_schema pra mostrar legível
+  const inputFields = useMemo(() => {
+    const props = (inputSchema as { properties?: Record<string, { type?: string; description?: string }> }).properties ?? {}
+    return Object.entries(props).map(([name, def]) => ({
+      name,
+      type: def.type ?? 'any',
+      description: def.description ?? '',
+    }))
+  }, [inputSchema])
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-5 py-4 border-b border-slate-100 text-left">
+          <DialogTitle className="text-base font-semibold text-slate-900 inline-flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-emerald-600" />
+            {skill.nome}
+            {isCustomized && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 font-medium inline-flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5" />
+                customizado
+              </span>
+            )}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mt-0.5">
+            <Badge variant="outline" className="text-[10px] mr-1">{labelCategoria(skill.categoria)}</Badge>
+            <Badge variant="outline" className="text-[10px]">{labelTipo(skill.tipo)}</Badge>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Descrição */}
+          {skill.descricao && (
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">O que faz</h4>
+              <p className="text-sm text-slate-700 leading-relaxed">{skill.descricao}</p>
+            </div>
+          )}
+
+          {/* Input fields legíveis */}
+          {inputFields.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">
+                Dados que ela aceita receber ({inputFields.length})
+              </h4>
+              <ul className="space-y-1.5">
+                {inputFields.map(f => (
+                  <li key={f.name} className="text-xs text-slate-700 border border-slate-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-800">{f.name}</code>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wide">{f.type}</span>
+                    </div>
+                    {f.description && (
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{f.description}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Config padrão (técnica, escondida em accordion) */}
+          {Object.keys(baseConfig).length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5">
+                <ChevronDown className="w-3 h-3" />
+                Configuração padrão (técnica)
+              </summary>
+              <pre className="text-[11px] bg-slate-50 border border-slate-200 rounded p-2.5 overflow-x-auto font-mono text-slate-700 mt-2">
+                {JSON.stringify(baseConfig, null, 2)}
+              </pre>
+            </details>
+          )}
+
+          {/* Output schema (escondido em accordion) */}
+          {Object.keys(outputSchema).length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5">
+                <ChevronDown className="w-3 h-3" />
+                Schema de retorno (técnico)
+              </summary>
+              <pre className="text-[11px] bg-slate-50 border border-slate-200 rounded p-2.5 overflow-x-auto font-mono text-slate-700 mt-2">
+                {JSON.stringify(outputSchema, null, 2)}
+              </pre>
+            </details>
+          )}
+
+          {!skill.descricao && inputFields.length === 0 && Object.keys(baseConfig).length === 0 && (
+            <div className="text-sm text-slate-500 text-center py-8">
+              Esta skill não tem documentação adicional além do nome e categoria.
+            </div>
+          )}
+        </div>
+
+        <footer className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2 flex-shrink-0">
+          <Button variant="outline" size="sm" onClick={onClose}>Fechar</Button>
+          {isAssigned ? (
+            <Button size="sm" onClick={onCustomize} className="gap-1.5">
+              <Settings2 className="w-3.5 h-3.5" />
+              Customizar pra este agente
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onAssign} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Adicionar ao agente
+            </Button>
+          )}
         </footer>
       </DialogContent>
     </Dialog>
