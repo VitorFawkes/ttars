@@ -792,7 +792,9 @@ function DestinationStageSummary({
 }) {
     if (trips.length === 0) return null
 
-    // Mapa por etapa-destino: total no arquivo + quantos já estão lá no CRM
+    // Mapa por etapa-destino (vão chegar):
+    //  - total: quantas viagens do arquivo vão TERMINAR nessa etapa
+    //  - alreadyThere: dessas, quantas já estão lá hoje no CRM
     const counts = new Map<string, { total: number; alreadyThere: number }>()
     for (const t of trips) {
         if (t.action === 'skip') continue
@@ -802,6 +804,14 @@ function DestinationStageSummary({
             cur.alreadyThere += 1
         }
         counts.set(t.stage.id, cur)
+    }
+
+    // Mapa por etapa-atual no CRM: quantas viagens do arquivo ESTÃO HOJE em cada etapa.
+    // Útil pra mostrar "a planilha tem X viagens cujo card está hoje em App & Conteúdo".
+    const fileNowInStage: Record<string, number> = {}
+    for (const t of trips) {
+        if (t.action !== 'update' || !t.existingStageId) continue
+        fileNowInStage[t.existingStageId] = (fileNowInStage[t.existingStageId] || 0) + 1
     }
 
     const totalActionable = [...counts.values()].reduce((s, c) => s + c.total, 0)
@@ -847,54 +857,56 @@ function DestinationStageSummary({
                     const current = stageCounts[stage.id] ?? 0
                     const stageDelta = delta[stage.id] || 0
                     const projected = current + stageDelta
-                    const migrating = c.total - c.alreadyThere
+                    const fileHere = fileNowInStage[stage.id] || 0  // arquivo: quantas estão AQUI hoje no CRM
+                    const fileGoing = c.total                        // arquivo: quantas vão TERMINAR aqui
                     const isSelected = filterTargetStage === stage.id
-                    const hasInFile = c.total > 0
+                    const hasInteraction = fileGoing > 0 || fileHere > 0  // tem viagem do arquivo nessa etapa de algum jeito
                     return (
                         <button
                             key={stage.id}
                             type="button"
-                            onClick={() => hasInFile && onSelectStage(stage.id)}
-                            disabled={!hasInFile}
+                            onClick={() => fileGoing > 0 && onSelectStage(stage.id)}
+                            disabled={fileGoing === 0}
                             className={cn(
                                 'w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left',
-                                hasInFile
+                                hasInteraction
                                     ? (isSelected
-                                        ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 cursor-pointer`
-                                        : `${stage.color} hover:brightness-95 cursor-pointer`)
+                                        ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 ${fileGoing > 0 ? 'cursor-pointer' : 'cursor-default'}`
+                                        : `${stage.color} ${fileGoing > 0 ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`)
                                     : 'bg-slate-50 border-slate-100 text-slate-400 cursor-default'
                             )}
-                            title={hasInFile
-                                ? (migrating > 0 ? `${migrating} mudando de etapa, ${c.alreadyThere} já estão lá` : `${c.alreadyThere} já estão nessa etapa`)
-                                : 'Nenhuma viagem do arquivo vai pra essa etapa'}
+                            title={fileGoing > 0
+                                ? `Arquivo: ${fileHere} estão hoje aqui · ${fileGoing} vão terminar aqui`
+                                : (fileHere > 0
+                                    ? `Arquivo: ${fileHere} estão hoje aqui (vão sair pra outras etapas)`
+                                    : 'Nenhuma viagem do arquivo nessa etapa')}
                         >
-                            <span className="flex items-center gap-2 min-w-0">
+                            <span className="flex items-center gap-2 min-w-0 flex-wrap">
                                 <span className="font-medium text-sm truncate">{stage.name}</span>
-                                {hasInFile && migrating > 0 && c.alreadyThere > 0 && (
-                                    <span className="text-[10px] opacity-70 shrink-0">
-                                        {migrating} migrando · {c.alreadyThere} já estão
+                                {/* Contagem do ARQUIVO por etapa: quantas estão hoje + quantas vão chegar.
+                                    Mostra só os números relevantes (não-zero). */}
+                                {(fileHere > 0 || fileGoing > 0) && (
+                                    <span className="text-[10px] opacity-75 shrink-0 inline-flex items-center gap-1">
+                                        <span className="font-semibold uppercase tracking-wide opacity-60">arq:</span>
+                                        {fileHere > 0 && <span>{fileHere} hoje aqui</span>}
+                                        {fileHere > 0 && fileGoing > 0 && <span className="opacity-50">·</span>}
+                                        {fileGoing > 0 && <span>{fileGoing} chegando</span>}
                                     </span>
-                                )}
-                                {hasInFile && c.alreadyThere > 0 && migrating === 0 && (
-                                    <span className="text-[10px] opacity-70 shrink-0">já estão lá</span>
-                                )}
-                                {hasInFile && c.alreadyThere === 0 && migrating > 0 && (
-                                    <span className="text-[10px] opacity-70 shrink-0">todas migrando</span>
                                 )}
                             </span>
                             <span className="flex items-center gap-2 shrink-0 tabular-nums">
                                 <span className={cn(
                                     'text-sm',
-                                    hasInFile ? 'text-slate-500' : 'text-slate-400'
+                                    hasInteraction ? 'text-slate-500' : 'text-slate-400'
                                 )}>
                                     {current}
                                 </span>
-                                <ArrowRight className={cn('h-3 w-3', hasInFile ? 'opacity-60' : 'opacity-30')} />
+                                <ArrowRight className={cn('h-3 w-3', hasInteraction ? 'opacity-60' : 'opacity-30')} />
                                 <span className={cn(
                                     'text-base font-bold',
                                     stageDelta > 0 && 'text-emerald-700',
                                     stageDelta < 0 && 'text-rose-700',
-                                    stageDelta === 0 && (hasInFile ? 'text-slate-700' : 'text-slate-400'),
+                                    stageDelta === 0 && (hasInteraction ? 'text-slate-700' : 'text-slate-400'),
                                 )}>
                                     {projected}
                                 </span>
@@ -1097,9 +1109,24 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
                         <span className={cn('inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full', actionBadge.cls)}>
                             {actionBadge.label}
                         </span>
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                            {trip.stage.name}
-                        </span>
+                        {/* Etapa: mostra "CRM → planilha" se diferentes; só "planilha" se iguais ou se for create */}
+                        {trip.action === 'update' && tripDiff.etapa.changed ? (
+                            <span
+                                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+                                title="Etapa atual no CRM → Etapa que veio da planilha"
+                            >
+                                <span className="opacity-70">{tripDiff.etapa.fromName || '—'}</span>
+                                <ArrowRight className="h-2.5 w-2.5 opacity-60" />
+                                <span className="font-semibold">{trip.stage.name}</span>
+                            </span>
+                        ) : (
+                            <span
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700"
+                                title={trip.action === 'update' ? 'Etapa coincide com a planilha (sem mudança)' : 'Etapa-destino para o card a criar'}
+                            >
+                                {trip.stage.name}
+                            </span>
+                        )}
                         <span
                             className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border', auditInfo.cls)}
                             title={auditIssues.length > 0 ? auditIssues.join(' • ') : 'Card já está com tudo certo no CRM'}
@@ -1739,12 +1766,21 @@ export default function ImportacaoPosVendaPage() {
             if (!activeOrgId) return {}
             const counts: Record<string, number> = {}
             await Promise.all(POS_VENDA_STAGES.map(async (stageId) => {
+                // Filtros idênticos ao Kanban (cards "vivos no funil"):
+                // - archived_at NULL (não arquivado)
+                // - deleted_at NULL (não na lixeira)
+                // - sub_card_status NULL ou 'active' (não merged/cancelled)
+                // - is_group_parent IS NULL OR FALSE (não é card-pai de grupo)
+                // - status_comercial em fluxo: aberto OR ganho-com-ganho_pos-false
                 const { count } = await supabase
                     .from('cards')
                     .select('id', { count: 'exact', head: true })
                     .eq('org_id', activeOrgId)
                     .eq('pipeline_stage_id', stageId)
                     .is('archived_at', null)
+                    .is('deleted_at', null)
+                    .or('sub_card_status.is.null,sub_card_status.eq.active')
+                    .or('is_group_parent.is.null,is_group_parent.eq.false')
                     .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                 counts[stageId] = count || 0
             }))
@@ -1862,6 +1898,8 @@ export default function ImportacaoPosVendaPage() {
                     .from('cards')
                     .select(CARD_AUDIT_SELECT)
                     .in('produto_data->>numero_venda_monde', vchunk)
+                    .is('archived_at', null)
+                    .is('deleted_at', null)
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
 
@@ -1871,13 +1909,15 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
-            // Fallback: check historical numbers
+            // Fallback: check historical numbers (ignora arquivados/deletados)
             if (!snapshot) {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
                     let query = supabase
                         .from('cards')
                         .select(CARD_AUDIT_SELECT)
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
+                        .is('archived_at', null)
+                        .is('deleted_at', null)
                         .limit(1)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
                     const { data: cards } = await query
@@ -1889,7 +1929,7 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
-            // Fallback: check by CPF + dates in pos-venda
+            // Fallback: check by CPF + dates in pos-venda (ignora arquivados/deletados)
             if (!snapshot && trip.cpfNorm && trip.dataInicio) {
                 const { data: contatos } = await supabase
                     .from('contatos')
@@ -1905,6 +1945,8 @@ export default function ImportacaoPosVendaPage() {
                         .select(CARD_AUDIT_SELECT)
                         .eq('pessoa_principal_id', contatoId)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
+                        .is('archived_at', null)
+                        .is('deleted_at', null)
                         .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
                         .gte('data_viagem_fim', trip.dataInicio)
                         .limit(1)
@@ -2229,13 +2271,15 @@ export default function ImportacaoPosVendaPage() {
 
                 const candidates: CardCandidate[] = []
 
-                // 1. Por número de venda monde atual (TODOS os matches)
+                // 1. Por número de venda monde atual (TODOS os matches, sem arquivados/deletados)
                 if (trip.vendaNums.length > 0) {
                     for (const vchunk of chunked(trip.vendaNums, 10)) {
                         let query = supabase
                             .from('cards')
                             .select(CARD_AUDIT_SELECT)
                             .in('produto_data->>numero_venda_monde', vchunk)
+                            .is('archived_at', null)
+                            .is('deleted_at', null)
                             .limit(20)
                         if (activeOrgId) query = query.eq('org_id', activeOrgId)
                         const { data: cards } = await query
@@ -2254,13 +2298,15 @@ export default function ImportacaoPosVendaPage() {
                     }
                 }
 
-                // 2. Histórico (renumeração de venda) — só busca se não achou nada na atual
+                // 2. Histórico (renumeração de venda) — só busca se não achou nada na atual, sem arquivados/deletados
                 if (candidates.length === 0 && trip.vendaNums.length > 0) {
                     for (const vn of trip.vendaNums.slice(0, 5)) {
                         let query = supabase
                             .from('cards')
                             .select(CARD_AUDIT_SELECT)
                             .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
+                            .is('archived_at', null)
+                            .is('deleted_at', null)
                             .limit(10)
                         if (activeOrgId) query = query.eq('org_id', activeOrgId)
                         const { data: cards } = await query
@@ -2297,6 +2343,8 @@ export default function ImportacaoPosVendaPage() {
                             .select(CARD_AUDIT_SELECT)
                             .eq('pessoa_principal_id', contatoId)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
+                            .is('archived_at', null)
+                            .is('deleted_at', null)
                             .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
                             .gte('data_viagem_fim', trip.dataInicio)
                             .limit(5)
@@ -2366,19 +2414,20 @@ export default function ImportacaoPosVendaPage() {
 
                 // Decisão de ação:
                 // - Achou card no CRM → update
-                // - Não achou MAS tem CPF + pagante → create (cria contato e card novo)
-                // - Não achou e sem CPF/pagante → skip (não dá pra criar contato)
+                // - Achou card no CRM → update
+                // - Não achou MAS tem pagante (com OU sem CPF) → create. Card criado sem CPF
+                //   ganha tarefa "Atualizar CPF do contato principal" (alta prioridade) e flag
+                //   produto_data.precisa_cpf=true pra UI alertar.
+                // - Sem pagante → skip (sem como criar contato)
                 let action: TripGroup['action']
                 let skipReason: string | null = null
                 if (winner) {
                     action = 'update'
-                } else if (trip.cpfNorm && trip.pagantePrincipal) {
+                } else if (trip.pagantePrincipal) {
                     action = 'create'
                 } else {
                     action = 'skip'
-                    skipReason = trip.vendaNums.length === 0
-                        ? 'Sem número de venda nem CPF — não foi possível localizar nem criar o card.'
-                        : 'Não encontrei card com esses números de venda no CRM e não tem CPF pra criar um novo.'
+                    skipReason = 'Sem nome de pagante na planilha — não dá pra criar contato nem card.'
                 }
 
                 fullTrips.push({
