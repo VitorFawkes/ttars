@@ -35,7 +35,7 @@ serve(async (req) => {
 
     const { data: pendingOpps, error: fetchError } = await supabase
       .from("future_opportunities")
-      .select("id, source_type, titulo, source_card_id, status")
+      .select("id, source_type, titulo, source_card_id, status, echo_released_at")
       .in("status", ["pending", "failed"])
       .lte("scheduled_date", today)
       .order("scheduled_date", { ascending: true });
@@ -88,6 +88,18 @@ serve(async (req) => {
 
         if (result?.success) {
           console.log(`✓ ${opp.source_type} processado: ${opp.titulo} (opp ${opp.id})`);
+
+          // Se for card CORP e ainda não fizemos release, reabre conversa no Echo
+          // (idempotente via echo_released_at). Falha aqui é só warning — não quebra o card.
+          if (opp.source_type === "lost_future" && !opp.echo_released_at && opp.source_card_id) {
+            try {
+              await releaseEchoConversation(supabase, opp.id, opp.source_card_id);
+            } catch (releaseErr) {
+              const msg = releaseErr instanceof Error ? releaseErr.message : String(releaseErr);
+              console.warn(`[release-echo] opp=${opp.id}: ${msg}`);
+            }
+          }
+
           results.push({ id: opp.id, success: true });
         } else {
           const errMsg = result?.error || "RPC retornou falha sem detalhe";
@@ -135,3 +147,93 @@ serve(async (req) => {
     );
   }
 });
+
+// ============================================================================
+// releaseEchoConversation
+// Apenas pra cards do produto CORP. Acha a conversa do Echo ligada ao card
+// original (que foi fechado como oportunidade futura) e dá POST /release.
+// Salva timestamp em future_opportunities.echo_released_at pra evitar retry.
+// ============================================================================
+async function releaseEchoConversation(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  oppId: string,
+  sourceCardId: string,
+): Promise<void> {
+  // 1. O card original é CORP?
+  const { data: card } = await supabase
+    .from("cards")
+    .select("id, produto, pessoa_principal_id")
+    .eq("id", sourceCardId)
+    .maybeSingle();
+
+  if (!card || card.produto !== "CORP") {
+    return; // Só Corp por enquanto (decisão do produto)
+  }
+
+  // 2. Achar última conversation_id de mensagens do card
+  const { data: msgs } = await supabase
+    .from("whatsapp_messages")
+    .select("conversation_id")
+    .eq("card_id", sourceCardId)
+    .not("conversation_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const localConvId = msgs?.[0]?.conversation_id;
+  if (!localConvId) {
+    console.log(`[release-echo] opp=${oppId}: card sem mensagens, pulando`);
+    return;
+  }
+
+  // 3. Resolver external_conversation_id
+  const { data: conv } = await supabase
+    .from("whatsapp_conversations")
+    .select("external_conversation_id")
+    .or(`id.eq.${localConvId},external_conversation_id.eq.${localConvId}`)
+    .limit(1)
+    .maybeSingle();
+
+  const externalId = conv?.external_conversation_id || localConvId;
+  if (!externalId) {
+    console.log(`[release-echo] opp=${oppId}: sem external_conversation_id`);
+    return;
+  }
+
+  // 4. Montar URL do release a partir do ECHO_API_URL configurado
+  // ECHO_API_URL aponta pra .../echo-api/send-message — derivamos a base
+  // e construímos .../echo-api/conversations/{id}/release
+  const echoApiUrl = Deno.env.get("ECHO_API_URL");
+  const echoApiKey = Deno.env.get("ECHO_API_KEY");
+
+  if (!echoApiUrl || !echoApiKey) {
+    console.warn(`[release-echo] ECHO_API_URL ou ECHO_API_KEY não configurado`);
+    return;
+  }
+
+  // Deriva base: tira o último segmento (ex: send-message) e troca pelo path certo
+  const baseUrl = echoApiUrl.replace(/\/[^/]+\/?$/, "");
+  const releaseUrl = `${baseUrl}/conversations/${encodeURIComponent(externalId)}/release`;
+
+  // 5. POST release
+  const res = await fetch(releaseUrl, {
+    method: "POST",
+    headers: {
+      "x-api-key": echoApiKey,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`release HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  // 6. Marca idempotência
+  await supabase
+    .from("future_opportunities")
+    .update({ echo_released_at: new Date().toISOString() })
+    .eq("id", oppId);
+
+  console.log(`✓ Echo release ok: opp=${oppId}, conv=${externalId}`);
+}
