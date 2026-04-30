@@ -4,9 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
-    ArrowLeft, Clock, ChevronDown, ChevronRight, XCircle,
+    ArrowLeft, ArrowRight, Clock, ChevronDown, ChevronRight, XCircle,
     Package, Users, Plus, RefreshCw, Undo2, SquareCheck, Square, MinusSquare,
-    Filter, X, Archive,
+    Filter, X, Archive, Calendar, Hash, MapPin, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -152,6 +152,26 @@ interface PosVendaCsvRow {
     valorTotal: number
 }
 
+interface TripDiff {
+    /** Algum campo divergente entre arquivo e CRM */
+    hasAny: boolean
+    etapa: { changed: boolean; fromName: string | null; toName: string }
+    datas: {
+        changed: boolean
+        inicio: { from: string | null; to: string | null; changed: boolean }
+        fim: { from: string | null; to: string | null; changed: boolean }
+    }
+    monde: {
+        changed: boolean
+        current: string[]
+        file: string[]
+        toAdd: string[]
+        toRemove: string[]
+        toKeep: string[]
+    }
+    valor: { changed: boolean; from: number; to: number }
+}
+
 interface TripGroup {
     id: string
     cpfPrincipal: string
@@ -175,6 +195,12 @@ interface TripGroup {
     existingGanhoPlanner: boolean | null
     existingGanhoPos: boolean | null
     existingDonoPosId: string | null
+    /** Estado atual do card no CRM — usado pelo diff lado-a-lado no preview */
+    existingDataInicio: string | null
+    existingDataFim: string | null
+    existingValorFinal: number | null
+    existingNumeroVendaMonde: string | null
+    existingHistoricoNums: string[]
     /** Quando há mais de um card no CRM com a mesma venda, lista os outros (id + titulo). */
     otherCardCandidates: Array<{
         id: string
@@ -184,10 +210,14 @@ interface TripGroup {
         stageId: string | null
         stageName: string | null
     }>
+    /** Toggles por viagem — default ON quando há diff, OFF caso contrário */
     moveStage: boolean
+    updateDates: boolean
+    syncMondeNums: boolean
     action: 'create' | 'update' | 'skip'
     skipReason: string | null
     audit: AuditResult
+    diff: TripDiff
     valorTotal: number
     receita: number
     vendaNums: string[]
@@ -282,6 +312,93 @@ function computeAudit(trip: Pick<TripGroup,
     }
 }
 
+// ─── Diff arquivo × CRM ─────────────────────────────────────
+
+/**
+ * Compara o que está no card no CRM vs o que veio na planilha.
+ * Para cada campo (etapa, datas, números Monde, valor), calcula se mudou
+ * e qual é a diferença. Usado para mostrar o diff lado-a-lado no preview.
+ *
+ * Trips em ação 'create' ou 'skip' retornam diff zerado (não tem o que comparar).
+ */
+function computeTripDiff(trip: Pick<TripGroup,
+    'action' | 'existingCardId' | 'existingStageId' | 'existingStageName' |
+    'existingDataInicio' | 'existingDataFim' | 'existingValorFinal' |
+    'existingNumeroVendaMonde' | 'existingHistoricoNums' |
+    'stage' | 'dataInicio' | 'dataFim' | 'valorTotal' | 'vendaNums'
+>): TripDiff {
+    const empty: TripDiff = {
+        hasAny: false,
+        etapa: { changed: false, fromName: null, toName: trip.stage.name },
+        datas: {
+            changed: false,
+            inicio: { from: null, to: trip.dataInicio, changed: false },
+            fim: { from: null, to: trip.dataFim, changed: false },
+        },
+        monde: {
+            changed: false,
+            current: [],
+            file: [...new Set(trip.vendaNums)],
+            toAdd: [],
+            toRemove: [],
+            toKeep: [],
+        },
+        valor: { changed: false, from: 0, to: trip.valorTotal },
+    }
+
+    if (trip.action !== 'update' || !trip.existingCardId) {
+        return empty
+    }
+
+    const etapaChanged = !!trip.existingStageId && trip.existingStageId !== trip.stage.id
+    const etapa = {
+        changed: etapaChanged,
+        fromName: trip.existingStageName,
+        toName: trip.stage.name,
+    }
+
+    const inicioChanged = !!trip.dataInicio && trip.existingDataInicio !== trip.dataInicio
+    const fimChanged = !!trip.dataFim && trip.existingDataFim !== trip.dataFim
+    const datas = {
+        changed: inicioChanged || fimChanged,
+        inicio: { from: trip.existingDataInicio, to: trip.dataInicio, changed: inicioChanged },
+        fim: { from: trip.existingDataFim, to: trip.dataFim, changed: fimChanged },
+    }
+
+    const fileNums = [...new Set(trip.vendaNums.filter(Boolean))]
+    const currentSet = new Set<string>([
+        ...(trip.existingNumeroVendaMonde ? [trip.existingNumeroVendaMonde] : []),
+        ...trip.existingHistoricoNums,
+    ].filter(Boolean))
+    const currentNums = [...currentSet]
+    const toAdd = fileNums.filter(n => !currentSet.has(n))
+    const toRemove = currentNums.filter(n => !fileNums.includes(n))
+    const toKeep = fileNums.filter(n => currentSet.has(n))
+    const monde = {
+        changed: toAdd.length > 0 || toRemove.length > 0,
+        current: currentNums,
+        file: fileNums,
+        toAdd,
+        toRemove,
+        toKeep,
+    }
+
+    const fromValor = trip.existingValorFinal ?? 0
+    const valor = {
+        changed: Math.abs(fromValor - trip.valorTotal) > 0.005,
+        from: fromValor,
+        to: trip.valorTotal,
+    }
+
+    return {
+        hasAny: etapa.changed || datas.changed || monde.changed || valor.changed,
+        etapa,
+        datas,
+        monde,
+        valor,
+    }
+}
+
 // ─── Helpers ────────────────────────────────────────────────
 
 const isSim = (val: string) => val.trim().toLowerCase().startsWith('sim')
@@ -356,8 +473,10 @@ type RawTripGroup = Omit<TripGroup,
     | 'existingCardId' | 'existingCardTitle'
     | 'existingStageId' | 'existingStageName' | 'existingPhaseSlug'
     | 'existingStatusComercial' | 'existingGanhoPlanner' | 'existingGanhoPos' | 'existingDonoPosId'
+    | 'existingDataInicio' | 'existingDataFim' | 'existingValorFinal'
+    | 'existingNumeroVendaMonde' | 'existingHistoricoNums'
     | 'otherCardCandidates'
-    | 'moveStage' | 'action' | 'skipReason' | 'audit'
+    | 'moveStage' | 'updateDates' | 'syncMondeNums' | 'action' | 'skipReason' | 'audit' | 'diff'
 >
 
 function groupRowsIntoTrips(rows: PosVendaCsvRow[]): RawTripGroup[] {
@@ -603,13 +722,218 @@ interface ImportLogItemRow {
     previous_state: unknown | null
 }
 
+// ─── Destination stage summary (topo do preview) ────────────
+
+/**
+ * Widget de visão de cima: agrupa viagens por etapa-destino e mostra
+ * "Para onde vão essas N viagens — X para Pré-embarque, Y para Pós-viagem...".
+ * Cada linha clicável aplica filtro de etapa-destino. Ordem segue ordem
+ * natural do funil.
+ */
+const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
+    { id: STAGE_APP_CONTEUDO, name: 'App & Conteúdo em Montagem', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+    { id: STAGE_PRE_EMBARQUE_GT30, name: 'Pré-embarque >>> 30 dias', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { id: STAGE_PRE_EMBARQUE_LT30, name: 'Pré-Embarque <<< 30 dias', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { id: STAGE_EM_VIAGEM, name: 'Em Viagem', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+    { id: STAGE_POS_VIAGEM, name: 'Pós-viagem & Reativação', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+]
+
+function DestinationStageSummary({
+    trips, filterTargetStage, onSelectStage,
+}: {
+    trips: TripGroup[]
+    filterTargetStage: string
+    onSelectStage: (stageId: string) => void
+}) {
+    if (trips.length === 0) return null
+
+    const counts = new Map<string, { total: number; alreadyThere: number }>()
+    for (const t of trips) {
+        if (t.action === 'skip') continue
+        const cur = counts.get(t.stage.id) || { total: 0, alreadyThere: 0 }
+        cur.total += 1
+        if (t.action === 'update' && t.existingStageId === t.stage.id) {
+            cur.alreadyThere += 1
+        }
+        counts.set(t.stage.id, cur)
+    }
+
+    const totalActionable = [...counts.values()].reduce((s, c) => s + c.total, 0)
+    if (totalActionable === 0) return null
+
+    const visibleStages = TARGET_STAGE_ORDER.filter(s => (counts.get(s.id)?.total ?? 0) > 0)
+
+    return (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-900">
+                    Para onde vão essas {totalActionable} {totalActionable === 1 ? 'viagem' : 'viagens'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                    Etapa de destino calculada pelas datas e pelo status de app/voucher de cada viagem. Clique para filtrar.
+                </p>
+            </div>
+            <div className="space-y-1.5">
+                {visibleStages.map(stage => {
+                    const c = counts.get(stage.id)!
+                    const migrating = c.total - c.alreadyThere
+                    const isSelected = filterTargetStage === stage.id
+                    return (
+                        <button
+                            key={stage.id}
+                            type="button"
+                            onClick={() => onSelectStage(stage.id)}
+                            className={cn(
+                                'w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left',
+                                isSelected
+                                    ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300`
+                                    : `${stage.color} hover:brightness-95`
+                            )}
+                            title={migrating > 0
+                                ? `${migrating} mudando de etapa, ${c.alreadyThere} já estão lá`
+                                : `${c.alreadyThere} já estão nessa etapa`}
+                        >
+                            <span className="font-medium text-sm">{stage.name}</span>
+                            <span className="flex items-center gap-2">
+                                {c.alreadyThere > 0 && migrating > 0 && (
+                                    <span className="text-[10px] opacity-70">
+                                        {migrating} migrando · {c.alreadyThere} já estão
+                                    </span>
+                                )}
+                                {c.alreadyThere > 0 && migrating === 0 && (
+                                    <span className="text-[10px] opacity-70">já estão lá</span>
+                                )}
+                                {c.alreadyThere === 0 && migrating > 0 && (
+                                    <span className="text-[10px] opacity-70">todas migrando</span>
+                                )}
+                                <span className="text-base font-bold tabular-nums">{c.total}</span>
+                            </span>
+                        </button>
+                    )
+                })}
+            </div>
+            {filterTargetStage !== 'all' && (
+                <button
+                    type="button"
+                    onClick={() => onSelectStage(filterTargetStage)}
+                    className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                    <X className="h-3 w-3" /> Limpar filtro de etapa-destino
+                </button>
+            )}
+        </div>
+    )
+}
+
+// ─── Diff row helpers (uma linha por campo divergente) ──────
+
+type LucideIcon = typeof CheckCircle2
+
+/** Linha genérica do diff: ícone + label + "está hoje" + → + "vai virar" + checkbox. */
+function DiffRow({
+    Icon, label, from, to, toggleLabel, checked, onToggle, informational,
+}: {
+    Icon: LucideIcon
+    label: string
+    from: string
+    to: string
+    toggleLabel?: string
+    checked?: boolean
+    onToggle?: () => void
+    informational?: boolean
+}) {
+    return (
+        <div className="flex items-start gap-2 text-xs bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <Icon className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 grid grid-cols-[110px_minmax(0,1fr)_16px_minmax(0,1fr)] gap-2 items-center">
+                <span className="font-medium text-slate-700 truncate">{label}</span>
+                <span className="text-slate-500 truncate" title={from}>{from}</span>
+                <ArrowRight className="h-3 w-3 text-slate-300" />
+                <span className="text-slate-900 font-medium truncate" title={to}>{to}</span>
+            </div>
+            {!informational && onToggle && (
+                <label
+                    className="flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <input
+                        type="checkbox"
+                        checked={!!checked}
+                        onChange={onToggle}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-[11px] text-slate-600">{toggleLabel || 'aplicar'}</span>
+                </label>
+            )}
+            {informational && (
+                <span className="text-[10px] text-slate-400 shrink-0 italic">informativo</span>
+            )}
+        </div>
+    )
+}
+
+/**
+ * Linha específica do diff de números Monde — mostra explicitamente
+ * o que vai ser adicionado, removido ou mantido. Toggle único: "sincronizar".
+ */
+function MondeDiffRow({
+    diff, checked, onToggle,
+}: {
+    diff: TripDiff['monde']
+    checked: boolean
+    onToggle: () => void
+}) {
+    return (
+        <div className="flex items-start gap-2 text-xs bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <Hash className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-700 mb-1">Números de venda Monde</div>
+                <div className="space-y-0.5">
+                    {diff.toKeep.length > 0 && (
+                        <div className="text-slate-500">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 mr-1.5">mantém</span>
+                            <span className="font-mono">{diff.toKeep.join(', ')}</span>
+                        </div>
+                    )}
+                    {diff.toAdd.length > 0 && (
+                        <div className="text-emerald-700">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-600 mr-1.5">+ adicionar</span>
+                            <span className="font-mono">{diff.toAdd.join(', ')}</span>
+                        </div>
+                    )}
+                    {diff.toRemove.length > 0 && (
+                        <div className="text-rose-700">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-rose-600 mr-1.5">− remover</span>
+                            <span className="font-mono">{diff.toRemove.join(', ')}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+            <label
+                className="flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                onClick={e => e.stopPropagation()}
+            >
+                <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={onToggle}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-[11px] text-slate-600">sincronizar</span>
+            </label>
+        </div>
+    )
+}
+
 // ─── Expandable Trip Card ───────────────────────────────────
 
-function TripCard({ trip, selected, onToggle, onToggleMoveStage, cardsToArchive, onToggleArchiveMark }: {
+function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateDates, onToggleSyncMondeNums, cardsToArchive, onToggleArchiveMark }: {
     trip: TripGroup
     selected: boolean
     onToggle: (id: string) => void
     onToggleMoveStage: (id: string) => void
+    onToggleUpdateDates: (id: string) => void
+    onToggleSyncMondeNums: (id: string) => void
     cardsToArchive: Set<string>
     onToggleArchiveMark: (id: string) => void
 }) {
@@ -632,7 +956,13 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, cardsToArchive,
     const auditInfo = auditBadge[auditSeverity]
     const AuditIcon = auditInfo.Icon
 
-    const showStageDecision = trip.action === 'update' && !!trip.existingStageId && trip.existingStageId !== trip.stage.id
+    const showDiff = trip.action === 'update' && trip.diff.hasAny
+    // Conta quantos toggles aplicáveis estão ativos — pra mostrar chip "X mudanças"
+    const pendingChanges = trip.action === 'update'
+        ? (trip.diff.etapa.changed && trip.moveStage ? 1 : 0)
+            + (trip.diff.datas.changed && trip.updateDates ? 1 : 0)
+            + (trip.diff.monde.changed && trip.syncMondeNums ? 1 : 0)
+        : 0
     const computedTitle = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
     return (
@@ -674,6 +1004,15 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, cardsToArchive,
                             <AuditIcon className="h-3 w-3" />
                             {auditInfo.label}
                         </span>
+                        {pendingChanges > 0 && (
+                            <span
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200"
+                                title="Quantos campos vão ser alterados ao aplicar"
+                            >
+                                <Pencil className="h-3 w-3" />
+                                {pendingChanges} {pendingChanges === 1 ? 'mudança' : 'mudanças'}
+                            </span>
+                        )}
                     </div>
                     <div className="text-xs text-slate-500 truncate mb-0.5">
                         {trip.pagantePrincipal}
@@ -788,24 +1127,60 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, cardsToArchive,
                 </div>
             )}
 
-            {/* Decisão de mover de etapa — sempre visível (sem precisar expandir) */}
-            {showStageDecision && (
-                <div className="border-t border-slate-100 bg-amber-50 px-4 py-2.5 text-xs space-y-1.5">
-                    <div className="text-amber-900">
-                        Etapa atual: <span className="font-medium">{trip.existingStageName || '—'}</span>
-                        {' → '}
-                        Sugerida pelo CSV: <span className="font-medium">{trip.stage.name}</span>
+            {/* Diff arquivo × CRM — tabela lado a lado, visível sem precisar expandir.
+                Cada toggle decide se o campo correspondente vai ser aplicado no card. */}
+            {showDiff && (
+                <div className="border-t border-slate-100 bg-indigo-50/30 px-4 py-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <ArrowRight className="h-3 w-3 text-indigo-500" />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                            O que vai mudar nessa viagem
+                        </span>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                            type="checkbox"
-                            checked={trip.moveStage}
-                            onChange={() => onToggleMoveStage(trip.id)}
-                            onClick={e => e.stopPropagation()}
-                            className="rounded border-amber-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-slate-700">Mover card para a etapa sugerida</span>
-                    </label>
+
+                    <div className="space-y-2">
+                        {trip.diff.etapa.changed && (
+                            <DiffRow
+                                Icon={MapPin}
+                                label="Etapa"
+                                from={trip.diff.etapa.fromName || '—'}
+                                to={trip.stage.name}
+                                toggleLabel="mover"
+                                checked={trip.moveStage}
+                                onToggle={() => onToggleMoveStage(trip.id)}
+                            />
+                        )}
+
+                        {trip.diff.datas.changed && (
+                            <DiffRow
+                                Icon={Calendar}
+                                label="Datas da viagem"
+                                from={`${formatDateBR(trip.diff.datas.inicio.from) || '—'} → ${formatDateBR(trip.diff.datas.fim.from) || '—'}`}
+                                to={`${formatDateBR(trip.diff.datas.inicio.to) || '—'} → ${formatDateBR(trip.diff.datas.fim.to) || '—'}`}
+                                toggleLabel="atualizar"
+                                checked={trip.updateDates}
+                                onToggle={() => onToggleUpdateDates(trip.id)}
+                            />
+                        )}
+
+                        {trip.diff.monde.changed && (
+                            <MondeDiffRow
+                                diff={trip.diff.monde}
+                                checked={trip.syncMondeNums}
+                                onToggle={() => onToggleSyncMondeNums(trip.id)}
+                            />
+                        )}
+
+                        {trip.diff.valor.changed && (
+                            <DiffRow
+                                Icon={Hash}
+                                label="Valor total"
+                                from={formatBRL(trip.diff.valor.from)}
+                                to={formatBRL(trip.diff.valor.to)}
+                                informational
+                            />
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -1092,6 +1467,8 @@ export default function ImportacaoPosVendaPage() {
     const [filterApp, setFilterApp] = useState<'all' | 'sim' | 'nao'>('all')
     const [filterVoucher, setFilterVoucher] = useState<'all' | 'sim' | 'nao'>('all')
     const [filterAudit, setFilterAudit] = useState<'all' | AuditSeverity>('all')
+    /** Filtra por etapa-destino (id de pipeline_stages). 'all' = sem filtro. */
+    const [filterTargetStage, setFilterTargetStage] = useState<string>('all')
     const [showFilters, setShowFilters] = useState(false)
 
     // Persistência de sessão — mantém preview + filtros ao navegar entre páginas.
@@ -1315,41 +1692,42 @@ export default function ImportacaoPosVendaPage() {
             // Build title — padrão novo: "Nome Sobrenome / Destino / DD MMM AA - DD MMM AA"
             const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
 
-            // Check existing cards by venda nums
-            let existingCardId: string | null = null
-            let existingCardTitle: string | null = null
-            let existingStageId: string | null = null
-            let existingStatusComercial: string | null = null
-            let existingGanhoPlanner: boolean | null = null
-            let existingGanhoPos: boolean | null = null
-            let existingDonoPosId: string | null = null
+            // Snapshot do card existente (preenchido no caminho de match que achar o card)
+            type CardSnapshotDet = {
+                id: string
+                titulo: string
+                pipeline_stage_id: string | null
+                status_comercial: string | null
+                ganho_planner: boolean | null
+                ganho_pos: boolean | null
+                pos_owner_id: string | null
+                data_viagem_inicio: string | null
+                data_viagem_fim: string | null
+                valor_final: number | null
+                valor_estimado: number | null
+                produto_data: Record<string, unknown> | null
+            }
+            let snapshot: CardSnapshotDet | null = null
 
-            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id'
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
                 let query = supabase
                     .from('cards')
-                    .select(`${CARD_AUDIT_SELECT}, produto_data`)
+                    .select(CARD_AUDIT_SELECT)
                     .in('produto_data->>numero_venda_monde', vchunk)
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
 
                 if (cards && cards.length > 0) {
-                    const c = cards[0]
-                    existingCardId = c.id
-                    existingCardTitle = c.titulo as string
-                    existingStageId = (c.pipeline_stage_id as string) || null
-                    existingStatusComercial = (c.status_comercial as string) ?? null
-                    existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
-                    existingGanhoPos = (c.ganho_pos as boolean) ?? null
-                    existingDonoPosId = (c.pos_owner_id as string) ?? null
+                    snapshot = cards[0] as unknown as CardSnapshotDet
                     break
                 }
             }
 
             // Fallback: check historical numbers
-            if (!existingCardId) {
+            if (!snapshot) {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
                     let query = supabase
                         .from('cards')
@@ -1360,21 +1738,14 @@ export default function ImportacaoPosVendaPage() {
                     const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
-                        const c = cards[0]
-                        existingCardId = c.id
-                        existingCardTitle = c.titulo as string
-                        existingStageId = (c.pipeline_stage_id as string) || null
-                        existingStatusComercial = (c.status_comercial as string) ?? null
-                        existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
-                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
-                        existingDonoPosId = (c.pos_owner_id as string) ?? null
+                        snapshot = cards[0] as unknown as CardSnapshotDet
                         break
                     }
                 }
             }
 
             // Fallback: check by CPF + dates in pos-venda
-            if (!existingCardId && trip.cpfNorm && trip.dataInicio) {
+            if (!snapshot && trip.cpfNorm && trip.dataInicio) {
                 const { data: contatos } = await supabase
                     .from('contatos')
                     .select('id')
@@ -1396,38 +1767,54 @@ export default function ImportacaoPosVendaPage() {
                     const { data: cards } = await query
 
                     if (cards && cards.length > 0) {
-                        const c = cards[0]
-                        existingCardId = c.id
-                        existingCardTitle = c.titulo as string
-                        existingStageId = (c.pipeline_stage_id as string) || null
-                        existingStatusComercial = (c.status_comercial as string) ?? null
-                        existingGanhoPlanner = (c.ganho_planner as boolean) ?? null
-                        existingGanhoPos = (c.ganho_pos as boolean) ?? null
-                        existingDonoPosId = (c.pos_owner_id as string) ?? null
+                        snapshot = cards[0] as unknown as CardSnapshotDet
                     }
                 }
             }
 
-            const action = existingCardId ? 'update' : 'create'
+            const action = snapshot ? 'update' : 'create'
+            const pd = (snapshot?.produto_data ?? {}) as Record<string, unknown>
+            const historicoRaw = Array.isArray(pd.numeros_venda_monde_historico) ? pd.numeros_venda_monde_historico : []
+            const existingHistoricoNums = (historicoRaw as Array<{ numero?: unknown }>)
+                .map(h => typeof h?.numero === 'string' ? h.numero : null)
+                .filter((n): n is string => !!n)
 
             fullTrips.push({
                 ...trip,
                 id: titulo,
                 vendedorProfileId,
-                existingCardId,
-                existingCardTitle,
-                existingStageId,
-                existingStageName: null, // preenchido no batch abaixo
-                existingPhaseSlug: null, // preenchido no batch abaixo
-                existingStatusComercial,
-                existingGanhoPlanner,
-                existingGanhoPos,
-                existingDonoPosId,
+                existingCardId: snapshot?.id ?? null,
+                existingCardTitle: snapshot?.titulo ?? null,
+                existingStageId: snapshot?.pipeline_stage_id ?? null,
+                existingStageName: null,
+                existingPhaseSlug: null,
+                existingStatusComercial: snapshot?.status_comercial ?? null,
+                existingGanhoPlanner: snapshot?.ganho_planner ?? null,
+                existingGanhoPos: snapshot?.ganho_pos ?? null,
+                existingDonoPosId: snapshot?.pos_owner_id ?? null,
+                existingDataInicio: snapshot?.data_viagem_inicio ?? null,
+                existingDataFim: snapshot?.data_viagem_fim ?? null,
+                existingValorFinal: snapshot?.valor_final ?? snapshot?.valor_estimado ?? null,
+                existingNumeroVendaMonde: typeof pd.numero_venda_monde === 'string' ? pd.numero_venda_monde : null,
+                existingHistoricoNums,
                 otherCardCandidates: [],
-                moveStage: true, // default: mantém comportamento atual; usuário pode desmarcar
+                moveStage: true,
+                updateDates: false,
+                syncMondeNums: false,
                 action,
-                skipReason: null, // preenchido no batch abaixo se for T. Planner
-                audit: { severity: 'ok', issues: [] }, // preenchido depois do batch de stages
+                skipReason: null,
+                audit: { severity: 'ok', issues: [] },
+                diff: {
+                    hasAny: false,
+                    etapa: { changed: false, fromName: null, toName: trip.stage.name },
+                    datas: {
+                        changed: false,
+                        inicio: { from: null, to: trip.dataInicio, changed: false },
+                        fim: { from: null, to: trip.dataFim, changed: false },
+                    },
+                    monde: { changed: false, current: [], file: [], toAdd: [], toRemove: [], toKeep: [] },
+                    valor: { changed: false, from: 0, to: trip.valorTotal },
+                },
             })
         }
 
@@ -1461,9 +1848,14 @@ export default function ImportacaoPosVendaPage() {
             }
         }
 
-        // Auditoria de saúde — calcula depois do enrichment de stages.
+        // Auditoria de saúde + diff arquivo×CRM — calcula depois do enrichment de stages.
         for (const t of fullTrips) {
             t.audit = computeAudit(t)
+            t.diff = computeTripDiff(t)
+            // Default dos toggles: ON quando há diff, OFF quando não há.
+            t.moveStage = t.diff.etapa.changed
+            t.updateDates = t.diff.datas.changed
+            t.syncMondeNums = t.diff.monde.changed
         }
 
         setTrips(fullTrips)
@@ -1680,7 +2072,7 @@ export default function ImportacaoPosVendaPage() {
                 const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
                 const vendedorProfileId = profileMap.get(norm(trip.vendedor)) || null
 
-                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id'
+                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data'
 
                 const candidates: CardCandidate[] = []
 
@@ -1791,23 +2183,33 @@ export default function ImportacaoPosVendaPage() {
                     stageName: null as string | null, // populado no batch de stages
                 }))
 
-                let existingCardId: string | null = null
-                let existingCardTitle: string | null = null
-                let existingStageId: string | null = null
-                let existingStatusComercial: string | null = null
-                let existingGanhoPlanner: boolean | null = null
-                let existingGanhoPos: boolean | null = null
-                let existingDonoPosId: string | null = null
-
+                // Snapshot: extrai produto_data + datas + valor do winner (se houver)
+                // para alimentar o diff lado-a-lado.
+                let winnerProdutoData: Record<string, unknown> = {}
+                let winnerDataInicio: string | null = null
+                let winnerDataFim: string | null = null
+                let winnerValorFinal: number | null = null
                 if (winner) {
-                    existingCardId = winner.id
-                    existingCardTitle = winner.titulo
-                    existingStageId = winner.pipeline_stage_id
-                    existingStatusComercial = winner.status_comercial
-                    existingGanhoPlanner = winner.ganho_planner
-                    existingGanhoPos = winner.ganho_pos
-                    existingDonoPosId = winner.pos_owner_id
+                    const w = winner as unknown as {
+                        produto_data?: Record<string, unknown> | null
+                        data_viagem_inicio?: string | null
+                        data_viagem_fim?: string | null
+                        valor_final?: number | null
+                        valor_estimado?: number | null
+                    }
+                    winnerProdutoData = (w.produto_data ?? {}) as Record<string, unknown>
+                    winnerDataInicio = w.data_viagem_inicio ?? null
+                    winnerDataFim = w.data_viagem_fim ?? null
+                    winnerValorFinal = (typeof w.valor_final === 'number' ? w.valor_final
+                        : typeof w.valor_estimado === 'number' ? w.valor_estimado
+                        : null)
                 }
+                const winnerHistoricoRaw = Array.isArray(winnerProdutoData.numeros_venda_monde_historico)
+                    ? winnerProdutoData.numeros_venda_monde_historico
+                    : []
+                const winnerHistoricoNums = (winnerHistoricoRaw as Array<{ numero?: unknown }>)
+                    .map(h => typeof h?.numero === 'string' ? h.numero : null)
+                    .filter((n): n is string => !!n)
 
                 // Decisão de ação:
                 // - Achou card no CRM → update
@@ -1815,7 +2217,7 @@ export default function ImportacaoPosVendaPage() {
                 // - Não achou e sem CPF/pagante → skip (não dá pra criar contato)
                 let action: TripGroup['action']
                 let skipReason: string | null = null
-                if (existingCardId) {
+                if (winner) {
                     action = 'update'
                 } else if (trip.cpfNorm && trip.pagantePrincipal) {
                     action = 'create'
@@ -1830,20 +2232,38 @@ export default function ImportacaoPosVendaPage() {
                     ...trip,
                     id: titulo,
                     vendedorProfileId,
-                    existingCardId,
-                    existingCardTitle,
-                    existingStageId,
+                    existingCardId: winner?.id ?? null,
+                    existingCardTitle: winner?.titulo ?? null,
+                    existingStageId: winner?.pipeline_stage_id ?? null,
                     existingStageName: null,
                     existingPhaseSlug: null,
-                    existingStatusComercial,
-                    existingGanhoPlanner,
-                    existingGanhoPos,
-                    existingDonoPosId,
+                    existingStatusComercial: winner?.status_comercial ?? null,
+                    existingGanhoPlanner: winner?.ganho_planner ?? null,
+                    existingGanhoPos: winner?.ganho_pos ?? null,
+                    existingDonoPosId: winner?.pos_owner_id ?? null,
+                    existingDataInicio: winnerDataInicio,
+                    existingDataFim: winnerDataFim,
+                    existingValorFinal: winnerValorFinal,
+                    existingNumeroVendaMonde: typeof winnerProdutoData.numero_venda_monde === 'string' ? winnerProdutoData.numero_venda_monde : null,
+                    existingHistoricoNums: winnerHistoricoNums,
                     otherCardCandidates: others,
                     moveStage: true,
+                    updateDates: false,
+                    syncMondeNums: false,
                     action,
                     skipReason,
                     audit: { severity: 'ok', issues: [] },
+                    diff: {
+                        hasAny: false,
+                        etapa: { changed: false, fromName: null, toName: trip.stage.name },
+                        datas: {
+                            changed: false,
+                            inicio: { from: null, to: trip.dataInicio, changed: false },
+                            fim: { from: null, to: trip.dataFim, changed: false },
+                        },
+                        monde: { changed: false, current: [], file: [], toAdd: [], toRemove: [], toKeep: [] },
+                        valor: { changed: false, from: 0, to: trip.valorTotal },
+                    },
                 })
             }
 
@@ -1944,6 +2364,10 @@ export default function ImportacaoPosVendaPage() {
                 if (t.otherCardCandidates.length > 0 && t.audit.severity === 'ok') {
                     t.audit = { ...t.audit, severity: 'warn' }
                 }
+                t.diff = computeTripDiff(t)
+                t.moveStage = t.diff.etapa.changed
+                t.updateDates = t.diff.datas.changed
+                t.syncMondeNums = t.diff.monde.changed
             }
 
             setTrips(fullTrips)
@@ -2059,6 +2483,9 @@ export default function ImportacaoPosVendaPage() {
                 pipeline_stage_id: (trip.action === 'update' && !trip.moveStage) ? null : trip.stage.id,
                 data_viagem_inicio: trip.dataInicio,
                 data_viagem_fim: trip.dataFim,
+                // Flags por viagem (RPC respeita: false = comportamento legado COALESCE/append)
+                update_dates: trip.action === 'update' ? trip.updateDates : false,
+                sync_monde_nums: trip.action === 'update' ? trip.syncMondeNums : false,
                 valor_total: trip.valorTotal,
                 receita_total: trip.receita,
                 venda_nums: trip.vendaNums,
@@ -2295,11 +2722,12 @@ export default function ImportacaoPosVendaPage() {
     }
 
     // ─── Filter logic ────────────────────────────────────────
-    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor || filterApp !== 'all' || filterVoucher !== 'all' || filterAudit !== 'all')
+    const hasActiveFilters = !!(filterDataFimMin || filterDataFimMax || filterValorMin || filterValorMax || filterAction !== 'all' || filterVendedor || filterApp !== 'all' || filterVoucher !== 'all' || filterAudit !== 'all' || filterTargetStage !== 'all')
 
     const filteredTrips = trips.filter(trip => {
         if (filterAction !== 'all' && trip.action !== filterAction) return false
         if (filterAudit !== 'all' && (trip.audit?.severity ?? 'ok') !== filterAudit) return false
+        if (filterTargetStage !== 'all' && trip.stage.id !== filterTargetStage) return false
         if (filterDataFimMin && (!trip.dataFim || trip.dataFim < filterDataFimMin)) return false
         if (filterDataFimMax && (!trip.dataFim || trip.dataFim > filterDataFimMax)) return false
         if (filterValorMin && trip.valorTotal < parseFloat(filterValorMin)) return false
@@ -2320,6 +2748,7 @@ export default function ImportacaoPosVendaPage() {
         setFilterDataFimMax('')
         setFilterValorMin('')
         setFilterValorMax('')
+        setFilterTargetStage('all')
         setFilterAction('all')
         setFilterVendedor('')
         setFilterApp('all')
@@ -2362,6 +2791,18 @@ export default function ImportacaoPosVendaPage() {
     const toggleMoveStage = useCallback((id: string) => {
         setTrips(prev => prev.map(t =>
             t.id === id ? { ...t, moveStage: !t.moveStage } : t
+        ))
+    }, [])
+
+    const toggleUpdateDates = useCallback((id: string) => {
+        setTrips(prev => prev.map(t =>
+            t.id === id ? { ...t, updateDates: !t.updateDates } : t
+        ))
+    }, [])
+
+    const toggleSyncMondeNums = useCallback((id: string) => {
+        setTrips(prev => prev.map(t =>
+            t.id === id ? { ...t, syncMondeNums: !t.syncMondeNums } : t
         ))
     }, [])
 
@@ -2575,6 +3016,16 @@ export default function ImportacaoPosVendaPage() {
                 {/* ─── PREVIEW ─────────────────────────────────── */}
                 {step === 'preview' && (
                     <div className="space-y-4">
+                        {/* Para onde vão essas viagens — agrupado por etapa-destino */}
+                        <DestinationStageSummary
+                            trips={trips}
+                            filterTargetStage={filterTargetStage}
+                            onSelectStage={(stageId) => {
+                                setFilterTargetStage(prev => prev === stageId ? 'all' : stageId)
+                                setShowFilters(true)
+                            }}
+                        />
+
                         {/* Auditoria — saúde das viagens já existentes no CRM */}
                         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                             <div className="flex items-center justify-between mb-3">
@@ -2934,6 +3385,8 @@ export default function ImportacaoPosVendaPage() {
                                         selected={selectedTrips.has(trip.id)}
                                         onToggle={toggleTrip}
                                         onToggleMoveStage={toggleMoveStage}
+                                        onToggleUpdateDates={toggleUpdateDates}
+                                        onToggleSyncMondeNums={toggleSyncMondeNums}
                                         cardsToArchive={cardsToArchive}
                                         onToggleArchiveMark={toggleArchiveMark}
                                     />
