@@ -809,6 +809,7 @@ const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
 
 function DestinationStageSummary({
     trips, filterTargetStage, onSelectStage, stageCounts, activeOrgId,
+    cardsHandledByDups, cardsToArchive, onToggleArchiveMark,
 }: {
     trips: TripGroup[]
     filterTargetStage: string
@@ -817,6 +818,12 @@ function DestinationStageSummary({
     stageCounts: Record<string, number>
     /** Workspace ativo — necessário pra buscar a lista dos cards "fora da planilha" */
     activeOrgId: string | null
+    /** IDs de cards que JÁ aparecem em algum grupo de duplicatas — esses são tratados lá,
+     *  não precisam aparecer na lista "fora da planilha" pra reduzir confusão. */
+    cardsHandledByDups: Set<string>
+    /** Set compartilhado pra arquivar — também usado pro checkbox "arquivar este?" inline */
+    cardsToArchive: Set<string>
+    onToggleArchiveMark: (cardId: string) => void
 }) {
     // Estado: qual etapa teve a lista "fora da planilha" expandida pelo usuário
     const [expandedOutStage, setExpandedOutStage] = useState<string | null>(null)
@@ -1044,45 +1051,91 @@ function DestinationStageSummary({
                         </button>
 
                         {/* Lista expandida: cards na etapa que não vieram na planilha (suspeitos).
-                            Aparece quando user clica no contador "fora da planilha" da linha. */}
-                        {isOutListOpen && outOfFileCount > 0 && (
-                            <div className="bg-rose-50/50 border border-rose-200 rounded-lg px-3 py-2.5 ml-3 mr-3">
-                                <div className="text-[11px] font-medium text-rose-900 mb-2">
-                                    {outOfFileCount} {outOfFileCount === 1 ? 'card está' : 'cards estão'} em "{stage.name}" mas não {outOfFileCount === 1 ? 'veio' : 'vieram'} na planilha:
+                            Cards que JÁ aparecem em duplicatas viram texto informativo (decisão tá lá).
+                            Cards "puramente fora" recebem checkbox "arquivar" pra ação direta. */}
+                        {isOutListOpen && outOfFileCount > 0 && (() => {
+                            const handledByDups = outOfFileCards.filter(c => cardsHandledByDups.has(c.id))
+                            const needsAttention = outOfFileCards.filter(c => !cardsHandledByDups.has(c.id))
+                            return (
+                                <div className="bg-rose-50/50 border border-rose-200 rounded-lg px-3 py-2.5 ml-3 mr-3">
+                                    {loadingOutOfFile && (
+                                        <div className="text-xs text-slate-500">Carregando…</div>
+                                    )}
+                                    {!loadingOutOfFile && outOfFileCards.length === 0 && (
+                                        <div className="text-xs text-slate-500 italic">Nenhum card encontrado.</div>
+                                    )}
+
+                                    {/* Bloco 1: cards que JÁ estão sendo tratados pelo painel de duplicatas */}
+                                    {!loadingOutOfFile && handledByDups.length > 0 && (
+                                        <div className="text-[11px] text-slate-600 mb-2 px-2 py-1 bg-white/60 rounded border border-slate-200">
+                                            <span className="font-medium">{handledByDups.length} {handledByDups.length === 1 ? 'card está' : 'cards estão'} em duplicatas</span> (decisão tá no painel embaixo, não precisa olhar aqui)
+                                        </div>
+                                    )}
+
+                                    {/* Bloco 2: cards que precisam de atenção — checkbox arquivar inline */}
+                                    {!loadingOutOfFile && needsAttention.length > 0 && (
+                                        <>
+                                            <div className="text-[11px] font-medium text-rose-900 mb-2">
+                                                {needsAttention.length} {needsAttention.length === 1 ? 'card precisa' : 'cards precisam'} de atenção em "{stage.name}":
+                                            </div>
+                                            <ul className="space-y-1 max-h-64 overflow-y-auto">
+                                                {needsAttention.map(card => {
+                                                    const willArchive = cardsToArchive.has(card.id)
+                                                    return (
+                                                        <li key={card.id} className={cn(
+                                                            'text-xs flex items-center gap-2 px-2 py-1 rounded border',
+                                                            willArchive ? 'bg-rose-100/60 border-rose-300' : 'bg-white border-slate-200 hover:border-rose-200'
+                                                        )}>
+                                                            <label
+                                                                className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
+                                                                title={willArchive ? 'Vai arquivar — clique pra manter' : 'Clique pra arquivar este card'}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={willArchive}
+                                                                    onChange={() => onToggleArchiveMark(card.id)}
+                                                                    className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                                                />
+                                                                <span className={cn(
+                                                                    'text-[10px] font-semibold px-1 rounded',
+                                                                    willArchive ? 'text-rose-700' : 'text-slate-500'
+                                                                )}>
+                                                                    {willArchive ? 'arquivar' : 'manter'}
+                                                                </span>
+                                                            </label>
+                                                            <Link
+                                                                to={`/cards/${card.id}`}
+                                                                className="flex-1 min-w-0 truncate text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline"
+                                                                title={card.titulo || ''}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                {card.titulo || '(sem título)'}
+                                                            </Link>
+                                                            <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                                                                {card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : '—'}
+                                                                {card.data_viagem_fim && ` → ${formatDateBR(card.data_viagem_fim)}`}
+                                                            </span>
+                                                        </li>
+                                                    )
+                                                })}
+                                            </ul>
+                                        </>
+                                    )}
+
+                                    {!loadingOutOfFile && needsAttention.length === 0 && handledByDups.length > 0 && (
+                                        <div className="text-[11px] text-emerald-700 italic">
+                                            ✓ Todos os cards fora da planilha desta etapa já estão sendo tratados nas duplicatas.
+                                        </div>
+                                    )}
+
+                                    {outOfFileCards.length === 200 && (
+                                        <div className="text-[10px] text-rose-600 mt-1.5 italic">
+                                            Mostrando os primeiros 200. Há mais cards fora da planilha nessa etapa.
+                                        </div>
+                                    )}
                                 </div>
-                                {loadingOutOfFile && (
-                                    <div className="text-xs text-slate-500">Carregando…</div>
-                                )}
-                                {!loadingOutOfFile && outOfFileCards.length === 0 && (
-                                    <div className="text-xs text-slate-500 italic">Nenhum card encontrado.</div>
-                                )}
-                                {!loadingOutOfFile && outOfFileCards.length > 0 && (
-                                    <ul className="space-y-1 max-h-64 overflow-y-auto">
-                                        {outOfFileCards.map(card => (
-                                            <li key={card.id} className="text-xs flex items-center gap-2 hover:bg-rose-100/50 px-2 py-1 rounded">
-                                                <Link
-                                                    to={`/cards/${card.id}`}
-                                                    className="flex-1 min-w-0 truncate text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline"
-                                                    title={card.titulo}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    {card.titulo || '(sem título)'}
-                                                </Link>
-                                                <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                                                    {card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : '—'}
-                                                    {card.data_viagem_fim && ` → ${formatDateBR(card.data_viagem_fim)}`}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {outOfFileCards.length === 200 && (
-                                    <div className="text-[10px] text-rose-600 mt-1.5 italic">
-                                        Mostrando os primeiros 200. Há mais cards fora da planilha nessa etapa.
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            )
+                        })()}
                         </div>
                     )
                 })}
@@ -3696,6 +3749,9 @@ export default function ImportacaoPosVendaPage() {
                             filterTargetStage={filterTargetStage}
                             stageCounts={stageCounts}
                             activeOrgId={activeOrgId ?? null}
+                            cardsHandledByDups={new Set(duplicateGroups.flatMap(g => g.cards.map(c => c.id)))}
+                            cardsToArchive={cardsToArchive}
+                            onToggleArchiveMark={toggleArchiveMark}
                             onSelectStage={(stageId) => {
                                 setFilterTargetStage(prev => prev === stageId ? 'all' : stageId)
                                 setShowFilters(true)
