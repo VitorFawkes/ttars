@@ -3,12 +3,12 @@ import { useState, useEffect, useCallback } from 'react'
 const STORAGE_KEY = 'ai_agent_editor_layout_v3'
 
 /**
- * Feature flag local pra testar a UI v3 (cartão+drawer) lado a lado com a antiga.
+ * Feature flag local pra UI v3 (cartão+drawer) com fallback pra clássica.
  *
  * Fontes (precedência):
  *   1. URL: ?ui=v3 ou ?ui=classic — vence sobre tudo (útil pra demonstrar)
  *   2. localStorage('ai_agent_editor_layout_v3') = 'true' | 'false'
- *   3. Default: false (UI antiga)
+ *   3. Default: true (UI v3 é a principal a partir de 2026-04-30)
  *
  * NÃO afeta dados nem comportamento da agente em produção. Só troca o componente
  * de renderização do cliente.
@@ -67,6 +67,7 @@ function readInitial(): boolean {
     }
   }
 
-  // 3. Default — UI antiga
-  return false
+  // 3. Default — UI v3 (default a partir de 2026-04-30).
+  //    Quem quiser voltar pra clássica clica no botão "Voltar p/ clássica" no header.
+  return true
 }

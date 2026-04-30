@@ -124,7 +124,7 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
       </div>
 
       {/* Status compacto */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatusCard
           icon={Handshake}
           label="Sinais ativos"
@@ -167,6 +167,7 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-medium text-slate-900 flex-1 min-w-0">{cat.label}</p>
                   <Switch
+                    aria-label={`Ligar/desligar sinal: ${cat.label}`}
                     checked={signal.enabled}
                     onCheckedChange={() => toggleSignal(cat.slug)}
                   />
@@ -218,6 +219,7 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
               </div>
             </div>
             <Switch
+              aria-label="Notificar o responsável"
               checked={form.handoff_actions.notify_responsible}
               onCheckedChange={v => setForm(f => ({ ...f, handoff_actions: { ...f.handoff_actions, notify_responsible: v } }))}
             />
@@ -232,6 +234,7 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
               </div>
             </div>
             <Switch
+              aria-label="Pausar agente permanentemente"
               checked={form.handoff_actions.pause_permanently}
               onCheckedChange={v => setForm(f => ({ ...f, handoff_actions: { ...f.handoff_actions, pause_permanently: v } }))}
             />
@@ -298,6 +301,7 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
         subtitle="Quando o lead aceitar um horário, agente cria a reunião na agenda do responsável."
         right={
           <Switch
+            aria-label="Ativar agendamento automático"
             checked={!!bookMeeting?.enabled}
             onCheckedChange={toggleBookMeeting}
           />
@@ -401,7 +405,6 @@ export function HandoffSection({ form, setForm, agentOrgId }: Props) {
             </p>
           </div>
 
-          {/* Agente reserva (fallback_agent_id) — virá em iteração futura quando o form local expor o campo. */}
         </div>
       </Section>
     </div>

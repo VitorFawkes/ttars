@@ -54,10 +54,10 @@ export function ComoConversaSection({ agentId, agentName, companyName }: Props) 
               type="button"
               onClick={() => setActiveTab(t.key)}
               className={cn(
-                'inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex-shrink-0',
+                'inline-flex items-center gap-2 px-3 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap flex-shrink-0',
                 active
-                  ? 'border-indigo-500 text-indigo-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-200'
+                  ? 'border-indigo-500 text-indigo-700 font-semibold bg-indigo-50/50 rounded-t-md'
+                  : 'border-transparent font-medium text-slate-500 hover:text-slate-900 hover:border-slate-200'
               )}
             >
               <Icon className="w-3.5 h-3.5" />

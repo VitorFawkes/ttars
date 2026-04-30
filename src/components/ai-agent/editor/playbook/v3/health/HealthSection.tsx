@@ -8,6 +8,8 @@ import type { HealthAlert, HealthSeverity } from './types'
 
 interface Props {
   agentId: string
+  /** Callback opcional pra navegar à aba relevante quando admin clica "Ir resolver". */
+  onNavigate?: (target: HealthAlert['navigateTo']) => void
 }
 
 /**
@@ -20,7 +22,7 @@ interface Props {
  *
  * Não modifica nada — só leitura. Pode ser deixada aberta o tempo todo.
  */
-export function HealthSection({ agentId }: Props) {
+export function HealthSection({ agentId, onNavigate }: Props) {
   const { alerts, isLoading: configLoading, countBySeverity } = useAgentConfigChecks(agentId)
   const { data: allStats, isLoading: statsLoading } = useAiAgentHealthStats()
   const { data: allErrors, isLoading: errorsLoading } = useAiAgentRecentErrors()
@@ -84,7 +86,11 @@ export function HealthSection({ agentId }: Props) {
           {grouped.map(({ severity, items }) => (
             <div key={severity} className="space-y-2">
               {items.map(alert => (
-                <HealthAlertCard key={alert.id} alert={alert} />
+                <HealthAlertCard
+                  key={alert.id}
+                  alert={alert}
+                  onResolve={alert.navigateTo && onNavigate ? () => onNavigate(alert.navigateTo) : undefined}
+                />
               ))}
             </div>
           ))}
@@ -99,10 +105,20 @@ export function HealthSection({ agentId }: Props) {
             <h3 className="text-sm font-semibold text-slate-900">Histórico de execuções</h3>
             <p className="text-xs text-slate-500 mt-0.5">Atividade real da agente em produção</p>
           </div>
-          {statsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+          {statsLoading && (
+            <span className="text-xs text-slate-500 inline-flex items-center gap-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              carregando
+            </span>
+          )}
         </header>
         <div className="p-4">
-          {!stats ? (
+          {statsLoading && !stats ? (
+            <p className="text-sm text-slate-400 text-center py-6 inline-flex items-center justify-center gap-2 w-full">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Carregando estatísticas...
+            </p>
+          ) : !stats ? (
             <p className="text-sm text-slate-500 text-center py-6">
               Sem atividade registrada ainda.
             </p>
@@ -135,7 +151,12 @@ export function HealthSection({ agentId }: Props) {
             <h3 className="text-sm font-semibold text-slate-900">Erros recentes</h3>
             <p className="text-xs text-slate-500 mt-0.5">Últimos 5 erros do sistema/ferramentas</p>
           </div>
-          {errorsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+          {errorsLoading && (
+            <span className="text-xs text-slate-500 inline-flex items-center gap-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              carregando
+            </span>
+          )}
         </header>
         <div className="p-4">
           {errors.length === 0 ? (
@@ -147,13 +168,13 @@ export function HealthSection({ agentId }: Props) {
             <ul className="space-y-2 text-xs">
               {errors.map((e, i) => (
                 <li key={i} className="rounded border border-slate-200 p-2.5">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                     <span className="font-medium text-slate-900 truncate">{translateErrorSource(e.error_source)}</span>
-                    <span className="text-slate-400 text-[10px] flex-shrink-0">
+                    <span className="text-slate-400 text-[11px] flex-shrink-0">
                       {new Date(e.created_at).toLocaleString('pt-BR')}
                     </span>
                   </div>
-                  <p className="text-slate-600 mt-1 line-clamp-2">{e.error_message}</p>
+                  <p className="text-slate-600 mt-1 line-clamp-3">{e.error_message}</p>
                 </li>
               ))}
             </ul>
@@ -174,14 +195,14 @@ function Stat({
   tone?: 'normal' | 'warning'
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className={cn(
         'text-2xl font-semibold tracking-tight',
         tone === 'warning' && value > 0 ? 'text-amber-600' : 'text-slate-900',
       )}>
         {value}
       </div>
-      <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+      <div className="text-xs text-slate-500 mt-0.5 truncate" title={label}>{label}</div>
     </div>
   )
 }

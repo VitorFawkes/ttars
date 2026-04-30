@@ -382,21 +382,25 @@ export default function AiAgentDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {!isNew && (
+          {!isNew && !v3Enabled && (
             <button
               type="button"
               onClick={toggleV3}
-              className={`text-xs px-3 py-1.5 rounded-md border font-medium inline-flex items-center gap-1.5 transition-colors ${
-                v3Enabled
-                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-              }`}
-              title={v3Enabled
-                ? 'Você está vendo a UI nova. Clique pra voltar à antiga.'
-                : 'Ativar o layout novo (5 áreas em vez de 17 abas) — fica salvo só pra você.'}
+              className="text-xs px-3 py-1.5 rounded-md border font-medium inline-flex items-center gap-1.5 transition-colors bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+              title="Voltar ao layout novo (recomendado)"
             >
               <Wand2 className="w-3.5 h-3.5" />
-              {v3Enabled ? 'UI nova ligada' : 'Experimentar UI nova'}
+              Voltar pro layout novo
+            </button>
+          )}
+          {!isNew && v3Enabled && (
+            <button
+              type="button"
+              onClick={toggleV3}
+              className="text-[11px] text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
+              title="Voltar ao layout antigo (fallback de emergência)"
+            >
+              voltar p/ layout antigo
             </button>
           )}
           {dirty && <span className="text-xs text-amber-600">• alterações não salvas</span>}
@@ -477,7 +481,26 @@ export default function AiAgentDetailPage() {
             companyName={''}
           />
         )}
-        {activeTab === 'saude' && !isNew && id && <HealthSection agentId={id} />}
+        {activeTab === 'saude' && !isNew && id && (
+          <HealthSection
+            agentId={id}
+            onNavigate={(target) => {
+              // Mapeia destino do alerta pra aba do AiAgentDetailPage.
+              // Seções do Playbook viram 'playbook'. 'handoff' tem aba dedicada.
+              if (!target) return
+              const map: Record<string, string> = {
+                identity: 'playbook',
+                voice: 'playbook',
+                moments: 'playbook',
+                qualification: 'playbook',
+                boundaries: 'playbook',
+                signals: 'playbook',
+                examples: 'playbook',
+              }
+              setActiveTab(map[target] ?? target)
+            }}
+          />
+        )}
         {activeTab === 'regras_negocio' && <TabRegrasNegocio agentId={isNew ? undefined : id} />}
         {activeTab === 'funil' && <TabFunilQualificacao agentId={isNew ? undefined : id} />}
         {activeTab === 'cenarios' && <TabCenariosEspeciais agentId={isNew ? undefined : id} />}

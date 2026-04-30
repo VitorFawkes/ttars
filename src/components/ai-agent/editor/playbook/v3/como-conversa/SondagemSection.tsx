@@ -224,16 +224,19 @@ function SlotGroup({
   slots: NonNullable<PlaybookMoment['discovery_config']>['slots']
   onEditMoment: () => void
 }) {
-  const labelClass = {
-    rose: 'bg-rose-100 text-rose-700 border-rose-200',
-    amber: 'bg-amber-100 text-amber-700 border-amber-200',
-    slate: 'bg-slate-100 text-slate-700 border-slate-200',
+  // Cores mais distintas: dot colorido + label tom forte. Slate-400 ainda
+  // sinaliza "menos importante" sem parecer disabled.
+  const styles = {
+    rose: { label: 'bg-rose-100 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
+    amber: { label: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
+    slate: { label: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
   }[tone]
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase tracking-wide ${labelClass}`}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase tracking-wide inline-flex items-center gap-1.5 ${styles.label}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${styles.dot}`} aria-hidden />
           {title}
         </span>
         <span className="text-[11px] text-slate-500">{subtitle}</span>
@@ -250,7 +253,7 @@ function SlotGroup({
             >
               <div className="flex items-start gap-3">
                 {slot.icon && (
-                  <span className="text-lg flex-shrink-0">{slot.icon}</span>
+                  <span className="text-base flex-shrink-0 leading-none mt-0.5">{slot.icon}</span>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
