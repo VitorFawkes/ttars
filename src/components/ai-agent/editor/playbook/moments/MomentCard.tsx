@@ -29,6 +29,10 @@ interface Props {
   moment: PlaybookMoment
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dragHandleProps?: { attributes?: any; listeners?: any }
+  /** Se true, card abre expandido (UI v3 — drawer). Default: false. */
+  defaultExpanded?: boolean
+  /** Se true, oculta chevron e header colapsável (UI v3 — drawer já tem X). Default: false. */
+  hideToggle?: boolean
 }
 
 const TRIGGER_OPTIONS: Array<{ value: PlaybookMoment['trigger_type']; label: string }> = [
@@ -50,12 +54,12 @@ const DELIVERY_OPTIONS: Array<{ value: PlaybookMoment['delivery_mode']; label: s
   { value: 'wait_for_reply', label: 'Uma de cada vez', subtitle: 'Manda UMA mensagem e espera o lead responder antes de continuar (mais natural na abertura)' },
 ]
 
-export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps }: Props) {
+export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps, defaultExpanded = false, hideToggle = false }: Props) {
   const { upsert, remove } = useAgentMoments(agentId)
   const meta = useCurrentProductMeta()
   const pipelineId: string | undefined = meta?.pipelineId ?? undefined
   const produtoSlug: string | undefined = meta?.slug ?? undefined
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const [label, setLabel] = useState(moment.moment_label)
   const [triggerType, setTriggerType] = useState(moment.trigger_type)
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(moment.trigger_config ?? {})
@@ -142,33 +146,40 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   return (
     <div className={cn(
       'bg-white border rounded-lg',
-      expanded
-        ? (isFlow ? 'border-indigo-200' : 'border-rose-200')
-        : 'border-slate-200',
+      hideToggle ? 'border-transparent' : (
+        expanded
+          ? (isFlow ? 'border-indigo-200' : 'border-rose-200')
+          : 'border-slate-200'
+      ),
     )}>
-      <header className="flex items-center gap-2 px-3 py-2.5">
-        {isFlow ? (
-          <button type="button" {...(dragHandleProps?.attributes ?? {})} {...(dragHandleProps?.listeners ?? {})}
-            className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing"
-            title="Arraste pra mudar a ordem da fase">
-            <GripVertical className="w-4 h-4" />
-          </button>
-        ) : (
-          <span className="text-rose-400" title="Jogada situacional — ordem não importa">⚡</span>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-slate-900 truncate">{label || moment.moment_key}</div>
-          <div className="text-xs text-slate-500 truncate">
-            {TRIGGER_OPTIONS.find(t => t.value === triggerType)?.label ?? triggerType}
+      {!hideToggle && (
+        <header className="flex items-center gap-2 px-3 py-2.5">
+          {isFlow ? (
+            <button type="button" {...(dragHandleProps?.attributes ?? {})} {...(dragHandleProps?.listeners ?? {})}
+              className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing"
+              title="Arraste pra mudar a ordem da fase">
+              <GripVertical className="w-4 h-4" />
+            </button>
+          ) : (
+            <span className="text-rose-400" title="Jogada situacional — ordem não importa">⚡</span>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-slate-900 truncate">{label || moment.moment_key}</div>
+            <div className="text-xs text-slate-500 truncate">
+              {TRIGGER_OPTIONS.find(t => t.value === triggerType)?.label ?? triggerType}
+            </div>
           </div>
-        </div>
-        <button onClick={() => setExpanded(!expanded)} className="text-slate-400 hover:text-slate-700 p-1">
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </header>
+          <button onClick={() => setExpanded(!expanded)} className="text-slate-400 hover:text-slate-700 p-1">
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </header>
+      )}
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
+        <div className={cn(
+          'space-y-3',
+          hideToggle ? 'p-0' : 'px-4 pb-4 border-t border-slate-100 pt-3',
+        )}>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
               Nome {isFlow ? 'da fase' : 'da jogada'}

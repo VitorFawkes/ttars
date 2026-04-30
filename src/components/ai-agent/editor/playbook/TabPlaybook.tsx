@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, User, Volume2, Clock, Target, Shield, Eye, MessageSquareQuote } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, User, Volume2, Clock, Target, Shield, Eye, MessageSquareQuote, Sparkles } from 'lucide-react'
 import { IdentitySection } from './sections/IdentitySection'
 import { VoiceSection } from './sections/VoiceSection'
 import { MomentsSection } from './sections/MomentsSection'
@@ -8,6 +8,8 @@ import { BoundariesSection } from './sections/BoundariesSection'
 import { SilentSignalsSection } from './sections/SilentSignalsSection'
 import { ExamplesSection } from './sections/ExamplesSection'
 import { V1V2ComparisonCard } from './V1V2ComparisonCard'
+import { RoteiroSection } from './v3/RoteiroSection'
+import { useV3Layout } from './v3/useV3Layout'
 
 interface Props {
   agentId: string
@@ -28,6 +30,7 @@ const SECTIONS: Array<{ key: SectionKey; title: string; subtitle: string; icon: 
 ]
 
 export function TabPlaybook({ agentId, agentName, companyName }: Props) {
+  const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     identity: true,
     voice: false,
@@ -53,6 +56,21 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
             Configure cada peça do prompt que o agente usa. Cada seção vira um bloco do prompt. Pra testar a configuração, vá na aba <span className="font-medium text-slate-700">Teste ao vivo</span>.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={toggleV3}
+          className={`text-[11px] px-2.5 py-1 rounded-md border font-medium inline-flex items-center gap-1.5 transition-colors ${
+            v3Enabled
+              ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
+          }`}
+          title={v3Enabled
+            ? 'Você está vendo a UI nova (cartão+drawer). Clique pra voltar à antiga.'
+            : 'Experimentar a UI nova com cartões resumidos e drawer lateral.'}
+        >
+          <Sparkles className="w-3 h-3" />
+          {v3Enabled ? 'UI nova ativa' : 'Experimentar UI nova'}
+        </button>
       </header>
 
       <div className="p-5 space-y-4">
@@ -73,7 +91,11 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
                 <div className="px-4 py-4 border-t border-slate-100 bg-slate-50/30">
                   {s.key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />}
                   {s.key === 'voice' && <VoiceSection agentId={agentId} agentName={agentName} companyName={companyName} />}
-                  {s.key === 'moments' && <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                  {s.key === 'moments' && (
+                    v3Enabled
+                      ? <RoteiroSection agentId={agentId} agentName={agentName} companyName={companyName} />
+                      : <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />
+                  )}
                   {s.key === 'qualification' && <QualificationSection agentId={agentId} />}
                   {s.key === 'boundaries' && <BoundariesSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                   {s.key === 'signals' && <SilentSignalsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
