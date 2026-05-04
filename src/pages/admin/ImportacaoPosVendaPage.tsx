@@ -1050,7 +1050,9 @@ function DestinationStageSummary({
                                             )}
                                         </div>
 
-                                        {/* Coluna 3: CRM DEPOIS — projeção pós-aplicação */}
+                                        {/* Coluna 3: CRM DEPOIS — projeção pós-aplicação.
+                                            Mostra a soma explícita: viagens da planilha + cards fora da planilha
+                                            que continuam lá = total no CRM depois. */}
                                         <div className="flex flex-col border-l border-current/15 pl-3">
                                             <div className="text-[9px] uppercase tracking-wide opacity-60 font-semibold mb-0.5">
                                                 CRM depois
@@ -1076,9 +1078,26 @@ function DestinationStageSummary({
                                             </div>
                                             {hasInteraction && (
                                                 <div className="text-[10px] opacity-75 leading-tight">
-                                                    {stageDelta > 0 && <span>{stageDelta} chegando ao aplicar</span>}
-                                                    {stageDelta < 0 && <span>{Math.abs(stageDelta)} saindo daqui</span>}
-                                                    {stageDelta === 0 && fileGoing > 0 && <span>sem mudança no total</span>}
+                                                    {/* Soma explícita pra responder "vão ter X ou Y?":
+                                                        planilha + fora-da-planilha-que-fica = projetado */}
+                                                    {fileGoing > 0 && outOfFile > 0 && (
+                                                        <span>
+                                                            <span className="font-medium">{fileGoing}</span> da planilha + <span className="font-medium text-rose-700">{outOfFile}</span> fora da planilha
+                                                            {' = '}
+                                                            <span className="font-bold">{projected}</span>
+                                                        </span>
+                                                    )}
+                                                    {fileGoing > 0 && outOfFile === 0 && (
+                                                        <span>
+                                                            <span className="font-medium">{fileGoing}</span> da planilha
+                                                            {projected !== fileGoing && (
+                                                                <span> · {projected - fileGoing} {projected - fileGoing > 0 ? 'extra' : 'a menos'}</span>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                    {fileGoing === 0 && outOfFile > 0 && (
+                                                        <span><span className="font-medium text-rose-700">{outOfFile}</span> fora da planilha continuam aqui</span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -1087,14 +1106,74 @@ function DestinationStageSummary({
                             )
                         })()}
 
-                        {/* Lista expandida: cards na etapa que não vieram na planilha (suspeitos).
-                            Cards que JÁ aparecem em duplicatas viram texto informativo (decisão tá lá).
-                            Cards "puramente fora" recebem checkbox "arquivar" pra ação direta. */}
+                        {/* Lista expandida: TODOS os cards fora da planilha de cada etapa, com
+                            status final claro de cada um — "vai manter" ou "vai arquivar" — pra
+                            o user saber exatamente o que sobra na etapa após aplicar. */}
                         {isOutListOpen && outOfFileCount > 0 && (() => {
-                            const handledByDups = outOfFileCards.filter(c => cardsHandledByDups.has(c.id))
-                            const needsAttention = outOfFileCards.filter(c => !cardsHandledByDups.has(c.id))
+                            // Separa em 2 grupos: o que VAI MANTER (sobra na etapa) e o que VAI ARQUIVAR.
+                            // - Cards em cardsToArchive → vão arquivar
+                            // - Resto → vai manter (continuam aqui depois de aplicar)
+                            const willKeep = outOfFileCards.filter(c => !cardsToArchive.has(c.id))
+                            const willArchive = outOfFileCards.filter(c => cardsToArchive.has(c.id))
+
+                            const renderItem = (card: typeof outOfFileCards[number], archiveMode: boolean) => {
+                                const inDups = cardsHandledByDups.has(card.id)
+                                return (
+                                    <li key={card.id} className={cn(
+                                        'text-xs flex items-center gap-2 px-2 py-1 rounded border',
+                                        archiveMode ? 'bg-rose-100/60 border-rose-300' : 'bg-emerald-50/60 border-emerald-200'
+                                    )}>
+                                        <label
+                                            className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
+                                            title={archiveMode ? 'Vai arquivar — clique pra manter' : 'Vai manter — clique pra arquivar'}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={archiveMode}
+                                                onChange={() => onToggleArchiveMark(card.id)}
+                                                className={cn(
+                                                    'rounded',
+                                                    archiveMode ? 'border-rose-300 text-rose-600 focus:ring-rose-500' : 'border-emerald-300 text-emerald-600 focus:ring-emerald-500'
+                                                )}
+                                            />
+                                            <span className={cn(
+                                                'text-[10px] font-semibold px-1 rounded',
+                                                archiveMode ? 'text-rose-700' : 'text-emerald-700'
+                                            )}>
+                                                {archiveMode ? 'arquivar' : 'manter'}
+                                            </span>
+                                        </label>
+                                        <Link
+                                            to={`/cards/${card.id}`}
+                                            className="flex-1 min-w-0 truncate text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
+                                            title={card.titulo || ''}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            {card.titulo || '(sem título)'}
+                                        </Link>
+                                        {inDups && (
+                                            <span
+                                                className="text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 rounded shrink-0"
+                                                title="Esse card também aparece no painel de duplicatas"
+                                            >
+                                                em duplicatas
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                                            {(() => {
+                                                const ini = card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : null
+                                                const fim = card.data_viagem_fim ? formatDateBR(card.data_viagem_fim) : null
+                                                if (!ini && !fim) return '—'
+                                                if (ini && fim) return `${ini} → ${fim}`
+                                                return ini || fim
+                                            })()}
+                                        </span>
+                                    </li>
+                                )
+                            }
+
                             return (
-                                <div className="bg-rose-50/50 border border-rose-200 rounded-lg px-3 py-2.5 ml-3 mr-3">
+                                <div className="bg-slate-50/50 border border-slate-200 rounded-lg px-3 py-2.5 ml-3 mr-3 space-y-3">
                                     {loadingOutOfFile && (
                                         <div className="text-xs text-slate-500">Carregando…</div>
                                     )}
@@ -1102,77 +1181,47 @@ function DestinationStageSummary({
                                         <div className="text-xs text-slate-500 italic">Nenhum card encontrado.</div>
                                     )}
 
-                                    {/* Bloco 1: cards que JÁ estão sendo tratados pelo painel de duplicatas */}
-                                    {!loadingOutOfFile && handledByDups.length > 0 && (
-                                        <div className="text-[11px] text-slate-600 mb-2 px-2 py-1 bg-white/60 rounded border border-slate-200">
-                                            <span className="font-medium">{handledByDups.length} {handledByDups.length === 1 ? 'card está' : 'cards estão'} em duplicatas</span> (decisão tá no painel embaixo, não precisa olhar aqui)
+                                    {/* Header explicativo do balanço */}
+                                    {!loadingOutOfFile && outOfFileCards.length > 0 && (
+                                        <div className="text-[11px] text-slate-600">
+                                            <span className="font-medium">{outOfFileCards.length} cards</span> em "{stage.name}" não vieram na planilha.
+                                            Depois de aplicar:{' '}
+                                            <span className="font-semibold text-emerald-700">{willKeep.length} ficam aqui</span>
+                                            {willArchive.length > 0 && (
+                                                <> · <span className="font-semibold text-rose-700">{willArchive.length} {willArchive.length === 1 ? 'vai pra lixeira' : 'vão pra lixeira'}</span></>
+                                            )}
                                         </div>
                                     )}
 
-                                    {/* Bloco 2: cards que precisam de atenção — checkbox arquivar inline */}
-                                    {!loadingOutOfFile && needsAttention.length > 0 && (
-                                        <>
-                                            <div className="text-[11px] font-medium text-rose-900 mb-2">
-                                                {needsAttention.length} {needsAttention.length === 1 ? 'card precisa' : 'cards precisam'} de atenção em "{stage.name}":
+                                    {/* Bloco MANTER (verde) — cards que ficam na etapa após aplicar */}
+                                    {!loadingOutOfFile && willKeep.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] font-semibold text-emerald-800 mb-1.5 flex items-center gap-1">
+                                                <CheckCircle2 className="h-3 w-3" />
+                                                {willKeep.length} {willKeep.length === 1 ? 'vai continuar aqui' : 'vão continuar aqui'}
                                             </div>
-                                            <ul className="space-y-1 max-h-64 overflow-y-auto">
-                                                {needsAttention.map(card => {
-                                                    const willArchive = cardsToArchive.has(card.id)
-                                                    return (
-                                                        <li key={card.id} className={cn(
-                                                            'text-xs flex items-center gap-2 px-2 py-1 rounded border',
-                                                            willArchive ? 'bg-rose-100/60 border-rose-300' : 'bg-white border-slate-200 hover:border-rose-200'
-                                                        )}>
-                                                            <label
-                                                                className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
-                                                                title={willArchive ? 'Vai arquivar — clique pra manter' : 'Clique pra arquivar este card'}
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={willArchive}
-                                                                    onChange={() => onToggleArchiveMark(card.id)}
-                                                                    className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-                                                                />
-                                                                <span className={cn(
-                                                                    'text-[10px] font-semibold px-1 rounded',
-                                                                    willArchive ? 'text-rose-700' : 'text-slate-500'
-                                                                )}>
-                                                                    {willArchive ? 'arquivar' : 'manter'}
-                                                                </span>
-                                                            </label>
-                                                            <Link
-                                                                to={`/cards/${card.id}`}
-                                                                className="flex-1 min-w-0 truncate text-slate-700 hover:text-rose-700 underline-offset-2 hover:underline"
-                                                                title={card.titulo || ''}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                {card.titulo || '(sem título)'}
-                                                            </Link>
-                                                            <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                                                                {(() => {
-                                                                    const ini = card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : null
-                                                                    const fim = card.data_viagem_fim ? formatDateBR(card.data_viagem_fim) : null
-                                                                    if (!ini && !fim) return '—'
-                                                                    if (ini && fim) return `${ini} → ${fim}`
-                                                                    return ini || fim
-                                                                })()}
-                                                            </span>
-                                                        </li>
-                                                    )
-                                                })}
+                                            <ul className="space-y-1 max-h-48 overflow-y-auto">
+                                                {willKeep.map(c => renderItem(c, false))}
                                             </ul>
-                                        </>
+                                        </div>
                                     )}
 
-                                    {!loadingOutOfFile && needsAttention.length === 0 && handledByDups.length > 0 && (
-                                        <div className="text-[11px] text-emerald-700 italic">
-                                            ✓ Todos os cards fora da planilha desta etapa já estão sendo tratados nas duplicatas.
+                                    {/* Bloco ARQUIVAR (vermelho) — cards que vão pra lixeira */}
+                                    {!loadingOutOfFile && willArchive.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] font-semibold text-rose-800 mb-1.5 flex items-center gap-1">
+                                                <Archive className="h-3 w-3" />
+                                                {willArchive.length} {willArchive.length === 1 ? 'vai pra lixeira' : 'vão pra lixeira'} ao aplicar
+                                            </div>
+                                            <ul className="space-y-1 max-h-48 overflow-y-auto">
+                                                {willArchive.map(c => renderItem(c, true))}
+                                            </ul>
                                         </div>
                                     )}
 
                                     {outOfFileCards.length === 200 && (
-                                        <div className="text-[10px] text-rose-600 mt-1.5 italic">
-                                            Mostrando os primeiros 200. Há mais cards fora da planilha nessa etapa.
+                                        <div className="text-[10px] text-slate-500 italic">
+                                            Mostrando os primeiros 200 cards desta etapa fora da planilha.
                                         </div>
                                     )}
                                 </div>
