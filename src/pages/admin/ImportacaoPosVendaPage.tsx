@@ -18,7 +18,7 @@ import { readFileText } from '@/lib/readFileText'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
-    norm, parseDateBR, parseCSVNative, findColumn, chunked, formatBRL,
+    norm, parseCSVNative, findColumn, chunked, formatBRL,
     formatDateBR,
     VENDA_COLUMN_ALIASES, PRODUTO_ALIASES, VALOR_TOTAL_ALIASES, RECEITA_ALIASES,
     PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, DATA_INICIO_ALIASES, DATA_FIM_ALIASES,
@@ -2771,6 +2771,66 @@ export default function ImportacaoPosVendaPage() {
         const colDataVenda = findColumn(headers, DATA_VENDA_ALIASES)
         const colEtapa = findColumn(headers, ETAPA_ALIASES)
 
+        // ─── Date locale detection ────────────────────────────
+        // parseDateBR (do csvUtils) sempre interpreta primeiro componente como DD.
+        // Se a planilha vier com datas em US (MM/DD), todas as datas com ambos
+        // componentes ≤ 12 ficam invertidas. Solução: olhar TODAS as datas do
+        // arquivo, contar quantas só fazem sentido como BR (a > 12) vs como US
+        // (b > 12). Se predominantemente um, usa esse. Empate ou ambíguo total →
+        // BR (CRM é BR). Aplicamos esse locale em TODAS as datas, inclusive nas
+        // ambíguas, garantindo coerência por arquivo.
+        const detectFileLocale = (rows: Record<string, unknown>[], cols: (string | null | undefined)[]): 'BR' | 'US' => {
+            let brHits = 0, usHits = 0
+            for (const r of rows) {
+                for (const c of cols) {
+                    if (!c) continue
+                    const v = r[c]
+                    if (typeof v !== 'string') continue
+                    const m = v.trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/)
+                    if (!m) continue
+                    const a = parseInt(m[1], 10), b = parseInt(m[2], 10)
+                    if (a > 12 && b <= 12) brHits++
+                    else if (b > 12 && a <= 12) usHits++
+                }
+            }
+            if (usHits > brHits) return 'US'
+            return 'BR'
+        }
+        const fileLocale = detectFileLocale(rawRows, [colDataInicio, colDataFim, colDataVenda])
+        const parseDateLocale = (val: unknown): string | null => {
+            if (val == null || val === '') return null
+            if (typeof val === 'number') {
+                // Excel serial — sempre converte UTC, sem ambiguidade
+                const epoch = new Date(Date.UTC(1899, 11, 30))
+                const d = new Date(epoch.getTime() + val * 86400000)
+                return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+            }
+            const s = String(val).trim()
+            if (!s || s === '—' || s === '-') return null
+            const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+            if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+            const parts = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/)
+            if (parts) {
+                const a = parseInt(parts[1], 10), b = parseInt(parts[2], 10)
+                let yy = parts[3]
+                if (yy.length === 2) yy = '20' + yy
+                let mm: number, dd: number
+                if (a > 12 && b <= 12) { dd = a; mm = b }
+                else if (b > 12 && a <= 12) { mm = a; dd = b }
+                else if (fileLocale === 'US') { mm = a; dd = b }
+                else { dd = a; mm = b }
+                if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
+                return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+            }
+            const num = parseFloat(s.replace(',', '.'))
+            if (!isNaN(num) && num > 1000) {
+                const epoch = new Date(Date.UTC(1899, 11, 30))
+                const d = new Date(epoch.getTime() + num * 86400000)
+                return d.toISOString().slice(0, 10)
+            }
+            return null
+        }
+
         if (!colVenda || !colCpf || !colPagante) {
             toast.error('CSV deve ter colunas: Venda Nº, CPF e Pagante')
             return
@@ -2797,9 +2857,9 @@ export default function ImportacaoPosVendaPage() {
                     pagante: colPagante ? String(r[colPagante] ?? '').trim() : '',
                     fornecedor: colFornecedor ? String(r[colFornecedor] ?? '').trim() : '',
                     produto: colProduto ? String(r[colProduto] ?? '').trim() : '',
-                    dataVenda: colDataVenda ? parseDateBR(r[colDataVenda]) : null,
-                    dataInicio: colDataInicio ? parseDateBR(r[colDataInicio]) : null,
-                    dataFim: colDataFim ? parseDateBR(r[colDataFim]) : null,
+                    dataVenda: colDataVenda ? parseDateLocale(r[colDataVenda]) : null,
+                    dataInicio: colDataInicio ? parseDateLocale(r[colDataInicio]) : null,
+                    dataFim: colDataFim ? parseDateLocale(r[colDataFim]) : null,
                     passageiros,
                     appGerado: colAppGerado ? String(r[colAppGerado] ?? '').trim() : '',
                     vouchersNoApp: colVouchersApp ? String(r[colVouchersApp] ?? '').trim() : '',
@@ -2969,11 +3029,15 @@ export default function ImportacaoPosVendaPage() {
             // o esposo Antonio como pessoa_principal, mas o título tem "Aparecida Donizete".
             //
             // O título é gerado por buildTripTitle/formatShortName que pega só os 2 PRIMEIROS
-            // nomes (não o último sobrenome). Então o match precisa procurar por "primeiroNome
-            // + segundoNome" — não "primeiroNome + ultimoSobrenome" (esse não bate em sobrenomes
-            // longos como "Aparecida Donizete Rodrigues Alves Jaqueto" → título só tem "Aparecida
-            // Donizete"). Pra evitar falso positivo, filtra por overlap de datas.
-            if (!snapshot && trip.pagantePrincipal && trip.dataInicio && trip.dataFim) {
+            // nomes — então o match procura "primeiroNome + segundoNome".
+            //
+            // SEM filtro de datas no SQL — datas no card podem estar erradas em DB (legado de
+            // import antigo com bug de locale, ex: "06/10" virou "Out 6" em vez de "Jun 10").
+            // O usuário quer ATUALIZAR esses cards. Filtro de datas só acrescenta falso negativo
+            // — risco de falso positivo é baixo (primeiro nome + segundo nome é único o bastante,
+            // só puxa cards na fase pós-venda em status correto). Se houver mais de um, escolhe
+            // o que tem datas mais próximas; senão pega o primeiro.
+            if (!snapshot && trip.pagantePrincipal) {
                 const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
                 const primeiroNome = partes[0] || ''
                 const segundoNome = partes.length > 1 ? partes[1] : ''
@@ -2986,14 +3050,30 @@ export default function ImportacaoPosVendaPage() {
                         .is('archived_at', null)
                         .is('deleted_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
-                        // overlap de datas: card.inicio <= trip.fim E card.fim >= trip.inicio
-                        .lte('data_viagem_inicio', trip.dataFim)
-                        .gte('data_viagem_fim', trip.dataInicio)
-                        .limit(5)
+                        .limit(10)
                     if (activeOrgId) q = q.eq('org_id', activeOrgId)
                     const { data: cards } = await q
                     if (cards && cards.length > 0) {
-                        snapshot = cards[0] as unknown as CardSnapshotDet
+                        // Se mais de um card com mesmo nome, prefere o que tem datas mais próximas
+                        // ao trip (overlap ou diferença pequena). Se não tem datas no trip, pega
+                        // o primeiro retornado.
+                        if (cards.length === 1 || !trip.dataInicio || !trip.dataFim) {
+                            snapshot = cards[0] as unknown as CardSnapshotDet
+                        } else {
+                            const tIni = new Date(trip.dataInicio).getTime()
+                            const tFim = new Date(trip.dataFim).getTime()
+                            const ranked = cards.map(c => {
+                                const cIni = (c as { data_viagem_inicio?: string }).data_viagem_inicio
+                                const cFim = (c as { data_viagem_fim?: string }).data_viagem_fim
+                                if (!cIni || !cFim) return { c, dist: Number.MAX_SAFE_INTEGER }
+                                const cIniMs = new Date(cIni).getTime()
+                                const cFimMs = new Date(cFim).getTime()
+                                // Distância: |dataInicio diff| + |dataFim diff|
+                                const dist = Math.abs(cIniMs - tIni) + Math.abs(cFimMs - tFim)
+                                return { c, dist }
+                            }).sort((a, b) => a.dist - b.dist)
+                            snapshot = ranked[0].c as unknown as CardSnapshotDet
+                        }
                     }
                 }
             }
@@ -3149,31 +3229,50 @@ export default function ImportacaoPosVendaPage() {
                 return
             }
 
-            // Helper: data flexível DD/MM/YYYY ou MM/DD/YYYY ou ISO.
-            // CRM é BR — quando ambíguo (ambos ≤ 12), assume BR (DD/MM). Sem isso,
-            // "10/06/2026" virava 2026-10-06 (Out 6) e quebrava o match por overlap de
-            // datas em casos como Aparecida Donizete onde só uma das datas era ambígua.
+            // Detecta locale do arquivo olhando TODAS as datas. Se houver pelo menos
+            // uma data com a > 12 (só faz sentido como BR) e nenhuma forçando US, BR.
+            // Idem para US. Empate ou ambíguo total → BR (CRM é BR). O locale
+            // detectado se aplica em TODAS as datas — incluindo as ambíguas — pra
+            // garantir consistência por arquivo.
+            let brHits = 0, usHits = 0
+            for (const r of rawRows) {
+                for (const c of [colInicio, colFim]) {
+                    if (!c) continue
+                    const v = r[c]
+                    if (typeof v !== 'string') continue
+                    const m = v.trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/)
+                    if (!m) continue
+                    const a = parseInt(m[1], 10), b = parseInt(m[2], 10)
+                    if (a > 12 && b <= 12) brHits++
+                    else if (b > 12 && a <= 12) usHits++
+                }
+            }
+            const fileLocale: 'BR' | 'US' = usHits > brHits ? 'US' : 'BR'
             const parseDateFlex = (val: unknown): string | null => {
                 if (val == null || val === '') return null
+                if (typeof val === 'number') {
+                    const epoch = new Date(Date.UTC(1899, 11, 30))
+                    const d = new Date(epoch.getTime() + val * 86400000)
+                    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+                }
                 const s = String(val).trim()
                 if (!s || s === '—' || s === '-') return null
-                // ISO yyyy-mm-dd
                 const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
                 if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
-                // dd/mm/yyyy ou mm/dd/yyyy — heurística por componente > 12
-                const parts = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/)
+                const parts = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/)
                 if (parts) {
                     const a = parseInt(parts[1], 10)
                     const b = parseInt(parts[2], 10)
                     let yy = parts[3]
                     if (yy.length === 2) yy = '20' + yy
                     let mm: number, dd: number
-                    if (a > 12) { dd = a; mm = b }              // BR (DD/MM)
-                    else if (b > 12) { mm = a; dd = b }         // US (MM/DD)
-                    else { dd = a; mm = b }                     // ambíguo: assume BR (CRM é BR)
+                    if (a > 12 && b <= 12) { dd = a; mm = b }
+                    else if (b > 12 && a <= 12) { mm = a; dd = b }
+                    else if (fileLocale === 'US') { mm = a; dd = b }
+                    else { dd = a; mm = b }
+                    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
                     return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
                 }
-                // Serial Excel
                 const num = parseFloat(s.replace(',', '.'))
                 if (!isNaN(num) && num > 1000) {
                     const epoch = new Date(Date.UTC(1899, 11, 30))
@@ -3493,16 +3592,14 @@ export default function ImportacaoPosVendaPage() {
 
                 // 5. Match pelo TÍTULO do card (último recurso) — pega cards onde o pagante
                 //    aparece como ACOMPANHANTE (título tem o nome dele, mas pessoa_principal
-                //    é outra pessoa, ex: esposo). Resolve casos como "Aparecida Donizete"
-                //    que é acompanhante, não pessoa principal.
+                //    é outra pessoa, ex: esposo). Resolve casos como "Aparecida Donizete".
                 //
-                //    O título é gerado por buildTripTitle/formatShortName que pega só os 2
-                //    PRIMEIROS nomes — então o match procura "primeiroNome + segundoNome"
-                //    (não "primeiroNome + último sobrenome"; sobrenomes longos como
-                //    "Aparecida Donizete Rodrigues Alves Jaqueto" geram só "Aparecida Donizete"
-                //    no título, e o match com "Jaqueto" falha). Filtro de overlap de datas
-                //    pra evitar falso positivo.
-                if (candidates.length === 0 && trip.pagantePrincipal && trip.dataInicio && trip.dataFim) {
+                //    SEM filtro estrito de datas no SQL — datas no card podem estar erradas
+                //    em DB (legado de import antigo com bug de locale). Risco de falso positivo
+                //    é baixo: primeiro+segundo nome é único o bastante e o filtro já restringe
+                //    a fase pós-venda em status correto. Quando há mais de um candidato, o
+                //    score-cards desempata por proximidade de datas mais à frente.
+                if (candidates.length === 0 && trip.pagantePrincipal) {
                     const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
                     const primeiroNome = partes[0] || ''
                     const segundoNome = partes.length > 1 ? partes[1] : ''
@@ -3515,10 +3612,7 @@ export default function ImportacaoPosVendaPage() {
                             .is('archived_at', null)
                             .is('deleted_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
-                            // overlap de datas: card.inicio <= trip.fim E card.fim >= trip.inicio
-                            .lte('data_viagem_inicio', trip.dataFim)
-                            .gte('data_viagem_fim', trip.dataInicio)
-                            .limit(5)
+                            .limit(10)
                         if (activeOrgId) q = q.eq('org_id', activeOrgId)
                         const { data: cards } = await q
                         for (const c of (cards || [])) {
