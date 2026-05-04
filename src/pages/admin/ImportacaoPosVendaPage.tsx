@@ -982,19 +982,33 @@ function DestinationStageSummary({
                             return (
                                 <button
                                     type="button"
-                                    onClick={() => fileGoing > 0 && onSelectStage(stage.id)}
-                                    disabled={fileGoing === 0}
+                                    onClick={() => {
+                                        // Click no card faz DUAS coisas: filtra pra essa etapa
+                                        // e abre/fecha a lista detalhada. Em qualquer etapa com
+                                        // alguma interação (planilha OU CRM) o user consegue
+                                        // expandir — não depende de ter "fora da planilha".
+                                        if (fileGoing > 0) onSelectStage(stage.id)
+                                        if (hasInteraction) setExpandedOutStage(isOutListOpen ? null : stage.id)
+                                    }}
+                                    disabled={!hasInteraction}
                                     className={cn(
                                         'w-full px-3 py-3 rounded-lg border transition-colors text-left',
                                         hasInteraction
                                             ? (isSelected
-                                                ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 ${fileGoing > 0 ? 'cursor-pointer' : 'cursor-default'}`
-                                                : `${stage.color} ${fileGoing > 0 ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`)
+                                                ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 cursor-pointer`
+                                                : `${stage.color} hover:brightness-95 cursor-pointer`)
                                             : 'bg-slate-50 border-slate-100 text-slate-400 cursor-default'
                                     )}
                                 >
-                                    {/* Linha 1: nome da etapa */}
-                                    <div className="font-semibold text-sm mb-2">{stage.name}</div>
+                                    {/* Linha 1: nome da etapa + chevron de expand */}
+                                    <div className="font-semibold text-sm mb-2 flex items-center justify-between gap-2">
+                                        <span>{stage.name}</span>
+                                        {hasInteraction && (
+                                            <span className="text-[11px] font-normal opacity-70">
+                                                {isOutListOpen ? '▴ ocultar detalhes' : '▾ ver detalhes'}
+                                            </span>
+                                        )}
+                                    </div>
 
                                     {/* Linha 2: 3 colunas com mesma altura, separadores verticais */}
                                     <div className="grid grid-cols-3 gap-3 text-xs">
