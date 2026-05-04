@@ -17,6 +17,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useAllowedStages } from '../../hooks/useCardCreationRules'
 import { useToast } from '../../contexts/ToastContext'
 import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
+import { processAIExtraction } from '../../hooks/useAIExtraction'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useProductContext } from '../../hooks/useProductContext'
 import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
@@ -537,15 +538,21 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 }
             }
 
-            // Step 2: If no audio (or text-only briefing), close normally
-            if (!audioBlob || briefingMode === 'text') {
+            // Step 2: Decide whether IA extraction should run.
+            // Runs for: audio recorded OR text briefing with enough content (>=50 chars,
+            // matching the n8n meeting_transcript guard).
+            const trimmedBriefingText = briefingText.trim()
+            const willExtractAudio = briefingMode === 'audio' && !!audioBlob
+            const willExtractText = briefingMode === 'text' && trimmedBriefingText.length >= 50
+
+            if (!willExtractAudio && !willExtractText) {
                 toast({ title: "Card criado com sucesso!", type: "success" })
                 onClose()
                 resetForm()
                 return
             }
 
-            // Step 3: Audio exists — trigger BriefingIA processing
+            // Step 3: Trigger IA extraction (audio → Whisper + extract; text → extract direct)
             toast({ title: "Card criado! Processando briefing com IA...", type: "success" })
             setBriefingStep('processing')
 
@@ -553,7 +560,12 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) throw new Error('Usuário não autenticado')
 
-                const result = await processBriefingIA(card.id, audioBlob, user.id, 'novo')
+                const result = willExtractAudio
+                    ? await processBriefingIA(card.id, audioBlob!, user.id, 'novo')
+                    : await processAIExtraction(card.id, 'meeting_transcript', user.id, {
+                          transcription: trimmedBriefingText,
+                          mode: 'novo'
+                      })
                 setBriefingResult(result)
                 setBriefingStep('done')
 
@@ -1230,14 +1242,85 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
 
                                         {/* Text mode */}
                                         {briefingMode === 'text' && (
-                                            <Textarea
-                                                value={briefingText}
-                                                onChange={(e) => setBriefingText(e.target.value)}
-                                                placeholder="Descreva o briefing do lead: destino, datas, número de viajantes, preferências..."
-                                                rows={4}
-                                                className="resize-none"
-                                                disabled={createCardMutation.isPending || briefingStep === 'processing'}
-                                            />
+                                            <>
+                                                {briefingStep === 'idle' && (
+                                                    <>
+                                                        <p className="text-xs text-slate-500 mb-2">
+                                                            Escreva ou cole um briefing. A IA lê o texto e extrai os dados automaticamente.
+                                                        </p>
+                                                        <Textarea
+                                                            value={briefingText}
+                                                            onChange={(e) => setBriefingText(e.target.value)}
+                                                            placeholder="Descreva o briefing do lead: destino, datas, número de viajantes, preferências..."
+                                                            rows={4}
+                                                            className="resize-none"
+                                                            disabled={createCardMutation.isPending}
+                                                        />
+                                                        {briefingText.trim().length > 0 && briefingText.trim().length < 50 && (
+                                                            <p className="text-xs text-slate-400 mt-2">
+                                                                Texto muito curto — será salvo como observação simples (IA precisa de pelo menos 50 caracteres).
+                                                            </p>
+                                                        )}
+                                                        {briefingText.trim().length >= 50 && (
+                                                            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                                                                <Sparkles className="h-3 w-3" />
+                                                                Pronto. A IA vai extrair os dados ao criar o card.
+                                                            </p>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {briefingStep === 'processing' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                        <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-amber-800">Processando briefing com IA...</p>
+                                                            <p className="text-xs text-amber-600 mt-0.5">
+                                                                Lendo o texto e extraindo campos automaticamente
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'done' && briefingResult?.status === 'success' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-green-800">
+                                                                Briefing gerado com sucesso!
+                                                            </p>
+                                                            <p className="text-xs text-green-600 mt-0.5">
+                                                                {briefingResult.campos_extraidos?.length || 0} campo(s) preenchido(s) automaticamente
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'done' && briefingResult?.status !== 'success' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                                        <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-amber-800">
+                                                                Briefing processado, sem dados novos extraídos
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {briefingStep === 'error' && (
+                                                    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-red-800">
+                                                                Erro no briefing IA
+                                                            </p>
+                                                            <p className="text-xs text-red-600 mt-0.5">
+                                                                Card foi criado. Processe o briefing depois na tela do card.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -1267,7 +1350,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                     Processando IA...
                                 </>
-                            ) : audioBlob ? (
+                            ) : audioBlob || (briefingMode === 'text' && briefingText.trim().length >= 50) ? (
                                 <>
                                     <Sparkles className="h-4 w-4 mr-2" />
                                     Criar & Processar IA
