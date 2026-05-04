@@ -1181,6 +1181,14 @@ function DestinationStageSummary({
                                                 de {t.existingStageName}
                                             </span>
                                         )}
+                                        {t.existingArchivedAt && (
+                                            <span
+                                                className="text-[9px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 px-1 rounded shrink-0"
+                                                title="Card está arquivado — vai desarquivar ao aplicar"
+                                            >
+                                                ⚠ vai desarquivar
+                                            </span>
+                                        )}
                                         <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
                                             {(() => {
                                                 const ini = t.dataInicio ? formatDateBR(t.dataInicio) : null

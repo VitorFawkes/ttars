@@ -703,3 +703,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-04T14:23:45Z | supabase/migrations/20260504j_view_cards_acoes_skip_pos_venda.sql | applied_to_prod
 2026-05-04T15:05:55Z | supabase/migrations/20260504k_card_financial_items_monde_link.sql | applied_to_prod
 2026-05-04T15:34:46Z | supabase/migrations/20260504l_archive_orphan_monde_items_backfill.sql | applied_to_prod
+2026-05-04T17:43:28Z | supabase/migrations/20260504m_fix_field_changed_trigger_array_concat_redux.sql | applied_to_prod
