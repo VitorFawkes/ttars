@@ -1,12 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate, Link, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import {
     Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
     ArrowLeft, ArrowRight, Clock, ChevronDown, ChevronRight, XCircle,
     Package, Users, Plus, RefreshCw, Undo2, SquareCheck, Square, MinusSquare,
-    Filter, X, Archive, Calendar, Hash, MapPin, Pencil,
+    Filter, X, Archive, Calendar, Hash, MapPin, Pencil, Link2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -2085,16 +2085,22 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
 
 // ─── History Row ────────────────────────────────────────────
 
-function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profileId?: string; onReverted: () => void }) {
+function HistoryRow({ log, profileId, isAdmin, autoExpand, onReverted }: {
+    log: ImportLogRow
+    profileId?: string
+    isAdmin?: boolean
+    /** Quando true (URL com :logId que bate), abre essa linha expandida automaticamente. */
+    autoExpand?: boolean
+    onReverted: () => void
+}) {
     const [expanded, setExpanded] = useState(false)
     const [items, setItems] = useState<ImportLogItemRow[] | null>(null)
     const [loadingItems, setLoadingItems] = useState(false)
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [reverting, setReverting] = useState(false)
+    const [copied, setCopied] = useState(false)
 
-    const handleExpand = async () => {
-        if (expanded) { setExpanded(false); return }
-        setExpanded(true)
+    const loadItems = useCallback(async () => {
         if (items) return
         setLoadingItems(true)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2104,6 +2110,33 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
             .order('created_at')
         setItems((data || []) as ImportLogItemRow[])
         setLoadingItems(false)
+    }, [log.id, items])
+
+    // Auto-expand quando a URL é /importacao-pos-venda/:logId batendo essa linha.
+    // Útil pra compartilhar link específico com colegas de pós-venda.
+    useEffect(() => {
+        if (autoExpand && !expanded) {
+            setExpanded(true)
+            loadItems()
+        }
+    }, [autoExpand, expanded, loadItems])
+
+    const handleExpand = async () => {
+        if (expanded) { setExpanded(false); return }
+        setExpanded(true)
+        await loadItems()
+    }
+
+    const handleCopyLink = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const url = `${window.location.origin}/importacao-pos-venda/${log.id}`
+        navigator.clipboard.writeText(url).then(() => {
+            setCopied(true)
+            toast.success('Link copiado')
+            setTimeout(() => setCopied(false), 2000)
+        }).catch(() => {
+            toast.error('Não consegui copiar — copia manualmente: ' + url)
+        })
     }
 
     const revertableItems = (items || []).filter(i => !i.reverted_at && i.card_id)
@@ -2171,6 +2204,20 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                     {log.cards_created > 0 && <div><p className="text-sm font-semibold text-emerald-600">{log.cards_created}</p><p className="text-[10px] text-slate-400 uppercase">Criados</p></div>}
                     {log.cards_updated > 0 && <div><p className="text-sm font-semibold text-blue-600">{log.cards_updated}</p><p className="text-[10px] text-slate-400 uppercase">Atualizados</p></div>}
                     <div><p className="text-sm font-semibold text-slate-900">{log.products_imported}</p><p className="text-[10px] text-slate-400 uppercase">Produtos</p></div>
+                    <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        title="Copiar link permanente desta importação"
+                        className={cn(
+                            'inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors shrink-0',
+                            copied
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                        )}
+                    >
+                        <Link2 className="h-3 w-3" />
+                        {copied ? 'copiado' : 'copiar link'}
+                    </button>
                 </div>
             </button>
             {expanded && (
@@ -2178,8 +2225,9 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                     {loadingItems ? <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-slate-400" /></div> :
                         items && items.length > 0 ? (
                             <div className="space-y-1">
-                                {/* Toolbar */}
-                                {revertableItems.length > 0 && (
+                                {/* Toolbar de reverter — só admin (ação destrutiva).
+                                    Pós-venda não-admin vê só a lista, sem checkbox/botão. */}
+                                {isAdmin && revertableItems.length > 0 && (
                                     <div className="flex items-center justify-between py-1.5 border-b border-slate-200 mb-1">
                                         <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
                                             <input
@@ -2259,7 +2307,8 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                                                         <div className="divide-y divide-slate-100 border-t border-slate-100 max-h-80 overflow-y-auto">
                                                             {stageItems.map(item => {
                                                                 const isReverted = !!item.reverted_at
-                                                                const canRevert = !isReverted && !!item.card_id
+                                                                // Reverter é destrutivo — só admin pode marcar items pra reverter.
+                                                                const canRevert = !!isAdmin && !isReverted && !!item.card_id
                                                                 // Resolve etapa-origem a partir do previous_state. As 5 etapas POS_VENDA são
                                                                 // resolvidas inline; outras etapas viram "outra etapa".
                                                                 const STAGE_NAME_BY_ID: Record<string, string> = {
@@ -2356,6 +2405,9 @@ export default function ImportacaoPosVendaPage() {
     const activeOrgId = org?.id
     const queryClient = useQueryClient()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    // Quando a URL é /importacao-pos-venda/:logId, abre o detalhe daquela importação
+    // já expandido. Permite compartilhar link específico com qualquer user pós-venda.
+    const { logId: focusLogId } = useParams<{ logId?: string }>()
 
     const [step, setStep] = useState<Step>('idle')
     const [flowMode, setFlowMode] = useState<FlowMode>('detalhada')
@@ -4505,6 +4557,15 @@ export default function ImportacaoPosVendaPage() {
                                     </p>
                                 </div>
                             </div>
+                        ) : !isAdmin ? (
+                            // Pós-venda não-admin: vê só o histórico, não o uploader.
+                            // Usa as próximas seções (history) renderizadas mais abaixo.
+                            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                                <h2 className="text-base font-semibold text-slate-900 mb-1">Histórico de importações</h2>
+                                <p className="text-sm text-slate-500">
+                                    Aqui você vê todas as planilhas pós-venda que foram subidas, com detalhe do que cada uma fez. Apenas administradores podem subir uma planilha nova.
+                                </p>
+                            </div>
                         ) : (
                             <>
                                 {/* Seletor de fluxo */}
@@ -4624,6 +4685,8 @@ export default function ImportacaoPosVendaPage() {
                                             key={log.id}
                                             log={log}
                                             profileId={profile?.id}
+                                            isAdmin={isAdmin}
+                                            autoExpand={focusLogId === log.id}
                                             onReverted={() => queryClient.invalidateQueries({ queryKey: ['pv-import-logs'] })}
                                         />
                                     ))}

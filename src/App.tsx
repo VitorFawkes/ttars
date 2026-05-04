@@ -243,6 +243,7 @@ function App() {
                   <Route path="/viagens/:id" element={<ViagemStandalone />} />
                   <Route path="/vendas-monde" element={<VendasMondePage />} />
                   <Route path="/importacao-pos-venda" element={<ImportacaoPosVendaPage />} />
+                  <Route path="/importacao-pos-venda/:logId" element={<ImportacaoPosVendaPage />} />
                   <Route path="/presentes" element={<PresentesHubPage />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/empresas" element={<Empresas />} />
