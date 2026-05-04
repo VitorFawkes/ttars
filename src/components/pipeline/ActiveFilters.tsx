@@ -13,6 +13,7 @@ import { SystemPhase } from '../../types/pipeline'
 const STATUS_LABELS: Record<string, string> = {
     aberto: 'Em Aberto',
     ganho: 'Ganho',
+    sem_pos_venda: 'Sem Pós-Venda',
     perdido: 'Perdido',
 }
 

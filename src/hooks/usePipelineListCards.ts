@@ -226,7 +226,20 @@ export function usePipelineListCards({
                     .eq('status_comercial', 'ganho')
                     .eq('skip_pos_venda', true)
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
-                query = query.in('status_comercial', filters.statusComercial)
+                const statusList = filters.statusComercial ?? []
+                const wantsSemPos = statusList.includes('sem_pos_venda')
+                const realStatuses = statusList.filter(s => s !== 'sem_pos_venda')
+                if (wantsSemPos && realStatuses.length === 0) {
+                    query = query.eq('status_comercial', 'ganho').eq('skip_pos_venda', true)
+                } else if (wantsSemPos && realStatuses.length > 0) {
+                    const orParts = [
+                        `status_comercial.in.(${realStatuses.join(',')})`,
+                        'and(status_comercial.eq.ganho,skip_pos_venda.eq.true)',
+                    ]
+                    query = query.or(orParts.join(','))
+                } else {
+                    query = query.in('status_comercial', realStatuses)
+                }
             } else if (!showClosedCards) {
                 // Mostra cards em fluxo: aberto OU ganho-em-execução (ganho mas Pós-venda não concluído).
                 // Cards com ganho_pos=true (Pós-venda finalizado, pós NPS) ficam ocultos por padrão.

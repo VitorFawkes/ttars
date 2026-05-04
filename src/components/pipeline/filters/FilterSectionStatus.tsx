@@ -10,6 +10,7 @@ import { SystemPhase } from '../../../types/pipeline'
 const STATUS_COMERCIAL_OPTIONS = [
     { value: 'aberto', label: 'Em Aberto', color: 'bg-primary text-white border-primary' },
     { value: 'ganho', label: 'Ganho', color: 'bg-green-500 text-white border-green-500' },
+    { value: 'sem_pos_venda', label: 'Sem Pós-Venda', description: 'Ganho fechado direto, sem acompanhamento de Pós-Venda', color: 'bg-lime-500 text-white border-lime-500' },
     { value: 'perdido', label: 'Perdido', color: 'bg-red-500 text-white border-red-500' },
 ]
 
