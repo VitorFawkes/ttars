@@ -2888,8 +2888,17 @@ export default function ImportacaoPosVendaPage() {
         setTrips(fullTrips)
         setSelectedTrips(new Set(fullTrips.map(t => t.id)))
         // Pré-marca pra arquivar TODOS os cards ambíguos de TODAS as viagens.
-        // Usuário desmarca o que quer manter.
-        setCardsToArchive(new Set(fullTrips.flatMap(t => (t.otherCardCandidates || []).map(o => o.id))))
+        // MERGE em vez de RESET pra preservar pré-seleção automática de duplicatas
+        // (vinda do useEffect de duplicateGroups).
+        setCardsToArchive(prev => {
+            const next = new Set(prev)
+            for (const t of fullTrips) {
+                for (const o of (t.otherCardCandidates || [])) next.add(o.id)
+            }
+            return next
+        })
+        // Permite reseed do useEffect de duplicatas se a planilha mudou
+        setDuplicatesAutoSeeded(false)
         setStep('preview')
         toast.success(`${fullTrips.length} viagens identificadas (${parsed.length} linhas)`)
         } catch (err) {
@@ -3485,7 +3494,15 @@ export default function ImportacaoPosVendaPage() {
             setTrips(fullTrips)
             setSelectedTrips(new Set(fullTrips.filter(t => t.action !== 'skip').map(t => t.id)))
             // Pré-marca pra arquivar TODOS os cards ambíguos de TODAS as viagens.
-            setCardsToArchive(new Set(fullTrips.flatMap(t => (t.otherCardCandidates || []).map(o => o.id))))
+            // MERGE em vez de RESET pra preservar pré-seleção automática de duplicatas.
+            setCardsToArchive(prev => {
+                const next = new Set(prev)
+                for (const t of fullTrips) {
+                    for (const o of (t.otherCardCandidates || [])) next.add(o.id)
+                }
+                return next
+            })
+            setDuplicatesAutoSeeded(false)
             setStep('preview')
             const matched = fullTrips.filter(t => t.action === 'update').length
             const created = fullTrips.filter(t => t.action === 'create').length
