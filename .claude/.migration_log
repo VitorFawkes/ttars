@@ -689,3 +689,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-30T17:11:27Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430f_corp_demo_messages.sql | applied_to_prod
 2026-04-30T18:19:41Z | supabase/migrations/20260430b_bulk_pos_venda_no_ganho_in_pre_viagem_and_cpf_bypass.sql | applied_to_prod
 2026-04-30T19:26:35Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430g_future_opp_echo_released.sql | applied_to_prod
+2026-05-04T12:17:13Z | supabase/migrations/20260430h_bulk_pos_venda_skip_financials_and_sync_existing.sql | applied_to_prod
