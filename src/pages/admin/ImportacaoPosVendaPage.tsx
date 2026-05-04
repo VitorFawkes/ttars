@@ -3438,7 +3438,14 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
-            const payload = toProcess.map(trip => ({
+            const payload = toProcess.map(trip => {
+                // Auditoria sem valores: na planilha agregada, quando vem sem valor/receita,
+                // NÃO inventar (não rateaer entre produtos). O usuário sobe um relatório
+                // detalhado depois com valores reais por produto.
+                const isAggregated = flowMode === 'agregada'
+                const tripValorVazio = (trip.valorTotal || 0) === 0 && (trip.receita || 0) === 0
+                const skipFinanceiros = isAggregated && tripValorVazio
+                return {
                 existing_card_id: trip.existingCardId,
                 titulo: buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim),
                 cpf_norm: trip.cpfNorm,
@@ -3454,11 +3461,17 @@ export default function ImportacaoPosVendaPage() {
                 // Flags por viagem (RPC respeita: false = comportamento legado COALESCE/append)
                 update_dates: trip.action === 'update' ? trip.updateDates : false,
                 sync_monde_nums: trip.action === 'update' ? trip.syncMondeNums : false,
-                valor_total: trip.valorTotal,
-                receita_total: trip.receita,
+                // Flag: se true, RPC não cria items financeiros nem atualiza valor_final/receita.
+                // Útil quando a planilha agregada não trouxe valor (vai vir no relatório detalhado depois).
+                skip_financials: skipFinanceiros,
+                // Quando detalhada vem pra card que já existe, atualiza items financeiros existentes.
+                update_financials_on_existing: !isAggregated && trip.action === 'update',
+                valor_total: skipFinanceiros ? 0 : trip.valorTotal,
+                receita_total: skipFinanceiros ? 0 : trip.receita,
                 venda_nums: trip.vendaNums,
                 app_enviado_concluida: trip.appEnviadoConcluida,
-                products: trip.products.map(p => ({
+                // Products vai vazio quando skip_financials=true — RPC não toca em items financeiros.
+                products: skipFinanceiros ? [] : trip.products.map(p => ({
                     description: p.produto || null,
                     sale_value: p.valorTotal,
                     supplier_cost: Math.round((p.valorTotal - p.receita) * 100) / 100,
@@ -3472,7 +3485,8 @@ export default function ImportacaoPosVendaPage() {
                     .filter(p => isSim(p.vouchersNoApp) || isSim(p.contratoVoucher))
                     .map(p => ({ description: p.produto, fornecedor: p.fornecedor })) : null,
                 acompanhantes: trip.acompanhantes,
-            }))
+                }
+            })
 
             // Batching: triggers cascata em cards/tarefas são pesados. Processa em
             // lotes de 15 pra não estourar timeout e mostrar progresso real.
