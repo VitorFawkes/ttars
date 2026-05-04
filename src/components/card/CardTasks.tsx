@@ -84,6 +84,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                 filter: `card_id=eq.${cardId}`,
             }, () => {
                 queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
+                queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
             })
             .subscribe()
         return () => { supabase.removeChannel(channel) }

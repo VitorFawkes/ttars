@@ -79,13 +79,15 @@ export default function CardDetail() {
                     .from('tarefas')
                     .select('id, titulo, data_vencimento, prioridade, tipo')
                     .eq('card_id', id!)
+                    .is('deleted_at', null)
                     .or('concluida.is.null,concluida.eq.false')
-                    .not('status', 'eq', 'reagendada')
+                    .or('status.is.null,status.neq.reagendada')
                     .order('data_vencimento', { ascending: true, nullsFirst: false })
                     .order('created_at', { ascending: false })
                     .limit(1)
             ])
             if (cardRes.error) throw cardRes.error
+            if (tarefaRes.error) throw tarefaRes.error
             const card = cardRes.data as Card & { proxima_tarefa?: Record<string, unknown> | null }
             card.proxima_tarefa = tarefaRes.data?.[0] ?? null
             return card

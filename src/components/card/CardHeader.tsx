@@ -548,6 +548,14 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     </div>
                 )
             }
+
+            // Task exists but has no due date — still a pending task, not "Sem próxima tarefa"
+            return (
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium">
+                    <Clock className="h-3 w-3" />
+                    Tarefa pendente
+                </div>
+            )
         }
 
         // 3. Warning: No Next Task
