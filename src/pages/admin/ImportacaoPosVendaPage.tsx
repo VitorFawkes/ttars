@@ -2953,20 +2953,28 @@ export default function ImportacaoPosVendaPage() {
             // Resolve casos onde o pagante da planilha aparece como ACOMPANHANTE no card
             // (não como pessoa_principal). Ex: card "Aparecida Donizete / SEM DESTINO" tem
             // o esposo Antonio como pessoa_principal, mas o título tem "Aparecida Donizete".
-            // Busca cards cujo título contém primeiro nome + último sobrenome do pagante.
-            if (!snapshot && trip.pagantePrincipal) {
+            //
+            // O título é gerado por buildTripTitle/formatShortName que pega só os 2 PRIMEIROS
+            // nomes (não o último sobrenome). Então o match precisa procurar por "primeiroNome
+            // + segundoNome" — não "primeiroNome + ultimoSobrenome" (esse não bate em sobrenomes
+            // longos como "Aparecida Donizete Rodrigues Alves Jaqueto" → título só tem "Aparecida
+            // Donizete"). Pra evitar falso positivo, filtra por overlap de datas.
+            if (!snapshot && trip.pagantePrincipal && trip.dataInicio && trip.dataFim) {
                 const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
                 const primeiroNome = partes[0] || ''
-                const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
-                if (primeiroNome.length >= 3 && ultimoSobrenome.length >= 3) {
+                const segundoNome = partes.length > 1 ? partes[1] : ''
+                if (primeiroNome.length >= 3 && segundoNome.length >= 2) {
                     let q = supabase
                         .from('cards')
                         .select(CARD_AUDIT_SELECT)
-                        .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${ultimoSobrenome.replace(/[%_]/g, '')}%`)
+                        .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .is('archived_at', null)
                         .is('deleted_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                        // overlap de datas: card.inicio <= trip.fim E card.fim >= trip.inicio
+                        .lte('data_viagem_inicio', trip.dataFim)
+                        .gte('data_viagem_fim', trip.dataInicio)
                         .limit(5)
                     if (activeOrgId) q = q.eq('org_id', activeOrgId)
                     const { data: cards } = await q
@@ -3470,19 +3478,29 @@ export default function ImportacaoPosVendaPage() {
                 //    aparece como ACOMPANHANTE (título tem o nome dele, mas pessoa_principal
                 //    é outra pessoa, ex: esposo). Resolve casos como "Aparecida Donizete"
                 //    que é acompanhante, não pessoa principal.
-                if (candidates.length === 0 && trip.pagantePrincipal) {
+                //
+                //    O título é gerado por buildTripTitle/formatShortName que pega só os 2
+                //    PRIMEIROS nomes — então o match procura "primeiroNome + segundoNome"
+                //    (não "primeiroNome + último sobrenome"; sobrenomes longos como
+                //    "Aparecida Donizete Rodrigues Alves Jaqueto" geram só "Aparecida Donizete"
+                //    no título, e o match com "Jaqueto" falha). Filtro de overlap de datas
+                //    pra evitar falso positivo.
+                if (candidates.length === 0 && trip.pagantePrincipal && trip.dataInicio && trip.dataFim) {
                     const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
                     const primeiroNome = partes[0] || ''
-                    const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
-                    if (primeiroNome.length >= 3 && ultimoSobrenome.length >= 3) {
+                    const segundoNome = partes.length > 1 ? partes[1] : ''
+                    if (primeiroNome.length >= 3 && segundoNome.length >= 2) {
                         let q = supabase
                             .from('cards')
                             .select(CARD_AUDIT_SELECT)
-                            .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${ultimoSobrenome.replace(/[%_]/g, '')}%`)
+                            .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
                             .is('archived_at', null)
                             .is('deleted_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                            // overlap de datas: card.inicio <= trip.fim E card.fim >= trip.inicio
+                            .lte('data_viagem_inicio', trip.dataFim)
+                            .gte('data_viagem_fim', trip.dataInicio)
                             .limit(5)
                         if (activeOrgId) q = q.eq('org_id', activeOrgId)
                         const { data: cards } = await q
