@@ -1989,40 +1989,97 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                                     </div>
                                 )}
 
-                                {/* Items */}
-                                <div className="divide-y divide-slate-100">
-                                    {items.map(item => {
-                                        const isReverted = !!item.reverted_at
-                                        const canRevert = !isReverted && !!item.card_id
-                                        return (
-                                            <div key={item.id} className={cn("flex items-center gap-2 py-2 text-xs", isReverted && "opacity-50")}>
-                                                {canRevert && (
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selected.has(item.id)}
-                                                        onChange={() => toggleItem(item.id)}
-                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                )}
-                                                {!canRevert && <div className="w-4" />}
-                                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                                    {item.action === 'created' && !isReverted && <Plus className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
-                                                    {item.action === 'updated' && !isReverted && <RefreshCw className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
-                                                    {isReverted && <Undo2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
-                                                    <span className="text-slate-700 truncate">{item.pagante}</span>
-                                                    {item.card_id && (
-                                                        <Link to={`/cards/${item.card_id}`} className="text-indigo-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
-                                                            ver card
-                                                        </Link>
-                                                    )}
-                                                    {item.stage_name && <span className="text-slate-400 shrink-0">({item.stage_name})</span>}
-                                                    {isReverted && <span className="text-amber-600 shrink-0">revertido</span>}
-                                                </div>
-                                                <span className="text-slate-500 shrink-0">{formatBRL(item.total_venda)}</span>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                {/* Items agrupados por etapa-destino — auditoria clara */}
+                                {(() => {
+                                    // Agrupa items por stage_name (etapa-destino calculada na hora do import)
+                                    // + bucket "Pulada / Sem etapa" pra items sem stage_name (skip).
+                                    const groups = new Map<string, ImportLogItemRow[]>()
+                                    for (const item of items) {
+                                        const key = item.stage_name || '(Pulada / sem etapa)'
+                                        const existing = groups.get(key)
+                                        if (existing) existing.push(item)
+                                        else groups.set(key, [item])
+                                    }
+                                    // Ordena: etapas do funil pós-venda primeiro, depois alfabético, "Pulada" por último
+                                    const STAGE_ORDER = [
+                                        'App & Conteúdo em Montagem',
+                                        'Pré-embarque - >>> 30 dias',
+                                        'Pré-Embarque <<< 30 dias',
+                                        'Em Viagem',
+                                        'Pós-viagem & Reativação',
+                                    ]
+                                    const orderedKeys = [
+                                        ...STAGE_ORDER.filter(k => groups.has(k)),
+                                        ...[...groups.keys()]
+                                            .filter(k => !STAGE_ORDER.includes(k) && k !== '(Pulada / sem etapa)')
+                                            .sort(),
+                                    ]
+                                    if (groups.has('(Pulada / sem etapa)')) orderedKeys.push('(Pulada / sem etapa)')
+
+                                    return (
+                                        <div className="space-y-2">
+                                            {orderedKeys.map(stageName => {
+                                                const stageItems = groups.get(stageName) || []
+                                                const created = stageItems.filter(i => i.action === 'created' && !i.reverted_at).length
+                                                const updated = stageItems.filter(i => i.action === 'updated' && !i.reverted_at).length
+                                                const reverted = stageItems.filter(i => !!i.reverted_at).length
+                                                const skipped = stageItems.filter(i => i.action === 'skipped').length
+                                                return (
+                                                    <details key={stageName} className="bg-white border border-slate-200 rounded-md overflow-hidden group">
+                                                        <summary className="px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-slate-50">
+                                                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 transition-transform group-open:rotate-90 shrink-0" />
+                                                            <span className="font-medium text-sm text-slate-900">{stageName}</span>
+                                                            <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded shrink-0">
+                                                                {stageItems.length}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500 ml-2 truncate">
+                                                                {created > 0 && <span className="text-emerald-600">{created} criado{created !== 1 ? 's' : ''}</span>}
+                                                                {created > 0 && updated > 0 && <span> · </span>}
+                                                                {updated > 0 && <span className="text-blue-600">{updated} atualizado{updated !== 1 ? 's' : ''}</span>}
+                                                                {(created > 0 || updated > 0) && skipped > 0 && <span> · </span>}
+                                                                {skipped > 0 && <span className="text-slate-500">{skipped} pulado{skipped !== 1 ? 's' : ''}</span>}
+                                                                {reverted > 0 && <span className="text-amber-600"> · {reverted} revertido{reverted !== 1 ? 's' : ''}</span>}
+                                                            </span>
+                                                        </summary>
+                                                        <div className="divide-y divide-slate-100 border-t border-slate-100 max-h-80 overflow-y-auto">
+                                                            {stageItems.map(item => {
+                                                                const isReverted = !!item.reverted_at
+                                                                const canRevert = !isReverted && !!item.card_id
+                                                                return (
+                                                                    <div key={item.id} className={cn("flex items-center gap-2 px-3 py-2 text-xs", isReverted && "opacity-50")}>
+                                                                        {canRevert && (
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={selected.has(item.id)}
+                                                                                onChange={() => toggleItem(item.id)}
+                                                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                                            />
+                                                                        )}
+                                                                        {!canRevert && <div className="w-4" />}
+                                                                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                                            {item.action === 'created' && !isReverted && <Plus className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                                                                            {item.action === 'updated' && !isReverted && <RefreshCw className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                                                            {item.action === 'skipped' && <MinusSquare className="h-3.5 w-3.5 text-slate-400 shrink-0" />}
+                                                                            {isReverted && <Undo2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                                                                            <span className="text-slate-700 truncate">{item.pagante}</span>
+                                                                            {item.card_id && (
+                                                                                <Link to={`/cards/${item.card_id}`} className="text-indigo-500 hover:underline shrink-0" onClick={e => e.stopPropagation()}>
+                                                                                    ver card
+                                                                                </Link>
+                                                                            )}
+                                                                            {isReverted && <span className="text-amber-600 shrink-0">revertido</span>}
+                                                                        </div>
+                                                                        <span className="text-slate-500 shrink-0">{formatBRL(item.total_venda)}</span>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </details>
+                                                )
+                                            })}
+                                        </div>
+                                    )
+                                })()}
                             </div>
                         ) : <p className="text-xs text-slate-400 py-2">Sem detalhes</p>
                     }
