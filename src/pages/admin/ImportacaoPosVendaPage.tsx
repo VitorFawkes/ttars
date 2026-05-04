@@ -1398,6 +1398,7 @@ type DuplicateCardRow = {
     status_comercial: string | null
     ganho_planner: boolean | null
     pos_owner_id: string | null
+    archived_at: string | null
     numeroAtual: string | null
     numerosHistorico: string[]
 }
@@ -1424,6 +1425,9 @@ function scoreCardForKeep(c: DuplicateCardRow): { score: number; reasons: string
         'b2b0679c-ea06-4b46-9dd4-ee02abff1a36': 0,  // STAGE_APP_CONTEUDO
     }
     s += stageWeights[c.pipeline_stage_id || ''] || 0
+    // Card arquivado quase nunca é o "manter": foi arquivado de propósito ou por
+    // dedup antigo. Se houver alternativa não arquivada, ela vence.
+    if (c.archived_at) { s -= 1000; reasons.push('arquivado') }
     return { score: s, reasons }
 }
 
@@ -2621,6 +2625,7 @@ export default function ImportacaoPosVendaPage() {
         status_comercial: string | null
         ganho_planner: boolean | null
         pos_owner_id: string | null
+        archived_at: string | null
         numeroAtual: string | null
         numerosHistorico: string[]
     }
@@ -2631,12 +2636,15 @@ export default function ImportacaoPosVendaPage() {
         staleTime: 1000 * 60,
         queryFn: async () => {
             if (!activeOrgId) return []
+            // Inclui arquivados — sem isso a auditoria não detecta caso onde tem
+            // um card ativo + um arquivado com mesmo Monde (caso comum: import duplicou
+            // e user arquivou o errado). Score penaliza arquivados, então o painel
+            // ainda sugere manter o ativo.
             const { data } = await supabase
                 .from('cards')
-                .select('id, titulo, pipeline_stage_id, pessoa_principal_id, status_comercial, ganho_planner, pos_owner_id, produto_data')
+                .select('id, titulo, pipeline_stage_id, pessoa_principal_id, status_comercial, ganho_planner, pos_owner_id, archived_at, produto_data')
                 .eq('org_id', activeOrgId)
                 .in('pipeline_stage_id', POS_VENDA_STAGES)
-                .is('archived_at', null)
                 .is('deleted_at', null)
                 .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                 .limit(3000)
@@ -2656,6 +2664,7 @@ export default function ImportacaoPosVendaPage() {
                     status_comercial: (c.status_comercial as string) ?? null,
                     ganho_planner: (c.ganho_planner as boolean) ?? null,
                     pos_owner_id: (c.pos_owner_id as string) ?? null,
+                    archived_at: (c.archived_at as string) ?? null,
                     numeroAtual,
                     numerosHistorico,
                 }
@@ -2942,6 +2951,16 @@ export default function ImportacaoPosVendaPage() {
 
             const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data, archived_at'
 
+            // Helper: prefere cards NÃO arquivados. Se houver não-arquivado, ele vence.
+            // Se só tiver arquivado, esse é o match. Cobre o caso de cards duplicados
+            // (um arquivado, outro ativo com tarefas reais).
+            const pickPreferringActive = (cards: unknown[]): CardSnapshotDet | null => {
+                if (!cards || cards.length === 0) return null
+                const arr = cards as CardSnapshotDet[]
+                const active = arr.find(c => !c.archived_at)
+                return (active ?? arr[0]) ?? null
+            }
+
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
                 let query = supabase
@@ -2952,13 +2971,14 @@ export default function ImportacaoPosVendaPage() {
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
 
-                if (cards && cards.length > 0) {
-                    snapshot = cards[0] as unknown as CardSnapshotDet
+                const picked = pickPreferringActive(cards || [])
+                if (picked) {
+                    snapshot = picked
                     break
                 }
             }
 
-            // Fallback: check historical numbers (ignora arquivados/deletados)
+            // Fallback: check historical numbers (ignora deletados)
             if (!snapshot) {
                 for (const vn of trip.vendaNums.slice(0, 5)) {
                     let query = supabase
@@ -2966,12 +2986,13 @@ export default function ImportacaoPosVendaPage() {
                         .select(CARD_AUDIT_SELECT)
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
                         .is('deleted_at', null)
-                        .limit(1)
+                        .limit(5)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
                     const { data: cards } = await query
 
-                    if (cards && cards.length > 0) {
-                        snapshot = cards[0] as unknown as CardSnapshotDet
+                    const picked = pickPreferringActive(cards || [])
+                    if (picked) {
+                        snapshot = picked
                         break
                     }
                 }
@@ -3080,26 +3101,24 @@ export default function ImportacaoPosVendaPage() {
                     if (activeOrgId) q = q.eq('org_id', activeOrgId)
                     const { data: cards } = await q
                     if (cards && cards.length > 0) {
-                        // Se mais de um card com mesmo nome, prefere o que tem datas mais próximas
-                        // ao trip (overlap ou diferença pequena). Se não tem datas no trip, pega
-                        // o primeiro retornado.
-                        if (cards.length === 1 || !trip.dataInicio || !trip.dataFim) {
-                            snapshot = cards[0] as unknown as CardSnapshotDet
-                        } else {
+                        // Prefere card NÃO arquivado (se houver). Entre os do mesmo grupo
+                        // (arquivados ou ativos), ordena por proximidade de datas se trip
+                        // tem dataInicio/Fim. Senão pega o primeiro.
+                        const sorted = (cards as CardSnapshotDet[]).slice().sort((a, b) => {
+                            const aArch = a.archived_at ? 1 : 0
+                            const bArch = b.archived_at ? 1 : 0
+                            if (aArch !== bArch) return aArch - bArch
+                            if (!trip.dataInicio || !trip.dataFim) return 0
                             const tIni = new Date(trip.dataInicio).getTime()
                             const tFim = new Date(trip.dataFim).getTime()
-                            const ranked = cards.map(c => {
-                                const cIni = (c as { data_viagem_inicio?: string }).data_viagem_inicio
-                                const cFim = (c as { data_viagem_fim?: string }).data_viagem_fim
-                                if (!cIni || !cFim) return { c, dist: Number.MAX_SAFE_INTEGER }
-                                const cIniMs = new Date(cIni).getTime()
-                                const cFimMs = new Date(cFim).getTime()
-                                // Distância: |dataInicio diff| + |dataFim diff|
-                                const dist = Math.abs(cIniMs - tIni) + Math.abs(cFimMs - tFim)
-                                return { c, dist }
-                            }).sort((a, b) => a.dist - b.dist)
-                            snapshot = ranked[0].c as unknown as CardSnapshotDet
-                        }
+                            const distOf = (c: CardSnapshotDet) => {
+                                if (!c.data_viagem_inicio || !c.data_viagem_fim) return Number.MAX_SAFE_INTEGER
+                                return Math.abs(new Date(c.data_viagem_inicio).getTime() - tIni)
+                                     + Math.abs(new Date(c.data_viagem_fim).getTime() - tFim)
+                            }
+                            return distOf(a) - distOf(b)
+                        })
+                        snapshot = sorted[0]
                     }
                 }
             }
@@ -3439,6 +3458,7 @@ export default function ImportacaoPosVendaPage() {
                 ganho_planner: boolean | null
                 ganho_pos: boolean | null
                 pos_owner_id: string | null
+                archived_at: string | null
                 _matchType: 'venda_atual' | 'venda_historico'
             }
 
@@ -3449,6 +3469,12 @@ export default function ImportacaoPosVendaPage() {
                 if (c.ganho_planner === true) s += 50
                 if (c.pos_owner_id) s += 10
                 if (c._matchType === 'venda_atual') s += 5  // venda atual > histórico
+                // Cards arquivados são fallback — só vencem se não tiver alternativa.
+                // Cobre o caso onde o user já tem dois cards do mesmo Monde, um arquivado
+                // (resíduo de import antigo) e outro ativo (com tarefas, histórico real).
+                // Sem isso, o trip pode acabar atualizando o arquivado e marcando o ativo
+                // como duplicata-perdedora.
+                if (c.archived_at) s -= 1000
                 return s
             }
 
@@ -3481,6 +3507,7 @@ export default function ImportacaoPosVendaPage() {
                                 ganho_planner: (c.ganho_planner as boolean) ?? null,
                                 ganho_pos: (c.ganho_pos as boolean) ?? null,
                                 pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                archived_at: (c.archived_at as string) ?? null,
                                 _matchType: 'venda_atual',
                             })
                         }
@@ -3509,6 +3536,7 @@ export default function ImportacaoPosVendaPage() {
                                 ganho_planner: (c.ganho_planner as boolean) ?? null,
                                 ganho_pos: (c.ganho_pos as boolean) ?? null,
                                 pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                archived_at: (c.archived_at as string) ?? null,
                                 _matchType: 'venda_historico',
                             })
                         }
@@ -3548,6 +3576,7 @@ export default function ImportacaoPosVendaPage() {
                                 ganho_planner: (c.ganho_planner as boolean) ?? null,
                                 ganho_pos: (c.ganho_pos as boolean) ?? null,
                                 pos_owner_id: (c.pos_owner_id as string) ?? null,
+                                archived_at: (c.archived_at as string) ?? null,
                                 _matchType: 'venda_historico', // visualmente fallback, score igual histórico
                             })
                         }
@@ -3606,6 +3635,7 @@ export default function ImportacaoPosVendaPage() {
                                     ganho_planner: ((c as { ganho_planner?: boolean }).ganho_planner as boolean) ?? null,
                                     ganho_pos: ((c as { ganho_pos?: boolean }).ganho_pos as boolean) ?? null,
                                     pos_owner_id: ((c as { pos_owner_id?: string }).pos_owner_id as string) ?? null,
+                                    archived_at: ((c as { archived_at?: string }).archived_at as string) ?? null,
                                     _matchType: 'venda_historico', // score baixo, último recurso
                                 })
                             }
@@ -3647,6 +3677,7 @@ export default function ImportacaoPosVendaPage() {
                                 ganho_planner: ((c as { ganho_planner?: boolean }).ganho_planner as boolean) ?? null,
                                 ganho_pos: ((c as { ganho_pos?: boolean }).ganho_pos as boolean) ?? null,
                                 pos_owner_id: ((c as { pos_owner_id?: string }).pos_owner_id as string) ?? null,
+                                archived_at: ((c as { archived_at?: string }).archived_at as string) ?? null,
                                 _matchType: 'venda_historico',
                             })
                         }
