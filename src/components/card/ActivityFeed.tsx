@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { formatDistanceToNow, format } from 'date-fns'
+import { formatDistanceToNow, format, isToday, isYesterday, isSameYear } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Database } from '../../database.types'
 
@@ -40,6 +40,7 @@ const activityIcons = {
     // Card
     'card_created': Plus,
     'card_archived': Archive,
+    'card_restored': RotateCcw,
     // Tasks
     'task_created': FileText,
     'task_completed': Check,
@@ -108,6 +109,7 @@ const activityColors = {
     // Card
     'card_created': 'text-green-600 bg-green-50',
     'card_archived': 'text-gray-600 bg-gray-50',
+    'card_restored': 'text-emerald-600 bg-emerald-50',
     // Tasks
     'task_created': 'text-blue-600 bg-blue-50',
     'task_completed': 'text-green-600 bg-green-50',
@@ -237,6 +239,30 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
         default:
             return null
     }
+}
+
+/** Header amigável para o agrupamento por dia */
+function dayHeaderLabel(date: Date): string {
+    if (isToday(date)) return 'Hoje'
+    if (isYesterday(date)) return 'Ontem'
+    if (isSameYear(date, new Date())) return format(date, "EEEE, d 'de' MMMM", { locale: ptBR })
+    return format(date, "d 'de' MMMM 'de' yyyy", { locale: ptBR })
+}
+
+/** Agrupa atividades por dia (yyyy-MM-dd), preservando a ordem desc dentro do grupo */
+function groupByDay(activities: Activity[]): Array<{ key: string; date: Date; items: Activity[] }> {
+    const groups = new Map<string, Activity[]>()
+    for (const a of activities) {
+        if (!a.created_at) continue
+        const key = format(new Date(a.created_at), 'yyyy-MM-dd')
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key)!.push(a)
+    }
+    return Array.from(groups.entries()).map(([key, items]) => ({
+        key,
+        date: new Date(items[0].created_at!),
+        items,
+    }))
 }
 
 /** Inline audio player for briefing recordings */
@@ -461,8 +487,15 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
 
             <div className="p-2.5">
                 {activities && activities.length > 0 ? (
-                    <div className="space-y-2">
-                        {activities.map((activity) => {
+                    <div className="space-y-3">
+                        {groupByDay(activities).map((group) => (
+                            <div key={group.key} className="space-y-2">
+                                <div className="sticky top-0 z-10 -mx-2.5 px-2.5 py-1 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                        {dayHeaderLabel(group.date)}
+                                    </span>
+                                </div>
+                                {group.items.map((activity) => {
                             const Icon = activityIcons[activity.tipo as keyof typeof activityIcons] || activityIcons.default
                             const colorClass = activityColors[activity.tipo as keyof typeof activityColors] || activityColors.default
                             // Autoria coerente: prioriza actor_label novo (resolvido no banco via trigger
@@ -565,7 +598,9 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                     </div>
                                 </div>
                             )
-                        })}
+                                })}
+                            </div>
+                        ))}
                     </div>
                 ) : (
                     <p className="text-xs text-gray-500 italic">Nenhuma atividade registrada ainda</p>
