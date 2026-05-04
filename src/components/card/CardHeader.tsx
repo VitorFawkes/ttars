@@ -51,6 +51,7 @@ import QualityGateModal from './QualityGateModal'
 import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
+import AtivarPosVendaModal from './AtivarPosVendaModal'
 import FieldConfirmationModal from './FieldConfirmationModal'
 import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
 import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
@@ -405,6 +406,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [lossReasonModalOpen, setLossReasonModalOpen] = useState(false)
     const [pendingLossMove, setPendingLossMove] = useState<{ stageId: string; stageName: string } | null>(null)
     const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
+    const [ativarPosVendaModalOpen, setAtivarPosVendaModalOpen] = useState(false)
 
     const { missingBlocking } = useStageRequirements(card)
     const { getHeaderFields } = useFieldConfig(headerPipelineId)
@@ -888,6 +890,39 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
             toast.error('Erro ao marcar como ganho: ' + error.message)
         }
     })
+
+    // Ativar Pós-Venda — sai do modo "Sem Pós-Venda" e ativa cadências/automações
+    const ativarPosVendaMutation = useMutation({
+        mutationFn: async (posOwnerId: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { data, error } = await (supabase as any).rpc('ativar_pos_venda', {
+                p_card_id: card.id,
+                p_pos_owner_id: posOwnerId
+            })
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
+            setAtivarPosVendaModalOpen(false)
+            toast.success('Pós-Venda ativado')
+        },
+        onError: (error) => {
+            console.error('Failed to activate pos-venda:', error)
+            toast.error('Erro ao ativar Pós-Venda: ' + error.message)
+        }
+    })
+
+    const posVendaPhaseId = useMemo(
+        () => phasesData?.find(p => p.slug === 'pos_venda')?.id,
+        [phasesData]
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+    const isSemPosVenda = (card as any).skip_pos_venda === true
 
     const handleMarkAsWon = async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1380,23 +1415,49 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                         {/* Status Banners — ganho or perdido */}
                         {card.status_comercial === 'ganho' && (
-                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200">
-                                <div className="flex items-center gap-1.5 text-green-700 font-semibold text-sm">
+                            <div className={cn(
+                                "flex items-center gap-3 px-3 py-1.5 rounded-lg border",
+                                isSemPosVenda
+                                    ? "bg-lime-50 border-lime-200"
+                                    : "bg-green-50 border-green-200"
+                            )}>
+                                <div className={cn(
+                                    "flex items-center gap-1.5 font-semibold text-sm",
+                                    isSemPosVenda ? "text-lime-700" : "text-green-700"
+                                )}>
                                     <Trophy className="h-4 w-4" />
-                                    Ganho
+                                    {isSemPosVenda ? 'Ganho · Sem Pós-Venda' : 'Ganho'}
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        if (confirm('Tem certeza que deseja reabrir este card?\n\nA data de venda/ganho da fase será apagada e o card voltará a aparecer como aberto nos relatórios.')) {
-                                            reabrirCardMutation.mutate()
-                                        }
-                                    }}
-                                    disabled={reabrirCardMutation.isPending}
-                                    className="ml-auto px-2 py-0.5 rounded-md border border-green-300 bg-white text-green-700 text-xs font-medium hover:bg-green-100 transition-colors flex items-center gap-1"
-                                >
-                                    <RotateCcw className="h-3 w-3" />
-                                    {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
-                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                    {isSemPosVenda && (
+                                        <button
+                                            onClick={() => setAtivarPosVendaModalOpen(true)}
+                                            disabled={ativarPosVendaMutation.isPending}
+                                            className="px-2 py-0.5 rounded-md border border-indigo-300 bg-white text-indigo-700 text-xs font-medium hover:bg-indigo-50 transition-colors flex items-center gap-1"
+                                            title="Atribuir responsável e ativar cadências/automações de Pós-Venda neste card"
+                                        >
+                                            <ArrowRight className="h-3 w-3" />
+                                            Ativar Pós-Venda
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Tem certeza que deseja reabrir este card?\n\nA data de venda/ganho da fase será apagada e o card voltará a aparecer como aberto nos relatórios.')) {
+                                                reabrirCardMutation.mutate()
+                                            }
+                                        }}
+                                        disabled={reabrirCardMutation.isPending}
+                                        className={cn(
+                                            "px-2 py-0.5 rounded-md border bg-white text-xs font-medium transition-colors flex items-center gap-1",
+                                            isSemPosVenda
+                                                ? "border-lime-300 text-lime-700 hover:bg-lime-100"
+                                                : "border-green-300 text-green-700 hover:bg-green-100"
+                                        )}
+                                    >
+                                        <RotateCcw className="h-3 w-3" />
+                                        {reabrirCardMutation.isPending ? 'Reabrindo...' : 'Reabrir'}
+                                    </button>
+                                </div>
                             </div>
                         )}
                         {card.status_comercial === 'perdido' && (
@@ -1827,6 +1888,15 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 onClose={() => { setWinOptionsModalOpen(false); setPendingStageChange(null) }}
                 onChoosePosVenda={handleWinOptionPosVenda}
                 onChooseDirectWin={handleWinOptionDirect}
+            />
+
+            <AtivarPosVendaModal
+                isOpen={ativarPosVendaModalOpen}
+                onClose={() => setAtivarPosVendaModalOpen(false)}
+                onConfirm={(posOwnerId) => ativarPosVendaMutation.mutate(posOwnerId)}
+                currentPosOwnerId={card.pos_owner_id || null}
+                posVendaPhaseId={posVendaPhaseId}
+                isPending={ativarPosVendaMutation.isPending}
             />
 
             <StageChangeModal

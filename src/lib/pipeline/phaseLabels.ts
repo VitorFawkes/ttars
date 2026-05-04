@@ -169,16 +169,19 @@ export function getMilestoneLabel(phases: PipelinePhase[] | undefined | null, mi
 }
 
 /**
- * Detecta se um card é "Ganho Direto" (venda fechada sem passar por pós-venda).
- * Centraliza a lógica antes duplicada em KanbanCard e PipelineListView.
+ * Detecta se um card é "Ganho sem Pós-Venda" (venda fechada sem acompanhamento humano).
+ * Identificação primária via flag skip_pos_venda; mantém fallback para a heurística
+ * antiga (cards anteriores ao backfill ou views que ainda não trazem a coluna).
  */
 export function isGanhoDireto(card: {
+    skip_pos_venda?: boolean | null
     ganho_planner?: boolean | null
     ganho_pos?: boolean | null
     phase_slug?: string | null
     fase?: string | null
 }): boolean {
-    // Usa phase_slug (invariante) quando disponível, senão fallback para fase (legado)
+    if (card.skip_pos_venda === true) return true
+    if (card.skip_pos_venda === false) return false
     const isInPosVenda = card.phase_slug
         ? card.phase_slug === SystemPhase.POS_VENDA
         : card.fase === 'Pós-venda'

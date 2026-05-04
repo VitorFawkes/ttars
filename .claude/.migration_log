@@ -691,3 +691,11 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-04-30T19:26:35Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260430g_future_opp_echo_released.sql | applied_to_prod
 2026-05-04T12:17:13Z | supabase/migrations/20260430h_bulk_pos_venda_skip_financials_and_sync_existing.sql | applied_to_prod
 2026-05-04T12:57:33Z | supabase/migrations/20260504a_enviar_para_pos_venda.sql | applied_to_prod
+2026-05-04T13:51:09Z | supabase/migrations/20260504b_skip_pos_venda_column.sql | applied_to_prod
+2026-05-04T13:51:18Z | supabase/migrations/20260504c_fn_calcular_etapa_pos_venda.sql | applied_to_prod
+2026-05-04T13:51:28Z | supabase/migrations/20260504d_marcar_ganho_skip_pos_venda.sql | applied_to_prod
+2026-05-04T13:51:37Z | supabase/migrations/20260504e_roteamento_pos_venda_skip_aware.sql | applied_to_prod
+2026-05-04T13:51:48Z | supabase/migrations/20260504f_block_cadences_for_skip_pos_venda.sql | applied_to_prod
+2026-05-04T13:51:57Z | supabase/migrations/20260504g_analytics_skip_aware.sql | applied_to_prod
+2026-05-04T13:52:07Z | supabase/migrations/20260504h_ativar_pos_venda_rpc.sql | applied_to_prod
+2026-05-04T13:52:22Z | supabase/migrations/20260504i_backfill_skip_pos_venda.sql | applied_to_prod

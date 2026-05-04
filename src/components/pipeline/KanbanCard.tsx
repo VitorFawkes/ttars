@@ -665,11 +665,11 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
                 </div>
             </div>
 
-            {/* Status Badge (Ganho Direto / Ganho / Perdido) */}
+            {/* Status Badge (Sem Pós-Venda / Ganho / Perdido) */}
             {card.status_comercial === 'ganho' && isGanhoDireto(card) && (
-                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full w-fit border border-amber-200">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-lime-700 bg-lime-50 px-2 py-0.5 rounded-full w-fit border border-lime-200" title="Card fechado sem acompanhamento de Pós-Venda — sem cadências/automações ativas">
                     <Trophy className="h-3 w-3" />
-                    Ganho Direto
+                    Sem Pós-Venda
                 </div>
             )}
             {card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && (
