@@ -444,11 +444,30 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                 ?? formData.pos_owner_id
                 ?? profile?.id
 
-            // Build briefing_inicial with observacao_livre + briefing text
-            const obsText = [observacao.trim(), briefingText.trim()].filter(Boolean).join('\n\n')
-            const briefingInicial = {
-                ...dynamicFields,
-                ...(obsText ? { observacao_livre: obsText } : {})
+            // Route obs/briefing to the JSONB key that ObservacoesEstruturadas reads from.
+            // Storage location depends on the selected stage's phase:
+            //  - SDR        → briefing_inicial.observacoes
+            //  - PLANNER    → produto_data.observacoes_criticas
+            //  - POS_VENDA  → produto_data.observacoes_pos_venda
+            const obsObject: Record<string, string> = {}
+            if (observacao.trim()) obsObject.observacoes = observacao.trim()
+            if (briefingText.trim()) obsObject.briefing = briefingText.trim()
+            const hasObs = Object.keys(obsObject).length > 0
+
+            const selectedStage = allowedStages.find(s => s.id === effectiveStageId)
+            const stagePhaseSlug = selectedStage?.phase_slug
+
+            const briefingInicial: Record<string, unknown> = { ...dynamicFields }
+            const produtoData: Record<string, unknown> = {}
+
+            if (hasObs) {
+                if (stagePhaseSlug === SystemPhase.SDR) {
+                    briefingInicial.observacoes = obsObject
+                } else if (stagePhaseSlug === SystemPhase.POS_VENDA) {
+                    produtoData.observacoes_pos_venda = obsObject
+                } else {
+                    produtoData.observacoes_criticas = obsObject
+                }
             }
 
             // Create the card
@@ -469,7 +488,8 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                     indicado_por_id: formData.indicado_por_id,
                     status_comercial: 'aberto',
                     moeda: 'BRL',
-                    briefing_inicial: briefingInicial
+                    briefing_inicial: briefingInicial,
+                    ...(Object.keys(produtoData).length > 0 ? { produto_data: produtoData } : {})
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any)
                 .select()
