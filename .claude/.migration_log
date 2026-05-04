@@ -711,3 +711,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-04T19:46:12Z | supabase/migrations/20260504q_activities_actor_backfill.sql | applied_to_prod
 2026-05-04T19:46:37Z | supabase/migrations/20260504r_marcar_ganho_perdido_reabrir_actor.sql | applied_to_prod
 2026-05-04T19:52:35Z | supabase/migrations/20260504q_tarefas_data_vencimento_required.sql | applied_to_prod
+2026-05-04T19:53:20Z | supabase/migrations/20260504s_card_lifecycle_activities.sql | applied_to_prod
