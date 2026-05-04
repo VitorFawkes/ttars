@@ -956,9 +956,6 @@ function DestinationStageSummary({
                     const isSelected = filterTargetStage === stage.id
                     const hasInteraction = fileGoing > 0 || fileHere > 0  // tem viagem do arquivo nessa etapa de algum jeito
                     const isOutListOpen = expandedOutStage === stage.id
-                    // "Fora da planilha" = cards atuais na etapa que NÃO vieram na planilha
-                    // (current - fileHere). Não muda com aplicar — importação só toca cards da planilha.
-                    const outOfFileCount = Math.max(0, current - fileHere)
                     return (
                         <div key={stage.id} className="space-y-1">
                         {(() => {
@@ -1106,22 +1103,75 @@ function DestinationStageSummary({
                             )
                         })()}
 
-                        {/* Lista expandida: TODOS os cards fora da planilha de cada etapa, com
-                            status final claro de cada um — "vai manter" ou "vai arquivar" — pra
-                            o user saber exatamente o que sobra na etapa após aplicar. */}
-                        {isOutListOpen && outOfFileCount > 0 && (() => {
-                            // Separa em 2 grupos: o que VAI MANTER (sobra na etapa) e o que VAI ARQUIVAR.
-                            // - Cards em cardsToArchive → vão arquivar
-                            // - Resto → vai manter (continuam aqui depois de aplicar)
+                        {/* Lista expandida: TODOS os cards que terminam nessa etapa após aplicar.
+                            Da planilha (criar/atualizar/migrar) + fora da planilha (manter/arquivar).
+                            User vê em UM SÓ LUGAR o que vai estar lá no final. */}
+                        {isOutListOpen && (() => {
+                            // Trips da planilha que terminam nessa etapa
+                            const tripsHere = trips.filter(t => t.action !== 'skip' && t.stage.id === stage.id)
+                            const tripsCreating = tripsHere.filter(t => t.action === 'create')
+                            const tripsAlreadyHere = tripsHere.filter(t => t.action === 'update' && t.existingStageId === stage.id)
+                            const tripsArrivingFromOther = tripsHere.filter(t => t.action === 'update' && t.existingStageId !== stage.id)
+
                             const willKeep = outOfFileCards.filter(c => !cardsToArchive.has(c.id))
                             const willArchive = outOfFileCards.filter(c => cardsToArchive.has(c.id))
+                            const totalFinal = tripsHere.length + willKeep.length
 
-                            const renderItem = (card: typeof outOfFileCards[number], archiveMode: boolean) => {
+                            // Helper: render trip da planilha como linha
+                            const renderTripLine = (t: typeof tripsHere[number], action: 'criar' | 'atualizar' | 'migrar') => {
+                                const colorByAction = {
+                                    criar: 'bg-emerald-50 border-emerald-200',
+                                    atualizar: 'bg-slate-50 border-slate-200',
+                                    migrar: 'bg-blue-50 border-blue-200',
+                                }
+                                const labelByAction = {
+                                    criar: { text: 'criar', cls: 'bg-emerald-100 text-emerald-700' },
+                                    atualizar: { text: 'atualizar', cls: 'bg-slate-100 text-slate-600' },
+                                    migrar: { text: 'migrar pra cá', cls: 'bg-blue-100 text-blue-700' },
+                                }
+                                const lbl = labelByAction[action]
+                                const titulo = buildTripTitle(t.pagantePrincipal, t.products, t.dataInicio, t.dataFim)
+                                return (
+                                    <li key={t.id} className={cn('text-xs flex items-center gap-2 px-2 py-1 rounded border', colorByAction[action])}>
+                                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0', lbl.cls)}>
+                                            {lbl.text}
+                                        </span>
+                                        {t.existingCardId ? (
+                                            <Link
+                                                to={`/cards/${t.existingCardId}`}
+                                                className="flex-1 min-w-0 truncate text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                {titulo}
+                                            </Link>
+                                        ) : (
+                                            <span className="flex-1 min-w-0 truncate text-slate-700">{titulo}</span>
+                                        )}
+                                        {action === 'migrar' && t.existingStageName && (
+                                            <span className="text-[9px] text-blue-700 bg-blue-50 border border-blue-200 px-1 rounded shrink-0">
+                                                de {t.existingStageName}
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                                            {(() => {
+                                                const ini = t.dataInicio ? formatDateBR(t.dataInicio) : null
+                                                const fim = t.dataFim ? formatDateBR(t.dataFim) : null
+                                                if (!ini && !fim) return '—'
+                                                if (ini && fim) return `${ini} → ${fim}`
+                                                return ini || fim
+                                            })()}
+                                        </span>
+                                    </li>
+                                )
+                            }
+
+                            // Helper: render card fora-da-planilha
+                            const renderOutItem = (card: typeof outOfFileCards[number], archiveMode: boolean) => {
                                 const inDups = cardsHandledByDups.has(card.id)
                                 return (
                                     <li key={card.id} className={cn(
                                         'text-xs flex items-center gap-2 px-2 py-1 rounded border',
-                                        archiveMode ? 'bg-rose-100/60 border-rose-300' : 'bg-emerald-50/60 border-emerald-200'
+                                        archiveMode ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'
                                     )}>
                                         <label
                                             className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
@@ -1131,31 +1181,26 @@ function DestinationStageSummary({
                                                 type="checkbox"
                                                 checked={archiveMode}
                                                 onChange={() => onToggleArchiveMark(card.id)}
-                                                className={cn(
-                                                    'rounded',
-                                                    archiveMode ? 'border-rose-300 text-rose-600 focus:ring-rose-500' : 'border-emerald-300 text-emerald-600 focus:ring-emerald-500'
-                                                )}
+                                                className={cn('rounded',
+                                                    archiveMode ? 'border-rose-300 text-rose-600 focus:ring-rose-500' : 'border-amber-300 text-amber-600 focus:ring-amber-500')}
                                             />
-                                            <span className={cn(
-                                                'text-[10px] font-semibold px-1 rounded',
-                                                archiveMode ? 'text-rose-700' : 'text-emerald-700'
-                                            )}>
+                                            <span className={cn('text-[10px] font-semibold px-1 rounded',
+                                                archiveMode ? 'text-rose-700' : 'text-amber-700')}>
                                                 {archiveMode ? 'arquivar' : 'manter'}
                                             </span>
                                         </label>
                                         <Link
                                             to={`/cards/${card.id}`}
                                             className="flex-1 min-w-0 truncate text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
-                                            title={card.titulo || ''}
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             {card.titulo || '(sem título)'}
                                         </Link>
+                                        <span className="text-[9px] font-medium text-amber-700 bg-amber-100 border border-amber-300 px-1 rounded shrink-0">
+                                            fora da planilha
+                                        </span>
                                         {inDups && (
-                                            <span
-                                                className="text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 rounded shrink-0"
-                                                title="Esse card também aparece no painel de duplicatas"
-                                            >
+                                            <span className="text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 rounded shrink-0">
                                                 em duplicatas
                                             </span>
                                         )}
@@ -1177,56 +1222,95 @@ function DestinationStageSummary({
                                     {loadingOutOfFile && (
                                         <div className="text-xs text-slate-500">Carregando…</div>
                                     )}
-                                    {!loadingOutOfFile && outOfFileCards.length === 0 && (
-                                        <div className="text-xs text-slate-500 italic">Nenhum card encontrado.</div>
-                                    )}
 
-                                    {/* Header explicativo do balanço */}
-                                    {!loadingOutOfFile && outOfFileCards.length > 0 && (
-                                        <div className="text-[11px] text-slate-600">
-                                            <span className="font-medium">{outOfFileCards.length} cards</span> em "{stage.name}" não vieram na planilha.
-                                            Depois de aplicar:{' '}
-                                            <span className="font-semibold text-emerald-700">{willKeep.length} ficam aqui</span>
-                                            {willArchive.length > 0 && (
-                                                <> · <span className="font-semibold text-rose-700">{willArchive.length} {willArchive.length === 1 ? 'vai pra lixeira' : 'vão pra lixeira'}</span></>
+                                    {/* Header: balanço final */}
+                                    <div className="text-[11px] text-slate-700 bg-white rounded border border-slate-200 px-3 py-2">
+                                        <span className="font-semibold">Total em "{stage.name}" depois: {totalFinal} cards</span>
+                                        {' = '}
+                                        <span className="text-slate-600">{tripsHere.length} da planilha + {willKeep.length} fora da planilha que ficam</span>
+                                        {willArchive.length > 0 && (
+                                            <span className="text-rose-700"> · {willArchive.length} {willArchive.length === 1 ? 'sai pra lixeira' : 'saem pra lixeira'}</span>
+                                        )}
+                                    </div>
+
+                                    {/* Da planilha — 3 sub-grupos */}
+                                    {tripsHere.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] font-semibold text-slate-800 mb-1.5 flex items-center gap-1">
+                                                <FileSpreadsheet className="h-3 w-3" />
+                                                Da planilha ({tripsHere.length})
+                                            </div>
+
+                                            {tripsCreating.length > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold mb-1 px-1">
+                                                        {tripsCreating.length} {tripsCreating.length === 1 ? 'cria card novo' : 'criam cards novos'}
+                                                    </div>
+                                                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {tripsCreating.map(t => renderTripLine(t, 'criar'))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {tripsArrivingFromOther.length > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-blue-700 font-semibold mb-1 px-1">
+                                                        {tripsArrivingFromOther.length} {tripsArrivingFromOther.length === 1 ? 'vai migrar pra cá' : 'vão migrar pra cá'} (de outras etapas)
+                                                    </div>
+                                                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {tripsArrivingFromOther.map(t => renderTripLine(t, 'migrar'))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {tripsAlreadyHere.length > 0 && (
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wide text-slate-600 font-semibold mb-1 px-1">
+                                                        {tripsAlreadyHere.length} {tripsAlreadyHere.length === 1 ? 'já está aqui (atualizar dados)' : 'já estão aqui (atualizar dados)'}
+                                                    </div>
+                                                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {tripsAlreadyHere.map(t => renderTripLine(t, 'atualizar'))}
+                                                    </ul>
+                                                </div>
                                             )}
                                         </div>
                                     )}
 
-                                    {/* Bloco MANTER (verde) — cards que ficam na etapa após aplicar */}
-                                    {!loadingOutOfFile && willKeep.length > 0 && (
+                                    {/* Fora da planilha — 2 sub-grupos */}
+                                    {!loadingOutOfFile && outOfFileCards.length > 0 && (
                                         <div>
-                                            <div className="text-[11px] font-semibold text-emerald-800 mb-1.5 flex items-center gap-1">
-                                                <CheckCircle2 className="h-3 w-3" />
-                                                {willKeep.length} {willKeep.length === 1 ? 'vai continuar aqui' : 'vão continuar aqui'}
+                                            <div className="text-[11px] font-semibold text-slate-800 mb-1.5 flex items-center gap-1">
+                                                <AlertTriangle className="h-3 w-3 text-amber-600" />
+                                                Fora da planilha ({outOfFileCards.length}) — cards no CRM que a planilha não trouxe
                                             </div>
-                                            <ul className="space-y-1 max-h-48 overflow-y-auto">
-                                                {willKeep.map(c => renderItem(c, false))}
-                                            </ul>
-                                        </div>
-                                    )}
 
-                                    {/* Bloco ARQUIVAR (vermelho) — cards que vão pra lixeira */}
-                                    {!loadingOutOfFile && willArchive.length > 0 && (
-                                        <div>
-                                            <div className="text-[11px] font-semibold text-rose-800 mb-1.5 flex items-center gap-1">
-                                                <Archive className="h-3 w-3" />
-                                                {willArchive.length} {willArchive.length === 1 ? 'vai pra lixeira' : 'vão pra lixeira'} ao aplicar
-                                            </div>
-                                            <ul className="space-y-1 max-h-48 overflow-y-auto">
-                                                {willArchive.map(c => renderItem(c, true))}
-                                            </ul>
-                                        </div>
-                                    )}
+                                            {willKeep.length > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold mb-1 px-1">
+                                                        {willKeep.length} {willKeep.length === 1 ? 'continua aqui (sem ação)' : 'continuam aqui (sem ação)'}
+                                                    </div>
+                                                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {willKeep.map(c => renderOutItem(c, false))}
+                                                    </ul>
+                                                </div>
+                                            )}
 
-                                    {outOfFileCards.length === 200 && (
-                                        <div className="text-[10px] text-slate-500 italic">
-                                            Mostrando os primeiros 200 cards desta etapa fora da planilha.
+                                            {willArchive.length > 0 && (
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wide text-rose-700 font-semibold mb-1 px-1">
+                                                        {willArchive.length} {willArchive.length === 1 ? 'vai pra lixeira' : 'vão pra lixeira'}
+                                                    </div>
+                                                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                                        {willArchive.map(c => renderOutItem(c, true))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )
                         })()}
+
                         </div>
                     )
                 })}
