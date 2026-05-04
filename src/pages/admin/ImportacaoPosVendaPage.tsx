@@ -807,9 +807,20 @@ const TARGET_STAGE_ORDER: Array<{ id: string; name: string; color: string }> = [
     { id: STAGE_POS_VIAGEM, name: 'Pós-viagem & Reativação', color: 'bg-amber-50 text-amber-700 border-amber-200' },
 ]
 
+/** Contexto de duplicata por card: vencedor sugerido + razões + número da venda
+ *  conflitante. Permite mostrar a decisão da duplicata INLINE na lista "fora da planilha"
+ *  da etapa, sem mandar o user pro painel embaixo. */
+type DupCtx = {
+    numero: string
+    totalInGroup: number
+    isWinner: boolean
+    reasons: string[]
+    score: number
+}
+
 function DestinationStageSummary({
     trips, filterTargetStage, onSelectStage, stageCounts, activeOrgId,
-    cardsHandledByDups, cardsToArchive, onToggleArchiveMark,
+    dupCtxByCardId, cardsToArchive, onToggleArchiveMark,
 }: {
     trips: TripGroup[]
     filterTargetStage: string
@@ -818,9 +829,9 @@ function DestinationStageSummary({
     stageCounts: Record<string, number>
     /** Workspace ativo — necessário pra buscar a lista dos cards "fora da planilha" */
     activeOrgId: string | null
-    /** IDs de cards que JÁ aparecem em algum grupo de duplicatas — esses são tratados lá,
-     *  não precisam aparecer na lista "fora da planilha" pra reduzir confusão. */
-    cardsHandledByDups: Set<string>
+    /** Mapa cardId → contexto de duplicata. Se o card está num grupo, o contexto traz o
+     *  vencedor sugerido pelo sistema e as razões — mostrado INLINE na lista. */
+    dupCtxByCardId: Map<string, DupCtx>
     /** Set compartilhado pra arquivar — também usado pro checkbox "arquivar este?" inline */
     cardsToArchive: Set<string>
     onToggleArchiveMark: (cardId: string) => void
@@ -1165,54 +1176,77 @@ function DestinationStageSummary({
                                 )
                             }
 
-                            // Helper: render card fora-da-planilha
+                            // Helper: render card fora-da-planilha. Quando o card faz parte
+                            // de um grupo de duplicatas, mostra a decisão (manter vencedor /
+                            // arquivar perdedor) e as razões INLINE — pra o user resolver tudo
+                            // aqui mesmo, sem ir pro painel embaixo.
                             const renderOutItem = (card: typeof outOfFileCards[number], archiveMode: boolean) => {
-                                const inDups = cardsHandledByDups.has(card.id)
+                                const dup = dupCtxByCardId.get(card.id)
                                 return (
                                     <li key={card.id} className={cn(
-                                        'text-xs flex items-center gap-2 px-2 py-1 rounded border',
-                                        archiveMode ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'
+                                        'text-xs px-2 py-1 rounded border',
+                                        archiveMode ? 'bg-rose-50 border-rose-200' : (dup ? 'bg-emerald-50/60 border-emerald-200' : 'bg-amber-50 border-amber-200')
                                     )}>
-                                        <label
-                                            className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
-                                            title={archiveMode ? 'Vai arquivar — clique pra manter' : 'Vai manter — clique pra arquivar'}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={archiveMode}
-                                                onChange={() => onToggleArchiveMark(card.id)}
-                                                className={cn('rounded',
-                                                    archiveMode ? 'border-rose-300 text-rose-600 focus:ring-rose-500' : 'border-amber-300 text-amber-600 focus:ring-amber-500')}
-                                            />
-                                            <span className={cn('text-[10px] font-semibold px-1 rounded',
-                                                archiveMode ? 'text-rose-700' : 'text-amber-700')}>
-                                                {archiveMode ? 'arquivar' : 'manter'}
+                                        <div className="flex items-center gap-2">
+                                            <label
+                                                className="inline-flex items-center gap-1 cursor-pointer select-none shrink-0"
+                                                title={archiveMode ? 'Vai arquivar — clique pra manter' : 'Vai manter — clique pra arquivar'}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={archiveMode}
+                                                    onChange={() => onToggleArchiveMark(card.id)}
+                                                    className={cn('rounded',
+                                                        archiveMode ? 'border-rose-300 text-rose-600 focus:ring-rose-500' : 'border-amber-300 text-amber-600 focus:ring-amber-500')}
+                                                />
+                                                <span className={cn('text-[10px] font-semibold px-1 rounded',
+                                                    archiveMode ? 'text-rose-700' : (dup?.isWinner ? 'text-emerald-700' : 'text-amber-700'))}>
+                                                    {archiveMode ? 'arquivar' : 'manter'}
+                                                </span>
+                                            </label>
+                                            <Link
+                                                to={`/cards/${card.id}`}
+                                                className="flex-1 min-w-0 truncate text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {card.titulo || '(sem título)'}
+                                            </Link>
+                                            {!dup && (
+                                                <span className="text-[9px] font-medium text-amber-700 bg-amber-100 border border-amber-300 px-1 rounded shrink-0">
+                                                    fora da planilha
+                                                </span>
+                                            )}
+                                            {dup && dup.isWinner && (
+                                                <span
+                                                    className="text-[9px] font-semibold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1 rounded shrink-0"
+                                                    title={`Sistema sugere manter este (vence pelas razões: ${dup.reasons.join(', ') || 'maior score'}). Outros ${dup.totalInGroup - 1} card(s) com a venda ${dup.numero} estão marcados pra arquivar.`}
+                                                >
+                                                    🏆 vencedor (venda {dup.numero})
+                                                </span>
+                                            )}
+                                            {dup && !dup.isWinner && (
+                                                <span
+                                                    className="text-[9px] font-semibold text-rose-700 bg-rose-100 border border-rose-300 px-1 rounded shrink-0"
+                                                    title={`Sistema sugere arquivar — outro card com a venda ${dup.numero} venceu (em ${dup.totalInGroup} cards no total).`}
+                                                >
+                                                    perdedor (venda {dup.numero})
+                                                </span>
+                                            )}
+                                            <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                                                {(() => {
+                                                    const ini = card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : null
+                                                    const fim = card.data_viagem_fim ? formatDateBR(card.data_viagem_fim) : null
+                                                    if (!ini && !fim) return '—'
+                                                    if (ini && fim) return `${ini} → ${fim}`
+                                                    return ini || fim
+                                                })()}
                                             </span>
-                                        </label>
-                                        <Link
-                                            to={`/cards/${card.id}`}
-                                            className="flex-1 min-w-0 truncate text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            {card.titulo || '(sem título)'}
-                                        </Link>
-                                        <span className="text-[9px] font-medium text-amber-700 bg-amber-100 border border-amber-300 px-1 rounded shrink-0">
-                                            fora da planilha
-                                        </span>
-                                        {inDups && (
-                                            <span className="text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 rounded shrink-0">
-                                                em duplicatas
-                                            </span>
+                                        </div>
+                                        {dup && dup.reasons.length > 0 && (
+                                            <div className="mt-0.5 ml-[4.5rem] text-[10px] text-slate-500 italic">
+                                                {dup.isWinner ? 'porque tem ' : 'outro card tem '}{dup.reasons.join(' · ')}
+                                            </div>
                                         )}
-                                        <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                                            {(() => {
-                                                const ini = card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : null
-                                                const fim = card.data_viagem_fim ? formatDateBR(card.data_viagem_fim) : null
-                                                if (!ini && !fim) return '—'
-                                                if (ini && fim) return `${ini} → ${fim}`
-                                                return ini || fim
-                                            })()}
-                                        </span>
                                     </li>
                                 )
                             }
@@ -4405,7 +4439,31 @@ export default function ImportacaoPosVendaPage() {
                             filterTargetStage={filterTargetStage}
                             stageCounts={stageCounts}
                             activeOrgId={activeOrgId ?? null}
-                            cardsHandledByDups={new Set(duplicateGroups.flatMap(g => g.cards.map(c => c.id)))}
+                            dupCtxByCardId={(() => {
+                                // Pra cada grupo de duplicatas, computa o vencedor (maior score) e
+                                // anota cada card com seu papel (vencedor/perdedor) + razões. Permite
+                                // mostrar a decisão INLINE na lista da etapa, sem mandar pro painel.
+                                const map = new Map<string, DupCtx>()
+                                for (const g of duplicateGroups) {
+                                    const ranked = [...g.cards]
+                                        .map(c => ({ c, ...scoreCardForKeep(c) }))
+                                        .sort((a, b) => b.score - a.score)
+                                    const winnerId = ranked[0]?.c.id
+                                    for (const r of ranked) {
+                                        // Se o card já foi anotado por outro grupo, mantém a entrada
+                                        // existente (caso raro — usualmente um card só está num grupo).
+                                        if (map.has(r.c.id)) continue
+                                        map.set(r.c.id, {
+                                            numero: g.numero,
+                                            totalInGroup: g.cards.length,
+                                            isWinner: r.c.id === winnerId,
+                                            reasons: r.reasons,
+                                            score: r.score,
+                                        })
+                                    }
+                                }
+                                return map
+                            })()}
                             cardsToArchive={cardsToArchive}
                             onToggleArchiveMark={toggleArchiveMark}
                             onSelectStage={(stageId) => {
