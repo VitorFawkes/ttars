@@ -961,135 +961,131 @@ function DestinationStageSummary({
                     const outOfFileCount = Math.max(0, current - fileHere)
                     return (
                         <div key={stage.id} className="space-y-1">
-                        <button
-                            type="button"
-                            onClick={() => fileGoing > 0 && onSelectStage(stage.id)}
-                            disabled={fileGoing === 0}
-                            className={cn(
-                                'w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left',
-                                hasInteraction
-                                    ? (isSelected
-                                        ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 ${fileGoing > 0 ? 'cursor-pointer' : 'cursor-default'}`
-                                        : `${stage.color} ${fileGoing > 0 ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`)
-                                    : 'bg-slate-50 border-slate-100 text-slate-400 cursor-default'
-                            )}
-                            title={fileGoing > 0
-                                ? `Arquivo: ${fileHere} estão hoje aqui · ${fileGoing} vão terminar aqui`
-                                : (fileHere > 0
-                                    ? `Arquivo: ${fileHere} estão hoje aqui (vão sair pra outras etapas)`
-                                    : 'Nenhuma viagem do arquivo nessa etapa')}
-                        >
-                            {/* Nome da etapa */}
-                            <span className="font-medium text-sm truncate flex-1 min-w-0">{stage.name}</span>
-
-                            {/* Bloco 1: PLANILHA — total que termina nessa etapa + breakdown criar/atualizar */}
-                            {(() => {
-                                const creating = creatingByStage[stage.id] || 0
-                                const updating = fileGoing - creating
-                                return (
-                                    <span className="shrink-0 inline-flex flex-col items-end tabular-nums">
-                                        <span className={cn(
-                                            'text-base font-bold',
-                                            fileGoing > 0 ? 'text-slate-900' : 'text-slate-300'
-                                        )}>
-                                            {fileGoing}
-                                        </span>
-                                        <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
-                                            da planilha
-                                        </span>
-                                        {/* Breakdown: cards a criar (planilha tem, CRM não tem) — auditoria do "tem a mais na planilha" */}
-                                        {fileGoing > 0 && (updating > 0 || creating > 0) && (
-                                            <span className="text-[9px] opacity-70 mt-0.5 whitespace-nowrap">
-                                                {updating > 0 && <span>{updating} atualizar</span>}
-                                                {updating > 0 && creating > 0 && <span> · </span>}
-                                                {creating > 0 && <span className="text-emerald-700 font-medium">{creating} criar</span>}
-                                            </span>
-                                        )}
-                                    </span>
-                                )
-                            })()}
-
-                            {/* Bloco 2: CRM — cards hoje → depois (com delta) */}
-                            <span className="shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20">
-                                <span className="inline-flex items-center gap-1.5">
-                                    <span className={cn(
-                                        'text-sm',
-                                        hasInteraction ? 'text-slate-500' : 'text-slate-400'
-                                    )}>
-                                        {current}
-                                    </span>
-                                    <ArrowRight className={cn('h-3 w-3', hasInteraction ? 'opacity-60' : 'opacity-30')} />
-                                    <span className={cn(
-                                        'text-base font-bold',
-                                        stageDelta > 0 && 'text-emerald-700',
-                                        stageDelta < 0 && 'text-rose-700',
-                                        stageDelta === 0 && (hasInteraction ? 'text-slate-700' : 'text-slate-400'),
-                                    )}>
-                                        {projected}
-                                    </span>
-                                    {stageDelta !== 0 && (
-                                        <span className={cn(
-                                            'text-[10px] font-semibold',
-                                            stageDelta > 0 ? 'text-emerald-600' : 'text-rose-600'
-                                        )}>
-                                            {stageDelta > 0 ? `+${stageDelta}` : stageDelta}
-                                        </span>
+                        {(() => {
+                            // Narrativa clara: 3 colunas com header + valor + detalhamento.
+                            // Em vez de números soltos, cada coluna conta sua história:
+                            //   PLANILHA: total que vai terminar aqui (atualizar + criar)
+                            //   CRM HOJE: total atual no funil (na planilha + fora dela)
+                            //   CRM DEPOIS: projeção pós-aplicação (delta colorido)
+                            const creating = creatingByStage[stage.id] || 0
+                            const updating = fileGoing - creating
+                            const onPlanInCRM = fileHere // cards no CRM hoje que estão na planilha
+                            const outOfFile = Math.max(0, current - fileHere)
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => fileGoing > 0 && onSelectStage(stage.id)}
+                                    disabled={fileGoing === 0}
+                                    className={cn(
+                                        'w-full px-3 py-3 rounded-lg border transition-colors text-left',
+                                        hasInteraction
+                                            ? (isSelected
+                                                ? `${stage.color} ring-2 ring-offset-1 ring-indigo-300 ${fileGoing > 0 ? 'cursor-pointer' : 'cursor-default'}`
+                                                : `${stage.color} ${fileGoing > 0 ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`)
+                                            : 'bg-slate-50 border-slate-100 text-slate-400 cursor-default'
                                     )}
-                                </span>
-                                <span className="text-[9px] uppercase tracking-wide opacity-60 -mt-0.5">
-                                    cards no CRM
-                                </span>
-                            </span>
+                                >
+                                    {/* Linha 1: nome da etapa */}
+                                    <div className="font-semibold text-sm mb-2">{stage.name}</div>
 
-                            {/* Bloco 3: FORA DA PLANILHA — cards na etapa HOJE que não vieram na planilha.
-                                Cálculo: current - fileHere. Sempre renderizado pra consistência visual.
-                                Quando = 0, fica acinzentado e não-clicável; quando > 0, vermelho e expansível. */}
-                            {(() => {
-                                const outOfFile = Math.max(0, current - fileHere)
-                                const isOpen = expandedOutStage === stage.id
-                                const isClickable = outOfFile > 0
-                                return (
-                                    <span
-                                        role={isClickable ? 'button' : undefined}
-                                        tabIndex={isClickable ? 0 : -1}
-                                        onClick={isClickable ? (e) => {
-                                            e.stopPropagation()
-                                            setExpandedOutStage(isOpen ? null : stage.id)
-                                        } : undefined}
-                                        onKeyDown={isClickable ? (e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                e.stopPropagation(); e.preventDefault()
-                                                setExpandedOutStage(isOpen ? null : stage.id)
-                                            }
-                                        } : undefined}
-                                        className={cn(
-                                            'shrink-0 inline-flex flex-col items-end tabular-nums pl-3 border-l border-current/20 rounded-md transition-colors',
-                                            isClickable && 'cursor-pointer',
-                                            isClickable && (isOpen ? 'ring-2 ring-rose-300' : 'hover:bg-rose-50/40'),
-                                        )}
-                                        title={isClickable
-                                            ? 'Cards na etapa que NÃO vieram na planilha — clica pra ver quais'
-                                            : 'Todos os cards da etapa estão cobertos pela planilha'}
-                                    >
-                                        <span className={cn(
-                                            'inline-flex items-center gap-1 text-base font-bold',
-                                            isClickable ? 'text-rose-700' : 'text-slate-300',
-                                        )}>
-                                            {outOfFile}
-                                            {isClickable && (
-                                                <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+                                    {/* Linha 2: 3 colunas com mesma altura, separadores verticais */}
+                                    <div className="grid grid-cols-3 gap-3 text-xs">
+                                        {/* Coluna 1: PLANILHA — viagens que vão terminar aqui */}
+                                        <div className="flex flex-col">
+                                            <div className="text-[9px] uppercase tracking-wide opacity-60 font-semibold mb-0.5">
+                                                Da planilha
+                                            </div>
+                                            <div className={cn(
+                                                'text-lg font-bold leading-none mb-1',
+                                                fileGoing > 0 ? 'text-slate-900' : 'text-slate-300'
+                                            )}>
+                                                {fileGoing}
+                                                <span className="text-[10px] font-normal opacity-60 ml-1">vão terminar aqui</span>
+                                            </div>
+                                            {fileGoing > 0 && (
+                                                <div className="text-[10px] opacity-75 leading-tight">
+                                                    {updating > 0 && <span>{updating} atualizar card existente</span>}
+                                                    {updating > 0 && creating > 0 && <br />}
+                                                    {creating > 0 && <span className="text-emerald-700 font-medium">{creating} criar card novo</span>}
+                                                </div>
                                             )}
-                                        </span>
-                                        <span className={cn(
-                                            'text-[9px] uppercase tracking-wide -mt-0.5',
-                                            isClickable ? 'text-rose-700 opacity-60' : 'text-slate-300',
-                                        )}>
-                                            fora da planilha
-                                        </span>
-                                    </span>
-                                )
-                            })()}
-                        </button>
+                                        </div>
+
+                                        {/* Coluna 2: CRM HOJE — total atual + breakdown */}
+                                        <div className="flex flex-col border-l border-current/15 pl-3">
+                                            <div className="text-[9px] uppercase tracking-wide opacity-60 font-semibold mb-0.5">
+                                                CRM hoje
+                                            </div>
+                                            <div className={cn(
+                                                'text-lg font-bold leading-none mb-1',
+                                                hasInteraction ? 'text-slate-900' : 'text-slate-300'
+                                            )}>
+                                                {current}
+                                                <span className="text-[10px] font-normal opacity-60 ml-1">cards aqui</span>
+                                            </div>
+                                            {current > 0 && (
+                                                <div className="text-[10px] opacity-75 leading-tight">
+                                                    {onPlanInCRM > 0 && <span>{onPlanInCRM} também na planilha</span>}
+                                                    {onPlanInCRM > 0 && outOfFile > 0 && <br />}
+                                                    {outOfFile > 0 && (
+                                                        <span
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                setExpandedOutStage(isOutListOpen ? null : stage.id)
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                                    e.stopPropagation(); e.preventDefault()
+                                                                    setExpandedOutStage(isOutListOpen ? null : stage.id)
+                                                                }
+                                                            }}
+                                                            className="text-rose-700 font-medium underline cursor-pointer hover:text-rose-900"
+                                                        >
+                                                            {outOfFile} fora da planilha {isOutListOpen ? '▴' : '▾'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Coluna 3: CRM DEPOIS — projeção pós-aplicação */}
+                                        <div className="flex flex-col border-l border-current/15 pl-3">
+                                            <div className="text-[9px] uppercase tracking-wide opacity-60 font-semibold mb-0.5">
+                                                CRM depois
+                                            </div>
+                                            <div className="flex items-baseline gap-1.5 mb-1 leading-none">
+                                                <span className={cn(
+                                                    'text-lg font-bold',
+                                                    stageDelta > 0 && 'text-emerald-700',
+                                                    stageDelta < 0 && 'text-rose-700',
+                                                    stageDelta === 0 && (hasInteraction ? 'text-slate-900' : 'text-slate-300'),
+                                                )}>
+                                                    {projected}
+                                                </span>
+                                                {stageDelta !== 0 && (
+                                                    <span className={cn(
+                                                        'text-[10px] font-bold',
+                                                        stageDelta > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                                    )}>
+                                                        {stageDelta > 0 ? `+${stageDelta}` : stageDelta}
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] font-normal opacity-60">cards aqui</span>
+                                            </div>
+                                            {hasInteraction && (
+                                                <div className="text-[10px] opacity-75 leading-tight">
+                                                    {stageDelta > 0 && <span>{stageDelta} chegando ao aplicar</span>}
+                                                    {stageDelta < 0 && <span>{Math.abs(stageDelta)} saindo daqui</span>}
+                                                    {stageDelta === 0 && fileGoing > 0 && <span>sem mudança no total</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </button>
+                            )
+                        })()}
 
                         {/* Lista expandida: cards na etapa que não vieram na planilha (suspeitos).
                             Cards que JÁ aparecem em duplicatas viram texto informativo (decisão tá lá).
