@@ -2426,9 +2426,9 @@ export default function ImportacaoPosVendaPage() {
     // sessionStorage (não localStorage): some ao fechar a aba, não polui para sempre.
     // Versão bumpada quando regras de match/parse mudam — invalida sessões salvas antes
     // do bump, forçando o user a re-subir a planilha pra reprocessar com o código novo.
-    // Bump: v2 (2026-05-04) — match agora pega cards arquivados + parser de data com
-    // detecção de locale BR/US.
-    const storageKey = activeOrgId ? `pv-import-session-v2:${activeOrgId}` : null
+    // v2 (2026-05-04 manhã) — match pega arquivados + locale BR/US.
+    // v3 (2026-05-04 tarde) — score penaliza arquivados (-1000) pra não vencer ativos.
+    const storageKey = activeOrgId ? `pv-import-session-v3:${activeOrgId}` : null
     const [hasRestored, setHasRestored] = useState(false)
 
     // Restaurar sessão salva ao montar
