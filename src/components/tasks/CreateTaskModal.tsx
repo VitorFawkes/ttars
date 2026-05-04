@@ -98,6 +98,7 @@ export function CreateTaskModal({
         mutationFn: async () => {
             if (!cardId) throw new Error('Selecione um card')
             if (!titulo.trim()) throw new Error('Informe um título')
+            if (!dataVencimento) throw new Error('Informe a data de vencimento')
 
             if (isConciergeRequest) {
                 if (!conciergeType) throw new Error('Selecione o tipo de atendimento')
@@ -263,9 +264,12 @@ export function CreateTaskModal({
                     {/* Data + Prioridade */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs font-medium text-slate-600 mb-1 block">Vencimento</label>
+                            <label className="text-xs font-medium text-slate-600 mb-1 block">
+                                Vencimento <span className="text-red-500">*</span>
+                            </label>
                             <input
                                 type="datetime-local"
+                                required
                                 value={dataVencimento}
                                 onChange={(e) => setDataVencimento(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"

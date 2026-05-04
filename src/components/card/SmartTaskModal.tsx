@@ -701,13 +701,13 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 throw new Error("Selecione um card para vincular esta tarefa.");
             }
 
-            // Combine date and time
-            let finalDate = null;
-            if (date && time) {
-                finalDate = new Date(`${date}T${time}:00`).toISOString();
-            } else if (date) {
-                finalDate = new Date(`${date}T09:00:00`).toISOString(); // Default to 9am
+            // Combine date and time — data is required for all task types
+            if (!date) {
+                throw new Error("Informe a data de vencimento.");
             }
+            const finalDate = time
+                ? new Date(`${date}T${time}:00`).toISOString()
+                : new Date(`${date}T09:00:00`).toISOString(); // Default to 9am if no time
 
             // Get current user
             const { data: { user } } = await supabase.auth.getUser();
@@ -1091,7 +1091,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                             <>
                                 <div className={cn("grid gap-4", type === 'reuniao' ? "grid-cols-3" : "grid-cols-2")}>
                                     <div className="grid gap-2">
-                                        <Label>Data</Label>
+                                        <Label>Data <span className="text-red-500">*</span></Label>
                                         <div
                                             className="relative cursor-pointer"
                                             onClick={() => handleWrapperClick(dateInputRef)}
