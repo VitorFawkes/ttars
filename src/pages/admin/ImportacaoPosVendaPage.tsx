@@ -2915,6 +2915,33 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
+            // 6º caminho: match pelo TÍTULO do card (último recurso).
+            // Resolve casos onde o pagante da planilha aparece como ACOMPANHANTE no card
+            // (não como pessoa_principal). Ex: card "Aparecida Donizete / SEM DESTINO" tem
+            // o esposo Antonio como pessoa_principal, mas o título tem "Aparecida Donizete".
+            // Busca cards cujo título contém primeiro nome + último sobrenome do pagante.
+            if (!snapshot && trip.pagantePrincipal) {
+                const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
+                const primeiroNome = partes[0] || ''
+                const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
+                if (primeiroNome.length >= 3 && ultimoSobrenome.length >= 3) {
+                    let q = supabase
+                        .from('cards')
+                        .select(CARD_AUDIT_SELECT)
+                        .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${ultimoSobrenome.replace(/[%_]/g, '')}%`)
+                        .in('pipeline_stage_id', POS_VENDA_STAGES)
+                        .is('archived_at', null)
+                        .is('deleted_at', null)
+                        .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                        .limit(5)
+                    if (activeOrgId) q = q.eq('org_id', activeOrgId)
+                    const { data: cards } = await q
+                    if (cards && cards.length > 0) {
+                        snapshot = cards[0] as unknown as CardSnapshotDet
+                    }
+                }
+            }
+
             const action = snapshot ? 'update' : 'create'
             const pd = (snapshot?.produto_data ?? {}) as Record<string, unknown>
             const historicoRaw = Array.isArray(pd.numeros_venda_monde_historico) ? pd.numeros_venda_monde_historico : []
@@ -3401,6 +3428,42 @@ export default function ImportacaoPosVendaPage() {
                                     _matchType: 'venda_historico', // score baixo, último recurso
                                 })
                             }
+                        }
+                    }
+                }
+
+                // 5. Match pelo TÍTULO do card (último recurso) — pega cards onde o pagante
+                //    aparece como ACOMPANHANTE (título tem o nome dele, mas pessoa_principal
+                //    é outra pessoa, ex: esposo). Resolve casos como "Aparecida Donizete"
+                //    que é acompanhante, não pessoa principal.
+                if (candidates.length === 0 && trip.pagantePrincipal) {
+                    const partes = trip.pagantePrincipal.trim().split(/\s+/).filter(Boolean)
+                    const primeiroNome = partes[0] || ''
+                    const ultimoSobrenome = partes.length > 1 ? partes[partes.length - 1] : ''
+                    if (primeiroNome.length >= 3 && ultimoSobrenome.length >= 3) {
+                        let q = supabase
+                            .from('cards')
+                            .select(CARD_AUDIT_SELECT)
+                            .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${ultimoSobrenome.replace(/[%_]/g, '')}%`)
+                            .in('pipeline_stage_id', POS_VENDA_STAGES)
+                            .is('archived_at', null)
+                            .is('deleted_at', null)
+                            .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                            .limit(5)
+                        if (activeOrgId) q = q.eq('org_id', activeOrgId)
+                        const { data: cards } = await q
+                        for (const c of (cards || [])) {
+                            if (candidates.some(x => x.id === (c as { id: string }).id)) continue
+                            candidates.push({
+                                id: (c as { id: string }).id,
+                                titulo: (c as { titulo?: string }).titulo as string,
+                                pipeline_stage_id: ((c as { pipeline_stage_id?: string }).pipeline_stage_id as string) || null,
+                                status_comercial: ((c as { status_comercial?: string }).status_comercial as string) ?? null,
+                                ganho_planner: ((c as { ganho_planner?: boolean }).ganho_planner as boolean) ?? null,
+                                ganho_pos: ((c as { ganho_pos?: boolean }).ganho_pos as boolean) ?? null,
+                                pos_owner_id: ((c as { pos_owner_id?: string }).pos_owner_id as string) ?? null,
+                                _matchType: 'venda_historico',
+                            })
                         }
                     }
                 }
