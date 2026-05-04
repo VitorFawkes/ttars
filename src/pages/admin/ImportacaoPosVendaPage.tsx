@@ -2058,6 +2058,9 @@ export default function ImportacaoPosVendaPage() {
             vendaNums: string[]
             cardId: string | null
             action: 'created' | 'updated'
+            /** Etapa-destino após aplicar (id) — pra agrupar no relatório */
+            stageToId: string | null
+            stageToName: string | null
             changes: {
                 stageFrom: string | null
                 stageTo: string | null
@@ -2070,7 +2073,18 @@ export default function ImportacaoPosVendaPage() {
             }
         }>
         failed: Array<{ pagante: string; titulo: string; vendaNums: string[]; cardId: string | null; error: string }>
-        skipped: Array<{ pagante: string; titulo: string; vendaNums: string[]; reason: string }>
+        skipped: Array<{
+            pagante: string
+            titulo: string
+            vendaNums: string[]
+            reason: string
+            /** Categoria do skip pra agrupar no relatório */
+            category: 'planner' | 'ganho_sem_pos' | 'outra_fase' | 'sem_pagante' | 'desmarcado' | 'outro'
+            /** Card existente (se houver) — pra abrir e investigar */
+            cardId: string | null
+            /** Etapa atual do card (pra mostrar no relatório) */
+            currentStageName: string | null
+        }>
     } | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
@@ -2732,9 +2746,22 @@ export default function ImportacaoPosVendaPage() {
                     const info = stageInfo.get(t.existingStageId)
                     t.existingStageName = info?.nome || null
                     t.existingPhaseSlug = info?.phaseSlug || null
+                    // Regras de skip baseadas em fase atual do card:
+                    // - 'planner': T. Planner ainda em andamento, não tocar
+                    // - 'pos_venda': pode atualizar normalmente (caso esperado)
+                    // - outras fases COM ganho_planner=true: cliente foi ganho mas NÃO vai
+                    //   pra pós-venda (ganho direto). Não tocar.
+                    // - outras fases sem ganho: caso atípico, pular com motivo genérico.
                     if (info?.phaseSlug === 'planner') {
                         t.action = 'skip'
                         t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
+                    } else if (info?.phaseSlug && info.phaseSlug !== 'pos_venda') {
+                        t.action = 'skip'
+                        if (t.existingGanhoPlanner === true && t.existingStatusComercial === 'ganho') {
+                            t.skipReason = `Ganho sem pós-venda — card está em "${info.nome}" e não passou pelo funil de Pós-venda`
+                        } else {
+                            t.skipReason = `Card em fase "${info.nome}" (fora de Pós-venda) — não tocar pela importação`
+                        }
                     }
                 }
             }
@@ -3258,9 +3285,18 @@ export default function ImportacaoPosVendaPage() {
                         const info = stageInfo.get(t.existingStageId)
                         t.existingStageName = info?.nome || null
                         t.existingPhaseSlug = info?.phaseSlug || null
+                        // Mesmo padrão do fluxo detalhada: pula T.Planner, pula ganho-direto
+                        // (ganho sem pós-venda) e pula outras fases fora de Pós-venda.
                         if (info?.phaseSlug === 'planner') {
                             t.action = 'skip'
                             t.skipReason = 'Card em T. Planner — fechamento ainda em andamento'
+                        } else if (info?.phaseSlug && info.phaseSlug !== 'pos_venda') {
+                            t.action = 'skip'
+                            if (t.existingGanhoPlanner === true && t.existingStatusComercial === 'ganho') {
+                                t.skipReason = `Ganho sem pós-venda — card está em "${info.nome}" e não passou pelo funil de Pós-venda`
+                            } else {
+                                t.skipReason = `Card em fase "${info.nome}" (fora de Pós-venda) — não tocar pela importação`
+                            }
                         }
                     }
                     for (const o of t.otherCardCandidates) {
@@ -3549,9 +3585,21 @@ export default function ImportacaoPosVendaPage() {
                         && trip.moveStage === true
                         && trip.existingStageId !== null
                         && trip.existingStageId !== trip.stage.id
+                    // Etapa final do card após aplicar:
+                    // - update + moveStage=true → etapa-destino do trip (trip.stage)
+                    // - update + moveStage=false → etapa atual no CRM (existingStage)
+                    // - create → sempre etapa-destino do trip (trip.stage)
+                    const finalStageId = res.action === 'created' || trip.moveStage
+                        ? trip.stage.id
+                        : (trip.existingStageId || trip.stage.id)
+                    const finalStageName = res.action === 'created' || trip.moveStage
+                        ? trip.stage.name
+                        : (trip.existingStageName || trip.stage.name)
                     success.push({
                         ...base,
                         action: res.action,
+                        stageToId: finalStageId,
+                        stageToName: finalStageName,
                         changes: {
                             stageFrom: trip.existingStageName,
                             stageTo: trip.stage.name,
@@ -3565,14 +3613,37 @@ export default function ImportacaoPosVendaPage() {
                     })
                 }
             }
-            // Viagens com action='skip' (T. Planner ou sem match) na lista — não vão pro RPC
+            // Viagens com action='skip' (T. Planner, ganho-sem-pós, sem match, etc) — não vão pro RPC
             for (const trip of trips.filter(t => t.action === 'skip')) {
+                const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
+                const reason = trip.skipReason || 'pulada'
+                // Categoria pra agrupar visualmente no relatório
+                let category: 'planner' | 'ganho_sem_pos' | 'outra_fase' | 'sem_pagante' | 'desmarcado' | 'outro' = 'outro'
+                if (reason.includes('T. Planner')) category = 'planner'
+                else if (reason.includes('Ganho sem pós-venda')) category = 'ganho_sem_pos'
+                else if (reason.includes('fora de Pós-venda')) category = 'outra_fase'
+                else if (reason.includes('Sem nome de pagante') || reason.includes('Sem número de venda nem CPF') || reason.includes('Não encontrei card')) category = 'sem_pagante'
+                skipped.push({
+                    pagante: trip.pagantePrincipal,
+                    titulo,
+                    vendaNums: trip.vendaNums,
+                    reason,
+                    category,
+                    cardId: trip.existingCardId,
+                    currentStageName: trip.existingStageName,
+                })
+            }
+            // Viagens DESMARCADAS pelo user (action != skip mas não selectionado) — também entram no relatório
+            for (const trip of trips.filter(t => t.action !== 'skip' && !selectedTrips.has(t.id))) {
                 const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
                 skipped.push({
                     pagante: trip.pagantePrincipal,
                     titulo,
                     vendaNums: trip.vendaNums,
-                    reason: trip.skipReason || 'pulada',
+                    reason: 'Você desmarcou esta viagem antes de aplicar',
+                    category: 'desmarcado',
+                    cardId: trip.existingCardId,
+                    currentStageName: trip.existingStageName,
                 })
             }
             setImportDetails({ success, failed, skipped })
@@ -4532,41 +4603,210 @@ export default function ImportacaoPosVendaPage() {
                             </div>
                         )}
 
-                        {/* Lista de puladas */}
-                        {(importDetails?.skipped.length ?? 0) > 0 && (
-                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                                    <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                                        <MinusSquare className="h-4 w-4 text-slate-400" />
-                                        Viagens puladas ({importDetails?.skipped.length})
-                                    </h3>
+                        {/* Relatório agrupado por categoria de skip — pulada por motivo + card pra abrir e investigar */}
+                        {(importDetails?.skipped.length ?? 0) > 0 && (() => {
+                            const SKIP_CATEGORIES: Array<{
+                                key: 'planner' | 'ganho_sem_pos' | 'outra_fase' | 'sem_pagante' | 'desmarcado' | 'outro'
+                                title: string
+                                description: string
+                                color: string
+                            }> = [
+                                {
+                                    key: 'ganho_sem_pos',
+                                    title: 'Ganho sem pós-venda',
+                                    description: 'Cards já fechados em Vendas/Planner que não vão pro funil de Pós-venda',
+                                    color: 'border-violet-200 bg-violet-50 text-violet-900',
+                                },
+                                {
+                                    key: 'planner',
+                                    title: 'Card em T. Planner',
+                                    description: 'Fechamento ainda em andamento — não tocar pela importação de Pós-venda',
+                                    color: 'border-amber-200 bg-amber-50 text-amber-900',
+                                },
+                                {
+                                    key: 'outra_fase',
+                                    title: 'Em outra fase do funil',
+                                    description: 'Card está em fase fora de Pós-venda (ex: SDR, Atendendo)',
+                                    color: 'border-blue-200 bg-blue-50 text-blue-900',
+                                },
+                                {
+                                    key: 'sem_pagante',
+                                    title: 'Sem identificação',
+                                    description: 'Sem nome de pagante / sem CPF / sem número de venda — não dá pra criar nem casar',
+                                    color: 'border-slate-300 bg-slate-100 text-slate-800',
+                                },
+                                {
+                                    key: 'desmarcado',
+                                    title: 'Desmarcadas por você',
+                                    description: 'Você desmarcou estas viagens antes de aplicar',
+                                    color: 'border-slate-200 bg-slate-50 text-slate-700',
+                                },
+                                {
+                                    key: 'outro',
+                                    title: 'Outras',
+                                    description: 'Motivos diversos',
+                                    color: 'border-slate-200 bg-slate-50 text-slate-700',
+                                },
+                            ]
+                            const allSkipped = importDetails?.skipped || []
+                            return (
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                                        <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                                            <MinusSquare className="h-4 w-4 text-slate-400" />
+                                            Viagens puladas ({allSkipped.length}) — agrupadas por motivo
+                                        </h3>
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {SKIP_CATEGORIES.map(cat => {
+                                            const inCat = allSkipped.filter(s => s.category === cat.key)
+                                            if (inCat.length === 0) return null
+                                            return (
+                                                <details key={cat.key} className="group">
+                                                    <summary className={cn('px-4 py-2.5 cursor-pointer flex items-center gap-2 text-sm font-medium border-l-4', cat.color)}>
+                                                        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 shrink-0" />
+                                                        <span className="font-semibold">{cat.title}</span>
+                                                        <span className="text-[11px] opacity-70 px-1.5 py-0.5 bg-white rounded">{inCat.length}</span>
+                                                        <span className="text-xs opacity-70 ml-2 truncate">— {cat.description}</span>
+                                                    </summary>
+                                                    <ul className="divide-y divide-slate-100 bg-white max-h-64 overflow-y-auto">
+                                                        {inCat.map((s, idx) => (
+                                                            <li key={idx} className="px-6 py-2 text-sm">
+                                                                <div className="flex items-start gap-2">
+                                                                    <span className="text-slate-300 shrink-0 mt-0.5">·</span>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-medium text-slate-700 text-sm truncate">{s.titulo}</span>
+                                                                            {s.cardId && (
+                                                                                <Link to={`/cards/${s.cardId}`} className="text-xs text-indigo-600 hover:underline shrink-0">
+                                                                                    abrir card
+                                                                                </Link>
+                                                                            )}
+                                                                            {s.currentStageName && (
+                                                                                <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
+                                                                                    em {s.currentStageName}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-xs text-slate-500 mt-0.5">
+                                                                            {s.pagante} • vendas: {s.vendaNums.join(', ') || '—'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </details>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
-                                <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                                    {(importDetails?.skipped || []).map((s, idx) => (
-                                        <li key={idx} className="px-4 py-2 text-sm">
-                                            <div className="flex items-start gap-2">
-                                                <span className="text-slate-400 shrink-0 mt-0.5">→</span>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-medium text-slate-700 text-sm truncate">{s.titulo}</div>
-                                                    <div className="text-xs text-slate-500">
-                                                        {s.pagante} • vendas: {s.vendaNums.join(', ') || '—'} • <span className="text-slate-600">{s.reason}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                            )
+                        })()}
 
-                        {/* Lista de sucesso (collapsada por padrão) */}
+                        {/* Relatório agrupado por etapa-destino (onde o card terminou após aplicar) */}
+                        {(importDetails?.success.length ?? 0) > 0 && importDetails && (() => {
+                            type SuccessItem = NonNullable<typeof importDetails>['success'][number]
+                            // Agrupa successes por stageToId. Mantém ordem natural do funil.
+                            const groups = new Map<string, { stageName: string; items: SuccessItem[] }>()
+                            for (const s of (importDetails.success || [])) {
+                                const key = s.stageToId || 'sem_etapa'
+                                const name = s.stageToName || '(sem etapa)'
+                                const existing = groups.get(key)
+                                if (existing) existing.items.push(s)
+                                else groups.set(key, { stageName: name, items: [s] })
+                            }
+                            const orderedKeys = [
+                                STAGE_APP_CONTEUDO,
+                                STAGE_PRE_EMBARQUE_GT30,
+                                STAGE_PRE_EMBARQUE_LT30,
+                                STAGE_EM_VIAGEM,
+                                STAGE_POS_VIAGEM,
+                            ]
+                            const orderedGroups: Array<{ key: string; stageName: string; items: SuccessItem[] }> = []
+                            for (const k of orderedKeys) {
+                                const g = groups.get(k)
+                                if (g) orderedGroups.push({ key: k, ...g })
+                            }
+                            // Outras etapas (fora do funil natural) viram último
+                            for (const [k, g] of groups) {
+                                if (orderedKeys.includes(k)) continue
+                                orderedGroups.push({ key: k, ...g })
+                            }
+                            return (
+                                <div className="bg-white border border-emerald-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-200">
+                                        <h3 className="text-sm font-semibold text-emerald-900 flex items-center gap-2">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Onde os cards estão agora ({importDetails?.success.length}) — agrupados por etapa
+                                        </h3>
+                                    </div>
+                                    <div className="divide-y divide-emerald-100">
+                                        {orderedGroups.map(g => {
+                                            const created = g.items.filter(i => i.action === 'created').length
+                                            const moved = g.items.filter(i => i.action === 'updated' && i.changes.stageMoved).length
+                                            const unchanged = g.items.filter(i => i.action === 'updated' && !i.changes.stageMoved).length
+                                            return (
+                                                <details key={g.key} className="group">
+                                                    <summary className="px-4 py-3 cursor-pointer flex items-center gap-2 hover:bg-emerald-50/50">
+                                                        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 shrink-0" />
+                                                        <span className="font-medium text-slate-900">{g.stageName}</span>
+                                                        <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded shrink-0">
+                                                            {g.items.length} {g.items.length === 1 ? 'card' : 'cards'}
+                                                        </span>
+                                                        <span className="text-xs text-slate-500 ml-2 truncate">
+                                                            {created > 0 && <span>{created} criado{created !== 1 ? 's' : ''}</span>}
+                                                            {created > 0 && (moved > 0 || unchanged > 0) && <span> · </span>}
+                                                            {moved > 0 && <span>{moved} migrado{moved !== 1 ? 's' : ''} pra cá</span>}
+                                                            {moved > 0 && unchanged > 0 && <span> · </span>}
+                                                            {unchanged > 0 && <span>{unchanged} já {unchanged === 1 ? 'estava' : 'estavam'} aqui</span>}
+                                                        </span>
+                                                    </summary>
+                                                    <ul className="divide-y divide-emerald-50 bg-white max-h-96 overflow-y-auto">
+                                                        {g.items.map((s, idx) => {
+                                                            const ch = s.changes
+                                                            return (
+                                                                <li key={idx} className="px-6 py-2 text-sm">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0',
+                                                                            s.action === 'created' ? 'bg-emerald-100 text-emerald-700' :
+                                                                            ch.stageMoved ? 'bg-blue-100 text-blue-700' :
+                                                                            'bg-slate-100 text-slate-600'
+                                                                        )}>
+                                                                            {s.action === 'created' ? 'criado' : ch.stageMoved ? 'migrado' : 'já estava'}
+                                                                        </span>
+                                                                        <span className="font-medium text-slate-700 truncate flex-1">{s.titulo}</span>
+                                                                        {s.cardId && (
+                                                                            <Link to={`/cards/${s.cardId}`} className="text-xs text-indigo-600 hover:underline shrink-0">
+                                                                                abrir
+                                                                            </Link>
+                                                                        )}
+                                                                    </div>
+                                                                    {ch.stageMoved && (
+                                                                        <div className="ml-2 mt-0.5 text-xs text-slate-500">
+                                                                            etapa: <span>{ch.stageFrom || '—'}</span> → <span className="font-medium text-blue-700">{ch.stageTo}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </li>
+                                                            )
+                                                        })}
+                                                    </ul>
+                                                </details>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )
+                        })()}
+
+                        {/* Lista detalhada do que mudou em cada viagem (collapsada por padrão) */}
                         {(importDetails?.success.length ?? 0) > 0 && (
-                            <details className="bg-white border border-emerald-200 rounded-xl shadow-sm overflow-hidden group">
-                                <summary className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 cursor-pointer flex items-center gap-2 text-sm font-semibold text-emerald-900">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Viagens que subiram ({importDetails?.success.length}) — clique pra ver o que mudou em cada uma
+                            <details className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden group">
+                                <summary className="px-4 py-3 bg-slate-50 border-b border-slate-200 cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                    <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                                    Detalhes do que mudou em cada viagem ({importDetails?.success.length})
                                 </summary>
-                                <ul className="divide-y divide-emerald-100 max-h-[32rem] overflow-y-auto">
+                                <ul className="divide-y divide-slate-100 max-h-[32rem] overflow-y-auto">
                                     {(importDetails?.success || []).map((s, idx) => {
                                         const ch = s.changes
                                         const statusChanged = ch.statusFrom !== null && ch.statusFrom !== ch.statusTo
