@@ -705,3 +705,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-04T15:34:46Z | supabase/migrations/20260504l_archive_orphan_monde_items_backfill.sql | applied_to_prod
 2026-05-04T17:43:28Z | supabase/migrations/20260504m_fix_field_changed_trigger_array_concat_redux.sql | applied_to_prod
 2026-05-04T17:45:25Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260504m_fix_field_changed_trigger_array_concat_redux.sql | applied_to_prod
+2026-05-04T18:41:17Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260504n_fix_overview_kpis_v2_overload_and_trigger_semantics.sql | applied_to_prod
