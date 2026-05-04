@@ -156,6 +156,7 @@ export async function detectAutoMergePreflight(
     const { count: itemsCount } = await (supabase.from('card_financial_items') as any)
         .select('id', { count: 'exact', head: true })
         .eq('card_id', parent.id)
+        .is('archived_at', null)
 
     const pessoa = parent.pessoa as { nome?: string; sobrenome?: string } | null
     const pessoaNome = pessoa

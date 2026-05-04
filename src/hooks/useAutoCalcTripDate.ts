@@ -35,6 +35,7 @@ export function useAutoCalcTripDate(cardId: string) {
       const { data, error } = await (supabase.from('card_financial_items') as any)
         .select('product_type, description, data_inicio, data_fim')
         .eq('card_id', cardId)
+        .is('archived_at', null)
 
       if (error) throw error
       return (data || []) as FinancialItemDate[]

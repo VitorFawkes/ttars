@@ -441,6 +441,7 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
             const { data } = await (supabase.from('card_financial_items') as any)
                 .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes')
                 .eq('card_id', card.id)
+                .is('archived_at', null)
                 .order('created_at')
             return (data || []) as { observacoes: string | null }[]
         },

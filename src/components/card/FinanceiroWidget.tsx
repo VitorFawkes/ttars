@@ -86,6 +86,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
             const { data, error } = await (supabase.from('card_financial_items') as any)
                 .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes')
                 .eq('card_id', cardId)
+                .is('archived_at', null)
                 .order('created_at')
             if (error) throw error
             return (data || []) as FinancialItem[]

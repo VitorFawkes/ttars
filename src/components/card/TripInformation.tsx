@@ -245,6 +245,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
             const { data, error } = await (supabase.from('card_financial_items') as any)
                 .select('sale_value')
                 .eq('card_id', card.id)
+                .is('archived_at', null)
             if (error) throw error
             return (data || []) as { sale_value: number | null }[]
         },
@@ -351,9 +352,18 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
 
             if (error) throw error
         },
-        onSuccess: () => {
+        onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
             queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+            // Quando o numero de venda Monde muda, o trigger no banco arquiva/restaura
+            // os items de Produto-Vendas vinculados. Invalidar as queries dependentes
+            // pra refletir sem reload.
+            if (variables.fieldKey === 'numero_venda_monde') {
+                queryClient.invalidateQueries({ queryKey: ['financial-items', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['financial-items-total', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['financial-items-dates', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['financial-item-passengers', card.id] })
+            }
             setEditingField(null)
             setEditValue(null)
         }

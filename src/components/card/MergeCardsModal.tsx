@@ -209,6 +209,7 @@ function useCardSummary(cardId: string | null) {
             const { count } = await (supabase.from('card_financial_items') as any)
                 .select('id', { count: 'exact', head: true })
                 .eq('card_id', cardId)
+                .is('archived_at', null)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const contato = (card as any).pessoa_principal as { nome?: string; sobrenome?: string } | null
             const nomeCompleto = contato
@@ -239,6 +240,7 @@ function useSourceFinancialItems(sourceCardId: string | null) {
             const { data, error } = await (supabase.from('card_financial_items') as any)
                 .select('id, description, sale_value, supplier_cost, fornecedor, product_type, data_inicio, data_fim')
                 .eq('card_id', sourceCardId)
+                .is('archived_at', null)
                 .order('created_at', { ascending: true })
             if (error) {
                 console.warn('[useSourceFinancialItems]', error)
