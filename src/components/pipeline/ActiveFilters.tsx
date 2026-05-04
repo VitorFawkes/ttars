@@ -15,6 +15,7 @@ const STATUS_LABELS: Record<string, string> = {
     ganho: 'Ganho',
     sem_pos_venda: 'Sem Pós-Venda',
     perdido: 'Perdido',
+    arquivado: 'Arquivado',
 }
 
 const DOC_STATUS_LABELS: Record<string, string> = {

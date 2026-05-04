@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone, MapPin } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone, MapPin, Archive } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -52,6 +52,7 @@ import StageChangeModal from './StageChangeModal'
 import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import AtivarPosVendaModal from './AtivarPosVendaModal'
+import { useArchiveCard } from '../../hooks/useArchiveCard'
 import FieldConfirmationModal from './FieldConfirmationModal'
 import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
 import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
@@ -924,6 +925,23 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
     const isSemPosVenda = (card as any).skip_pos_venda === true
 
+    const { unarchive, isUnarchiving } = useArchiveCard()
+    const isArchived = !!card.archived_at
+
+    const { data: archivedByProfile } = useQuery({
+        queryKey: ['profile-min', card.archived_by],
+        queryFn: async () => {
+            if (!card.archived_by) return null
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, nome')
+                .eq('id', card.archived_by)
+                .maybeSingle()
+            return data
+        },
+        enabled: isArchived && !!card.archived_by
+    })
+
     const handleMarkAsWon = async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const currentPhaseSlug = (currentStage as any)?.pipeline_phases?.slug || currentFase
@@ -1412,6 +1430,32 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 })()}
                             </div>
                         </div>
+
+                        {/* Banner: card arquivado (independente de status comercial) */}
+                        {isArchived && (
+                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300">
+                                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-sm">
+                                    <Archive className="h-4 w-4" />
+                                    Arquivado
+                                </div>
+                                <span className="text-xs text-slate-600">
+                                    em {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(card.archived_at!))}
+                                    {archivedByProfile?.nome && ` por ${archivedByProfile.nome}`}
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        if (confirm('Restaurar este card?\n\nEle voltará a aparecer no Kanban e nas listas normalmente.')) {
+                                            unarchive(card.id!)
+                                        }
+                                    }}
+                                    disabled={isUnarchiving}
+                                    className="ml-auto px-2 py-0.5 rounded-md border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors flex items-center gap-1"
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                    {isUnarchiving ? 'Restaurando...' : 'Restaurar'}
+                                </button>
+                            </div>
+                        )}
 
                         {/* Status Banners — ganho or perdido */}
                         {card.status_comercial === 'ganho' && (

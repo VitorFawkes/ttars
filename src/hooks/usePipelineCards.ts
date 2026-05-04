@@ -257,21 +257,36 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     .eq('status_comercial', 'ganho')
                     .eq('skip_pos_venda', true)
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
-                // 'sem_pos_venda' é um pseudo-status: cards skip_pos_venda=true (já são 'ganho').
-                // Aplicado em OR com os demais valores reais de status_comercial.
+                // Pseudo-statuses:
+                //   'sem_pos_venda' = cards skip_pos_venda=true (já são 'ganho')
+                //   'arquivado'     = cards archived_at IS NOT NULL (qualquer status)
+                // Aplicados em OR com os demais valores reais de status_comercial.
                 const statusList = filters.statusComercial ?? []
                 const wantsSemPos = statusList.includes('sem_pos_venda')
-                const realStatuses = statusList.filter(s => s !== 'sem_pos_venda')
-                if (wantsSemPos && realStatuses.length === 0) {
-                    query = query.eq('status_comercial', 'ganho').eq('skip_pos_venda', true)
-                } else if (wantsSemPos && realStatuses.length > 0) {
-                    const orParts = [
-                        `status_comercial.in.(${realStatuses.join(',')})`,
-                        'and(status_comercial.eq.ganho,skip_pos_venda.eq.true)',
-                    ]
+                const wantsArquivado = statusList.includes('arquivado')
+                const realStatuses = statusList.filter(s => s !== 'sem_pos_venda' && s !== 'arquivado')
+
+                const orParts: string[] = []
+                if (realStatuses.length > 0) {
+                    orParts.push(`status_comercial.in.(${realStatuses.join(',')})`)
+                }
+                if (wantsSemPos) {
+                    orParts.push('and(status_comercial.eq.ganho,skip_pos_venda.eq.true)')
+                }
+                if (wantsArquivado) {
+                    orParts.push('archived_at.not.is.null')
+                }
+
+                if (orParts.length === 1) {
+                    if (wantsArquivado && !wantsSemPos && realStatuses.length === 0) {
+                        query = query.not('archived_at', 'is', null)
+                    } else if (wantsSemPos && realStatuses.length === 0) {
+                        query = query.eq('status_comercial', 'ganho').eq('skip_pos_venda', true)
+                    } else {
+                        query = query.in('status_comercial', realStatuses)
+                    }
+                } else if (orParts.length > 1) {
                     query = query.or(orParts.join(','))
-                } else {
-                    query = query.in('status_comercial', realStatuses)
                 }
             } else if (!showClosedCards) {
                 // Mostra cards em fluxo: aberto OU ganho-em-execução (ganho mas Pós-venda não concluído).
@@ -343,8 +358,12 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 }
             }
 
-            // Archived Filter — esconder cards arquivados do pipeline
-            query = query.is('archived_at', null)
+            // Archived Filter — esconder cards arquivados do pipeline (default).
+            // Quando user pediu 'arquivado' no filtro de Status Comercial, NÃO esconder.
+            const wantsArquivadoStatus = filters.statusComercial?.includes('arquivado') ?? false
+            if (!wantsArquivadoStatus) {
+                query = query.is('archived_at', null)
+            }
 
             // Apply Sorting
             if (filters.sortBy && filters.sortBy !== 'data_proxima_tarefa') {

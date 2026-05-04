@@ -228,17 +228,30 @@ export function usePipelineListCards({
             } else if ((filters.statusComercial?.length ?? 0) > 0) {
                 const statusList = filters.statusComercial ?? []
                 const wantsSemPos = statusList.includes('sem_pos_venda')
-                const realStatuses = statusList.filter(s => s !== 'sem_pos_venda')
-                if (wantsSemPos && realStatuses.length === 0) {
-                    query = query.eq('status_comercial', 'ganho').eq('skip_pos_venda', true)
-                } else if (wantsSemPos && realStatuses.length > 0) {
-                    const orParts = [
-                        `status_comercial.in.(${realStatuses.join(',')})`,
-                        'and(status_comercial.eq.ganho,skip_pos_venda.eq.true)',
-                    ]
+                const wantsArquivado = statusList.includes('arquivado')
+                const realStatuses = statusList.filter(s => s !== 'sem_pos_venda' && s !== 'arquivado')
+
+                const orParts: string[] = []
+                if (realStatuses.length > 0) {
+                    orParts.push(`status_comercial.in.(${realStatuses.join(',')})`)
+                }
+                if (wantsSemPos) {
+                    orParts.push('and(status_comercial.eq.ganho,skip_pos_venda.eq.true)')
+                }
+                if (wantsArquivado) {
+                    orParts.push('archived_at.not.is.null')
+                }
+
+                if (orParts.length === 1) {
+                    if (wantsArquivado && !wantsSemPos && realStatuses.length === 0) {
+                        query = query.not('archived_at', 'is', null)
+                    } else if (wantsSemPos && realStatuses.length === 0) {
+                        query = query.eq('status_comercial', 'ganho').eq('skip_pos_venda', true)
+                    } else {
+                        query = query.in('status_comercial', realStatuses)
+                    }
+                } else if (orParts.length > 1) {
                     query = query.or(orParts.join(','))
-                } else {
-                    query = query.in('status_comercial', realStatuses)
                 }
             } else if (!showClosedCards) {
                 // Mostra cards em fluxo: aberto OU ganho-em-execução (ganho mas Pós-venda não concluído).
@@ -262,8 +275,11 @@ export function usePipelineListCards({
                 query = query.or(milestoneConditions)
             }
 
-            // Archived Filter
-            query = query.is('archived_at', null)
+            // Archived Filter — default esconde. Se 'arquivado' está no filtro de Status, NÃO esconder.
+            const wantsArquivadoStatus = filters.statusComercial?.includes('arquivado') ?? false
+            if (!wantsArquivadoStatus) {
+                query = query.is('archived_at', null)
+            }
 
             // Phase Filter — filtrar por stages da fase selecionada
             // Em MY_QUEUE, o filtro de ownership já scopa os cards — não restringir por fase
