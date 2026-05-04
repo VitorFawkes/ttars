@@ -3135,7 +3135,10 @@ export default function ImportacaoPosVendaPage() {
                 return
             }
 
-            // Helper: data flexível DD/MM/YYYY ou MM/DD/YYYY ou ISO
+            // Helper: data flexível DD/MM/YYYY ou MM/DD/YYYY ou ISO.
+            // CRM é BR — quando ambíguo (ambos ≤ 12), assume BR (DD/MM). Sem isso,
+            // "10/06/2026" virava 2026-10-06 (Out 6) e quebrava o match por overlap de
+            // datas em casos como Aparecida Donizete onde só uma das datas era ambígua.
             const parseDateFlex = (val: unknown): string | null => {
                 if (val == null || val === '') return null
                 const s = String(val).trim()
@@ -3153,7 +3156,7 @@ export default function ImportacaoPosVendaPage() {
                     let mm: number, dd: number
                     if (a > 12) { dd = a; mm = b }              // BR (DD/MM)
                     else if (b > 12) { mm = a; dd = b }         // US (MM/DD)
-                    else { mm = a; dd = b }                     // ambíguo: assume US (Excel padrão)
+                    else { dd = a; mm = b }                     // ambíguo: assume BR (CRM é BR)
                     return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
                 }
                 // Serial Excel
