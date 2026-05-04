@@ -16,6 +16,9 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          actor_id: string | null
+          actor_label: string | null
+          actor_type: string | null
           card_id: string
           created_at: string | null
           created_by: string | null
@@ -27,6 +30,9 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          actor_id?: string | null
+          actor_label?: string | null
+          actor_type?: string | null
           card_id: string
           created_at?: string | null
           created_by?: string | null
@@ -38,6 +44,9 @@ export type Database = {
           tipo: string
         }
         Update: {
+          actor_id?: string | null
+          actor_label?: string | null
+          actor_type?: string | null
           card_id?: string
           created_at?: string | null
           created_by?: string | null
@@ -543,10 +552,12 @@ export type Database = {
           anchor_text: string | null
           collects_fields: string[]
           created_at: string
+          delivery_mode: string
           discovery_config: Json | null
           display_order: number
           enabled: boolean
           id: string
+          intent: string | null
           kind: string
           message_mode: string
           moment_key: string
@@ -561,10 +572,12 @@ export type Database = {
           anchor_text?: string | null
           collects_fields?: string[]
           created_at?: string
+          delivery_mode?: string
           discovery_config?: Json | null
           display_order: number
           enabled?: boolean
           id?: string
+          intent?: string | null
           kind?: string
           message_mode?: string
           moment_key: string
@@ -579,10 +592,12 @@ export type Database = {
           anchor_text?: string | null
           collects_fields?: string[]
           created_at?: string
+          delivery_mode?: string
           discovery_config?: Json | null
           display_order?: number
           enabled?: boolean
           id?: string
+          intent?: string | null
           kind?: string
           message_mode?: string
           moment_key?: string
@@ -2394,6 +2409,24 @@ export type Database = {
           },
         ]
       }
+      ai_pipeline_locks: {
+        Row: {
+          contact_phone: string
+          expires_at: string
+          locked_at: string
+        }
+        Insert: {
+          contact_phone: string
+          expires_at: string
+          locked_at?: string
+        }
+        Update: {
+          contact_phone?: string
+          expires_at?: string
+          locked_at?: string
+        }
+        Relationships: []
+      }
       ai_skill_usage_logs: {
         Row: {
           agent_id: string
@@ -2866,6 +2899,170 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atendimentos_concierge: {
+        Row: {
+          cadence_step_id: string | null
+          card_id: string
+          categoria: string
+          cobrado_de: string | null
+          created_at: string | null
+          hospedagem_ref: string | null
+          id: string
+          moeda: string | null
+          notificou_cliente_em: string | null
+          org_id: string
+          origem_descricao: string | null
+          outcome: string | null
+          outcome_em: string | null
+          outcome_por: string | null
+          payload: Json | null
+          source: string
+          tarefa_id: string
+          tipo_concierge: string
+          trip_item_id: string | null
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          cadence_step_id?: string | null
+          card_id: string
+          categoria: string
+          cobrado_de?: string | null
+          created_at?: string | null
+          hospedagem_ref?: string | null
+          id?: string
+          moeda?: string | null
+          notificou_cliente_em?: string | null
+          org_id?: string
+          origem_descricao?: string | null
+          outcome?: string | null
+          outcome_em?: string | null
+          outcome_por?: string | null
+          payload?: Json | null
+          source: string
+          tarefa_id: string
+          tipo_concierge: string
+          trip_item_id?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          cadence_step_id?: string | null
+          card_id?: string
+          categoria?: string
+          cobrado_de?: string | null
+          created_at?: string | null
+          hospedagem_ref?: string | null
+          id?: string
+          moeda?: string | null
+          notificou_cliente_em?: string | null
+          org_id?: string
+          origem_descricao?: string | null
+          outcome?: string | null
+          outcome_em?: string | null
+          outcome_por?: string | null
+          payload?: Json | null
+          source?: string
+          tarefa_id?: string
+          tipo_concierge?: string
+          trip_item_id?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_concierge_cadence_step_id_fkey"
+            columns: ["cadence_step_id"]
+            isOneToOne: false
+            referencedRelation: "cadence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: true
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: true
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: true
+            referencedRelation: "view_agenda"
             referencedColumns: ["id"]
           },
         ]
@@ -3455,10 +3652,14 @@ export type Database = {
         Row: {
           block_index: number
           branch_config: Json | null
+          categoria_concierge: string | null
+          condicao_extra: Json | null
           created_at: string | null
+          data_anchor: string | null
           day_offset: number | null
           due_offset: Json | null
           end_config: Json | null
+          gera_atendimento_concierge: boolean | null
           id: string
           next_step_key: string | null
           org_id: string
@@ -3469,16 +3670,21 @@ export type Database = {
           task_config: Json | null
           template_id: string
           time_of_day_minutes: number | null
+          tipo_concierge: string | null
           visibility_conditions: Json | null
           wait_config: Json | null
         }
         Insert: {
           block_index?: number
           branch_config?: Json | null
+          categoria_concierge?: string | null
+          condicao_extra?: Json | null
           created_at?: string | null
+          data_anchor?: string | null
           day_offset?: number | null
           due_offset?: Json | null
           end_config?: Json | null
+          gera_atendimento_concierge?: boolean | null
           id?: string
           next_step_key?: string | null
           org_id?: string
@@ -3489,16 +3695,21 @@ export type Database = {
           task_config?: Json | null
           template_id: string
           time_of_day_minutes?: number | null
+          tipo_concierge?: string | null
           visibility_conditions?: Json | null
           wait_config?: Json | null
         }
         Update: {
           block_index?: number
           branch_config?: Json | null
+          categoria_concierge?: string | null
+          condicao_extra?: Json | null
           created_at?: string | null
+          data_anchor?: string | null
           day_offset?: number | null
           due_offset?: Json | null
           end_config?: Json | null
+          gera_atendimento_concierge?: boolean | null
           id?: string
           next_step_key?: string | null
           org_id?: string
@@ -3509,6 +3720,7 @@ export type Database = {
           task_config?: Json | null
           template_id?: string
           time_of_day_minutes?: number | null
+          tipo_concierge?: string | null
           visibility_conditions?: Json | null
           wait_config?: Json | null
         }
@@ -4093,6 +4305,8 @@ export type Database = {
       }
       card_financial_items: {
         Row: {
+          archived_at: string | null
+          archived_reason: string | null
           card_id: string
           created_at: string | null
           data_fim: string | null
@@ -4102,6 +4316,7 @@ export type Database = {
           fornecedor: string | null
           id: string
           is_ready: boolean | null
+          monde_venda_num: string | null
           notes: string | null
           observacoes: string | null
           org_id: string
@@ -4112,6 +4327,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_reason?: string | null
           card_id: string
           created_at?: string | null
           data_fim?: string | null
@@ -4121,6 +4338,7 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
+          monde_venda_num?: string | null
           notes?: string | null
           observacoes?: string | null
           org_id?: string
@@ -4131,6 +4349,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_reason?: string | null
           card_id?: string
           created_at?: string | null
           data_fim?: string | null
@@ -4140,6 +4360,7 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
+          monde_venda_num?: string | null
           notes?: string | null
           observacoes?: string | null
           org_id?: string
@@ -4373,6 +4594,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tarefas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_gift_assignments_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
           },
           {
             foreignKeyName: "card_gift_assignments_tarefa_id_fkey"
@@ -5173,6 +5401,7 @@ export type Database = {
           group_total_revenue: number | null
           id: string
           indicado_por_id: string | null
+          is_critical: boolean
           is_group_parent: boolean | null
           lead_entry_path: string | null
           locked_fields: Json | null
@@ -5202,6 +5431,7 @@ export type Database = {
           receita: number | null
           receita_source: string | null
           sdr_owner_id: string | null
+          skip_pos_venda: boolean
           stage_changed_at: string | null
           stage_entered_at: string | null
           status_comercial: string
@@ -5275,6 +5505,7 @@ export type Database = {
           group_total_revenue?: number | null
           id?: string
           indicado_por_id?: string | null
+          is_critical?: boolean
           is_group_parent?: boolean | null
           lead_entry_path?: string | null
           locked_fields?: Json | null
@@ -5304,6 +5535,7 @@ export type Database = {
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          skip_pos_venda?: boolean
           stage_changed_at?: string | null
           stage_entered_at?: string | null
           status_comercial?: string
@@ -5377,6 +5609,7 @@ export type Database = {
           group_total_revenue?: number | null
           id?: string
           indicado_por_id?: string | null
+          is_critical?: boolean
           is_group_parent?: boolean | null
           lead_entry_path?: string | null
           locked_fields?: Json | null
@@ -5406,6 +5639,7 @@ export type Database = {
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          skip_pos_venda?: boolean
           stage_changed_at?: string | null
           stage_entered_at?: string | null
           status_comercial?: string
@@ -6048,6 +6282,7 @@ export type Database = {
       }
       contatos: {
         Row: {
+          cargo: string | null
           chatpro_session_id: string | null
           cpf: string | null
           cpf_normalizado: string | null
@@ -6058,6 +6293,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           email: string | null
+          empresa_id: string | null
           endereco: Json | null
           external_id: string | null
           external_source: string | null
@@ -6083,12 +6319,14 @@ export type Database = {
           telefone: string | null
           telefone_normalizado: string | null
           tipo_cliente: string | null
+          tipo_contato: string | null
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa_enum"]
           ultima_venda_data: string | null
           ultimo_retorno_data: string | null
           updated_at: string
         }
         Insert: {
+          cargo?: string | null
           chatpro_session_id?: string | null
           cpf?: string | null
           cpf_normalizado?: string | null
@@ -6099,6 +6337,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          empresa_id?: string | null
           endereco?: Json | null
           external_id?: string | null
           external_source?: string | null
@@ -6124,12 +6363,14 @@ export type Database = {
           telefone?: string | null
           telefone_normalizado?: string | null
           tipo_cliente?: string | null
+          tipo_contato?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa_enum"]
           ultima_venda_data?: string | null
           ultimo_retorno_data?: string | null
           updated_at?: string
         }
         Update: {
+          cargo?: string | null
           chatpro_session_id?: string | null
           cpf?: string | null
           cpf_normalizado?: string | null
@@ -6140,6 +6381,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          empresa_id?: string | null
           endereco?: Json | null
           external_id?: string | null
           external_source?: string | null
@@ -6165,6 +6407,7 @@ export type Database = {
           telefone?: string | null
           telefone_normalizado?: string | null
           tipo_cliente?: string | null
+          tipo_contato?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa_enum"]
           ultima_venda_data?: string | null
           ultimo_retorno_data?: string | null
@@ -6190,6 +6433,27 @@ export type Database = {
             columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contatos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contatos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "contatos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
           },
           {
@@ -6940,6 +7204,7 @@ export type Database = {
           created_by: string | null
           created_card_id: string | null
           descricao: string | null
+          echo_released_at: string | null
           executed_at: string | null
           id: string
           metadata: Json | null
@@ -6961,6 +7226,7 @@ export type Database = {
           created_by?: string | null
           created_card_id?: string | null
           descricao?: string | null
+          echo_released_at?: string | null
           executed_at?: string | null
           id?: string
           metadata?: Json | null
@@ -6982,6 +7248,7 @@ export type Database = {
           created_by?: string | null
           created_card_id?: string | null
           descricao?: string | null
+          echo_released_at?: string | null
           executed_at?: string | null
           id?: string
           metadata?: Json | null
@@ -8095,6 +8362,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tarefas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_outbound_queue_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
           },
           {
             foreignKeyName: "integration_outbound_queue_tarefa_id_fkey"
@@ -9556,330 +9830,6 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monde_people_queue: {
-        Row: {
-          attempts: number | null
-          changed_fields: string[] | null
-          contato_id: string
-          created_at: string | null
-          error_message: string | null
-          event_type: string
-          id: string
-          org_id: string
-          processed_at: string | null
-          status: string | null
-        }
-        Insert: {
-          attempts?: number | null
-          changed_fields?: string[] | null
-          contato_id: string
-          created_at?: string | null
-          error_message?: string | null
-          event_type: string
-          id?: string
-          org_id?: string
-          processed_at?: string | null
-          status?: string | null
-        }
-        Update: {
-          attempts?: number | null
-          changed_fields?: string[] | null
-          contato_id?: string
-          created_at?: string | null
-          error_message?: string | null
-          event_type?: string
-          id?: string
-          org_id?: string
-          processed_at?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monde_people_queue_contato_id_fkey"
-            columns: ["contato_id"]
-            isOneToOne: false
-            referencedRelation: "contatos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_people_queue_contato_id_fkey"
-            columns: ["contato_id"]
-            isOneToOne: false
-            referencedRelation: "v_contact_proposals"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "monde_people_queue_contato_id_fkey"
-            columns: ["contato_id"]
-            isOneToOne: false
-            referencedRelation: "view_deleted_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_people_queue_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monde_sale_items: {
-        Row: {
-          card_financial_item_id: string | null
-          created_at: string
-          description: string | null
-          id: string
-          item_metadata: Json | null
-          item_type: string
-          proposal_flight_id: string | null
-          proposal_item_id: string | null
-          quantity: number
-          sale_id: string
-          service_date_end: string | null
-          service_date_start: string | null
-          supplier: string | null
-          title: string
-          total_price: number
-          unit_price: number
-        }
-        Insert: {
-          card_financial_item_id?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          item_metadata?: Json | null
-          item_type: string
-          proposal_flight_id?: string | null
-          proposal_item_id?: string | null
-          quantity?: number
-          sale_id: string
-          service_date_end?: string | null
-          service_date_start?: string | null
-          supplier?: string | null
-          title: string
-          total_price?: number
-          unit_price?: number
-        }
-        Update: {
-          card_financial_item_id?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          item_metadata?: Json | null
-          item_type?: string
-          proposal_flight_id?: string | null
-          proposal_item_id?: string | null
-          quantity?: number
-          sale_id?: string
-          service_date_end?: string | null
-          service_date_start?: string | null
-          supplier?: string | null
-          title?: string
-          total_price?: number
-          unit_price?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monde_sale_items_card_financial_item_id_fkey"
-            columns: ["card_financial_item_id"]
-            isOneToOne: false
-            referencedRelation: "card_financial_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sale_items_proposal_flight_id_fkey"
-            columns: ["proposal_flight_id"]
-            isOneToOne: false
-            referencedRelation: "proposal_flights"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sale_items_proposal_item_id_fkey"
-            columns: ["proposal_item_id"]
-            isOneToOne: false
-            referencedRelation: "proposal_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sale_items_sale_id_fkey"
-            columns: ["sale_id"]
-            isOneToOne: false
-            referencedRelation: "monde_sales"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sale_items_sale_id_fkey"
-            columns: ["sale_id"]
-            isOneToOne: false
-            referencedRelation: "v_monde_sent_items"
-            referencedColumns: ["sale_id"]
-          },
-        ]
-      }
-      monde_sales: {
-        Row: {
-          attempts: number
-          attempts_log: Json | null
-          card_id: string
-          created_at: string
-          created_by: string
-          currency: string
-          error_message: string | null
-          id: string
-          idempotency_key: string
-          max_attempts: number
-          monde_response: Json | null
-          monde_sale_id: string | null
-          monde_sale_number: string | null
-          next_retry_at: string | null
-          org_id: string
-          proposal_id: string | null
-          sale_date: string
-          sent_at: string | null
-          status: string
-          total_value: number
-          travel_end_date: string | null
-          travel_start_date: string | null
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          attempts_log?: Json | null
-          card_id: string
-          created_at?: string
-          created_by: string
-          currency?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string
-          max_attempts?: number
-          monde_response?: Json | null
-          monde_sale_id?: string | null
-          monde_sale_number?: string | null
-          next_retry_at?: string | null
-          org_id?: string
-          proposal_id?: string | null
-          sale_date: string
-          sent_at?: string | null
-          status?: string
-          total_value?: number
-          travel_end_date?: string | null
-          travel_start_date?: string | null
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          attempts_log?: Json | null
-          card_id?: string
-          created_at?: string
-          created_by?: string
-          currency?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string
-          max_attempts?: number
-          monde_response?: Json | null
-          monde_sale_id?: string | null
-          monde_sale_number?: string | null
-          next_retry_at?: string | null
-          org_id?: string
-          proposal_id?: string | null
-          sale_date?: string
-          sent_at?: string | null
-          status?: string
-          total_value?: number
-          travel_end_date?: string | null
-          travel_start_date?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monde_sales_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: false
-            referencedRelation: "cards"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: false
-            referencedRelation: "view_archived_cards"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: false
-            referencedRelation: "view_cards_acoes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: false
-            referencedRelation: "view_cards_contatos_summary"
-            referencedColumns: ["card_id"]
-          },
-          {
-            foreignKeyName: "monde_sales_card_id_fkey"
-            columns: ["card_id"]
-            isOneToOne: false
-            referencedRelation: "view_deleted_cards"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "v_team_proposal_performance"
-            referencedColumns: ["consultant_id"]
-          },
-          {
-            foreignKeyName: "monde_sales_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "view_profiles_complete"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "proposals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monde_sales_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "v_contact_proposals"
-            referencedColumns: ["proposal_id"]
-          },
-          {
-            foreignKeyName: "monde_sales_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "v_proposal_analytics"
             referencedColumns: ["id"]
           },
         ]
@@ -14054,6 +14004,13 @@ export type Database = {
             foreignKeyName: "tarefas_rescheduled_from_id_fkey"
             columns: ["rescheduled_from_id"]
             isOneToOne: false
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
+          },
+          {
+            foreignKeyName: "tarefas_rescheduled_from_id_fkey"
+            columns: ["rescheduled_from_id"]
+            isOneToOne: false
             referencedRelation: "view_agenda"
             referencedColumns: ["id"]
           },
@@ -14063,6 +14020,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tarefas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_rescheduled_to_id_fkey"
+            columns: ["rescheduled_to_id"]
+            isOneToOne: false
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
           },
           {
             foreignKeyName: "tarefas_rescheduled_to_id_fkey"
@@ -16359,6 +16323,67 @@ export type Database = {
           },
         ]
       }
+      v_atendimentos_lote: {
+        Row: {
+          atendimento_ids: string[] | null
+          card_ids: string[] | null
+          categoria: string | null
+          janela_embarque: string | null
+          primeira_data_embarque: string | null
+          tarefa_ids: string[] | null
+          tipo_concierge: string | null
+          total_pendentes: number | null
+          ultima_data_embarque: string | null
+        }
+        Relationships: []
+      }
+      v_card_concierge_stats: {
+        Row: {
+          ativos: number | null
+          card_id: string | null
+          concluidos: number | null
+          tipo_prioritario: string | null
+          valor_vendido_extra: number | null
+          vencidos: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_contact_proposals: {
         Row: {
           accepted_at: string | null
@@ -16414,65 +16439,143 @@ export type Database = {
           },
         ]
       }
-      v_monde_sent_items: {
+      v_meu_dia_concierge: {
         Row: {
+          atendimento_criado_em: string | null
+          atendimento_id: string | null
+          cadence_step_id: string | null
           card_id: string | null
-          monde_sale_id: string | null
-          monde_sale_number: string | null
-          proposal_flight_id: string | null
-          proposal_item_id: string | null
-          sale_date: string | null
-          sale_id: string | null
-          status: string | null
-          supplier: string | null
-          title: string | null
-          total_price: number | null
+          card_is_critical: boolean | null
+          card_titulo: string | null
+          card_valor_estimado: number | null
+          card_valor_final: number | null
+          categoria: string | null
+          cobrado_de: string | null
+          concluida: boolean | null
+          concluida_em: string | null
+          data_vencimento: string | null
+          data_viagem_fim: string | null
+          data_viagem_inicio: string | null
+          descricao: string | null
+          dias_pra_embarque: number | null
+          dono_id: string | null
+          hospedagem_ref: string | null
+          moeda: string | null
+          notificou_cliente_em: string | null
+          origem_descricao: string | null
+          outcome: string | null
+          outcome_em: string | null
+          outcome_por: string | null
+          payload: Json | null
+          pessoa_principal_id: string | null
+          pipeline_stage_id: string | null
+          prioridade: string | null
+          produto: Database["public"]["Enums"]["app_product"] | null
+          source: string | null
+          status_apresentacao: string | null
+          tarefa_criada_em: string | null
+          tarefa_criada_por: string | null
+          tarefa_id: string | null
+          tarefa_status: string | null
+          tipo_concierge: string | null
+          titulo: string | null
+          trip_item_id: string | null
+          valor: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "monde_sale_items_proposal_flight_id_fkey"
-            columns: ["proposal_flight_id"]
+            foreignKeyName: "atendimentos_concierge_cadence_step_id_fkey"
+            columns: ["cadence_step_id"]
             isOneToOne: false
-            referencedRelation: "proposal_flights"
+            referencedRelation: "cadence_steps"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monde_sale_items_proposal_item_id_fkey"
-            columns: ["proposal_item_id"]
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
             isOneToOne: false
-            referencedRelation: "proposal_items"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monde_sales_card_id_fkey"
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "atendimentos_concierge_outcome_por_fkey"
+            columns: ["outcome_por"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "cards"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monde_sales_card_id_fkey"
+            foreignKeyName: "tarefas_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_archived_cards"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monde_sales_card_id_fkey"
+            foreignKeyName: "tarefas_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_cards_acoes"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monde_sales_card_id_fkey"
+            foreignKeyName: "tarefas_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_cards_contatos_summary"
             referencedColumns: ["card_id"]
           },
           {
-            foreignKeyName: "monde_sales_card_id_fkey"
+            foreignKeyName: "tarefas_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_cards"
@@ -16700,6 +16803,7 @@ export type Database = {
           sdr_owner_email: string | null
           sdr_owner_id: string | null
           sdr_owner_nome: string | null
+          skip_pos_venda: boolean | null
           status_comercial: string | null
           status_taxa: string | null
           sub_card_category: string | null
@@ -17101,6 +17205,10 @@ export type Database = {
       _consolidate_merge_one: { Args: { p_audit_id: number }; Returns: Json }
       _consolidate_move_one: {
         Args: { p_audit_id: number }
+        Returns: undefined
+      }
+      _merge_venda_monde_into_destino: {
+        Args: { p_clear_origem: boolean; p_destino: string; p_origem: string }
         Returns: undefined
       }
       _report_computed_measure_sql: {
@@ -18616,6 +18724,10 @@ export type Database = {
         Args: { p_item_id: string; p_token: string }
         Returns: Json
       }
+      ativar_pos_venda: {
+        Args: { p_card_id: string; p_pos_owner_id: string }
+        Returns: Json
+      }
       atrelar_viagem_a_card: {
         Args: { p_card_id: string; p_hidratar?: boolean; p_viagem_id: string }
         Returns: Json
@@ -18811,6 +18923,16 @@ export type Database = {
         Args: { p_future_opp_id: string }
         Returns: Json
       }
+      criar_pessoa_da_empresa: {
+        Args: {
+          p_cargo?: string
+          p_email?: string
+          p_empresa_id: string
+          p_nome: string
+          p_telefone?: string
+        }
+        Returns: string
+      }
       criar_sub_card: {
         Args: {
           p_category?: string
@@ -18920,6 +19042,10 @@ export type Database = {
       fn_business_minutes_between: {
         Args: { p_a: string; p_b: string; p_org_id?: string }
         Returns: number
+      }
+      fn_calcular_etapa_pos_venda: {
+        Args: { p_card_id: string }
+        Returns: string
       }
       fn_card_stage_history: {
         Args: { p_card_id: string; p_limit?: number }
@@ -19034,18 +19160,6 @@ export type Database = {
       }
       get_encryption_key: { Args: never; Returns: string }
       get_invite_details: { Args: { token_input: string }; Returns: Json }
-      get_monde_sales_by_card: {
-        Args: { p_card_id: string }
-        Returns: {
-          created_at: string
-          items_count: number
-          monde_sale_id: string
-          sale_date: string
-          sale_id: string
-          status: string
-          total_value: number
-        }[]
-      }
       get_my_active_team_id: { Args: never; Returns: string }
       get_my_team_peer_ids: { Args: never; Returns: string[] }
       get_outbound_external_field_id: {
@@ -19207,6 +19321,10 @@ export type Database = {
         Args: { p_org_id: string; p_user_id: string }
         Returns: boolean
       }
+      is_org_member: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
       is_proactive_event_type: {
         Args: { p_event_type: string }
@@ -19281,6 +19399,10 @@ export type Database = {
         Returns: Json
       }
       listar_fotos: { Args: { p_token: string }; Returns: Json }
+      listar_pessoas_da_empresa: {
+        Args: { p_empresa_id: string }
+        Returns: Json
+      }
       marcar_checklist: {
         Args: {
           p_checked?: boolean
@@ -19336,10 +19458,19 @@ export type Database = {
         }
         Returns: undefined
       }
-      mover_financial_items: {
-        Args: { p_card_destino: string; p_item_ids: string[] }
-        Returns: Json
-      }
+      mover_financial_items:
+        | {
+            Args: { p_card_destino: string; p_item_ids: string[] }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_card_destino: string
+              p_item_ids: string[]
+              p_migrate_venda_monde?: boolean
+            }
+            Returns: Json
+          }
       normalize_cpf: { Args: { cpf_input: string }; Returns: string }
       normalize_name: { Args: { name: string }; Returns: string }
       normalize_phone: { Args: { phone_number: string }; Returns: string }
@@ -19602,6 +19733,10 @@ export type Database = {
         Args: { p_comentario?: string; p_nota: number; p_token: string }
         Returns: Json
       }
+      release_pipeline_lock: {
+        Args: { p_contact_phone: string }
+        Returns: undefined
+      }
       replace_cadence_steps: {
         Args: { p_steps: Json; p_template_id: string }
         Returns: undefined
@@ -19668,6 +19803,10 @@ export type Database = {
         Args: { p_new_password: string; p_user_id: string }
         Returns: undefined
       }
+      resolve_card_owner_contact: {
+        Args: { p_contato_id: string }
+        Returns: string
+      }
       resolve_portal_approval: {
         Args: {
           p_action: string
@@ -19683,6 +19822,48 @@ export type Database = {
         Returns: Json
       }
       revoke_api_key: { Args: { p_key_id: string }; Returns: boolean }
+      rpc_criar_atendimento_concierge: {
+        Args: {
+          p_cadence_step_id?: string
+          p_card_id: string
+          p_categoria: string
+          p_cobrado_de?: string
+          p_data_vencimento?: string
+          p_descricao?: string
+          p_hospedagem_ref?: string
+          p_origem_descricao?: string
+          p_payload?: Json
+          p_prioridade?: string
+          p_responsavel_id?: string
+          p_source?: string
+          p_tipo_concierge: string
+          p_titulo?: string
+          p_valor?: number
+        }
+        Returns: string
+      }
+      rpc_executar_em_lote: {
+        Args: {
+          p_atendimento_ids: string[]
+          p_observacao?: string
+          p_outcome: string
+        }
+        Returns: number
+      }
+      rpc_marcar_outcome: {
+        Args: {
+          p_atendimento_id: string
+          p_cobrado_de?: string
+          p_observacao?: string
+          p_outcome: string
+          p_valor_final?: number
+        }
+        Returns: undefined
+      }
+      rpc_notificar_cliente: {
+        Args: { p_atendimento_id: string }
+        Returns: undefined
+      }
       rpc_reactivation_assign_bulk: {
         Args: { p_contact_ids: string[]; p_responsavel_id: string }
         Returns: number
@@ -19836,6 +20017,10 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
       smart_title_case: { Args: { name: string }; Returns: string }
       switch_organization: { Args: { p_org_id: string }; Returns: undefined }
+      try_acquire_pipeline_lock: {
+        Args: { p_contact_phone: string; p_ttl_seconds?: number }
+        Returns: boolean
+      }
       unaccent: { Args: { "": string }; Returns: string }
       update_card_from_ai_extraction: {
         Args: {
@@ -19904,6 +20089,10 @@ export type Database = {
       validate_transition: {
         Args: { p_card_id: string; p_target_stage_id: string }
         Returns: boolean
+      }
+      vincular_contato_a_empresa: {
+        Args: { p_contato_id: string; p_empresa_id: string }
+        Returns: Json
       }
     }
     Enums: {

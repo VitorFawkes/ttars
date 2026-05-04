@@ -20,7 +20,12 @@ interface ActivityFeedProps {
     filters?: ActivityFilters
 }
 
+type ActorType = 'user' | 'ai_agent' | 'integration' | 'system'
+
 type Activity = Database['public']['Tables']['activities']['Row'] & {
+    actor_type?: ActorType | null
+    actor_id?: string | null
+    actor_label?: string | null
     created_by_user?: {
         nome: string | null
         email: string | null
@@ -218,8 +223,8 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
             return { oldVal: meta.old_title, newVal: meta.new_title }
         case 'ai_handoff':
             return {
-                oldVal: meta.old_responsavel === 'ia' ? 'IA Julia' : meta.old_responsavel === 'humano' ? 'Humano' : meta.old_responsavel,
-                newVal: meta.new_responsavel === 'ia' ? 'IA Julia' : meta.new_responsavel === 'humano' ? 'Humano' : meta.new_responsavel
+                oldVal: meta.old_responsavel === 'ia' ? 'IA' : meta.old_responsavel === 'humano' ? 'Humano' : meta.old_responsavel,
+                newVal: meta.new_responsavel === 'ia' ? 'IA' : meta.new_responsavel === 'humano' ? 'Humano' : meta.new_responsavel
             }
         case 'destination_changed':
         case 'traveler_changed':
@@ -319,6 +324,8 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                     ),
                     card:cards!card_id(titulo, produto)
                 `)
+                // Esconder ruído de backfill do Analytics v2 (eventos projetados em datas futuras)
+                .not('actor_label', 'eq', 'Sistema (analytics)')
                 .order('created_at', { ascending: false })
                 .limit(100)
 
@@ -458,11 +465,19 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                         {activities.map((activity) => {
                             const Icon = activityIcons[activity.tipo as keyof typeof activityIcons] || activityIcons.default
                             const colorClass = activityColors[activity.tipo as keyof typeof activityColors] || activityColors.default
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
-                            const isAiActivity = (activity.metadata as any)?.source === 'ai_agent'
-                            const userName = isAiActivity
-                                ? 'IA Julia'
-                                : (activity.created_by_user?.nome || activity.created_by_user?.email || 'Sistema')
+                            // Autoria coerente: prioriza actor_label novo (resolvido no banco via trigger
+                            // enrich_activity_actor + backfill 20260504q). Fallback: campos antigos para
+                            // tolerância caso surja linha sem actor_label preenchido.
+                            const actorType: ActorType = (activity.actor_type as ActorType) || (
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+                                (activity.metadata as any)?.source === 'ai_agent' ? 'ai_agent' :
+                                activity.created_by ? 'user' : 'system'
+                            )
+                            const userName = activity.actor_label
+                                || activity.created_by_user?.nome
+                                || activity.created_by_user?.email
+                                || (actorType === 'ai_agent' ? 'IA' : 'Sistema')
+                            const isAutomated = actorType === 'ai_agent' || actorType === 'integration'
 
                             return (
                                 <div key={activity.id} className="flex gap-2 text-xs">
@@ -524,9 +539,19 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                         <div className="flex flex-col mt-0.5">
                                             <span className="text-gray-500">
                                                 por <span className="font-medium text-gray-700">{userName}</span>
-                                                {isAiActivity && (
+                                                {actorType === 'ai_agent' && (
                                                     <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 text-violet-700 rounded">
                                                         <Bot className="h-2.5 w-2.5" />
+                                                        IA
+                                                    </span>
+                                                )}
+                                                {actorType === 'integration' && (
+                                                    <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">
+                                                        Integração
+                                                    </span>
+                                                )}
+                                                {isAutomated && (
+                                                    <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 rounded">
                                                         Auto
                                                     </span>
                                                 )}
