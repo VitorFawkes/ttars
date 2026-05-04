@@ -852,6 +852,10 @@ function DestinationStageSummary({
                 .eq('pipeline_stage_id', expandedOutStage)
                 .is('archived_at', null)
                 .is('deleted_at', null)
+                // Mesmos filtros do stageCounts: sem sub-cards merged/cancelled e sem
+                // is_group_parent. Sem isso a lista mostrava mais cards que o contador.
+                .or('sub_card_status.is.null,sub_card_status.eq.active')
+                .or('is_group_parent.is.null,is_group_parent.eq.false')
                 .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                 .order('data_viagem_inicio', { ascending: true, nullsFirst: false })
                 .limit(200)
@@ -1149,8 +1153,13 @@ function DestinationStageSummary({
                                                                 {card.titulo || '(sem título)'}
                                                             </Link>
                                                             <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                                                                {card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : '—'}
-                                                                {card.data_viagem_fim && ` → ${formatDateBR(card.data_viagem_fim)}`}
+                                                                {(() => {
+                                                                    const ini = card.data_viagem_inicio ? formatDateBR(card.data_viagem_inicio) : null
+                                                                    const fim = card.data_viagem_fim ? formatDateBR(card.data_viagem_fim) : null
+                                                                    if (!ini && !fim) return '—'
+                                                                    if (ini && fim) return `${ini} → ${fim}`
+                                                                    return ini || fim
+                                                                })()}
                                                             </span>
                                                         </li>
                                                     )
