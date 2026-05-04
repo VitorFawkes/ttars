@@ -1457,8 +1457,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                             </div>
                         )}
 
-                        {/* Status Banners — ganho or perdido */}
-                        {card.status_comercial === 'ganho' && (
+                        {/* Status Banners — ganho or perdido (suprimidos quando arquivado para evitar
+                             ruído: ações como Reabrir/Sem Pós-Venda só fazem sentido fora do arquivamento) */}
+                        {!isArchived && card.status_comercial === 'ganho' && (
                             <div className={cn(
                                 "flex items-center gap-3 px-3 py-1.5 rounded-lg border",
                                 isSemPosVenda
@@ -1504,7 +1505,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 </div>
                             </div>
                         )}
-                        {card.status_comercial === 'perdido' && (
+                        {!isArchived && card.status_comercial === 'perdido' && (
                             <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
                                 <div className="flex items-center gap-1.5 text-red-700 font-semibold text-sm">
                                     <XCircle className="h-4 w-4" />
