@@ -264,6 +264,9 @@ interface TripGroup {
     existingValorFinal: number | null
     existingNumeroVendaMonde: string | null
     existingHistoricoNums: string[]
+    /** Quando o card matcheado está arquivado, marca aqui. UI mostra badge "Arquivado"
+     *  e o RPC desarquiva ao aplicar (se update_dates ou sync_monde_nums acionados). */
+    existingArchivedAt: string | null
     /** Quando há mais de um card no CRM com a mesma venda, lista os outros (id + titulo). */
     otherCardCandidates: Array<{
         id: string
@@ -538,6 +541,7 @@ type RawTripGroup = Omit<TripGroup,
     | 'existingStatusComercial' | 'existingGanhoPlanner' | 'existingGanhoPos' | 'existingDonoPosId'
     | 'existingDataInicio' | 'existingDataFim' | 'existingValorFinal'
     | 'existingNumeroVendaMonde' | 'existingHistoricoNums'
+    | 'existingArchivedAt'
     | 'otherCardCandidates'
     | 'moveStage' | 'updateDates' | 'syncMondeNums' | 'action' | 'skipReason' | 'audit' | 'diff'
 >
@@ -2004,8 +2008,21 @@ function TripCard({ trip, selected, onToggle, onToggleMoveStage, onToggleUpdateD
                     </div>
 
                     {trip.existingCardId && (
-                        <div className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                            Card existente: <Link to={`/cards/${trip.existingCardId}`} className="text-blue-600 underline">{trip.existingCardTitle || trip.existingCardId}</Link>
+                        <div className={cn(
+                            'text-xs rounded px-2 py-1',
+                            trip.existingArchivedAt
+                                ? 'bg-amber-50 border border-amber-300'
+                                : 'bg-blue-50 border border-blue-200'
+                        )}>
+                            {trip.existingArchivedAt && (
+                                <span className="text-[10px] font-semibold text-amber-800 bg-amber-200 border border-amber-300 px-1 rounded mr-1">
+                                    ⚠ ARQUIVADO
+                                </span>
+                            )}
+                            Card existente: <Link to={`/cards/${trip.existingCardId}`} className={cn(trip.existingArchivedAt ? 'text-amber-700' : 'text-blue-600', 'underline')}>{trip.existingCardTitle || trip.existingCardId}</Link>
+                            {trip.existingArchivedAt && (
+                                <span className="ml-1 text-amber-700">— vai desarquivar e atualizar ao aplicar</span>
+                            )}
                         </div>
                     )}
 
@@ -2430,6 +2447,7 @@ export default function ImportacaoPosVendaPage() {
                             existingValorFinal: t.existingValorFinal ?? null,
                             existingNumeroVendaMonde: t.existingNumeroVendaMonde ?? null,
                             existingHistoricoNums: Array.isArray(t.existingHistoricoNums) ? t.existingHistoricoNums : [],
+                            existingArchivedAt: t.existingArchivedAt ?? null,
                             moveStage: t.moveStage ?? true,
                             updateDates: t.updateDates ?? false,
                             syncMondeNums: t.syncMondeNums ?? false,
@@ -2906,10 +2924,11 @@ export default function ImportacaoPosVendaPage() {
                 valor_final: number | null
                 valor_estimado: number | null
                 produto_data: Record<string, unknown> | null
+                archived_at: string | null
             }
             let snapshot: CardSnapshotDet | null = null
 
-            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data'
+            const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data, archived_at'
 
             // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
             for (const vchunk of chunked(trip.vendaNums, 10)) {
@@ -2917,7 +2936,6 @@ export default function ImportacaoPosVendaPage() {
                     .from('cards')
                     .select(CARD_AUDIT_SELECT)
                     .in('produto_data->>numero_venda_monde', vchunk)
-                    .is('archived_at', null)
                     .is('deleted_at', null)
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
@@ -2935,7 +2953,6 @@ export default function ImportacaoPosVendaPage() {
                         .from('cards')
                         .select(CARD_AUDIT_SELECT)
                         .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
-                        .is('archived_at', null)
                         .is('deleted_at', null)
                         .limit(1)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
@@ -2964,7 +2981,6 @@ export default function ImportacaoPosVendaPage() {
                         .select(CARD_AUDIT_SELECT)
                         .eq('pessoa_principal_id', contatoId)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
-                        .is('archived_at', null)
                         .is('deleted_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                         .limit(1)
@@ -3010,7 +3026,6 @@ export default function ImportacaoPosVendaPage() {
                             .select(CARD_AUDIT_SELECT)
                             .in('pessoa_principal_id', contatoIds)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
-                            .is('archived_at', null)
                             .is('deleted_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .limit(5)
@@ -3047,7 +3062,6 @@ export default function ImportacaoPosVendaPage() {
                         .select(CARD_AUDIT_SELECT)
                         .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
-                        .is('archived_at', null)
                         .is('deleted_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                         .limit(10)
@@ -3103,6 +3117,7 @@ export default function ImportacaoPosVendaPage() {
                 existingValorFinal: snapshot?.valor_final ?? snapshot?.valor_estimado ?? null,
                 existingNumeroVendaMonde: typeof pd.numero_venda_monde === 'string' ? pd.numero_venda_monde : null,
                 existingHistoricoNums,
+                existingArchivedAt: snapshot?.archived_at ?? null,
                 otherCardCandidates: [],
                 moveStage: true,
                 updateDates: false,
@@ -3430,7 +3445,7 @@ export default function ImportacaoPosVendaPage() {
                 const titulo = buildTripTitle(trip.pagantePrincipal, trip.products, trip.dataInicio, trip.dataFim)
                 const vendedorProfileId = profileMap.get(norm(trip.vendedor)) || null
 
-                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data'
+                const CARD_AUDIT_SELECT = 'id, titulo, pipeline_stage_id, status_comercial, ganho_planner, ganho_pos, pos_owner_id, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, produto_data, archived_at'
 
                 const candidates: CardCandidate[] = []
 
@@ -3441,7 +3456,6 @@ export default function ImportacaoPosVendaPage() {
                             .from('cards')
                             .select(CARD_AUDIT_SELECT)
                             .in('produto_data->>numero_venda_monde', vchunk)
-                            .is('archived_at', null)
                             .is('deleted_at', null)
                             .limit(20)
                         if (activeOrgId) query = query.eq('org_id', activeOrgId)
@@ -3468,7 +3482,6 @@ export default function ImportacaoPosVendaPage() {
                             .from('cards')
                             .select(CARD_AUDIT_SELECT)
                             .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
-                            .is('archived_at', null)
                             .is('deleted_at', null)
                             .limit(10)
                         if (activeOrgId) query = query.eq('org_id', activeOrgId)
@@ -3506,7 +3519,6 @@ export default function ImportacaoPosVendaPage() {
                             .select(CARD_AUDIT_SELECT)
                             .eq('pessoa_principal_id', contatoId)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
-                            .is('archived_at', null)
                             .is('deleted_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
@@ -3567,7 +3579,6 @@ export default function ImportacaoPosVendaPage() {
                                 .select(CARD_AUDIT_SELECT)
                                 .in('pessoa_principal_id', contatoIds)
                                 .in('pipeline_stage_id', POS_VENDA_STAGES)
-                                .is('archived_at', null)
                                 .is('deleted_at', null)
                                 .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                                 .limit(5)
@@ -3609,7 +3620,6 @@ export default function ImportacaoPosVendaPage() {
                             .select(CARD_AUDIT_SELECT)
                             .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
-                            .is('archived_at', null)
                             .is('deleted_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .limit(10)
@@ -3655,6 +3665,7 @@ export default function ImportacaoPosVendaPage() {
                 let winnerDataInicio: string | null = null
                 let winnerDataFim: string | null = null
                 let winnerValorFinal: number | null = null
+                let winnerArchivedAt: string | null = null
                 if (winner) {
                     const w = winner as unknown as {
                         produto_data?: Record<string, unknown> | null
@@ -3662,6 +3673,7 @@ export default function ImportacaoPosVendaPage() {
                         data_viagem_fim?: string | null
                         valor_final?: number | null
                         valor_estimado?: number | null
+                        archived_at?: string | null
                     }
                     winnerProdutoData = (w.produto_data ?? {}) as Record<string, unknown>
                     winnerDataInicio = w.data_viagem_inicio ?? null
@@ -3669,6 +3681,7 @@ export default function ImportacaoPosVendaPage() {
                     winnerValorFinal = (typeof w.valor_final === 'number' ? w.valor_final
                         : typeof w.valor_estimado === 'number' ? w.valor_estimado
                         : null)
+                    winnerArchivedAt = w.archived_at ?? null
                 }
                 const winnerHistoricoRaw = Array.isArray(winnerProdutoData.numeros_venda_monde_historico)
                     ? winnerProdutoData.numeros_venda_monde_historico
@@ -3713,6 +3726,7 @@ export default function ImportacaoPosVendaPage() {
                     existingValorFinal: winnerValorFinal,
                     existingNumeroVendaMonde: typeof winnerProdutoData.numero_venda_monde === 'string' ? winnerProdutoData.numero_venda_monde : null,
                     existingHistoricoNums: winnerHistoricoNums,
+                    existingArchivedAt: winnerArchivedAt,
                     otherCardCandidates: others,
                     moveStage: true,
                     updateDates: false,
@@ -4043,6 +4057,23 @@ export default function ImportacaoPosVendaPage() {
                     current: Math.min(offset + BATCH_SIZE, payload.length),
                     total: payload.length,
                 })
+            }
+
+            // Pós-processamento: cards arquivados que foram matched (e o user aplicou)
+            // viram "ativos" de novo. Sem isso, o card ficaria atualizado mas continuaria
+            // arquivado — fora do funil. Premissa: se a planilha trouxe a viagem como
+            // ativa e o user clicou aplicar, ele quer o card de volta no funil.
+            const archivedToReactivate = toProcess
+                .filter(t => t.existingCardId && t.existingArchivedAt)
+                .map(t => t.existingCardId as string)
+            if (archivedToReactivate.length > 0) {
+                const { error: unarchiveErr } = await supabase
+                    .from('cards')
+                    .update({ archived_at: null })
+                    .in('id', archivedToReactivate)
+                if (unarchiveErr) {
+                    console.error('Erro ao desarquivar cards:', unarchiveErr)
+                }
             }
 
             setImportResult({ cardsCreated, cardsUpdated, productsImported, skipped: skippedByUser, errors: totalErrors })
