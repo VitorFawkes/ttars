@@ -2106,6 +2106,12 @@ function HistoryRow({ log, profileId, onReverted }: { log: ImportLogRow; profile
                                                                                 já estava em {fromStageName} (manteve etapa)
                                                                             </div>
                                                                         )}
+                                                                        {/* Pra skips, mostrar a razão (T. Planner, ganho-sem-pós, etc) */}
+                                                                        {item.action === 'skipped' && item.error_message && (
+                                                                            <div className="ml-7 mt-0.5 text-[10px] text-amber-700 italic">
+                                                                                motivo: {item.error_message}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 )
                                                             })}
@@ -3790,11 +3796,18 @@ export default function ImportacaoPosVendaPage() {
                             previous_state: rpcItem?.previous_state || null,
                         }
                     })
-                    const skippedItems = filteredTrips
-                        .filter(t => t.action !== 'skip' && !selectedTrips.has(t.id))
+                    // Skips registrados no log: TUDO que veio na planilha mas não foi
+                    // criado/atualizado. Inclui:
+                    //  - Desmarcados pelo user (action != 'skip' E !selected)
+                    //  - Pulados pelo sistema (action == 'skip': T. Planner, ganho-sem-pós,
+                    //    outras fases, sem pagante/CPF, etc)
+                    // Ambos vão pro log com action='skipped' + razão em error_message,
+                    // e o stage_name continua sendo a etapa-alvo da planilha (pra agrupamento).
+                    const skippedItems = trips
+                        .filter(t => t.action === 'skip' || !selectedTrips.has(t.id))
                         .map(t => ({
                             import_log_id: logRow.id,
-                            card_id: null,
+                            card_id: t.existingCardId || null,
                             action: 'skipped',
                             card_title: buildTripTitle(t.pagantePrincipal, t.products, t.dataInicio, t.dataFim),
                             pagante: t.pagantePrincipal,
@@ -3805,7 +3818,13 @@ export default function ImportacaoPosVendaPage() {
                             products_count: t.products.length,
                             total_venda: t.valorTotal,
                             total_receita: t.receita,
+                            // stage_name = etapa-alvo da PLANILHA (pra agrupar no histórico
+                            // pelo "destino que a planilha pretendia"). Mesmo cards pulados
+                            // aparecem agrupados pela etapa que estavam classificados.
                             stage_name: t.stage.name,
+                            error_message: t.action === 'skip'
+                                ? (t.skipReason || 'pulado pelo sistema')
+                                : 'desmarcado por você',
                             previous_state: null,
                         }))
                     const logItems = [...importedItems, ...skippedItems]
