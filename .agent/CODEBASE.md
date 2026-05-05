@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-05
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 145 paginas | 157 hooks | 22 views | 644 components
+> **Stats:** 191 tabelas | 145 paginas | 231 hooks | 22 views | 644 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **157 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **231 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -192,22 +192,41 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useHotelSearch()` | `useHotelSearch.ts` |
 | `useIterpecSearch()` | `useIterpecSearch.ts` |
 | `useMondeSearch()` | `useMondeSearch.ts` |
+| `usePainelConcierge()` | `usePainelConcierge.ts` |
 | `useReactivationChat()` | `useReactivationChat.ts` |
 | `useUnifiedSearch()` | `useUnifiedSearch.ts` |
+| `useVoucherExtract()` | `useVoucherExtract.ts` |
 | `useVoucherExtraction()` | `useVoucherExtraction.ts` |
 
 #### Analytics
 | Hook | File |
 |------|------|
+| `useAnalyticsDrillDown()` | `useAnalyticsDrillDown.ts` |
 | `useAnalyticsV2Permissions()` | `useAnalyticsV2Permissions.ts` |
+| `useAnalyticsV2Rpcs()` | `useAnalyticsV2Rpcs.ts` |
+| `useFinancialData()` | `useFinancialData.ts` |
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
+| `useFunnelByOwner()` | `useFunnelByOwner.ts` |
+| `useFunnelConversion()` | `useFunnelConversion.ts` |
+| `useFunnelVelocity()` | `useFunnelVelocity.ts` |
+| `useOperationsData()` | `useOperationsData.ts` |
+| `useOverviewData()` | `useOverviewData.ts` |
+| `useRetentionData()` | `useRetentionData.ts` |
+| `useSLAData()` | `useSLAData.ts` |
+| `useWhatsAppAnalytics()` | `useWhatsAppAnalytics.ts` |
+| `useWhatsAppConversations()` | `useWhatsAppConversations.ts` |
 | `useWhatsAppLinhas()` | `useWhatsAppLinhas.ts` |
+| `useWhatsAppSpeed()` | `useWhatsAppSpeed.ts` |
 | `useWhatsAppTemplates()` | `useWhatsAppTemplates.ts` |
 
 #### Calendar
 | Hook | File |
 |------|------|
 | `useBlockDragDrop()` | `useBlockDragDrop.ts` |
+| `useCalendarMeetings()` | `useCalendarMeetings.ts` |
+| `useMeetingDrag()` | `useMeetingDrag.ts` |
+| `useMeetingMutation()` | `useMeetingMutation.ts` |
+| `useTodayMeetingCount()` | `useTodayMeetingCount.ts` |
 
 #### Contacts
 | Hook | File |
@@ -229,29 +248,46 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Other
 | Hook | File |
 |------|------|
+| `types()` | `types.ts` |
+| `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
+| `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
+| `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentMoments()` | `useAgentMoments.ts` |
+| `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
 | `useAgentScoring()` | `useAgentScoring.ts` |
+| `useAgentSilentSignals()` | `useAgentSilentSignals.ts` |
 | `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentSpecialScenarios()` | `useAgentSpecialScenarios.ts` |
+| `useAgentSuggestVariations()` | `useAgentSuggestVariations.ts` |
 | `useAgentTemplates()` | `useAgentTemplates.ts` |
+| `useAgentTestWhitelist()` | `useAgentTestWhitelist.ts` |
+| `useAgentV1V2Comparison()` | `useAgentV1V2Comparison.ts` |
+| `useAgentVoice()` | `useAgentVoice.ts` |
 | `useAgentWizard()` | `useAgentWizard.ts` |
 | `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
 | `useApiKeys()` | `useApiKeys.ts` |
 | `useAssistNotifications()` | `useAssistNotifications.ts` |
+| `useAtendimentoMutations()` | `useAtendimentoMutations.ts` |
 | `useAutoCalcTripDate()` | `useAutoCalcTripDate.ts` |
 | `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useChecklist()` | `useChecklist.ts` |
+| `useConciergePreferences()` | `useConciergePreferences.ts` |
+| `useConciergesComAtendimentos()` | `useConciergesComAtendimentos.ts` |
 | `useContatoChangeLog()` | `useContatoChangeLog.ts` |
+| `useConversationMessages()` | `useConversationMessages.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
+| `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
@@ -263,23 +299,29 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
+| `useMeuDia()` | `useMeuDia.ts` |
+| `useModelosConcierge()` | `useModelosConcierge.ts` |
 | `useMondePendingSales()` | `useMondePendingSales.ts` |
+| `useMoverEstadoFunil()` | `useMoverEstadoFunil.ts` |
 | `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
 | `useMyDayTasks()` | `useMyDayTasks.ts` |
 | `useMyVisiblePhases()` | `useMyVisiblePhases.ts` |
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `useNotificationConfig()` | `useNotificationConfig.ts` |
 | `useNotifications()` | `useNotifications.ts` |
+| `useOnlineStatus()` | `useOnlineStatus.ts` |
 | `useOrgBranding()` | `useOrgBranding.ts` |
 | `useOrgMembers()` | `useOrgMembers.ts` |
 | `useOrgSwitch()` | `useOrgSwitch.ts` |
 | `useOrganizations()` | `useOrganizations.ts` |
 | `useOutboundQueue()` | `useOutboundQueue.ts` |
+| `useParticipant()` | `useParticipant.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
 | `usePlatformAdmin()` | `usePlatformAdmin.ts` |
 | `usePlatformData()` | `usePlatformData.ts` |
+| `usePosRpcs()` | `usePosRpcs.ts` |
 | `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
 | `useProductContext()` | `useProductContext.ts` |
@@ -291,39 +333,62 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useReactivationPatterns()` | `useReactivationPatterns.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
 | `useResetAgentConversations()` | `useResetAgentConversations.ts` |
+| `useSaudeList()` | `useSaudeList.ts` |
+| `useSaudeSummary()` | `useSaudeSummary.ts` |
+| `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
+| `useSdrRpcs()` | `useSdrRpcs.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
+| `useToggleCritical()` | `useToggleCritical.ts` |
+| `useTripComments()` | `useTripComments.ts` |
+| `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
 | `useTripPlanApprovals()` | `useTripPlanApprovals.ts` |
 | `useTripPlanBlocks()` | `useTripPlanBlocks.ts` |
 | `useTripPlanEditor()` | `useTripPlanEditor.ts` |
 | `useTrips()` | `useTrips.ts` |
+| `useVendasRpcs()` | `useVendasRpcs.ts` |
+| `useViagem()` | `useViagem.ts` |
+| `useViagemInterna()` | `useViagemInterna.ts` |
+| `useViagemMutations()` | `useViagemMutations.ts` |
 
 #### Pipeline & Cards
 | Hook | File |
 |------|------|
+| `useAnalyticsFilters()` | `useAnalyticsFilters.ts` |
+| `useAnalyticsV2Filters()` | `useAnalyticsV2Filters.ts` |
 | `useArchiveCard()` | `useArchiveCard.ts` |
 | `useAssistedCardIds()` | `useAssistedCardIds.ts` |
+| `useAtendimentosCard()` | `useAtendimentosCard.ts` |
+| `useCalendarFilters()` | `useCalendarFilters.ts` |
 | `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
 | `useCardAttachments()` | `useCardAttachments.ts` |
+| `useCardConciergeStats()` | `useCardConciergeStats.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
+| `useCardObservacoes()` | `useCardObservacoes.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |
 | `useCardRulesSettings()` | `useCardRulesSettings.ts` |
 | `useCardTags()` | `useCardTags.ts` |
+| `useCardTagsLookup()` | `useCardTagsLookup.ts` |
 | `useCardTeam()` | `useCardTeam.ts` |
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
+| `useFilterOptions()` | `useFilterOptions.ts` |
+| `useFilterOptions()` | `useFilterOptions.ts` |
+| `useKanbanTarefas()` | `useKanbanTarefas.ts` |
+| `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
+| `usePipelineCurrent()` | `usePipelineCurrent.ts` |
 | `usePipelineFilters()` | `usePipelineFilters.ts` |
 | `usePipelineListCards()` | `usePipelineListCards.ts` |
 | `usePipelinePhases()` | `usePipelinePhases.ts` |
@@ -351,9 +416,16 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useProposalTemplates()` | `useProposalTemplates.ts` |
 | `useProposals()` | `useProposals.ts` |
 
+#### Reports
+| Hook | File |
+|------|------|
+| `useSavedViews()` | `useSavedViews.ts` |
+| `useSavedViews()` | `useSavedViews.ts` |
+
 #### Section & Field
 | Hook | File |
 |------|------|
+| `useFieldCompleteness()` | `useFieldCompleteness.ts` |
 | `useFieldConfig()` | `useFieldConfig.ts` |
 | `useFieldLock()` | `useFieldLock.ts` |
 | `useProductRequirements()` | `useProductRequirements.ts` |
@@ -363,8 +435,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 #### Users & Teams
 | Hook | File |
 |------|------|
+| `useConciergeProfilesLookup()` | `useConciergeProfilesLookup.ts` |
+| `useConciergeUserIds()` | `useConciergeUserIds.ts` |
+| `useConciergeUsers()` | `useConciergeUsers.ts` |
 | `useDepartments()` | `useDepartments.ts` |
 | `useRoles()` | `useRoles.ts` |
+| `useTeamLeaderboard()` | `useTeamLeaderboard.ts` |
+| `useTeamPerformance()` | `useTeamPerformance.ts` |
+| `useTeamSlaCompliance()` | `useTeamSlaCompliance.ts` |
 | `useTeams()` | `useTeams.ts` |
 | `useUsers()` | `useUsers.ts` |
 

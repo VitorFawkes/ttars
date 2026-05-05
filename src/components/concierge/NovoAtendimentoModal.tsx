@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useCriarAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
+import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
 import { CATEGORIAS_CONCIERGE, TIPO_LABEL, categoriasParaProduto, type TipoConcierge, type CategoriaConcierge, type CobradoDe } from '../../hooks/concierge/types'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -39,6 +40,11 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
   const [valor, setValor] = useState('')
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>('')
   const [cardSearch, setCardSearch] = useState('')
+  // Default: usuário atual (caso seja concierge); senão fica vazio até o
+  // usuário escolher um concierge. Em qualquer cenário o operador pode
+  // mudar pra qualquer concierge da lista.
+  const [responsavelId, setResponsavelId] = useState<string>(profile?.id ?? '')
+  const conciergeUsers = useConciergeUsers()
 
   // Quando lockedCard vem como prop, ele dita o cardId; senão usa o state interno.
   const cardId = lockedCard ?? cardIdInternal
@@ -90,7 +96,7 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
       titulo: titulo ?? undefined,
       descricao: descricao ?? undefined,
       data_vencimento: prazo ?? undefined,
-      responsavel_id: profile?.id,
+      responsavel_id: responsavelId || profile?.id,
       prioridade,
       valor: mostraValor && valor ? parseFloat(valor) : null,
       cobrado_de: mostraValor && cobradoDe ? (cobradoDe as CobradoDe) : null,
@@ -261,6 +267,30 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
                 <option value="alta">Alta</option>
               </select>
             </div>
+          </div>
+
+          {/* Atribuir a (concierge) */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Atribuir a
+            </label>
+            <select
+              value={responsavelId}
+              onChange={(e) => setResponsavelId(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value="">Eu mesmo (padrão)</option>
+              {conciergeUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                </option>
+              ))}
+            </select>
+            {conciergeUsers.length === 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                Nenhum concierge cadastrado nesta workspace.
+              </p>
+            )}
           </div>
 
           {/* Valor (se oferta) */}

@@ -113,6 +113,30 @@ export function useExecutarEmLote() {
   })
 }
 
+/**
+ * Troca o responsável de uma tarefa (= atendimento concierge).
+ * Usado pelo dropdown "Atribuído a" no AtendimentoDetailModal.
+ */
+export function useReatribuirAtendimento() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { tarefa_id: string; responsavel_id: string | null }) => {
+      const { error } = await sbAny
+        .from('tarefas')
+        .update({ responsavel_id: input.responsavel_id })
+        .eq('id', input.tarefa_id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['concierge'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
+      queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
+      toast.success('Responsável atualizado')
+    },
+    onError: (err: Error) => toast.error('Erro ao trocar responsável', { description: err.message }),
+  })
+}
+
 export function useNotificarCliente() {
   const queryClient = useQueryClient()
   return useMutation({

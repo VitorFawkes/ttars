@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Search, User as UserIcon, Users, Check } from 'lucide-react'
-import { useFilterProfiles, type FilterProfile } from '../../../hooks/analytics/useFilterOptions'
+import { useConciergesComAtendimentos, type ConciergeUserCompacto } from '../../../hooks/concierge/useConciergesComAtendimentos'
 import { useAuth } from '../../../contexts/AuthContext'
 import type { DonoFilter } from '../../../hooks/concierge/useConciergePreferences'
 import { cn } from '../../../lib/utils'
@@ -12,7 +12,7 @@ interface ConsultorPickerProps {
 
 export function ConsultorPicker({ value, onChange }: ConsultorPickerProps) {
   const { profile } = useAuth()
-  const { data: profiles = [], isLoading } = useFilterProfiles()
+  const { data: profiles = [], isLoading } = useConciergesComAtendimentos()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -30,7 +30,7 @@ export function ConsultorPicker({ value, onChange }: ConsultorPickerProps) {
     p.nome?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const selectedProfile: FilterProfile | null =
+  const selectedProfile: ConciergeUserCompacto | null =
     value === 'me' || value === 'all' ? null : (profiles.find(p => p.id === value) ?? null)
 
   let label: string

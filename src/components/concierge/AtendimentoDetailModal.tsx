@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame, User, ChevronDown, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
+import { useMarcarOutcome, useNotificarCliente, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
+import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
 import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
 import { SourceIcon } from './Badges'
 import { Button } from '../ui/Button'
@@ -46,7 +47,22 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
+  const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
+  const conciergeUsers = useConciergeUsers()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  // Fecha o dropdown ao clicar fora
+  useEffect(() => {
+    if (!pickerOpen) return
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [pickerOpen])
 
   if (!item) return null
   if (!isOpen) return null
@@ -103,12 +119,55 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               )}
             </div>
             <h2 className="text-base font-bold text-slate-900 leading-snug truncate">{titulo}</h2>
-            {donoNome && (
-              <div className="mt-1 inline-flex items-center gap-1 text-[11.5px] text-slate-600">
+            <div className="mt-1 relative inline-block" ref={pickerRef}>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(o => !o)}
+                disabled={isReatribuindo}
+                className="inline-flex items-center gap-1 text-[11.5px] text-slate-600 hover:bg-slate-100 rounded px-1.5 py-0.5 -ml-1.5 transition-colors disabled:opacity-50"
+                title="Trocar responsável"
+              >
                 <User className="w-3 h-3 text-slate-400" />
-                <span>Atribuído a <span className="font-medium text-slate-700">{donoNome}</span></span>
-              </div>
-            )}
+                <span>
+                  Atribuído a{' '}
+                  <span className="font-medium text-slate-700">
+                    {donoNome || (item.dono_id ? '…' : 'ninguém')}
+                  </span>
+                </span>
+                <ChevronDown className={cn('w-3 h-3 text-slate-400 transition-transform', pickerOpen && 'rotate-180')} />
+              </button>
+              {pickerOpen && (
+                <div className="absolute z-20 mt-1 left-0 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px] py-1 max-h-[260px] overflow-y-auto">
+                  {conciergeUsers.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-slate-500">Sem concierges cadastrados.</div>
+                  )}
+                  {conciergeUsers.map(u => {
+                    const selected = u.id === item.dono_id
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => {
+                          if (selected) { setPickerOpen(false); return }
+                          reatribuir(
+                            { tarefa_id: item.tarefa_id, responsavel_id: u.id },
+                            { onSuccess: () => setPickerOpen(false) }
+                          )
+                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-slate-50',
+                          selected && 'bg-indigo-50 text-indigo-700 font-medium'
+                        )}
+                      >
+                        <User className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="flex-1 truncate">{u.nome}</span>
+                        {selected && <Check className="w-3 h-3 text-indigo-600 shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <button
             type="button"

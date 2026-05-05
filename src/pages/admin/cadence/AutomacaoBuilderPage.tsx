@@ -29,6 +29,8 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useUsers } from '@/hooks/useUsers';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useConciergeUserIds } from '@/hooks/concierge/useConciergeUserIds';
+import type { TipoConcierge, CategoriaConcierge } from '@/hooks/concierge/types';
 import { usePipelineStages } from '@/hooks/usePipelineStages';
 import { BlockEditor, type Block, type BlockTask } from './components/BlockEditor';
 import {
@@ -161,7 +163,8 @@ export default function AutomacaoBuilderPage() {
         [recipeId],
     );
     const { users } = useUsers();
-    const { pipelineId } = useCurrentProductMeta();
+    const { pipelineId, slug: productSlug } = useCurrentProductMeta();
+    const conciergeUserIds = useConciergeUserIds();
 
     const [form, setForm] = useState<AutomationForm>({
         name: initialRecipe?.suggested_name || '',
@@ -291,6 +294,8 @@ export default function AutomacaoBuilderPage() {
                                 assign_to: cfg.assign_to || 'card_owner',
                                 assign_to_user_id: cfg.assign_to_user_id || null,
                                 due_offset: s.due_offset || dueFromWait,
+                                tipo_concierge: (s.tipo_concierge as TipoConcierge | null) || null,
+                                categoria_concierge: (s.categoria_concierge as CategoriaConcierge | null) || null,
                             }],
                             startsFromTrigger: false,
                             dependsOnBlock: blockIdx > 0 ? blockIdx - 1 : null,
@@ -321,6 +326,8 @@ export default function AutomacaoBuilderPage() {
                                 wait_config: s.wait_config,
                                 requires_previous_completed: s.requires_previous_completed,
                             }),
+                            tipo_concierge: (s.tipo_concierge as TipoConcierge | null) || null,
+                            categoria_concierge: (s.categoria_concierge as CategoriaConcierge | null) || null,
                         });
                         byBlock.set(bi, arr);
                         if (!blockMeta.has(bi)) {
@@ -473,10 +480,20 @@ export default function AutomacaoBuilderPage() {
                 if (t.assign_to === 'specific' && !t.assign_to_user_id) {
                     return `Selecione a pessoa responsável no Bloco ${i + 1}.`;
                 }
+                // Quando o responsável é Concierge, Tipo + Categoria são obrigatórios.
+                const isConciergeAssignee = !!(
+                    t.assign_to === 'specific'
+                    && t.assign_to_user_id
+                    && conciergeUserIds?.has(t.assign_to_user_id)
+                );
+                if (isConciergeAssignee) {
+                    if (!t.tipo_concierge) return `Escolha o tipo do atendimento de Concierge no Bloco ${i + 1}.`;
+                    if (!t.categoria_concierge) return `Escolha a categoria do atendimento de Concierge no Bloco ${i + 1}.`;
+                }
             }
         }
         return null;
-    }, [form, blocks]);
+    }, [form, blocks, conciergeUserIds]);
 
     const totalTasks = blocks.reduce((acc, b) => acc + b.tasks.length, 0);
 
@@ -551,6 +568,11 @@ export default function AutomacaoBuilderPage() {
                             wait_for_outcome: true,
                         },
                         next_step_key: null,
+                        // Concierge: gravado como COLUNAS (não no task_config) porque
+                        // o cadence-engine lê dali pra criar atendimentos_concierge.
+                        tipo_concierge: task.tipo_concierge || null,
+                        categoria_concierge: task.categoria_concierge || null,
+                        gera_atendimento_concierge: !!(task.tipo_concierge && task.categoria_concierge),
                     };
                     // Se é step existente (id persistido do DB), incluir id para upsert
                     if (task.id && !task.id.startsWith('temp_')) {
@@ -862,6 +884,8 @@ export default function AutomacaoBuilderPage() {
                                             isFirst={idx === 0}
                                             totalBlocks={blocks.length}
                                             userOptions={userOptions}
+                                            conciergeUserIds={conciergeUserIds}
+                                            productSlug={productSlug}
                                             onChange={(next) => updateBlock(idx, next)}
                                             onRemove={() => removeBlock(idx)}
                                             onMoveUp={idx > 0 ? () => moveBlock(idx, idx - 1) : undefined}

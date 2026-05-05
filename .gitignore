@@ -114,3 +114,4 @@ scripts/capture-gif.sh
 # Plans locais do Claude Code (por sessão)
 .claude/plans/
 .claude/agent-memory/
+/handoff    
