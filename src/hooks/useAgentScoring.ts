@@ -29,12 +29,14 @@ export interface ScoringRule {
   ordem: number
   ativa: boolean
   rule_type: RuleType
+  exclusion_group: string | null
   created_at: string
   updated_at: string
 }
 
-export type ScoringRuleInput = Omit<ScoringRule, 'id' | 'org_id' | 'agent_id' | 'created_at' | 'updated_at'> & {
+export type ScoringRuleInput = Omit<ScoringRule, 'id' | 'org_id' | 'agent_id' | 'created_at' | 'updated_at' | 'exclusion_group'> & {
   id?: string
+  exclusion_group?: string | null
 }
 
 export type FallbackAction = 'material_informativo' | 'encerrar_cordial' | 'nota_interna' | 'request_handoff'

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -113,6 +113,9 @@ export function TabPontuacao({ agentId }: Props) {
 
       {enabled && (
         <>
+          {/* Como funciona o score (visual) */}
+          <ScoringExplainer rules={rules} threshold={threshold} maxBonus={maxBonus} />
+
           {/* Config geral */}
           <ConfigSection
             threshold={threshold}
@@ -191,6 +194,320 @@ function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onCha
       />
     </button>
   )
+}
+
+// ============================================================================
+// Scoring Explainer — visualização de como o score funciona
+// ============================================================================
+
+function ScoringExplainer({
+  rules,
+  threshold,
+  maxBonus,
+}: {
+  rules: ScoringRule[]
+  threshold: number
+  maxBonus: number
+}) {
+  const { disqualify, qualifyGroups, qualifyStandalone, bonus, paths } = useMemo(() => {
+    const active = rules.filter((r) => r.ativa)
+    const disqualify = active.filter((r) => r.rule_type === 'disqualify')
+    const qualify = active.filter((r) => r.rule_type === 'qualify')
+    const bonus = active.filter((r) => r.rule_type === 'bonus')
+
+    // Agrupa qualify por exclusion_group
+    const groupMap = new Map<string, ScoringRule[]>()
+    const standalone: ScoringRule[] = []
+    for (const r of qualify) {
+      if (r.exclusion_group) {
+        if (!groupMap.has(r.exclusion_group)) groupMap.set(r.exclusion_group, [])
+        groupMap.get(r.exclusion_group)!.push(r)
+      } else {
+        standalone.push(r)
+      }
+    }
+    // Ordena cada grupo por peso (asc) pra mostrar a escala
+    const qualifyGroups = Array.from(groupMap.entries()).map(([name, gRules]) => ({
+      name,
+      rules: gRules.sort((a, b) => Number(a.weight) - Number(b.weight)),
+    }))
+
+    // Calcula caminhos típicos pra atingir threshold (top 4)
+    const paths = computePaths(qualifyGroups, standalone, threshold)
+
+    return {
+      disqualify,
+      qualifyGroups,
+      qualifyStandalone: standalone.sort((a, b) => Number(b.weight) - Number(a.weight)),
+      bonus,
+      paths,
+    }
+  }, [rules, threshold])
+
+  const hasAnyQualify = qualifyGroups.length > 0 || qualifyStandalone.length > 0
+  if (!hasAnyQualify && disqualify.length === 0 && bonus.length === 0) {
+    return null
+  }
+
+  return (
+    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Info className="w-5 h-5 text-indigo-600" />
+        <h3 className="text-base font-semibold text-slate-900 tracking-tight">Como o score funciona</h3>
+      </div>
+      <p className="text-sm text-slate-600 mb-5">
+        A cada turno, a IA avalia a conversa e calcula a pontuação seguindo estes 3 passos.
+      </p>
+
+      {/* 3 passos do cálculo */}
+      <div className="grid md:grid-cols-3 gap-3 mb-6">
+        {/* Passo 1: Alertas vermelhos */}
+        <div className="border border-red-200 bg-red-50/40 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-xs font-bold">1</div>
+            <ShieldAlert className="w-4 h-4 text-red-600" />
+            <h4 className="text-sm font-semibold text-slate-900">Alertas vermelhos</h4>
+          </div>
+          <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+            Se qualquer um destes bater, o lead é desqualificado direto, sem somar pontos.
+          </p>
+          {disqualify.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Nenhum configurado</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {disqualify.map((r) => (
+                <li key={r.id} className="flex items-start gap-1.5 text-xs">
+                  <span className="text-red-500 mt-0.5">•</span>
+                  <span className="text-slate-700">{r.label || r.dimension}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Passo 2: Pontos positivos */}
+        <div className="border border-indigo-200 bg-indigo-50/40 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">2</div>
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            <h4 className="text-sm font-semibold text-slate-900">Pontos positivos</h4>
+          </div>
+          <p className="text-xs text-slate-600 mb-2 leading-relaxed">
+            Cada sinal soma pontos. Quando atinge <strong className="text-slate-900">{threshold}</strong>, o lead é qualificado.
+          </p>
+          <div className="flex items-baseline gap-1 mb-1">
+            <span className="text-xs text-slate-500">Mínimo pra qualificar:</span>
+            <span className="text-2xl font-bold text-indigo-700 leading-none">{threshold}</span>
+            <span className="text-xs text-slate-500">pts</span>
+          </div>
+        </div>
+
+        {/* Passo 3: Bônus */}
+        <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">3</div>
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <h4 className="text-sm font-semibold text-slate-900">Bônus</h4>
+          </div>
+          <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+            Sinais extras somam até <strong className="text-slate-900">{maxBonus}</strong> pontos no total. Reforçam o caso, não definem sozinhos.
+          </p>
+          {bonus.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Nenhum configurado</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {bonus.map((r) => (
+                <li key={r.id} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-700 truncate pr-2">{r.label || r.dimension}</span>
+                  <span className="font-semibold text-emerald-700 flex-shrink-0">+{r.weight}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Grupos exclusivos + sinais individuais */}
+      {qualifyGroups.length > 0 && (
+        <div className="mb-5">
+          <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">
+            Grupos exclusivos (só uma regra do grupo pontua)
+          </h4>
+          <div className="space-y-3">
+            {qualifyGroups.map((g) => (
+              <ExclusionGroupCard key={g.name} group={g} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {qualifyStandalone.length > 0 && (
+        <div className="mb-5">
+          <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">
+            Sinais individuais (somam ao score)
+          </h4>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {qualifyStandalone.map((r) => (
+              <div key={r.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2 bg-white">
+                <span className="text-sm text-slate-700 truncate pr-2">{r.label || r.dimension}</span>
+                <span className="text-sm font-semibold text-indigo-700 flex-shrink-0">+{r.weight}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Caminhos pra qualificar */}
+      {paths.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Caminhos típicos pra qualificar (≥ {threshold} pts)
+            </h4>
+          </div>
+          <div className="space-y-1.5">
+            {paths.map((path, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                  {path.steps.map((s, i) => (
+                    <span key={i} className="flex items-center gap-1.5">
+                      {i > 0 && <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />}
+                      <span className="inline-flex items-center gap-1 bg-white border border-slate-300 rounded-md px-2 py-0.5 text-xs">
+                        <span className="text-slate-700 truncate max-w-[180px]">{s.label}</span>
+                        <span className="font-semibold text-indigo-700">+{s.weight}</span>
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="text-xs text-slate-500">=</span>
+                  <span className="text-sm font-bold text-emerald-700">{path.total}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Card de um grupo exclusivo: mostra escala visual de pesos
+function ExclusionGroupCard({ group }: { group: { name: string; rules: ScoringRule[] } }) {
+  const maxWeight = Math.max(...group.rules.map((r) => Number(r.weight)))
+
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
+        <span className="text-xs font-mono font-medium text-slate-700">{group.name}</span>
+        <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+          é OU é (não soma)
+        </span>
+      </div>
+      <div className="p-2 space-y-1">
+        {group.rules.map((r) => {
+          const pct = maxWeight > 0 ? (Number(r.weight) / maxWeight) * 100 : 0
+          return (
+            <div key={r.id} className="flex items-center gap-2 text-xs">
+              <div className="flex-1 relative h-6 bg-slate-100 rounded">
+                <div
+                  className="absolute inset-y-0 left-0 bg-indigo-200/60 rounded"
+                  style={{ width: `${pct}%` }}
+                />
+                <span className="absolute inset-0 flex items-center px-2 text-slate-700 truncate">
+                  {r.label || r.dimension}
+                </span>
+              </div>
+              <span className="font-semibold text-indigo-700 w-10 text-right flex-shrink-0">+{r.weight}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Calcula combinações típicas pra atingir threshold.
+// Estratégia: 1 sinal sozinho que já basta + combos de 2-3 sinais de grupos diferentes.
+function computePaths(
+  groups: { name: string; rules: ScoringRule[] }[],
+  standalone: ScoringRule[],
+  threshold: number,
+): { steps: { label: string; weight: number }[]; total: number }[] {
+  type Step = { label: string; weight: number; sourceKey: string }
+  const paths: { steps: Step[]; total: number }[] = []
+  const seen = new Set<string>()
+
+  const allBuckets: { key: string; bestRules: ScoringRule[] }[] = [
+    ...groups.map((g) => ({ key: `g:${g.name}`, bestRules: [...g.rules].sort((a, b) => Number(b.weight) - Number(a.weight)) })),
+    ...standalone.map((r) => ({ key: `s:${r.id}`, bestRules: [r] })),
+  ]
+
+  const ruleToStep = (r: ScoringRule, sourceKey: string): Step => ({
+    label: r.label || r.dimension,
+    weight: Number(r.weight),
+    sourceKey,
+  })
+
+  const tryAddPath = (steps: Step[]) => {
+    const total = steps.reduce((s, x) => s + x.weight, 0)
+    if (total < threshold) return
+    // Dedup por chaves (ordem importa pra exibição mas não pra dedup)
+    const key = [...steps.map((s) => s.sourceKey)].sort().join('|')
+    if (seen.has(key)) return
+    seen.add(key)
+    paths.push({ steps, total })
+  }
+
+  // 1 sinal sozinho >= threshold
+  for (const b of allBuckets) {
+    const top = b.bestRules[0]
+    if (!top) continue
+    if (Number(top.weight) >= threshold) {
+      tryAddPath([ruleToStep(top, b.key)])
+    }
+  }
+
+  // 2 sinais de buckets diferentes
+  for (let i = 0; i < allBuckets.length; i++) {
+    for (let j = i + 1; j < allBuckets.length; j++) {
+      const a = allBuckets[i].bestRules[0]
+      const b = allBuckets[j].bestRules[0]
+      if (!a || !b) continue
+      tryAddPath([ruleToStep(a, allBuckets[i].key), ruleToStep(b, allBuckets[j].key)])
+    }
+  }
+
+  // 3 sinais (só se ainda não temos paths suficientes)
+  if (paths.length < 4) {
+    for (let i = 0; i < allBuckets.length; i++) {
+      for (let j = i + 1; j < allBuckets.length; j++) {
+        for (let k = j + 1; k < allBuckets.length; k++) {
+          const a = allBuckets[i].bestRules[allBuckets[i].bestRules.length - 1] // pior do bucket
+          const b = allBuckets[j].bestRules[allBuckets[j].bestRules.length - 1]
+          const c = allBuckets[k].bestRules[allBuckets[k].bestRules.length - 1]
+          if (!a || !b || !c) continue
+          tryAddPath([
+            ruleToStep(a, allBuckets[i].key),
+            ruleToStep(b, allBuckets[j].key),
+            ruleToStep(c, allBuckets[k].key),
+          ])
+          if (paths.length >= 6) break
+        }
+        if (paths.length >= 6) break
+      }
+      if (paths.length >= 6) break
+    }
+  }
+
+  // Ordena por total desc (mais fácil primeiro = maior score) depois por menor nº de steps
+  return paths
+    .sort((p1, p2) => {
+      if (p1.steps.length !== p2.steps.length) return p1.steps.length - p2.steps.length
+      return p2.total - p1.total
+    })
+    .slice(0, 4)
 }
 
 // ============================================================================
