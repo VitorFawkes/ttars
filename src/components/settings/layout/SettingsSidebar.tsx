@@ -28,9 +28,13 @@ import {
     BookOpen,
     BarChart3,
     Send,
+    FileSpreadsheet,
+    Upload,
+    Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrg } from '@/contexts/OrgContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Badge } from '@/components/ui/Badge';
@@ -100,8 +104,16 @@ function NavSection({ title, icon: Icon, children, defaultOpen = false }: {
 }
 
 export default function SettingsSidebar() {
-    useAuth();
+    const { profile } = useAuth();
+    const { org } = useOrg();
     const isAdmin = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isWorkspaceAdmin = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined;
+    const isTrips = org?.slug === 'welcome-trips';
+    const showVendasMonde = isTrips && isWorkspaceAdmin;
+    const showImportPosVenda = isWorkspaceAdmin || phaseSlug === 'pos_venda';
 
     // Fetch blocked integration events count
     const { data: blockedCount = 0 } = useQuery({
@@ -184,6 +196,13 @@ export default function SettingsSidebar() {
                         <NavSection title="Operações" icon={Wrench}>
                             <NavItem to="/settings/operations/health" icon={Activity} label="Saúde do Sistema" />
                             <NavItem to="/settings/operations/scheduled-jobs" icon={Clock} label="Processos Agendados" />
+                            <NavItem to="/reactivation" icon={Sparkles} label="Reativação" />
+                            {showVendasMonde && (
+                                <NavItem to="/vendas-monde" icon={FileSpreadsheet} label="Vendas Monde" />
+                            )}
+                            {showImportPosVenda && (
+                                <NavItem to="/importacao-pos-venda" icon={Upload} label="Import. Pós-Venda" />
+                            )}
                             <NavItem to="/settings/operations/archive" icon={Archive} label="Arquivados" />
                             <NavItem to="/settings/operations/trash" icon={Trash2} label="Lixeira" />
                         </NavSection>
