@@ -174,7 +174,7 @@ export function MyDayBar({ productFilter }: MyDayBarProps) {
     const urgentCount = overdue + today
 
     return (
-        <div className="flex-shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-sm">
+        <div className="flex-shrink-0 border-b border-slate-200 bg-white">
             {/* Collapsed state */}
             {isCollapsed ? (
                 <button

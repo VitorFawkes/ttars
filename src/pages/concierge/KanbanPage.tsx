@@ -79,7 +79,7 @@ export default function KanbanPage() {
   const filterBarHasAny = hasAnyFilter || !!cardFilter || !!search.trim()
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-6 py-3 space-y-3">
         <div className="flex items-center gap-3">
           <div className="inline-flex bg-slate-100 rounded-md p-0.5">

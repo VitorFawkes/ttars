@@ -97,7 +97,7 @@ export default function People() {
         <ErrorBoundary>
             <div className="flex h-full flex-col relative overflow-hidden bg-gray-50/50">
                 {/* Header Section */}
-                <div className="flex-shrink-0 pt-6 pb-4 px-8 bg-white/50 backdrop-blur-sm border-b border-gray-200/50 z-10">
+                <div className="flex-shrink-0 pt-6 pb-4 px-8 bg-white border-b border-gray-200 z-10">
                     <header className="flex items-center justify-between mb-6">
                         <div>
                             <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Contatos</h1>
