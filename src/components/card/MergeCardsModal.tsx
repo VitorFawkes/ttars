@@ -10,7 +10,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrg } from '@/contexts/OrgContext'
 import { cn, buildContactSearchFilter } from '@/lib/utils'
-import { type MergeCandidate } from './MergeCandidateCard'
+import { MergeCandidateCard, type MergeCandidate } from './MergeCandidateCard'
 
 interface Props {
     open: boolean
@@ -540,6 +540,11 @@ export default function MergeCardsModal({
         return 'Buscar por contato (nome, email, telefone) ou título da viagem...'
     }, [sourceContatoNome])
 
+    const selectedCandidate = useMemo(
+        () => candidates.find(c => c.id === selectedTargetId) ?? null,
+        [candidates, selectedTargetId],
+    )
+
     const buttonLabel = useMemo(() => {
         if (sourceItems.length === 0) return 'Agrupar cards'
         if (allItemsSelected) {
@@ -689,6 +694,33 @@ export default function MergeCardsModal({
                                     )}
                                 </div>
                             </div>
+
+                            {/* Avisos sobre características do destino */}
+                            {selectedCandidate && (selectedCandidate.is_group_parent || selectedCandidate.card_type === 'sub_card' || selectedCandidate.parent_card_id || selectedCandidate.status_comercial === 'perdido' || selectedCandidate.status_comercial === 'ganho') && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div className="text-xs text-amber-900 space-y-1">
+                                        <p className="font-medium">Atenção com o destino escolhido:</p>
+                                        <ul className="list-disc list-inside space-y-0.5 ml-1">
+                                            {selectedCandidate.is_group_parent && (
+                                                <li>É um <strong>grupo pai</strong>. Ao mover, este card vira um item dentro do grupo.</li>
+                                            )}
+                                            {selectedCandidate.card_type === 'sub_card' && (
+                                                <li>É um <strong>sub-card</strong> (pedido de mudança). Confirme se faz sentido juntar aqui.</li>
+                                            )}
+                                            {selectedCandidate.parent_card_id && !selectedCandidate.is_group_parent && selectedCandidate.card_type !== 'sub_card' && (
+                                                <li>Já está vinculado a um grupo{selectedCandidate.parent_card_title ? ` ("${selectedCandidate.parent_card_title}")` : ''}.</li>
+                                            )}
+                                            {selectedCandidate.status_comercial === 'ganho' && (
+                                                <li>Está com status <strong>ganho</strong>. O agrupamento vai mexer numa venda já fechada.</li>
+                                            )}
+                                            {selectedCandidate.status_comercial === 'perdido' && (
+                                                <li>Está com status <strong>perdido</strong>. Talvez não seja o destino ideal.</li>
+                                            )}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Lista de itens com checkbox */}
                             <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">

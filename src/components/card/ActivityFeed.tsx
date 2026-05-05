@@ -174,23 +174,46 @@ const activityColors = {
     'default': 'text-gray-600 bg-gray-50'
 }
 
+/** Formata data ISO (YYYY-MM-DD ou ISO completo) em DD/MM/YYYY brasileiro */
+function formatDateBR(iso: unknown): string | null {
+    if (typeof iso !== 'string' || iso.length < 4) return null
+    // Tenta yyyy-mm-dd
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (m) {
+        try {
+            const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso)
+            if (isSameYear(d, new Date())) return format(d, 'd MMM', { locale: ptBR })
+            return format(d, 'd MMM yyyy', { locale: ptBR })
+        } catch {
+            return `${m[3]}/${m[2]}/${m[1]}`
+        }
+    }
+    return null
+}
+
+/** snake_case → "Snake case" amigável (fallback quando system_fields não tem label) */
+function humanizeKey(key: string): string {
+    if (!key) return ''
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 /** Formata valor legível a partir de metadata JSONB */
 function formatValue(val: unknown): string | null {
     if (val == null) return null
-    if (typeof val === 'string') return val || null
+    if (typeof val === 'string') {
+        // Trunca strings muito longas (briefings, resumos)
+        if (val.length > 80) return val.slice(0, 77) + '…'
+        return val || null
+    }
     if (typeof val === 'number') return val.toLocaleString('pt-BR')
     if (typeof val === 'boolean') return val ? 'Sim' : 'Não'
-    // JSONB objects (época, orçamento, etc.)
+    // JSONB objects (época, orçamento, datas, etc.)
     if (typeof val === 'object') {
-        const obj = val as Record<string, unknown>
-        // Smart budget: { tipo, valor, ... }
-        if (obj.valor != null) return `R$ ${Number(obj.valor).toLocaleString('pt-BR')}`
-        // Flexible date: { tipo, mes, ano, ... }
-        if (obj.mes) return `${obj.mes}${obj.ano ? '/' + obj.ano : ''}`
-        if (obj.data_inicio) return String(obj.data_inicio)
-        // Arrays (destinos, historico monde, etc.)
+        // Arrays (destinos, historico monde, etc.) — checar primeiro
         if (Array.isArray(val)) {
-            if (val.length === 0) return null
+            if (val.length === 0) return '(vazio)'
             if (typeof val[0] === 'object' && val[0] !== null) {
                 const readable = val.map(item => {
                     const o = item as Record<string, unknown>
@@ -200,9 +223,47 @@ function formatValue(val: unknown): string | null {
             }
             return val.join(', ') || null
         }
-        // Fallback: stringify compacto
+
+        const obj = val as Record<string, unknown>
+
+        // date_range: { start, end } ou { data_inicio, data_fim }
+        const start = obj.start ?? obj.data_inicio
+        const end = obj.end ?? obj.data_fim
+        if (start || end) {
+            const s = formatDateBR(start) ?? (start ? String(start) : null)
+            const e = formatDateBR(end) ?? (end ? String(end) : null)
+            if (s && e) return `${s} → ${e}`
+            if (s) return `a partir de ${s}`
+            if (e) return `até ${e}`
+        }
+
+        // Briefing wrapper: { briefing: "texto" }
+        if (typeof obj.briefing === 'string') {
+            const b = obj.briefing.trim()
+            return b.length > 80 ? b.slice(0, 77) + '…' : b || null
+        }
+
+        // Smart budget: { tipo, valor, ... } ou { total, total_calculado, ... }
+        if (obj.valor != null) return `R$ ${Number(obj.valor).toLocaleString('pt-BR')}`
+        if (obj.total_calculado != null) return `R$ ${Number(obj.total_calculado).toLocaleString('pt-BR')}`
+        if (obj.total != null) return `R$ ${Number(obj.total).toLocaleString('pt-BR')}`
+
+        // Flexible date: { tipo, mes, ano, ... }
+        if (obj.mes) return `${obj.mes}${obj.ano ? '/' + obj.ano : ''}`
+        if (obj.mes_inicio && obj.mes_fim) {
+            return `${obj.mes_inicio} a ${obj.mes_fim}${obj.ano ? '/' + obj.ano : ''}`
+        }
+
+        // Flexible duration: { tipo, dias, dias_min, dias_max }
+        if (obj.dias != null) return `${obj.dias} dias`
+        if (obj.dias_min != null && obj.dias_max != null) return `${obj.dias_min} a ${obj.dias_max} dias`
+
+        // tipo='indefinido' → texto genérico
+        if (obj.tipo === 'indefinido') return 'A definir'
+
+        // Fallback: stringify compacto truncado
         const str = JSON.stringify(val)
-        return str.length > 80 ? str.slice(0, 77) + '...' : str
+        return str.length > 60 ? str.slice(0, 57) + '…' : str
     }
     return String(val)
 }
@@ -527,7 +588,16 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                             </Link>
                                         )}
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-gray-900">{activity.descricao}</p>
+                                            <p className="text-gray-900">{(() => {
+                                                // Para field_changed, garante label amigavel mesmo se system_fields nao tiver entrada
+                                                if (activity.tipo === 'field_changed') {
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- metadata is untyped JSONB
+                                                    const meta = activity.metadata as any
+                                                    const label = meta?.field_label || (meta?.field_key ? humanizeKey(meta.field_key) : null)
+                                                    if (label) return `${label} alterado`
+                                                }
+                                                return activity.descricao
+                                            })()}</p>
                                             {activity.party_type === 'supplier' && (
                                                 <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">
                                                     Fornecedor
