@@ -133,12 +133,13 @@ export interface BoundariesConfig {
 export interface ScoringRule {
   id: string;
   dimension: string;
-  condition_type: 'equals' | 'range' | 'boolean_true';
+  condition_type: 'equals' | 'range' | 'boolean_true' | 'ai_subjective';
   condition_value: Record<string, unknown>;
   weight: number;
   label: string | null;
   rule_type: 'qualify' | 'disqualify' | 'bonus';
   ordem: number;
+  exclusion_group: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +203,7 @@ export async function loadScoringRulesForPlaybook(
 ): Promise<ScoringRule[]> {
   const { data, error } = await supabase
     .from("ai_agent_scoring_rules")
-    .select("id, dimension, condition_type, condition_value, weight, label, rule_type, ordem")
+    .select("id, dimension, condition_type, condition_value, weight, label, rule_type, ordem, exclusion_group")
     .eq("agent_id", agentId)
     .eq("ativa", true)
     .order("rule_type, dimension, ordem, id");
