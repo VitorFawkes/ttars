@@ -121,6 +121,7 @@ export default function CronRoteamentoDetailPage() {
         sb.from('cadence_event_log')
           .select('card_id, event_data, created_at')
           .eq('event_source', 'cron_roteamento_pos_venda')
+          .contains('event_data', { trigger_id: id })
           .order('created_at', { ascending: false })
           .limit(10),
       ])
@@ -210,6 +211,7 @@ export default function CronRoteamentoDetailPage() {
         .from('cadence_event_log')
         .select('card_id, event_data, created_at')
         .eq('event_source', 'cron_roteamento_pos_venda')
+        .contains('event_data', { trigger_id: id })
         .order('created_at', { ascending: false })
         .limit(10)
 
