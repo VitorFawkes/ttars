@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOrg } from '../../contexts/OrgContext'
-import type { TipoConcierge, SourceConcierge } from './types'
+import { SOURCE_LABEL, type TipoConcierge, type SourceConcierge } from './types'
 import type { JanelaEmbarque } from './useKanbanTarefas'
 
 export type Modo = 'tarefas' | 'viagens'
@@ -42,7 +42,11 @@ function readPrefs(key: string | null): ConciergePreferences {
       modo: parsed.modo === 'viagens' ? 'viagens' : 'tarefas',
       donoFilter: parsed.donoFilter ?? 'me',
       tipos: Array.isArray(parsed.tipos) ? (parsed.tipos as TipoConcierge[]) : [],
-      sources: Array.isArray(parsed.sources) ? (parsed.sources as SourceConcierge[]) : [],
+      // Filtra valores que não estão mais em SOURCE_LABEL (ex: usuários
+      // que tinham 'planner_request' salvo antes da remoção em 20260505d).
+      sources: Array.isArray(parsed.sources)
+        ? (parsed.sources as string[]).filter((s): s is SourceConcierge => s in SOURCE_LABEL)
+        : [],
       janelas: Array.isArray(parsed.janelas) ? (parsed.janelas as JanelaEmbarque[]) : [],
       categorias: Array.isArray(parsed.categorias) ? parsed.categorias : [],
       tagIds: Array.isArray(parsed.tagIds) ? parsed.tagIds : [],

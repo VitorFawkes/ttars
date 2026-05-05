@@ -4,6 +4,7 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { NaturalDueField } from './NaturalDueField';
 import type { DueOffset } from '../lib/dueOffsetCodec';
+import { categoriasParaProduto, type CategoriaConcierge, type TipoConcierge } from '@/hooks/concierge/types';
 
 export interface BlockTask {
     id: string; // temp/persistent
@@ -14,6 +15,10 @@ export interface BlockTask {
     assign_to: 'card_owner' | 'specific';
     assign_to_user_id: string | null;
     due_offset: DueOffset;
+    /** Quando o responsável (assign_to_user_id) é do time Concierge,
+     *  estes campos viram obrigatórios e gravam em cadence_steps. */
+    tipo_concierge?: TipoConcierge | null;
+    categoria_concierge?: CategoriaConcierge | null;
 }
 
 export interface Block {
@@ -31,11 +36,25 @@ interface BlockEditorProps {
     isFirst: boolean;
     totalBlocks: number;
     userOptions: { value: string; label: string }[];
+    /** IDs de profiles que pertencem ao time Concierge.
+     *  Quando o assign_to_user_id está nesse Set, o editor exige
+     *  Tipo + Categoria do atendimento. */
+    conciergeUserIds?: Set<string>;
+    /** Slug do produto da workspace (TRIPS, WEDDING…) — usado pra
+     *  filtrar a lista de categorias. */
+    productSlug?: string | null;
     onChange: (next: Block) => void;
     onRemove: () => void;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
 }
+
+const tipoConciergeOptions: { value: TipoConcierge; label: string }[] = [
+    { value: 'oferta',      label: 'Oferta' },
+    { value: 'reserva',     label: 'Reserva' },
+    { value: 'suporte',     label: 'Suporte' },
+    { value: 'operacional', label: 'Operacional' },
+];
 
 const taskTypeOptions = [
     { value: 'contato', label: 'Contato' },
@@ -80,6 +99,8 @@ export function BlockEditor({
     isFirst,
     totalBlocks,
     userOptions,
+    conciergeUserIds,
+    productSlug,
     onChange,
     onRemove,
     onMoveUp,
@@ -241,7 +262,19 @@ export function BlockEditor({
                         Nenhuma tarefa neste bloco. Adicione ao menos uma.
                     </div>
                 )}
-                {block.tasks.map((task) => (
+                {block.tasks.map((task) => {
+                    const isConciergeAssignee = !!(
+                        task.assign_to === 'specific'
+                        && task.assign_to_user_id
+                        && conciergeUserIds?.has(task.assign_to_user_id)
+                    );
+                    const categoriasDoProduto = isConciergeAssignee
+                        ? categoriasParaProduto(productSlug)
+                        : [];
+                    const categoriasDoTipo = task.tipo_concierge
+                        ? categoriasDoProduto.filter(c => c.config.tipo === task.tipo_concierge)
+                        : [];
+                    return (
                     <div key={task.id} className="px-4 py-3 flex gap-3 items-start">
                         <GripVertical className="w-4 h-4 text-slate-300 mt-2 flex-shrink-0" />
                         <div className="flex-shrink-0 mt-2">{getTaskIcon(task.tipo)}</div>
@@ -314,6 +347,48 @@ export function BlockEditor({
                                     className="w-28"
                                 />
                             </div>
+
+                            {/* Concierge — quando o responsável é do time Concierge,
+                                exigir Tipo + Categoria pro atendimento.
+                                Esses valores caem em cadence_steps.tipo_concierge /
+                                categoria_concierge e ativam gera_atendimento_concierge. */}
+                            {isConciergeAssignee && (
+                                <div className="flex gap-2 items-center flex-wrap bg-indigo-50/40 border border-indigo-100 rounded-lg px-3 py-2">
+                                    <span className="text-xs text-indigo-700 font-medium">Concierge:</span>
+                                    <Select
+                                        value={task.tipo_concierge ?? ''}
+                                        onChange={(v) => updateTask(task.id, {
+                                            tipo_concierge: (v || null) as TipoConcierge | null,
+                                            // Reseta categoria quando tipo muda
+                                            categoria_concierge: null,
+                                        })}
+                                        options={[{ value: '', label: 'Tipo *' }, ...tipoConciergeOptions]}
+                                        className="w-36"
+                                    />
+                                    <Select
+                                        value={task.categoria_concierge ?? ''}
+                                        onChange={(v) => updateTask(task.id, {
+                                            categoria_concierge: (v || null) as CategoriaConcierge | null,
+                                        })}
+                                        options={
+                                            !task.tipo_concierge
+                                                ? [{ value: '', label: 'Escolha o tipo primeiro' }]
+                                                : categoriasDoTipo.length === 0
+                                                    ? [{ value: '', label: 'Nenhuma categoria pra esse tipo' }]
+                                                    : [
+                                                        { value: '', label: 'Categoria *' },
+                                                        ...categoriasDoTipo.map(c => ({ value: c.key, label: c.config.label })),
+                                                    ]
+                                        }
+                                        className="flex-1 min-w-[200px]"
+                                    />
+                                    {(!task.tipo_concierge || !task.categoria_concierge) && (
+                                        <span className="text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                            Obrigatório
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <Button
                             variant="ghost"
@@ -325,7 +400,8 @@ export function BlockEditor({
                             <Trash2 className="w-4 h-4" />
                         </Button>
                     </div>
-                ))}
+                    );
+                })}
             </div>
 
             <footer className="px-4 py-2 border-t border-slate-100 bg-slate-50/50">

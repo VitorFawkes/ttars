@@ -123,7 +123,8 @@ class CodebaseSync:
         hooks_dir = self.root / "src" / "hooks"
         if not hooks_dir.exists():
             return []
-        return sorted([f.stem for f in hooks_dir.glob("*.ts") if f.is_file()])
+        # rglob: pega hooks aninhados em subpastas (ex: src/hooks/concierge/*.ts)
+        return sorted([f.stem for f in hooks_dir.rglob("*.ts") if f.is_file() and not f.name.startswith('_')])
 
     def scan_pages(self) -> list[str]:
         """Escaneia src/pages/**/*.tsx (exclui components/)"""

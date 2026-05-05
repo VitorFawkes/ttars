@@ -1,8 +1,10 @@
 import { useDraggable } from '@dnd-kit/core'
-import { Check, Flame } from 'lucide-react'
-import { TIPO_LABEL, CATEGORIAS_CONCIERGE } from '../../../hooks/concierge/types'
+import { Check, Flame, User } from 'lucide-react'
+import { TIPO_LABEL, CATEGORIAS_CONCIERGE, SOURCE_LABEL } from '../../../hooks/concierge/types'
 import type { KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
 import { useToggleTarefaCritica } from '../../../hooks/concierge/useToggleCritical'
+import { useConciergeProfilesLookup } from '../../../hooks/concierge/useConciergeProfilesLookup'
+import { SourceIcon } from '../Badges'
 import { cn } from '../../../lib/utils'
 
 function fmtBRL(v: number | null | undefined) {
@@ -52,6 +54,11 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const showCatPill = titulo !== catLabel
 
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
+
+  const profilesLookup = useConciergeProfilesLookup()
+  const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
+  const donoFirstNames = donoNome ? donoNome.split(' ').slice(0, 2).join(' ') : null
+  const sourceLabel = SOURCE_LABEL[item.source].label
 
   return (
     <div
@@ -140,11 +147,22 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           )}
         </div>
 
-        {showCatPill && (
-          <div className="mb-2">
-            <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold', meta.bgColor, meta.color)}>
-              {catLabel}
-            </span>
+        {(showCatPill || donoFirstNames) && (
+          <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+            {showCatPill && (
+              <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold', meta.bgColor, meta.color)}>
+                {catLabel}
+              </span>
+            )}
+            {donoFirstNames && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-slate-600 bg-slate-100"
+                title={`Atribuído a ${donoNome}`}
+              >
+                <User className="w-2.5 h-2.5" />
+                {donoFirstNames}
+              </span>
+            )}
           </div>
         )}
 
@@ -174,6 +192,15 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
             </div>
           )}
         </div>
+      </div>
+
+      {/* Origem (manual / cliente / cadência) — bem no canto inferior direito */}
+      <div
+        className="absolute bottom-1.5 right-2 text-slate-400 pointer-events-none"
+        title={`Origem: ${sourceLabel}`}
+        aria-label={`Origem: ${sourceLabel}`}
+      >
+        <SourceIcon source={item.source} className="w-3 h-3" />
       </div>
     </div>
   )

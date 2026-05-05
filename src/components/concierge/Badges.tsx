@@ -1,4 +1,4 @@
-import { DollarSign, Bookmark, AlertTriangle, ClipboardCheck, Bot, Hand, MessageCircle, UserCog, type LucideIcon } from 'lucide-react'
+import { DollarSign, Bookmark, AlertTriangle, ClipboardCheck, Bot, Hand, MessageCircle, type LucideIcon } from 'lucide-react'
 import { TIPO_LABEL, SOURCE_LABEL, type TipoConcierge, type SourceConcierge } from '../../hooks/concierge/types'
 import { cn } from '../../lib/utils'
 
@@ -10,10 +10,9 @@ const TIPO_ICON: Record<TipoConcierge, LucideIcon> = {
 }
 
 const SOURCE_ICON: Record<SourceConcierge, LucideIcon> = {
-  cadencia:        Bot,
-  manual:          Hand,
-  cliente:         MessageCircle,
-  planner_request: UserCog,
+  cadencia: Bot,
+  manual:   Hand,
+  cliente:  MessageCircle,
 }
 
 interface TipoBadgeProps {

@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift } from 'lucide-react'
+import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { SmartTaskModal } from './SmartTaskModal'
+import { AtendimentoDetailModal } from '../concierge/AtendimentoDetailModal'
+import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
+import { TIPO_LABEL, type MeuDiaItem } from '../../hooks/concierge/types'
 import { format, isToday, isPast, isTomorrow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -85,6 +89,31 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
             }, () => {
                 queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
                 queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+            })
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [cardId, queryClient])
+
+    // Atendimentos de concierge ligados a este card (1:1 com tarefa via tarefa_id).
+    // Usado para: (1) marcar tarefas com badge de tipo concierge e
+    // (2) abrir AtendimentoDetailModal ao clicar em vez de SmartTaskModal.
+    const { data: atendimentos } = useAtendimentosCard(cardId)
+    const conciergeByTarefaId = new Map<string, MeuDiaItem>(
+        (atendimentos ?? []).map(a => [a.tarefa_id, a])
+    )
+    const [selectedAtendimento, setSelectedAtendimento] = useState<MeuDiaItem | null>(null)
+
+    // Realtime: invalidar lista de atendimentos quando algo muda no concierge deste card.
+    useEffect(() => {
+        const channel = supabase
+            .channel(`card-tasks-concierge-${cardId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'atendimentos_concierge',
+                filter: `card_id=eq.${cardId}`,
+            }, () => {
+                queryClient.invalidateQueries({ queryKey: ['concierge', 'atendimentos-card', cardId] })
             })
             .subscribe()
         return () => { supabase.removeChannel(channel) }
@@ -616,15 +645,19 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
                         const isMudanca = task.tipo === 'solicitacao_mudanca'
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
+                        const conciergeItem = conciergeByTarefaId.get(task.id)
+                        const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
 
                         return (
                             <div
                                 key={task.id}
-                                onClick={() => handleEdit(task)}
+                                onClick={() => conciergeItem ? setSelectedAtendimento(conciergeItem) : handleEdit(task)}
                                 className={`px-3 py-1.5 hover:bg-gray-50 transition-colors group relative cursor-pointer ${
                                     isMudanca && !task.concluida
                                         ? 'border-l-4 border-l-orange-400 bg-orange-50/40'
-                                        : ''
+                                        : conciergeItem && !task.concluida
+                                            ? 'border-l-4 border-l-indigo-400'
+                                            : ''
                                 } ${task.concluida ? (isRescheduled(task) ? 'opacity-75 bg-gray-50/30' : 'opacity-60 bg-gray-50/50') : ''}`}
                             >
                                 <div className="flex items-start gap-2.5">
@@ -641,10 +674,21 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                             <p className={`text-xs font-medium text-gray-900 truncate pr-2 ${task.concluida && !isRescheduled(task) ? 'line-through text-gray-500' : ''}`}>
                                                 {task.titulo}
                                             </p>
-                                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex-shrink-0 capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>
-                                                {getTypeIcon(task.tipo || '')}
-                                                {getTypeLabel(task.tipo || '')}
-                                            </span>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                {conciergeTipo && (
+                                                    <span
+                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1 ${conciergeTipo.bgColor} ${conciergeTipo.color} ${conciergeTipo.borderColor}`}
+                                                        title={`Concierge — ${conciergeTipo.label}`}
+                                                    >
+                                                        <BellConciergeIcon className="w-3 h-3" />
+                                                        {conciergeTipo.label}
+                                                    </span>
+                                                )}
+                                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>
+                                                    {getTypeIcon(task.tipo || '')}
+                                                    {getTypeLabel(task.tipo || '')}
+                                                </span>
+                                            </div>
                                         </div>
 
                                         <div className="flex flex-wrap items-center gap-3 mt-1.5">
@@ -691,8 +735,20 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 </div>
                                             )}
 
-                                            {/* Outcome Badge */}
-                                            {task.concluida && task.resultado && (
+                                            {/* Concierge outcome badge — substitui o de tarefa quando o atendimento tem outcome */}
+                                            {conciergeItem?.outcome && (
+                                                <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${
+                                                    conciergeItem.outcome === 'aceito'    ? 'text-purple-700 bg-purple-50 border-purple-200' :
+                                                    conciergeItem.outcome === 'feito'     ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+                                                    conciergeItem.outcome === 'recusado'  ? 'text-red-700 bg-red-50 border-red-200' :
+                                                    'text-slate-700 bg-slate-50 border-slate-200'
+                                                }`}>
+                                                    <span className="font-medium capitalize">{conciergeItem.outcome}</span>
+                                                </div>
+                                            )}
+
+                                            {/* Outcome Badge (tarefa) — só quando não é concierge ou concierge sem outcome */}
+                                            {!conciergeItem?.outcome && task.concluida && task.resultado && (
                                                 <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${task.resultado === 'realizada' || task.resultado === 'resolvido' ? 'text-green-600 bg-green-50 border-green-200' :
                                                     task.resultado === 'cancelada' || task.resultado === 'cancelado_cliente' ? 'text-red-600 bg-red-50 border-red-200' :
                                                         task.resultado === 'adiada' || task.resultado === 'escalado' ? 'text-orange-600 bg-orange-50 border-orange-200' :
@@ -789,6 +845,14 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                 initialData={editingTask}
                 mode={modalMode}
             />
+
+            {selectedAtendimento && (
+                <AtendimentoDetailModal
+                    item={selectedAtendimento}
+                    isOpen={!!selectedAtendimento}
+                    onClose={() => setSelectedAtendimento(null)}
+                />
+            )}
 
             <Dialog open={outcomeModalOpen} onOpenChange={setOutcomeModalOpen}>
                 <DialogContent className="sm:max-w-[500px] p-0 gap-0 max-h-[85vh] flex flex-col">
