@@ -724,3 +724,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-05T20:18:31Z | supabase/migrations/20260505b_estela_consolidation.sql | applied_to_prod
 2026-05-05T20:20:25Z | supabase/migrations/20260505c_estela_consolidation_fix.sql | applied_to_prod
 2026-05-05T20:21:28Z | supabase/migrations/20260505d_estela_consolidation_v3.sql | applied_to_prod
+2026-05-05T21:41:06Z | supabase/migrations/20260505e_convert_boolean_to_ai_subjective.sql | applied_to_prod

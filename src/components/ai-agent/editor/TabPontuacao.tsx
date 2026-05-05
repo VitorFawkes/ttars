@@ -982,9 +982,9 @@ function CriterionRow({
 
   const conditionLabel: Record<ConditionType, string> = {
     ai_subjective: 'Pergunta que a IA avalia (responde sim/não com base na conversa)',
-    equals: 'Valor que precisa bater (texto exato)',
-    range: 'Faixa numérica',
-    boolean_true: 'Nome do campo booleano',
+    equals: 'Tipo legado',
+    range: 'Tipo legado',
+    boolean_true: 'Tipo legado',
   }
 
   return (
@@ -1119,50 +1119,16 @@ function ConditionEditor({
       />
     )
   }
-  if (type === 'equals') {
-    return (
-      <input
-        type="text"
-        value={value?.value ?? ''}
-        onChange={(e) => onChange({ value: e.target.value })}
-        placeholder="ex: Caribe"
-        className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-      />
-    )
-  }
-  if (type === 'range') {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          value={value?.min ?? ''}
-          onChange={(e) => onChange({ ...value, min: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="mínimo"
-          className="no-spin flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-        <span className="text-slate-400 text-xs">até</span>
-        <input
-          type="number"
-          value={value?.max ?? ''}
-          onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="máximo"
-          className="no-spin flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-      </div>
-    )
-  }
-  if (type === 'boolean_true') {
-    return (
-      <input
-        type="text"
-        value={value?.field ?? ''}
-        onChange={(e) => onChange({ field: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-        placeholder="ex: viajou_fora"
-        className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-      />
-    )
-  }
-  return null
+  // Tipos legados (equals, range, boolean_true) caem no editor genérico de
+  // pergunta da IA. Toda regra nova deve ser ai_subjective. Se uma regra
+  // antiga ainda for desses tipos, mostramos um aviso pra reconfigurá-la.
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+      Esse critério usa um tipo de avaliação antigo ({type}). Apague e crie
+      um novo critério — todos os critérios agora usam avaliação por IA
+      (uma pergunta que ela responde sim/não com base na conversa).
+    </div>
+  )
 }
 
 // ============================================================================
