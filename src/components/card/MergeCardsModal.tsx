@@ -10,6 +10,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrg } from '@/contexts/OrgContext'
 import { cn, buildContactSearchFilter } from '@/lib/utils'
+import { type MergeCandidate } from './MergeCandidateCard'
 
 interface Props {
     open: boolean
@@ -31,17 +32,6 @@ interface CardSourceInfo {
     numeros_venda_monde_count: number
 }
 
-interface CardCandidate {
-    id: string
-    titulo: string | null
-    produto: string | null
-    data_viagem_inicio: string | null
-    data_viagem_fim: string | null
-    valor_final: number | null
-    valor_estimado: number | null
-    pessoa_principal_id: string | null
-    pessoa_principal_nome: string | null
-}
 
 interface CardSummary {
     id: string
@@ -112,7 +102,69 @@ function useCardSourceInfo(cardId: string | null) {
     })
 }
 
-/** Lista cards abertos candidatos para agrupamento (default: mesmo contato; ou busca por nome). */
+const VIEW_SELECT = [
+    'id', 'titulo', 'pessoa_principal_id', 'pessoa_nome',
+    'valor_display', 'valor_final', 'valor_estimado',
+    'data_viagem_inicio', 'dias_ate_viagem', 'destinos',
+    'etapa_nome', 'fase', 'status_comercial',
+    'dono_atual_id', 'dono_atual_nome',
+    'sdr_owner_id', 'sdr_nome',
+    'vendas_owner_id', 'vendas_nome',
+    'pos_owner_id', 'pos_owner_nome',
+    'concierge_owner_id', 'concierge_nome',
+    'is_group_parent', 'parent_card_id', 'parent_card_title', 'card_type',
+    'prods_total', 'tempo_sem_contato', 'archived_at', 'updated_at',
+].join(', ')
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ViewRow = any
+
+function pickDonoRelevante(row: ViewRow): { nome: string | null; role: MergeCandidate['dono_relevante_role'] } {
+    const fase = (row.fase ?? '').toLowerCase()
+    if ((fase.includes('pos') || fase.includes('pós')) && row.pos_owner_nome) {
+        return { nome: row.pos_owner_nome, role: 'pos' }
+    }
+    if (row.concierge_nome && (fase.includes('concierge') || fase.includes('viagem'))) {
+        return { nome: row.concierge_nome, role: 'concierge' }
+    }
+    if (row.vendas_nome && (fase.includes('planner') || fase.includes('venda'))) {
+        return { nome: row.vendas_nome, role: 'planner' }
+    }
+    if (row.sdr_nome && (fase.includes('sdr') || fase.includes('lead') || fase.includes('qualif'))) {
+        return { nome: row.sdr_nome, role: 'sdr' }
+    }
+    if (row.dono_atual_nome) return { nome: row.dono_atual_nome, role: null }
+    return { nome: row.vendas_nome ?? row.sdr_nome ?? row.pos_owner_nome ?? null, role: null }
+}
+
+function rowToCandidate(row: ViewRow, matchReason: MergeCandidate['match_reason']): MergeCandidate {
+    const dono = pickDonoRelevante(row)
+    return {
+        id: row.id,
+        titulo: row.titulo,
+        valor_display: row.valor_display ?? row.valor_final ?? row.valor_estimado ?? 0,
+        pessoa_principal_id: row.pessoa_principal_id,
+        pessoa_principal_nome: row.pessoa_nome,
+        data_viagem_inicio: row.data_viagem_inicio,
+        dias_ate_viagem: row.dias_ate_viagem,
+        destinos: row.destinos,
+        etapa_nome: row.etapa_nome,
+        fase: row.fase,
+        dono_relevante_nome: dono.nome,
+        dono_relevante_role: dono.role,
+        status_comercial: row.status_comercial,
+        is_group_parent: row.is_group_parent === true,
+        parent_card_id: row.parent_card_id,
+        parent_card_title: row.parent_card_title,
+        card_type: row.card_type,
+        prods_total: Number(row.prods_total ?? 0),
+        tempo_sem_contato: row.tempo_sem_contato,
+        archived_at: row.archived_at,
+        match_reason: matchReason,
+    }
+}
+
+/** Lista cards abertos candidatos. Busca em paralelo por contato (nome/email/tel) E por título. */
 function useCandidateCards({
     sourceCardId,
     sourcePessoaId,
@@ -129,65 +181,101 @@ function useCandidateCards({
     return useQuery({
         queryKey: ['card-merge-candidates', activeOrgId, sourceCardId, sourcePessoaId, term],
         enabled: !!activeOrgId && (!!sourcePessoaId || term.length > 1),
-        queryFn: async (): Promise<CardCandidate[]> => {
+        queryFn: async (): Promise<MergeCandidate[]> => {
             if (!activeOrgId) return []
 
-            const baseSelect =
-                'id, titulo, produto, data_viagem_inicio, data_viagem_fim, valor_final, valor_estimado, pessoa_principal_id, pessoa_principal:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)'
+            const buildBaseQuery = () => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let q = (supabase.from('view_cards_acoes') as any)
+                    .select(VIEW_SELECT)
+                    .eq('org_id', activeOrgId)
+                    .is('archived_at', null)
+                if (sourceCardId) q = q.neq('id', sourceCardId)
+                return q
+            }
 
-            let pessoaIds: string[] | null = null
+            const hasTerm = term.length > 1
 
-            if (term.length > 1) {
-                const filter = buildContactSearchFilter(term)
-                const { data: contatos } = await supabase
-                    .from('contatos')
-                    .select('id')
-                    .is('deleted_at', null)
-                    .or(filter)
-                    .limit(20)
-                pessoaIds = (contatos ?? []).map(c => c.id as string)
+            // ----- Query A: por contato (nome/email/tel) -> cards do(s) contato(s)
+            const queryByContact = async (): Promise<ViewRow[]> => {
+                let pessoaIds: string[]
+                if (hasTerm) {
+                    const filter = buildContactSearchFilter(term)
+                    const { data: contatos } = await supabase
+                        .from('contatos')
+                        .select('id')
+                        .is('deleted_at', null)
+                        .or(filter)
+                        .limit(20)
+                    pessoaIds = (contatos ?? []).map(c => c.id as string)
+                } else if (sourcePessoaId) {
+                    pessoaIds = [sourcePessoaId]
+                } else {
+                    return []
+                }
                 if (pessoaIds.length === 0) return []
-            } else if (sourcePessoaId) {
-                pessoaIds = [sourcePessoaId]
-            } else {
-                return []
+                const { data, error } = await buildBaseQuery()
+                    .in('pessoa_principal_id', pessoaIds)
+                    .order('updated_at', { ascending: false })
+                    .limit(20)
+                if (error) {
+                    console.warn('[useCandidateCards/contact]', error)
+                    return []
+                }
+                return data ?? []
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let q = (supabase.from('cards') as any)
-                .select(baseSelect)
-                .eq('org_id', activeOrgId)
-                .is('deleted_at', null)
-                .is('archived_at', null)
-                .in('pessoa_principal_id', pessoaIds)
-                .order('updated_at', { ascending: false })
-                .limit(12)
-            if (sourceCardId) q = q.neq('id', sourceCardId)
-
-            const { data, error } = await q
-            if (error) {
-                console.warn('[useCandidateCards]', error)
-                return []
+            // ----- Query B: por título do card (só se tiver termo)
+            const queryByTitle = async (): Promise<ViewRow[]> => {
+                if (!hasTerm) return []
+                const { data, error } = await buildBaseQuery()
+                    .ilike('titulo', `%${term}%`)
+                    .order('updated_at', { ascending: false })
+                    .limit(20)
+                if (error) {
+                    console.warn('[useCandidateCards/title]', error)
+                    return []
+                }
+                return data ?? []
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return (data ?? []).map((c: any) => {
-                const contato = c.pessoa_principal as { nome?: string; sobrenome?: string } | null
-                const nomeCompleto = contato
-                    ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ').trim() || null
-                    : null
-                return {
-                    id: c.id,
-                    titulo: c.titulo,
-                    produto: c.produto,
-                    data_viagem_inicio: c.data_viagem_inicio,
-                    data_viagem_fim: c.data_viagem_fim,
-                    valor_final: c.valor_final,
-                    valor_estimado: c.valor_estimado,
-                    pessoa_principal_id: c.pessoa_principal_id,
-                    pessoa_principal_nome: nomeCompleto,
-                } as CardCandidate
+            const [byContact, byTitle] = await Promise.all([queryByContact(), queryByTitle()])
+
+            // Merge + dedup, calcula match_reason e ordena
+            const seen = new Set<string>()
+            const out: MergeCandidate[] = []
+
+            for (const row of byContact) {
+                if (seen.has(row.id)) continue
+                seen.add(row.id)
+                const reason: MergeCandidate['match_reason'] = !hasTerm
+                    ? 'mesmo_contato'
+                    : sourcePessoaId && row.pessoa_principal_id === sourcePessoaId
+                        ? 'mesmo_contato'
+                        : 'contato'
+                out.push(rowToCandidate(row, reason))
+            }
+
+            for (const row of byTitle) {
+                if (seen.has(row.id)) continue
+                seen.add(row.id)
+                out.push(rowToCandidate(row, 'titulo'))
+            }
+
+            // Ordenação: mesmo_contato > contato > titulo > outro
+            const reasonRank: Record<MergeCandidate['match_reason'], number> = {
+                mesmo_contato: 0,
+                contato: 1,
+                titulo: 2,
+                outro: 3,
+            }
+            out.sort((a, b) => {
+                const r = reasonRank[a.match_reason] - reasonRank[b.match_reason]
+                if (r !== 0) return r
+                return 0
             })
+
+            return out.slice(0, 25)
         },
         staleTime: 10_000,
     })
@@ -448,8 +536,8 @@ export default function MergeCardsModal({
         (sourceItems.length === 0 || selectedItemIds.size > 0)
 
     const searchPlaceholder = useMemo(() => {
-        if (sourceContatoNome) return `Buscando em "${sourceContatoNome}" — ou digite outro nome...`
-        return 'Buscar pelo nome do contato principal...'
+        if (sourceContatoNome) return `Buscando em "${sourceContatoNome}" — ou digite contato/título...`
+        return 'Buscar por contato (nome, email, telefone) ou título da viagem...'
     }, [sourceContatoNome])
 
     const buttonLabel = useMemo(() => {
@@ -513,47 +601,25 @@ export default function MergeCardsModal({
                             </div>
 
                             {candidates.length > 0 ? (
-                                <div className="border border-slate-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-slate-100">
-                                    {candidates.map(hit => {
-                                        const dateRange = [formatDateBR(hit.data_viagem_inicio), formatDateBR(hit.data_viagem_fim)].join(' → ')
-                                        const valor = hit.valor_final ?? hit.valor_estimado ?? 0
-                                        const showContato =
-                                            hit.pessoa_principal_id !== sourceInfo?.pessoa_principal_id && hit.pessoa_principal_nome
-                                        return (
-                                            <button
-                                                key={hit.id}
-                                                type="button"
-                                                onClick={() => setSelectedTargetId(hit.id)}
-                                                className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors"
-                                            >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <p className="text-sm font-medium text-slate-900 truncate">
-                                                        {hit.titulo || 'Sem título'}
-                                                    </p>
-                                                    <span className="text-xs text-slate-500 shrink-0">{formatBRL(valor)}</span>
-                                                </div>
-                                                <p className="text-xs text-slate-500 flex items-center gap-2">
-                                                    {showContato && (
-                                                        <span className="flex items-center gap-0.5">
-                                                            <User className="h-3 w-3" />
-                                                            {hit.pessoa_principal_nome}
-                                                        </span>
-                                                    )}
-                                                    {showContato && <span className="text-slate-300">·</span>}
-                                                    <span>{dateRange}</span>
-                                                </p>
-                                            </button>
-                                        )
-                                    })}
+                                <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+                                    {candidates.map(hit => (
+                                        <MergeCandidateCard
+                                            key={hit.id}
+                                            candidate={hit}
+                                            selected={selectedTargetId === hit.id}
+                                            searchTerm={debouncedSearch}
+                                            onSelect={() => setSelectedTargetId(hit.id)}
+                                        />
+                                    ))}
                                 </div>
                             ) : (
                                 !isSearching && (
                                     <p className="text-xs text-slate-500 italic">
                                         {debouncedSearch.length > 1
-                                            ? 'Nenhum card encontrado para este contato.'
+                                            ? 'Nenhum card encontrado por contato ou título.'
                                             : sourceContatoNome
-                                                ? 'Este contato não tem outros cards abertos. Digite o nome de outro contato acima para buscar.'
-                                                : 'Digite pelo menos 2 letras do nome do contato principal.'}
+                                                ? 'Este contato não tem outros cards abertos. Digite contato ou título da viagem acima para buscar.'
+                                                : 'Digite pelo menos 2 letras do nome do contato ou do título da viagem.'}
                                     </p>
                                 )
                             )}
