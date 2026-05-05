@@ -50,11 +50,17 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
 
   const start = Date.now();
 
-  // Detecta grupos de regras mutuamente exclusivas por padrão de nome na dimension.
-  // Convenção: dimension termina em _<número>_<número> → é uma faixa; grupo = prefixo sem as faixas.
-  // Ex: "valor_convidado_1500_2000" → grupo "valor_convidado"
-  const getGroup = (dim: string): string | null => {
-    const tokens = dim.split('_');
+  // Detecta grupos de regras mutuamente exclusivas. Duas fontes:
+  //   1. Coluna explícita exclusion_group (preferencial — admin define).
+  //   2. Convenção legada: dimension termina em _<número>_<número> → grupo
+  //      = prefixo sem as faixas (ex: "valor_convidado_1500_2000" → grupo
+  //      "valor_convidado"). Mantida pra retrocompat com regras criadas
+  //      antes da coluna existir.
+  const getGroupForRule = (r: ScoringRule): string | null => {
+    if (r.exclusion_group && r.exclusion_group.trim().length > 0) {
+      return r.exclusion_group;
+    }
+    const tokens = r.dimension.split('_');
     if (tokens.length >= 3
         && /^\d+$/.test(tokens[tokens.length - 1])
         && /^\d+$/.test(tokens[tokens.length - 2])) {
@@ -65,12 +71,12 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
 
   const questionsBlock = subjectiveRules.map((r, i) => {
     const q = (r.condition_value as { question?: string })?.question ?? '';
-    const group = getGroup(r.dimension);
+    const group = getGroupForRule(r);
     const groupTag = group ? ` [grupo: ${group}]` : '';
     return `${i + 1}. rule_id=${r.id}${groupTag} | ${q.trim()}`;
   }).join('\n');
 
-  const hasGroups = subjectiveRules.some(r => getGroup(r.dimension) !== null);
+  const hasGroups = subjectiveRules.some(r => getGroupForRule(r) !== null);
   const groupInstruction = hasGroups
     ? `\n\nIMPORTANTE sobre grupos: Perguntas marcadas com o mesmo [grupo: X] descrevem faixas mutuamente exclusivas da mesma variável. Para cada grupo, responda YES para APENAS UMA pergunta — a que melhor descreve o caso analisando o histórico. Todas as outras perguntas do mesmo grupo devem ser NO. Se não há evidência suficiente pra escolher nenhuma faixa do grupo, responda NO em todas do grupo.`
     : '';

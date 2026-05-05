@@ -717,3 +717,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-04T20:54:08Z | supabase/migrations/20260504v_backfill_cron_task_updates.sql | applied_to_prod
 2026-05-05T14:19:43Z | supabase/migrations/20260505a_roteamento_pos_venda_data_completa_first.sql | applied_to_prod
 2026-05-05T15:02:10Z | supabase/migrations/20260505b_match_monde_pending_on_card_insert.sql | applied_to_prod
+2026-05-05T16:16:14Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260505d_fundir_cards_v2_granular.sql | applied_to_prod
+2026-05-05T17:51:04Z | supabase/migrations/20260505a_estela_v3_scoring_adjustments.sql | applied_to_prod
