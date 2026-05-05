@@ -721,3 +721,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-05T17:59:13Z | supabase/migrations/20260505d_drop_planner_request_source.sql | applied_to_prod
 2026-05-05T18:07:28Z | supabase/migrations/20260505e_trigger_skips_cadence_metadata.sql | applied_to_prod
 2026-05-05T18:31:49Z | supabase/migrations/20260505f_replace_cadence_steps_passes_concierge.sql | applied_to_prod
+2026-05-05T20:18:31Z | supabase/migrations/20260505b_estela_consolidation.sql | applied_to_prod
+2026-05-05T20:20:25Z | supabase/migrations/20260505c_estela_consolidation_fix.sql | applied_to_prod
+2026-05-05T20:21:28Z | supabase/migrations/20260505d_estela_consolidation_v3.sql | applied_to_prod
