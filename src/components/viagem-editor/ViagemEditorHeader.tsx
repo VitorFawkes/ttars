@@ -103,19 +103,19 @@ export function ViagemEditorHeader({ viagem, context, cardTitulo, onAtrelarClick
   const reenvio = viagem.estado === 'em_recomendacao'
 
   return (
-    <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
-      <div className="flex min-w-0 items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={handleBack} className="gap-1">
+    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={handleBack} className="shrink-0 gap-1">
           <ArrowLeft className="h-4 w-4" />
           Voltar
         </Button>
-        <div className="h-6 w-px bg-slate-200" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-sm font-semibold text-slate-900">
+        <div className="h-6 w-px shrink-0 bg-slate-200" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
               {viagem.titulo || 'Viagem sem título'}
             </h1>
-            <Badge variant="outline" className={`${color} border-0`}>
+            <Badge variant="outline" className={`${color} shrink-0 border-0`}>
               {label}
             </Badge>
           </div>
@@ -125,8 +125,8 @@ export function ViagemEditorHeader({ viagem, context, cardTitulo, onAtrelarClick
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="hidden text-right text-xs text-slate-600 md:block">
+      <div className="flex shrink-0 items-center gap-3">
+        <div className="hidden whitespace-nowrap text-right text-xs text-slate-600 md:block">
           <div>Total estimado: <span className="font-medium text-slate-900">{formatBRL(viagem.total_estimado)}</span></div>
           {viagem.total_aprovado > 0 && (
             <div>Aprovado: <span className="font-medium text-emerald-700">{formatBRL(viagem.total_aprovado)}</span></div>
