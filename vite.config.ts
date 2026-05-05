@@ -17,7 +17,7 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         cleanupOutdatedCaches: true,
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB — bundle principal excede o default de 2 MB
+        maximumFileSizeToCacheInBytes: 16 * 1024 * 1024, // 16 MB — bundle principal cresce com features novas
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackAllowlist: [/^\/v\//],
