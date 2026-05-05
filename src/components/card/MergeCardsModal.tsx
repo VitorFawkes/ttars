@@ -201,6 +201,100 @@ function useSearchCandidates({
 const formatBRL = (value: number | null | undefined) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0)
 
+const formatDateBRShort = (iso: string | null) => {
+    if (!iso) return null
+    const dateOnly = iso.slice(0, 10)
+    const [y, m, d] = dateOnly.split('-')
+    if (!y || !m || !d) return null
+    return `${d}/${m}`
+}
+
+interface PendingTask {
+    id: string
+    titulo: string
+    data_vencimento: string | null
+    card_id: string
+    card_titulo: string | null
+}
+
+/** Carrega tarefas pendentes (não concluídas, não deletadas) das origens. */
+function usePendingTasks(cardIds: string[]) {
+    return useQuery({
+        queryKey: ['merge-tasks', cardIds.sort().join(',')],
+        enabled: cardIds.length > 0,
+        queryFn: async (): Promise<PendingTask[]> => {
+            if (cardIds.length === 0) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from('tarefas') as any)
+                .select('id, titulo, data_vencimento, card_id, card:cards!inner(titulo)')
+                .in('card_id', cardIds)
+                .is('deleted_at', null)
+                .eq('concluida', false)
+                .order('data_vencimento', { ascending: true, nullsFirst: false })
+            if (error) {
+                console.warn('[usePendingTasks]', error)
+                return []
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (data ?? []).map((t: any) => ({
+                id: t.id,
+                titulo: t.titulo,
+                data_vencimento: t.data_vencimento,
+                card_id: t.card_id,
+                card_titulo: t.card?.titulo ?? null,
+            }))
+        },
+    })
+}
+
+interface MondeNumber {
+    numero: string
+    card_id: string
+    card_titulo: string | null
+    is_current: boolean
+}
+
+/** Carrega números de venda Monde (atual + histórico) das origens. */
+function useMondeNumbers(cardIds: string[]) {
+    return useQuery({
+        queryKey: ['merge-monde', cardIds.sort().join(',')],
+        enabled: cardIds.length > 0,
+        queryFn: async (): Promise<MondeNumber[]> => {
+            if (cardIds.length === 0) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.from('cards') as any)
+                .select('id, titulo, produto_data')
+                .in('id', cardIds)
+            if (error) {
+                console.warn('[useMondeNumbers]', error)
+                return []
+            }
+            const out: MondeNumber[] = []
+            const seen = new Set<string>()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const card of (data ?? []) as any[]) {
+                const pd = (card.produto_data ?? {}) as Record<string, unknown>
+                const atual = typeof pd.numero_venda_monde === 'string' ? pd.numero_venda_monde : null
+                const hist = Array.isArray(pd.numeros_venda_monde_historico) ? pd.numeros_venda_monde_historico : []
+                if (atual && !seen.has(`${card.id}:${atual}`)) {
+                    out.push({ numero: atual, card_id: card.id, card_titulo: card.titulo, is_current: true })
+                    seen.add(`${card.id}:${atual}`)
+                }
+                for (const entry of hist) {
+                    if (entry && typeof entry === 'object') {
+                        const num = (entry as Record<string, unknown>).numero
+                        if (typeof num === 'string' && num && !seen.has(`${card.id}:${num}`)) {
+                            out.push({ numero: num, card_id: card.id, card_titulo: card.titulo, is_current: false })
+                            seen.add(`${card.id}:${num}`)
+                        }
+                    }
+                }
+            }
+            return out
+        },
+    })
+}
+
 export default function MergeCardsModal({
     open,
     onClose,
@@ -218,12 +312,22 @@ export default function MergeCardsModal({
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [migrateTasks, setMigrateTasks] = useState(true)
     const [migrateVendaMonde, setMigrateVendaMonde] = useState(true)
+    const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+    const [selectedMondeNumbers, setSelectedMondeNumbers] = useState<Set<string>>(new Set())
+    const [tasksAutoSeeded, setTasksAutoSeeded] = useState(false)
+    const [mondeAutoSeeded, setMondeAutoSeeded] = useState(false)
+    const [showTasksList, setShowTasksList] = useState(false)
+    const [showMondeList, setShowMondeList] = useState(false)
     const [motivo, setMotivo] = useState('')
     const [isMerging, setIsMerging] = useState(false)
+    const [subCardAutoSelected, setSubCardAutoSelected] = useState(false)
 
     // Sementes: card-fonte (sempre adicionado) + lockedTarget (se passado)
     const { data: sourceCard } = useCardFromView(sourceCardId)
     const { data: lockedTargetCard } = useCardFromView(lockedTargetId)
+    // Se source é sub-card, auto-carregar pai pra usar como destino default
+    const subCardParentId = sourceCard?.card_type === 'sub_card' ? sourceCard?.parent_card_id ?? null : null
+    const { data: subCardParentCard } = useCardFromView(subCardParentId)
 
     // Reset ao abrir/fechar
     useEffect(() => {
@@ -234,24 +338,43 @@ export default function MergeCardsModal({
             setDebouncedSearch('')
             setMigrateTasks(true)
             setMigrateVendaMonde(true)
+            setSelectedTaskIds(new Set())
+            setSelectedMondeNumbers(new Set())
+            setTasksAutoSeeded(false)
+            setMondeAutoSeeded(false)
+            setShowTasksList(false)
+            setShowMondeList(false)
             setMotivo('')
             setIsMerging(false)
+            setSubCardAutoSelected(false)
         }
     }, [open])
 
-    // Auto-adiciona source + lockedTarget quando abre. Destino default = lockedTarget se houver, senão source.
+    // Auto-adiciona source + lockedTarget (ou pai do sub-card) quando abre.
     useEffect(() => {
         if (!open) return
         if (selectedCards.length > 0) return
         const seeds: MergeCandidate[] = []
         if (sourceCard) seeds.push(sourceCard)
-        if (lockedTargetCard && lockedTargetCard.id !== sourceCard?.id) seeds.push(lockedTargetCard)
+        // Se source é sub-card, adiciona o pai como destino auto-detectado
+        if (subCardParentCard && subCardParentCard.id !== sourceCard?.id) {
+            seeds.push(subCardParentCard)
+        }
+        // lockedTarget tem prioridade sobre auto-detect
+        if (lockedTargetCard && lockedTargetCard.id !== sourceCard?.id && lockedTargetCard.id !== subCardParentCard?.id) {
+            seeds.push(lockedTargetCard)
+        }
         if (seeds.length > 0) {
             setSelectedCards(seeds)
-            setDestinoId(lockedTargetCard?.id ?? sourceCard?.id ?? null)
+            // Destino default: lockedTarget > pai do sub-card > source
+            const defaultDest = lockedTargetCard?.id ?? subCardParentCard?.id ?? sourceCard?.id ?? null
+            setDestinoId(defaultDest)
+            if (subCardParentCard && !lockedTargetCard) {
+                setSubCardAutoSelected(true)
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, sourceCard?.id, lockedTargetCard?.id])
+    }, [open, sourceCard?.id, lockedTargetCard?.id, subCardParentCard?.id])
 
     // Debounce
     useEffect(() => {
@@ -299,17 +422,103 @@ export default function MergeCardsModal({
     const totalProdutosOrigens = origens.reduce((s, c) => s + (c.prods_total ?? 0), 0)
     const totalValorOrigens = origens.reduce((s, c) => s + (c.valor_display ?? 0), 0)
 
+    // Carrega tarefas pendentes e números Monde das origens
+    const origensIds = useMemo(() => origens.map(o => o.id), [origens])
+    const { data: pendingTasks = [] } = usePendingTasks(origensIds)
+    const { data: mondeNumbers = [] } = useMondeNumbers(origensIds)
+
+    // Auto-seed: ao primeiro carregar tarefas/Mondes, marca todas
+    useEffect(() => {
+        if (pendingTasks.length > 0 && !tasksAutoSeeded) {
+            setSelectedTaskIds(new Set(pendingTasks.map(t => t.id)))
+            setTasksAutoSeeded(true)
+        }
+    }, [pendingTasks, tasksAutoSeeded])
+    useEffect(() => {
+        if (mondeNumbers.length > 0 && !mondeAutoSeeded) {
+            setSelectedMondeNumbers(new Set(mondeNumbers.map(n => n.numero)))
+            setMondeAutoSeeded(true)
+        }
+    }, [mondeNumbers, mondeAutoSeeded])
+
+    // Reseta o auto-seed quando origens mudam (entrar/sair da lista)
+    useEffect(() => {
+        setTasksAutoSeeded(false)
+        setMondeAutoSeeded(false)
+        // limpa seleções que apontam para tasks/Mondes que não pertencem mais a nenhuma origem
+        setSelectedTaskIds(prev => {
+            const ids = new Set(pendingTasks.map(t => t.id))
+            return new Set([...prev].filter(id => ids.has(id)))
+        })
+        setSelectedMondeNumbers(prev => {
+            const nums = new Set(mondeNumbers.map(n => n.numero))
+            return new Set([...prev].filter(n => nums.has(n)))
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [origensIds.join(',')])
+
+    const toggleTaskMaster = (next: boolean) => {
+        setMigrateTasks(next)
+        if (next) {
+            setSelectedTaskIds(new Set(pendingTasks.map(t => t.id)))
+        } else {
+            setSelectedTaskIds(new Set())
+        }
+    }
+    const toggleMondeMaster = (next: boolean) => {
+        setMigrateVendaMonde(next)
+        if (next) {
+            setSelectedMondeNumbers(new Set(mondeNumbers.map(n => n.numero)))
+        } else {
+            setSelectedMondeNumbers(new Set())
+        }
+    }
+
+    const allTasksSelected = pendingTasks.length > 0 && selectedTaskIds.size === pendingTasks.length
+    const noTasksSelected = pendingTasks.length > 0 && selectedTaskIds.size === 0
+    const allMondeSelected = mondeNumbers.length > 0 && selectedMondeNumbers.size === mondeNumbers.length
+    const noMondeSelected = mondeNumbers.length > 0 && selectedMondeNumbers.size === 0
+
+    // Sincroniza master com seleção individual (estado intermediário)
+    useEffect(() => {
+        if (pendingTasks.length === 0) return
+        if (noTasksSelected && migrateTasks) setMigrateTasks(false)
+        else if (!noTasksSelected && !migrateTasks) setMigrateTasks(true)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTaskIds, pendingTasks.length])
+    useEffect(() => {
+        if (mondeNumbers.length === 0) return
+        if (noMondeSelected && migrateVendaMonde) setMigrateVendaMonde(false)
+        else if (!noMondeSelected && !migrateVendaMonde) setMigrateVendaMonde(true)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedMondeNumbers, mondeNumbers.length])
+
     const canConfirm = !isMerging && selectedCards.length >= 2 && !!destinoId && origens.length >= 1
 
     const handleMerge = async () => {
         if (!destinoId || origens.length === 0) return
         setIsMerging(true)
         try {
+            // Calcular taskIds e mondeNumbers a passar:
+            // - se migrateTasks=false: passa null (RPC cancela tudo)
+            // - se todas selecionadas: passa null (RPC migra tudo, mais simples)
+            // - se subset: passa array
+            let taskIds: string[] | null = null
+            if (migrateTasks && pendingTasks.length > 0 && !allTasksSelected) {
+                taskIds = [...selectedTaskIds]
+            }
+            let mondeNums: string[] | null = null
+            if (migrateVendaMonde && mondeNumbers.length > 0 && !allMondeSelected) {
+                mondeNums = [...selectedMondeNumbers]
+            }
+
             const result = await fundirCardsV2({
                 origens: origens.map(o => o.id),
                 destino: destinoId,
                 migrateTasks,
                 migrateVendaMonde,
+                taskIds,
+                vendaMondeNumbers: mondeNums,
                 motivo: motivo.trim() || undefined,
             })
 
@@ -369,6 +578,16 @@ export default function MergeCardsModal({
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
+                    {/* Banner sub-card */}
+                    {subCardAutoSelected && subCardParentCard && (
+                        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 flex items-start gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                            <div className="text-xs text-indigo-800">
+                                Este card é um <strong>sub-card</strong> (pedido de mudança). Já marcamos o card principal <strong>"{subCardParentCard.titulo}"</strong> como destino.
+                            </div>
+                        </div>
+                    )}
+
                     {/* Cards selecionados */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -536,49 +755,181 @@ export default function MergeCardsModal({
                                 </ul>
                             </div>
 
-                            {/* Opcionais */}
+                            {/* Opcionais com granularidade */}
                             <div className="space-y-2">
-                                <label className={cn(
-                                    'flex items-start gap-2.5 rounded-lg border p-3 cursor-pointer transition-colors',
-                                    migrateTasks ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:border-slate-300',
+                                {/* TAREFAS */}
+                                <div className={cn(
+                                    'rounded-lg border transition-colors',
+                                    selectedTaskIds.size > 0 ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200',
                                 )}>
-                                    <input
-                                        type="checkbox"
-                                        checked={migrateTasks}
-                                        onChange={e => setMigrateTasks(e.target.checked)}
-                                        disabled={isMerging}
-                                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-slate-900">Puxar tarefas pendentes</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            {migrateTasks
-                                                ? 'Tarefas das origens vão pro destino e continuam ativas.'
-                                                : 'Tarefas das origens serão canceladas (não migram).'}
-                                        </p>
+                                    <div className="flex items-start gap-2.5 p-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={migrateTasks && selectedTaskIds.size > 0}
+                                            ref={el => { if (el) el.indeterminate = selectedTaskIds.size > 0 && !allTasksSelected }}
+                                            onChange={e => toggleTaskMaster(e.target.checked)}
+                                            disabled={isMerging || pendingTasks.length === 0}
+                                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-sm font-medium text-slate-900">
+                                                    Puxar tarefas pendentes
+                                                    {pendingTasks.length > 0 && (
+                                                        <span className="ml-2 text-xs text-slate-500 font-normal">
+                                                            ({selectedTaskIds.size} de {pendingTasks.length} marcadas)
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                {pendingTasks.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowTasksList(v => !v)}
+                                                        className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium shrink-0"
+                                                    >
+                                                        {showTasksList ? 'Ocultar' : 'Escolher quais'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                {pendingTasks.length === 0
+                                                    ? 'Origens não têm tarefas pendentes.'
+                                                    : selectedTaskIds.size === 0
+                                                        ? 'Tarefas serão canceladas (não migram).'
+                                                        : selectedTaskIds.size === pendingTasks.length
+                                                            ? 'Todas vão pro destino e continuam ativas.'
+                                                            : `${pendingTasks.length - selectedTaskIds.size} desmarcada${pendingTasks.length - selectedTaskIds.size === 1 ? '' : 's'} ${pendingTasks.length - selectedTaskIds.size === 1 ? 'será cancelada' : 'serão canceladas'}.`}
+                                            </p>
+                                        </div>
                                     </div>
-                                </label>
+                                    {showTasksList && pendingTasks.length > 0 && (
+                                        <div className="border-t border-slate-200 bg-white px-3 py-2 space-y-1 max-h-56 overflow-y-auto">
+                                            {pendingTasks.map(task => {
+                                                const checked = selectedTaskIds.has(task.id)
+                                                const venc = formatDateBRShort(task.data_vencimento)
+                                                return (
+                                                    <label
+                                                        key={task.id}
+                                                        className="flex items-start gap-2.5 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => {
+                                                                setSelectedTaskIds(prev => {
+                                                                    const next = new Set(prev)
+                                                                    if (next.has(task.id)) next.delete(task.id)
+                                                                    else next.add(task.id)
+                                                                    return next
+                                                                })
+                                                            }}
+                                                            disabled={isMerging}
+                                                            className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className={cn('text-sm truncate', !checked && 'text-slate-400 line-through')}>
+                                                                {task.titulo}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-500 truncate">
+                                                                {task.card_titulo || 'Card sem título'}
+                                                                {venc && <> · vence {venc}</>}
+                                                            </p>
+                                                        </div>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
 
-                                <label className={cn(
-                                    'flex items-start gap-2.5 rounded-lg border p-3 cursor-pointer transition-colors',
-                                    migrateVendaMonde ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:border-slate-300',
+                                {/* VENDAS MONDE */}
+                                <div className={cn(
+                                    'rounded-lg border transition-colors',
+                                    selectedMondeNumbers.size > 0 ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200',
                                 )}>
-                                    <input
-                                        type="checkbox"
-                                        checked={migrateVendaMonde}
-                                        onChange={e => setMigrateVendaMonde(e.target.checked)}
-                                        disabled={isMerging}
-                                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-slate-900">Puxar números de venda do Monde</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            {migrateVendaMonde
-                                                ? 'Números de venda Monde de cada origem entram no histórico do destino.'
-                                                : 'Números de venda Monde ficam só nas origens (que serão arquivadas).'}
-                                        </p>
+                                    <div className="flex items-start gap-2.5 p-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={migrateVendaMonde && selectedMondeNumbers.size > 0}
+                                            ref={el => { if (el) el.indeterminate = selectedMondeNumbers.size > 0 && !allMondeSelected }}
+                                            onChange={e => toggleMondeMaster(e.target.checked)}
+                                            disabled={isMerging || mondeNumbers.length === 0}
+                                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-sm font-medium text-slate-900">
+                                                    Puxar números de venda do Monde
+                                                    {mondeNumbers.length > 0 && (
+                                                        <span className="ml-2 text-xs text-slate-500 font-normal">
+                                                            ({selectedMondeNumbers.size} de {mondeNumbers.length})
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                {mondeNumbers.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowMondeList(v => !v)}
+                                                        className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium shrink-0"
+                                                    >
+                                                        {showMondeList ? 'Ocultar' : 'Escolher quais'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                {mondeNumbers.length === 0
+                                                    ? 'Origens não têm números de venda Monde.'
+                                                    : selectedMondeNumbers.size === 0
+                                                        ? 'Números ficam só nas origens (arquivadas).'
+                                                        : selectedMondeNumbers.size === mondeNumbers.length
+                                                            ? 'Todos vão pro histórico do destino.'
+                                                            : `${selectedMondeNumbers.size} marcado${selectedMondeNumbers.size === 1 ? '' : 's'} pro destino. O resto fica nas origens.`}
+                                            </p>
+                                        </div>
                                     </div>
-                                </label>
+                                    {showMondeList && mondeNumbers.length > 0 && (
+                                        <div className="border-t border-slate-200 bg-white px-3 py-2 space-y-1 max-h-56 overflow-y-auto">
+                                            {mondeNumbers.map(item => {
+                                                const checked = selectedMondeNumbers.has(item.numero)
+                                                return (
+                                                    <label
+                                                        key={`${item.card_id}:${item.numero}`}
+                                                        className="flex items-start gap-2.5 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => {
+                                                                setSelectedMondeNumbers(prev => {
+                                                                    const next = new Set(prev)
+                                                                    if (next.has(item.numero)) next.delete(item.numero)
+                                                                    else next.add(item.numero)
+                                                                    return next
+                                                                })
+                                                            }}
+                                                            disabled={isMerging}
+                                                            className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className={cn(
+                                                                'text-sm font-mono',
+                                                                !checked && 'text-slate-400 line-through',
+                                                            )}>
+                                                                {item.numero}
+                                                                {item.is_current && (
+                                                                    <span className="ml-2 text-[10px] font-sans font-medium uppercase text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded">atual</span>
+                                                                )}
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-500 truncate">
+                                                                {item.card_titulo || 'Card sem título'}
+                                                            </p>
+                                                        </div>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Resumo final */}

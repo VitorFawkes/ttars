@@ -119,6 +119,10 @@ export async function fundirCardsV2(args: {
     destino: string
     migrateTasks: boolean
     migrateVendaMonde: boolean
+    /** IDs específicos de tarefas a migrar. NULL = todas (default). */
+    taskIds?: string[] | null
+    /** Números específicos de venda Monde a migrar. NULL = todos (default). */
+    vendaMondeNumbers?: string[] | null
     motivo?: string
 }): Promise<FundirCardsV2Result> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC não tipada
@@ -127,6 +131,8 @@ export async function fundirCardsV2(args: {
         p_destino: args.destino,
         p_migrate_tasks: args.migrateTasks,
         p_migrate_venda_monde: args.migrateVendaMonde,
+        p_task_ids: args.taskIds ?? null,
+        p_venda_monde_numbers: args.vendaMondeNumbers ?? null,
         p_motivo: args.motivo ?? null,
     })
     if (error) throw error
