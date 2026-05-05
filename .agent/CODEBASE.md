@@ -7,8 +7,8 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-05
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 146 paginas | 234 hooks | 22 views | 647 components
-> **Stats:** 191 tabelas | 146 paginas | 234 hooks | 22 views | 647 components
+> **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 640 components
+> **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 640 components
 
 ---
 
@@ -170,7 +170,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **234 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **231 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -287,7 +287,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
-| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -344,7 +343,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
-| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -388,7 +386,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
-| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -485,7 +482,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **146 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -508,7 +505,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
-| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
@@ -608,7 +604,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
 | `ConciergeLayout` | `src/pages/concierge/ConciergeLayout.tsx` |
-| `KanbanPage 2` | `src/pages/concierge/KanbanPage 2.tsx` |
 | `KanbanPage` | `src/pages/concierge/KanbanPage.tsx` |
 | `MeuDiaPage` | `src/pages/concierge/MeuDiaPage.tsx` |
 | `ModelosPage` | `src/pages/concierge/ModelosPage.tsx` |
