@@ -107,7 +107,7 @@ export function CreateTaskModal({
                     card_id: cardId,
                     tipo_concierge: conciergeType as TipoConcierge,
                     categoria: conciergeCategory as CategoriaConcierge,
-                    source: 'planner_request',
+                    source: 'manual',
                     titulo: titulo.trim(),
                     descricao: descricao.trim() || undefined,
                     data_vencimento: dataVencimento ? new Date(dataVencimento).toISOString() : undefined,

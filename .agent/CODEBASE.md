@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-04
+> **Last Updated:** 2026-05-05
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 147 paginas | 158 hooks | 22 views | 649 components
+> **Stats:** 191 tabelas | 145 paginas | 157 hooks | 22 views | 644 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **158 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **157 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -251,7 +251,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
-| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
 | `useGiftMetrics()` | `useGiftMetrics.ts` |
@@ -404,7 +403,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **147 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **145 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -428,7 +427,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Dashboard` | `src/pages/Dashboard.tsx` |
-| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
@@ -528,7 +526,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
 | `ConciergeLayout` | `src/pages/concierge/ConciergeLayout.tsx` |
-| `KanbanPage 2` | `src/pages/concierge/KanbanPage 2.tsx` |
 | `KanbanPage` | `src/pages/concierge/KanbanPage.tsx` |
 | `MeuDiaPage` | `src/pages/concierge/MeuDiaPage.tsx` |
 | `ModelosPage` | `src/pages/concierge/ModelosPage.tsx` |

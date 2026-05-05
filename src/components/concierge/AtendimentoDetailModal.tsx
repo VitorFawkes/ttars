@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useNotificarCliente } from '../../hooks/concierge/useAtendimentoMutations'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
+import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
+import { SourceIcon } from './Badges'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { CardContextBlocks } from './CardContextBlocks'
@@ -44,6 +46,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
+  const profilesLookup = useConciergeProfilesLookup()
 
   if (!item) return null
   if (!isOpen) return null
@@ -56,6 +59,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const cat = CATEGORIAS_CONCIERGE[item.categoria as keyof typeof CATEGORIAS_CONCIERGE]
   const catLabel = cat?.label ?? item.categoria
   const titulo = item.titulo?.trim() || catLabel
+  const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
 
   const handleMarcarOutcome = () => {
     if (!selectedOutcome) return
@@ -84,7 +88,10 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               <span className="text-slate-300">·</span>
               <span className="text-slate-500">{catLabel}</span>
               <span className="text-slate-300">·</span>
-              <span className="text-slate-400">{sourceLabel}</span>
+              <span className="inline-flex items-center gap-1 text-slate-400">
+                <SourceIcon source={item.source} className="w-3 h-3" />
+                {sourceLabel}
+              </span>
               {isCriticalEffective && (
                 <>
                   <span className="text-slate-300">·</span>
@@ -96,6 +103,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               )}
             </div>
             <h2 className="text-base font-bold text-slate-900 leading-snug truncate">{titulo}</h2>
+            {donoNome && (
+              <div className="mt-1 inline-flex items-center gap-1 text-[11.5px] text-slate-600">
+                <User className="w-3 h-3 text-slate-400" />
+                <span>Atribuído a <span className="font-medium text-slate-700">{donoNome}</span></span>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -148,11 +161,41 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             showOutrasPendencias={true}
           />
 
-          {item.descricao && (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[13px] text-slate-700 leading-relaxed">
-              {item.descricao}
-            </div>
-          )}
+          {(() => {
+            const observacaoConcierge = (item.payload as Record<string, unknown> | null | undefined)?.observacao_outcome
+            const observacaoConciergeStr = typeof observacaoConcierge === 'string' && observacaoConcierge.trim().length > 0
+              ? observacaoConcierge
+              : null
+            const hasAny = !!item.descricao || !!observacaoConciergeStr
+            if (!hasAny) return null
+            return (
+              <div className="space-y-2">
+                {item.descricao && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500 mb-1">
+                      Descrição da tarefa
+                    </div>
+                    <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">{item.descricao}</p>
+                  </div>
+                )}
+                {observacaoConciergeStr && (
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[10.5px] uppercase tracking-wide font-semibold text-emerald-700">
+                        Comentário do Concierge
+                      </div>
+                      {item.outcome_em && (
+                        <div className="text-[10.5px] text-emerald-700/60">
+                          {new Date(item.outcome_em).toLocaleString('pt-BR')}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[13px] text-slate-800 leading-relaxed whitespace-pre-wrap">{observacaoConciergeStr}</p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {!item.outcome ? (
             <div className="space-y-3">

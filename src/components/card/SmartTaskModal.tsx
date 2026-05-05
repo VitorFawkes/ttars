@@ -35,6 +35,8 @@ import { useOrg } from '@/contexts/OrgContext';
 import { cn } from '@/lib/utils';
 import { processAIExtraction } from '@/hooks/useAIExtraction';
 import { useTaskOutcomes } from '@/hooks/useTaskOutcomes';
+import { categoriasParaProduto, type CategoriaConcierge } from '@/hooks/concierge/types';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 
 // Helper para formatar nomes de campos extraídos pela IA
 const formatCampoLabel = (campo: string): string => {
@@ -215,7 +217,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, nome, email, team_id, is_admin')
+                .select('id, nome, email, team_id, is_admin, team:teams!profiles_team_id_fkey(name)')
                 .eq('active', true)
                 .or('team_id.not.is.null,is_admin.eq.true')
                 .order('nome');
@@ -224,6 +226,42 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         },
         staleTime: 1000 * 60 * 5 // 5 minutes
     });
+
+    // True quando o responsável selecionado pertence ao time Concierge.
+    // Quando isso acontece e estamos em modo create, o usuário precisa
+    // escolher o tipo de atendimento (Oferta/Reserva/Suporte/Operacional).
+    const isResponsibleConcierge = useMemo(() => {
+        if (!responsibleId || !profiles) return false;
+        const p = profiles.find(pr => pr.id === responsibleId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const teamName = (p as any)?.team?.name as string | undefined;
+        return typeof teamName === 'string' && teamName.toLowerCase() === 'concierge';
+    }, [responsibleId, profiles]);
+
+    type TipoConciergeOption = 'oferta' | 'reserva' | 'suporte' | 'operacional';
+    const [tipoConcierge, setTipoConcierge] = useState<TipoConciergeOption | ''>('');
+    const [categoriaConcierge, setCategoriaConcierge] = useState<CategoriaConcierge | ''>('');
+
+    // Lista de categorias filtrada pelo produto da workspace + tipo escolhido.
+    const { slug: productSlug } = useCurrentProductMeta();
+    const categoriasDoProduto = useMemo(() => categoriasParaProduto(productSlug), [productSlug]);
+    const categoriasDoTipo = useMemo(() => {
+        if (!tipoConcierge) return [];
+        return categoriasDoProduto.filter(c => c.config.tipo === tipoConcierge);
+    }, [categoriasDoProduto, tipoConcierge]);
+
+    // Quando o tipo muda, ajusta categoria para a primeira opção válida do novo tipo.
+    // Mantém a escolha do usuário se ela ainda for válida.
+    useEffect(() => {
+        if (!tipoConcierge) {
+            setCategoriaConcierge('');
+            return;
+        }
+        const stillValid = categoriasDoTipo.some(c => c.key === categoriaConcierge);
+        if (!stillValid) {
+            setCategoriaConcierge(categoriasDoTipo[0]?.key ?? '');
+        }
+    }, [tipoConcierge, categoriasDoTipo, categoriaConcierge]);
 
     // Fetch Change Categories
     const { data: changeCategories } = useQuery({
@@ -424,6 +462,13 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setType((initialData?.tipo as TaskType) || 'tarefa');
                 setResponsibleId(initialData?.responsavel_id || '');
                 setMetadata(initialData?.metadata || {});
+                {
+                    const meta = initialData?.metadata as Record<string, unknown> | undefined;
+                    const savedTipo = meta?.tipo_concierge;
+                    setTipoConcierge((savedTipo === 'oferta' || savedTipo === 'reserva' || savedTipo === 'suporte' || savedTipo === 'operacional') ? savedTipo : '');
+                    const savedCat = meta?.categoria_concierge;
+                    setCategoriaConcierge((typeof savedCat === 'string' ? savedCat : '') as CategoriaConcierge | '');
+                }
 
                 // Meeting fields
                 setMeetingStatus(initialData?.status || 'agendada');
@@ -468,6 +513,8 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 // Create mode - Reset everything
                 setDescription('');
                 setMetadata({});
+                setTipoConcierge('');
+                setCategoriaConcierge('');
                 setResponsibleId(user?.id || '');
                 setMeetingStatus('agendada');
                 setMeetingResult('');
@@ -743,10 +790,25 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 }
             }
 
+            // Validation for Concierge: quando o responsável é do time concierge,
+            // o operador precisa escolher tipo + categoria do atendimento.
+            if (isResponsibleConcierge && !tipoConcierge) {
+                throw new Error("Escolha o tipo do atendimento de Concierge (Oferta, Reserva, Suporte ou Operacional).");
+            }
+            if (isResponsibleConcierge && !categoriaConcierge) {
+                throw new Error("Escolha a categoria do atendimento de Concierge.");
+            }
+
             // Build metadata with duration and meeting link for meetings
-            const finalMetadata = type === 'reuniao'
+            const baseMetadata = type === 'reuniao'
                 ? { ...metadata, duration_minutes: durationMinutes, ...(meetingLink ? { meeting_link: meetingLink } : {}) }
                 : metadata;
+            // Inject tipo_concierge + categoria_concierge no metadata para que
+            // o trigger do banco crie o atendimento com os valores escolhidos
+            // (em vez dos defaults operacional/outro).
+            const finalMetadata = isResponsibleConcierge && tipoConcierge
+                ? { ...baseMetadata, tipo_concierge: tipoConcierge, categoria_concierge: categoriaConcierge }
+                : baseMetadata;
 
             // Determine if call is being created as already done
             const isCallAlreadyDone = type === 'contato' && callAlreadyDone && mode === 'create';
@@ -1253,6 +1315,65 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                 )}
                             </div>
                         </div>
+
+                        {/* Concierge — required type selector when responsible is concierge */}
+                        {isResponsibleConcierge && (
+                            <div className="grid gap-2 animate-in fade-in slide-in-from-top-2">
+                                <Label className="flex items-center gap-1">
+                                    Tipo do atendimento (Concierge) <span className="text-red-500">*</span>
+                                </Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {([
+                                        { value: 'oferta',      label: 'Oferta',      dot: 'bg-purple-500',  active: 'border-purple-300 bg-purple-50 text-purple-700' },
+                                        { value: 'reserva',     label: 'Reserva',     dot: 'bg-cyan-500',    active: 'border-cyan-300 bg-cyan-50 text-cyan-700' },
+                                        { value: 'suporte',     label: 'Suporte',     dot: 'bg-red-500',     active: 'border-red-300 bg-red-50 text-red-700' },
+                                        { value: 'operacional', label: 'Operacional', dot: 'bg-emerald-500', active: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
+                                    ] as const).map(opt => {
+                                        const selected = tipoConcierge === opt.value;
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => setTipoConcierge(opt.value)}
+                                                className={cn(
+                                                    "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors",
+                                                    selected ? opt.active : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                )}
+                                            >
+                                                <span className={cn("w-1.5 h-1.5 rounded-full", opt.dot)} />
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {!tipoConcierge && (
+                                    <p className="text-xs text-amber-600">Escolha um tipo para a tarefa aparecer corretamente em /concierge.</p>
+                                )}
+
+                                {tipoConcierge && (
+                                    <div className="grid gap-1.5 mt-2">
+                                        <Label className="flex items-center gap-1">
+                                            Categoria <span className="text-red-500">*</span>
+                                        </Label>
+                                        <select
+                                            value={categoriaConcierge}
+                                            onChange={(e) => setCategoriaConcierge(e.target.value as CategoriaConcierge)}
+                                            className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                        >
+                                            {categoriasDoTipo.length === 0 && (
+                                                <option value="">Nenhuma categoria pra esse tipo</option>
+                                            )}
+                                            {categoriasDoTipo.length > 0 && !categoriaConcierge && (
+                                                <option value="">Selecione...</option>
+                                            )}
+                                            {categoriasDoTipo.map(c => (
+                                                <option key={c.key} value={c.key}>{c.config.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Meeting-specific: External Participants */}
                         {type === 'reuniao' && (

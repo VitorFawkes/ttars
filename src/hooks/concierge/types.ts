@@ -1,5 +1,5 @@
 export type TipoConcierge = 'oferta' | 'reserva' | 'suporte' | 'operacional'
-export type SourceConcierge = 'cadencia' | 'manual' | 'cliente' | 'planner_request'
+export type SourceConcierge = 'cadencia' | 'manual' | 'cliente'
 export type OutcomeConcierge = 'aceito' | 'recusado' | 'feito' | 'cancelado'
 export type CobradoDe = 'cliente' | 'cortesia' | 'incluido_pacote'
 export type StatusApresentacao = 'concluido' | 'fechado' | 'vencido' | 'hoje' | 'esta_semana' | 'futuro'
@@ -76,10 +76,9 @@ export const TIPO_LABEL: Record<TipoConcierge, { label: string; tone: string; co
 }
 
 export const SOURCE_LABEL: Record<SourceConcierge, { label: string }> = {
-  cadencia:        { label: 'Cadência'      },
-  manual:          { label: 'Manual'        },
-  cliente:         { label: 'Cliente'       },
-  planner_request: { label: 'Planner pediu' },
+  cadencia: { label: 'Cadência' },
+  manual:   { label: 'Manual'   },
+  cliente:  { label: 'Cliente'  },
 }
 
 export interface AtendimentoConcierge {

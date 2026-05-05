@@ -715,3 +715,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-04T20:52:24Z | supabase/migrations/20260504t_activity_descriptions_richer.sql | applied_to_prod
 2026-05-04T20:53:17Z | supabase/migrations/20260504u_enrich_actor_recognizes_cron.sql | applied_to_prod
 2026-05-04T20:54:08Z | supabase/migrations/20260504v_backfill_cron_task_updates.sql | applied_to_prod
+2026-05-05T15:51:07Z | supabase/migrations/20260505a_auto_create_atendimento_for_concierge_assignee.sql | applied_to_prod
+2026-05-05T16:43:06Z | supabase/migrations/20260505b_auto_create_atendimento_on_assignee_change.sql | applied_to_prod
+2026-05-05T17:01:04Z | supabase/migrations/20260505c_trigger_reads_tipo_from_metadata.sql | applied_to_prod
+2026-05-05T17:59:13Z | supabase/migrations/20260505d_drop_planner_request_source.sql | applied_to_prod
+2026-05-05T18:07:28Z | supabase/migrations/20260505e_trigger_skips_cadence_metadata.sql | applied_to_prod
