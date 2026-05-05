@@ -95,6 +95,50 @@ export async function fundirCards(
     return data as FundirCardsResult
 }
 
+export interface FundirCardsV2Result {
+    success: boolean
+    card_destino_id: string
+    card_destino_titulo: string | null
+    origens_processadas: number
+    origens_titulos: string[]
+    items_moved: number
+    passengers_moved: number
+    contatos_moved: number
+    activities_moved: number
+    tasks_moved: number
+    team_moved: number
+    attachments_moved: number
+    destino_valor_final: number | null
+    destino_receita: number | null
+    migrate_tasks: boolean
+    migrate_venda_monde: boolean
+}
+
+export async function fundirCardsV2(args: {
+    origens: string[]
+    destino: string
+    migrateTasks: boolean
+    migrateVendaMonde: boolean
+    /** IDs específicos de tarefas a migrar. NULL = todas (default). */
+    taskIds?: string[] | null
+    /** Números específicos de venda Monde a migrar. NULL = todos (default). */
+    vendaMondeNumbers?: string[] | null
+    motivo?: string
+}): Promise<FundirCardsV2Result> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC não tipada
+    const { data, error } = await (supabase.rpc as any)('fundir_cards_v2', {
+        p_origens: args.origens,
+        p_destino: args.destino,
+        p_migrate_tasks: args.migrateTasks,
+        p_migrate_venda_monde: args.migrateVendaMonde,
+        p_task_ids: args.taskIds ?? null,
+        p_venda_monde_numbers: args.vendaMondeNumbers ?? null,
+        p_motivo: args.motivo ?? null,
+    })
+    if (error) throw error
+    return data as FundirCardsV2Result
+}
+
 export async function moverFinancialItems(
     itemIds: string[],
     cardDestinoId: string,

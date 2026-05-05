@@ -16,7 +16,7 @@ export default function Cards() {
         <ErrorBoundary>
             <div className="flex h-full flex-col relative overflow-hidden bg-gray-50/50">
                 {/* Header */}
-                <div className="flex-shrink-0 py-4 px-8 bg-white/50 backdrop-blur-sm border-b border-gray-200/50 z-10">
+                <div className="flex-shrink-0 py-4 px-8 bg-white border-b border-gray-200 z-10">
                     <header className="flex items-center justify-between gap-4 mb-4">
                         <div className="flex items-center gap-4">
                             <div className="p-2 bg-purple-100 rounded-lg">

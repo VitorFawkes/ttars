@@ -146,7 +146,7 @@ export default function InvitePage() {
                 type: 'success'
             });
 
-            navigate('/dashboard');
+            navigate('/pipeline');
 
         } catch (error) {
             console.error('Signup error:', error);
@@ -175,7 +175,7 @@ export default function InvitePage() {
                 description: 'Você agora faz parte desta organização. Use o seletor de workspace para alternar.',
                 type: 'success',
             });
-            navigate('/dashboard');
+            navigate('/pipeline');
         } catch (error) {
             console.error('Accept invite error:', error);
             const message = error instanceof Error ? error.message : 'Falha ao aceitar convite.';

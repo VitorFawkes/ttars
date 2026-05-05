@@ -10,7 +10,6 @@ import { usePlatformAdmin } from '../../hooks/usePlatformAdmin'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
 const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[]; roles?: string[] }[] = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
     { name: 'Propostas', href: '/proposals', icon: FileText },

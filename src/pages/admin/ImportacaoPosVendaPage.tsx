@@ -4504,7 +4504,7 @@ export default function ImportacaoPosVendaPage() {
         })
     }, [trips, filteredTrips, hasActiveFilters])
 
-    if (!canAccess) return <Navigate to="/dashboard" replace />
+    if (!canAccess) return <Navigate to="/pipeline" replace />
 
     // ─── Stats ───────────────────────────────────────────────
     // Quando há filtro ativo, contadores refletem apenas o que está visível.
@@ -4529,7 +4529,7 @@ export default function ImportacaoPosVendaPage() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                        <Link to="/dashboard" className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                        <Link to="/settings" className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
                             <ArrowLeft className="h-5 w-5 text-slate-500" />
                         </Link>
                         <div>

@@ -8,6 +8,7 @@
 > **Last Updated:** 2026-05-05
 > **Trigger:** ALWAYS ON
 > **Stats:** 191 tabelas | 145 paginas | 231 hooks | 22 views | 644 components
+> **Stats:** 191 tabelas | 147 paginas | 158 hooks | 22 views | 650 components
 
 ---
 

@@ -51,7 +51,7 @@ export default function ResetPassword() {
             const { error } = await supabase.auth.updateUser({ password })
             if (error) throw error
             setSuccess(true)
-            setTimeout(() => navigate('/dashboard'), 2000)
+            setTimeout(() => navigate('/pipeline'), 2000)
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Erro ao redefinir senha'
             setError(message)
