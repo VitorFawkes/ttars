@@ -9,7 +9,6 @@ import ResetPassword from './pages/ResetPassword'
 import Terms from './pages/legal/Terms'
 import Privacy from './pages/legal/Privacy'
 import DPA from './pages/legal/DPA'
-import Dashboard from './pages/Dashboard'
 import InvitePage from './pages/InvitePage'
 import Pipeline from './pages/Pipeline'
 import CardDetail from './pages/CardDetail'
@@ -182,7 +181,7 @@ const queryClient = new QueryClient({
 
 function DefaultRedirect() {
     const lastRoute = localStorage.getItem('welcomecrm-last-route')
-    const target = lastRoute && lastRoute !== '/' ? lastRoute : '/dashboard'
+    const target = lastRoute && lastRoute !== '/' && lastRoute !== '/dashboard' ? lastRoute : '/pipeline'
     return <Navigate to={target} replace />
 }
 
@@ -229,7 +228,7 @@ function App() {
                 {/* Protected Routes */}
                 <Route element={<Layout />}>
                   <Route path="/" element={<DefaultRedirect />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<Navigate to="/pipeline" replace />} />
                   <Route path="/pipeline" element={<Pipeline />} />
                   <Route path="/leads" element={<Leads />} />
                   <Route path="/groups" element={<GroupsPage />} />

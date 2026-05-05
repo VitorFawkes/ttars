@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Headphones, Building2, type LucideIcon } from 'lucide-react'
+import { Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Headphones, Building2, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
 import { useAuth } from '../../contexts/AuthContext'
@@ -9,7 +9,6 @@ import { usePlatformAdmin } from '../../hooks/usePlatformAdmin'
 import { useTodayMeetingCount } from '../../hooks/calendar/useTodayMeetingCount'
 
 const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: string[]; adminOnly?: boolean; phases?: string[]; roles?: string[] }[] = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
     { name: 'Propostas', href: '/proposals', icon: FileText },

@@ -23,7 +23,7 @@ export default function PresentesHubPage() {
 
     if (loading) return null
     const canAccess = profile?.is_admin === true || profile?.role === 'pos_venda'
-    if (!canAccess) return <Navigate to="/dashboard" replace />
+    if (!canAccess) return <Navigate to="/pipeline" replace />
 
 
     return (

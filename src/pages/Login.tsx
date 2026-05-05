@@ -13,7 +13,7 @@ export default function Login() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const { session } = useAuth()
-    const redirectTo = searchParams.get('redirect') || '/dashboard'
+    const redirectTo = searchParams.get('redirect') || '/pipeline'
 
     if (session) {
         navigate(redirectTo)

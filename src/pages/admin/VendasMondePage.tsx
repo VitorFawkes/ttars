@@ -806,7 +806,7 @@ export default function VendasMondePage() {
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
-    if (!isAdmin && !isGestor) return <Navigate to="/dashboard" replace />
+    if (!isAdmin && !isGestor) return <Navigate to="/pipeline" replace />
 
     // ─── Computed stats from last import ─────────────────────
     const lastImport = history[0] as ImportLogRow | undefined
