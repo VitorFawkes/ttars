@@ -542,7 +542,7 @@ function ConfigSection({
             onChange={(e) => setLocalThreshold(Number(e.target.value))}
             min={0}
             step={1}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="no-spin w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <p className="text-xs text-slate-500 mt-1">Lead com score maior ou igual vira qualificado.</p>
         </div>
@@ -555,7 +555,7 @@ function ConfigSection({
             onChange={(e) => setLocalMaxBonus(Number(e.target.value))}
             min={0}
             step={1}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="no-spin w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <p className="text-xs text-slate-500 mt-1">Limite que sinais indiretos podem somar juntos.</p>
         </div>
@@ -993,7 +993,7 @@ function CriterionRow({
               value={weight}
               onChange={(e) => setWeight(Number(e.target.value))}
               step={1}
-              className="w-16 border border-slate-300 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="no-spin w-16 border border-slate-300 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
         )}
@@ -1096,7 +1096,7 @@ function ConditionEditor({
           value={value?.min ?? ''}
           onChange={(e) => onChange({ ...value, min: e.target.value === '' ? null : Number(e.target.value) })}
           placeholder="mínimo"
-          className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="no-spin flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <span className="text-slate-400 text-xs">até</span>
         <input
@@ -1104,7 +1104,7 @@ function ConditionEditor({
           value={value?.max ?? ''}
           onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
           placeholder="máximo"
-          className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="no-spin flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </div>
     )
