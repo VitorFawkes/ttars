@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Building2, type LucideIcon } from 'lucide-react'
+import { Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Building2, type LucideIcon } from 'lucide-react'
 import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
