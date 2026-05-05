@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -946,6 +946,7 @@ function CriterionRow({
   const [ativa, setAtiva] = useState(rule.ativa)
   const [conditionValue, setConditionValue] = useState(rule.condition_value)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const dirty =
     label !== (rule.label ?? '') ||
@@ -954,17 +955,29 @@ function CriterionRow({
     JSON.stringify(conditionValue) !== JSON.stringify(rule.condition_value)
 
   const handleSave = async () => {
-    await onSave({
-      dimension: rule.dimension,
-      condition_type: rule.condition_type,
-      condition_value: conditionValue,
-      weight,
-      label,
-      ordem: rule.ordem,
-      ativa,
-      rule_type: rule.rule_type ?? 'qualify',
-      exclusion_group: rule.exclusion_group ?? null,
-    })
+    setIsSaving(true)
+    try {
+      await onSave({
+        dimension: rule.dimension,
+        condition_type: rule.condition_type,
+        condition_value: conditionValue,
+        weight,
+        label,
+        ordem: rule.ordem,
+        ativa,
+        rule_type: rule.rule_type ?? 'qualify',
+        exclusion_group: rule.exclusion_group ?? null,
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDiscard = () => {
+    setLabel(rule.label ?? '')
+    setWeight(rule.weight)
+    setAtiva(rule.ativa)
+    setConditionValue(rule.condition_value)
   }
 
   const conditionLabel: Record<ConditionType, string> = {
@@ -975,9 +988,12 @@ function CriterionRow({
   }
 
   return (
-    <div className={cn('border rounded-lg', ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50')}>
+    <div className={cn(
+      'border rounded-lg overflow-hidden',
+      dirty ? 'border-amber-300 ring-2 ring-amber-100' : ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50',
+    )}>
       {/* Linha principal: label + peso + toggle */}
-      <div className="flex items-center gap-2 p-3">
+      <div className={cn('flex items-center gap-2 p-3', dirty ? 'bg-white' : '')}>
         <input
           type="text"
           value={label}
@@ -1007,11 +1023,6 @@ function CriterionRow({
         >
           {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </Button>
-        {dirty && (
-          <Button size="sm" variant="ghost" onClick={handleSave} className="h-8 w-8 p-0" title="Salvar">
-            <Save className="w-4 h-4 text-indigo-600" />
-          </Button>
-        )}
         <Button size="sm" variant="ghost" onClick={onDelete} className="h-8 w-8 p-0" title="Deletar">
           <Trash2 className="w-4 h-4 text-red-500" />
         </Button>
@@ -1044,6 +1055,37 @@ function CriterionRow({
                 </code>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Barra de salvamento — visível quando há mudanças não salvas */}
+      {dirty && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-amber-50 border-t border-amber-200">
+          <span className="text-xs font-medium text-amber-800 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Você tem mudanças não salvas
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDiscard}
+              disabled={isSaving}
+              className="gap-1.5 h-8"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Descartar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Salvar
+            </Button>
           </div>
         </div>
       )}
