@@ -125,25 +125,26 @@ export function TabPontuacao({ agentId }: Props) {
             isSaving={upsertConfig.isPending}
           />
 
-          {/* Dimensoes + Regras */}
-          <DimensionsSection
+          {/* Critérios organizados por categoria */}
+          <CriteriaSection
             rules={rules}
+            maxBonus={maxBonus}
             onSaveRule={async (input) => {
               try {
                 await upsertRule.mutateAsync(input)
-                toast.success(input.id ? 'Regra atualizada' : 'Regra criada')
+                toast.success(input.id ? 'Critério atualizado' : 'Critério criado')
               } catch (err) {
-                toast.error('Erro ao salvar regra')
+                toast.error('Erro ao salvar critério')
                 console.error(err)
               }
             }}
             onDeleteRule={async (ruleId) => {
-              if (!confirm('Deletar esta regra?')) return
+              if (!confirm('Deletar este critério?')) return
               try {
                 await deleteRule.mutateAsync(ruleId)
-                toast.success('Regra deletada')
+                toast.success('Critério deletado')
               } catch (err) {
-                toast.error('Erro ao deletar regra')
+                toast.error('Erro ao deletar critério')
                 console.error(err)
               }
             }}
@@ -335,7 +336,7 @@ function ScoringExplainer({
           </h4>
           <div className="space-y-3">
             {qualifyGroups.map((g) => (
-              <ExclusionGroupCard key={g.name} group={g} />
+              <ExclusionGroupBars key={g.name} group={g} />
             ))}
           </div>
         </div>
@@ -393,8 +394,8 @@ function ScoringExplainer({
   )
 }
 
-// Card de um grupo exclusivo: mostra escala visual de pesos
-function ExclusionGroupCard({ group }: { group: { name: string; rules: ScoringRule[] } }) {
+// Card de um grupo exclusivo (visualização leitura no Explainer): escala visual
+function ExclusionGroupBars({ group }: { group: { name: string; rules: ScoringRule[] } }) {
   const maxWeight = Math.max(...group.rules.map((r) => Number(r.weight)))
 
   return (
@@ -590,199 +591,353 @@ function ConfigSection({
 }
 
 // ============================================================================
-// Dimensions Section — agrupa regras por dimension e permite CRUD
+// Criteria Section — organiza regras por categoria (4 buckets)
 // ============================================================================
 
-function DimensionsSection({
+function CriteriaSection({
   rules,
+  maxBonus,
   onSaveRule,
   onDeleteRule,
 }: {
   rules: ScoringRule[]
+  maxBonus: number
   onSaveRule: (input: ScoringRuleInput) => Promise<void>
   onDeleteRule: (ruleId: string) => Promise<void>
 }) {
-  const grouped = useMemo(() => {
-    const map: Record<string, ScoringRule[]> = {}
-    for (const r of rules) {
-      if (!map[r.dimension]) map[r.dimension] = []
-      map[r.dimension].push(r)
+  const buckets = useMemo(() => {
+    const disqualify = rules.filter((r) => r.rule_type === 'disqualify')
+    const bonus = rules.filter((r) => r.rule_type === 'bonus')
+    const qualify = rules.filter((r) => r.rule_type === 'qualify')
+
+    const groupMap = new Map<string, ScoringRule[]>()
+    const individual: ScoringRule[] = []
+    for (const r of qualify) {
+      if (r.exclusion_group) {
+        if (!groupMap.has(r.exclusion_group)) groupMap.set(r.exclusion_group, [])
+        groupMap.get(r.exclusion_group)!.push(r)
+      } else {
+        individual.push(r)
+      }
     }
-    return map
+    const exclusionGroups = Array.from(groupMap.entries())
+      .map(([name, gRules]) => ({ name, rules: gRules.sort((a, b) => Number(b.weight) - Number(a.weight)) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return { disqualify, exclusionGroups, individual, bonus }
   }, [rules])
 
-  const [addingDimension, setAddingDimension] = useState(false)
-  const [newDimensionName, setNewDimensionName] = useState('')
-  const [newDimensionType, setNewDimensionType] = useState<ConditionType>('equals')
-
-  const dimensionNames = Object.keys(grouped).sort()
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(dimensionNames))
-
-  const toggleExpanded = (dim: string) => {
-    const next = new Set(expanded)
-    if (next.has(dim)) next.delete(dim)
-    else next.add(dim)
-    setExpanded(next)
+  const generateDimensionKey = (prefix: string): string => {
+    const id = Math.random().toString(36).slice(2, 6)
+    return `${prefix}_${id}`
   }
 
-  const handleCreateRule = async (dimension: string, conditionType: ConditionType) => {
-    const defaultValue =
-      conditionType === 'equals'
-        ? { value: '' }
-        : conditionType === 'range'
-          ? { min: 0, max: null }
-          : { field: '' }
-
+  const handleCreateDisqualify = async () => {
     await onSaveRule({
-      dimension,
-      condition_type: conditionType,
-      condition_value: defaultValue,
+      dimension: generateDimensionKey('alerta'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 0,
+      label: 'Novo alerta',
+      ordem: 100 + buckets.disqualify.length,
+      ativa: true,
+      rule_type: 'disqualify',
+    })
+  }
+
+  const handleCreateGroup = async (groupName: string) => {
+    await onSaveRule({
+      dimension: generateDimensionKey(groupName),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
       weight: 10,
-      label: 'Nova regra',
-      ordem: (grouped[dimension]?.length ?? 0) * 10 + 10,
+      label: 'Nova opção',
+      ordem: 10,
+      ativa: true,
+      rule_type: 'qualify',
+      exclusion_group: groupName,
+    })
+  }
+
+  const handleCreateOption = async (groupName: string) => {
+    const existing = buckets.exclusionGroups.find((g) => g.name === groupName)
+    await onSaveRule({
+      dimension: generateDimensionKey(groupName),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 10,
+      label: 'Nova opção',
+      ordem: (existing?.rules.length ?? 0) * 10 + 10,
+      ativa: true,
+      rule_type: 'qualify',
+      exclusion_group: groupName,
+    })
+  }
+
+  const handleCreateIndividual = async () => {
+    await onSaveRule({
+      dimension: generateDimensionKey('sinal'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 10,
+      label: 'Novo sinal',
+      ordem: 10 + buckets.individual.length,
       ativa: true,
       rule_type: 'qualify',
     })
   }
 
-  const handleCreateDimension = async () => {
-    const name = newDimensionName.trim()
-    if (!name) {
-      toast.error('Nome da dimensão é obrigatório')
-      return
-    }
-    if (grouped[name]) {
-      toast.error('Já existe uma dimensão com esse nome')
-      return
-    }
-    await handleCreateRule(name, newDimensionType)
-    setAddingDimension(false)
-    setNewDimensionName('')
-    setNewDimensionType('equals')
-    setExpanded(new Set([...expanded, name]))
+  const handleCreateBonus = async () => {
+    await onSaveRule({
+      dimension: generateDimensionKey('bonus'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 5,
+      label: 'Novo bônus',
+      ordem: 10 + buckets.bonus.length,
+      ativa: true,
+      rule_type: 'bonus',
+    })
   }
 
   return (
-    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">Dimensões e regras</h3>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Cada dimensão agrupa regras de um mesmo tipo (ex: "região", "valor por convidado", "urgência").
-          </p>
-        </div>
-        {!addingDimension && (
-          <Button variant="outline" size="sm" onClick={() => setAddingDimension(true)} className="gap-1.5">
-            <Plus className="w-4 h-4" /> Nova dimensão
-          </Button>
-        )}
-      </div>
-
-      {addingDimension && (
-        <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-4 mb-4">
-          <h4 className="text-sm font-medium text-slate-900 mb-3">Nova dimensão</h4>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Nome técnico (chave)</label>
-              <input
-                type="text"
-                value={newDimensionName}
-                onChange={(e) => setNewDimensionName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
-                placeholder="ex: regiao, valor_convidado, urgencia"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    <section className="space-y-4">
+      {/* Bucket: Alertas vermelhos */}
+      <BucketCard
+        icon={<ShieldAlert className="w-5 h-5 text-red-600" />}
+        title="Alertas vermelhos"
+        subtitle="Se qualquer um bater, desqualifica direto. Sem somar pontos."
+        accent="red"
+        onAdd={handleCreateDisqualify}
+        addLabel="Adicionar alerta"
+      >
+        {buckets.disqualify.length === 0 ? (
+          <EmptyState message="Nenhum alerta configurado." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.disqualify.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                hideWeight
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
               />
-              <p className="text-[11px] text-slate-500 mt-1">Só letras minúsculas, números e underscore. É a chave que o agente vai passar no input.</p>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Tipo de avaliação</label>
-              <select
-                value={newDimensionType}
-                onChange={(e) => setNewDimensionType(e.target.value as ConditionType)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="equals">Valor igual a... (ex: destino = "Caribe")</option>
-                <option value="range">Dentro de uma faixa... (ex: orçamento entre X e Y)</option>
-                <option value="boolean_true">Campo booleano = true (ex: viajou_fora = true)</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <Button variant="ghost" size="sm" onClick={() => { setAddingDimension(false); setNewDimensionName('') }}>Cancelar</Button>
-            <Button size="sm" onClick={handleCreateDimension}>Criar dimensão</Button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {dimensionNames.length === 0 && !addingDimension && (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            Nenhuma dimensão ainda. Crie uma pra começar a pontuar leads.
+            ))}
           </div>
         )}
+      </BucketCard>
 
-        {dimensionNames.map((dim) => {
-          const dimRules = grouped[dim] ?? []
-          const isExpanded = expanded.has(dim)
-          const totalWeight = dimRules.filter(r => r.ativa).reduce((sum, r) => sum + Number(r.weight), 0)
-          const conditionType = dimRules[0]?.condition_type ?? 'equals'
+      {/* Bucket: Grupos exclusivos */}
+      <BucketCard
+        icon={<Target className="w-5 h-5 text-indigo-600" />}
+        title="Grupos exclusivos"
+        subtitle="Critérios mutuamente excludentes — só uma opção do grupo pode pontuar."
+        accent="indigo"
+        onAdd={async () => {
+          const name = prompt('Nome do novo grupo (ex: destino, valor_convidado, urgencia):')
+          if (!name) return
+          const slug = name.toLowerCase().replace(/[^a-z0-9_]/g, '_')
+          if (!slug) return
+          if (buckets.exclusionGroups.some((g) => g.name === slug)) {
+            toast.error('Já existe um grupo com esse nome')
+            return
+          }
+          await handleCreateGroup(slug)
+        }}
+        addLabel="Novo grupo"
+      >
+        {buckets.exclusionGroups.length === 0 ? (
+          <EmptyState message="Nenhum grupo exclusivo." />
+        ) : (
+          <div className="space-y-3">
+            {buckets.exclusionGroups.map((group) => (
+              <ExclusionGroupCard
+                key={group.name}
+                group={group}
+                onSaveRule={onSaveRule}
+                onDeleteRule={onDeleteRule}
+                onAddOption={() => handleCreateOption(group.name)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
 
-          return (
-            <div key={dim} className="border border-slate-200 rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => toggleExpanded(dim)}
-                className="w-full flex items-center gap-2 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-              >
-                {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
-                <span className="font-mono text-sm font-medium text-slate-900">{dim}</span>
-                <span className="text-xs text-slate-500">
-                  ({dimRules.length} {dimRules.length === 1 ? 'regra' : 'regras'}, soma máx: {totalWeight})
-                </span>
-                <span className="text-xs bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-600 ml-2">
-                  {conditionType === 'equals' && 'igual a'}
-                  {conditionType === 'range' && 'faixa'}
-                  {conditionType === 'boolean_true' && 'booleano'}
-                </span>
-              </button>
+      {/* Bucket: Sinais individuais */}
+      <BucketCard
+        icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
+        title="Sinais individuais"
+        subtitle="Critérios independentes que somam ao score (não excluem outros)."
+        accent="indigo"
+        onAdd={handleCreateIndividual}
+        addLabel="Adicionar sinal"
+      >
+        {buckets.individual.length === 0 ? (
+          <EmptyState message="Nenhum sinal individual." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.individual.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
 
-              {isExpanded && (
-                <div className="p-3 space-y-2 bg-white">
-                  {dimRules.map((rule) => (
-                    <RuleRow
-                      key={rule.id}
-                      rule={rule}
-                      onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
-                      onDelete={() => onDeleteRule(rule.id)}
-                    />
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCreateRule(dim, conditionType)}
-                    className="gap-1.5 w-full justify-center"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Nova regra em "{dim}"
-                  </Button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {/* Bucket: Bônus */}
+      <BucketCard
+        icon={<Sparkles className="w-5 h-5 text-emerald-600" />}
+        title="Bônus"
+        subtitle={`Reforçam o caso. Somam até ${maxBonus} pontos no total (cap configurável acima).`}
+        accent="emerald"
+        onAdd={handleCreateBonus}
+        addLabel="Adicionar bônus"
+      >
+        {buckets.bonus.length === 0 ? (
+          <EmptyState message="Nenhum bônus configurado." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.bonus.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
     </section>
   )
 }
 
+// Bucket card wrapper
+function BucketCard({
+  icon,
+  title,
+  subtitle,
+  accent,
+  onAdd,
+  addLabel,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  accent: 'red' | 'indigo' | 'emerald'
+  onAdd: () => void | Promise<void>
+  addLabel: string
+  children: React.ReactNode
+}) {
+  const accentBorder = {
+    red: 'border-l-red-400',
+    indigo: 'border-l-indigo-400',
+    emerald: 'border-l-emerald-400',
+  }[accent]
+
+  return (
+    <section className={cn('bg-white border border-slate-200 border-l-4 shadow-sm rounded-xl p-5', accentBorder)}>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          {icon}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
+            <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={onAdd} className="gap-1.5 flex-shrink-0">
+          <Plus className="w-3.5 h-3.5" /> {addLabel}
+        </Button>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-6 text-slate-400 text-xs italic border border-dashed border-slate-200 rounded-lg">
+      {message}
+    </div>
+  )
+}
+
+// Card de um grupo exclusivo (lista de opções com pesos)
+function ExclusionGroupCard({
+  group,
+  onSaveRule,
+  onDeleteRule,
+  onAddOption,
+}: {
+  group: { name: string; rules: ScoringRule[] }
+  onSaveRule: (input: ScoringRuleInput) => Promise<void>
+  onDeleteRule: (ruleId: string) => Promise<void>
+  onAddOption: () => void | Promise<void>
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const friendlyName = group.name.replace(/_/g, ' ')
+  const totalActive = group.rules.filter((r) => r.ativa).length
+  const maxWeight = Math.max(...group.rules.map((r) => Number(r.weight)), 0)
+
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        {collapsed ? <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />}
+        <span className="text-sm font-semibold text-slate-900 capitalize flex-1 truncate">{friendlyName}</span>
+        <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+          é OU é (não soma)
+        </span>
+        <span className="text-xs text-slate-500 ml-2 flex-shrink-0">
+          {totalActive} {totalActive === 1 ? 'opção' : 'opções'} · máx +{maxWeight}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="p-3 space-y-2">
+          {group.rules.map((rule) => (
+            <CriterionRow
+              key={rule.id}
+              rule={rule}
+              onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+              onDelete={() => onDeleteRule(rule.id)}
+            />
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onAddOption}
+            className="gap-1.5 w-full justify-center"
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar opção em {friendlyName}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ============================================================================
-// Rule Row — editor inline de uma regra individual
+// Criterion Row — linha editável de um critério individual
 // ============================================================================
 
-function RuleRow({
+function CriterionRow({
   rule,
+  hideWeight = false,
   onSave,
   onDelete,
 }: {
   rule: ScoringRule
+  hideWeight?: boolean
   onSave: (input: ScoringRuleInput) => Promise<void>
   onDelete: () => Promise<void>
 }) {
@@ -790,6 +945,7 @@ function RuleRow({
   const [weight, setWeight] = useState(rule.weight)
   const [ativa, setAtiva] = useState(rule.ativa)
   const [conditionValue, setConditionValue] = useState(rule.condition_value)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const dirty =
     label !== (rule.label ?? '') ||
@@ -807,26 +963,65 @@ function RuleRow({
       ordem: rule.ordem,
       ativa,
       rule_type: rule.rule_type ?? 'qualify',
+      exclusion_group: rule.exclusion_group ?? null,
     })
   }
 
+  const conditionLabel: Record<ConditionType, string> = {
+    ai_subjective: 'Pergunta que a IA avalia (responde sim/não com base na conversa)',
+    equals: 'Valor que precisa bater (texto exato)',
+    range: 'Faixa numérica',
+    boolean_true: 'Nome do campo booleano',
+  }
+
   return (
-    <div className={cn('border rounded-lg p-3', ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50')}>
-      <div className="flex items-start gap-2">
-        <div className="flex-1 grid md:grid-cols-12 gap-2 items-start">
-          <div className="md:col-span-4">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Descrição (aparece no breakdown)</label>
+    <div className={cn('border rounded-lg', ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50')}>
+      {/* Linha principal: label + peso + toggle */}
+      <div className="flex items-center gap-2 p-3">
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Descreva esse critério..."
+          className="flex-1 min-w-0 border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        {!hideWeight && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xs text-slate-500">peso</span>
             <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="ex: Caribe (top tier)"
-              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              type="number"
+              value={weight}
+              onChange={(e) => setWeight(Number(e.target.value))}
+              step={1}
+              className="w-16 border border-slate-300 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
+        )}
+        <ToggleSwitch checked={ativa} onChange={setAtiva} />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="h-8 w-8 p-0"
+          title={showAdvanced ? 'Ocultar detalhes' : 'Ver detalhes'}
+        >
+          {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </Button>
+        {dirty && (
+          <Button size="sm" variant="ghost" onClick={handleSave} className="h-8 w-8 p-0" title="Salvar">
+            <Save className="w-4 h-4 text-indigo-600" />
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onDelete} className="h-8 w-8 p-0" title="Deletar">
+          <Trash2 className="w-4 h-4 text-red-500" />
+        </Button>
+      </div>
 
-          <div className="md:col-span-5">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Condição</label>
+      {/* Detalhes expandidos: condição + chave técnica */}
+      {showAdvanced && (
+        <div className="border-t border-slate-200 px-3 py-3 space-y-3 bg-slate-50/30">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">{conditionLabel[rule.condition_type]}</label>
             <ConditionEditor
               type={rule.condition_type}
               value={conditionValue}
@@ -834,33 +1029,24 @@ function RuleRow({
             />
           </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Peso</label>
-            <input
-              type="number"
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
-              step={1}
-              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="md:col-span-1 flex items-end justify-center h-full pb-1">
-            <ToggleSwitch checked={ativa} onChange={setAtiva} />
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Chave técnica</label>
+              <code className="text-[11px] font-mono text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 block truncate">
+                {rule.dimension}
+              </code>
+            </div>
+            {rule.exclusion_group && (
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Grupo</label>
+                <code className="text-[11px] font-mono text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 block truncate">
+                  {rule.exclusion_group}
+                </code>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="flex items-center gap-1 pt-5">
-          {dirty && (
-            <Button size="sm" variant="ghost" onClick={handleSave} className="h-8 w-8 p-0" title="Salvar">
-              <Save className="w-4 h-4 text-indigo-600" />
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={onDelete} className="h-8 w-8 p-0" title="Deletar">
-            <Trash2 className="w-4 h-4 text-red-500" />
-          </Button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -880,6 +1066,17 @@ function ConditionEditor({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (v: any) => void
 }) {
+  if (type === 'ai_subjective') {
+    return (
+      <textarea
+        value={value?.question ?? ''}
+        onChange={(e) => onChange({ question: e.target.value })}
+        placeholder='ex: "O casal mencionou que quer casar no Caribe?"'
+        rows={3}
+        className="w-full border border-slate-300 rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+      />
+    )
+  }
   if (type === 'equals') {
     return (
       <input
@@ -887,27 +1084,27 @@ function ConditionEditor({
         value={value?.value ?? ''}
         onChange={(e) => onChange({ value: e.target.value })}
         placeholder="ex: Caribe"
-        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
     )
   }
   if (type === 'range') {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <input
           type="number"
           value={value?.min ?? ''}
           onChange={(e) => onChange({ ...value, min: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="mín"
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="mínimo"
+          className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <span className="text-slate-400 text-xs">até</span>
         <input
           type="number"
           value={value?.max ?? ''}
           onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="máx"
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="máximo"
+          className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </div>
     )
@@ -919,7 +1116,7 @@ function ConditionEditor({
         value={value?.field ?? ''}
         onChange={(e) => onChange({ field: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
         placeholder="ex: viajou_fora"
-        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
     )
   }
