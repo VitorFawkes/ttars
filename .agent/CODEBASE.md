@@ -459,6 +459,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AssistantStatsWidget` | `src/components/dashboard/AssistantStatsWidget.tsx` | Dashboard widget for assistant stats |
 | `DuplicateCardBanner` | `src/components/card/DuplicateCardBanner.tsx` | Aviso amarelo de possível duplicata no CreateCardModal |
 | `MergeCardsModal` | `src/components/card/MergeCardsModal.tsx` | Modal de agrupar (fundir) cards — busca por contato principal |
+| `AIChatPicker` | `src/components/card/AIChatPicker.tsx` | Seletor de conversa IA por contato — lista os cards onde o contato participou + abre AIChat |
 
 ---
 

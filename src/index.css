@@ -183,6 +183,20 @@
   }
 }
 
+/* Esconde as setinhas (spinner) nativas em inputs type=number — atrapalham
+   mais do que ajudam, ocupam espaço e disparam mudanças acidentais. Use
+   className="no-spin" pra optar (mantém o comportamento default em outros
+   inputs caso alguém prefira). */
+input.no-spin::-webkit-outer-spin-button,
+input.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .animate-confetti {
   animation: confetti 2.5s ease-out forwards;
 }

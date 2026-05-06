@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -8,7 +8,6 @@ import {
   type ScoringRule,
   type ScoringRuleInput,
   type ConditionType,
-  type ScoringResult,
   type FallbackAction,
   DEFAULT_SCORING_CONFIG,
 } from '@/hooks/useAgentScoring'
@@ -22,7 +21,7 @@ interface Props {
 // ============================================================================
 
 export function TabPontuacao({ agentId }: Props) {
-  const { config, rules, isLoading, upsertConfig, upsertRule, deleteRule, simulate } = useAgentScoring(agentId)
+  const { config, rules, isLoading, upsertConfig, upsertRule, deleteRule } = useAgentScoring(agentId)
 
   if (!agentId) {
     return (
@@ -125,45 +124,33 @@ export function TabPontuacao({ agentId }: Props) {
             isSaving={upsertConfig.isPending}
           />
 
-          {/* Dimensoes + Regras */}
-          <DimensionsSection
+          {/* Critérios organizados por categoria */}
+          <CriteriaSection
             rules={rules}
+            maxBonus={maxBonus}
             onSaveRule={async (input) => {
               try {
                 await upsertRule.mutateAsync(input)
-                toast.success(input.id ? 'Regra atualizada' : 'Regra criada')
+                toast.success(input.id ? 'Critério atualizado' : 'Critério criado')
               } catch (err) {
-                toast.error('Erro ao salvar regra')
+                toast.error('Erro ao salvar critério')
                 console.error(err)
               }
             }}
             onDeleteRule={async (ruleId) => {
-              if (!confirm('Deletar esta regra?')) return
+              if (!confirm('Deletar este critério?')) return
               try {
                 await deleteRule.mutateAsync(ruleId)
-                toast.success('Regra deletada')
+                toast.success('Critério deletado')
               } catch (err) {
-                toast.error('Erro ao deletar regra')
+                toast.error('Erro ao deletar critério')
                 console.error(err)
               }
             }}
           />
 
           {/* Simulador */}
-          <SimulatorSection
-            threshold={threshold}
-            rules={rules}
-            onSimulate={async (inputs) => {
-              try {
-                return await simulate.mutateAsync(inputs)
-              } catch (err) {
-                toast.error('Erro ao simular')
-                console.error(err)
-                return null
-              }
-            }}
-            isSimulating={simulate.isPending}
-          />
+          <SimulatorSection threshold={threshold} maxBonus={maxBonus} rules={rules} />
         </>
       )}
     </div>
@@ -335,7 +322,7 @@ function ScoringExplainer({
           </h4>
           <div className="space-y-3">
             {qualifyGroups.map((g) => (
-              <ExclusionGroupCard key={g.name} group={g} />
+              <ExclusionGroupBars key={g.name} group={g} />
             ))}
           </div>
         </div>
@@ -393,8 +380,8 @@ function ScoringExplainer({
   )
 }
 
-// Card de um grupo exclusivo: mostra escala visual de pesos
-function ExclusionGroupCard({ group }: { group: { name: string; rules: ScoringRule[] } }) {
+// Card de um grupo exclusivo (visualização leitura no Explainer): escala visual
+function ExclusionGroupBars({ group }: { group: { name: string; rules: ScoringRule[] } }) {
   const maxWeight = Math.max(...group.rules.map((r) => Number(r.weight)))
 
   return (
@@ -541,7 +528,7 @@ function ConfigSection({
             onChange={(e) => setLocalThreshold(Number(e.target.value))}
             min={0}
             step={1}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="no-spin w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <p className="text-xs text-slate-500 mt-1">Lead com score maior ou igual vira qualificado.</p>
         </div>
@@ -554,7 +541,7 @@ function ConfigSection({
             onChange={(e) => setLocalMaxBonus(Number(e.target.value))}
             min={0}
             step={1}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="no-spin w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <p className="text-xs text-slate-500 mt-1">Limite que sinais indiretos podem somar juntos.</p>
         </div>
@@ -590,199 +577,353 @@ function ConfigSection({
 }
 
 // ============================================================================
-// Dimensions Section — agrupa regras por dimension e permite CRUD
+// Criteria Section — organiza regras por categoria (4 buckets)
 // ============================================================================
 
-function DimensionsSection({
+function CriteriaSection({
   rules,
+  maxBonus,
   onSaveRule,
   onDeleteRule,
 }: {
   rules: ScoringRule[]
+  maxBonus: number
   onSaveRule: (input: ScoringRuleInput) => Promise<void>
   onDeleteRule: (ruleId: string) => Promise<void>
 }) {
-  const grouped = useMemo(() => {
-    const map: Record<string, ScoringRule[]> = {}
-    for (const r of rules) {
-      if (!map[r.dimension]) map[r.dimension] = []
-      map[r.dimension].push(r)
+  const buckets = useMemo(() => {
+    const disqualify = rules.filter((r) => r.rule_type === 'disqualify')
+    const bonus = rules.filter((r) => r.rule_type === 'bonus')
+    const qualify = rules.filter((r) => r.rule_type === 'qualify')
+
+    const groupMap = new Map<string, ScoringRule[]>()
+    const individual: ScoringRule[] = []
+    for (const r of qualify) {
+      if (r.exclusion_group) {
+        if (!groupMap.has(r.exclusion_group)) groupMap.set(r.exclusion_group, [])
+        groupMap.get(r.exclusion_group)!.push(r)
+      } else {
+        individual.push(r)
+      }
     }
-    return map
+    const exclusionGroups = Array.from(groupMap.entries())
+      .map(([name, gRules]) => ({ name, rules: gRules.sort((a, b) => Number(b.weight) - Number(a.weight)) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return { disqualify, exclusionGroups, individual, bonus }
   }, [rules])
 
-  const [addingDimension, setAddingDimension] = useState(false)
-  const [newDimensionName, setNewDimensionName] = useState('')
-  const [newDimensionType, setNewDimensionType] = useState<ConditionType>('equals')
-
-  const dimensionNames = Object.keys(grouped).sort()
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(dimensionNames))
-
-  const toggleExpanded = (dim: string) => {
-    const next = new Set(expanded)
-    if (next.has(dim)) next.delete(dim)
-    else next.add(dim)
-    setExpanded(next)
+  const generateDimensionKey = (prefix: string): string => {
+    const id = Math.random().toString(36).slice(2, 6)
+    return `${prefix}_${id}`
   }
 
-  const handleCreateRule = async (dimension: string, conditionType: ConditionType) => {
-    const defaultValue =
-      conditionType === 'equals'
-        ? { value: '' }
-        : conditionType === 'range'
-          ? { min: 0, max: null }
-          : { field: '' }
-
+  const handleCreateDisqualify = async () => {
     await onSaveRule({
-      dimension,
-      condition_type: conditionType,
-      condition_value: defaultValue,
+      dimension: generateDimensionKey('alerta'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 0,
+      label: 'Novo alerta',
+      ordem: 100 + buckets.disqualify.length,
+      ativa: true,
+      rule_type: 'disqualify',
+    })
+  }
+
+  const handleCreateGroup = async (groupName: string) => {
+    await onSaveRule({
+      dimension: generateDimensionKey(groupName),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
       weight: 10,
-      label: 'Nova regra',
-      ordem: (grouped[dimension]?.length ?? 0) * 10 + 10,
+      label: 'Nova opção',
+      ordem: 10,
+      ativa: true,
+      rule_type: 'qualify',
+      exclusion_group: groupName,
+    })
+  }
+
+  const handleCreateOption = async (groupName: string) => {
+    const existing = buckets.exclusionGroups.find((g) => g.name === groupName)
+    await onSaveRule({
+      dimension: generateDimensionKey(groupName),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 10,
+      label: 'Nova opção',
+      ordem: (existing?.rules.length ?? 0) * 10 + 10,
+      ativa: true,
+      rule_type: 'qualify',
+      exclusion_group: groupName,
+    })
+  }
+
+  const handleCreateIndividual = async () => {
+    await onSaveRule({
+      dimension: generateDimensionKey('sinal'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 10,
+      label: 'Novo sinal',
+      ordem: 10 + buckets.individual.length,
       ativa: true,
       rule_type: 'qualify',
     })
   }
 
-  const handleCreateDimension = async () => {
-    const name = newDimensionName.trim()
-    if (!name) {
-      toast.error('Nome da dimensão é obrigatório')
-      return
-    }
-    if (grouped[name]) {
-      toast.error('Já existe uma dimensão com esse nome')
-      return
-    }
-    await handleCreateRule(name, newDimensionType)
-    setAddingDimension(false)
-    setNewDimensionName('')
-    setNewDimensionType('equals')
-    setExpanded(new Set([...expanded, name]))
+  const handleCreateBonus = async () => {
+    await onSaveRule({
+      dimension: generateDimensionKey('bonus'),
+      condition_type: 'ai_subjective',
+      condition_value: { question: '' },
+      weight: 5,
+      label: 'Novo bônus',
+      ordem: 10 + buckets.bonus.length,
+      ativa: true,
+      rule_type: 'bonus',
+    })
   }
 
   return (
-    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">Dimensões e regras</h3>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Cada dimensão agrupa regras de um mesmo tipo (ex: "região", "valor por convidado", "urgência").
-          </p>
-        </div>
-        {!addingDimension && (
-          <Button variant="outline" size="sm" onClick={() => setAddingDimension(true)} className="gap-1.5">
-            <Plus className="w-4 h-4" /> Nova dimensão
-          </Button>
-        )}
-      </div>
-
-      {addingDimension && (
-        <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-4 mb-4">
-          <h4 className="text-sm font-medium text-slate-900 mb-3">Nova dimensão</h4>
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Nome técnico (chave)</label>
-              <input
-                type="text"
-                value={newDimensionName}
-                onChange={(e) => setNewDimensionName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
-                placeholder="ex: regiao, valor_convidado, urgencia"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    <section className="space-y-4">
+      {/* Bucket: Alertas vermelhos */}
+      <BucketCard
+        icon={<ShieldAlert className="w-5 h-5 text-red-600" />}
+        title="Alertas vermelhos"
+        subtitle="Se qualquer um bater, desqualifica direto. Sem somar pontos."
+        accent="red"
+        onAdd={handleCreateDisqualify}
+        addLabel="Adicionar alerta"
+      >
+        {buckets.disqualify.length === 0 ? (
+          <EmptyState message="Nenhum alerta configurado." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.disqualify.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                hideWeight
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
               />
-              <p className="text-[11px] text-slate-500 mt-1">Só letras minúsculas, números e underscore. É a chave que o agente vai passar no input.</p>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Tipo de avaliação</label>
-              <select
-                value={newDimensionType}
-                onChange={(e) => setNewDimensionType(e.target.value as ConditionType)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="equals">Valor igual a... (ex: destino = "Caribe")</option>
-                <option value="range">Dentro de uma faixa... (ex: orçamento entre X e Y)</option>
-                <option value="boolean_true">Campo booleano = true (ex: viajou_fora = true)</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <Button variant="ghost" size="sm" onClick={() => { setAddingDimension(false); setNewDimensionName('') }}>Cancelar</Button>
-            <Button size="sm" onClick={handleCreateDimension}>Criar dimensão</Button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {dimensionNames.length === 0 && !addingDimension && (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            Nenhuma dimensão ainda. Crie uma pra começar a pontuar leads.
+            ))}
           </div>
         )}
+      </BucketCard>
 
-        {dimensionNames.map((dim) => {
-          const dimRules = grouped[dim] ?? []
-          const isExpanded = expanded.has(dim)
-          const totalWeight = dimRules.filter(r => r.ativa).reduce((sum, r) => sum + Number(r.weight), 0)
-          const conditionType = dimRules[0]?.condition_type ?? 'equals'
+      {/* Bucket: Grupos exclusivos */}
+      <BucketCard
+        icon={<Target className="w-5 h-5 text-indigo-600" />}
+        title="Grupos exclusivos"
+        subtitle="Critérios mutuamente excludentes — só uma opção do grupo pode pontuar."
+        accent="indigo"
+        onAdd={async () => {
+          const name = prompt('Nome do novo grupo (ex: destino, valor_convidado, urgencia):')
+          if (!name) return
+          const slug = name.toLowerCase().replace(/[^a-z0-9_]/g, '_')
+          if (!slug) return
+          if (buckets.exclusionGroups.some((g) => g.name === slug)) {
+            toast.error('Já existe um grupo com esse nome')
+            return
+          }
+          await handleCreateGroup(slug)
+        }}
+        addLabel="Novo grupo"
+      >
+        {buckets.exclusionGroups.length === 0 ? (
+          <EmptyState message="Nenhum grupo exclusivo." />
+        ) : (
+          <div className="space-y-3">
+            {buckets.exclusionGroups.map((group) => (
+              <ExclusionGroupCard
+                key={group.name}
+                group={group}
+                onSaveRule={onSaveRule}
+                onDeleteRule={onDeleteRule}
+                onAddOption={() => handleCreateOption(group.name)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
 
-          return (
-            <div key={dim} className="border border-slate-200 rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => toggleExpanded(dim)}
-                className="w-full flex items-center gap-2 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-              >
-                {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
-                <span className="font-mono text-sm font-medium text-slate-900">{dim}</span>
-                <span className="text-xs text-slate-500">
-                  ({dimRules.length} {dimRules.length === 1 ? 'regra' : 'regras'}, soma máx: {totalWeight})
-                </span>
-                <span className="text-xs bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-600 ml-2">
-                  {conditionType === 'equals' && 'igual a'}
-                  {conditionType === 'range' && 'faixa'}
-                  {conditionType === 'boolean_true' && 'booleano'}
-                </span>
-              </button>
+      {/* Bucket: Sinais individuais */}
+      <BucketCard
+        icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
+        title="Sinais individuais"
+        subtitle="Critérios independentes que somam ao score (não excluem outros)."
+        accent="indigo"
+        onAdd={handleCreateIndividual}
+        addLabel="Adicionar sinal"
+      >
+        {buckets.individual.length === 0 ? (
+          <EmptyState message="Nenhum sinal individual." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.individual.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
 
-              {isExpanded && (
-                <div className="p-3 space-y-2 bg-white">
-                  {dimRules.map((rule) => (
-                    <RuleRow
-                      key={rule.id}
-                      rule={rule}
-                      onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
-                      onDelete={() => onDeleteRule(rule.id)}
-                    />
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCreateRule(dim, conditionType)}
-                    className="gap-1.5 w-full justify-center"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Nova regra em "{dim}"
-                  </Button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {/* Bucket: Bônus */}
+      <BucketCard
+        icon={<Sparkles className="w-5 h-5 text-emerald-600" />}
+        title="Bônus"
+        subtitle={`Reforçam o caso. Somam até ${maxBonus} pontos no total (cap configurável acima).`}
+        accent="emerald"
+        onAdd={handleCreateBonus}
+        addLabel="Adicionar bônus"
+      >
+        {buckets.bonus.length === 0 ? (
+          <EmptyState message="Nenhum bônus configurado." />
+        ) : (
+          <div className="space-y-2">
+            {buckets.bonus.map((rule) => (
+              <CriterionRow
+                key={rule.id}
+                rule={rule}
+                onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+                onDelete={() => onDeleteRule(rule.id)}
+              />
+            ))}
+          </div>
+        )}
+      </BucketCard>
     </section>
   )
 }
 
+// Bucket card wrapper
+function BucketCard({
+  icon,
+  title,
+  subtitle,
+  accent,
+  onAdd,
+  addLabel,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  accent: 'red' | 'indigo' | 'emerald'
+  onAdd: () => void | Promise<void>
+  addLabel: string
+  children: React.ReactNode
+}) {
+  const accentBorder = {
+    red: 'border-l-red-400',
+    indigo: 'border-l-indigo-400',
+    emerald: 'border-l-emerald-400',
+  }[accent]
+
+  return (
+    <section className={cn('bg-white border border-slate-200 border-l-4 shadow-sm rounded-xl p-5', accentBorder)}>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          {icon}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
+            <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={onAdd} className="gap-1.5 flex-shrink-0">
+          <Plus className="w-3.5 h-3.5" /> {addLabel}
+        </Button>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-6 text-slate-400 text-xs italic border border-dashed border-slate-200 rounded-lg">
+      {message}
+    </div>
+  )
+}
+
+// Card de um grupo exclusivo (lista de opções com pesos)
+function ExclusionGroupCard({
+  group,
+  onSaveRule,
+  onDeleteRule,
+  onAddOption,
+}: {
+  group: { name: string; rules: ScoringRule[] }
+  onSaveRule: (input: ScoringRuleInput) => Promise<void>
+  onDeleteRule: (ruleId: string) => Promise<void>
+  onAddOption: () => void | Promise<void>
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const friendlyName = group.name.replace(/_/g, ' ')
+  const totalActive = group.rules.filter((r) => r.ativa).length
+  const maxWeight = Math.max(...group.rules.map((r) => Number(r.weight)), 0)
+
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        {collapsed ? <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />}
+        <span className="text-sm font-semibold text-slate-900 capitalize flex-1 truncate">{friendlyName}</span>
+        <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+          é OU é (não soma)
+        </span>
+        <span className="text-xs text-slate-500 ml-2 flex-shrink-0">
+          {totalActive} {totalActive === 1 ? 'opção' : 'opções'} · máx +{maxWeight}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="p-3 space-y-2">
+          {group.rules.map((rule) => (
+            <CriterionRow
+              key={rule.id}
+              rule={rule}
+              onSave={(updated) => onSaveRule({ ...updated, id: rule.id })}
+              onDelete={() => onDeleteRule(rule.id)}
+            />
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onAddOption}
+            className="gap-1.5 w-full justify-center"
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar opção em {friendlyName}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ============================================================================
-// Rule Row — editor inline de uma regra individual
+// Criterion Row — linha editável de um critério individual
 // ============================================================================
 
-function RuleRow({
+function CriterionRow({
   rule,
+  hideWeight = false,
   onSave,
   onDelete,
 }: {
   rule: ScoringRule
+  hideWeight?: boolean
   onSave: (input: ScoringRuleInput) => Promise<void>
   onDelete: () => Promise<void>
 }) {
@@ -790,6 +931,8 @@ function RuleRow({
   const [weight, setWeight] = useState(rule.weight)
   const [ativa, setAtiva] = useState(rule.ativa)
   const [conditionValue, setConditionValue] = useState(rule.condition_value)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const dirty =
     label !== (rule.label ?? '') ||
@@ -798,35 +941,84 @@ function RuleRow({
     JSON.stringify(conditionValue) !== JSON.stringify(rule.condition_value)
 
   const handleSave = async () => {
-    await onSave({
-      dimension: rule.dimension,
-      condition_type: rule.condition_type,
-      condition_value: conditionValue,
-      weight,
-      label,
-      ordem: rule.ordem,
-      ativa,
-      rule_type: rule.rule_type ?? 'qualify',
-    })
+    setIsSaving(true)
+    try {
+      await onSave({
+        dimension: rule.dimension,
+        condition_type: rule.condition_type,
+        condition_value: conditionValue,
+        weight,
+        label,
+        ordem: rule.ordem,
+        ativa,
+        rule_type: rule.rule_type ?? 'qualify',
+        exclusion_group: rule.exclusion_group ?? null,
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDiscard = () => {
+    setLabel(rule.label ?? '')
+    setWeight(rule.weight)
+    setAtiva(rule.ativa)
+    setConditionValue(rule.condition_value)
+  }
+
+  const conditionLabel: Record<ConditionType, string> = {
+    ai_subjective: 'Pergunta que a IA avalia (responde sim/não com base na conversa)',
+    equals: 'Tipo legado',
+    range: 'Tipo legado',
+    boolean_true: 'Tipo legado',
   }
 
   return (
-    <div className={cn('border rounded-lg p-3', ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50')}>
-      <div className="flex items-start gap-2">
-        <div className="flex-1 grid md:grid-cols-12 gap-2 items-start">
-          <div className="md:col-span-4">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Descrição (aparece no breakdown)</label>
+    <div className={cn(
+      'border rounded-lg overflow-hidden',
+      dirty ? 'border-amber-300 ring-2 ring-amber-100' : ativa ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50/50',
+    )}>
+      {/* Linha principal: label + peso + toggle */}
+      <div className={cn('flex items-center gap-2 p-3', dirty ? 'bg-white' : '')}>
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Descreva esse critério..."
+          className="flex-1 min-w-0 border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        {!hideWeight && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xs text-slate-500">peso</span>
             <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="ex: Caribe (top tier)"
-              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              type="number"
+              value={weight}
+              onChange={(e) => setWeight(Number(e.target.value))}
+              step={1}
+              className="no-spin w-16 border border-slate-300 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
+        )}
+        <ToggleSwitch checked={ativa} onChange={setAtiva} />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="h-8 w-8 p-0"
+          title={showAdvanced ? 'Ocultar detalhes' : 'Ver detalhes'}
+        >
+          {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDelete} className="h-8 w-8 p-0" title="Deletar">
+          <Trash2 className="w-4 h-4 text-red-500" />
+        </Button>
+      </div>
 
-          <div className="md:col-span-5">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Condição</label>
+      {/* Detalhes expandidos: condição + chave técnica */}
+      {showAdvanced && (
+        <div className="border-t border-slate-200 px-3 py-3 space-y-3 bg-slate-50/30">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">{conditionLabel[rule.condition_type]}</label>
             <ConditionEditor
               type={rule.condition_type}
               value={conditionValue}
@@ -834,33 +1026,55 @@ function RuleRow({
             />
           </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-[11px] text-slate-500 mb-0.5">Peso</label>
-            <input
-              type="number"
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
-              step={1}
-              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="md:col-span-1 flex items-end justify-center h-full pb-1">
-            <ToggleSwitch checked={ativa} onChange={setAtiva} />
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Chave técnica</label>
+              <code className="text-[11px] font-mono text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 block truncate">
+                {rule.dimension}
+              </code>
+            </div>
+            {rule.exclusion_group && (
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Grupo</label>
+                <code className="text-[11px] font-mono text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 block truncate">
+                  {rule.exclusion_group}
+                </code>
+              </div>
+            )}
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-1 pt-5">
-          {dirty && (
-            <Button size="sm" variant="ghost" onClick={handleSave} className="h-8 w-8 p-0" title="Salvar">
-              <Save className="w-4 h-4 text-indigo-600" />
+      {/* Barra de salvamento — visível quando há mudanças não salvas */}
+      {dirty && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-amber-50 border-t border-amber-200">
+          <span className="text-xs font-medium text-amber-800 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Você tem mudanças não salvas
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDiscard}
+              disabled={isSaving}
+              className="gap-1.5 h-8"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Descartar
             </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={onDelete} className="h-8 w-8 p-0" title="Deletar">
-            <Trash2 className="w-4 h-4 text-red-500" />
-          </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Salvar
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -880,50 +1094,27 @@ function ConditionEditor({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (v: any) => void
 }) {
-  if (type === 'equals') {
+  if (type === 'ai_subjective') {
     return (
-      <input
-        type="text"
-        value={value?.value ?? ''}
-        onChange={(e) => onChange({ value: e.target.value })}
-        placeholder="ex: Caribe"
-        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      <textarea
+        value={value?.question ?? ''}
+        onChange={(e) => onChange({ question: e.target.value })}
+        placeholder='ex: "O casal mencionou que quer casar no Caribe?"'
+        rows={3}
+        className="w-full border border-slate-300 rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
       />
     )
   }
-  if (type === 'range') {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          type="number"
-          value={value?.min ?? ''}
-          onChange={(e) => onChange({ ...value, min: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="mín"
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-        <span className="text-slate-400 text-xs">até</span>
-        <input
-          type="number"
-          value={value?.max ?? ''}
-          onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
-          placeholder="máx"
-          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-      </div>
-    )
-  }
-  if (type === 'boolean_true') {
-    return (
-      <input
-        type="text"
-        value={value?.field ?? ''}
-        onChange={(e) => onChange({ field: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-        placeholder="ex: viajou_fora"
-        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-      />
-    )
-  }
-  return null
+  // Tipos legados (equals, range, boolean_true) caem no editor genérico de
+  // pergunta da IA. Toda regra nova deve ser ai_subjective. Se uma regra
+  // antiga ainda for desses tipos, mostramos um aviso pra reconfigurá-la.
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+      Esse critério usa um tipo de avaliação antigo ({type}). Apague e crie
+      um novo critério — todos os critérios agora usam avaliação por IA
+      (uma pergunta que ela responde sim/não com base na conversa).
+    </div>
+  )
 }
 
 // ============================================================================
@@ -932,158 +1123,412 @@ function ConditionEditor({
 
 function SimulatorSection({
   threshold,
+  maxBonus,
   rules,
-  onSimulate,
-  isSimulating,
 }: {
   threshold: number
+  maxBonus: number
   rules: ScoringRule[]
-  onSimulate: (inputs: Record<string, unknown>) => Promise<ScoringResult | null>
-  isSimulating: boolean
 }) {
-  // Inicializa inputs com um exemplo de cada dimensao
-  const initialInputs = useMemo(() => {
-    const out: Record<string, string> = {}
-    const byDim: Record<string, ScoringRule[]> = {}
-    for (const r of rules) {
-      if (!byDim[r.dimension]) byDim[r.dimension] = []
-      byDim[r.dimension].push(r)
-    }
-    for (const [dim, dimRules] of Object.entries(byDim)) {
-      const first = dimRules[0]
-      if (first.condition_type === 'equals') {
-        out[dim] = (first.condition_value as { value?: string })?.value ?? ''
-      } else if (first.condition_type === 'range') {
-        const cv = first.condition_value as { min?: number | null; max?: number | null }
-        out[dim] = String(cv?.min ?? 0)
-      } else if (first.condition_type === 'boolean_true') {
-        const field = (first.condition_value as { field?: string })?.field
-        if (field) out[field] = 'true'
+  // Estado: conjunto de IDs de regras "ativadas" pelo admin (como se a IA
+  // tivesse respondido YES). Pra grupos exclusivos, só uma regra fica ativa.
+  const [activeIds, setActiveIds] = useState<Set<string>>(new Set())
+
+  const buckets = useMemo(() => {
+    const active = rules.filter((r) => r.ativa)
+    const disqualify = active.filter((r) => r.rule_type === 'disqualify')
+    const bonus = active.filter((r) => r.rule_type === 'bonus')
+    const qualify = active.filter((r) => r.rule_type === 'qualify')
+
+    const groupMap = new Map<string, ScoringRule[]>()
+    const standalone: ScoringRule[] = []
+    for (const r of qualify) {
+      if (r.exclusion_group) {
+        if (!groupMap.has(r.exclusion_group)) groupMap.set(r.exclusion_group, [])
+        groupMap.get(r.exclusion_group)!.push(r)
+      } else {
+        standalone.push(r)
       }
     }
-    return out
+    const exclusionGroups = Array.from(groupMap.entries())
+      .map(([name, gRules]) => ({ name, rules: gRules.sort((a, b) => Number(b.weight) - Number(a.weight)) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return { disqualify, exclusionGroups, individual: standalone, bonus }
   }, [rules])
 
-  const [inputs, setInputs] = useState<Record<string, string>>(initialInputs)
-  const [result, setResult] = useState<ScoringResult | null>(null)
+  // Cálculo local — replica a lógica da RPC pra ai_subjective
+  const result = useMemo(() => {
+    const breakdown: { label: string; weight: number; ruleType: string }[] = []
+    const disqualifiersHit: string[] = []
 
-  const handleRun = async () => {
-    // Converte strings pra valores certos (numero, boolean)
-    const parsed: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(inputs)) {
-      if (v === 'true') parsed[k] = true
-      else if (v === 'false') parsed[k] = false
-      else if (v === '') continue
-      else if (!isNaN(Number(v))) parsed[k] = Number(v)
-      else parsed[k] = v
+    // 1. Disqualify
+    for (const r of buckets.disqualify) {
+      if (activeIds.has(r.id)) {
+        disqualifiersHit.push(r.label || r.dimension)
+      }
     }
-    const res = await onSimulate(parsed)
-    setResult(res)
+    if (disqualifiersHit.length > 0) {
+      return { score: 0, qualificado: false, disqualified: true, disqualifiersHit, breakdown: [], bonusApplied: 0 }
+    }
+
+    // 2. Qualify (inclui grupos exclusivos)
+    let score = 0
+    for (const g of buckets.exclusionGroups) {
+      const activeInGroup = g.rules.filter((r) => activeIds.has(r.id))
+      // Em grupo exclusivo, só conta a primeira ativa (UI não deixa marcar 2)
+      if (activeInGroup.length > 0) {
+        const r = activeInGroup[0]
+        score += Number(r.weight)
+        breakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'qualify' })
+      }
+    }
+    for (const r of buckets.individual) {
+      if (activeIds.has(r.id)) {
+        score += Number(r.weight)
+        breakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'qualify' })
+      }
+    }
+
+    // 3. Bonus (com cap)
+    let bonusRaw = 0
+    const bonusBreakdown: { label: string; weight: number; ruleType: string }[] = []
+    for (const r of buckets.bonus) {
+      if (activeIds.has(r.id)) {
+        bonusRaw += Number(r.weight)
+        bonusBreakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'bonus' })
+      }
+    }
+    const bonusApplied = Math.min(bonusRaw, maxBonus)
+    score += bonusApplied
+    breakdown.push(...bonusBreakdown)
+
+    return {
+      score,
+      qualificado: score >= threshold,
+      disqualified: false,
+      disqualifiersHit: [],
+      breakdown,
+      bonusApplied,
+      bonusRaw,
+    }
+  }, [activeIds, buckets, threshold, maxBonus])
+
+  const toggleRule = (ruleId: string) => {
+    const next = new Set(activeIds)
+    if (next.has(ruleId)) next.delete(ruleId)
+    else next.add(ruleId)
+    setActiveIds(next)
   }
 
-  // Lista todos os "campos" que as regras referem (chaves usadas em input)
-  const allInputKeys = useMemo(() => {
-    const keys = new Set<string>()
-    for (const r of rules) {
-      if (r.condition_type === 'boolean_true') {
-        const field = (r.condition_value as { field?: string })?.field
-        if (field) keys.add(field)
-      } else {
-        keys.add(r.dimension)
-      }
-    }
-    return Array.from(keys).sort()
-  }, [rules])
+  const selectInGroup = (groupRules: ScoringRule[], ruleId: string | null) => {
+    const next = new Set(activeIds)
+    for (const r of groupRules) next.delete(r.id)
+    if (ruleId) next.add(ruleId)
+    setActiveIds(next)
+  }
 
-  if (allInputKeys.length === 0) {
+  const reset = () => setActiveIds(new Set())
+
+  if (buckets.disqualify.length === 0 && buckets.exclusionGroups.length === 0 && buckets.individual.length === 0 && buckets.bonus.length === 0) {
     return null
   }
 
   return (
-    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Play className="w-5 h-5 text-emerald-600" />
-        <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
-      </div>
-      <p className="text-sm text-slate-600 mb-4">
-        Teste com valores hipotéticos pra ver como o score sai antes de ativar o agente em produção.
-      </p>
-
-      <div className="grid md:grid-cols-2 gap-3">
-        {allInputKeys.map((key) => (
-          <div key={key}>
-            <label className="block text-xs font-mono text-slate-600 mb-1">{key}</label>
-            <input
-              type="text"
-              value={inputs[key] ?? ''}
-              onChange={(e) => setInputs({ ...inputs, [key]: e.target.value })}
-              placeholder={key}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+    <section className="bg-white border border-slate-200 shadow-sm rounded-xl">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Play className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
           </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end mt-4">
-        <Button onClick={handleRun} disabled={isSimulating} className="gap-2">
-          {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          Calcular score
-        </Button>
-      </div>
-
-      {result && (
-        <div className={cn(
-          'mt-4 rounded-lg p-4 border',
-          result.enabled === false
-            ? 'bg-slate-50 border-slate-200'
-            : result.qualificado
-              ? 'bg-emerald-50 border-emerald-200'
-              : 'bg-amber-50 border-amber-200'
-        )}>
-          {result.enabled === false ? (
-            <div className="flex gap-2 items-start">
-              <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-700">{result.message ?? 'Scoring desligado'}</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight text-slate-900">{result.score}</span>
-                  <span className="text-xs text-slate-600">de mínimo {threshold}</span>
-                </div>
-                <span className={cn(
-                  'text-xs font-semibold px-2 py-1 rounded-full',
-                  result.qualificado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                )}>
-                  {result.qualificado ? 'QUALIFICADO' : 'NÃO QUALIFICADO'}
-                </span>
-              </div>
-
-              {result.breakdown && result.breakdown.length > 0 && (
-                <div className="space-y-1 mt-3">
-                  <p className="text-xs font-medium text-slate-700 mb-1">Detalhamento:</p>
-                  {result.breakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-xs bg-white/60 rounded px-2 py-1">
-                      <span className="text-slate-700">
-                        <span className="font-mono text-slate-500 text-[10px] mr-1.5">{item.dimension}</span>
-                        {item.label}
-                      </span>
-                      <span className="font-medium text-slate-900">+{item.weight}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {result.sinal_bonus_applied !== undefined && result.sinal_bonus_applied > 0 && (
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Bônus de sinais aplicado: {result.sinal_bonus_applied} / {result.max_sinal_bonus} máx
-                </p>
-              )}
-            </>
+          {activeIds.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5 h-8 text-xs">
+              <Undo2 className="w-3.5 h-3.5" />
+              Limpar
+            </Button>
           )}
         </div>
-      )}
+        <p className="text-sm text-slate-600">
+          Marque os critérios que um casal hipotético atenderia e veja o score. É como se a IA respondesse "sim" pras perguntas marcadas.
+        </p>
+      </div>
+
+      {/* Barra de resultado sticky no topo do simulador — sempre visível */}
+      <div className="sticky top-0 z-20 border-y border-slate-200 backdrop-blur-md bg-white/95">
+        <SimResultBar result={result} threshold={threshold} maxBonus={maxBonus} />
+      </div>
+
+      {/* Critérios em 2 colunas */}
+      <div className="px-6 py-5">
+        <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
+          {/* Alertas vermelhos */}
+          {buckets.disqualify.length > 0 && (
+            <SimSection title="Alertas vermelhos" subtitle="Qualquer um marcado desqualifica direto." icon={<ShieldAlert className="w-4 h-4 text-red-600" />}>
+              {buckets.disqualify.map((r) => (
+                <SimCheckbox key={r.id} checked={activeIds.has(r.id)} onChange={() => toggleRule(r.id)} label={r.label || r.dimension} accent="red" />
+              ))}
+            </SimSection>
+          )}
+
+          {/* Grupos exclusivos */}
+          {buckets.exclusionGroups.map((g) => {
+            const activeInGroup = g.rules.find((r) => activeIds.has(r.id))
+            return (
+              <SimSection
+                key={g.name}
+                title={g.name.replace(/_/g, ' ')}
+                subtitle="Escolha uma opção (ou nenhuma)."
+                icon={<Target className="w-4 h-4 text-indigo-600" />}
+                capitalizeTitle
+              >
+                <SimRadio
+                  checked={!activeInGroup}
+                  onChange={() => selectInGroup(g.rules, null)}
+                  label="Nenhuma"
+                  weight={null}
+                  muted
+                />
+                {g.rules.map((r) => (
+                  <SimRadio
+                    key={r.id}
+                    checked={activeIds.has(r.id)}
+                    onChange={() => selectInGroup(g.rules, r.id)}
+                    label={r.label || r.dimension}
+                    weight={Number(r.weight)}
+                  />
+                ))}
+              </SimSection>
+            )
+          })}
+
+          {/* Sinais individuais */}
+          {buckets.individual.length > 0 && (
+            <SimSection title="Sinais individuais" subtitle="Marque todos que se aplicam." icon={<TrendingUp className="w-4 h-4 text-indigo-600" />}>
+              {buckets.individual.map((r) => (
+                <SimCheckbox
+                  key={r.id}
+                  checked={activeIds.has(r.id)}
+                  onChange={() => toggleRule(r.id)}
+                  label={r.label || r.dimension}
+                  weight={Number(r.weight)}
+                />
+              ))}
+            </SimSection>
+          )}
+
+          {/* Bônus */}
+          {buckets.bonus.length > 0 && (
+            <SimSection title="Bônus" subtitle={`Cap de ${maxBonus} pontos no total.`} icon={<Sparkles className="w-4 h-4 text-emerald-600" />}>
+              {buckets.bonus.map((r) => (
+                <SimCheckbox
+                  key={r.id}
+                  checked={activeIds.has(r.id)}
+                  onChange={() => toggleRule(r.id)}
+                  label={r.label || r.dimension}
+                  weight={Number(r.weight)}
+                  accent="emerald"
+                />
+              ))}
+            </SimSection>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
+
+// Barra de resultado horizontal compacta — sticky no topo do simulador.
+// Sempre visível enquanto o usuário rola dentro da seção.
+function SimResultBar({
+  result,
+  threshold,
+  maxBonus,
+}: {
+  result: {
+    score: number
+    qualificado: boolean
+    disqualified: boolean
+    disqualifiersHit: string[]
+    breakdown: { label: string; weight: number; ruleType: string }[]
+    bonusApplied: number
+    bonusRaw?: number
+  }
+  threshold: number
+  maxBonus: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const progress = Math.min(100, (result.score / Math.max(threshold, 1)) * 100)
+
+  if (result.disqualified) {
+    return (
+      <div className="px-6 py-3 bg-red-50">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <span className="text-sm font-bold uppercase tracking-wider text-red-900">Desqualificado</span>
+            </div>
+            <span className="text-sm text-red-700 truncate">
+              {result.disqualifiersHit.join(' · ')}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('transition-colors', result.qualificado ? 'bg-emerald-50' : 'bg-slate-50')}>
+      <div className="px-6 py-3">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Score */}
+          <div className="flex items-baseline gap-2 flex-shrink-0">
+            <span className="text-3xl font-bold tracking-tight text-slate-900 leading-none">{result.score}</span>
+            <span className="text-xs text-slate-500">/ {threshold} pra qualificar</span>
+          </div>
+
+          {/* Barra de progresso */}
+          <div className="flex-1 min-w-[120px] max-w-md">
+            <div className="w-full bg-white rounded-full h-2 overflow-hidden border border-slate-200">
+              <div
+                className={cn('h-full transition-all', result.qualificado ? 'bg-emerald-500' : 'bg-indigo-400')}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Status */}
+          <span className={cn(
+            'text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0',
+            result.qualificado ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-700',
+          )}>
+            {result.qualificado ? 'qualifica' : 'não qualifica'}
+          </span>
+
+          {/* Toggle detalhes */}
+          {result.breakdown.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              className="h-8 text-xs gap-1.5 flex-shrink-0"
+            >
+              {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              {result.breakdown.length} {result.breakdown.length === 1 ? 'critério' : 'critérios'}
+            </Button>
+          )}
+        </div>
+
+        {/* Detalhamento expandido */}
+        {expanded && result.breakdown.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-200 grid sm:grid-cols-2 gap-1.5">
+            {result.breakdown.map((b, i) => (
+              <div key={i} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1">
+                <span className="text-slate-700 truncate pr-2">{b.label}</span>
+                <span className={cn('font-semibold flex-shrink-0', b.ruleType === 'bonus' ? 'text-emerald-700' : 'text-indigo-700')}>
+                  +{b.weight}
+                </span>
+              </div>
+            ))}
+            {result.bonusRaw !== undefined && result.bonusRaw > maxBonus && (
+              <p className="text-[11px] text-slate-500 italic sm:col-span-2 mt-1">
+                Bônus bruto: {result.bonusRaw} → aplicado {result.bonusApplied} (cap {maxBonus})
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SimSection({
+  title,
+  subtitle,
+  icon,
+  children,
+  capitalizeTitle,
+}: {
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  children: React.ReactNode
+  capitalizeTitle?: boolean
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <h4 className={cn('text-sm font-semibold text-slate-900', capitalizeTitle && 'capitalize')}>{title}</h4>
+      </div>
+      <p className="text-xs text-slate-500 mb-2">{subtitle}</p>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  )
+}
+
+function SimCheckbox({
+  checked,
+  onChange,
+  label,
+  weight,
+  accent = 'indigo',
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+  weight?: number
+  accent?: 'indigo' | 'emerald' | 'red'
+}) {
+  const accentColor = {
+    indigo: 'text-indigo-700',
+    emerald: 'text-emerald-700',
+    red: 'text-red-700',
+  }[accent]
+  return (
+    <label className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition', checked ? 'border-slate-300 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+      />
+      <span className="flex-1 text-sm text-slate-800">{label}</span>
+      {weight !== undefined && (
+        <span className={cn('text-sm font-semibold', accentColor)}>{weight >= 0 ? `+${weight}` : weight}</span>
+      )}
+    </label>
+  )
+}
+
+function SimRadio({
+  checked,
+  onChange,
+  label,
+  weight,
+  muted,
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+  weight: number | null
+  muted?: boolean
+}) {
+  return (
+    <label className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition', checked ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+      <input
+        type="radio"
+        checked={checked}
+        onChange={onChange}
+        className="w-4 h-4 border-slate-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+      />
+      <span className={cn('flex-1 text-sm', muted ? 'text-slate-500 italic' : 'text-slate-800')}>{label}</span>
+      {weight !== null && (
+        <span className="text-sm font-semibold text-indigo-700">+{weight}</span>
+      )}
+    </label>
+  )
+}
+
