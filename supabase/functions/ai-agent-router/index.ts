@@ -22,6 +22,7 @@ import {
   type IdentityConfig,
   type VoiceConfig,
   type BoundariesConfig,
+  type ListeningConfig,
 } from "./playbook_loader.ts";
 
 const corsHeaders = {
@@ -130,6 +131,7 @@ interface AgentConfig {
   identity_config?: IdentityConfig | null;
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
+  listening_config?: ListeningConfig | null;
 }
 
 interface BusinessCustomBlock {
@@ -656,7 +658,7 @@ async function findAgentByActiveConversation(
       pipeline_models, timings, validator_rules,
       test_mode_phone_whitelist, multimodal_config,
       handoff_actions,
-      playbook_enabled, identity_config, voice_config, boundaries_config
+      playbook_enabled, identity_config, voice_config, boundaries_config, listening_config
     `)
     .eq("id", candidate.current_agent_id)
     .eq("ativa", true)
@@ -2769,6 +2771,7 @@ async function runPersonaAgent(
           identity_config: agent.identity_config ?? null,
           voice_config: agent.voice_config ?? null,
           boundaries_config: agent.boundaries_config ?? null,
+          listening_config: agent.listening_config ?? null,
           pipeline_models: agent.pipeline_models ?? null,
           // deno-lint-ignore no-explicit-any
           handoff_actions: (agent as any).handoff_actions ?? null,

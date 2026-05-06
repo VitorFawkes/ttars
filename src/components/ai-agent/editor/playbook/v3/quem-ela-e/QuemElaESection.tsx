@@ -1,7 +1,8 @@
-import { User, Volume2, Shield, Info } from 'lucide-react'
+import { User, Volume2, Shield, Info, Ear } from 'lucide-react'
 import { IdentitySection } from '../../sections/IdentitySection'
 import { VoiceSection } from '../../sections/VoiceSection'
 import { BoundariesSection } from '../../sections/BoundariesSection'
+import { ListeningSection } from '../../sections/ListeningSection'
 
 interface Props {
   agentId: string
@@ -69,6 +70,16 @@ export function QuemElaESection({ agentId, agentName, companyName }: Props) {
           subtitle="O que ela NUNCA faz — em qualquer momento da conversa, sem exceção."
         />
         <BoundariesSection agentId={agentId} agentName={agentName} companyName={companyName} />
+      </div>
+
+      {/* Bloco 4 — Escuta */}
+      <div className="pt-4 border-t border-slate-100">
+        <BlockHeader
+          Icon={Ear}
+          title="Escuta"
+          subtitle="Como ela reage quando o cliente foge do roteiro: pergunta devolvida, comentário espontâneo, várias mensagens em sequência."
+        />
+        <ListeningSection agentId={agentId} />
       </div>
     </div>
   )
