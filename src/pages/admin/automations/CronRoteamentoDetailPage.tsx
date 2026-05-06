@@ -175,6 +175,14 @@ export default function CronRoteamentoDetailPage() {
     load()
   }, [id, navigate])
 
+  // Scroll para a seção de movimentações quando vier com #movimentacoes na URL
+  useEffect(() => {
+    if (loading) return
+    if (window.location.hash !== '#movimentacoes') return
+    const el = document.getElementById('movimentacoes')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading, recentLogs.length])
+
   const handleSave = async () => {
     if (!id) return
     setSaving(true)
@@ -556,8 +564,8 @@ export default function CronRoteamentoDetailPage() {
 
       {/* Histórico recente */}
       {recentLogs.length > 0 && (
-        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
-          <h2 className="font-semibold text-slate-900">Movimentações recentes</h2>
+        <div id="movimentacoes" className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3 scroll-mt-6">
+          <h2 className="font-semibold text-slate-900">Movimentações recentes desta automação</h2>
           <div className="divide-y divide-slate-100">
             {recentLogs.map((log, i) => (
               <div key={i} className="py-2.5 flex items-center gap-3 text-sm">

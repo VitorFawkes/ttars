@@ -204,10 +204,15 @@ export default function AutomationsListPage() {
   }
 
   const handleMonitor = (item: AutomationItem) => {
+    if (item.event_type === 'cron_roteamento') {
+      // Roteamento por data tem histórico próprio na tela de detalhe
+      navigate(`/settings/automations/roteamento/${item.id}#movimentacoes`)
+      return
+    }
     if (item.source === 'cadence_template') {
       navigate(`/settings/automations/${item.id}/monitor`)
     } else {
-      navigate(`/settings/automations?tab=monitor`)
+      navigate(`/settings/automations?tab=monitor&trigger_id=${item.id}`)
     }
   }
 
