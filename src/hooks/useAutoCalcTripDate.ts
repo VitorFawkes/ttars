@@ -91,16 +91,15 @@ export function useAutoCalcTripDate(cardId: string) {
         return
       }
 
-      const newValue = { start: earliest, end: latest }
-      const updatedProdutoData = {
-        ...produtoData,
-        data_exata_da_viagem: newValue,
-      }
-
-      const { error } = await supabase
-        .from('cards')
-        .update({ produto_data: updatedProdutoData })
-        .eq('id', cardId)
+      // Chama RPC SECURITY DEFINER que marca a atualização como vinda de
+      // automação ('auto_calc') — assim a atividade aparece com autoria
+      // "Automação" em vez do usuário que está olhando o card.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc('fn_auto_set_card_data_exata_da_viagem', {
+        p_card_id: cardId,
+        p_start_date: earliest,
+        p_end_date: latest,
+      })
 
       if (!error) {
         // Invalidar cache do card detail
