@@ -68,7 +68,7 @@ export function useAutoCalcTripDate(cardId: string) {
       const earliest = starts[0] || ends[0]
       const latest = ends[ends.length - 1] || starts[starts.length - 1]
 
-      // Ler produto_data atual para merge
+      // Ler produto_data atual só pra checar se já está igual (não escreve direto)
       const { data: card } = await supabase
         .from('cards')
         .select('produto_data')

@@ -23,6 +23,18 @@ const TEAM_ROLE_TO_OWNER: Record<TeamRoleKey, keyof Card> = {
     concierge: 'concierge_owner_id',
 }
 
+// ObservacoesEstruturadas guarda fields da mesma seção sob chaves diferentes por fase.
+// Quando system_fields.section é desconhecido, varremos esses aliases conhecidos.
+const SECTION_ALIASES = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes']
+
+function isFilledValue(value: unknown): boolean {
+    if (value === null || value === undefined) return false
+    if (value === '') return false
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === 'object') return Object.keys(value as object).length > 0
+    return true
+}
+
 interface BaseRequirement {
     id: string
     requirement_type: RequirementType
@@ -36,6 +48,7 @@ interface BaseRequirement {
 export interface FieldRequirement extends BaseRequirement {
     requirement_type: 'field'
     field_key: string
+    section: string | null
 }
 
 export interface ProposalRequirement extends BaseRequirement {
@@ -191,16 +204,18 @@ export function useStageRequirements(card: Card) {
                 (data || []).map(d => d.field_key).filter((k): k is string => !!k)
             ))
 
-            let labelByKey = new Map<string, string>()
+            const labelByKey = new Map<string, string>()
+            const sectionByKey = new Map<string, string | null>()
             if (fieldKeys.length > 0) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
                 const { data: fields } = await (supabase.from('system_fields') as any)
-                    .select('key, label')
+                    .select('key, label, section')
                     .in('key', fieldKeys)
                 if (fields) {
-                    labelByKey = new Map(
-                        (fields as { key: string; label: string }[]).map(f => [f.key, f.label])
-                    )
+                    for (const f of fields as { key: string; label: string; section: string | null }[]) {
+                        labelByKey.set(f.key, f.label)
+                        sectionByKey.set(f.key, f.section)
+                    }
                 }
             }
 
@@ -273,6 +288,7 @@ export function useStageRequirements(card: Card) {
                     ...baseReq,
                     requirement_type: 'field',
                     field_key: config.field_key,
+                    section: (config.field_key ? sectionByKey.get(config.field_key) : null) ?? null,
                     label: (config.field_key ? labelByKey.get(config.field_key) : undefined) || config.requirement_label || config.field_key
                 } as FieldRequirement
             }).filter((req: Requirement) => req.isBlocking || req.isFuture)
@@ -282,38 +298,38 @@ export function useStageRequirements(card: Card) {
     })
 
     // Check if a field requirement is satisfied
-    const checkFieldRequirement = (fieldKey: string): boolean => {
+    // section: nome da seção do system_fields. Quando informado, também varre containers
+    // aninhados usados pelo widget ObservacoesEstruturadas (PLANNER em
+    // produto_data.observacoes_criticas, SDR em briefing_inicial.observacoes,
+    // POS_VENDA em produto_data.observacoes_pos_venda).
+    const checkFieldRequirement = (fieldKey: string, section: string | null = null): boolean => {
         // Check in top level card fields
         if (fieldKey in card && (card as Record<string, unknown>)[fieldKey]) return true
 
-        // Waterfall: Check produto_data FIRST
-        if (card.produto_data && typeof card.produto_data === 'object') {
-            const produtoData = card.produto_data as Record<string, unknown>
-            const value = produtoData[fieldKey]
+        const checkContainer = (raw: unknown): boolean => {
+            if (!raw || typeof raw !== 'object') return false
+            const container = raw as Record<string, unknown>
 
-            if (value !== null && value !== undefined && value !== '') {
-                if (Array.isArray(value) && value.length === 0) {
-                    // Empty array - continue to check briefing_inicial
-                } else if (typeof value === 'object' && Object.keys(value).length === 0) {
-                    // Empty object - continue to check briefing_inicial
-                } else {
-                    return true
+            // Direct lookup
+            const direct = container[fieldKey]
+            if (isFilledValue(direct)) return true
+
+            // Nested lookups: section + known phase aliases
+            const aliases = section
+                ? [section, ...SECTION_ALIASES.filter(a => a !== section)]
+                : SECTION_ALIASES
+            for (const alias of aliases) {
+                const sub = container[alias]
+                if (sub && typeof sub === 'object') {
+                    const nested = (sub as Record<string, unknown>)[fieldKey]
+                    if (isFilledValue(nested)) return true
                 }
             }
+            return false
         }
 
-        // Waterfall: Also check in briefing_inicial
-        if (card.briefing_inicial && typeof card.briefing_inicial === 'object') {
-            const briefingData = card.briefing_inicial as Record<string, unknown>
-            const value = briefingData[fieldKey]
-
-            if (value === null || value === undefined || value === '') return false
-            if (Array.isArray(value) && value.length === 0) return false
-            if (typeof value === 'object' && Object.keys(value).length === 0) return false
-
-            return true
-        }
-
+        if (checkContainer(card.produto_data)) return true
+        if (checkContainer(card.briefing_inicial)) return true
         return false
     }
 
@@ -348,7 +364,7 @@ export function useStageRequirements(card: Card) {
     const checkRequirement = (req: Requirement): boolean => {
         switch (req.requirement_type) {
             case 'field':
-                return checkFieldRequirement(req.field_key)
+                return checkFieldRequirement(req.field_key, req.section)
             case 'proposal':
                 return checkProposalRequirement(req.proposal_min_status)
             case 'task':

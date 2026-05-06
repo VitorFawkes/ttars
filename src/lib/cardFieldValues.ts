@@ -4,6 +4,8 @@
  *   1. Coluna direta de `cards` (valor_final, valor_estimado, titulo, ...)
  *   2. card.produto_data[fieldKey] (JSONB do produto)
  *   3. card.briefing_inicial[fieldKey] (fallback legado)
+ *   4. Containers de seção do widget ObservacoesEstruturadas
+ *      (produto_data.observacoes_criticas, briefing_inicial.observacoes, ...)
  *
  * Devolve um objeto { raw, display } — display é a string pronta para UI.
  */
@@ -11,6 +13,29 @@
 type UnknownCard = Record<string, unknown> & {
     produto_data?: Record<string, unknown> | null
     briefing_inicial?: Record<string, unknown> | null
+}
+
+// Fields da mesma seção podem viver sob aliases diferentes por fase.
+const SECTION_ALIASES = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes']
+
+function findInContainer(container: unknown, fieldKey: string): unknown {
+    if (!container || typeof container !== 'object') return undefined
+    const obj = container as Record<string, unknown>
+
+    if (fieldKey in obj) {
+        const direct = obj[fieldKey]
+        if (direct !== null && direct !== undefined && direct !== '') return direct
+    }
+
+    for (const alias of SECTION_ALIASES) {
+        const sub = obj[alias]
+        if (sub && typeof sub === 'object' && fieldKey in (sub as Record<string, unknown>)) {
+            const nested = (sub as Record<string, unknown>)[fieldKey]
+            if (nested !== null && nested !== undefined && nested !== '') return nested
+        }
+    }
+
+    return undefined
 }
 
 export interface FieldValue {
@@ -118,22 +143,16 @@ export function getCardFieldValue(card: UnknownCard | null | undefined, fieldKey
         }
     }
 
-    // 2. produto_data[fieldKey]
-    const prodData = card.produto_data
-    if (prodData && typeof prodData === 'object' && fieldKey in prodData) {
-        const raw = (prodData as Record<string, unknown>)[fieldKey]
-        if (raw !== null && raw !== undefined && raw !== '') {
-            return { raw, display: formatValue(raw), isEmpty: false }
-        }
+    // 2. produto_data[fieldKey] (flat ou em container de seção)
+    const fromProduto = findInContainer(card.produto_data, fieldKey)
+    if (fromProduto !== undefined) {
+        return { raw: fromProduto, display: formatValue(fromProduto), isEmpty: false }
     }
 
-    // 3. briefing_inicial[fieldKey]
-    const briefing = card.briefing_inicial
-    if (briefing && typeof briefing === 'object' && fieldKey in briefing) {
-        const raw = (briefing as Record<string, unknown>)[fieldKey]
-        if (raw !== null && raw !== undefined && raw !== '') {
-            return { raw, display: formatValue(raw), isEmpty: false }
-        }
+    // 3. briefing_inicial[fieldKey] (flat ou em container de seção)
+    const fromBriefing = findInContainer(card.briefing_inicial, fieldKey)
+    if (fromBriefing !== undefined) {
+        return { raw: fromBriefing, display: formatValue(fromBriefing), isEmpty: false }
     }
 
     return EMPTY
