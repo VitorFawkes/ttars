@@ -735,3 +735,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T15:00:50Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260506f_bulk_import_financial_items_dedup_by_venda.sql | applied_to_prod
 2026-05-06T15:01:25Z | supabase/migrations/20260506e_ai_agent_listening_config.sql | applied_to_prod
 2026-05-06T15:02:06Z | supabase/migrations/20260505c_diagnose_bloqueado_desde.sql | applied_to_prod
+2026-05-06T15:05:05Z | supabase/migrations/20260506d_duplicate_tasks_tiered.sql | applied_to_prod
