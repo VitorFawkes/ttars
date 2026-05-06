@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, AlertCircle, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy, Undo2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Info, ChevronDown, ChevronRight, Target, Play, ShieldAlert, TrendingUp, Sparkles, ArrowRight, Trophy, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -8,7 +8,6 @@ import {
   type ScoringRule,
   type ScoringRuleInput,
   type ConditionType,
-  type ScoringResult,
   type FallbackAction,
   DEFAULT_SCORING_CONFIG,
 } from '@/hooks/useAgentScoring'
@@ -22,7 +21,7 @@ interface Props {
 // ============================================================================
 
 export function TabPontuacao({ agentId }: Props) {
-  const { config, rules, isLoading, upsertConfig, upsertRule, deleteRule, simulate } = useAgentScoring(agentId)
+  const { config, rules, isLoading, upsertConfig, upsertRule, deleteRule } = useAgentScoring(agentId)
 
   if (!agentId) {
     return (
@@ -151,20 +150,7 @@ export function TabPontuacao({ agentId }: Props) {
           />
 
           {/* Simulador */}
-          <SimulatorSection
-            threshold={threshold}
-            rules={rules}
-            onSimulate={async (inputs) => {
-              try {
-                return await simulate.mutateAsync(inputs)
-              } catch (err) {
-                toast.error('Erro ao simular')
-                console.error(err)
-                return null
-              }
-            }}
-            isSimulating={simulate.isPending}
-          />
+          <SimulatorSection threshold={threshold} maxBonus={maxBonus} rules={rules} />
         </>
       )}
     </div>
@@ -1137,158 +1123,394 @@ function ConditionEditor({
 
 function SimulatorSection({
   threshold,
+  maxBonus,
   rules,
-  onSimulate,
-  isSimulating,
 }: {
   threshold: number
+  maxBonus: number
   rules: ScoringRule[]
-  onSimulate: (inputs: Record<string, unknown>) => Promise<ScoringResult | null>
-  isSimulating: boolean
 }) {
-  // Inicializa inputs com um exemplo de cada dimensao
-  const initialInputs = useMemo(() => {
-    const out: Record<string, string> = {}
-    const byDim: Record<string, ScoringRule[]> = {}
-    for (const r of rules) {
-      if (!byDim[r.dimension]) byDim[r.dimension] = []
-      byDim[r.dimension].push(r)
-    }
-    for (const [dim, dimRules] of Object.entries(byDim)) {
-      const first = dimRules[0]
-      if (first.condition_type === 'equals') {
-        out[dim] = (first.condition_value as { value?: string })?.value ?? ''
-      } else if (first.condition_type === 'range') {
-        const cv = first.condition_value as { min?: number | null; max?: number | null }
-        out[dim] = String(cv?.min ?? 0)
-      } else if (first.condition_type === 'boolean_true') {
-        const field = (first.condition_value as { field?: string })?.field
-        if (field) out[field] = 'true'
+  // Estado: conjunto de IDs de regras "ativadas" pelo admin (como se a IA
+  // tivesse respondido YES). Pra grupos exclusivos, só uma regra fica ativa.
+  const [activeIds, setActiveIds] = useState<Set<string>>(new Set())
+
+  const buckets = useMemo(() => {
+    const active = rules.filter((r) => r.ativa)
+    const disqualify = active.filter((r) => r.rule_type === 'disqualify')
+    const bonus = active.filter((r) => r.rule_type === 'bonus')
+    const qualify = active.filter((r) => r.rule_type === 'qualify')
+
+    const groupMap = new Map<string, ScoringRule[]>()
+    const standalone: ScoringRule[] = []
+    for (const r of qualify) {
+      if (r.exclusion_group) {
+        if (!groupMap.has(r.exclusion_group)) groupMap.set(r.exclusion_group, [])
+        groupMap.get(r.exclusion_group)!.push(r)
+      } else {
+        standalone.push(r)
       }
     }
-    return out
+    const exclusionGroups = Array.from(groupMap.entries())
+      .map(([name, gRules]) => ({ name, rules: gRules.sort((a, b) => Number(b.weight) - Number(a.weight)) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return { disqualify, exclusionGroups, individual: standalone, bonus }
   }, [rules])
 
-  const [inputs, setInputs] = useState<Record<string, string>>(initialInputs)
-  const [result, setResult] = useState<ScoringResult | null>(null)
+  // Cálculo local — replica a lógica da RPC pra ai_subjective
+  const result = useMemo(() => {
+    const breakdown: { label: string; weight: number; ruleType: string }[] = []
+    const disqualifiersHit: string[] = []
 
-  const handleRun = async () => {
-    // Converte strings pra valores certos (numero, boolean)
-    const parsed: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(inputs)) {
-      if (v === 'true') parsed[k] = true
-      else if (v === 'false') parsed[k] = false
-      else if (v === '') continue
-      else if (!isNaN(Number(v))) parsed[k] = Number(v)
-      else parsed[k] = v
+    // 1. Disqualify
+    for (const r of buckets.disqualify) {
+      if (activeIds.has(r.id)) {
+        disqualifiersHit.push(r.label || r.dimension)
+      }
     }
-    const res = await onSimulate(parsed)
-    setResult(res)
+    if (disqualifiersHit.length > 0) {
+      return { score: 0, qualificado: false, disqualified: true, disqualifiersHit, breakdown: [], bonusApplied: 0 }
+    }
+
+    // 2. Qualify (inclui grupos exclusivos)
+    let score = 0
+    for (const g of buckets.exclusionGroups) {
+      const activeInGroup = g.rules.filter((r) => activeIds.has(r.id))
+      // Em grupo exclusivo, só conta a primeira ativa (UI não deixa marcar 2)
+      if (activeInGroup.length > 0) {
+        const r = activeInGroup[0]
+        score += Number(r.weight)
+        breakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'qualify' })
+      }
+    }
+    for (const r of buckets.individual) {
+      if (activeIds.has(r.id)) {
+        score += Number(r.weight)
+        breakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'qualify' })
+      }
+    }
+
+    // 3. Bonus (com cap)
+    let bonusRaw = 0
+    const bonusBreakdown: { label: string; weight: number; ruleType: string }[] = []
+    for (const r of buckets.bonus) {
+      if (activeIds.has(r.id)) {
+        bonusRaw += Number(r.weight)
+        bonusBreakdown.push({ label: r.label || r.dimension, weight: Number(r.weight), ruleType: 'bonus' })
+      }
+    }
+    const bonusApplied = Math.min(bonusRaw, maxBonus)
+    score += bonusApplied
+    breakdown.push(...bonusBreakdown)
+
+    return {
+      score,
+      qualificado: score >= threshold,
+      disqualified: false,
+      disqualifiersHit: [],
+      breakdown,
+      bonusApplied,
+      bonusRaw,
+    }
+  }, [activeIds, buckets, threshold, maxBonus])
+
+  const toggleRule = (ruleId: string) => {
+    const next = new Set(activeIds)
+    if (next.has(ruleId)) next.delete(ruleId)
+    else next.add(ruleId)
+    setActiveIds(next)
   }
 
-  // Lista todos os "campos" que as regras referem (chaves usadas em input)
-  const allInputKeys = useMemo(() => {
-    const keys = new Set<string>()
-    for (const r of rules) {
-      if (r.condition_type === 'boolean_true') {
-        const field = (r.condition_value as { field?: string })?.field
-        if (field) keys.add(field)
-      } else {
-        keys.add(r.dimension)
-      }
-    }
-    return Array.from(keys).sort()
-  }, [rules])
+  const selectInGroup = (groupRules: ScoringRule[], ruleId: string | null) => {
+    const next = new Set(activeIds)
+    for (const r of groupRules) next.delete(r.id)
+    if (ruleId) next.add(ruleId)
+    setActiveIds(next)
+  }
 
-  if (allInputKeys.length === 0) {
+  const reset = () => setActiveIds(new Set())
+
+  if (buckets.disqualify.length === 0 && buckets.exclusionGroups.length === 0 && buckets.individual.length === 0 && buckets.bonus.length === 0) {
     return null
   }
 
   return (
     <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Play className="w-5 h-5 text-emerald-600" />
-        <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Play className="w-5 h-5 text-emerald-600" />
+          <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
+        </div>
+        {activeIds.size > 0 && (
+          <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5 h-8 text-xs">
+            <Undo2 className="w-3.5 h-3.5" />
+            Limpar
+          </Button>
+        )}
       </div>
       <p className="text-sm text-slate-600 mb-4">
-        Teste com valores hipotéticos pra ver como o score sai antes de ativar o agente em produção.
+        Marque os critérios que um casal hipotético atenderia e veja o score. É como se a IA respondesse "sim" pras perguntas marcadas.
       </p>
 
-      <div className="grid md:grid-cols-2 gap-3">
-        {allInputKeys.map((key) => (
-          <div key={key}>
-            <label className="block text-xs font-mono text-slate-600 mb-1">{key}</label>
-            <input
-              type="text"
-              value={inputs[key] ?? ''}
-              onChange={(e) => setInputs({ ...inputs, [key]: e.target.value })}
-              placeholder={key}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        ))}
-      </div>
+      <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
+        {/* Coluna esquerda: critérios marcáveis */}
+        <div className="space-y-5">
+          {/* Alertas vermelhos */}
+          {buckets.disqualify.length > 0 && (
+            <SimSection title="Alertas vermelhos" subtitle="Qualquer um marcado desqualifica direto." icon={<ShieldAlert className="w-4 h-4 text-red-600" />}>
+              {buckets.disqualify.map((r) => (
+                <SimCheckbox key={r.id} checked={activeIds.has(r.id)} onChange={() => toggleRule(r.id)} label={r.label || r.dimension} accent="red" />
+              ))}
+            </SimSection>
+          )}
 
-      <div className="flex justify-end mt-4">
-        <Button onClick={handleRun} disabled={isSimulating} className="gap-2">
-          {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          Calcular score
-        </Button>
-      </div>
+          {/* Grupos exclusivos */}
+          {buckets.exclusionGroups.map((g) => {
+            const activeInGroup = g.rules.find((r) => activeIds.has(r.id))
+            return (
+              <SimSection
+                key={g.name}
+                title={g.name.replace(/_/g, ' ')}
+                subtitle="Escolha uma opção (ou nenhuma)."
+                icon={<Target className="w-4 h-4 text-indigo-600" />}
+                capitalizeTitle
+              >
+                <SimRadio
+                  checked={!activeInGroup}
+                  onChange={() => selectInGroup(g.rules, null)}
+                  label="Nenhuma"
+                  weight={null}
+                  muted
+                />
+                {g.rules.map((r) => (
+                  <SimRadio
+                    key={r.id}
+                    checked={activeIds.has(r.id)}
+                    onChange={() => selectInGroup(g.rules, r.id)}
+                    label={r.label || r.dimension}
+                    weight={Number(r.weight)}
+                  />
+                ))}
+              </SimSection>
+            )
+          })}
 
-      {result && (
-        <div className={cn(
-          'mt-4 rounded-lg p-4 border',
-          result.enabled === false
-            ? 'bg-slate-50 border-slate-200'
-            : result.qualificado
-              ? 'bg-emerald-50 border-emerald-200'
-              : 'bg-amber-50 border-amber-200'
-        )}>
-          {result.enabled === false ? (
-            <div className="flex gap-2 items-start">
-              <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-700">{result.message ?? 'Scoring desligado'}</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight text-slate-900">{result.score}</span>
-                  <span className="text-xs text-slate-600">de mínimo {threshold}</span>
-                </div>
-                <span className={cn(
-                  'text-xs font-semibold px-2 py-1 rounded-full',
-                  result.qualificado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                )}>
-                  {result.qualificado ? 'QUALIFICADO' : 'NÃO QUALIFICADO'}
-                </span>
-              </div>
+          {/* Sinais individuais */}
+          {buckets.individual.length > 0 && (
+            <SimSection title="Sinais individuais" subtitle="Marque todos que se aplicam." icon={<TrendingUp className="w-4 h-4 text-indigo-600" />}>
+              {buckets.individual.map((r) => (
+                <SimCheckbox
+                  key={r.id}
+                  checked={activeIds.has(r.id)}
+                  onChange={() => toggleRule(r.id)}
+                  label={r.label || r.dimension}
+                  weight={Number(r.weight)}
+                />
+              ))}
+            </SimSection>
+          )}
 
-              {result.breakdown && result.breakdown.length > 0 && (
-                <div className="space-y-1 mt-3">
-                  <p className="text-xs font-medium text-slate-700 mb-1">Detalhamento:</p>
-                  {result.breakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-xs bg-white/60 rounded px-2 py-1">
-                      <span className="text-slate-700">
-                        <span className="font-mono text-slate-500 text-[10px] mr-1.5">{item.dimension}</span>
-                        {item.label}
-                      </span>
-                      <span className="font-medium text-slate-900">+{item.weight}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {result.sinal_bonus_applied !== undefined && result.sinal_bonus_applied > 0 && (
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Bônus de sinais aplicado: {result.sinal_bonus_applied} / {result.max_sinal_bonus} máx
-                </p>
-              )}
-            </>
+          {/* Bônus */}
+          {buckets.bonus.length > 0 && (
+            <SimSection title="Bônus" subtitle={`Cap de ${maxBonus} pontos no total.`} icon={<Sparkles className="w-4 h-4 text-emerald-600" />}>
+              {buckets.bonus.map((r) => (
+                <SimCheckbox
+                  key={r.id}
+                  checked={activeIds.has(r.id)}
+                  onChange={() => toggleRule(r.id)}
+                  label={r.label || r.dimension}
+                  weight={Number(r.weight)}
+                  accent="emerald"
+                />
+              ))}
+            </SimSection>
           )}
         </div>
-      )}
+
+        {/* Coluna direita: resultado */}
+        <div className="md:sticky md:top-4 md:self-start">
+          <SimResultCard result={result} threshold={threshold} maxBonus={maxBonus} />
+        </div>
+      </div>
     </section>
+  )
+}
+
+function SimSection({
+  title,
+  subtitle,
+  icon,
+  children,
+  capitalizeTitle,
+}: {
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  children: React.ReactNode
+  capitalizeTitle?: boolean
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <h4 className={cn('text-sm font-semibold text-slate-900', capitalizeTitle && 'capitalize')}>{title}</h4>
+      </div>
+      <p className="text-xs text-slate-500 mb-2">{subtitle}</p>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  )
+}
+
+function SimCheckbox({
+  checked,
+  onChange,
+  label,
+  weight,
+  accent = 'indigo',
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+  weight?: number
+  accent?: 'indigo' | 'emerald' | 'red'
+}) {
+  const accentColor = {
+    indigo: 'text-indigo-700',
+    emerald: 'text-emerald-700',
+    red: 'text-red-700',
+  }[accent]
+  return (
+    <label className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition', checked ? 'border-slate-300 bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+      />
+      <span className="flex-1 text-sm text-slate-800">{label}</span>
+      {weight !== undefined && (
+        <span className={cn('text-sm font-semibold', accentColor)}>{weight >= 0 ? `+${weight}` : weight}</span>
+      )}
+    </label>
+  )
+}
+
+function SimRadio({
+  checked,
+  onChange,
+  label,
+  weight,
+  muted,
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+  weight: number | null
+  muted?: boolean
+}) {
+  return (
+    <label className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition', checked ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+      <input
+        type="radio"
+        checked={checked}
+        onChange={onChange}
+        className="w-4 h-4 border-slate-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+      />
+      <span className={cn('flex-1 text-sm', muted ? 'text-slate-500 italic' : 'text-slate-800')}>{label}</span>
+      {weight !== null && (
+        <span className="text-sm font-semibold text-indigo-700">+{weight}</span>
+      )}
+    </label>
+  )
+}
+
+function SimResultCard({
+  result,
+  threshold,
+  maxBonus,
+}: {
+  result: {
+    score: number
+    qualificado: boolean
+    disqualified: boolean
+    disqualifiersHit: string[]
+    breakdown: { label: string; weight: number; ruleType: string }[]
+    bonusApplied: number
+    bonusRaw?: number
+  }
+  threshold: number
+  maxBonus: number
+}) {
+  const progress = Math.min(100, (result.score / Math.max(threshold, 1)) * 100)
+
+  if (result.disqualified) {
+    return (
+      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-red-600" />
+          <h4 className="text-base font-semibold text-red-900">Desqualificado</h4>
+        </div>
+        <p className="text-sm text-red-800">Lead não passa por causa de:</p>
+        <ul className="space-y-1">
+          {result.disqualifiersHit.map((d, i) => (
+            <li key={i} className="text-sm text-red-700 flex items-start gap-1.5">
+              <span className="text-red-400 mt-0.5">×</span>
+              <span>{d}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn(
+      'border-2 rounded-xl p-5 space-y-4',
+      result.qualificado ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50',
+    )}>
+      <div>
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold tracking-tight text-slate-900">{result.score}</span>
+            <span className="text-sm text-slate-500">/ {threshold} pra qualificar</span>
+          </div>
+          <span className={cn(
+            'text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider',
+            result.qualificado ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-700',
+          )}>
+            {result.qualificado ? 'qualifica' : 'não qualifica'}
+          </span>
+        </div>
+        <div className="w-full bg-white rounded-full h-2 overflow-hidden border border-slate-200">
+          <div
+            className={cn('h-full transition-all', result.qualificado ? 'bg-emerald-500' : 'bg-indigo-400')}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {result.breakdown.length > 0 ? (
+        <div>
+          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Detalhamento</p>
+          <ul className="space-y-1">
+            {result.breakdown.map((b, i) => (
+              <li key={i} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded px-2.5 py-1.5">
+                <span className="text-slate-700 truncate pr-2">{b.label}</span>
+                <span className={cn('font-semibold flex-shrink-0', b.ruleType === 'bonus' ? 'text-emerald-700' : 'text-indigo-700')}>
+                  +{b.weight}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {result.bonusRaw !== undefined && result.bonusRaw > maxBonus && (
+            <p className="text-[11px] text-slate-500 mt-2 italic">
+              Bônus bruto: {result.bonusRaw} → aplicado {result.bonusApplied} (cap {maxBonus})
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500 italic">Marque critérios à esquerda pra ver o score.</p>
+      )}
+    </div>
   )
 }
