@@ -40,8 +40,9 @@ export default function KanbanPage() {
         : undefined,
       cardIds: cardFilter ? [cardFilter.id] : undefined,
       search: search.trim() || undefined,
+      mostrarConcluidosAntigos: prefs.mostrarConcluidosAntigos,
     }),
-    [donoId, prefs.tipos, prefs.sources, prefs.janelas, prefs.categorias, prefs.tagIds, tagLookup, cardFilter, search]
+    [donoId, prefs.tipos, prefs.sources, prefs.janelas, prefs.categorias, prefs.tagIds, prefs.mostrarConcluidosAntigos, tagLookup, cardFilter, search]
   )
 
   const viagensFilters = useMemo(
@@ -131,6 +132,8 @@ export default function KanbanPage() {
           onToggleTag={(t) => toggleSet('tagIds', t)}
           cardFilter={cardFilter}
           onSelectCard={setCardFilter}
+          mostrarConcluidosAntigos={prefs.mostrarConcluidosAntigos}
+          onToggleMostrarConcluidosAntigos={() => setPref('mostrarConcluidosAntigos', v => !v)}
           onClearAll={handleClearAll}
           hasAnyFilter={filterBarHasAny}
           showAdvanced={true}

@@ -25,6 +25,14 @@ export const CATEGORIAS_CONCIERGE = {
   transfer: { label: 'Transfer', tipo: 'oferta' as TipoConcierge, produtos: ['universal'] as const },
   restaurante: { label: 'Reserva restaurante', tipo: 'reserva' as TipoConcierge, produtos: ['universal'] as const },
 
+  // Suporte (universais — cobrem qualquer produto)
+  problema_fornecedor:    { label: 'Problema com fornecedor',  tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+  mudanca_solicitada:     { label: 'Mudança solicitada',       tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+  emergencia:             { label: 'Emergência / Urgência',   tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+  reclamacao:             { label: 'Reclamação',               tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+  assistencia_documento:  { label: 'Documento / Visto',        tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+  outro_suporte:          { label: 'Outro suporte',            tipo: 'suporte' as TipoConcierge, produtos: ['universal'] as const },
+
   // Welcome Trips
   passaporte: { label: 'Passaporte', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
   check_in: { label: 'Check-in', tipo: 'operacional' as TipoConcierge, produtos: ['TRIPS'] as const },
@@ -114,6 +122,8 @@ export interface MeuDiaItem {
   tarefa_status: string | null
   concluida: boolean
   concluida_em: string | null
+  /** Marcado quando o concierge inicia o atendimento (drag pra "Em contato"). */
+  started_at?: string | null
   dono_id: string | null
   card_id: string
   tarefa_criada_por: string | null
@@ -125,6 +135,9 @@ export interface MeuDiaItem {
   data_viagem_fim: string | null
   pipeline_stage_id: string
   pessoa_principal_id: string | null
+  /** Nome do contato principal da viagem (LEFT JOIN contatos na view).
+   *  Pode ser undefined em registros antes da migration 20260506a. */
+  pessoa_principal_nome?: string | null
   card_valor_estimado: number | null
   card_valor_final: number | null
   /** Pode estar undefined em registros antigos antes da migration de criticidade */

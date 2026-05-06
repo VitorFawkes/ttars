@@ -14,13 +14,12 @@ import { toast } from 'sonner'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
-import { useExecutarEmLote, useNotificarCliente } from '../../../hooks/concierge/useAtendimentoMutations'
+import { useExecutarEmLote } from '../../../hooks/concierge/useAtendimentoMutations'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
-import { useQueryClient } from '@tanstack/react-query'
 
 interface ConciergeKanbanBoardProps {
   filters: KanbanTarefasFilters
@@ -30,8 +29,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
   const executarEmLote = useExecutarEmLote()
-  const notificarCliente = useNotificarCliente()
-  const queryClient = useQueryClient()
 
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
@@ -39,6 +36,16 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Colunas retraídas — "encerrado" começa fechado por default (recusados/cancelados
+  // raramente precisam de atenção, mas continuam acessíveis com 1 clique).
+  const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['encerrado']))
+  const toggleCol = (id: EstadoFunil) => {
+    setCollapsedCols(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   const containerRef = useRef<HTMLDivElement>(null)
   const { showLeftArrow, showRightArrow, scrollLeft, scrollRight } = useHorizontalScroll(containerRef, {
@@ -78,13 +85,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     if (!item || !destino) return
     if (item.estado_funil === destino) return
 
-    if (destino === 'em_contato') {
-      toast.error('Não dá pra voltar para "Em contato"')
-      return
-    }
-
-    if (destino === 'aceito' && item.tipo_concierge !== 'oferta') {
-      toast.error('Só ofertas podem ser marcadas como aceitas')
+    if (destino === 'aguardando_atendimento') {
+      toast.error('Não dá pra voltar para "Aguardando atendimento"')
       return
     }
 
@@ -105,50 +107,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     )
   }
 
-  const onBulkAceito = () => {
-    const ids = selectedItems
-      .filter(i => i.tipo_concierge === 'oferta' && !i.outcome)
-      .map(i => i.atendimento_id)
-    if (ids.length === 0) return
-    executarEmLote.mutate(
-      { atendimento_ids: ids, outcome: 'aceito' },
-      { onSuccess: () => clearSelection() }
-    )
-  }
-
-  const onBulkNotificar = async () => {
-    const items = selectedItems.filter(i => !i.notificou_cliente_em && !i.outcome)
-    if (items.length === 0) return
-    let success = 0
-    const failed: { item: KanbanTarefaItem; reason: string }[] = []
-    for (const it of items) {
-      try {
-        await notificarCliente.mutateAsync(it.atendimento_id)
-        success++
-      } catch (err) {
-        failed.push({
-          item: it,
-          reason: err instanceof Error ? err.message : 'erro desconhecido',
-        })
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: ['concierge'] })
-
-    if (failed.length === 0 && success > 0) {
-      toast.success(`${success} cliente${success === 1 ? '' : 's'} notificado${success === 1 ? '' : 's'}`)
-    } else if (success > 0 && failed.length > 0) {
-      toast.warning(
-        `${success} notificado${success === 1 ? '' : 's'}, ${failed.length} falhou${failed.length === 1 ? '' : 'ram'}`,
-        { description: failed.slice(0, 3).map(f => `• ${f.item.titulo || f.item.categoria}: ${f.reason}`).join('\n') + (failed.length > 3 ? `\n• +${failed.length - 3} outras` : '') }
-      )
-    } else if (failed.length > 0) {
-      toast.error(`Nenhum notificado — ${failed.length} falha${failed.length === 1 ? '' : 's'}`, {
-        description: failed[0].reason,
-      })
-    }
-
-    clearSelection()
-  }
+  // Bulk Aceito e Bulk Notificar foram removidos da SelectionActionBar.
+  // Marcar como Aceito segue disponível pelo modal de detalhe.
 
   const onBulkEncerrar = () => {
     const items = selectedItems.filter(i => !i.outcome)
@@ -207,6 +167,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
         >
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
+            const isCollapsed = collapsedCols.has(col.id)
             return (
               <ConciergeKanbanColumn
                 key={col.id}
@@ -215,6 +176,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                 hint={col.hint}
                 count={items.length}
                 tone={col.tone}
+                collapsed={isCollapsed}
+                onToggleCollapsed={() => toggleCol(col.id)}
               >
                 {items.length === 0 ? (
                   <div className="text-[10.5px] text-slate-400 italic py-6 text-center">
@@ -246,10 +209,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
         selected={selectedItems}
         onClear={clearSelection}
         onMarcarFeito={onBulkFeito}
-        onMarcarAceito={onBulkAceito}
-        onNotificar={onBulkNotificar}
         onEncerrar={onBulkEncerrar}
-        isPending={executarEmLote.isPending || notificarCliente.isPending}
+        isPending={executarEmLote.isPending}
       />
 
       <AtendimentoDetailModal

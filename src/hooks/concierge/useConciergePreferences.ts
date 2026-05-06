@@ -14,6 +14,9 @@ export interface ConciergePreferences {
   janelas: JanelaEmbarque[]
   categorias: string[]
   tagIds: string[]
+  /** Mostrar atendimentos com outcome (Feito/Encerrado) com mais de 2 dias.
+   *  Default false: o Kanban esconde por padrão pra reduzir ruído. */
+  mostrarConcluidosAntigos: boolean
 }
 
 const DEFAULT_PREFS: ConciergePreferences = {
@@ -24,6 +27,7 @@ const DEFAULT_PREFS: ConciergePreferences = {
   janelas: [],
   categorias: [],
   tagIds: [],
+  mostrarConcluidosAntigos: false,
 }
 
 const STORAGE_PREFIX = 'welcomecrm:concierge:kanban:v1'
@@ -50,6 +54,9 @@ function readPrefs(key: string | null): ConciergePreferences {
       janelas: Array.isArray(parsed.janelas) ? (parsed.janelas as JanelaEmbarque[]) : [],
       categorias: Array.isArray(parsed.categorias) ? parsed.categorias : [],
       tagIds: Array.isArray(parsed.tagIds) ? parsed.tagIds : [],
+      mostrarConcluidosAntigos: typeof parsed.mostrarConcluidosAntigos === 'boolean'
+        ? parsed.mostrarConcluidosAntigos
+        : false,
     }
   } catch {
     return DEFAULT_PREFS

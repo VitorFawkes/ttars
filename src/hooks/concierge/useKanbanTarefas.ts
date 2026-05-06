@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
 import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
 
-export type EstadoFunil = 'em_contato' | 'aguardando_retorno' | 'aceito' | 'feito' | 'encerrado'
+export type EstadoFunil = 'aguardando_atendimento' | 'em_contato' | 'aguardando_retorno' | 'feito' | 'encerrado'
 
 export type JanelaEmbarque =
   | 'sem_data'
@@ -54,15 +54,14 @@ export interface KanbanTarefasFilters {
   /** Map<cardId, Set<tagId>> + lista de tagIds desejadas — filtra cards que tem qualquer uma das tags */
   tagFilter?: { tagIds: string[]; lookup: Map<string, Set<string>> }
   search?: string
+  /** Quando false, esconde atendimentos com outcome (Feito/Encerrado) com
+   *  outcome_em há mais de 2 dias. Default: false (esconder). */
+  mostrarConcluidosAntigos?: boolean
 }
 
 export interface KanbanTarefaItem extends MeuDiaItem {
   estado_funil: EstadoFunil
   janela_embarque: JanelaEmbarque
-  /** Posição cronológica desta tarefa entre todas as tarefas da viagem (1-based) */
-  posicao_na_viagem?: number
-  /** Total de tarefas (atendimentos) da viagem, ignorando filtros */
-  total_na_viagem?: number
 }
 
 export interface KanbanColumnSpec {
@@ -73,47 +72,23 @@ export interface KanbanColumnSpec {
 }
 
 export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
-  { id: 'em_contato',         label: 'Em contato',         hint: 'Você está cuidando agora',        tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-400'   } },
-  { id: 'aguardando_retorno', label: 'Aguardando retorno', hint: 'Cliente notificado, esperando',   tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
-  { id: 'aceito',             label: 'Aceito',             hint: 'Oferta aceita pelo cliente',      tone: { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200',  accent: 'bg-purple-500'  } },
-  { id: 'feito',              label: 'Feito',              hint: 'Atendimento concluído',           tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
-  { id: 'encerrado',          label: 'Encerrado',          hint: 'Recusado ou cancelado',           tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
+  { id: 'aguardando_atendimento', label: 'Aguardando atendimento', hint: 'Não iniciado ainda',           tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-300'   } },
+  { id: 'em_contato',             label: 'Em contato',             hint: 'Você está cuidando agora',     tone: { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    accent: 'bg-blue-500'    } },
+  { id: 'aguardando_retorno',     label: 'Aguardando retorno',     hint: 'Cliente notificado, esperando',tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
+  { id: 'feito',                  label: 'Feito',                  hint: 'Atendimento concluído',        tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
+  { id: 'encerrado',              label: 'Encerrado',              hint: 'Recusado ou cancelado',        tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
 ]
 
 export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
-  if (item.outcome === 'aceito')                              return 'aceito'
-  if (item.outcome === 'feito')                               return 'feito'
-  if (item.outcome === 'recusado' || item.outcome === 'cancelado') return 'encerrado'
-  if (item.notificou_cliente_em)                              return 'aguardando_retorno'
-  return 'em_contato'
+  // Outcome decide o destino — 'aceito' (legado, oferta aceita) entra junto com 'feito'.
+  if (item.outcome === 'aceito' || item.outcome === 'feito')          return 'feito'
+  if (item.outcome === 'recusado' || item.outcome === 'cancelado')    return 'encerrado'
+  if (item.notificou_cliente_em)                                      return 'aguardando_retorno'
+  if (item.started_at)                                                return 'em_contato'
+  return 'aguardando_atendimento'
 }
 
 export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
-  // Lookup global de "X de N" — total real por viagem, ignorando filtros do usuário.
-  // Cacheado por 60s; uma query enxuta retorna só (card_id, atendimento_id, criado_em).
-  const totalsQuery = useQuery({
-    queryKey: ['concierge', 'card-totals-lookup'],
-    queryFn: async () => {
-      const { data, error } = await sbAny
-        .from('v_meu_dia_concierge')
-        .select('card_id, atendimento_id, atendimento_criado_em')
-      if (error) throw error
-      const byCard = new Map<string, Array<{ id: string; t: number }>>()
-      for (const row of (data ?? []) as Array<{ card_id: string; atendimento_id: string; atendimento_criado_em: string }>) {
-        const arr = byCard.get(row.card_id) ?? []
-        arr.push({ id: row.atendimento_id, t: new Date(row.atendimento_criado_em).getTime() })
-        byCard.set(row.card_id, arr)
-      }
-      const lookup = new Map<string, { posicao: number; total: number }>()
-      for (const list of byCard.values()) {
-        list.sort((a, b) => a.t - b.t)
-        list.forEach((it, idx) => lookup.set(it.id, { posicao: idx + 1, total: list.length }))
-      }
-      return lookup
-    },
-    staleTime: 60 * 1000,
-  })
-
   const baseQuery = useQuery({
     queryKey: ['concierge', 'kanban-tarefas-base', { donoId: filters.donoId, tipos: filters.tipos, sources: filters.sources }],
     queryFn: async (): Promise<KanbanTarefaItem[]> => {
@@ -137,20 +112,17 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
     staleTime: 30 * 1000,
   })
 
-  const enriched = useMemo(() => {
-    if (!baseQuery.data) return undefined
-    const lookup = totalsQuery.data
-    if (!lookup) return baseQuery.data
-    return baseQuery.data.map(item => {
-      const pos = lookup.get(item.atendimento_id)
-      return pos ? { ...item, posicao_na_viagem: pos.posicao, total_na_viagem: pos.total } : item
-    })
-  }, [baseQuery.data, totalsQuery.data])
+  const enriched = baseQuery.data
 
   const filtered = useMemo(() => {
     if (!enriched) return undefined
     const wantedTagIds = filters.tagFilter?.tagIds ?? []
     const tagLookup = filters.tagFilter?.lookup
+    // Atendimentos com outcome há mais de 2 dias somem por padrão.
+    // Defensivo: se outcome_em é null (raro), mantém visível.
+    const limiteAntigo = filters.mostrarConcluidosAntigos
+      ? null
+      : Date.now() - 2 * 24 * 60 * 60 * 1000
     return enriched.filter(item => {
       if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
       if (filters.janelas?.length && !filters.janelas.includes(item.janela_embarque)) return false
@@ -166,9 +138,12 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
         const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
         if (!blob.includes(q)) return false
       }
+      if (limiteAntigo !== null && item.outcome && item.outcome_em) {
+        if (new Date(item.outcome_em).getTime() < limiteAntigo) return false
+      }
       return true
     })
-  }, [enriched, filters.cardIds, filters.janelas, filters.categorias, filters.tagFilter, filters.search])
+  }, [enriched, filters.cardIds, filters.janelas, filters.categorias, filters.tagFilter, filters.search, filters.mostrarConcluidosAntigos])
 
   const groupedByEstado = useMemo(() => {
     const groups = new Map<EstadoFunil, KanbanTarefaItem[]>()

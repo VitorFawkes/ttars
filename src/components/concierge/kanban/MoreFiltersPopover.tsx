@@ -19,6 +19,10 @@ interface MoreFiltersPopoverProps {
   onToggleTag: (id: string) => void
   cardFilter: { id: string; titulo: string } | null
   onSelectCard: (card: { id: string; titulo: string } | null) => void
+  /** Quando true, mostra atendimentos com outcome há mais de 2 dias.
+   *  Default: false (esconde). */
+  mostrarConcluidosAntigos: boolean
+  onToggleMostrarConcluidosAntigos: () => void
   /** Lista atual de tarefas (pra derivar opções de card e categoria presentes) */
   tarefas: KanbanTarefaItem[]
 }
@@ -30,6 +34,8 @@ export function MoreFiltersPopover({
   onToggleTag,
   cardFilter,
   onSelectCard,
+  mostrarConcluidosAntigos,
+  onToggleMostrarConcluidosAntigos,
   tarefas,
 }: MoreFiltersPopoverProps) {
   const [open, setOpen] = useState(false)
@@ -76,6 +82,8 @@ export function MoreFiltersPopover({
     : cardsPresentes
 
   const totalActive = categoriasFilter.length + tagFilter.length + (cardFilter ? 1 : 0)
+  // Filtro implícito ativo: por padrão estamos escondendo concluídos antigos.
+  const hasImplicitFilter = !mostrarConcluidosAntigos
 
   return (
     <div ref={ref} className="relative">
@@ -83,16 +91,23 @@ export function MoreFiltersPopover({
         type="button"
         onClick={() => setOpen(o => !o)}
         className={cn(
-          'inline-flex items-center gap-1.5 h-7 px-2.5 text-[12px] font-medium rounded-md border transition-colors',
+          'inline-flex items-center gap-1.5 h-7 px-2.5 text-[12px] font-medium rounded-md border transition-colors relative',
           totalActive > 0
             ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
         )}
+        title={hasImplicitFilter ? 'Concluídos antigos (>2 dias) escondidos — abra pra ajustar' : undefined}
       >
         <Filter className="w-3 h-3" />
         Mais filtros
         {totalActive > 0 && (
           <span className="font-mono text-[10px] bg-indigo-600 text-white px-1.5 rounded-full">{totalActive}</span>
+        )}
+        {totalActive === 0 && hasImplicitFilter && (
+          <span
+            className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-white"
+            aria-hidden
+          />
         )}
       </button>
 
@@ -199,6 +214,27 @@ export function MoreFiltersPopover({
                   )
                 })}
               </div>
+            </Section>
+
+            <Section title="Histórico">
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={onToggleMostrarConcluidosAntigos}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 h-6 px-2 rounded text-[11px] font-medium border transition-colors',
+                    mostrarConcluidosAntigos
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  )}
+                >
+                  {mostrarConcluidosAntigos && <Check className="w-3 h-3" />}
+                  Mostrar concluídos antigos (&gt;2 dias)
+                </button>
+              </div>
+              <p className="mt-1.5 text-[10.5px] text-slate-400 leading-snug">
+                Por padrão, atendimentos com mais de 2 dias em "Feito" ou "Encerrado" somem do Kanban.
+              </p>
             </Section>
           </div>
         </div>

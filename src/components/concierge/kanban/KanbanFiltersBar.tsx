@@ -33,6 +33,11 @@ interface KanbanFiltersBarProps {
   cardFilter: { id: string; titulo: string } | null
   onSelectCard: (card: { id: string; titulo: string } | null) => void
 
+  /** Toggle pra mostrar atendimentos finalizados há mais de 2 dias.
+   *  Default escondido — vive em "Mais filtros". */
+  mostrarConcluidosAntigos: boolean
+  onToggleMostrarConcluidosAntigos: () => void
+
   onClearAll: () => void
   hasAnyFilter: boolean
 
@@ -57,6 +62,8 @@ export function KanbanFiltersBar({
   onToggleTag,
   cardFilter,
   onSelectCard,
+  mostrarConcluidosAntigos,
+  onToggleMostrarConcluidosAntigos,
   onClearAll,
   hasAnyFilter,
   showAdvanced = true,
@@ -123,6 +130,8 @@ export function KanbanFiltersBar({
             onToggleTag={onToggleTag}
             cardFilter={cardFilter}
             onSelectCard={onSelectCard}
+            mostrarConcluidosAntigos={mostrarConcluidosAntigos}
+            onToggleMostrarConcluidosAntigos={onToggleMostrarConcluidosAntigos}
             tarefas={tarefas}
           />
         )}

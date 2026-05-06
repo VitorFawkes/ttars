@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, X, MessageCircle, ThumbsUp, Ban, Loader2 } from 'lucide-react'
+import { Check, X, Ban, Loader2 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
 
@@ -7,8 +7,6 @@ interface SelectionActionBarProps {
   selected: KanbanTarefaItem[]
   onClear: () => void
   onMarcarFeito: () => void
-  onMarcarAceito: () => void
-  onNotificar: () => void
   onEncerrar: () => void
   isPending?: boolean
 }
@@ -17,17 +15,13 @@ export function SelectionActionBar({
   selected,
   onClear,
   onMarcarFeito,
-  onMarcarAceito,
-  onNotificar,
   onEncerrar,
   isPending,
 }: SelectionActionBarProps) {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null)
   if (selected.length === 0) return null
 
-  const ofertas = selected.filter(s => s.tipo_concierge === 'oferta').length
   const semOutcome = selected.filter(s => !s.outcome).length
-  const aFazer = selected.filter(s => !s.outcome && !s.notificou_cliente_em).length
 
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-white rounded-xl border border-slate-200 shadow-xl px-3 py-2 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
@@ -51,30 +45,6 @@ export function SelectionActionBar({
         onHover={() => setHoveredAction('feito')}
         onLeave={() => setHoveredAction(null)}
         hovered={hoveredAction === 'feito'}
-      />
-
-      <ActionButton
-        icon={<ThumbsUp className="w-3.5 h-3.5" strokeWidth={2.5} />}
-        label="Aceito"
-        sublabel={`${ofertas} oferta${ofertas === 1 ? '' : 's'}`}
-        tone="purple"
-        onClick={onMarcarAceito}
-        disabled={isPending || ofertas === 0}
-        onHover={() => setHoveredAction('aceito')}
-        onLeave={() => setHoveredAction(null)}
-        hovered={hoveredAction === 'aceito'}
-      />
-
-      <ActionButton
-        icon={<MessageCircle className="w-3.5 h-3.5" strokeWidth={2.5} />}
-        label="Notificar"
-        sublabel={`${aFazer}`}
-        tone="amber"
-        onClick={onNotificar}
-        disabled={isPending || aFazer === 0}
-        onHover={() => setHoveredAction('notificar')}
-        onLeave={() => setHoveredAction(null)}
-        hovered={hoveredAction === 'notificar'}
       />
 
       <ActionButton
@@ -105,16 +75,6 @@ const TONE_STYLES: Record<string, { idle: string; hover: string; disabled: strin
   emerald: {
     idle: 'text-emerald-700',
     hover: 'bg-emerald-50',
-    disabled: 'text-slate-400',
-  },
-  purple: {
-    idle: 'text-purple-700',
-    hover: 'bg-purple-50',
-    disabled: 'text-slate-400',
-  },
-  amber: {
-    idle: 'text-amber-700',
-    hover: 'bg-amber-50',
     disabled: 'text-slate-400',
   },
   slate: {

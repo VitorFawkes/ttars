@@ -37,6 +37,8 @@ import { processAIExtraction } from '@/hooks/useAIExtraction';
 import { useTaskOutcomes } from '@/hooks/useTaskOutcomes';
 import { categoriasParaProduto, type CategoriaConcierge } from '@/hooks/concierge/types';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useConciergeUserIds } from '@/hooks/concierge/useConciergeUserIds';
+import { BellConciergeIcon } from '@/components/icons/BellConciergeIcon';
 
 // Helper para formatar nomes de campos extraídos pela IA
 const formatCampoLabel = (campo: string): string => {
@@ -241,6 +243,10 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
     type TipoConciergeOption = 'oferta' | 'reserva' | 'suporte' | 'operacional';
     const [tipoConcierge, setTipoConcierge] = useState<TipoConciergeOption | ''>('');
     const [categoriaConcierge, setCategoriaConcierge] = useState<CategoriaConcierge | ''>('');
+    /** Quando true, restringe a lista de responsáveis a usuários do time Concierge.
+     *  Setado pelo atalho "Check-in" — uma tarefa de Check-in só faz sentido pra concierge. */
+    const [forceConciergeAssignee, setForceConciergeAssignee] = useState(false);
+    const conciergeUserIds = useConciergeUserIds();
 
     // Lista de categorias filtrada pelo produto da workspace + tipo escolhido.
     const { slug: productSlug } = useCurrentProductMeta();
@@ -423,18 +429,28 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         return p ? (p.nome || p.email || 'Sem nome') : null;
     }, [responsibleId, profiles]);
 
-    // Filter profiles by search term
+    // Filter profiles by search term + (opcional) restrição a concierge.
+    // Quando forceConciergeAssignee=true (atalho Check-in), só lista usuários
+    // do time Concierge — vale tanto pra "equipe do card" quanto "outros".
     const filteredTeamProfiles = useMemo(() => {
-        if (!responsibleSearch) return teamProfiles;
+        let list = teamProfiles;
+        if (forceConciergeAssignee && conciergeUserIds) {
+            list = list.filter(p => conciergeUserIds.has(p.id));
+        }
+        if (!responsibleSearch) return list;
         const q = responsibleSearch.toLowerCase();
-        return teamProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
-    }, [teamProfiles, responsibleSearch]);
+        return list.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
+    }, [teamProfiles, responsibleSearch, forceConciergeAssignee, conciergeUserIds]);
 
     const filteredOtherProfiles = useMemo(() => {
-        if (!responsibleSearch) return otherProfiles;
+        let list = otherProfiles;
+        if (forceConciergeAssignee && conciergeUserIds) {
+            list = list.filter(p => conciergeUserIds.has(p.id));
+        }
+        if (!responsibleSearch) return list;
         const q = responsibleSearch.toLowerCase();
-        return otherProfiles.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
-    }, [otherProfiles, responsibleSearch]);
+        return list.filter(p => (p.nome || p.email || '').toLowerCase().includes(q));
+    }, [otherProfiles, responsibleSearch, forceConciergeAssignee, conciergeUserIds]);
 
     // Conflict detection for meetings
     const meetingConflicts = useMemo(() => {
@@ -515,6 +531,7 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                 setMetadata({});
                 setTipoConcierge('');
                 setCategoriaConcierge('');
+                setForceConciergeAssignee(false);
                 setResponsibleId(user?.id || '');
                 setMeetingStatus('agendada');
                 setMeetingResult('');
@@ -634,6 +651,8 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
         // Reset metadata when switching types to avoid stale state
         setMetadata({});
         setOtherCategory('');
+        // Volta a permitir qualquer responsável — só o atalho Check-in restringe.
+        setForceConciergeAssignee(false);
 
         // Update type
         setType(selectedType);
@@ -646,6 +665,29 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
             } else {
                 const typeLabel = TASK_TYPES.find(t => t.id === selectedType)?.label || '';
                 setTitle(typeLabel);
+            }
+        }
+    };
+
+    /** Atalho: cria uma tarefa Check-in pré-configurada como atendimento Concierge.
+     *  Pré-define type=tarefa, título="Check-in", tipoConcierge=operacional,
+     *  categoriaConcierge=check_in, e RESTRINGE o seletor de responsável a
+     *  usuários do time Concierge (concierge-only). */
+    const handleCheckInShortcut = () => {
+        setMetadata({});
+        setOtherCategory('');
+        setType('tarefa');
+        setStep(2);
+        if (!initialData) setTitle('Check-in');
+        setTipoConcierge('operacional');
+        setCategoriaConcierge('check_in' as CategoriaConcierge);
+        setForceConciergeAssignee(true);
+        // Pré-seleciona o primeiro concierge se houver e o atual não for um.
+        if (conciergeUserIds && conciergeUserIds.size > 0) {
+            const currentIsConcierge = responsibleId && conciergeUserIds.has(responsibleId);
+            if (!currentIsConcierge) {
+                const firstConcierge = Array.from(conciergeUserIds)[0];
+                setResponsibleId(firstConcierge);
             }
         }
     };
@@ -1070,6 +1112,20 @@ export function SmartTaskModal({ isOpen, onClose, cardId, initialData, mode = 'c
                                 </button>
                             );
                         })}
+
+                        {/* Atalho Concierge: tarefa de Check-in pré-configurada.
+                            Só aparece em workspace TRIPS (categoria check_in é exclusiva de TRIPS). */}
+                        {(productSlug ?? '').toUpperCase() === 'TRIPS' && (
+                            <button
+                                type="button"
+                                onClick={handleCheckInShortcut}
+                                className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-50"
+                                title="Cria uma tarefa de Check-in pré-configurada para o time Concierge"
+                            >
+                                <BellConciergeIcon width={32} height={32} />
+                                <span className="font-medium text-sm">Check-in</span>
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4 py-4">
