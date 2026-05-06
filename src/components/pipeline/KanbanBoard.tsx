@@ -41,6 +41,7 @@ import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStageSort } from '../../hooks/usePhaseSort'
 import { sortCards } from '../../lib/sortCards'
+import { useCardConciergeStatsBatch } from '../../hooks/concierge/useCardConciergeStats'
 
 const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
 
@@ -168,6 +169,14 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     })
 
     const allCards = useMemo(() => cards || [], [cards])
+
+    // Batch concierge stats — uma única query para todos os cards visíveis (em vez de N queries no KanbanCard).
+    // O array de IDs é memoizado para que a key da query só mude quando o conjunto de cards muda.
+    const allCardIds = useMemo(
+        () => allCards.map(c => c.id).filter((id): id is string => !!id),
+        [allCards]
+    )
+    const { data: conciergeStatsMap } = useCardConciergeStatsBatch(allCardIds)
 
     // Restore scroll position once after stages + cards are loaded
     useEffect(() => {
@@ -984,6 +993,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                             hasSortOverride={hasStageSortOverride(stage.id)}
                                                             onSortChange={(config) => setStageSortConfig(stage.id, config)}
                                                             onClearSort={() => clearStageSortConfig(stage.id)}
+                                                            conciergeStatsMap={conciergeStatsMap}
                                                         />
                                                     )
                                                 })
