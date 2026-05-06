@@ -3007,7 +3007,8 @@ Contexto:
 - ai_contexto: ${backoffice.ai_contexto || "(vazio)"}
 ${ctx.contact_name_known
   ? `- Nome: ${ctx.contact_name}`
-  : `- Nome: DESCONHECIDO — voce NAO sabe o nome do lead ainda. NUNCA use "Cliente", "Lead" ou qualquer placeholder como se fosse o nome dele. Em vez disso, descubra o nome com naturalidade na conversa (ex: "pra eu te chamar pelo nome, como voce se chama?"). Ate saber, use cumprimento sem nome ("Oi, tudo bem?").`}
+  // IMPORTANTE: nao colocar exemplos entre aspas aqui — LLMs reproduzem literal e a saudacao vira template fixo (incidente 2026-05-06).
+  : `- Nome: DESCONHECIDO — voce ainda NAO sabe o nome do lead. NUNCA invente, NUNCA use placeholder generico (Cliente, Lead, Amigo). Quando fizer sentido natural na conversa, peca o nome com SUAS palavras, alinhado a sua persona, sem copiar formula pronta. Enquanto nao souber, cumprimente sem usar nome.`}
 - Primeiro contato: ${ctx.is_primeiro_contato}
 - Role: ${backoffice.detected_role}
 - Card ID: ${ctx.card_id || "(sem card)"}
@@ -3053,7 +3054,7 @@ ${protectedFieldsBlock}
 
 HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
-${presentationBlock ? presentationBlock : `PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avance direto.`}
+${presentationBlock ? presentationBlock : `PRIMEIRO CONTATO: nao ha apresentacao customizada configurada. Priorize entender a intencao do lead em 1-2 frases curtas, alinhado a sua persona acima. Sem formulas prontas, sem repetir saudacao quando ja conversou antes.`}
 
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
@@ -3326,6 +3327,11 @@ async function sendResponse(
   phoneNumberId?: string,
   typingDelayMs = 1500,
   testWhitelist?: string[] | null,
+  // Antes esses valores eram hardcoded "Luna IA" / "SDR Trips" — vazavam atribuicao
+  // errada em qualquer agente que nao fosse a Luna (incidente 2026-05-06).
+  agentName: string = "AI Agent",
+  agentId: string | null = null,
+  phoneLineLabel: string | null = null,
 ): Promise<void> {
   const echoApiUrl = Deno.env.get("ECHO_API_URL");
   const echoApiKey = Deno.env.get("ECHO_API_KEY");
@@ -3354,9 +3360,11 @@ async function sendResponse(
         type: "text",
         status: "blocked_test_mode",
         sender_phone: normalizedPhone,
-        sent_by_user_name: "Luna IA (blocked)",
+        sent_by_user_name: `${agentName} (blocked)`,
+        phone_number_label: phoneLineLabel,
         metadata: {
           source: "ai_agent",
+          agent_id: agentId,
           blocked_reason: "test_mode_phone_whitelist",
           allowed_phones: normalizedWhitelist,
         },
@@ -3404,10 +3412,11 @@ async function sendResponse(
         type: "text",
         status: success ? "sent" : "failed",
         sender_phone: normalizedPhone,
-        sent_by_user_name: "Luna IA",
-        phone_number_label: "SDR Trips",
+        sent_by_user_name: agentName,
+        phone_number_label: phoneLineLabel,
         metadata: {
           source: "ai_agent",
+          agent_id: agentId,
           echo_response: echoResult,
         },
       });
@@ -4016,7 +4025,7 @@ serve(async (req) => {
 
     if (escalated) {
       const msgs = await formatWhatsAppMessages(escalationMsg, maxBlocks, agent);
-      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist, agent.nome, agent.id, input.phone_number_label ?? null);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -4147,7 +4156,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist, agent.nome, agent.id, input.phone_number_label ?? null);
 
     // Libera lock de pipeline antes de retornar (sucesso).
     try {
