@@ -1,18 +1,13 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-// Eixo principal de status (situação corrente da tarefa)
-export type TaskSituacao =
-    | 'abertas'         // pendentes em geral
-    | 'atrasadas'       // pendentes com vencimento < hoje
-    | 'hoje'            // pendentes com vencimento = hoje
-    | 'esta_semana'     // pendentes com vencimento <= fim da semana
-    | 'concluidas'      // todas concluídas (combinar com janelaConclusao)
-    | 'reagendadas'     // status reagendada OU rescheduled_to_id IS NOT NULL
-    | 'canceladas'      // status cancelada / cancelado / nao_compareceu
-    | 'tudo'            // sem filtro
+/** Estado fundamental da tarefa (eixo 1, mutually exclusive) */
+export type TaskEstado = 'pendentes' | 'concluidas' | 'reagendadas' | 'canceladas' | 'tudo'
 
-// Eixo secundário: janela temporal de conclusão (só faz sentido com situacao=concluidas)
+/** Janela de prazo (eixo 2, multi-select — só faz sentido quando estado=pendentes) */
+export type TaskPrazo = 'atrasadas' | 'hoje' | 'amanha' | 'esta_semana' | 'proxima_semana' | 'sem_prazo'
+
+/** Janela temporal de conclusão (só faz sentido quando estado=concluidas) */
 export type TaskJanelaConclusao = 'hoje' | 'ontem' | 'esta_semana' | 'este_mes' | 'sempre'
 
 export type TaskScopeFilter = 'minhas' | 'meu_time' | 'todas'
@@ -23,9 +18,11 @@ export type TaskUrgenciaFilter = 'sem_responsavel' | 'sem_prazo' | 'sem_descrica
 export interface TaskFilterState {
     /** Busca livre */
     search: string
-    /** Situação principal */
-    situacao: TaskSituacao
-    /** Janela de conclusão (combina com situacao=concluidas) */
+    /** Estado fundamental (Pendentes/Concluídas/Reagendadas/Canceladas/Tudo) */
+    estado: TaskEstado
+    /** Prazo (multi-select, ativo quando estado=pendentes ou tudo) */
+    prazos: TaskPrazo[]
+    /** Janela de conclusão (combina com estado=concluidas) */
     janelaConclusao: TaskJanelaConclusao
     /** Escopo (minhas / time / todas) */
     scope: TaskScopeFilter
@@ -35,7 +32,7 @@ export interface TaskFilterState {
     prioridades: TaskPrioridadeFilter[]
     /** Origem (manual/cadência/automação/integração) */
     origens: TaskOrigemFilter[]
-    /** Resultado / outcome (atendeu, não atendeu, etc.) */
+    /** Resultado / outcome */
     resultados: string[]
     /** Slug da fase do responsável (sdr, planner, pos-venda, concierge) */
     fases: string[]
@@ -62,7 +59,8 @@ export interface TaskFilterState {
 
 export const initialTaskFilters: TaskFilterState = {
     search: '',
-    situacao: 'abertas',
+    estado: 'pendentes',
+    prazos: [],
     janelaConclusao: 'sempre',
     scope: 'minhas',
     tipos: [],
@@ -79,19 +77,27 @@ export const initialTaskFilters: TaskFilterState = {
 interface TaskFiltersStore {
     filters: TaskFilterState
     setFilters: (partial: Partial<TaskFilterState>) => void
+    /** Aplica preset "Foco hoje": estado=pendentes + prazos=[atrasadas, hoje] */
+    applyFocoHoje: () => void
     reset: () => void
 }
 
 /**
- * Filtros da página de Tarefas.
+ * Filtros da página de Tarefas — modelo de 2 eixos.
  *
- * Persistência: localStorage (igual ao Kanban — sobrevive reload sem poluir
- * URL). Search é excluído do partialize porque seria ruído no histórico.
+ * Eixo 1 (estado): Pendentes / Concluídas / Reagendadas / Canceladas / Tudo
+ * Eixo 2 (prazos): Atrasadas / Hoje / Amanhã / Esta semana / Próx. semana / Sem prazo
+ *
+ * Composição:
+ * - estado=pendentes + prazos=[atrasadas, hoje] → minhas tarefas urgentes
+ * - estado=concluidas + janelaConclusao=hoje → o que terminei hoje
+ * - estado=tudo → relatório completo (raro)
+ *
+ * Persistência: localStorage. Search excluído do partialize.
  *
  * Comportamento esperto:
  * - Trocar `scope` zera responsavelIds (filtro incompatível)
- * - Setar `vencimentoFrom/To` libera o usuário a deixar `situacao` em qualquer
- *   estado (ele escolhe a janela manualmente)
+ * - Trocar `estado` para algo que não seja pendentes/tudo zera `prazos`
  */
 export const useTaskFilters = create<TaskFiltersStore>()(
     persist(
@@ -101,17 +107,30 @@ export const useTaskFilters = create<TaskFiltersStore>()(
                 set((state) => {
                     const next = { ...state.filters, ...partial }
 
-                    // Cascade: trocar escopo zera filtro de pessoa específica (incompatível)
                     if (partial.scope && partial.scope !== state.filters.scope) {
                         next.responsavelIds = []
                     }
 
+                    if (partial.estado && partial.estado !== state.filters.estado) {
+                        if (partial.estado !== 'pendentes' && partial.estado !== 'tudo') {
+                            next.prazos = []
+                        }
+                    }
+
                     return { filters: next }
                 }),
+            applyFocoHoje: () =>
+                set((state) => ({
+                    filters: {
+                        ...state.filters,
+                        estado: 'pendentes',
+                        prazos: ['atrasadas', 'hoje'],
+                    },
+                })),
             reset: () => set({ filters: { ...initialTaskFilters } }),
         }),
         {
-            name: 'tasks-filters-storage',
+            name: 'tasks-filters-storage-v2',
             storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({
                 filters: { ...state.filters, search: '' },

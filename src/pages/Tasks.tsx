@@ -22,7 +22,7 @@ import type { TaskListItem } from '../hooks/useTasksList'
 
 export default function Tasks() {
     const { profile } = useAuth()
-    const { filters, setFilters, reset } = useTaskFilters()
+    const { filters, setFilters, reset, applyFocoHoje } = useTaskFilters()
     const [viewMode, setViewMode] = useState<TaskViewMode>('list')
     const enableTasksList = viewMode !== 'duplicates'
     const { data: tasks, isLoading } = useTasksList({ filters, enabled: enableTasksList })
@@ -244,7 +244,7 @@ export default function Tasks() {
                     isLoading={isLoading && enableTasksList}
                 />
 
-                <TaskQuickChips filters={filters} setFilters={setFilters} />
+                <TaskQuickChips filters={filters} setFilters={setFilters} onFocoHoje={applyFocoHoje} />
 
                 <ActiveTaskFilters filters={filters} setFilters={setFilters} onReset={reset} />
             </div>

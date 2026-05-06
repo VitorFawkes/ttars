@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Check, AlertCircle, Clock, Phone, Mail, MessageSquare, ChevronRight, Copy } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -27,7 +28,7 @@ interface Props {
     showSelector?: boolean
 }
 
-export function TaskRow({
+function TaskRowImpl({
     task, onComplete, onUncomplete, onReschedule,
     isCompleting, selected, onToggleSelect, showSelector,
 }: Props) {
@@ -293,3 +294,17 @@ export function TaskRow({
         </div>
     )
 }
+
+/**
+ * Memoizado: re-renderiza apenas quando a task muda OU quando seleção muda.
+ * Evita re-render em massa quando o usuário troca filtros (que mudam a lista
+ * inteira mas mantêm cada task igual).
+ */
+export const TaskRow = memo(TaskRowImpl, (prev, next) => {
+    return (
+        prev.task === next.task &&
+        prev.selected === next.selected &&
+        prev.isCompleting === next.isCompleting &&
+        prev.showSelector === next.showSelector
+    )
+})

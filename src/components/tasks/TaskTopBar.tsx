@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Search, X, ListFilter, List, Layers, Copy } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { TaskFilterState, TaskScopeFilter } from '../../hooks/useTaskFilters'
@@ -28,6 +29,11 @@ interface Props {
     isLoading: boolean
 }
 
+/**
+ * Top bar das tarefas com busca debounced (350ms).
+ * O input local atualiza imediatamente; filters.search só atualiza após 350ms
+ * de inatividade — evita disparar 1 query por tecla.
+ */
 export function TaskTopBar({
     filters,
     setFilters,
@@ -39,6 +45,31 @@ export function TaskTopBar({
     taskCount,
     isLoading,
 }: Props) {
+    const [localSearch, setLocalSearch] = useState(filters.search)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Sync external mudanças (reset, navegação) → input local
+    useEffect(() => {
+        if (filters.search !== localSearch) {
+            setLocalSearch(filters.search)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filters.search])
+
+    const handleSearchChange = (value: string) => {
+        setLocalSearch(value)
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => {
+            setFilters({ search: value })
+        }, 350)
+    }
+
+    const clearSearch = () => {
+        setLocalSearch('')
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        setFilters({ search: '' })
+    }
+
     return (
         <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -46,13 +77,13 @@ export function TaskTopBar({
                 <input
                     type="text"
                     placeholder="Buscar por título ou descrição..."
-                    value={filters.search}
-                    onChange={(e) => setFilters({ search: e.target.value })}
+                    value={localSearch}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
                 />
-                {filters.search && (
+                {localSearch && (
                     <button
-                        onClick={() => setFilters({ search: '' })}
+                        onClick={clearSearch}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         aria-label="Limpar busca"
                     >

@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
 import { TASK_TYPE_CONFIG, ORIGEM_CONFIG, PRIORIDADE_CONFIG, OUTCOME_LABELS } from './taskTypeConfig'
-import type { TaskFilterState, TaskSituacao } from '../../hooks/useTaskFilters'
+import type { TaskFilterState, TaskEstado, TaskPrazo } from '../../hooks/useTaskFilters'
 
 const FASE_LABELS: Record<string, string> = {
     sdr: 'SDR',
@@ -12,15 +12,21 @@ const FASE_LABELS: Record<string, string> = {
     resolucao: 'Resolução',
 }
 
-const SITUACAO_LABELS: Record<TaskSituacao, string> = {
-    abertas: 'Abertas',
-    atrasadas: 'Atrasadas',
-    hoje: 'Hoje',
-    esta_semana: 'Esta semana',
+const ESTADO_LABELS: Record<TaskEstado, string> = {
+    pendentes: 'Pendentes',
     concluidas: 'Concluídas',
     reagendadas: 'Reagendadas',
     canceladas: 'Canceladas',
     tudo: 'Tudo',
+}
+
+const PRAZO_LABELS: Record<TaskPrazo, string> = {
+    atrasadas: 'Atrasadas',
+    hoje: 'Hoje',
+    amanha: 'Amanhã',
+    esta_semana: 'Esta semana',
+    proxima_semana: 'Próx. semana',
+    sem_prazo: 'Sem prazo',
 }
 
 const STATUS_COMERCIAL_LABELS: Record<string, string> = {
@@ -55,20 +61,29 @@ export function ActiveTaskFilters({ filters, setFilters, onReset }: Props) {
         chips.push({ key: 'search', label: `“${filters.search}”`, tone: 'blue', onRemove: () => setFilters({ search: '' }) })
     }
 
-    if (filters.situacao !== 'abertas') {
-        const tone: Tone = filters.situacao === 'atrasadas' ? 'rose'
-            : filters.situacao === 'concluidas' ? 'green'
-            : filters.situacao === 'canceladas' ? 'slate'
+    if (filters.estado !== 'pendentes') {
+        const tone: Tone = filters.estado === 'concluidas' ? 'green'
+            : filters.estado === 'canceladas' ? 'slate'
             : 'amber'
         chips.push({
-            key: 'situacao',
-            label: SITUACAO_LABELS[filters.situacao],
+            key: 'estado',
+            label: ESTADO_LABELS[filters.estado],
             tone,
-            onRemove: () => setFilters({ situacao: 'abertas' }),
+            onRemove: () => setFilters({ estado: 'pendentes' }),
         })
     }
 
-    if (filters.situacao === 'concluidas' && filters.janelaConclusao !== 'sempre' && !filters.conclusaoFrom && !filters.conclusaoTo) {
+    filters.prazos.forEach((p) => {
+        const tone: Tone = p === 'atrasadas' ? 'rose' : p === 'hoje' ? 'amber' : 'blue'
+        chips.push({
+            key: `prazo:${p}`,
+            label: `Prazo: ${PRAZO_LABELS[p]}`,
+            tone,
+            onRemove: () => setFilters({ prazos: filters.prazos.filter(x => x !== p) }),
+        })
+    })
+
+    if (filters.estado === 'concluidas' && filters.janelaConclusao !== 'sempre' && !filters.conclusaoFrom && !filters.conclusaoTo) {
         const labels: Record<string, string> = {
             hoje: 'Hoje', ontem: 'Ontem', esta_semana: 'Esta semana', este_mes: 'Este mês',
         }
