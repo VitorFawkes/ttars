@@ -36,6 +36,7 @@ import type {
   IdentityConfig,
   VoiceConfig,
   BoundariesConfig,
+  ListeningConfig,
   ScoringRule,
 } from "./playbook_loader.ts";
 
@@ -71,6 +72,7 @@ export interface BuildPromptV2Input {
   identity: IdentityConfig | null;
   voice: VoiceConfig | null;
   boundaries: BoundariesConfig | null;
+  listening?: ListeningConfig | null;
   moments: PlaybookMoment[];
   currentMoment: PlaybookMoment;
   currentMomentMethod: 'deterministic' | 'llm' | 'fallback' | 'manual';
@@ -143,6 +145,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
+  const listening = renderListeningBlock(input.listening ?? null);
   const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
@@ -159,6 +162,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
     `<agent name="${escapeXml(input.agentName)}">`,
     header,
     voice,
+    listening,
     anchors,
     boundaries,
     qualification,
@@ -245,6 +249,46 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
 
   if (lines.length === 0) return '';
   return `<voice>\n${lines.join('\n')}\n</voice>`;
+}
+
+/**
+ * Bloco <listening> — responsividade conversacional. Diz ao LLM como reagir
+ * quando o lead foge do roteiro: pergunta social devolvida, comentário
+ * espontâneo, múltiplas mensagens em sequência.
+ *
+ * Cada toggle ON adiciona uma instrução. Tudo OFF → bloco vazio (não é
+ * renderizado). Compatível com agentes legados que não têm listening_config
+ * — eles simplesmente não têm o bloco no prompt.
+ */
+function renderListeningBlock(listening: ListeningConfig | null): string {
+  if (!listening) return '';
+  const lines: string[] = [];
+
+  if (listening.echo_social_questions) {
+    lines.push('• Se o lead devolver pergunta social ("tudo bem?", "e você?", "como vai?"), responda em UMA frase curta e natural ANTES de continuar com a próxima pergunta do roteiro.');
+  }
+  if (listening.acknowledge_observations) {
+    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "vi vocês no Instagram", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
+  }
+  if (listening.handle_message_bursts) {
+    lines.push('• Quando o lead manda 2 ou 3 mensagens em sequência (acontece muito no WhatsApp), trate o pacote como um turno único: responda o que precisa ser respondido E faça a próxima pergunta do funil. Nunca ignore parte do que ele disse.');
+  }
+  if (listening.never_ignore_lead) {
+    lines.push('• Conversa real é dos dois lados. Você não é um formulário — quando o lead trouxer pergunta, dúvida, objeção ou comentário, acolha antes de avançar.');
+  }
+
+  const examples = listening.examples ?? [];
+  if (examples.length > 0) {
+    lines.push('Exemplos de respostas naturais (use como inspiração, não copie literalmente):');
+    examples.forEach(ex => lines.push(`  ✓ ${ex}`));
+  }
+
+  if (lines.length === 0) return '';
+  return `<listening>
+ANTES de produzir QUALQUER mensagem — inclusive no primeiro contato e mesmo quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.
+
+${lines.join('\n')}
+</listening>`;
 }
 
 // Mapa pra normalizar weekday do Postgres → PT-BR. agent_check_calendar usa

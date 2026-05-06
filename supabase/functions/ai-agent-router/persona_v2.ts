@@ -25,6 +25,7 @@ import {
   type IdentityConfig,
   type VoiceConfig,
   type BoundariesConfig,
+  type ListeningConfig,
 } from "./playbook_loader.ts";
 import { detectMoment, type MomentDetectionContext } from "./moment_detector.ts";
 import { buildPromptV2 } from "./prompt_builder_v2.ts";
@@ -46,6 +47,7 @@ interface AgentV2Config {
   identity_config: IdentityConfig | null;
   voice_config: VoiceConfig | null;
   boundaries_config: BoundariesConfig | null;
+  listening_config: ListeningConfig | null;
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
   handoff_actions?: {
     book_meeting?: {
@@ -473,6 +475,7 @@ export async function runPersonaAgent_v2(
     identity: agent.identity_config,
     voice: agent.voice_config,
     boundaries: agent.boundaries_config,
+    listening: agent.listening_config,
     moments,
     currentMoment: detected.moment,
     currentMomentMethod: detected.method,

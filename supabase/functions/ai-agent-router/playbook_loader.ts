@@ -130,6 +130,19 @@ export interface BoundariesConfig {
   custom_by_category?: Record<string, string[]>;
 }
 
+/**
+ * Responsividade conversacional — como o agente reage quando o lead foge do roteiro
+ * (devolve pergunta social, faz comentário espontâneo, manda múltiplas mensagens).
+ * Renderizado como bloco <listening> em prompt_builder_v2.
+ */
+export interface ListeningConfig {
+  echo_social_questions?: boolean;
+  acknowledge_observations?: boolean;
+  handle_message_bursts?: boolean;
+  never_ignore_lead?: boolean;
+  examples?: string[];
+}
+
 export interface ScoringRule {
   id: string;
   dimension: string;
