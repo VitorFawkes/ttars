@@ -729,3 +729,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T14:20:02Z | supabase/migrations/20260506b_fix_activities_actor_default_masking.sql | applied_to_prod
 2026-05-06T14:30:44Z | supabase/migrations/20260506c_duplicate_tasks_rpc.sql | applied_to_prod
 2026-05-06T14:31:43Z | supabase/migrations/20260506a_desativar_pos_venda_rpc.sql | applied_to_prod
+2026-05-06T14:34:49Z | supabase/migrations/20260505b_diagnose_com_timestamps.sql | applied_to_prod
