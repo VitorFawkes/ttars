@@ -53,6 +53,7 @@ export interface TaskListItem {
 
 interface UseTasksListOptions {
     filters: TaskFilterState
+    enabled?: boolean
 }
 
 interface RawTaskRow {
@@ -116,7 +117,7 @@ function deriveCadenciaNome(row: RawTaskRow): string | null {
     return typeof name === 'string' ? name : null
 }
 
-export function useTasksList({ filters }: UseTasksListOptions) {
+export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
     const { profile } = useAuth()
     const { currentProduct } = useProductContext()
 
@@ -319,6 +320,6 @@ export function useTasksList({ filters }: UseTasksListOptions) {
             return filtered
         },
         staleTime: 1000 * 60,
-        enabled: !!profile?.id,
+        enabled: enabled && !!profile?.id,
     })
 }

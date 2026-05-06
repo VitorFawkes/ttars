@@ -5,10 +5,10 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-05
+> **Last Updated:** 2026-05-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 146 paginas | 234 hooks | 22 views | 647 components
-> **Stats:** 191 tabelas | 146 paginas | 234 hooks | 22 views | 647 components
+> **Stats:** 191 tabelas | 146 paginas | 235 hooks | 22 views | 652 components
+> **Stats:** 191 tabelas | 146 paginas | 235 hooks | 22 views | 652 components
 
 ---
 
@@ -170,7 +170,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **234 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **235 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -236,6 +236,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useContactQuality()` | `useContactQuality.ts` |
 | `useDeleteContact()` | `useDeleteContact.ts` |
 | `useDuplicateDetection()` | `useDuplicateDetection.ts` |
+| `useDuplicateTasks()` | `useDuplicateTasks.ts` |
 | `usePeopleIntelligence()` | `usePeopleIntelligence.ts` |
 | `useQualityGate()` | `useQualityGate.ts` |
 
