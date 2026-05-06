@@ -744,3 +744,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T19:23:12Z | /tmp/check_cron_runs.sql | applied_to_prod
 2026-05-06T19:23:39Z | supabase/migrations/20260506e_duplicate_tasks_qtd_ambiguous.sql | applied_to_prod
 2026-05-06T20:07:33Z | /tmp/cleanup_buffer.sql | applied_to_prod
+2026-05-06T20:13:41Z | /tmp/cleanup_buffer_orphans_no_agent.sql | applied_to_prod
+2026-05-06T20:14:21Z | /tmp/check_cron.sql | applied_to_prod
+2026-05-06T20:29:36Z | supabase/migrations/20260506h_tarefas_dedup_hardening.sql | applied_to_prod
+2026-05-06T20:30:14Z | supabase/migrations/20260506i_duplicate_tasks_data_vencimento_signal.sql | applied_to_prod
