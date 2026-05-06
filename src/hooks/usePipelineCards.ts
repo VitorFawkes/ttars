@@ -187,6 +187,41 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                         textFields.push(`pessoa_telefone.ilike.%${original}%`)
                     }
 
+                    // Busca também em viajantes (cards_contatos → contatos): inclui card_ids
+                    // cujos acompanhantes batem com o termo. RLS já isola por workspace.
+                    const travelerOrParts = [
+                        `nome.ilike.%${original}%`,
+                        `sobrenome.ilike.%${original}%`,
+                        `email.ilike.%${original}%`,
+                    ]
+                    if (normalized) {
+                        travelerOrParts.push(`telefone_normalizado.ilike.%${normalized}%`)
+                        travelerOrParts.push(`telefone.ilike.%${original}%`)
+                    } else if (digitsOnly) {
+                        travelerOrParts.push(`telefone_normalizado.ilike.%${digitsOnly}%`)
+                        travelerOrParts.push(`telefone.ilike.%${original}%`)
+                    } else {
+                        travelerOrParts.push(`telefone.ilike.%${original}%`)
+                    }
+
+                    const { data: travelerMatches } = await (supabase
+                        .from('cards_contatos') as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                        .select('card_id, contatos!inner(id)')
+                        .or(travelerOrParts.join(','), { foreignTable: 'contatos' })
+                        .limit(1000)
+
+                    const travelerCardIds = Array.from(
+                        new Set(
+                            ((travelerMatches as Array<{ card_id: string | null }> | null) ?? [])
+                                .map((row) => row.card_id)
+                                .filter((id): id is string => !!id)
+                        )
+                    )
+
+                    if (travelerCardIds.length > 0) {
+                        textFields.push(`id.in.(${travelerCardIds.join(',')})`)
+                    }
+
                     query = query.or(textFields.join(','))
                 }
             }
