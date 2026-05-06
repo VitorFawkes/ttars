@@ -46,7 +46,7 @@ export default function AIChat({ cardId, contactId }: AIChatProps) {
                 <AlertCircle className="h-10 w-10 mb-3 text-slate-300" />
                 <p className="text-sm font-medium text-slate-700">Nenhum contato vinculado</p>
                 <p className="text-xs text-center mt-1 max-w-[250px]">
-                    Para usar o Chat com IA, este card precisa ter um contato principal com historico de WhatsApp.
+                    Para perguntar à IA sobre as conversas, este card precisa ter um contato principal com histórico de WhatsApp.
                 </p>
             </div>
         )
@@ -58,8 +58,8 @@ export default function AIChat({ cardId, contactId }: AIChatProps) {
             <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
                 <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-indigo-600" />
-                    <span className="text-sm font-medium text-slate-900">Chat com IA</span>
-                    <span className="text-xs text-slate-500">Pergunte sobre as conversas</span>
+                    <span className="text-sm font-medium text-slate-900">Perguntar à IA</span>
+                    <span className="text-xs text-slate-500">Sobre as conversas deste contato</span>
                 </div>
                 {messages.length > 0 && (
                     <button
