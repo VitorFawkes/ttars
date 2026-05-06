@@ -62,6 +62,8 @@ interface BlockedCard {
   c_detalhe: string
   c_viagem_inicio: string | null
   c_viagem_fim: string | null
+  c_criado_em: string | null
+  c_atualizado_em: string | null
 }
 
 const MOTIVO_LABELS: Record<string, { label: string; color: string }> = {
@@ -100,7 +102,7 @@ export default function CronRoteamentoDetailPage() {
   const [cadenceTemplates, setCadenceTemplates] = useState<CadenceTemplate[]>([])
   const [blockedCards, setBlockedCards] = useState<BlockedCard[]>([])
   const [loadingBlocked, setLoadingBlocked] = useState(false)
-  const [showBlocked, setShowBlocked] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(true)
 
   const updateConfig = (patch: Partial<ActionConfig>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -182,6 +184,17 @@ export default function CronRoteamentoDetailPage() {
     const el = document.getElementById('movimentacoes')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [loading, recentLogs.length])
+
+  // Carregar casos bloqueados automaticamente ao abrir a tela
+  useEffect(() => {
+    if (loading) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabase as any)
+      .rpc('fn_roteamento_pos_venda_trips_diagnose')
+      .then(({ data }: { data: BlockedCard[] | null }) => {
+        if (data) setBlockedCards(data)
+      })
+  }, [loading])
 
   const handleSave = async () => {
     if (!id) return
@@ -538,6 +551,17 @@ export default function CronRoteamentoDetailPage() {
                       {b.c_viagem_inicio && ` · viagem ${b.c_viagem_inicio} → ${b.c_viagem_fim}`}
                       {` · ${b.c_detalhe}`}
                     </p>
+                    {b.c_atualizado_em && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Atualizado em {new Date(b.c_atualizado_em).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
                   </div>
                   <span
                     className={cn(
