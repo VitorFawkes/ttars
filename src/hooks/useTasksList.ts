@@ -177,9 +177,11 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
     const { data: profileMap } = useAllProfiles()
 
     return useQuery({
-        // Esperar dependências carregarem antes de buildar a query (evita refetch quando elas chegam)
-        queryKey: ['tasks-list', filters, currentProduct, profile?.id, profile?.team_id, !!profileMap],
-        enabled: enabled && !!profile?.id && !!profileMap && (filters.scope !== 'meu_time' || !!teamMemberIds),
+        // profileMap incluído na key pra refazer enrichment quando ele chegar
+        queryKey: ['tasks-list', filters, currentProduct, profile?.id, profile?.team_id, !!profileMap, !!teamMemberIds],
+        // Tasks rodam ASSIM QUE profile.id existir. Profile/team caches carregam em paralelo
+        // e enriquecem quando chegam. Não bloqueamos a lista esperando dados auxiliares.
+        enabled: enabled && !!profile?.id,
         staleTime: 30 * 1000,
         refetchOnWindowFocus: false,
         queryFn: async () => {
