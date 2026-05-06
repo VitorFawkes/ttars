@@ -1235,26 +1235,34 @@ function SimulatorSection({
   }
 
   return (
-    <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Play className="w-5 h-5 text-emerald-600" />
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
+    <section className="bg-white border border-slate-200 shadow-sm rounded-xl">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Play className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-base font-semibold text-slate-900 tracking-tight">Simulador</h3>
+          </div>
+          {activeIds.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5 h-8 text-xs">
+              <Undo2 className="w-3.5 h-3.5" />
+              Limpar
+            </Button>
+          )}
         </div>
-        {activeIds.size > 0 && (
-          <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5 h-8 text-xs">
-            <Undo2 className="w-3.5 h-3.5" />
-            Limpar
-          </Button>
-        )}
+        <p className="text-sm text-slate-600">
+          Marque os critérios que um casal hipotético atenderia e veja o score. É como se a IA respondesse "sim" pras perguntas marcadas.
+        </p>
       </div>
-      <p className="text-sm text-slate-600 mb-4">
-        Marque os critérios que um casal hipotético atenderia e veja o score. É como se a IA respondesse "sim" pras perguntas marcadas.
-      </p>
 
-      <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
-        {/* Coluna esquerda: critérios marcáveis */}
-        <div className="space-y-5">
+      {/* Barra de resultado sticky no topo do simulador — sempre visível */}
+      <div className="sticky top-0 z-20 border-y border-slate-200 backdrop-blur-md bg-white/95">
+        <SimResultBar result={result} threshold={threshold} maxBonus={maxBonus} />
+      </div>
+
+      {/* Critérios em 2 colunas */}
+      <div className="px-6 py-5">
+        <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
           {/* Alertas vermelhos */}
           {buckets.disqualify.length > 0 && (
             <SimSection title="Alertas vermelhos" subtitle="Qualquer um marcado desqualifica direto." icon={<ShieldAlert className="w-4 h-4 text-red-600" />}>
@@ -1326,13 +1334,113 @@ function SimulatorSection({
             </SimSection>
           )}
         </div>
-
-        {/* Coluna direita: resultado */}
-        <div className="md:sticky md:top-4 md:self-start">
-          <SimResultCard result={result} threshold={threshold} maxBonus={maxBonus} />
-        </div>
       </div>
     </section>
+  )
+}
+
+// Barra de resultado horizontal compacta — sticky no topo do simulador.
+// Sempre visível enquanto o usuário rola dentro da seção.
+function SimResultBar({
+  result,
+  threshold,
+  maxBonus,
+}: {
+  result: {
+    score: number
+    qualificado: boolean
+    disqualified: boolean
+    disqualifiersHit: string[]
+    breakdown: { label: string; weight: number; ruleType: string }[]
+    bonusApplied: number
+    bonusRaw?: number
+  }
+  threshold: number
+  maxBonus: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const progress = Math.min(100, (result.score / Math.max(threshold, 1)) * 100)
+
+  if (result.disqualified) {
+    return (
+      <div className="px-6 py-3 bg-red-50">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <span className="text-sm font-bold uppercase tracking-wider text-red-900">Desqualificado</span>
+            </div>
+            <span className="text-sm text-red-700 truncate">
+              {result.disqualifiersHit.join(' · ')}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('transition-colors', result.qualificado ? 'bg-emerald-50' : 'bg-slate-50')}>
+      <div className="px-6 py-3">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Score */}
+          <div className="flex items-baseline gap-2 flex-shrink-0">
+            <span className="text-3xl font-bold tracking-tight text-slate-900 leading-none">{result.score}</span>
+            <span className="text-xs text-slate-500">/ {threshold} pra qualificar</span>
+          </div>
+
+          {/* Barra de progresso */}
+          <div className="flex-1 min-w-[120px] max-w-md">
+            <div className="w-full bg-white rounded-full h-2 overflow-hidden border border-slate-200">
+              <div
+                className={cn('h-full transition-all', result.qualificado ? 'bg-emerald-500' : 'bg-indigo-400')}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Status */}
+          <span className={cn(
+            'text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0',
+            result.qualificado ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-700',
+          )}>
+            {result.qualificado ? 'qualifica' : 'não qualifica'}
+          </span>
+
+          {/* Toggle detalhes */}
+          {result.breakdown.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              className="h-8 text-xs gap-1.5 flex-shrink-0"
+            >
+              {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              {result.breakdown.length} {result.breakdown.length === 1 ? 'critério' : 'critérios'}
+            </Button>
+          )}
+        </div>
+
+        {/* Detalhamento expandido */}
+        {expanded && result.breakdown.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-200 grid sm:grid-cols-2 gap-1.5">
+            {result.breakdown.map((b, i) => (
+              <div key={i} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1">
+                <span className="text-slate-700 truncate pr-2">{b.label}</span>
+                <span className={cn('font-semibold flex-shrink-0', b.ruleType === 'bonus' ? 'text-emerald-700' : 'text-indigo-700')}>
+                  +{b.weight}
+                </span>
+              </div>
+            ))}
+            {result.bonusRaw !== undefined && result.bonusRaw > maxBonus && (
+              <p className="text-[11px] text-slate-500 italic sm:col-span-2 mt-1">
+                Bônus bruto: {result.bonusRaw} → aplicado {result.bonusApplied} (cap {maxBonus})
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1424,93 +1532,3 @@ function SimRadio({
   )
 }
 
-function SimResultCard({
-  result,
-  threshold,
-  maxBonus,
-}: {
-  result: {
-    score: number
-    qualificado: boolean
-    disqualified: boolean
-    disqualifiersHit: string[]
-    breakdown: { label: string; weight: number; ruleType: string }[]
-    bonusApplied: number
-    bonusRaw?: number
-  }
-  threshold: number
-  maxBonus: number
-}) {
-  const progress = Math.min(100, (result.score / Math.max(threshold, 1)) * 100)
-
-  if (result.disqualified) {
-    return (
-      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-red-600" />
-          <h4 className="text-base font-semibold text-red-900">Desqualificado</h4>
-        </div>
-        <p className="text-sm text-red-800">Lead não passa por causa de:</p>
-        <ul className="space-y-1">
-          {result.disqualifiersHit.map((d, i) => (
-            <li key={i} className="text-sm text-red-700 flex items-start gap-1.5">
-              <span className="text-red-400 mt-0.5">×</span>
-              <span>{d}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
-  return (
-    <div className={cn(
-      'border-2 rounded-xl p-5 space-y-4',
-      result.qualificado ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50',
-    )}>
-      <div>
-        <div className="flex items-baseline justify-between mb-2">
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold tracking-tight text-slate-900">{result.score}</span>
-            <span className="text-sm text-slate-500">/ {threshold} pra qualificar</span>
-          </div>
-          <span className={cn(
-            'text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider',
-            result.qualificado ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-200 text-slate-700',
-          )}>
-            {result.qualificado ? 'qualifica' : 'não qualifica'}
-          </span>
-        </div>
-        <div className="w-full bg-white rounded-full h-2 overflow-hidden border border-slate-200">
-          <div
-            className={cn('h-full transition-all', result.qualificado ? 'bg-emerald-500' : 'bg-indigo-400')}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {result.breakdown.length > 0 ? (
-        <div>
-          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Detalhamento</p>
-          <ul className="space-y-1">
-            {result.breakdown.map((b, i) => (
-              <li key={i} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded px-2.5 py-1.5">
-                <span className="text-slate-700 truncate pr-2">{b.label}</span>
-                <span className={cn('font-semibold flex-shrink-0', b.ruleType === 'bonus' ? 'text-emerald-700' : 'text-indigo-700')}>
-                  +{b.weight}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {result.bonusRaw !== undefined && result.bonusRaw > maxBonus && (
-            <p className="text-[11px] text-slate-500 mt-2 italic">
-              Bônus bruto: {result.bonusRaw} → aplicado {result.bonusApplied} (cap {maxBonus})
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="text-sm text-slate-500 italic">Marque critérios à esquerda pra ver o score.</p>
-      )}
-    </div>
-  )
-}
