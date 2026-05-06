@@ -41,7 +41,6 @@ export function TaskTopBar({
 }: Props) {
     return (
         <div className="flex items-center gap-3 flex-wrap">
-            {/* Busca */}
             <div className="relative flex-1 min-w-[200px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -62,7 +61,6 @@ export function TaskTopBar({
                 )}
             </div>
 
-            {/* Escopo */}
             <div className="flex bg-slate-100 rounded-lg p-0.5">
                 {SCOPE_OPTIONS.map((opt) => (
                     <button
@@ -80,7 +78,6 @@ export function TaskTopBar({
                 ))}
             </div>
 
-            {/* View mode */}
             <div className="flex bg-slate-100 rounded-lg p-0.5">
                 {VIEW_OPTIONS.map((opt) => {
                     const Icon = opt.icon
@@ -103,7 +100,6 @@ export function TaskTopBar({
                 })}
             </div>
 
-            {/* Mais filtros */}
             <button
                 onClick={onToggleMoreFilters}
                 className={cn(

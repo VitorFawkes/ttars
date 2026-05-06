@@ -1,132 +1,121 @@
-import { useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type TaskDeadlineFilter = 'all' | 'overdue' | 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'no_date'
-export type TaskStatusFilter = 'pending' | 'completed_today' | 'all'
+// Eixo principal de status (situação corrente da tarefa)
+export type TaskSituacao =
+    | 'abertas'         // pendentes em geral
+    | 'atrasadas'       // pendentes com vencimento < hoje
+    | 'hoje'            // pendentes com vencimento = hoje
+    | 'esta_semana'     // pendentes com vencimento <= fim da semana
+    | 'concluidas'      // todas concluídas (combinar com janelaConclusao)
+    | 'reagendadas'     // status reagendada OU rescheduled_to_id IS NOT NULL
+    | 'canceladas'      // status cancelada / cancelado / nao_compareceu
+    | 'tudo'            // sem filtro
+
+// Eixo secundário: janela temporal de conclusão (só faz sentido com situacao=concluidas)
+export type TaskJanelaConclusao = 'hoje' | 'ontem' | 'esta_semana' | 'este_mes' | 'sempre'
+
 export type TaskScopeFilter = 'minhas' | 'meu_time' | 'todas'
 export type TaskPrioridadeFilter = 'alta' | 'media' | 'baixa'
 export type TaskOrigemFilter = 'manual' | 'cadencia' | 'automacao' | 'integracao'
+export type TaskUrgenciaFilter = 'sem_responsavel' | 'sem_prazo' | 'sem_descricao' | 'sem_resultado'
 
 export interface TaskFilterState {
+    /** Busca livre */
     search: string
-    deadlineFilter: TaskDeadlineFilter
-    statusFilter: TaskStatusFilter
+    /** Situação principal */
+    situacao: TaskSituacao
+    /** Janela de conclusão (combina com situacao=concluidas) */
+    janelaConclusao: TaskJanelaConclusao
+    /** Escopo (minhas / time / todas) */
     scope: TaskScopeFilter
+    /** Tipos de tarefa */
     tipos: string[]
+    /** Prioridade */
     prioridades: TaskPrioridadeFilter[]
+    /** Origem (manual/cadência/automação/integração) */
     origens: TaskOrigemFilter[]
-    /** Filtrar por slug de fase do time do responsável (SDR, Planner, Pós-venda) */
+    /** Resultado / outcome (atendeu, não atendeu, etc.) */
+    resultados: string[]
+    /** Slug da fase do responsável (sdr, planner, pos-venda, concierge) */
     fases: string[]
+    /** IDs dos responsáveis */
     responsavelIds: string[]
-    /** Date range for due date */
-    dateFrom?: string
-    dateTo?: string
+    /** Slug da fase do CARD (estado da viagem) */
+    cardFases: string[]
+    /** Status comercial do card (aberto, ganho, perdido) */
+    cardStatusComercial: string[]
+    /** Vencimento — período personalizado */
+    vencimentoFrom?: string
+    vencimentoTo?: string
+    /** Criação — período */
+    criacaoFrom?: string
+    criacaoTo?: string
+    /** Conclusão — período (sobrescreve janelaConclusao se setado) */
+    conclusaoFrom?: string
+    conclusaoTo?: string
+    /** Filtros de "campos vazios" / urgência */
+    urgencia: TaskUrgenciaFilter[]
+    /** Atrasada há mais de N dias */
+    atrasadaMaisDias?: number
 }
 
 export const initialTaskFilters: TaskFilterState = {
     search: '',
-    deadlineFilter: 'all',
-    statusFilter: 'pending',
+    situacao: 'abertas',
+    janelaConclusao: 'sempre',
     scope: 'minhas',
     tipos: [],
     prioridades: [],
     origens: [],
+    resultados: [],
     fases: [],
     responsavelIds: [],
+    cardFases: [],
+    cardStatusComercial: [],
+    urgencia: [],
 }
 
-const DEADLINE_VALUES: TaskDeadlineFilter[] = ['all', 'overdue', 'today', 'tomorrow', 'this_week', 'next_week', 'no_date']
-const STATUS_VALUES: TaskStatusFilter[] = ['pending', 'completed_today', 'all']
-const SCOPE_VALUES: TaskScopeFilter[] = ['minhas', 'meu_time', 'todas']
-const PRIORIDADE_VALUES: TaskPrioridadeFilter[] = ['alta', 'media', 'baixa']
-const ORIGEM_VALUES: TaskOrigemFilter[] = ['manual', 'cadencia', 'automacao', 'integracao']
-
-function parseEnum<T extends string>(value: string | null, allowed: T[], fallback: T): T {
-    return value && (allowed as string[]).includes(value) ? (value as T) : fallback
-}
-
-function parseEnumList<T extends string>(value: string | null, allowed: T[]): T[] {
-    if (!value) return []
-    return value.split(',').filter((v): v is T => (allowed as string[]).includes(v))
-}
-
-function parseStringList(value: string | null): string[] {
-    if (!value) return []
-    return value.split(',').filter(Boolean)
-}
-
-function parseFilters(params: URLSearchParams): TaskFilterState {
-    return {
-        search: params.get('q') || '',
-        deadlineFilter: parseEnum(params.get('prazo'), DEADLINE_VALUES, 'all'),
-        statusFilter: parseEnum(params.get('status'), STATUS_VALUES, 'pending'),
-        scope: parseEnum(params.get('escopo'), SCOPE_VALUES, 'minhas'),
-        tipos: parseStringList(params.get('tipo')),
-        prioridades: parseEnumList(params.get('prioridade'), PRIORIDADE_VALUES),
-        origens: parseEnumList(params.get('origem'), ORIGEM_VALUES),
-        fases: parseStringList(params.get('fase')),
-        responsavelIds: parseStringList(params.get('quem')),
-        dateFrom: params.get('de') || undefined,
-        dateTo: params.get('ate') || undefined,
-    }
-}
-
-function serializeFilters(filters: TaskFilterState, prev: URLSearchParams): URLSearchParams {
-    const next = new URLSearchParams(prev)
-
-    const setOrDelete = (key: string, value: string | undefined | null) => {
-        if (value && value.length > 0) next.set(key, value)
-        else next.delete(key)
-    }
-    const setListOrDelete = (key: string, list: string[]) => {
-        if (list.length > 0) next.set(key, list.join(','))
-        else next.delete(key)
-    }
-
-    setOrDelete('q', filters.search)
-    setOrDelete('prazo', filters.deadlineFilter !== 'all' ? filters.deadlineFilter : null)
-    setOrDelete('status', filters.statusFilter !== 'pending' ? filters.statusFilter : null)
-    setOrDelete('escopo', filters.scope !== 'minhas' ? filters.scope : null)
-    setListOrDelete('tipo', filters.tipos)
-    setListOrDelete('prioridade', filters.prioridades)
-    setListOrDelete('origem', filters.origens)
-    setListOrDelete('fase', filters.fases)
-    setListOrDelete('quem', filters.responsavelIds)
-    setOrDelete('de', filters.dateFrom)
-    setOrDelete('ate', filters.dateTo)
-
-    return next
+interface TaskFiltersStore {
+    filters: TaskFilterState
+    setFilters: (partial: Partial<TaskFilterState>) => void
+    reset: () => void
 }
 
 /**
- * Filtros da página de Tarefas sincronizados com a URL (querystring).
+ * Filtros da página de Tarefas.
  *
- * Mantém a mesma interface { filters, setFilters, reset } da versão Zustand
- * antiga para minimizar blast radius. Persistência agora vem do navegador
- * (back/forward, bookmark, link compartilhável).
+ * Persistência: localStorage (igual ao Kanban — sobrevive reload sem poluir
+ * URL). Search é excluído do partialize porque seria ruído no histórico.
+ *
+ * Comportamento esperto:
+ * - Trocar `scope` zera responsavelIds (filtro incompatível)
+ * - Setar `vencimentoFrom/To` libera o usuário a deixar `situacao` em qualquer
+ *   estado (ele escolhe a janela manualmente)
  */
-export function useTaskFilters() {
-    const [searchParams, setSearchParams] = useSearchParams()
+export const useTaskFilters = create<TaskFiltersStore>()(
+    persist(
+        (set) => ({
+            filters: { ...initialTaskFilters },
+            setFilters: (partial) =>
+                set((state) => {
+                    const next = { ...state.filters, ...partial }
 
-    const filters = useMemo(() => parseFilters(searchParams), [searchParams])
+                    // Cascade: trocar escopo zera filtro de pessoa específica (incompatível)
+                    if (partial.scope && partial.scope !== state.filters.scope) {
+                        next.responsavelIds = []
+                    }
 
-    const setFilters = useCallback((partial: Partial<TaskFilterState>) => {
-        setSearchParams(prev => {
-            const current = parseFilters(prev)
-            const merged: TaskFilterState = { ...current, ...partial }
-            return serializeFilters(merged, prev)
-        }, { replace: true })
-    }, [setSearchParams])
-
-    const reset = useCallback(() => {
-        setSearchParams(prev => {
-            // preserva params não relacionados a tarefas
-            const next = new URLSearchParams(prev)
-            const ours = ['q', 'prazo', 'status', 'escopo', 'tipo', 'prioridade', 'origem', 'fase', 'quem', 'de', 'ate']
-            ours.forEach(k => next.delete(k))
-            return next
-        }, { replace: true })
-    }, [setSearchParams])
-
-    return { filters, setFilters, reset }
-}
+                    return { filters: next }
+                }),
+            reset: () => set({ filters: { ...initialTaskFilters } }),
+        }),
+        {
+            name: 'tasks-filters-storage',
+            storage: createJSONStorage(() => localStorage),
+            partialize: (state) => ({
+                filters: { ...state.filters, search: '' },
+            }),
+        },
+    ),
+)

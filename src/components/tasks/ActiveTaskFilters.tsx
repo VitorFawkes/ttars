@@ -1,14 +1,40 @@
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useFilterOptions } from '../../hooks/useFilterOptions'
-import { TASK_TYPE_CONFIG, ORIGEM_CONFIG, PRIORIDADE_CONFIG } from './taskTypeConfig'
-import type { TaskFilterState } from '../../hooks/useTaskFilters'
+import { TASK_TYPE_CONFIG, ORIGEM_CONFIG, PRIORIDADE_CONFIG, OUTCOME_LABELS } from './taskTypeConfig'
+import type { TaskFilterState, TaskSituacao } from '../../hooks/useTaskFilters'
 
 const FASE_LABELS: Record<string, string> = {
     sdr: 'SDR',
     planner: 'Planner',
     'pos-venda': 'Pós-venda',
     concierge: 'Concierge',
+    resolucao: 'Resolução',
+}
+
+const SITUACAO_LABELS: Record<TaskSituacao, string> = {
+    abertas: 'Abertas',
+    atrasadas: 'Atrasadas',
+    hoje: 'Hoje',
+    esta_semana: 'Esta semana',
+    concluidas: 'Concluídas',
+    reagendadas: 'Reagendadas',
+    canceladas: 'Canceladas',
+    tudo: 'Tudo',
+}
+
+const STATUS_COMERCIAL_LABELS: Record<string, string> = {
+    aberto: 'Em aberto',
+    ganho: 'Ganho',
+    perdido: 'Perdido',
+    sem_pos_venda: 'Sem pós-venda',
+}
+
+const URGENCIA_LABELS: Record<string, string> = {
+    sem_responsavel: 'Sem responsável',
+    sem_prazo: 'Sem prazo',
+    sem_descricao: 'Sem descrição',
+    sem_resultado: 'Concluída sem resultado',
 }
 
 interface Props {
@@ -17,61 +43,49 @@ interface Props {
     onReset: () => void
 }
 
+type Tone = 'blue' | 'green' | 'amber' | 'rose' | 'violet' | 'slate'
+
 export function ActiveTaskFilters({ filters, setFilters, onReset }: Props) {
     const { data: options } = useFilterOptions()
     const profiles = options?.profiles || []
 
-    const chips: { key: string; label: string; tone: 'blue' | 'green' | 'amber' | 'rose'; onRemove: () => void }[] = []
+    const chips: { key: string; label: string; tone: Tone; onRemove: () => void }[] = []
 
     if (filters.search) {
+        chips.push({ key: 'search', label: `“${filters.search}”`, tone: 'blue', onRemove: () => setFilters({ search: '' }) })
+    }
+
+    if (filters.situacao !== 'abertas') {
+        const tone: Tone = filters.situacao === 'atrasadas' ? 'rose'
+            : filters.situacao === 'concluidas' ? 'green'
+            : filters.situacao === 'canceladas' ? 'slate'
+            : 'amber'
         chips.push({
-            key: 'search',
-            label: `“${filters.search}”`,
-            tone: 'blue',
-            onRemove: () => setFilters({ search: '' }),
+            key: 'situacao',
+            label: SITUACAO_LABELS[filters.situacao],
+            tone,
+            onRemove: () => setFilters({ situacao: 'abertas' }),
         })
     }
 
-    if (filters.statusFilter !== 'pending') {
+    if (filters.situacao === 'concluidas' && filters.janelaConclusao !== 'sempre' && !filters.conclusaoFrom && !filters.conclusaoTo) {
         const labels: Record<string, string> = {
-            completed_today: 'Concluídas hoje',
-            all: 'Todos os status',
+            hoje: 'Hoje', ontem: 'Ontem', esta_semana: 'Esta semana', este_mes: 'Este mês',
         }
         chips.push({
-            key: 'status',
-            label: labels[filters.statusFilter] || filters.statusFilter,
+            key: 'janela',
+            label: `Concluídas: ${labels[filters.janelaConclusao]}`,
             tone: 'green',
-            onRemove: () => setFilters({ statusFilter: 'pending' }),
+            onRemove: () => setFilters({ janelaConclusao: 'sempre' }),
         })
     }
 
     if (filters.scope !== 'minhas') {
-        const labels: Record<string, string> = {
-            meu_time: 'Meu time',
-            todas: 'Todas',
-        }
         chips.push({
             key: 'scope',
-            label: labels[filters.scope] || filters.scope,
+            label: filters.scope === 'meu_time' ? 'Meu time' : 'Todas',
             tone: 'blue',
             onRemove: () => setFilters({ scope: 'minhas' }),
-        })
-    }
-
-    if (filters.deadlineFilter !== 'all') {
-        const labels: Record<string, string> = {
-            overdue: 'Atrasadas',
-            today: 'Hoje',
-            tomorrow: 'Amanhã',
-            this_week: 'Esta semana',
-            next_week: 'Próx. semana',
-            no_date: 'Sem prazo',
-        }
-        chips.push({
-            key: 'deadline',
-            label: labels[filters.deadlineFilter] || filters.deadlineFilter,
-            tone: filters.deadlineFilter === 'overdue' ? 'rose' : 'amber',
-            onRemove: () => setFilters({ deadlineFilter: 'all' }),
         })
     }
 
@@ -105,10 +119,19 @@ export function ActiveTaskFilters({ filters, setFilters, onReset }: Props) {
         })
     })
 
+    filters.resultados.forEach((r) => {
+        chips.push({
+            key: `resultado:${r}`,
+            label: `Resultado: ${OUTCOME_LABELS[r] || r}`,
+            tone: 'green',
+            onRemove: () => setFilters({ resultados: filters.resultados.filter(x => x !== r) }),
+        })
+    })
+
     filters.fases.forEach((slug) => {
         chips.push({
             key: `fase:${slug}`,
-            label: `Fase: ${FASE_LABELS[slug] || slug}`,
+            label: `Fase resp.: ${FASE_LABELS[slug] || slug}`,
             tone: 'blue',
             onRemove: () => setFilters({ fases: filters.fases.filter(x => x !== slug) }),
         })
@@ -125,14 +148,65 @@ export function ActiveTaskFilters({ filters, setFilters, onReset }: Props) {
         })
     })
 
-    if (filters.dateFrom || filters.dateTo) {
-        const from = filters.dateFrom ? formatDateBr(filters.dateFrom) : '...'
-        const to = filters.dateTo ? formatDateBr(filters.dateTo) : '...'
+    filters.cardFases.forEach((slug) => {
         chips.push({
-            key: 'period',
-            label: `Período: ${from} → ${to}`,
+            key: `cardfase:${slug}`,
+            label: `Viagem em: ${FASE_LABELS[slug] || slug}`,
+            tone: 'violet',
+            onRemove: () => setFilters({ cardFases: filters.cardFases.filter(x => x !== slug) }),
+        })
+    })
+
+    filters.cardStatusComercial.forEach((s) => {
+        const tone: Tone = s === 'ganho' ? 'green' : s === 'perdido' ? 'rose' : 'blue'
+        chips.push({
+            key: `cardstatus:${s}`,
+            label: `Viagem: ${STATUS_COMERCIAL_LABELS[s] || s}`,
+            tone,
+            onRemove: () => setFilters({ cardStatusComercial: filters.cardStatusComercial.filter(x => x !== s) }),
+        })
+    })
+
+    filters.urgencia.forEach((u) => {
+        chips.push({
+            key: `urgencia:${u}`,
+            label: URGENCIA_LABELS[u] || u,
             tone: 'amber',
-            onRemove: () => setFilters({ dateFrom: undefined, dateTo: undefined }),
+            onRemove: () => setFilters({ urgencia: filters.urgencia.filter(x => x !== u) }),
+        })
+    })
+
+    if (typeof filters.atrasadaMaisDias === 'number') {
+        chips.push({
+            key: 'atraso',
+            label: `Atraso > ${filters.atrasadaMaisDias} dias`,
+            tone: 'rose',
+            onRemove: () => setFilters({ atrasadaMaisDias: undefined }),
+        })
+    }
+
+    if (filters.vencimentoFrom || filters.vencimentoTo) {
+        chips.push({
+            key: 'venc',
+            label: `Vencimento: ${formatRange(filters.vencimentoFrom, filters.vencimentoTo)}`,
+            tone: 'amber',
+            onRemove: () => setFilters({ vencimentoFrom: undefined, vencimentoTo: undefined }),
+        })
+    }
+    if (filters.criacaoFrom || filters.criacaoTo) {
+        chips.push({
+            key: 'cria',
+            label: `Criação: ${formatRange(filters.criacaoFrom, filters.criacaoTo)}`,
+            tone: 'blue',
+            onRemove: () => setFilters({ criacaoFrom: undefined, criacaoTo: undefined }),
+        })
+    }
+    if (filters.conclusaoFrom || filters.conclusaoTo) {
+        chips.push({
+            key: 'concl',
+            label: `Conclusão: ${formatRange(filters.conclusaoFrom, filters.conclusaoTo)}`,
+            tone: 'green',
+            onRemove: () => setFilters({ conclusaoFrom: undefined, conclusaoTo: undefined }),
         })
     }
 
@@ -161,14 +235,16 @@ function Chip({
     onRemove,
 }: {
     children: React.ReactNode
-    tone: 'blue' | 'green' | 'amber' | 'rose'
+    tone: Tone
     onRemove: () => void
 }) {
-    const tones: Record<string, string> = {
-        blue: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-        green: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-        amber: 'bg-amber-50 border-amber-200 text-amber-700',
-        rose: 'bg-rose-50 border-rose-200 text-rose-700',
+    const tones: Record<Tone, string> = {
+        blue:    'bg-indigo-50 border-indigo-200 text-indigo-700',
+        green:   'bg-emerald-50 border-emerald-200 text-emerald-700',
+        amber:   'bg-amber-50 border-amber-200 text-amber-700',
+        rose:    'bg-rose-50 border-rose-200 text-rose-700',
+        violet:  'bg-violet-50 border-violet-200 text-violet-700',
+        slate:   'bg-slate-100 border-slate-200 text-slate-700',
     }
     return (
         <span className={cn(
@@ -185,6 +261,12 @@ function Chip({
             </button>
         </span>
     )
+}
+
+function formatRange(from?: string, to?: string): string {
+    const f = from ? formatDateBr(from) : '...'
+    const t = to ? formatDateBr(to) : '...'
+    return `${f} → ${t}`
 }
 
 function formatDateBr(iso: string): string {

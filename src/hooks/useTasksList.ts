@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProductContext } from './useProductContext'
-import { startOfDay, endOfDay, addDays, differenceInDays } from 'date-fns'
+import { startOfDay, endOfDay, differenceInDays, startOfWeek, endOfWeek, startOfMonth, subDays } from 'date-fns'
 import type { TaskFilterState, TaskOrigemFilter } from './useTaskFilters'
 
 export interface TaskListItem {
@@ -31,6 +31,8 @@ export interface TaskListItem {
     card_valor: number | null
     card_stage_nome: string | null
     card_pipeline_stage_id: string | null
+    card_phase_slug: string | null
+    card_status_comercial: string | null
     contato_id: string | null
     contato_nome: string | null
     contato_telefone: string | null
@@ -81,6 +83,7 @@ interface RawTaskRow {
     created_by: string | null
     concluido_por: string | null
     external_id: string | null
+    created_at?: string
     card?: {
         id: string
         titulo: string
@@ -88,7 +91,11 @@ interface RawTaskRow {
         valor_estimado: number | null
         valor_final: number | null
         pipeline_stage_id: string | null
-        stage?: { nome: string } | null
+        status_comercial: string | null
+        stage?: {
+            nome: string | null
+            phase?: { slug: string | null } | null
+        } | null
         contato?: { id: string; nome: string; telefone: string | null; email: string | null } | null
     } | null
 }
@@ -117,6 +124,8 @@ function deriveCadenciaNome(row: RawTaskRow): string | null {
     return typeof name === 'string' ? name : null
 }
 
+const CANCELED_STATUSES = ['cancelada', 'cancelado', 'nao_compareceu']
+
 export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
     const { profile } = useAuth()
     const { currentProduct } = useProductContext()
@@ -133,10 +142,10 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     concluida, concluida_em, started_at, status, prioridade, outcome,
                     resultado, feedback, metadata, rescheduled_from_id, rescheduled_to_id,
                     participantes_externos, external_source, external_id, card_id, responsavel_id,
-                    created_by, concluido_por,
+                    created_by, concluido_por, created_at,
                     card:cards!tarefas_card_id_fkey!inner(
-                        id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id,
-                        stage:pipeline_stages(nome),
+                        id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id, status_comercial,
+                        stage:pipeline_stages(nome, phase:pipeline_phases(slug)),
                         contato:contatos!cards_pessoa_principal_id_fkey(id, nome, telefone, email)
                     )
                 `)
@@ -149,16 +158,96 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                 q = q.eq('card.produto', currentProduct as any)
             }
 
-            // Status tri-estado
-            if (filters.statusFilter === 'pending') {
-                q = q.eq('concluida', false)
-                q = q.not('status', 'eq', 'reagendada')
-            } else if (filters.statusFilter === 'completed_today') {
-                q = q.eq('concluida', true)
-                q = q.gte('concluida_em', startOfDay(now).toISOString())
+            // ─── Eixo SITUAÇÃO ────────────────────────────────────────────
+            const todayStart = startOfDay(now)
+            const todayEnd = endOfDay(now)
+            switch (filters.situacao) {
+                case 'abertas':
+                    q = q.eq('concluida', false).not('status', 'in', '(reagendada,cancelada,cancelado,nao_compareceu)')
+                    break
+                case 'atrasadas':
+                    q = q.eq('concluida', false)
+                        .lt('data_vencimento', todayStart.toISOString())
+                        .not('status', 'in', '(reagendada,cancelada,cancelado,nao_compareceu)')
+                    break
+                case 'hoje':
+                    q = q.eq('concluida', false)
+                        .gte('data_vencimento', todayStart.toISOString())
+                        .lte('data_vencimento', todayEnd.toISOString())
+                        .not('status', 'in', '(reagendada,cancelada,cancelado,nao_compareceu)')
+                    break
+                case 'esta_semana': {
+                    const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+                    const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
+                    q = q.eq('concluida', false)
+                        .gte('data_vencimento', weekStart.toISOString())
+                        .lte('data_vencimento', weekEnd.toISOString())
+                        .not('status', 'in', '(reagendada,cancelada,cancelado,nao_compareceu)')
+                    break
+                }
+                case 'concluidas':
+                    q = q.eq('concluida', true)
+                    break
+                case 'reagendadas':
+                    q = q.in('status', ['reagendada'])
+                    break
+                case 'canceladas':
+                    q = q.in('status', CANCELED_STATUSES)
+                    break
+                case 'tudo':
+                    break
             }
 
-            // Scope
+            // ─── Janela de conclusão (combina com situacao=concluidas) ────
+            if (filters.situacao === 'concluidas' && !filters.conclusaoFrom && !filters.conclusaoTo) {
+                switch (filters.janelaConclusao) {
+                    case 'hoje':
+                        q = q.gte('concluida_em', todayStart.toISOString())
+                        break
+                    case 'ontem': {
+                        const yesterdayStart = startOfDay(subDays(now, 1))
+                        const yesterdayEnd = endOfDay(subDays(now, 1))
+                        q = q.gte('concluida_em', yesterdayStart.toISOString())
+                            .lte('concluida_em', yesterdayEnd.toISOString())
+                        break
+                    }
+                    case 'esta_semana': {
+                        const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+                        q = q.gte('concluida_em', weekStart.toISOString())
+                        break
+                    }
+                    case 'este_mes': {
+                        const monthStart = startOfMonth(now)
+                        q = q.gte('concluida_em', monthStart.toISOString())
+                        break
+                    }
+                    case 'sempre':
+                    default:
+                        break
+                }
+            }
+
+            // ─── Períodos personalizados ─────────────────────────────────
+            if (filters.conclusaoFrom) {
+                q = q.gte('concluida_em', startOfDay(new Date(filters.conclusaoFrom)).toISOString())
+            }
+            if (filters.conclusaoTo) {
+                q = q.lte('concluida_em', endOfDay(new Date(filters.conclusaoTo)).toISOString())
+            }
+            if (filters.criacaoFrom) {
+                q = q.gte('created_at', startOfDay(new Date(filters.criacaoFrom)).toISOString())
+            }
+            if (filters.criacaoTo) {
+                q = q.lte('created_at', endOfDay(new Date(filters.criacaoTo)).toISOString())
+            }
+            if (filters.vencimentoFrom) {
+                q = q.gte('data_vencimento', startOfDay(new Date(filters.vencimentoFrom)).toISOString())
+            }
+            if (filters.vencimentoTo) {
+                q = q.lte('data_vencimento', endOfDay(new Date(filters.vencimentoTo)).toISOString())
+            }
+
+            // ─── Escopo ──────────────────────────────────────────────────
             if (filters.scope === 'minhas' && profile?.id) {
                 q = q.eq('responsavel_id', profile.id)
             } else if (filters.scope === 'meu_time' && profile?.team_id) {
@@ -180,46 +269,14 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
 
             if (filters.tipos.length > 0) q = q.in('tipo', filters.tipos)
             if (filters.prioridades.length > 0) q = q.in('prioridade', filters.prioridades)
+            if (filters.cardStatusComercial.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                q = (q as any).in('card.status_comercial', filters.cardStatusComercial)
+            }
 
             if (filters.search.trim()) {
                 const term = filters.search.trim()
                 q = q.or(`titulo.ilike.%${term}%,descricao.ilike.%${term}%`)
-            }
-
-            if (filters.dateFrom) {
-                q = q.gte('data_vencimento', startOfDay(new Date(filters.dateFrom)).toISOString())
-            }
-            if (filters.dateTo) {
-                q = q.lte('data_vencimento', endOfDay(new Date(filters.dateTo)).toISOString())
-            }
-
-            if (filters.deadlineFilter !== 'all' && !filters.dateFrom && !filters.dateTo) {
-                const todayStart = startOfDay(now)
-                const todayEnd = endOfDay(now)
-                switch (filters.deadlineFilter) {
-                    case 'overdue':
-                        q = q.lt('data_vencimento', todayStart.toISOString())
-                        break
-                    case 'today':
-                        q = q.gte('data_vencimento', todayStart.toISOString())
-                            .lte('data_vencimento', todayEnd.toISOString())
-                        break
-                    case 'tomorrow':
-                        q = q.gte('data_vencimento', startOfDay(addDays(now, 1)).toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 1)).toISOString())
-                        break
-                    case 'this_week':
-                        q = q.gte('data_vencimento', todayStart.toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 7)).toISOString())
-                        break
-                    case 'next_week':
-                        q = q.gte('data_vencimento', startOfDay(addDays(now, 7)).toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 14)).toISOString())
-                        break
-                    case 'no_date':
-                        q = q.is('data_vencimento', null)
-                        break
-                }
             }
 
             const { data, error } = await q.limit(500)
@@ -229,7 +286,7 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
 
             const uniqueIds = [...new Set(
                 result.flatMap(t => [t.responsavel_id, t.created_by, t.concluido_por])
-                    .filter((v): v is string => !!v)
+                    .filter((v): v is string => !!v),
             )]
             let profileMap: Record<string, { nome: string; team_id: string | null; fase_slug: string | null; fase_nome: string | null }> = {}
             if (uniqueIds.length > 0) {
@@ -251,8 +308,6 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     },
                 ]))
             }
-
-            const todayStart = startOfDay(now)
 
             const mapped: TaskListItem[] = result.map(t => {
                 let diff_days: number | null = null
@@ -290,6 +345,8 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     card_valor: t.card?.valor_final ?? t.card?.valor_estimado ?? null,
                     card_stage_nome: t.card?.stage?.nome || null,
                     card_pipeline_stage_id: t.card?.pipeline_stage_id || null,
+                    card_phase_slug: t.card?.stage?.phase?.slug || null,
+                    card_status_comercial: t.card?.status_comercial || null,
                     contato_id: t.card?.contato?.id || null,
                     contato_nome: t.card?.contato?.nome || null,
                     contato_telefone: t.card?.contato?.telefone || null,
@@ -309,12 +366,35 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                 }
             })
 
+            // ─── Filtros pós-query ───────────────────────────────────────
             let filtered = mapped
+
             if (filters.origens.length > 0) {
                 filtered = filtered.filter(t => filters.origens.includes(t.origem))
             }
             if (filters.fases.length > 0) {
                 filtered = filtered.filter(t => t.responsavel_fase_slug && filters.fases.includes(t.responsavel_fase_slug))
+            }
+            if (filters.cardFases.length > 0) {
+                filtered = filtered.filter(t => t.card_phase_slug && filters.cardFases.includes(t.card_phase_slug))
+            }
+            if (filters.resultados.length > 0) {
+                filtered = filtered.filter(t => {
+                    const r = t.outcome || t.resultado
+                    return r && filters.resultados.includes(r)
+                })
+            }
+            if (filters.urgencia.length > 0) {
+                filtered = filtered.filter(t => {
+                    if (filters.urgencia.includes('sem_responsavel') && !t.responsavel_id) return true
+                    if (filters.urgencia.includes('sem_prazo') && !t.data_vencimento) return true
+                    if (filters.urgencia.includes('sem_descricao') && !t.descricao) return true
+                    if (filters.urgencia.includes('sem_resultado') && t.concluida && !t.outcome && !t.resultado) return true
+                    return false
+                })
+            }
+            if (typeof filters.atrasadaMaisDias === 'number' && filters.atrasadaMaisDias > 0) {
+                filtered = filtered.filter(t => t.diff_days !== null && t.diff_days < -filters.atrasadaMaisDias!)
             }
 
             return filtered

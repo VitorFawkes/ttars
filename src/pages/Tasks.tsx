@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { CheckSquare, Plus, Check, UserPlus, X, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { TaskRow } from '../components/tasks/TaskRow'
 import { TaskTopBar, type TaskViewMode } from '../components/tasks/TaskTopBar'
 import { TaskQuickChips } from '../components/tasks/TaskQuickChips'
-import { MoreTaskFiltersPopover } from '../components/tasks/MoreTaskFiltersPopover'
+import { TaskFilterDrawer } from '../components/tasks/TaskFilterDrawer'
 import { ActiveTaskFilters } from '../components/tasks/ActiveTaskFilters'
 import { BulkDeleteConfirm } from '../components/tasks/BulkDeleteConfirm'
 import { DuplicateTasksView } from '../components/tasks/DuplicateTasksView'
@@ -42,13 +42,19 @@ export default function Tasks() {
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
     const [moreFiltersOpen, setMoreFiltersOpen] = useState(false)
-    const moreFiltersAnchorRef = useRef<HTMLDivElement>(null)
 
     const moreFiltersCount =
         filters.prioridades.length +
         filters.fases.length +
         filters.responsavelIds.length +
-        (filters.dateFrom || filters.dateTo ? 1 : 0)
+        filters.cardFases.length +
+        filters.cardStatusComercial.length +
+        filters.urgencia.length +
+        filters.resultados.length +
+        (filters.atrasadaMaisDias ? 1 : 0) +
+        (filters.vencimentoFrom || filters.vencimentoTo ? 1 : 0) +
+        (filters.criacaoFrom || filters.criacaoTo ? 1 : 0) +
+        (filters.conclusaoFrom || filters.conclusaoTo ? 1 : 0)
 
     const completeMutation = useMutation({
         mutationFn: async ({ taskId, outcome, feedback }: { taskId: string; outcome?: string; feedback?: string }) => {
@@ -223,28 +229,20 @@ export default function Tasks() {
                     </button>
                 </div>
 
-                <div className="relative" ref={moreFiltersAnchorRef}>
-                    <TaskTopBar
-                        filters={filters}
-                        setFilters={setFilters}
-                        viewMode={viewMode}
-                        onViewModeChange={(m) => {
-                            setViewMode(m)
-                            setSelectedIds(new Set())
-                        }}
-                        moreFiltersCount={moreFiltersCount}
-                        moreFiltersOpen={moreFiltersOpen}
-                        onToggleMoreFilters={() => setMoreFiltersOpen(o => !o)}
-                        taskCount={taskCount}
-                        isLoading={isLoading && enableTasksList}
-                    />
-                    <MoreTaskFiltersPopover
-                        open={moreFiltersOpen}
-                        onClose={() => setMoreFiltersOpen(false)}
-                        filters={filters}
-                        setFilters={setFilters}
-                    />
-                </div>
+                <TaskTopBar
+                    filters={filters}
+                    setFilters={setFilters}
+                    viewMode={viewMode}
+                    onViewModeChange={(m) => {
+                        setViewMode(m)
+                        setSelectedIds(new Set())
+                    }}
+                    moreFiltersCount={moreFiltersCount}
+                    moreFiltersOpen={moreFiltersOpen}
+                    onToggleMoreFilters={() => setMoreFiltersOpen(o => !o)}
+                    taskCount={taskCount}
+                    isLoading={isLoading && enableTasksList}
+                />
 
                 <TaskQuickChips filters={filters} setFilters={setFilters} />
 
@@ -400,6 +398,13 @@ export default function Tasks() {
             <CreateTaskModal
                 open={createOpen}
                 onOpenChange={setCreateOpen}
+            />
+
+            <TaskFilterDrawer
+                open={moreFiltersOpen}
+                onClose={() => setMoreFiltersOpen(false)}
+                filters={filters}
+                setFilters={setFilters}
             />
 
             <BulkDeleteConfirm

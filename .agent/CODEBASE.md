@@ -7,8 +7,8 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-06
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 146 paginas | 235 hooks | 22 views | 652 components
-> **Stats:** 191 tabelas | 146 paginas | 235 hooks | 22 views | 652 components
+> **Stats:** 191 tabelas | 146 paginas | 236 hooks | 23 views | 653 components
+> **Stats:** 191 tabelas | 146 paginas | 236 hooks | 23 views | 653 components
 
 ---
 
@@ -170,7 +170,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **235 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **236 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -256,6 +256,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
 | `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentListening()` | `useAgentListening.ts` |
 | `useAgentMoments()` | `useAgentMoments.ts` |
 | `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
