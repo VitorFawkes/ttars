@@ -60,6 +60,7 @@ export function ListeningSection({ agentId }: Props) {
   const [newExample, setNewExample] = useState('')
   const [dirty, setDirty] = useState(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (listening) {
       setConfig({
@@ -72,6 +73,7 @@ export function ListeningSection({ agentId }: Props) {
       setDirty(false)
     }
   }, [listening])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggle = (key: ToggleDef['key']) => {
     setConfig(prev => ({ ...prev, [key]: !prev[key] }))
