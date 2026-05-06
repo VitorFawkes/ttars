@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import KanbanBoard from '../components/pipeline/KanbanBoard'
 import PipelineListView from '../components/pipeline/PipelineListView'
 import { cn } from '../lib/utils'
 import CreateCardModal from '../components/pipeline/CreateCardModal'
 
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { usePipelineFilters, useActiveFilterCount } from '../hooks/usePipelineFilters'
 import { useProductContext } from '../hooks/useProductContext'
 import { useMyVisiblePhases } from '../hooks/useMyVisiblePhases'
@@ -46,6 +47,14 @@ export default function Pipeline() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+
+    // Debounce search para evitar refetch a cada keystroke (busca em cards_contatos é cara).
+    // Input continua controlado por filters.search para UI responsiva; query só dispara após 300ms parado.
+    const debouncedSearch = useDebouncedValue(filters.search ?? '', 300)
+    const effectiveFilters = useMemo(
+        () => ({ ...filters, search: debouncedSearch }),
+        [filters, debouncedSearch]
+    )
 
     // Labels dinâmicos de fases
     const { pipelineId: currentPipelineId } = useCurrentProductMeta()
@@ -367,7 +376,7 @@ export default function Pipeline() {
                             productFilter={currentProduct}
                             viewMode={viewMode}
                             subView={subView}
-                            filters={filters}
+                            filters={effectiveFilters}
                             showWonDirect={showWonDirect}
                             showClosedCards={currentProduct === 'CORP'}
                             className="h-full px-8 pb-4"
@@ -377,7 +386,7 @@ export default function Pipeline() {
                             productFilter={currentProduct}
                             viewMode={viewMode}
                             subView={subView}
-                            filters={filters}
+                            filters={effectiveFilters}
                             showWonDirect={showWonDirect}
                             showClosedCards={currentProduct === 'CORP'}
                             onCardClick={(cardId) => {

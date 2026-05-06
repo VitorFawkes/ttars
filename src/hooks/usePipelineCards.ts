@@ -98,6 +98,9 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const query = useQuery({
         queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, showClosedCards, showWonDirect, assistedMembership?.allCardIds.length ?? 0],
         placeholderData: keepPreviousData,
+        // 30s de cache fresco evita refetch a cada click/foco de janela. Mutations já invalidam ['cards'].
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
         enabled: (!needsAuth || (isAuthReady && isTeamReady)) && isTeamFilterReady && isAssistsReady && isPhaseStagesReady && isAssistedMembershipReady,
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- query builder perde tipo com encadeamento dinâmico

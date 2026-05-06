@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Calendar, DollarSign, MapPin, Users, UserPlus, User, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { cn } from '../../lib/utils'
 import type { Database } from '../../database.types'
 import { useQuery } from '@tanstack/react-query'
@@ -15,8 +15,7 @@ import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
-import { useCardConciergeStats } from '../../hooks/concierge/useCardConciergeStats'
-import { TIPO_LABEL } from '../../hooks/concierge/types'
+import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -25,6 +24,7 @@ interface KanbanCardProps {
     phaseSlug?: string | null
     onWin?: (cardId: string) => void
     onLoss?: (cardId: string) => void
+    conciergeStatsMap?: Map<string, CardConciergeStats>
 }
 
 
@@ -106,11 +106,13 @@ function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | 
     return { label, level }
 }
 
-export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCardProps) {
+function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
-    const { data: conciergeStats } = useCardConciergeStats(card.id)
+    // Lookup O(1) no Map batched (vinda do KanbanBoard via useCardConciergeStatsBatch).
+    // Antes: cada KanbanCard disparava sua própria query → N+1 em pipelines com 100+ cards.
+    const conciergeStats = card.id ? conciergeStatsMap?.get(card.id) ?? null : null
 
     const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
 
@@ -905,3 +907,17 @@ export default function KanbanCard({ card, phaseSlug, onWin, onLoss }: KanbanCar
         </div>
     )
 }
+
+// Comparator customizado: re-renderiza só quando mudam os inputs que afetam visual do card.
+// onWin/onLoss são funções recriadas a cada render do KanbanBoard mas funcionalmente
+// equivalentes (lêem fechos sobre allCards/stages — estáveis no working set típico). Ignorar
+// elas evita o cascade de re-render de 200+ cards quando KanbanBoard re-renderiza por
+// state secundário (modal, drag overlay, sort). Card e conciergeStatsMap usam structural
+// sharing do TanStack Query → mesma referência quando dados não mudaram.
+export default memo(KanbanCard, (prev, next) => {
+    return (
+        prev.card === next.card &&
+        prev.phaseSlug === next.phaseSlug &&
+        prev.conciergeStatsMap === next.conciergeStatsMap
+    )
+})
