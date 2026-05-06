@@ -1427,8 +1427,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                             {/* Status Action Buttons — right side of title */}
                             <div className="flex items-center gap-2 shrink-0">
-                                {/* Sem Pós-Venda — para cards abertos em pós-venda com acompanhamento ativo */}
-                                {card.status_comercial === 'aberto'
+                                {/* Sem Pós-Venda — para cards em pós-venda com acompanhamento ativo (não-ganho ainda) */}
+                                {card.status_comercial !== 'ganho'
+                                    && card.status_comercial !== 'perdido'
                                     && currentStage?.pipeline_phases?.slug === 'pos_venda'
                                     && !isSemPosVenda && (
                                     <button
