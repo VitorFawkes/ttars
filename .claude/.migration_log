@@ -738,3 +738,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T15:05:05Z | supabase/migrations/20260506d_duplicate_tasks_tiered.sql | applied_to_prod
 2026-05-06T15:14:35Z | supabase/migrations/20260506a_roteamento_aceita_epoca_legado.sql | applied_to_prod
 2026-05-06T15:53:42Z | supabase/migrations/20260506b_atividade_respeita_update_source.sql | applied_to_prod
+2026-05-06T19:20:59Z | supabase/migrations/20260506g_drain_ai_message_buffer_cron.sql | applied_to_prod
+2026-05-06T19:21:06Z | supabase/migrations/20260506e_duplicate_tasks_qtd_ambiguous.sql | applied_to_prod
+2026-05-06T19:22:48Z | supabase/migrations/20260506e_duplicate_tasks_qtd_ambiguous.sql | applied_to_prod
+2026-05-06T19:23:12Z | /tmp/check_cron_runs.sql | applied_to_prod
+2026-05-06T19:23:39Z | supabase/migrations/20260506e_duplicate_tasks_qtd_ambiguous.sql | applied_to_prod
