@@ -199,7 +199,7 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     created_by, concluido_por, created_at,
                     card:cards!tarefas_card_id_fkey!inner(
                         id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id, status_comercial,
-                        stage:pipeline_stages(nome, phase:pipeline_phases(slug)),
+                        stage:pipeline_stages(nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)),
                         contato:contatos!cards_pessoa_principal_id_fkey(id, nome, telefone, email)
                     )
                 `)
