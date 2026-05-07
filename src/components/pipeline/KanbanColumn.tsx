@@ -5,6 +5,7 @@ import StageSortPopover from './PhaseSortPopover'
 import { useReceitaPermission } from '../../hooks/useReceitaPermission'
 import type { Database } from '../../database.types'
 import type { StageSortConfig } from '../../hooks/usePhaseSort'
+import type { CardConciergeStats } from '../../hooks/concierge/types'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 type Stage = Database['public']['Tables']['pipeline_stages']['Row']
@@ -20,9 +21,10 @@ interface KanbanColumnProps {
     hasSortOverride: boolean
     onSortChange: (config: StageSortConfig) => void
     onClearSort: () => void
+    conciergeStatsMap?: Map<string, CardConciergeStats>
 }
 
-export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort }: KanbanColumnProps) {
+export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort, conciergeStatsMap }: KanbanColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: stage.id,
         data: stage
@@ -91,7 +93,14 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                     </div>
                 ) : (
                     cards.map((card) => (
-                        <KanbanCard key={card.id} card={card} phaseSlug={phaseSlug} onWin={onWin} onLoss={onLoss} />
+                        <KanbanCard
+                            key={card.id}
+                            card={card}
+                            phaseSlug={phaseSlug}
+                            onWin={onWin}
+                            onLoss={onLoss}
+                            conciergeStatsMap={conciergeStatsMap}
+                        />
                     ))
                 )}
             </div>

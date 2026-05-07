@@ -925,6 +925,29 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         }
     })
 
+    // Desativar Pós-Venda — entra no modo "Sem Pós-Venda" (inverso de ativar)
+    const desativarPosVendaMutation = useMutation({
+        mutationFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC pendente de regeneração de types
+            const { data, error } = await (supabase as any).rpc('desativar_pos_venda', {
+                p_card_id: card.id
+            })
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+            queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['activity-feed', card.id] })
+            toast.success('Card marcado como Ganho sem Pós-Venda')
+        },
+        onError: (error) => {
+            console.error('Failed to deactivate pos-venda:', error)
+            toast.error('Erro ao remover Pós-Venda: ' + error.message)
+        }
+    })
+
     const posVendaPhaseId = useMemo(
         () => phasesData?.find(p => p.slug === 'pos_venda')?.id,
         [phasesData]
@@ -1404,6 +1427,25 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                             {/* Status Action Buttons — right side of title */}
                             <div className="flex items-center gap-2 shrink-0">
+                                {/* Sem Pós-Venda — para cards em pós-venda com acompanhamento ativo (não-ganho ainda) */}
+                                {card.status_comercial !== 'ganho'
+                                    && card.status_comercial !== 'perdido'
+                                    && currentStage?.pipeline_phases?.slug === 'pos_venda'
+                                    && !isSemPosVenda && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Marcar este card como Ganho sem Pós-Venda?\n\nO card sai do acompanhamento de Pós-Venda — cadências e automações deixam de disparar. Você pode ativar de novo depois pelo botão "Ativar Pós-Venda".')) {
+                                                desativarPosVendaMutation.mutate()
+                                            }
+                                        }}
+                                        disabled={desativarPosVendaMutation.isPending}
+                                        className="px-3 py-1 rounded-lg border border-lime-200 bg-lime-50 text-lime-700 text-xs font-semibold hover:bg-lime-100 transition-colors flex items-center gap-1.5"
+                                        title="Remover este card do acompanhamento de Pós-Venda — vira Ganho sem Pós-Venda"
+                                    >
+                                        <ArrowLeft className="h-3.5 w-3.5" />
+                                        {desativarPosVendaMutation.isPending ? 'Removendo...' : 'Sem Pós-Venda'}
+                                    </button>
+                                )}
                                 {card.status_comercial !== 'ganho' && card.status_comercial !== 'perdido' && (() => {
                                     const phaseSlug = currentStage?.pipeline_phases?.slug
                                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1491,6 +1533,21 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         >
                                             <ArrowRight className="h-3 w-3" />
                                             Ativar Pós-Venda
+                                        </button>
+                                    )}
+                                    {!isSemPosVenda && currentStage?.pipeline_phases?.slug === 'pos_venda' && (
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('Marcar este card como Ganho sem Pós-Venda?\n\nO card sai do acompanhamento de Pós-Venda — cadências e automações deixam de disparar. Você pode ativar de novo depois pelo botão "Ativar Pós-Venda".')) {
+                                                    desativarPosVendaMutation.mutate()
+                                                }
+                                            }}
+                                            disabled={desativarPosVendaMutation.isPending}
+                                            className="px-2 py-0.5 rounded-md border border-green-300 bg-white text-green-700 text-xs font-medium hover:bg-green-100 transition-colors flex items-center gap-1"
+                                            title="Remover este card do acompanhamento de Pós-Venda — vira Ganho sem Pós-Venda"
+                                        >
+                                            <ArrowLeft className="h-3 w-3" />
+                                            {desativarPosVendaMutation.isPending ? 'Removendo...' : 'Sem Pós-Venda'}
                                         </button>
                                     )}
                                     <button

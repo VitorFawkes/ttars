@@ -9,6 +9,8 @@
 > **Trigger:** ALWAYS ON
 > **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 640 components
 > **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 640 components
+> **Stats:** 191 tabelas | 146 paginas | 237 hooks | 22 views | 654 components
+> **Stats:** 191 tabelas | 146 paginas | 237 hooks | 22 views | 654 components
 
 ---
 
@@ -171,6 +173,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
 > **231 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **237 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -236,6 +239,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useContactQuality()` | `useContactQuality.ts` |
 | `useDeleteContact()` | `useDeleteContact.ts` |
 | `useDuplicateDetection()` | `useDuplicateDetection.ts` |
+| `useDuplicateTasks()` | `useDuplicateTasks.ts` |
 | `usePeopleIntelligence()` | `usePeopleIntelligence.ts` |
 | `useQualityGate()` | `useQualityGate.ts` |
 
@@ -255,6 +259,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
 | `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentListening()` | `useAgentListening.ts` |
 | `useAgentMoments()` | `useAgentMoments.ts` |
 | `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
@@ -285,6 +290,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useConversationMessages()` | `useConversationMessages.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
+| `useDebouncedValue()` | `useDebouncedValue.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |

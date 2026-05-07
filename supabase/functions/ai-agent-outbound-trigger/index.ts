@@ -295,9 +295,26 @@ serve(async (req) => {
         // 3. Check business hours + test-mode whitelist
         const { data: agentRow } = await supabase
           .from("ai_agents")
-          .select("outbound_trigger_config, test_mode_phone_whitelist")
+          .select("outbound_trigger_config, test_mode_phone_whitelist, ativa")
           .eq("id", item.agent_id)
           .single();
+
+        // Guard de race condition: item entrou na fila enquanto agente estava
+        // ativo, mas pode ter sido desativado depois. A RPC `process_outbound_queue`
+        // ja filtra `ai_agents.ativa=true`, mas se a fila tiver sido populada
+        // antes de uma desativacao, o item passa. Re-checar aqui.
+        if ((agentRow as { ativa?: boolean } | null)?.ativa === false) {
+          console.warn(
+            `[ai-agent-outbound-trigger] BLOCKED: agent ${item.agent_id} is inactive (ai_agents.ativa=false) at send time`,
+          );
+          await supabase.rpc("complete_outbound_queue_item", {
+            p_queue_id: item.queue_id,
+            p_status: "skipped",
+            p_error: "agent_inactive_at_send_time",
+          });
+          results.push({ queue_id: item.queue_id, status: "skipped", error: "agent_inactive" });
+          continue;
+        }
 
         const testWhitelist = (agentRow as { test_mode_phone_whitelist?: string[] | null } | null)
           ?.test_mode_phone_whitelist;

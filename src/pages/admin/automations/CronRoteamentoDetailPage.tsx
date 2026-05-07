@@ -62,6 +62,7 @@ interface BlockedCard {
   c_detalhe: string
   c_viagem_inicio: string | null
   c_viagem_fim: string | null
+  c_bloqueado_em: string | null
 }
 
 const MOTIVO_LABELS: Record<string, { label: string; color: string }> = {
@@ -72,9 +73,19 @@ const MOTIVO_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 interface RecentLog {
+  card_id: string | null
+  card_titulo: string | null
   from_stage: string
   to_stage: string
+  travel_start: string | null
+  travel_end: string | null
+  anchor_used: string | null
   created_at: string
+}
+
+const ANCHOR_LABEL: Record<string, string> = {
+  epoca_viagem: 'Data Viagem Completa',
+  data_exata_da_viagem: 'Data Viagem c/ Welcome',
 }
 
 interface CadenceTemplate {
@@ -100,7 +111,7 @@ export default function CronRoteamentoDetailPage() {
   const [cadenceTemplates, setCadenceTemplates] = useState<CadenceTemplate[]>([])
   const [blockedCards, setBlockedCards] = useState<BlockedCard[]>([])
   const [loadingBlocked, setLoadingBlocked] = useState(false)
-  const [showBlocked, setShowBlocked] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(true)
 
   const updateConfig = (patch: Partial<ActionConfig>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -119,7 +130,7 @@ export default function CronRoteamentoDetailPage() {
         sb.from('cadence_event_triggers').select('*').eq('id', id).single(),
         sb.from('cadence_templates').select('id, name').order('name'),
         sb.from('cadence_event_log')
-          .select('card_id, event_data, created_at')
+          .select('card_id, event_data, created_at, cards:card_id ( id, titulo )')
           .eq('event_source', 'cron_roteamento_pos_venda')
           .contains('event_data', { trigger_id: id })
           .order('created_at', { ascending: false })
@@ -162,9 +173,19 @@ export default function CronRoteamentoDetailPage() {
 
       if (logsRes.data) {
         setRecentLogs(
-          logsRes.data.map((l: { event_data: Record<string, unknown>; created_at: string }) => ({
+          logsRes.data.map((l: {
+            card_id: string | null
+            event_data: Record<string, unknown>
+            created_at: string
+            cards?: { id: string; titulo: string } | null
+          }) => ({
+            card_id: l.card_id,
+            card_titulo: l.cards?.titulo ?? null,
             from_stage: (l.event_data?.from_stage as string) || '?',
             to_stage: (l.event_data?.to_stage as string) || '?',
+            travel_start: (l.event_data?.travel_start as string) || null,
+            travel_end: (l.event_data?.travel_end as string) || null,
+            anchor_used: (l.event_data?.anchor_used as string) || null,
             created_at: l.created_at,
           }))
         )
@@ -182,6 +203,17 @@ export default function CronRoteamentoDetailPage() {
     const el = document.getElementById('movimentacoes')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [loading, recentLogs.length])
+
+  // Carregar casos bloqueados automaticamente ao abrir a tela
+  useEffect(() => {
+    if (loading) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabase as any)
+      .rpc('fn_roteamento_pos_venda_trips_diagnose')
+      .then(({ data }: { data: BlockedCard[] | null }) => {
+        if (data) setBlockedCards(data)
+      })
+  }, [loading])
 
   const handleSave = async () => {
     if (!id) return
@@ -217,7 +249,7 @@ export default function CronRoteamentoDetailPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: logs } = await (supabase as any)
         .from('cadence_event_log')
-        .select('card_id, event_data, created_at')
+        .select('card_id, event_data, created_at, cards:card_id ( id, titulo )')
         .eq('event_source', 'cron_roteamento_pos_venda')
         .contains('event_data', { trigger_id: id })
         .order('created_at', { ascending: false })
@@ -225,9 +257,19 @@ export default function CronRoteamentoDetailPage() {
 
       if (logs) {
         setRecentLogs(
-          logs.map((l: { event_data: Record<string, unknown>; created_at: string }) => ({
+          logs.map((l: {
+            card_id: string | null
+            event_data: Record<string, unknown>
+            created_at: string
+            cards?: { id: string; titulo: string } | null
+          }) => ({
+            card_id: l.card_id,
+            card_titulo: l.cards?.titulo ?? null,
             from_stage: (l.event_data?.from_stage as string) || '?',
             to_stage: (l.event_data?.to_stage as string) || '?',
+            travel_start: (l.event_data?.travel_start as string) || null,
+            travel_end: (l.event_data?.travel_end as string) || null,
+            anchor_used: (l.event_data?.anchor_used as string) || null,
             created_at: l.created_at,
           }))
         )
@@ -538,6 +580,17 @@ export default function CronRoteamentoDetailPage() {
                       {b.c_viagem_inicio && ` · viagem ${b.c_viagem_inicio} → ${b.c_viagem_fim}`}
                       {` · ${b.c_detalhe}`}
                     </p>
+                    {b.c_bloqueado_em && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Bloqueado em {new Date(b.c_bloqueado_em).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
                   </div>
                   <span
                     className={cn(
@@ -568,21 +621,49 @@ export default function CronRoteamentoDetailPage() {
           <h2 className="font-semibold text-slate-900">Movimentações recentes desta automação</h2>
           <div className="divide-y divide-slate-100">
             {recentLogs.map((log, i) => (
-              <div key={i} className="py-2.5 flex items-center gap-3 text-sm">
-                <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <div key={i} className="py-3 flex items-start gap-3 text-sm">
+                <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-1" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-slate-500">{log.from_stage}</span>
-                  <span className="text-slate-400 mx-1.5">→</span>
-                  <span className="font-medium text-slate-700">{log.to_stage}</span>
+                  <p className="text-sm font-medium text-slate-900 truncate">
+                    {log.card_titulo || '(card removido ou sem acesso)'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    <span className="text-slate-500">{log.from_stage}</span>
+                    <span className="text-slate-400 mx-1.5">→</span>
+                    <span className="font-medium text-slate-700">{log.to_stage}</span>
+                  </p>
+                  {(log.travel_start || log.anchor_used) && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {log.travel_start && log.travel_end && (
+                        <>viagem {log.travel_start} → {log.travel_end}</>
+                      )}
+                      {log.anchor_used && (
+                        <> · base: {ANCHOR_LABEL[log.anchor_used] || log.anchor_used}</>
+                      )}
+                    </p>
+                  )}
                 </div>
-                <span className="text-xs text-slate-400 flex-shrink-0">
-                  {new Date(log.created_at).toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-xs text-slate-400">
+                    {new Date(log.created_at).toLocaleString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                  {log.card_id && (
+                    <a
+                      href={`/cards/${log.card_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-indigo-600 hover:underline"
+                    >
+                      Abrir
+                    </a>
+                  )}
+                </div>
               </div>
             ))}
           </div>

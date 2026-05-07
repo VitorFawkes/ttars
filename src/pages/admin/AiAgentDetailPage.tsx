@@ -523,7 +523,11 @@ export default function AiAgentDetailPage() {
           <TecnicoSection form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} isN8n={isN8n} />
         )}
         {activeTab === 'handoff' && (
-          v3Enabled
+          // Agentes com playbook usam SEMPRE a v3 — ela tem o cross-org check
+          // pra responsavel/stage. A v1 (TabHandoff) usa useCurrentProductMeta
+          // que pega org/produto da sessão do admin, não do agente, e pode
+          // resultar em stage_id de pipeline errado salvo silenciosamente.
+          (v3Enabled || form.playbook_enabled)
             ? <HandoffSectionV3
                 form={form}
                 setForm={setFormWrapper}

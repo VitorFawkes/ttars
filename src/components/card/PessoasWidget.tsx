@@ -1,4 +1,4 @@
-import { Plus, Eye, ChevronDown } from 'lucide-react'
+import { Plus, Eye, ChevronDown, MessageCircle } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import ContactSelector from './ContactSelector'
@@ -24,6 +24,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const queryClient = useQueryClient()
     const [selectorMode, setSelectorMode] = useState<'none' | 'add_traveler' | 'set_primary'>('none')
     const [selectedContact, setSelectedContact] = useState<Database['public']['Tables']['contatos']['Row'] | null>(null)
+    const [drawerInitialTab, setDrawerInitialTab] = useState<string>('info')
     // Collapse state from stage_section_config (composite keys: people:viajantes, people:travel_history)
     const { pipelineId } = useCurrentProductMeta()
     const { isSectionCollapsed, isSectionVisible, isLoading: sscLoading } = useStageSectionConfig(pipelineId)
@@ -54,6 +55,21 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
 
     const adultos = travelers?.filter(t => t.tipo_pessoa === 'adulto' || !t.tipo_pessoa).length || 0
     const criancas = travelers?.filter(t => t.tipo_pessoa === 'crianca').length || 0
+
+    // Count of WhatsApp messages of primary contact (for badge on conversation button)
+    const { data: messageCount = 0 } = useQuery({
+        queryKey: ['contact-whatsapp-count', primary?.id],
+        queryFn: async () => {
+            if (!primary?.id) return 0
+            const { count, error } = await supabase
+                .from('whatsapp_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('contact_id', primary.id)
+            if (error) return 0
+            return count || 0
+        },
+        enabled: !!primary?.id,
+    })
 
     // Travel history count (shared cache with TravelHistorySection)
     const contactIds = (people || []).map(p => p.id).filter(Boolean).sort()
@@ -139,7 +155,25 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
 
                             <div className="flex items-center gap-1">
                                 <button
-                                    onClick={() => setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])}
+                                    onClick={() => {
+                                        setDrawerInitialTab('conversations')
+                                        setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
+                                    }}
+                                    className="relative p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
+                                    title="Ver conversas"
+                                >
+                                    <MessageCircle className="h-4 w-4" />
+                                    {messageCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 flex items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-medium">
+                                            {messageCount > 99 ? '99+' : messageCount}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setDrawerInitialTab('info')
+                                        setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
+                                    }}
                                     className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
                                     title="Ver detalhes completos"
                                 >
@@ -261,6 +295,7 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
             <PersonDetailDrawer
                 person={selectedContact}
                 card={card}
+                defaultTab={drawerInitialTab}
                 onClose={() => setSelectedContact(null)}
                 onRefresh={() => {
                     queryClient.invalidateQueries({ queryKey: ['card-people', card.id] })
