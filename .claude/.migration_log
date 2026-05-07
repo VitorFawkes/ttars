@@ -762,3 +762,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-07T16:32:03Z | supabase/migrations/20260507c_fix_briefing_jsonb.sql | applied_to_prod
 20260507a_agent_update_card_data_filter_nulls.sql|2026-05-07T18:50|hot-applied via Management API (MCP indisponível)
 20260507b_agent_check_calendar_v3_org_filter.sql|2026-05-07T19:50|hot-applied via Management API
+2026-05-07T19:35:59Z | supabase/migrations/20260507e_archive_monde_zombie_aggregates.sql | applied_to_prod
+2026-05-07T19:36:30Z | supabase/migrations/20260507f_count_monde_zombie_items_rpc.sql | applied_to_prod
+2026-05-07T19:37:28Z | supabase/migrations/20260507d_enrich_activity_actor_specific_labels.sql | applied_to_prod
