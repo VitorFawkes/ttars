@@ -725,6 +725,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-05T20:20:25Z | supabase/migrations/20260505c_estela_consolidation_fix.sql | applied_to_prod
 2026-05-05T20:21:28Z | supabase/migrations/20260505d_estela_consolidation_v3.sql | applied_to_prod
 2026-05-05T21:41:06Z | supabase/migrations/20260505e_convert_boolean_to_ai_subjective.sql | applied_to_prod
+2026-05-06T13:42:28Z | supabase/migrations/20260505g_view_meu_dia_includes_started_at.sql | applied_to_prod
+2026-05-06T15:05:04Z | supabase/migrations/20260506a_view_meu_dia_includes_contato_principal.sql | applied_to_prod
 2026-05-06T13:48:00Z | supabase/migrations/20260506a_criar_sub_card_copia_acompanhantes.sql | applied_to_prod
 2026-05-06T14:20:02Z | supabase/migrations/20260506b_fix_activities_actor_default_masking.sql | applied_to_prod
 2026-05-06T14:30:44Z | supabase/migrations/20260506c_duplicate_tasks_rpc.sql | applied_to_prod

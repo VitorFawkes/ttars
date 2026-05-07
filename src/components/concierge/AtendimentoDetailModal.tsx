@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, MessageCircle, Flame, User, ChevronDown, Check } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useMarcarOutcome, useNotificarCliente, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
+import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -45,7 +45,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const [observacao, setObservacao] = useState('')
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
-  const { mutate: notificarCliente, isPending: isNotifying } = useNotificarCliente()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -362,16 +361,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
           {!item.outcome ? (
             <>
               <Button variant="ghost" onClick={onClose} disabled={isMarkingOutcome}>Fechar</Button>
-              {!item.notificou_cliente_em && (
-                <Button
-                  variant="outline"
-                  onClick={() => notificarCliente(item.atendimento_id)}
-                  disabled={isNotifying}
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Notificar cliente
-                </Button>
-              )}
               <Button onClick={handleMarcarOutcome} disabled={!selectedOutcome || isMarkingOutcome}>
                 {isMarkingOutcome ? 'Salvando…' : 'Confirmar'}
               </Button>

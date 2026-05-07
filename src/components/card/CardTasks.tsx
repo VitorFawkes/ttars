@@ -8,6 +8,7 @@ import { SmartTaskModal } from './SmartTaskModal'
 import { AtendimentoDetailModal } from '../concierge/AtendimentoDetailModal'
 import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
 import { TIPO_LABEL, type MeuDiaItem } from '../../hooks/concierge/types'
+import { computeEstadoFunil, ESTADO_FUNIL_COLUMNS } from '../../hooks/concierge/useKanbanTarefas'
 import { format, isToday, isPast, isTomorrow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -647,6 +648,9 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
                         const conciergeItem = conciergeByTarefaId.get(task.id)
                         const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
+                        // Coluna atual do funil concierge (Aguardando atendimento / Em contato / etc).
+                        const conciergeEstado = conciergeItem ? computeEstadoFunil(conciergeItem) : null
+                        const conciergeColuna = conciergeEstado ? ESTADO_FUNIL_COLUMNS.find(c => c.id === conciergeEstado) : null
 
                         return (
                             <div
@@ -675,6 +679,14 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 {task.titulo}
                                             </p>
                                             <div className="flex items-center gap-1 flex-shrink-0">
+                                                {conciergeColuna && (
+                                                    <span
+                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${conciergeColuna.tone.bg} ${conciergeColuna.tone.text} ${conciergeColuna.tone.border}`}
+                                                        title={`Coluna atual em /concierge: ${conciergeColuna.label}`}
+                                                    >
+                                                        {conciergeColuna.label}
+                                                    </span>
+                                                )}
                                                 {conciergeTipo && (
                                                     <span
                                                         className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1 ${conciergeTipo.bgColor} ${conciergeTipo.color} ${conciergeTipo.borderColor}`}

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { X } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
@@ -45,12 +46,18 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
   // mudar pra qualquer concierge da lista.
   const [responsavelId, setResponsavelId] = useState<string>(profile?.id ?? '')
   const conciergeUsers = useConciergeUsers()
+  // Modo múltiplo: usuário marca a caixa, o campo Título vira textarea onde
+  // cada linha não-vazia vira um atendimento separado (mesmo Tipo / Categoria
+  // / Prazo / Atribuído / Prioridade).
+  const [multiplos, setMultiplos] = useState(false)
+  const [titulosMulti, setTitulosMulti] = useState('')
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
 
   // Quando lockedCard vem como prop, ele dita o cardId; senão usa o state interno.
   const cardId = lockedCard ?? cardIdInternal
   const setCardId = setCardIdInternal
 
-  const { mutate: criarAtendimento, isPending } = useCriarAtendimento()
+  const { mutate: criarAtendimento, mutateAsync: criarAtendimentoAsync, isPending } = useCriarAtendimento()
 
   const categoriasDoProduto = useMemo(() => categoriasParaProduto(produtoAtual), [produtoAtual])
 
@@ -85,34 +92,80 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
 
   const mostraValor = tipo === 'oferta'
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const baseInput = () => ({
+    card_id: cardId,
+    tipo_concierge: tipo,
+    categoria,
+    descricao: descricao ?? undefined,
+    data_vencimento: prazo ?? undefined,
+    responsavel_id: responsavelId || profile?.id,
+    prioridade,
+    valor: mostraValor && valor ? parseFloat(valor) : null,
+    cobrado_de: mostraValor && cobradoDe ? (cobradoDe as CobradoDe) : null,
+    source: 'manual' as const,
+  })
+
+  const resetAfterCreate = () => {
+    setCardId('')
+    setTitulo('')
+    setDescricao('')
+    setPrazo('')
+    setValor('')
+    setCobradoDe('')
+    setTitulosMulti('')
+    setMultiplos(false)
+    setBatchProgress(null)
+    close()
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!cardId) return
 
-    criarAtendimento({
-      card_id: cardId,
-      tipo_concierge: tipo,
-      categoria,
-      titulo: titulo ?? undefined,
-      descricao: descricao ?? undefined,
-      data_vencimento: prazo ?? undefined,
-      responsavel_id: responsavelId || profile?.id,
-      prioridade,
-      valor: mostraValor && valor ? parseFloat(valor) : null,
-      cobrado_de: mostraValor && cobradoDe ? (cobradoDe as CobradoDe) : null,
-      source: 'manual',
-    }, {
-      onSuccess: () => {
-        // Reset form
-        setCardId('')
-        setTitulo('')
-        setDescricao('')
-        setPrazo('')
-        setValor('')
-        setCobradoDe('')
-        close()
-      },
-    })
+    if (!multiplos) {
+      // Caminho único — comportamento original
+      criarAtendimento(
+        { ...baseInput(), titulo: titulo ?? undefined },
+        { onSuccess: () => resetAfterCreate() }
+      )
+      return
+    }
+
+    // Modo múltiplo: cada linha não-vazia vira um atendimento.
+    const linhas = titulosMulti
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+
+    if (linhas.length === 0) {
+      toast.error('Adicione pelo menos um título (uma linha por atendimento)')
+      return
+    }
+
+    setBatchProgress({ done: 0, total: linhas.length })
+    let success = 0
+    const failed: string[] = []
+    for (const t of linhas) {
+      try {
+        await criarAtendimentoAsync({ ...baseInput(), titulo: t })
+        success++
+      } catch (err) {
+        failed.push(`${t}: ${err instanceof Error ? err.message : 'erro'}`)
+      }
+      setBatchProgress(p => p ? { ...p, done: p.done + 1 } : null)
+    }
+    setBatchProgress(null)
+
+    if (failed.length === 0) {
+      toast.success(`${success} atendimento${success === 1 ? '' : 's'} criado${success === 1 ? '' : 's'}`)
+      resetAfterCreate()
+    } else if (success > 0) {
+      toast.warning(`${success} criado${success === 1 ? '' : 's'}, ${failed.length} falhou${failed.length === 1 ? '' : 'ram'}`, {
+        description: failed.slice(0, 3).join('\n') + (failed.length > 3 ? `\n+${failed.length - 3} outros` : ''),
+      })
+    } else {
+      toast.error('Nenhum atendimento criado', { description: failed[0] })
+    }
   }
 
   if (!isOpenResolved) return null
@@ -214,18 +267,57 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
             </div>
           </div>
 
-          {/* Título */}
+          {/* Toggle: criar vários */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Título
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={multiplos}
+                onChange={(e) => setMultiplos(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="font-medium">Criar vários atendimentos de uma vez</span>
             </label>
-            <Input
-              type="text"
-              placeholder="Ex: Oferecer upgrade de assento"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-            />
+            {multiplos && (
+              <p className="mt-1 text-xs text-slate-500">
+                Compartilham o mesmo Tipo, Categoria, Prazo, Atribuído e Prioridade. Um título por linha vira um atendimento.
+              </p>
+            )}
           </div>
+
+          {/* Título — modo único OU múltiplos títulos (textarea) */}
+          {!multiplos ? (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Título
+              </label>
+              <Input
+                type="text"
+                placeholder="Ex: Oferecer upgrade de assento"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Títulos * <span className="font-normal text-slate-500 text-xs">(um por linha)</span>
+              </label>
+              <textarea
+                placeholder={'Oferecer upgrade de assento\nVerificar bagagem\nConfirmar transfer'}
+                value={titulosMulti}
+                onChange={(e) => setTitulosMulti(e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 resize-y font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {(() => {
+                  const n = titulosMulti.split('\n').filter(s => s.trim()).length
+                  return n === 0 ? 'Nenhum título digitado' : `${n} atendimento${n === 1 ? '' : 's'} a criar`
+                })()}
+              </p>
+            </div>
+          )}
 
           {/* Descrição */}
           <div>
@@ -336,15 +428,22 @@ function NovoAtendimentoModal({ isOpen, open, onClose, onOpenChange, cardId: ini
               type="button"
               variant="outline"
               onClick={close}
-              disabled={isPending}
+              disabled={isPending || !!batchProgress}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              disabled={!cardId || isPending}
+              disabled={!cardId || isPending || !!batchProgress}
             >
-              Criar atendimento
+              {batchProgress
+                ? `Criando ${batchProgress.done}/${batchProgress.total}…`
+                : multiplos
+                  ? (() => {
+                      const n = titulosMulti.split('\n').filter(s => s.trim()).length
+                      return n > 0 ? `Criar ${n} atendimento${n === 1 ? '' : 's'}` : 'Criar atendimentos'
+                    })()
+                  : 'Criar atendimento'}
             </Button>
           </div>
         </form>

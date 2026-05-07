@@ -51,7 +51,9 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   /** Crítica efetiva: se a tarefa é crítica direta OU a viagem inteira é crítica */
   const isCriticalEffective = isCritical || !!item.card_is_critical
   const titulo = item.titulo?.trim() || catLabel
-  const showCatPill = titulo !== catLabel
+  // Sempre mostra a pill da categoria — confirma classificação visual mesmo
+  // quando o título da tarefa repete o nome da categoria (ex: "Check-in").
+  const showCatPill = !!catLabel
 
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
 
@@ -89,12 +91,12 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           onPointerDown={(e) => e.stopPropagation()}
           disabled={togglingCritica}
           className={cn(
-            'w-5 h-5 rounded flex items-center justify-center transition-all',
+            'w-5 h-5 rounded flex items-center justify-center transition-all opacity-100',
             isCritical
-              ? 'bg-red-100 text-red-600 hover:bg-red-200 opacity-100'
+              ? 'bg-red-100 text-red-600 hover:bg-red-200'
               : isCriticalEffective
-              ? 'bg-red-50 text-red-400 hover:bg-red-100 opacity-100'
-              : 'text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+              ? 'bg-red-50 text-red-400 hover:bg-red-100'
+              : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
           )}
           aria-label={isCritical ? 'Remover marcação crítica' : 'Marcar como crítica'}
           title={
@@ -135,17 +137,16 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           {titulo}
         </h4>
 
-        <div className="flex items-center gap-1.5 text-[11.5px] text-slate-600 mb-2">
+        <div className="flex items-center gap-1.5 text-[11.5px] text-slate-600 mb-1">
           <span className="truncate flex-1">{item.card_titulo}</span>
-          {item.posicao_na_viagem != null && item.total_na_viagem != null && item.total_na_viagem > 1 && (
-            <span
-              className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold"
-              title={`${item.posicao_na_viagem}ª tarefa de ${item.total_na_viagem} desta viagem`}
-            >
-              {item.posicao_na_viagem}/{item.total_na_viagem}
-            </span>
-          )}
         </div>
+
+        {item.pessoa_principal_nome && (
+          <div className="flex items-center gap-1 text-[10.5px] text-slate-500 mb-2">
+            <User className="w-2.5 h-2.5 shrink-0" />
+            <span className="truncate">{item.pessoa_principal_nome}</span>
+          </div>
+        )}
 
         {(showCatPill || donoFirstNames) && (
           <div className="mb-2 flex items-center gap-1.5 flex-wrap">
