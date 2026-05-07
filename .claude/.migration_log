@@ -770,3 +770,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-07T20:05:02Z | supabase/migrations/20260507g_bulk_import_financial_items_preserve_state.sql | applied_to_prod
 2026-05-07T20:12:49Z | supabase/migrations/20260507h_bulk_import_financial_items_archive_removed.sql | applied_to_prod
 20260507i_add_must_cover_to_moments.sql|2026-05-07T20:13|hot-applied via Management API
+2026-05-07T21:04:07Z | supabase/migrations/20260507j_bulk_import_diff_unmarks_ready.sql | applied_to_prod
