@@ -1836,12 +1836,19 @@ async function executeToolCall(
             responsavelName = (profileRow as { nome?: string | null } | null)?.nome ?? null;
           }
 
-          // Renderiza template do título com variáveis disponíveis
+          // Renderiza template do título com variáveis disponíveis.
+          // {responsavel_first_name} é primeiro nome (mais natural — admin
+          // costuma escrever "Reunião com {contact_name} — {responsavel_first_name}").
+          // Bug observado 07/05/2026: tarefa salva com título literal
+          // "Reunião com Vitor — {responsavel_first_name}" porque a substituição
+          // não cobria a variante de primeiro nome.
           if (bookCfg.titulo_template) {
+            const respFirstName = (responsavelName ?? "").trim().split(/\s+/)[0] || (responsavelName ?? "");
             titulo = bookCfg.titulo_template
               .replace(/\{contact_name\}/g, ctx.contact_name || "lead")
               .replace(/\{agent_name\}/g, agent.nome || "")
-              .replace(/\{responsavel_name\}/g, responsavelName ?? "");
+              .replace(/\{responsavel_name\}/g, responsavelName ?? "")
+              .replace(/\{responsavel_first_name\}/g, respFirstName);
           }
         }
 

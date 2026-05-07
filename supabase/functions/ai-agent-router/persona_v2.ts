@@ -370,17 +370,51 @@ export async function runPersonaAgent_v2(
     let availableSlots: Array<{ date: string; time: string; weekday: string }> = [];
     if (bookCfg.responsavel_id) {
       try {
+        // Regra de negócio (07/05/2026): nunca propor reunião pra hoje.
+        // Sempre começa do PRÓXIMO DIA ÚTIL (pula sábado/domingo) e pega
+        // janela de 14 dias corridos pra cobrir folgadamente >= 6 dias úteis.
         const today = new Date();
-        const dateFrom = today.toISOString().slice(0, 10);
-        const dateTo = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const nextBusinessDay = new Date(today);
+        nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+        while (nextBusinessDay.getDay() === 0 || nextBusinessDay.getDay() === 6) {
+          nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+        }
+        const dateFrom = nextBusinessDay.toISOString().slice(0, 10);
+        const dateTo = new Date(nextBusinessDay.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const { data: cal } = await supabase.rpc('agent_check_calendar', {
           p_owner_id: bookCfg.responsavel_id,
           p_date_from: dateFrom,
           p_date_to: dateTo,
         });
         const slotsRaw = (cal as { available_slots?: Array<{ date: string; time: string; weekday: string }> } | null)?.available_slots ?? [];
-        // Pega no máximo 8 — LLM escolhe os 2-3 melhores
-        availableSlots = slotsRaw.slice(0, 8);
+
+        // Seleção balanceada: 2 horários por dia × pelo menos 6 dias úteis
+        // diferentes. Garante variedade pro casal — antes pegava `slice(0, 8)`
+        // e caía tudo no mesmo dia (8 horários consecutivos do primeiro dia).
+        // Resultado: oferta primária = "qua 9h, qua 11h, qui 9h, qui 11h..."
+        // permitindo casal escolher dia que prefere antes do horário.
+        const byDay = new Map<string, Array<{ date: string; time: string; weekday: string }>>();
+        for (const s of slotsRaw) {
+          const list = byDay.get(s.date) ?? [];
+          list.push(s);
+          byDay.set(s.date, list);
+        }
+        const days = [...byDay.keys()].sort().slice(0, 6); // até 6 dias úteis
+        const balanced: Array<{ date: string; time: string; weekday: string }> = [];
+        for (const day of days) {
+          const daySlots = byDay.get(day) ?? [];
+          // Pega 2 horários espaçados: o primeiro disponível e um do fim da manhã/início da tarde
+          if (daySlots.length > 0) balanced.push(daySlots[0]);
+          // Pega segundo slot que esteja >=2h após o primeiro (evita 9h+9h30 no mesmo card)
+          if (daySlots.length > 1) {
+            const first = daySlots[0];
+            const firstHour = parseInt(first.time.split(':')[0], 10);
+            const second = daySlots.find(s => parseInt(s.time.split(':')[0], 10) >= firstHour + 2);
+            if (second) balanced.push(second);
+            else if (daySlots.length > 1) balanced.push(daySlots[Math.min(daySlots.length - 1, 4)]);
+          }
+        }
+        availableSlots = balanced;
       } catch (err) {
         console.warn('[persona_v2] pré-busca de slots falhou:', err);
       }
