@@ -16,42 +16,87 @@ interface ConfigEditorProps {
 }
 
 // ─── Wait ────────────────────────────────────────────────────────────────────
-export const WaitEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
-    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
-    const minutes: number = (config.duration_minutes as number) ?? 60
-    const type = (config.duration_type as string) ?? 'business'
+//
+// UI mantém quantidade + unidade (segundos / minutos / horas / dias).
+// Persistência: sempre em duration_minutes (engine usa addMinutes),
+// com fração quando a unidade é segundos. duration_unit guarda a
+// unidade só pra UI re-hidratar do mesmo jeito.
+const UNIT_TO_MINUTES = {
+    seconds: 1 / 60,
+    minutes: 1,
+    hours: 60,
+    days: 1440,
+}
+type WaitUnit = keyof typeof UNIT_TO_MINUTES
 
-    const formatDuration = (m: number) => {
-        if (m < 60) return `${m} min`
-        if (m < 1440) return `${Math.round(m / 60)}h`
-        return `${Math.round(m / 1440)} dia(s)`
+const inferUnit = (config: Record<string, unknown>): WaitUnit => {
+    const stored = config.duration_unit as WaitUnit | undefined
+    if (stored && stored in UNIT_TO_MINUTES) return stored
+    const m = (config.duration_minutes as number) ?? 60
+    if (m < 1) return 'seconds'
+    if (m < 60) return 'minutes'
+    if (m < 1440) return 'hours'
+    return 'days'
+}
+
+const inferAmount = (config: Record<string, unknown>): number => {
+    const stored = config.duration_amount as number | undefined
+    if (typeof stored === 'number' && stored > 0) return stored
+    const unit = inferUnit(config)
+    const m = (config.duration_minutes as number) ?? 60
+    const factor = UNIT_TO_MINUTES[unit]
+    return Math.max(1, Math.round(m / factor))
+}
+
+export const WaitEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const amount = inferAmount(config)
+    const unit = inferUnit(config)
+    const businessHours = (config.duration_type as string) === 'business'
+
+    const apply = (newAmount: number, newUnit: WaitUnit, newBusiness: boolean) => {
+        onChange({
+            ...config,
+            duration_amount: newAmount,
+            duration_unit: newUnit,
+            duration_minutes: newAmount * UNIT_TO_MINUTES[newUnit],
+            duration_type: newBusiness ? 'business' : 'calendar',
+        })
     }
 
     return (
         <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-2">
-                    <Label className="text-xs">Quanto tempo esperar</Label>
+                    <Label className="text-xs">Quantidade</Label>
                     <Input
                         type="number"
                         min={1}
-                        value={minutes}
-                        onChange={(e) => set({ duration_minutes: parseInt(e.target.value) || 60 })}
+                        value={amount}
+                        onChange={(e) => apply(parseInt(e.target.value) || 1, unit, businessHours)}
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-xs">Tipo</Label>
+                    <Label className="text-xs">Unidade</Label>
                     <CustomSelect
-                        value={type}
-                        onChange={(v) => set({ duration_type: v })}
+                        value={unit}
+                        onChange={(v) => apply(amount, v as WaitUnit, businessHours)}
                         options={[
-                            { value: 'business', label: 'Horário comercial' },
-                            { value: 'calendar', label: 'Calendário (24/7)' },
+                            { value: 'seconds', label: 'Segundos' },
+                            { value: 'minutes', label: 'Minutos' },
+                            { value: 'hours',   label: 'Horas' },
+                            { value: 'days',    label: 'Dias' },
                         ]}
                     />
                 </div>
             </div>
-            <p className="text-xs text-slate-500">≈ {formatDuration(minutes)} antes de seguir pro próximo passo.</p>
+            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={businessHours}
+                    onChange={(e) => apply(amount, unit, e.target.checked)}
+                />
+                Contar só em horário comercial
+            </label>
         </div>
     )
 }
