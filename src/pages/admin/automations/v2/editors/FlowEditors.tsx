@@ -93,6 +93,8 @@ export const EndEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => 
 
 // ─── Branch ──────────────────────────────────────────────────────────────────
 export const BranchEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: branchStages = [] } = usePipelineStages(pipelineId)
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
     const conditionType = (config.condition_type as string) || 'task_outcome'
 
@@ -113,10 +115,14 @@ export const BranchEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) 
 
             {conditionType === 'card_in_stage' && (
                 <div className="space-y-2">
-                    <Label className="text-xs">ID da etapa</Label>
-                    <Input
+                    <Label className="text-xs">Etapa</Label>
+                    <CustomSelect
                         value={(config.stage_id as string) || ''}
-                        onChange={(e) => set({ stage_id: e.target.value })}
+                        onChange={(v) => set({ stage_id: v || null })}
+                        options={[
+                            { value: '', label: 'Selecionar etapa...' },
+                            ...branchStages.map((s) => ({ value: s.id, label: s.nome })),
+                        ]}
                     />
                 </div>
             )}
