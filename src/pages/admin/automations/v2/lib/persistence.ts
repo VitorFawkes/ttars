@@ -155,6 +155,9 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         respect_business_hours: payload.respectBusinessHours,
         execution_mode: 'linear',
         schedule_mode: 'interval',
+        // Marca quem nasceu no editor visual — usado pelo hub pra rotear
+        // o "Editar" de volta pro v2.
+        editor_version: 'v2',
     }
 
     let templateId = payload.templateId
