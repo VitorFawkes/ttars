@@ -1,10 +1,27 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
-import { useFieldConfig } from '../../../hooks/useFieldConfig'
+import { useFieldConfig, useSystemFieldsMutations } from '../../../hooks/useFieldConfig'
 import { useToast } from '../../../contexts/ToastContext'
-import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown, LayoutTemplate } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown, LayoutTemplate, GripVertical } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent
+} from '@dnd-kit/core'
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface PhaseFieldConfigPanelProps {
     sectionKey: string
@@ -16,6 +33,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
     const { toast } = useToast()
     const queryClient = useQueryClient()
     const { systemFields, stageConfigs } = useFieldConfig()
+    const { reorderSectionFields } = useSystemFieldsMutations()
 
     // Filter to phases that have stages (skip resolucao)
     const visiblePhases = useMemo(() => {
@@ -32,11 +50,49 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
     const currentTab = activeTab ?? visiblePhases[0]?.id ?? null
     const currentPhase = visiblePhases.find(p => p.id === currentTab)
 
-    // Fields for this section
+    // Fields for this section — sorted by order_index for consistent drag-and-drop
     const sectionFields = useMemo(() => {
         if (!systemFields) return []
-        return systemFields.filter(f => (f.section || 'details') === sectionKey)
+        return systemFields
+            .filter(f => (f.section || 'details') === sectionKey)
+            .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
     }, [systemFields, sectionKey])
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    )
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event
+        if (!over || active.id === over.id) return
+
+        const oldIdx = sectionFields.findIndex(f => f.key === active.id)
+        const newIdx = sectionFields.findIndex(f => f.key === over.id)
+        if (oldIdx < 0 || newIdx < 0) return
+
+        const reordered = arrayMove(sectionFields, oldIdx, newIdx)
+        const updates = reordered.map((field, idx) => ({
+            key: field.key,
+            order_index: (idx + 1) * 10
+        }))
+
+        const updateMap = new Map(updates.map(u => [u.key, u.order_index]))
+        queryClient.setQueriesData<{ key: string; order_index: number | null }[]>(
+            { queryKey: ['system-fields-config'] },
+            (old) => {
+                if (!old) return old
+                return old.map(f => updateMap.has(f.key) ? { ...f, order_index: updateMap.get(f.key)! } : f)
+            }
+        )
+
+        reorderSectionFields.mutate(updates, {
+            onError: () => {
+                toast({ title: 'Erro ao reordenar campos', type: 'error' })
+                queryClient.invalidateQueries({ queryKey: ['system-fields-config'] })
+            }
+        })
+    }, [sectionFields, queryClient, reorderSectionFields, toast])
 
     // Stages for the current phase
     const phaseStages = useMemo(() => {
@@ -322,89 +378,174 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                     )}
 
                     {/* Field list */}
-                    <div className="space-y-0.5">
-                        {sectionFields.map(field => {
-                            const state = getFieldState(field.key)
-                            const isDivergent = divergentFields.has(field.key)
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={sectionFields.map(f => f.key)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="space-y-0.5">
+                                {sectionFields.map(field => {
+                                    const state = getFieldState(field.key)
+                                    const isDivergent = divergentFields.has(field.key)
 
-                            return (
-                                <div
-                                    key={field.key}
-                                    className={cn(
-                                        "flex items-center gap-2 py-1 px-1 rounded",
-                                        isDivergent && "bg-amber-50/50"
-                                    )}
-                                >
-                                    <button
-                                        onClick={() => handleToggleVisible(field.key)}
-                                        disabled={batchUpsertMutation.isPending}
-                                        className={cn(
-                                            "p-1 rounded transition-colors",
-                                            state.isVisible
-                                                ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                                : "text-red-500 hover:text-red-700 hover:bg-red-50"
-                                        )}
-                                        title={state.isVisible ? "Visível (clique para ocultar)" : "Oculto (clique para mostrar)"}
-                                    >
-                                        {state.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                                    </button>
-                                    <button
-                                        onClick={() => handleToggleRequired(field.key)}
-                                        disabled={batchUpsertMutation.isPending}
-                                        className={cn(
-                                            "p-1 rounded transition-colors",
-                                            state.isRequired
-                                                ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                                : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
-                                        )}
-                                        title={state.isRequired ? "Obrigatório (clique para remover)" : "Não obrigatório (clique para tornar)"}
-                                    >
-                                        {state.isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                                    </button>
-                                    {state.isVisible && (
-                                        <>
-                                            <button
-                                                onClick={() => handleToggleSecondary(field.key)}
-                                                disabled={batchUpsertMutation.isPending}
-                                                className={cn(
-                                                    "p-1 rounded transition-colors",
-                                                    state.isSecondary
-                                                        ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
-                                                )}
-                                                title={state.isSecondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
-                                            >
-                                                <ChevronsDown className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleToggleHeader(field.key)}
-                                                disabled={batchUpsertMutation.isPending}
-                                                className={cn(
-                                                    "p-1 rounded transition-colors",
-                                                    state.showInHeader
-                                                        ? "text-purple-500 hover:text-purple-600 hover:bg-purple-50"
-                                                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
-                                                )}
-                                                title={state.showInHeader ? 'No cabeçalho (clique para remover)' : 'Fora do cabeçalho (clique para adicionar)'}
-                                            >
-                                                <LayoutTemplate className="w-3.5 h-3.5" />
-                                            </button>
-                                        </>
-                                    )}
-                                    <span className={cn(
-                                        "text-xs truncate flex-1",
-                                        !state.isVisible ? "text-muted-foreground line-through" : "text-foreground"
-                                    )}>
-                                        {field.label}
-                                    </span>
-                                    {isDivergent && (
-                                        <span className="text-[10px] text-amber-600 font-medium">diverge</span>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
+                                    return (
+                                        <SortablePhaseFieldRow
+                                            key={field.key}
+                                            fieldKey={field.key}
+                                            label={field.label}
+                                            isDivergent={isDivergent}
+                                            isVisible={state.isVisible}
+                                            isRequired={state.isRequired}
+                                            isSecondary={state.isSecondary}
+                                            showInHeader={state.showInHeader}
+                                            mutationPending={batchUpsertMutation.isPending}
+                                            onToggleVisible={() => handleToggleVisible(field.key)}
+                                            onToggleRequired={() => handleToggleRequired(field.key)}
+                                            onToggleSecondary={() => handleToggleSecondary(field.key)}
+                                            onToggleHeader={() => handleToggleHeader(field.key)}
+                                        />
+                                    )
+                                })}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
                 </div>
+            )}
+        </div>
+    )
+}
+
+interface SortablePhaseFieldRowProps {
+    fieldKey: string
+    label: string
+    isDivergent: boolean
+    isVisible: boolean
+    isRequired: boolean
+    isSecondary: boolean
+    showInHeader: boolean
+    mutationPending: boolean
+    onToggleVisible: () => void
+    onToggleRequired: () => void
+    onToggleSecondary: () => void
+    onToggleHeader: () => void
+}
+
+function SortablePhaseFieldRow({
+    fieldKey,
+    label,
+    isDivergent,
+    isVisible,
+    isRequired,
+    isSecondary,
+    showInHeader,
+    mutationPending,
+    onToggleVisible,
+    onToggleRequired,
+    onToggleSecondary,
+    onToggleHeader
+}: SortablePhaseFieldRowProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: fieldKey })
+
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 100 : 'auto'
+    }
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={cn(
+                "flex items-center gap-2 py-1 px-1 rounded",
+                isDivergent && "bg-amber-50/50",
+                isDragging && "bg-slate-100 shadow-sm"
+            )}
+        >
+            <button
+                {...attributes}
+                {...listeners}
+                className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+                title="Arrastar para reordenar"
+            >
+                <GripVertical className="w-3 h-3" />
+            </button>
+            <button
+                onClick={onToggleVisible}
+                disabled={mutationPending}
+                className={cn(
+                    "p-1 rounded transition-colors",
+                    isVisible
+                        ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                        : "text-red-500 hover:text-red-700 hover:bg-red-50"
+                )}
+                title={isVisible ? "Visível (clique para ocultar)" : "Oculto (clique para mostrar)"}
+            >
+                {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
+            <button
+                onClick={onToggleRequired}
+                disabled={mutationPending}
+                className={cn(
+                    "p-1 rounded transition-colors",
+                    isRequired
+                        ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                        : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                )}
+                title={isRequired ? "Obrigatório (clique para remover)" : "Não obrigatório (clique para tornar)"}
+            >
+                {isRequired ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+            </button>
+            {isVisible && (
+                <>
+                    <button
+                        onClick={onToggleSecondary}
+                        disabled={mutationPending}
+                        className={cn(
+                            "p-1 rounded transition-colors",
+                            isSecondary
+                                ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                                : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                        )}
+                        title={isSecondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
+                    >
+                        <ChevronsDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        onClick={onToggleHeader}
+                        disabled={mutationPending}
+                        className={cn(
+                            "p-1 rounded transition-colors",
+                            showInHeader
+                                ? "text-purple-500 hover:text-purple-600 hover:bg-purple-50"
+                                : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                        )}
+                        title={showInHeader ? 'No cabeçalho (clique para remover)' : 'Fora do cabeçalho (clique para adicionar)'}
+                    >
+                        <LayoutTemplate className="w-3.5 h-3.5" />
+                    </button>
+                </>
+            )}
+            <span className={cn(
+                "text-xs truncate flex-1",
+                !isVisible ? "text-muted-foreground line-through" : "text-foreground"
+            )}>
+                {label}
+            </span>
+            {isDivergent && (
+                <span className="text-[10px] text-amber-600 font-medium">diverge</span>
             )}
         </div>
     )
