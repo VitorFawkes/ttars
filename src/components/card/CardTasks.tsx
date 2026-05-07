@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { SmartTaskModal } from './SmartTaskModal'
 import { AtendimentoDetailModal } from '../concierge/AtendimentoDetailModal'
 import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
+import { useMarcarOutcome } from '../../hooks/concierge/useAtendimentoMutations'
 import { TIPO_LABEL, type MeuDiaItem } from '../../hooks/concierge/types'
 import { computeEstadoFunil, ESTADO_FUNIL_COLUMNS } from '../../hooks/concierge/useKanbanTarefas'
 import { format, isToday, isPast, isTomorrow } from 'date-fns'
@@ -99,6 +100,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     // Usado para: (1) marcar tarefas com badge de tipo concierge e
     // (2) abrir AtendimentoDetailModal ao clicar em vez de SmartTaskModal.
     const { data: atendimentos } = useAtendimentosCard(cardId)
+    const { mutate: marcarOutcomeConcierge } = useMarcarOutcome()
     const conciergeByTarefaId = new Map<string, MeuDiaItem>(
         (atendimentos ?? []).map(a => [a.tarefa_id, a])
     )
@@ -300,6 +302,28 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
     const handleToggleComplete = (task: Tarefa) => {
         const isCompleted = !task.concluida
+
+        // Concierge: roteia outcome direto pra atendimentos_concierge ao invés
+        // de só marcar tarefas.concluida (mantém UI de /concierge em sync).
+        const conciergeForThis = atendimentos?.find(a => a.tarefa_id === task.id)
+        if (conciergeForThis) {
+            if (!isCompleted) {
+                // Reabrir um atendimento finalizado precisa passar pelo modal —
+                // outcome registrado tem semântica que checkbox simples não cobre.
+                toast.info('Pra reabrir um atendimento de Concierge, abra o detalhe (clique no item).')
+                return
+            }
+            // Oferta: força escolha consciente entre Aceito vs Feito via modal.
+            if (conciergeForThis.tipo_concierge === 'oferta') {
+                setSelectedAtendimento(conciergeForThis)
+                return
+            }
+            // Operacional / Reserva / Suporte: outcome='feito' direto.
+            marcarOutcomeConcierge(
+                { atendimento_id: conciergeForThis.atendimento_id, outcome: 'feito' },
+            )
+            return
+        }
 
         // Intercept Completion if outcomes exist for this type
         const taskOutcomes = outcomes?.filter((o) => o.tipo === task.tipo) || []
