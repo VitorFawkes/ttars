@@ -880,6 +880,216 @@ async function executeStartCadenceAction(
 }
 
 // ----------------------------------------------------------------------------
+// dispatchEchoMessage: helper puro que envia uma mensagem WhatsApp via Echo.
+// Usado por executeSendMessageAction (entry triggers) e executeMessageStep
+// (steps de cadência tipo 'message'). Centraliza a chamada Echo + grava
+// whatsapp_messages com o card_id correto na timeline.
+// ----------------------------------------------------------------------------
+interface DispatchArgs {
+    supabaseClient: SupabaseClient;
+    cardId: string;
+    cardOrgId: string | null;
+    cardTitulo: string | null;
+    contato: { id: string; nome: string | null; telefone: string };
+    hsmTemplateName?: string;
+    hsmLanguage?: string;
+    hsmParams?: string[];
+    corpo?: string;
+    templateId?: string | null;
+    phoneNumberId: string;
+    phoneLabel: string;        // ex: 'automation:trigger-x' ou 'cadence:nome-template'
+    sentByUserName: string;    // ex: 'Automação' ou 'Cadência'
+    metadata: Record<string, unknown>;
+}
+
+interface DispatchResult {
+    sent: boolean;
+    sendMode: 'hsm' | 'text';
+    body: string;
+    response: any;
+    wamid: string | null;
+    whatsappMessageRowId: string | null;
+}
+
+async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> {
+    const {
+        supabaseClient, cardId, cardOrgId, cardTitulo, contato,
+        hsmTemplateName, corpo, templateId, phoneNumberId,
+        phoneLabel, sentByUserName, metadata,
+    } = args;
+    const hsmLanguage = args.hsmLanguage || 'pt_BR';
+    const hsmParams = Array.isArray(args.hsmParams) ? args.hsmParams : [];
+
+    const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
+    const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
+    const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
+
+    const firstName = (contato.nome || '').split(' ')[0] || '';
+    const renderVars = (s: string) => s
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '');
+
+    const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
+
+    let respData: any;
+    let messageBody: string;
+    let sendMode: 'hsm' | 'text';
+    let sendSuccess = false;
+
+    if (hsmTemplateName) {
+        // HSM: /send-template
+        const renderedParams = hsmParams.map(renderVars);
+        const components = renderedParams.length > 0
+            ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
+            : [];
+
+        let humanReadableBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
+        try {
+            const tplRes = await fetch(`${echoBase}/templates?phone_number_id=${phoneNumberId}`, {
+                headers: { 'x-api-key': echoApiKey },
+            });
+            if (tplRes.ok) {
+                const tplPayload = await tplRes.json().catch(() => ({}));
+                const tplList: any[] = tplPayload?.templates || tplPayload?.data || (Array.isArray(tplPayload) ? tplPayload : []);
+                const tpl = tplList.find((t) => t?.name === hsmTemplateName && t?.language === hsmLanguage)
+                    || tplList.find((t) => t?.name === hsmTemplateName);
+                const bodyComp = tpl?.components?.find?.((c: any) => c?.type === 'BODY');
+                if (bodyComp?.text) {
+                    let rendered = bodyComp.text as string;
+                    renderedParams.forEach((p, i) => {
+                        rendered = rendered.replace(new RegExp(`\\{\\{\\s*${i + 1}\\s*\\}\\}`, 'g'), p);
+                    });
+                    humanReadableBody = rendered;
+                }
+            }
+        } catch (e) {
+            console.warn('[cadence-engine] Failed to resolve HSM template body:', e);
+        }
+        messageBody = humanReadableBody;
+        sendMode = 'hsm';
+
+        const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
+            contact_id: contato.id,
+            card_id: cardId,
+            org_id: cardOrgId,
+            body: messageBody,
+            direction: 'outbound',
+            is_from_me: true,
+            type: 'template',
+            status: 'pending',
+            sender_phone: normalizedPhone,
+            sent_by_user_name: sentByUserName,
+            phone_number_label: phoneLabel,
+            metadata: { ...metadata, send_mode: 'hsm', hsm_params: renderedParams },
+        }).select('id').single();
+        if (insErr) {
+            throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
+        }
+        const ownRowId = ownRow?.id;
+
+        const echoRes = await fetch(`${echoBase}/send-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+            body: JSON.stringify({
+                to: normalizedPhone,
+                phone_number_id: phoneNumberId,
+                template_name: hsmTemplateName,
+                language: hsmLanguage,
+                components,
+            }),
+        });
+        respData = await echoRes.json().catch(() => ({}));
+        sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
+
+        const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
+        if (ownRowId) {
+            await supabaseClient.from('whatsapp_messages').update({
+                status: sendSuccess ? 'sent' : 'failed',
+                metadata: {
+                    ...metadata,
+                    send_mode: 'hsm',
+                    hsm_params: renderedParams,
+                    whatsapp_message_id: wamid,
+                    echo_response: respData,
+                },
+            }).eq('id', ownRowId);
+        }
+
+        if (!sendSuccess) {
+            throw new Error(`Echo send-template failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 300)}`);
+        }
+
+        return { sent: true, sendMode, body: messageBody, response: respData, wamid, whatsappMessageRowId: ownRowId || null };
+    }
+
+    // Texto livre: /send-message (resolve corpo do template, se vier templateId)
+    let rawBody = corpo || '';
+    let resolvedTemplateId: string | null = null;
+    if (templateId) {
+        resolvedTemplateId = templateId;
+        const { data: template } = await supabaseClient
+            .from('mensagem_templates')
+            .select('corpo, ia_prompt')
+            .eq('id', templateId)
+            .single();
+        rawBody = template?.corpo || template?.ia_prompt || '';
+    }
+    if (!rawBody) {
+        return { sent: false, sendMode: 'text', body: '', response: null, wamid: null, whatsappMessageRowId: null };
+    }
+    messageBody = renderVars(rawBody);
+    sendMode = 'text';
+
+    const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
+        contact_id: contato.id,
+        card_id: cardId,
+        org_id: cardOrgId,
+        body: messageBody,
+        direction: 'outbound',
+        is_from_me: true,
+        type: 'text',
+        status: 'pending',
+        sender_phone: normalizedPhone,
+        sent_by_user_name: sentByUserName,
+        phone_number_label: phoneLabel,
+        metadata: { ...metadata, send_mode: 'text', template_id: resolvedTemplateId },
+    }).select('id').single();
+    if (insErr) {
+        throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
+    }
+    const ownRowId = ownRow?.id;
+
+    const echoRes = await fetch(echoApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
+        body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: phoneNumberId }),
+    });
+    respData = await echoRes.json().catch(() => ({}));
+    sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
+
+    const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
+    if (ownRowId) {
+        await supabaseClient.from('whatsapp_messages').update({
+            status: sendSuccess ? 'sent' : 'failed',
+            metadata: {
+                ...metadata,
+                send_mode: 'text',
+                template_id: resolvedTemplateId,
+                whatsapp_message_id: wamid,
+                echo_response: respData,
+            },
+        }).eq('id', ownRowId);
+    }
+
+    if (!sendSuccess) {
+        throw new Error(`Echo send-message failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
+    }
+
+    return { sent: true, sendMode, body: messageBody, response: respData, wamid, whatsappMessageRowId: ownRowId || null };
+}
+
+// ----------------------------------------------------------------------------
 // send_message: dispara WhatsApp via Echo API (mesmo padrão do ai-agent-router)
 // ----------------------------------------------------------------------------
 // trigger.action_config:
@@ -955,13 +1165,7 @@ async function executeSendMessageAction(
         }
     }
 
-    // Config Echo
-    const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
-    const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
-    const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
-    const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
-
-    // Card pra variáveis (e org_id — necessário pra inserts em tabelas com RLS/NOT NULL)
+    // Card pra variáveis e org_id (necessário pra log + insert em whatsapp_messages)
     const { data: card } = await supabaseClient
         .from("cards")
         .select("titulo, org_id")
@@ -969,28 +1173,15 @@ async function executeSendMessageAction(
         .single();
     const cardOrgId: string | null = card?.org_id || null;
 
-    const firstName = (contato.nome || '').split(' ')[0] || '';
-    const renderVars = (s: string) => s
-        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
-        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
-
     // Resolver phone_number_id.
     // Sprint B: automation DEVE carregar phone_number_id em action_config.
-    // CHECK + trigger no banco bloqueiam INSERT sem linha. Mantemos
-    // defaultEchoPhoneId (env) como último recurso para contextos não-automation
-    // (ex: cadence_steps chamando send_message direto, uso operacional manual).
+    // CHECK + trigger no banco bloqueiam INSERT sem linha. Mantemos env como
+    // último recurso pra contextos não-automation (uso manual).
+    const defaultEchoPhoneId = Deno.env.get("ECHO_PHONE_NUMBER_ID") ?? "";
     const resolvedPhoneId = phoneNumberId || defaultEchoPhoneId;
     if (!resolvedPhoneId) {
         throw new Error("phone_number_id ausente — automação precisa escolher uma linha WhatsApp explicitamente no builder");
     }
-
-    const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
-
-    let respData: any;
-    let messageBody: string;
-    let sendMode: 'hsm' | 'text';
-    let sendSuccess = false;
 
     const automationMetadata: Record<string, unknown> = {
         source: 'automation',
@@ -999,181 +1190,25 @@ async function executeSendMessageAction(
         hsm_template_name: hsmTemplateName || null,
     };
 
-    if (hsmTemplateName) {
-        // ─── HSM: template aprovado Meta ────────────────────────────────
-        //   POST /send-template { to, phone_number_id, template_name, language, components: [...] }
-        //
-        // Estratégia de gravação:
-        //   1. Buscar template body do Meta via /templates pra renderizar o corpo humano-legível
-        //   2. INSERT nossa row em whatsapp_messages ANTES do envio (status='pending')
-        //      com card_id + contact_id corretos e metadata de automação rica
-        //   3. Chamar Echo /send-template
-        //   4. UPDATE nossa row com status final + wamid
-        //
-        // Se o Echo (ou algum webhook dele) inserir row paralela, ela terá
-        // card_id=NULL → invisível na timeline do card filtrada por card_id.
-        const renderedParams = hsmParams.map(renderVars);
-        const components = renderedParams.length > 0
-            ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
-            : [];
+    const dispatch = await dispatchEchoMessage({
+        supabaseClient,
+        cardId,
+        cardOrgId,
+        cardTitulo: card?.titulo || null,
+        contato: { id: contato.id, nome: contato.nome, telefone: contato.telefone },
+        hsmTemplateName,
+        hsmLanguage,
+        hsmParams,
+        corpo,
+        templateId: templateId || null,
+        phoneNumberId: resolvedPhoneId,
+        phoneLabel: `automation:${trigger.name || trigger.id}`,
+        sentByUserName: 'Automação',
+        metadata: automationMetadata,
+    });
 
-        // Renderizar corpo humano-legível substituindo {{1}}, {{2}} no body do template
-        let humanReadableBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
-        try {
-            const tplRes = await fetch(`${echoBase}/templates?phone_number_id=${resolvedPhoneId}`, {
-                headers: { 'x-api-key': echoApiKey },
-            });
-            if (tplRes.ok) {
-                const tplPayload = await tplRes.json().catch(() => ({}));
-                const tplList: any[] = tplPayload?.templates || tplPayload?.data || (Array.isArray(tplPayload) ? tplPayload : []);
-                const tpl = tplList.find((t) => t?.name === hsmTemplateName && t?.language === hsmLanguage) || tplList.find((t) => t?.name === hsmTemplateName);
-                const bodyComp = tpl?.components?.find?.((c: any) => c?.type === 'BODY');
-                if (bodyComp?.text) {
-                    let rendered = bodyComp.text as string;
-                    renderedParams.forEach((p, i) => {
-                        rendered = rendered.replace(new RegExp(`\\{\\{\\s*${i + 1}\\s*\\}\\}`, 'g'), p);
-                    });
-                    humanReadableBody = rendered;
-                }
-            }
-        } catch (e) {
-            // Não-fatal: mantém humanReadableBody de fallback
-            console.warn('[cadence-engine] Failed to resolve HSM template body:', e);
-        }
-        messageBody = humanReadableBody;
-        sendMode = 'hsm';
-
-        // Passo 2: INSERT pending (org_id via trigger auto_set_org_id_from_card)
-        const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
-            contact_id: contato.id,
-            card_id: cardId,
-            org_id: cardOrgId,
-            body: messageBody,
-            direction: 'outbound',
-            is_from_me: true,
-            type: 'template',
-            status: 'pending',
-            sender_phone: normalizedPhone,
-            sent_by_user_name: 'Automação',
-            phone_number_label: `automation:${trigger.name || trigger.id}`,
-            metadata: {
-                ...automationMetadata,
-                send_mode: 'hsm',
-                hsm_params: renderedParams,
-            },
-        }).select('id').single();
-
-        if (insErr) {
-            throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
-        }
-        const ownRowId = ownRow?.id;
-
-        // Passo 3: chamar Echo
-        const echoRes = await fetch(`${echoBase}/send-template`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
-            body: JSON.stringify({
-                to: normalizedPhone,
-                phone_number_id: resolvedPhoneId,
-                template_name: hsmTemplateName,
-                language: hsmLanguage,
-                components,
-            }),
-        });
-        respData = await echoRes.json().catch(() => ({}));
-        sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
-
-        // Passo 4: UPDATE status + wamid
-        const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
-        if (ownRowId) {
-            await supabaseClient.from('whatsapp_messages').update({
-                status: sendSuccess ? 'sent' : 'failed',
-                metadata: {
-                    ...automationMetadata,
-                    send_mode: 'hsm',
-                    hsm_params: renderedParams,
-                    whatsapp_message_id: wamid,
-                    echo_response: respData,
-                },
-            }).eq('id', ownRowId);
-        }
-
-        if (!sendSuccess) {
-            throw new Error(`Echo send-template failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 300)}`);
-        }
-    } else {
-        // ─── TEXTO LIVRE ────────────────────────────────────────────────
-        // Mesma estratégia do HSM: INSERT pending + Echo /send-message + UPDATE
-        // Não usamos send-whatsapp-message pra evitar overhead edge→edge invoke
-        // (que falha em alguns contextos de auth interno).
-        let rawBody = corpo || '';
-        let resolvedTemplateId: string | null = null;
-        if (templateId) {
-            resolvedTemplateId = templateId;
-            const { data: template } = await supabaseClient
-                .from('mensagem_templates')
-                .select('corpo, ia_prompt')
-                .eq('id', templateId)
-                .single();
-            rawBody = template?.corpo || template?.ia_prompt || '';
-        }
-        if (!rawBody) {
-            return { skipped: true, reason: 'empty_body' };
-        }
-        messageBody = renderVars(rawBody);
-        sendMode = 'text';
-
-        // INSERT pending
-        const { data: ownRow, error: insErr } = await supabaseClient.from('whatsapp_messages').insert({
-            contact_id: contato.id,
-            card_id: cardId,
-            org_id: cardOrgId,
-            body: messageBody,
-            direction: 'outbound',
-            is_from_me: true,
-            type: 'text',
-            status: 'pending',
-            sender_phone: normalizedPhone,
-            sent_by_user_name: 'Automação',
-            phone_number_label: `automation:${trigger.name || trigger.id}`,
-            metadata: {
-                ...automationMetadata,
-                send_mode: 'text',
-                template_id: resolvedTemplateId,
-            },
-        }).select('id').single();
-        if (insErr) {
-            throw new Error(`whatsapp_messages insert failed: ${insErr.message}`);
-        }
-        const ownRowId = ownRow?.id;
-
-        // Echo /send-message
-        const echoRes = await fetch(echoApiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
-            body: JSON.stringify({ to: normalizedPhone, message: messageBody, phone_number_id: resolvedPhoneId }),
-        });
-        respData = await echoRes.json().catch(() => ({}));
-        sendSuccess = echoRes.ok || !!respData?.whatsapp_message_id;
-
-        // UPDATE status + wamid
-        const wamid: string | null = respData?.whatsapp_message_id || respData?.message?.whatsapp_message_id || null;
-        if (ownRowId) {
-            await supabaseClient.from('whatsapp_messages').update({
-                status: sendSuccess ? 'sent' : 'failed',
-                metadata: {
-                    ...automationMetadata,
-                    send_mode: 'text',
-                    template_id: resolvedTemplateId,
-                    whatsapp_message_id: wamid,
-                    echo_response: respData,
-                },
-            }).eq('id', ownRowId);
-        }
-
-        if (!sendSuccess) {
-            throw new Error(`Echo send-message failed: ${echoRes.status} ${JSON.stringify(respData).slice(0, 200)}`);
-        }
+    if (!dispatch.sent) {
+        return { skipped: true, reason: 'empty_body' };
     }
 
     await supabaseClient.from("cadence_event_log").insert({
@@ -1186,14 +1221,14 @@ async function executeSendMessageAction(
             trigger_name: trigger.name,
             template_id: templateId || null,
             hsm_template_name: hsmTemplateName || null,
-            send_mode: sendMode,
-            contact_id: contato.id
+            send_mode: dispatch.sendMode,
+            contact_id: contato.id,
         },
         action_taken: 'send_message',
-        action_result: respData
+        action_result: dispatch.response,
     });
 
-    return { sent: true, contact_id: contato.id, response: respData };
+    return { sent: true, contact_id: contato.id, response: dispatch.response };
 }
 
 // ----------------------------------------------------------------------------
@@ -1766,6 +1801,9 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
         case 'end':
             return await executeEndStep(supabaseClient, instance, step, card);
 
+        case 'message':
+            return await executeMessageStep(supabaseClient, instance, step, card);
+
         default:
             throw new Error(`Unknown step type: ${step.step_type}`);
     }
@@ -2183,6 +2221,194 @@ async function executeEndStep(
     return { completed: true, result: config.result };
 }
 
+// ----------------------------------------------------------------------------
+// executeMessageStep: envia WhatsApp via Echo como step de cadência.
+// Reusa dispatchEchoMessage (mesma lógica do trigger send_message), mas:
+//   - respeita auto_cancel_on_stage_change comparando com context.initial_stage_id
+//   - loga event_type='cadence_step_message_sent' (vs 'entry_rule_message_sent')
+//   - avança para next_step_key (modo linear) ou marca step concluído (blocks)
+// ----------------------------------------------------------------------------
+async function executeMessageStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+    card: any
+) {
+    const config = step.message_config || {};
+    const template = instance.template || {};
+
+    // 1) Cancelar se card saiu da etapa inicial e template pediu auto-cancel
+    const initialStageId: string | null = instance.context?.initial_stage_id || null;
+    if (template.auto_cancel_on_stage_change && initialStageId
+        && card.pipeline_stage_id && card.pipeline_stage_id !== initialStageId) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancelled_reason: 'card_left_initial_stage',
+            })
+            .eq('id', instance.id);
+        await supabaseClient
+            .from('cadence_queue')
+            .update({ status: 'cancelled' })
+            .eq('instance_id', instance.id)
+            .in('status', ['pending', 'processing']);
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_cancelled',
+            event_source: 'cadence_engine',
+            event_data: {
+                reason: 'card_left_initial_stage',
+                initial_stage_id: initialStageId,
+                current_stage_id: card.pipeline_stage_id,
+                step_key: step.step_key,
+            },
+            action_taken: 'cancel_cadence',
+        });
+        return { skipped: true, reason: 'card_left_initial_stage' };
+    }
+
+    // 2) Buscar contato principal do card (mesmo padrão do trigger send_message)
+    const { data: cardContatos } = await supabaseClient
+        .from('cards_contatos')
+        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+        .eq('card_id', card.id)
+        .order('ordem', { ascending: true });
+
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
+    const contato: any = principalRow?.contatos;
+
+    if (!contato?.id) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_step_message_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'no_contact' },
+            action_taken: 'skip',
+        });
+        await advanceAfterMessageStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'no_contact' };
+    }
+    if (!contato.telefone) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_step_message_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'no_phone', contact_id: contato.id },
+            action_taken: 'skip',
+        });
+        await advanceAfterMessageStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'no_phone' };
+    }
+
+    // 3) Resolver phone line (config do step OU env default)
+    const phoneNumberId: string = config.phone_number_id
+        || Deno.env.get('ECHO_PHONE_NUMBER_ID')
+        || '';
+    if (!phoneNumberId) {
+        throw new Error(`Step ${step.step_key}: phone_number_id ausente em message_config`);
+    }
+
+    // 4) Enviar via Echo
+    const sendMode: 'hsm' | 'text' = config.send_mode
+        || (config.hsm_template_name ? 'hsm' : 'text');
+
+    const dispatch = await dispatchEchoMessage({
+        supabaseClient,
+        cardId: card.id,
+        cardOrgId: card.org_id || null,
+        cardTitulo: card.titulo || null,
+        contato: { id: contato.id, nome: contato.nome, telefone: contato.telefone },
+        hsmTemplateName: sendMode === 'hsm' ? config.hsm_template_name : undefined,
+        hsmLanguage: config.hsm_language || 'pt_BR',
+        hsmParams: Array.isArray(config.hsm_params) ? config.hsm_params : [],
+        corpo: sendMode === 'text' ? config.corpo : undefined,
+        templateId: sendMode === 'text' ? (config.template_id || null) : null,
+        phoneNumberId,
+        phoneLabel: `cadence:${template.name || instance.template_id}`,
+        sentByUserName: 'Cadência',
+        metadata: {
+            source: 'cadence_step',
+            instance_id: instance.id,
+            template_id: instance.template_id,
+            template_name: template.name || null,
+            step_id: step.id,
+            step_key: step.step_key,
+            step_order: step.step_order,
+            hsm_template_name: config.hsm_template_name || null,
+        },
+    });
+
+    // 5) Log do evento (sucesso ou body vazio)
+    await logEvent(supabaseClient, {
+        instance_id: instance.id,
+        card_id: card.id,
+        event_type: dispatch.sent ? 'cadence_step_message_sent' : 'cadence_step_message_skipped',
+        event_source: 'cadence_engine',
+        event_data: {
+            step_key: step.step_key,
+            step_order: step.step_order,
+            send_mode: dispatch.sendMode,
+            hsm_template_name: config.hsm_template_name || null,
+            template_id: config.template_id || null,
+            contact_id: contato.id,
+            wamid: dispatch.wamid,
+        },
+        action_taken: dispatch.sent ? 'send_message' : 'skip',
+        action_result: dispatch.response,
+    });
+
+    // 6) Atualizar contadores e avançar
+    if (dispatch.sent) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({
+                total_contacts_attempted: (instance.total_contacts_attempted || 0) + 1,
+                successful_contacts: (instance.successful_contacts || 0) + 1,
+                current_step_id: step.id,
+                status: 'active',
+            })
+            .eq('id', instance.id);
+    }
+
+    await advanceAfterMessageStep(supabaseClient, instance, step);
+
+    return { sent: dispatch.sent, send_mode: dispatch.sendMode, wamid: dispatch.wamid };
+}
+
+// Avança para o próximo step (modo linear) ou completa a cadência.
+async function advanceAfterMessageStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+) {
+    const execMode = instance.template?.execution_mode || 'linear';
+    if (execMode === 'blocks') {
+        // Em blocks o avanço é coordenado pelo handleTaskOutcome — não fazemos nada aqui.
+        // (steps de mensagem em blocks ficam pra iteração futura)
+        return;
+    }
+    if (step.next_step_key) {
+        // Próximo step: se for 'wait', ele mesmo agenda; se for outro 'message',
+        // executamos imediatamente (delay 0). O wait entre mensagens deve ser
+        // modelado como step do tipo 'wait' separado, ou como wait_config no
+        // próprio step de mensagem (consumido aqui).
+        const waitMin = step.wait_config?.duration_minutes;
+        const delay = typeof waitMin === 'number' && waitMin > 0 ? waitMin : 0;
+        await scheduleNextStep(supabaseClient, instance, step.next_step_key, delay);
+    } else {
+        // Sem next_step_key — completar cadência
+        await supabaseClient
+            .from('cadence_instances')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', instance.id);
+    }
+}
+
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -2261,6 +2487,15 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Snapshot da etapa atual do card — usado por executeMessageStep para
+    // honrar auto_cancel_on_stage_change quando o card sair da etapa inicial.
+    const { data: cardSnapshot } = await supabaseClient
+        .from('cards')
+        .select('pipeline_stage_id')
+        .eq('id', card_id)
+        .single();
+    const initialStageId = cardSnapshot?.pipeline_stage_id || null;
+
     // Criar instância
     const { data: instance, error: instanceError } = await supabaseClient
         .from("cadence_instances")
@@ -2268,7 +2503,8 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
             card_id,
             template_id,
             current_step_id: initialSteps[0].id,
-            status: 'active'
+            status: 'active',
+            context: { initial_stage_id: initialStageId }
         })
         .select()
         .single();

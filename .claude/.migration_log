@@ -760,3 +760,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-07T16:28:32Z | supabase/migrations/20260507b_log_internal_ops.sql | applied_to_prod
 2026-05-07T16:29:45Z | supabase/migrations/20260507b_log_internal_ops.sql | applied_to_prod
 2026-05-07T16:32:03Z | supabase/migrations/20260507c_fix_briefing_jsonb.sql | applied_to_prod
+2026-05-07T17:08:28Z | supabase/migrations/20260507_cadence_steps_message_type.sql | applied_to_prod

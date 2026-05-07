@@ -1,11 +1,11 @@
-import { Phone, Clock, Flag, CheckCircle } from 'lucide-react';
+import { Phone, Clock, Flag, CheckCircle, MessageSquare, ShieldCheck, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 interface CadenceStep {
     id: string;
     step_order: number;
     step_key: string;
-    step_type: 'task' | 'wait' | 'end';
+    step_type: 'task' | 'wait' | 'end' | 'message';
     day_offset?: number | null;
     task_config: {
         tipo?: string;
@@ -19,6 +19,11 @@ interface CadenceStep {
     end_config: {
         result?: string;
         move_to_stage_id?: string;
+    } | null;
+    message_config?: {
+        send_mode?: 'hsm' | 'text';
+        hsm_template_name?: string | null;
+        corpo?: string | null;
     } | null;
     requires_previous_completed?: boolean;
 }
@@ -55,6 +60,8 @@ export function CadenceTimeline({
                 return <Clock className="w-4 h-4" />;
             case 'end':
                 return <Flag className="w-4 h-4" />;
+            case 'message':
+                return <MessageSquare className="w-4 h-4" />;
             default:
                 return null;
         }
@@ -66,6 +73,8 @@ export function CadenceTimeline({
                 return 'bg-blue-500';
             case 'wait':
                 return 'bg-amber-500';
+            case 'message':
+                return 'bg-emerald-500';
             case 'end':
                 if (result === 'success') return 'bg-green-500';
                 if (result === 'failure' || result === 'ghosting') return 'bg-red-500';
@@ -81,6 +90,8 @@ export function CadenceTimeline({
                 return 'bg-blue-50 border-blue-200';
             case 'wait':
                 return 'bg-amber-50 border-amber-200';
+            case 'message':
+                return 'bg-emerald-50 border-emerald-200';
             case 'end':
                 if (result === 'success') return 'bg-green-50 border-green-200';
                 if (result === 'failure' || result === 'ghosting') return 'bg-red-50 border-red-200';
@@ -141,6 +152,10 @@ export function CadenceTimeline({
                     <span>Tarefa</span>
                 </div>
                 <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <span>Mensagem</span>
+                </div>
+                <div className="flex items-center gap-1">
                     <div className="w-3 h-3 rounded-full bg-amber-500" />
                     <span>Espera</span>
                 </div>
@@ -187,6 +202,11 @@ export function CadenceTimeline({
                                                 {step.step_type === 'task' && (step.task_config?.titulo || 'Tarefa')}
                                                 {step.step_type === 'wait' && 'Espera'}
                                                 {step.step_type === 'end' && 'Fim da Cadência'}
+                                                {step.step_type === 'message' && (
+                                                    step.message_config?.send_mode === 'hsm'
+                                                        ? `Mensagem (HSM ${step.message_config?.hsm_template_name || ''})`
+                                                        : 'Mensagem (texto livre)'
+                                                )}
                                             </span>
                                         </div>
 
@@ -214,6 +234,21 @@ export function CadenceTimeline({
                                                     <Badge variant="outline" className="text-xs">
                                                         {step.wait_config?.duration_type === 'business' ? 'Horário útil' : 'Calendário'}
                                                     </Badge>
+                                                </>
+                                            )}
+                                            {step.step_type === 'message' && (
+                                                <>
+                                                    {step.message_config?.send_mode === 'hsm' ? (
+                                                        <Badge className="bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1">
+                                                            <ShieldCheck className="w-3 h-3" />
+                                                            HSM
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1">
+                                                            <FileText className="w-3 h-3" />
+                                                            Texto livre
+                                                        </Badge>
+                                                    )}
                                                 </>
                                             )}
                                             {step.step_type === 'end' && (
@@ -254,6 +289,10 @@ export function CadenceTimeline({
                     <div>
                         <span className="font-medium">{steps.filter(s => s.step_type === 'task').length}</span>
                         <span className="text-slate-400 ml-1">tarefas</span>
+                    </div>
+                    <div>
+                        <span className="font-medium">{steps.filter(s => s.step_type === 'message').length}</span>
+                        <span className="text-slate-400 ml-1">mensagens</span>
                     </div>
                     <div>
                         <span className="font-medium">{steps.filter(s => s.step_type === 'wait').length}</span>

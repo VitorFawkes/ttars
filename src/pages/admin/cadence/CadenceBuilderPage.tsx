@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft, Save, Trash2, Phone, Clock, Flag, Settings, AlertCircle,
-    ChevronUp, ChevronDown, Calendar, Eye, ListOrdered, CheckCircle
+    ChevronUp, ChevronDown, Calendar, Eye, ListOrdered, CheckCircle, MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -25,6 +25,8 @@ import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { useUsers } from '@/hooks/useUsers';
 import { DayPatternEditor } from './components/DayPatternEditor';
 import { CadenceTimeline } from './components/CadenceTimeline';
+import { MessageStepEditor, type MessageConfig } from './components/MessageStepEditor';
+import { useProductContext } from '@/hooks/useProductContext';
 
 interface DayPattern {
     days: number[];
@@ -35,7 +37,7 @@ interface CadenceStep {
     id: string;
     step_order: number;
     step_key: string;
-    step_type: 'task' | 'wait' | 'end';
+    step_type: 'task' | 'wait' | 'end' | 'message';
     day_offset: number | null;
     requires_previous_completed: boolean;
     task_config: {
@@ -55,6 +57,7 @@ interface CadenceStep {
         move_to_stage_id?: string;
         motivo_perda_id?: string;
     } | null;
+    message_config: MessageConfig | null;
     next_step_key: string | null;
 }
 
@@ -140,6 +143,7 @@ const CadenceBuilderPage: React.FC = () => {
     const isNew = !id || id === 'new';
     const { pipelineId: pipelineIdFromMeta } = useCurrentProductMeta();
     const pipelineId = pipelineIdFromMeta ?? '';
+    const currentProduct = useProductContext((s) => s.currentProduct);
     const { users } = useUsers();
     const userOptions = useMemo(() => {
         const list = (users || [])
@@ -234,6 +238,7 @@ const CadenceBuilderPage: React.FC = () => {
                     ...s,
                     day_offset: s.day_offset ?? null,
                     requires_previous_completed: s.requires_previous_completed ?? true,
+                    message_config: (s.message_config as MessageConfig | null) ?? null,
                 })));
             } catch (error) {
                 console.error('Error fetching cadence:', error);
@@ -312,6 +317,7 @@ const CadenceBuilderPage: React.FC = () => {
                 task_config: step.task_config,
                 wait_config: step.wait_config,
                 end_config: step.end_config,
+                message_config: step.message_config,
                 next_step_key: steps[index + 1]?.step_key || null,
             }));
 
@@ -365,6 +371,15 @@ const CadenceBuilderPage: React.FC = () => {
             end_config: type === 'end' ? {
                 result: 'success',
             } : null,
+            message_config: type === 'message' ? {
+                send_mode: 'hsm',
+                hsm_template_name: null,
+                hsm_language: 'pt_BR',
+                hsm_params: [],
+                corpo: '',
+                template_id: null,
+                phone_number_id: null,
+            } : null,
             next_step_key: null,
         };
 
@@ -400,6 +415,7 @@ const CadenceBuilderPage: React.FC = () => {
             case 'task': return <Phone className="w-4 h-4" />;
             case 'wait': return <Clock className="w-4 h-4" />;
             case 'end': return <Flag className="w-4 h-4" />;
+            case 'message': return <MessageSquare className="w-4 h-4" />;
             default: return null;
         }
     };
@@ -598,6 +614,9 @@ const CadenceBuilderPage: React.FC = () => {
                                             <Button variant="outline" size="sm" onClick={() => addStep('task')}>
                                                 <Phone className="w-4 h-4 mr-1" /> Tarefa
                                             </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('message')}>
+                                                <MessageSquare className="w-4 h-4 mr-1" /> Mensagem
+                                            </Button>
                                             {template.schedule_mode === 'interval' && (
                                                 <Button variant="outline" size="sm" onClick={() => addStep('wait')}>
                                                     <Clock className="w-4 h-4 mr-1" /> Espera
@@ -648,6 +667,7 @@ const CadenceBuilderPage: React.FC = () => {
                                                                 {step.step_type === 'task' && 'Tarefa'}
                                                                 {step.step_type === 'wait' && 'Espera'}
                                                                 {step.step_type === 'end' && 'Fim'}
+                                                                {step.step_type === 'message' && 'Mensagem'}
                                                             </Badge>
                                                         </div>
 
@@ -747,6 +767,32 @@ const CadenceBuilderPage: React.FC = () => {
                                                                             </div>
                                                                         )}
                                                                     </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Message config */}
+                                                            {step.step_type === 'message' && (
+                                                                <div className="space-y-3">
+                                                                    {template.schedule_mode === 'day_pattern' && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Label className="text-xs">Dia:</Label>
+                                                                            <CustomSelect
+                                                                                value={step.day_offset !== null ? String(step.day_offset) : ''}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    day_offset: value ? parseInt(value) : null
+                                                                                })}
+                                                                                options={[
+                                                                                    { value: '', label: 'Selecionar dia...' },
+                                                                                    ...dayOptions
+                                                                                ]}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    <MessageStepEditor
+                                                                        config={step.message_config || {}}
+                                                                        onChange={(next) => updateStep(index, { message_config: next })}
+                                                                        product={currentProduct}
+                                                                    />
                                                                 </div>
                                                             )}
 
