@@ -341,6 +341,7 @@ function App() {
                     <Route path="automations/new" element={<NewAutomationPage />} />
                     <Route path="automations/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="automations/automacao/:id" element={<AutomacaoBuilderPage />} />
+                    <Route path="automations/cadence/new" element={<CadenceBuilderPage />} />
                     <Route path="automations/trigger/new" element={<AutomationBuilderPage />} />
                     <Route path="automations/trigger/:id" element={<AutomationBuilderPage />} />
                     <Route path="automations/roteamento/:id" element={<CronRoteamentoDetailPage />} />
