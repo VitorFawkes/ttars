@@ -234,6 +234,15 @@ export default function AutomationsListPage() {
                 <Timer className="w-4 h-4" />
                 Processos que executam
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/settings/automations/v2/new')}
+                className="gap-2"
+                title="Editor visual com canvas (estilo n8n)"
+              >
+                <Plus className="w-4 h-4" />
+                Editor visual
+              </Button>
               <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
                 <Plus className="w-4 h-4" />
                 Nova automação
