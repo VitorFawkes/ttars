@@ -105,14 +105,7 @@ serve(async (req) => {
                         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
                     })
                 }
-                const { data: cc } = await supabaseClient
-                    .from('cards_contatos')
-                    .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
-                    .eq('card_id', cardId)
-                    .order('ordem', { ascending: true })
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const principalRow: any = (cc || []).find((r: any) => r.tipo_viajante === 'titular') || (cc || [])[0]
-                const contato = principalRow?.contatos
+                const contato = await resolveCardContact(supabaseClient, cardId)
 
                 const firstName = (contato?.nome || '').split(' ')[0] || ''
                 const renderVars = (s: string) => s
@@ -1118,6 +1111,45 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
 }
 
 // ============================================================================
+// Helper: resolveCardContact
+// ============================================================================
+// Lê o contato titular do card. Tenta primeiro cards_contatos (multi-viajantes)
+// e cai em fallback pra cards.pessoa_principal_id quando a junction está vazia
+// — esse fallback é necessário porque vários cards "simples" (criados via UI
+// /people ou via importação) só preenchem pessoa_principal_id e nunca chegam
+// a popular cards_contatos.
+// ----------------------------------------------------------------------------
+async function resolveCardContact(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+): Promise<{ id: string; nome: string | null; telefone: string | null } | null> {
+    // 1) cards_contatos com tipo_viajante='titular' (padrão multi-viajante)
+    const { data: cc } = await supabaseClient
+        .from('cards_contatos')
+        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+        .eq('card_id', cardId)
+        .order('ordem', { ascending: true })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const principalRow: any = (cc || []).find((r: any) => r.tipo_viajante === 'titular') || (cc || [])[0]
+    const fromJunction = principalRow?.contatos
+    if (fromJunction?.id) return fromJunction
+
+    // 2) Fallback: cards.pessoa_principal_id → contatos
+    const { data: card } = await supabaseClient
+        .from('cards')
+        .select('pessoa_principal_id')
+        .eq('id', cardId)
+        .maybeSingle()
+    if (!card?.pessoa_principal_id) return null
+    const { data: contato } = await supabaseClient
+        .from('contatos')
+        .select('id, nome, telefone')
+        .eq('id', card.pessoa_principal_id)
+        .maybeSingle()
+    return contato || null
+}
+
+// ============================================================================
 // Echo API: helpers para gestão de conversa (assign, release, close, tags, ...)
 // ============================================================================
 // Documentação: docs/echo-api.md
@@ -1244,15 +1276,8 @@ async function executeSendMessageAction(
         return { skipped: true, reason: 'no_body_or_template' };
     }
 
-    // Buscar contato principal do card (cards_contatos — plural, ordenado por "ordem")
-    const { data: cardContatos } = await supabaseClient
-        .from("cards_contatos")
-        .select("contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )")
-        .eq("card_id", cardId)
-        .order("ordem", { ascending: true });
-
-    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
-    const contato: any = principalRow?.contatos;
+    // Buscar contato principal do card (cards_contatos OU cards.pessoa_principal_id)
+    const contato: any = await resolveCardContact(supabaseClient, cardId);
 
     if (!contato?.id) {
         return { skipped: true, reason: 'no_contact' };
@@ -1862,13 +1887,7 @@ async function executeSendMediaAction(
         return { skipped: true, reason: 'missing_media_url_or_mime' };
     }
 
-    const { data: cardContatos } = await supabaseClient
-        .from('cards_contatos')
-        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
-        .eq('card_id', cardId)
-        .order('ordem', { ascending: true });
-    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
-    const contato: any = principalRow?.contatos;
+    const contato: any = await resolveCardContact(supabaseClient, cardId);
     if (!contato?.telefone) return { skipped: true, reason: 'no_phone' };
 
     const { data: card } = await supabaseClient
@@ -2571,14 +2590,7 @@ async function executeMessageStep(
     }
 
     // 2) Buscar contato principal do card (mesmo padrão do trigger send_message)
-    const { data: cardContatos } = await supabaseClient
-        .from('cards_contatos')
-        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
-        .eq('card_id', card.id)
-        .order('ordem', { ascending: true });
-
-    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
-    const contato: any = principalRow?.contatos;
+    const contato: any = await resolveCardContact(supabaseClient, card.id);
 
     if (!contato?.id) {
         await logEvent(supabaseClient, {
@@ -2784,13 +2796,7 @@ async function executeMediaStep(
     }
 
     // Resolver contato titular do card
-    const { data: cardContatos } = await supabaseClient
-        .from('cards_contatos')
-        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
-        .eq('card_id', card.id)
-        .order('ordem', { ascending: true });
-    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
-    const contato: any = principalRow?.contatos;
+    const contato: any = await resolveCardContact(supabaseClient, card.id);
     if (!contato?.telefone) {
         await logEvent(supabaseClient, {
             instance_id: instance.id, card_id: card.id,
