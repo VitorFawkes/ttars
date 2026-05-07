@@ -44,13 +44,11 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
     { type: 'action.notify_internal', category: 'card', iconName: 'Bell',    isTrigger: false,
       label: 'Notificar time',        description: 'Cria notificação interna pra alguém do time' },
 
-    // ─── Mensagens ───────────────────────────────────────────────────────────
-    { type: 'action.send_message', category: 'message', iconName: 'MessageSquare', isTrigger: false,
-      label: 'Enviar mensagem',     description: 'WhatsApp via Echo (HSM aprovado ou texto livre)' },
-    { type: 'action.send_media',   category: 'message', iconName: 'Image',         isTrigger: false,
-      label: 'Enviar mídia',        description: 'Imagem, vídeo, áudio ou documento via Echo' },
-
-    // ─── Conversa Echo (gestão de sessão) ─────────────────────────────────────
+    // ─── Echo (envio + gestão de conversa) ───────────────────────────────────
+    { type: 'action.send_message', category: 'echo', iconName: 'MessageSquare', isTrigger: false,
+      label: 'Enviar mensagem',    description: 'WhatsApp via Echo (HSM aprovado ou texto livre)' },
+    { type: 'action.send_media',   category: 'echo', iconName: 'Image',         isTrigger: false,
+      label: 'Enviar mídia',       description: 'Imagem, vídeo, áudio ou documento via Echo' },
     { type: 'action.echo_assign',          category: 'echo', iconName: 'UserCheck', isTrigger: false,
       label: 'Atribuir conversa',          description: 'Define o atendente responsável da conversa Echo' },
     { type: 'action.echo_release',         category: 'echo', iconName: 'UserMinus', isTrigger: false,
@@ -100,8 +98,8 @@ export const NODES_BY_CATEGORY: Record<NodeCategory, NodeTypeMeta[]> = {
 export const CATEGORY_LABEL: Record<NodeCategory, string> = {
     trigger:     'Gatilhos',
     card:        'Ações no card',
-    message:     'Mensagens',
-    echo:        'Conversa Echo',
+    message:     'Mensagens',  // legado, sem itens — mantido pra evitar breaking type
+    echo:        'Echo',
     flow:        'Fluxo',
     integration: 'Integrações',
 }

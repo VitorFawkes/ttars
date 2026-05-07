@@ -4,7 +4,9 @@ import { cn } from '@/lib/utils';
 
 export default function SettingsLayout() {
     const location = useLocation();
-    const isBuilder = location.pathname.includes('/builder') || location.pathname.includes('/cadence/');
+    const isBuilder = location.pathname.includes('/builder')
+        || location.pathname.includes('/cadence/')
+        || location.pathname.includes('/automations/v2');
 
     return (
         <div className="flex w-full h-full bg-muted/30">
