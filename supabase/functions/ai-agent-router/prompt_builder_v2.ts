@@ -652,6 +652,38 @@ function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
 
   const sections: string[] = [];
 
+  // Formato novo (Marco 3.3 — 2026-05-07): by_category com items {text, enabled,
+  // library_id?}. Frontend unifica biblioteca + custom numa única lista por
+  // categoria. Aqui filtramos apenas os enabled.
+  // deno-lint-ignore no-explicit-any
+  const byCategory = (boundaries as any).by_category as
+    | Record<string, Array<{ text: string; description?: string; enabled: boolean; library_id?: string }>>
+    | undefined;
+
+  if (byCategory) {
+    for (const [category, items] of Object.entries(byCategory)) {
+      const clean = (items ?? [])
+        .filter(it => it && it.enabled === true && it.text && it.text.trim())
+        .map(it => {
+          // Se item veio da biblioteca e tem library_id, prefere a versão canônica
+          // do dicionário (que tem o texto longo). Se não, usa o text do item.
+          if (it.library_id && BOUNDARIES_LIBRARY[it.library_id]) {
+            return BOUNDARIES_LIBRARY[it.library_id];
+          }
+          return it.text.trim();
+        });
+      if (clean.length > 0) {
+        sections.push(`${category}:\n${clean.map(r => `- ${r}`).join('\n')}`);
+      }
+    }
+    if (sections.length === 0) return '';
+    return `<boundaries>\nLinhas vermelhas (valem sempre):\n\n${sections.join('\n\n')}\n</boundaries>`;
+  }
+
+  // Fallback: formato legacy. Mantido pra agentes que ainda não foram tocados
+  // na nova UI (não rodaram a migração silenciosa). Quando o admin abre/edita,
+  // o frontend salva no formato novo e a partir daí esse caminho não é mais usado.
+
   // 1. Biblioteca ativa — agrupada como "Globais"
   const libraryRules: string[] = [];
   if (boundaries.library_active) {
@@ -664,7 +696,7 @@ function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
     sections.push(`Globais:\n${libraryRules.map(r => `- ${r}`).join('\n')}`);
   }
 
-  // 2. Personalizadas por categoria (novo formato)
+  // 2. Personalizadas por categoria (formato intermediário)
   if (boundaries.custom_by_category) {
     for (const [category, items] of Object.entries(boundaries.custom_by_category)) {
       const clean = (items ?? []).filter(i => i && i.trim());

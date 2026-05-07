@@ -1,11 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
+/**
+ * Item de uma categoria — pode ter vindo da biblioteca pré-fabricada
+ * (com `library_id` populado) ou ser custom (sem `library_id`).
+ *
+ * UI trata todos iguais: toggle enabled + X pra remover. Backend filtra
+ * apenas itens com `enabled === true` ao montar o prompt.
+ */
+export interface BoundaryItem {
+  /** Texto principal (label da biblioteca OU sentença custom). */
+  text: string
+  /** Subtítulo descritivo opcional — só itens da biblioteca têm. */
+  description?: string
+  /** Se a regra está ativa pra esse agente. */
+  enabled: boolean
+  /** ID original da biblioteca; ausente em itens custom. */
+  library_id?: string
+}
+
 export interface BoundariesConfig {
+  /**
+   * Novo formato unificado (Marco 3.3 — 2026-05-07):
+   * todas as regras (biblioteca pré-fabricada + custom do admin) ficam
+   * juntas por categoria, cada uma com toggle enabled + removíveis.
+   * Quando este campo existe, os campos legacy abaixo são ignorados.
+   */
+  by_category?: Record<string, BoundaryItem[]>
+
+  /** @deprecated Legacy: IDs da biblioteca marcados como ativos. */
   library_active?: string[]
-  /** Legacy: linhas personalizadas sem categoria (viram "Personalizado") */
+  /** @deprecated Legacy: linhas personalizadas sem categoria. */
   custom?: string[]
-  /** Novo (Marco 3.2): linhas personalizadas por categoria editável */
+  /** @deprecated Legacy: personalizadas por categoria (strings simples). */
   custom_by_category?: Record<string, string[]>
 }
 
