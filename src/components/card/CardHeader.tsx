@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Megaphone, MapPin, Archive } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Archive } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -1326,26 +1326,28 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                         </button>
                     </div>
 
-                    {/* Stage Selector & Time in Stage */}
+                    {/* Stage Selector — prominent ETAPA chip with indigo border */}
                     <div className="relative z-20 flex items-center gap-2">
-                        {daysInStage !== null && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-xs font-medium text-gray-500" title="Tempo nesta etapa">
-                                <History className="h-3 w-3" />
-                                {daysInStage}d
-                            </div>
-                        )}
-
                         <div className="relative">
                             <button
                                 onClick={() => setShowStageDropdown(!showStageDropdown)}
-                                className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium transition-all border border-gray-200 hover:border-gray-300"
+                                className="group inline-flex items-center gap-2 pl-3 pr-2 py-1 rounded-full bg-white border-[1.5px] border-indigo-500 hover:bg-indigo-50 transition-colors"
+                                title="Mudar etapa do funil"
                             >
+                                <span className="text-[9px] font-extrabold text-indigo-700 tracking-[0.1em] leading-none">ETAPA</span>
+                                <span className="h-3.5 w-px bg-gray-200" />
                                 <span className={cn(
-                                    "w-2 h-2 rounded-full",
+                                    "w-2 h-2 rounded-full shrink-0",
                                     getPhaseBgColorByPhaseId(currentStage?.phase_id)
                                 )} />
-                                {currentStage?.nome || 'Sem Etapa'}
-                                <ChevronDown className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                <span className="text-[13px] font-bold text-gray-900 leading-none">{currentStage?.nome || 'Sem Etapa'}</span>
+                                {daysInStage !== null && (
+                                    <span className="text-[11px] text-gray-500 leading-none flex items-center gap-0.5" title="Tempo nesta etapa">
+                                        <History className="h-3 w-3" />
+                                        {daysInStage}d
+                                    </span>
+                                )}
+                                <ChevronDown className="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600 transition-colors" />
                             </button>
 
                             {showStageDropdown && stages && (
@@ -1833,85 +1835,97 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                     {/* Owners & Actions */}
                     <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-gray-100 bg-slate-50/30 -mx-4 px-4 pb-1">
-                        {/* Phase columns — compact horizontal */}
-                        <div className="flex items-center gap-4 flex-wrap">
+                        {/* Stakeholders — single line, V8C-style compact chips */}
+                        <div className="flex items-center gap-2.5 min-w-0 overflow-hidden flex-1">
                             {/* SDR */}
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none">SDR</span>
-                                <OwnerSelector
-                                    value={card.sdr_owner_id}
-                                    onChange={(id) => handleSdrSelect(id)}
-                                    phaseSlug="sdr"
-                                    compact
-                                    showNoSdrOption
-                                />
+                            <div className="flex items-center gap-1.5 min-w-0 shrink">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none shrink-0">SDR</span>
+                                <div className="min-w-0 max-w-[140px]">
+                                    <OwnerSelector
+                                        value={card.sdr_owner_id}
+                                        onChange={(id) => handleSdrSelect(id)}
+                                        phaseSlug="sdr"
+                                        compact
+                                        showNoSdrOption
+                                    />
+                                </div>
                             </div>
 
-                            <div className="h-4 w-px bg-gray-200" />
+                            <div className="h-4 w-px bg-gray-200 shrink-0" />
 
                             {/* Planner + Assistente */}
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none">Planner</span>
-                                <OwnerSelector
-                                    value={card.vendas_owner_id}
-                                    onChange={(id) => handlePlannerSelect(id)}
-                                    phaseSlug="planner"
-                                    compact
-                                    showNoSdrOption
-                                />
-                                <span className="text-[10px] font-medium text-slate-300 leading-none">Assist.</span>
-                                <OwnerSelector
-                                    value={assistentePlanner?.profile_id || null}
-                                    onChange={(id) => handleAssistentePlannerSelect(id)}
-                                    phaseSlug="planner"
-                                    roleId={assistenteRoleId || undefined}
-                                    compact
-                                    showNoSdrOption
-                                />
+                            <div className="flex items-center gap-1.5 min-w-0 shrink">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none shrink-0">PLANNER</span>
+                                <div className="min-w-0 max-w-[120px]">
+                                    <OwnerSelector
+                                        value={card.vendas_owner_id}
+                                        onChange={(id) => handlePlannerSelect(id)}
+                                        phaseSlug="planner"
+                                        compact
+                                        showNoSdrOption
+                                    />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-300 leading-none shrink-0" title="Assistente">+A</span>
+                                <div className="min-w-0 max-w-[100px]">
+                                    <OwnerSelector
+                                        value={assistentePlanner?.profile_id || null}
+                                        onChange={(id) => handleAssistentePlannerSelect(id)}
+                                        phaseSlug="planner"
+                                        roleId={assistenteRoleId || undefined}
+                                        compact
+                                        showNoSdrOption
+                                    />
+                                </div>
                             </div>
 
-                            <div className="h-4 w-px bg-gray-200" />
+                            <div className="h-4 w-px bg-gray-200 shrink-0" />
 
                             {/* Pós-Venda + Assistente */}
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none">Pós</span>
-                                <OwnerSelector
-                                    value={card.pos_owner_id}
-                                    onChange={(id) => handlePosVendaSelect(id)}
-                                    phaseSlug="pos_venda"
-                                    compact
-                                    showNoSdrOption
-                                />
-                                <span className="text-[10px] font-medium text-slate-300 leading-none">Assist.</span>
-                                <OwnerSelector
-                                    value={assistentePos?.profile_id || null}
-                                    onChange={(id) => handleAssistentePosSelect(id)}
-                                    phaseSlug="pos_venda"
-                                    roleId={assistenteRoleId || undefined}
-                                    compact
-                                    showNoSdrOption
-                                />
+                            <div className="flex items-center gap-1.5 min-w-0 shrink">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none shrink-0">PÓS</span>
+                                <div className="min-w-0 max-w-[120px]">
+                                    <OwnerSelector
+                                        value={card.pos_owner_id}
+                                        onChange={(id) => handlePosVendaSelect(id)}
+                                        phaseSlug="pos_venda"
+                                        compact
+                                        showNoSdrOption
+                                    />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-300 leading-none shrink-0" title="Assistente">+A</span>
+                                <div className="min-w-0 max-w-[100px]">
+                                    <OwnerSelector
+                                        value={assistentePos?.profile_id || null}
+                                        onChange={(id) => handleAssistentePosSelect(id)}
+                                        phaseSlug="pos_venda"
+                                        roleId={assistenteRoleId || undefined}
+                                        compact
+                                        showNoSdrOption
+                                    />
+                                </div>
                             </div>
 
                             {/* Concierge — only TRIPS */}
                             {card.produto === 'TRIPS' && (
                                 <>
-                                    <div className="h-4 w-px bg-gray-200" />
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider leading-none">Concierge</span>
-                                        <OwnerSelector
-                                            value={card.concierge_owner_id}
-                                            onChange={(id) => handleConciergeSelect(id)}
-                                            phaseSlug="pos_venda"
-                                            compact
-                                            showNoSdrOption
-                                        />
+                                    <div className="h-4 w-px bg-gray-200 shrink-0" />
+                                    <div className="flex items-center gap-1.5 min-w-0 shrink">
+                                        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider leading-none shrink-0">CONCIERGE</span>
+                                        <div className="min-w-0 max-w-[140px]">
+                                            <OwnerSelector
+                                                value={card.concierge_owner_id}
+                                                onChange={(id) => handleConciergeSelect(id)}
+                                                phaseSlug="pos_venda"
+                                                compact
+                                                showNoSdrOption
+                                            />
+                                        </div>
                                     </div>
                                 </>
                             )}
                         </div>
 
-                        {/* Operational Badge + Actions */}
+                        {/* Status pills + Action toolbar */}
                         <div className="flex items-center gap-2 shrink-0">
                             {getOperationalBadge()}
                             {missingBlocking.length > 0 && (
@@ -1935,29 +1949,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                     {alertUnread} {alertUnread === 1 ? 'alerta' : 'alertas'}
                                 </button>
                             )}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowAlertModal(true)}
-                                className="gap-1.5 text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300"
-                                title="Enviar alerta para alguém"
-                            >
-                                <Megaphone className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Alertar</span>
-                            </Button>
-                            {(card.produto === 'TRIPS' || !card.produto) && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => navigate(`/cards/${card.id}/viagem`)}
-                                    className="gap-1.5 text-indigo-700 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300"
-                                    title="Abrir página da viagem"
-                                >
-                                    <MapPin className="h-3.5 w-3.5" />
-                                    <span className="hidden sm:inline">Página da Viagem</span>
-                                </Button>
-                            )}
-                            <ActionButtons card={card} />
+                            <div className="h-5 w-px bg-gray-200 mx-1" />
+                            <ActionButtons card={card} onAlertClick={() => setShowAlertModal(true)} />
                         </div>
                     </div>
                 </div>

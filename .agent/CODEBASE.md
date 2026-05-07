@@ -7,12 +7,12 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 645 components
-> **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 645 components
-> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
-> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
-> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
-> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
 
 ---
 
@@ -174,7 +174,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **239 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **238 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -308,7 +308,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
-| `useMeuDia()` | `useMeuDia.ts` |
 | `useModelosConcierge()` | `useModelosConcierge.ts` |
 | `useMondePendingSales()` | `useMondePendingSales.ts` |
 | `useMoverEstadoFunil()` | `useMoverEstadoFunil.ts` |
@@ -495,7 +494,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **145 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -619,7 +618,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
 | `ConciergeLayout` | `src/pages/concierge/ConciergeLayout.tsx` |
 | `KanbanPage` | `src/pages/concierge/KanbanPage.tsx` |
-| `MeuDiaPage` | `src/pages/concierge/MeuDiaPage.tsx` |
 | `ModelosPage` | `src/pages/concierge/ModelosPage.tsx` |
 | `PainelGestorPage` | `src/pages/concierge/PainelGestorPage.tsx` |
 | `DeveloperHub` | `src/pages/developer/DeveloperHub.tsx` |
