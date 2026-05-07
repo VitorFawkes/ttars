@@ -262,6 +262,28 @@ if [ "$STAGING_MODE" = "false" ]; then
     echo "  FAIL: $CADENCE_DUPS grupos de tarefas de cadência com duplicatas ativas — verificar índice tarefas_unique_cadence_step" >&2
     FAILED=$((FAILED + 1))
   fi
+
+  # ── Hierarquia de cards (parent_card_id) consistente ──
+  # Conta cards onde parent.org_id != child.org_id, ou produto/pipeline divergente,
+  # ou pai é sub_card. Esperado: 0 após migration 20260507a (trigger fn_validate_parent_card_link).
+  # Se subir, regressão na validação ou alguma RPC nova escrevendo parent_card_id sem checagem.
+  TOTAL=$((TOTAL + 1))
+  CARD_HIER=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/cards_hierarchy_violation_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$CARD_HIER" ] || ! echo "$CARD_HIER" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: cards_hierarchy_violation_count → resposta inesperada: $CARD_HIER" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$CARD_HIER" != "0" ]; then
+    echo "  FAIL: $CARD_HIER cards com hierarquia inconsistente — checar trigger trg_validate_parent_card_link e RPCs que escrevem parent_card_id" >&2
+    FAILED=$((FAILED + 1))
+  fi
 fi
 
 # ── M1: Travel Planner tables (só após promoção para produção) ──
