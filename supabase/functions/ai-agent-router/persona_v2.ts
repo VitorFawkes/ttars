@@ -370,50 +370,59 @@ export async function runPersonaAgent_v2(
     let availableSlots: Array<{ date: string; time: string; weekday: string }> = [];
     if (bookCfg.responsavel_id) {
       try {
-        // Regra de negócio (07/05/2026): nunca propor reunião pra hoje.
-        // Sempre começa do PRÓXIMO DIA ÚTIL (pula sábado/domingo) e pega
-        // janela de 14 dias corridos pra cobrir folgadamente >= 6 dias úteis.
+        // Config de janela vinda da UI. Defaults seguros se não setado.
+        const sched = (bookCfg as unknown as { scheduling?: {
+          skip_today?: boolean;
+          business_days_ahead?: number;
+          slots_per_day?: number;
+          min_hours_between_slots?: number;
+        } | null }).scheduling ?? null;
+        const skipToday = sched?.skip_today ?? true;
+        const businessDaysAhead = Math.max(1, Math.min(15, sched?.business_days_ahead ?? 6));
+        const slotsPerDay = Math.max(1, Math.min(6, sched?.slots_per_day ?? 2));
+        const minHoursBetweenSlots = Math.max(0, Math.min(8, sched?.min_hours_between_slots ?? 2));
+
+        // Calcula data de início: hoje OU próximo dia útil (sex→seg).
         const today = new Date();
-        const nextBusinessDay = new Date(today);
-        nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
-        while (nextBusinessDay.getDay() === 0 || nextBusinessDay.getDay() === 6) {
-          nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+        const startDay = new Date(today);
+        if (skipToday) {
+          startDay.setDate(startDay.getDate() + 1);
         }
-        const dateFrom = nextBusinessDay.toISOString().slice(0, 10);
-        const dateTo = new Date(nextBusinessDay.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        while (startDay.getDay() === 0 || startDay.getDay() === 6) {
+          startDay.setDate(startDay.getDate() + 1);
+        }
+        const dateFrom = startDay.toISOString().slice(0, 10);
+        // Janela em dias corridos = businessDaysAhead × ~1.5 pra cobrir fim de semana
+        const dateTo = new Date(startDay.getTime() + Math.ceil(businessDaysAhead * 1.5) * 24 * 60 * 60 * 1000)
+          .toISOString().slice(0, 10);
         const { data: cal } = await supabase.rpc('agent_check_calendar', {
           p_owner_id: bookCfg.responsavel_id,
           p_date_from: dateFrom,
           p_date_to: dateTo,
-          p_org_id: agent.org_id, // defesa em profundidade — só lê tarefas da org do agente
+          p_org_id: agent.org_id,
         });
         const slotsRaw = (cal as { available_slots?: Array<{ date: string; time: string; weekday: string }> } | null)?.available_slots ?? [];
 
-        // Seleção balanceada: 2 horários por dia × pelo menos 6 dias úteis
-        // diferentes. Garante variedade pro casal — antes pegava `slice(0, 8)`
-        // e caía tudo no mesmo dia (8 horários consecutivos do primeiro dia).
-        // Resultado: oferta primária = "qua 9h, qua 11h, qui 9h, qui 11h..."
-        // permitindo casal escolher dia que prefere antes do horário.
+        // Seleção balanceada respeitando config: N horários por dia, espaçados ≥X horas, M dias.
         const byDay = new Map<string, Array<{ date: string; time: string; weekday: string }>>();
         for (const s of slotsRaw) {
           const list = byDay.get(s.date) ?? [];
           list.push(s);
           byDay.set(s.date, list);
         }
-        const days = [...byDay.keys()].sort().slice(0, 6); // até 6 dias úteis
+        const days = [...byDay.keys()].sort().slice(0, businessDaysAhead);
         const balanced: Array<{ date: string; time: string; weekday: string }> = [];
         for (const day of days) {
           const daySlots = byDay.get(day) ?? [];
-          // Pega 2 horários espaçados: o primeiro disponível e um do fim da manhã/início da tarde
-          if (daySlots.length > 0) balanced.push(daySlots[0]);
-          // Pega segundo slot que esteja >=2h após o primeiro (evita 9h+9h30 no mesmo card)
-          if (daySlots.length > 1) {
-            const first = daySlots[0];
-            const firstHour = parseInt(first.time.split(':')[0], 10);
-            const second = daySlots.find(s => parseInt(s.time.split(':')[0], 10) >= firstHour + 2);
-            if (second) balanced.push(second);
-            else if (daySlots.length > 1) balanced.push(daySlots[Math.min(daySlots.length - 1, 4)]);
+          if (daySlots.length === 0) continue;
+          const picked: typeof daySlots = [daySlots[0]];
+          for (let i = 1; i < daySlots.length && picked.length < slotsPerDay; i++) {
+            const last = picked[picked.length - 1];
+            const lastH = parseInt(last.time.split(':')[0], 10) + parseInt(last.time.split(':')[1], 10) / 60;
+            const candH = parseInt(daySlots[i].time.split(':')[0], 10) + parseInt(daySlots[i].time.split(':')[1], 10) / 60;
+            if (candH - lastH >= minHoursBetweenSlots) picked.push(daySlots[i]);
           }
+          balanced.push(...picked);
         }
         availableSlots = balanced;
       } catch (err) {
