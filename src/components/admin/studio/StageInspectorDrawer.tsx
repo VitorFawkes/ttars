@@ -1,19 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { X, Save, Eye, EyeOff, CheckSquare, Square, Loader2, Check, Layers, ChevronsDown } from 'lucide-react';
+import { X, Save, Loader2, Check } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
 import { useProductContext } from '../../../hooks/useProductContext';
 import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta';
-import { useSections } from '../../../hooks/useSections';
-import { useSectionFieldConfig } from '../../../hooks/useSectionFieldConfig';
 import StageFieldConfirmationsPanel from './StageFieldConfirmationsPanel';
 import type { Database } from '../../../database.types';
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row'];
-type SystemField = Database['public']['Tables']['system_fields']['Row'];
-type StageFieldConfig = Database['public']['Tables']['stage_field_config']['Row'];
 
 interface StageInspectorDrawerProps {
     isOpen: boolean;
@@ -25,7 +21,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
     const queryClient = useQueryClient();
     const { currentProduct } = useProductContext();
     const { pipelineId } = useCurrentProductMeta();
-    const [activeTab, setActiveTab] = useState<'general' | 'data' | 'confirmations'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'confirmations'>('general');
 
     // Local state for stage details
     const [formData, setFormData] = useState<Partial<PipelineStage>>({});
@@ -37,40 +33,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
             setFormData(stage);
         }
     }, [stageId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Sections for the current product — used to filter which fields to show
-    const { data: productSections = [] } = useSections(currentProduct);
-    const { getFieldDefault } = useSectionFieldConfig();
-
-    // --- Data Fetching ---
-    const { data: allFields } = useQuery({
-        queryKey: ['system-fields-inspector'],
-        queryFn: async () => {
-            const { data } = await supabase.from('system_fields').select('*').order('order_index').order('label');
-            return data as SystemField[];
-        },
-        enabled: isOpen
-    });
-
-    // Filter fields to only those belonging to sections of the current product
-    // AND respecting produto_exclusivo (null = shared, else must match currentProduct)
-    const fields = allFields?.filter(f => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-        const exclusivo = (f as any).produto_exclusivo as string | null | undefined;
-        if (exclusivo && exclusivo !== currentProduct) return false;
-        if (!f.section) return true;
-        return productSections.some(s => s.key === f.section);
-    });
-
-    const { data: configs } = useQuery({
-        queryKey: ['stage-configs-inspector', stage?.id],
-        queryFn: async () => {
-            if (!stage) return [];
-            const { data } = await supabase.from('stage_field_config').select('*').eq('stage_id', stage.id);
-            return data as StageFieldConfig[];
-        },
-        enabled: isOpen && !!stage
-    });
 
     const { data: phasesData } = usePipelinePhases(pipelineId);
     const phases = phasesData || [];
@@ -98,7 +60,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
         mutationFn: async (data: Partial<PipelineStage>) => {
             if (!stage) throw new Error('Nenhuma etapa selecionada');
 
-            // Extract only editable fields (exclude id, created_at, etc.)
             const updatePayload = {
                 nome: data.nome,
                 phase_id: data.phase_id,
@@ -113,24 +74,18 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 milestone_key: (data as any).milestone_key || null,
             };
 
-            console.log('[StageInspector] Saving stage data:', updatePayload);
             const { data: result, error } = await supabase
                 .from('pipeline_stages')
                 .update(updatePayload)
                 .eq('id', stage.id)
                 .select();
 
-            if (error) {
-                console.error('[StageInspector] Save error:', error);
-                throw error;
-            }
+            if (error) throw error;
 
             if (!result || result.length === 0) {
-                console.error('[StageInspector] No rows updated - possible RLS issue');
                 throw new Error('Sem permissão para editar. Verifique se você é admin.');
             }
 
-            console.log('[StageInspector] Save success, updated:', result);
             return result;
         },
         onSuccess: () => {
@@ -140,55 +95,9 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
             setTimeout(() => setSaveSuccess(false), 2000);
         },
         onError: (error: Error) => {
-            console.error('[StageInspector] Mutation error:', error);
             alert('Erro ao salvar: ' + error.message);
         }
     });
-
-    const upsertConfigMutation = useMutation({
-        mutationFn: async (newConfig: Partial<StageFieldConfig>) => {
-            const { error } = await supabase
-                .from('stage_field_config')
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .upsert(newConfig as any, { onConflict: 'stage_id, field_key' });
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['stage-configs-inspector', stage?.id] });
-            queryClient.invalidateQueries({ queryKey: ['stage-field-configs-unified'] }); // Sync Matrix
-        }
-    });
-
-    // --- Helpers ---
-    const getConfig = (fieldKey: string) => {
-        return configs?.find(c => c.field_key === fieldKey);
-    };
-
-    const handleToggle = (fieldKey: string, type: 'visible' | 'required' | 'header' | 'secondary') => {
-        if (!stage) return;
-        const current = getConfig(fieldKey);
-
-        const nextValue: Record<string, unknown> = {
-            stage_id: stage.id,
-            field_key: fieldKey,
-            is_visible: current?.is_visible ?? true,
-            is_required: current?.is_required ?? false,
-            show_in_header: current?.show_in_header ?? false,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-            is_secondary: (current as any)?.is_secondary ?? false
-        };
-
-        if (type === 'visible') {
-            nextValue.is_visible = !nextValue.is_visible;
-            // If hiding, also turn off secondary
-            if (!nextValue.is_visible) nextValue.is_secondary = false;
-        }
-        if (type === 'required') nextValue.is_required = !nextValue.is_required;
-        if (type === 'header') nextValue.show_in_header = !nextValue.show_in_header;
-        if (type === 'secondary') nextValue.is_secondary = !nextValue.is_secondary;
-
-        upsertConfigMutation.mutate(nextValue as Partial<StageFieldConfig>);
-    };
 
     if (!isOpen) return null;
 
@@ -224,15 +133,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                         Geral
                     </button>
                     <button
-                        onClick={() => setActiveTab('data')}
-                        className={cn(
-                            "py-3 px-4 text-sm font-medium border-b-2 transition-colors",
-                            activeTab === 'data' ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"
-                        )}
-                    >
-                        Coleta de Dados
-                    </button>
-                    <button
                         onClick={() => setActiveTab('confirmations')}
                         className={cn(
                             "py-3 px-4 text-sm font-medium border-b-2 transition-colors",
@@ -247,7 +147,7 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 <div className="flex-1 overflow-y-auto p-6">
                     {activeTab === 'confirmations' && stage ? (
                         <StageFieldConfirmationsPanel stageId={stage.id} produto={currentProduct} />
-                    ) : activeTab === 'general' ? (
+                    ) : (
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Etapa</label>
@@ -386,90 +286,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                 )}
                                 {saveSuccess ? 'Salvo!' : updateStageMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                             </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <p className="text-sm text-gray-500 mb-4">
-                                Defina quais campos devem ser preenchidos nesta etapa.
-                                <br />
-                                <span className="text-xs italic">Alterações são salvas automaticamente.</span>
-                            </p>
-
-                            {fields?.map(field => {
-                                const config = getConfig(field.key);
-                                const sectionDefault = getFieldDefault(field.section || 'details', field.key);
-                                const hasStageOverride = !!config;
-                                const isVisible = config?.is_visible ?? sectionDefault?.isVisible ?? true;
-                                const isRequired = config?.is_required ?? sectionDefault?.isRequired ?? false;
-                                const isInherited = !hasStageOverride && !!sectionDefault;
-
-                                return (
-                                    <div key={field.key} className={cn(
-                                        "flex items-center justify-between p-3 rounded-lg border",
-                                        isInherited ? "bg-blue-50/50 border-blue-100" : "bg-gray-50 border-gray-100"
-                                    )}>
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium text-gray-900">{field.label}</p>
-                                                <div className="flex items-center gap-1.5">
-                                                    <p className="text-xs text-gray-400">{field.section}</p>
-                                                    {sectionDefault && (
-                                                        <span
-                                                            className="inline-flex items-center gap-0.5 text-[10px] text-blue-500"
-                                                            title={`Padrão da seção: ${sectionDefault.isVisible ? 'visível' : 'oculto'}${sectionDefault.isRequired ? ', obrigatório' : ''}`}
-                                                        >
-                                                            <Layers className="w-3 h-3" />
-                                                            {isInherited && 'herdado'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => handleToggle(field.key, 'visible')}
-                                                className={cn(
-                                                    "p-1.5 rounded transition-colors",
-                                                    isVisible
-                                                        ? isInherited ? "text-blue-400 bg-blue-50" : "text-blue-600 bg-blue-50"
-                                                        : "text-gray-300 hover:bg-gray-200"
-                                                )}
-                                                title={isInherited ? "Herdado da seção (clique para override)" : "Visível"}
-                                            >
-                                                {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                            </button>
-                                            <button
-                                                onClick={() => handleToggle(field.key, 'required')}
-                                                className={cn(
-                                                    "p-1.5 rounded transition-colors",
-                                                    isRequired
-                                                        ? isInherited ? "text-red-400 bg-red-50" : "text-red-600 bg-red-50"
-                                                        : "text-gray-300 hover:bg-gray-200"
-                                                )}
-                                                title={isInherited ? "Herdado da seção (clique para override)" : "Obrigatório"}
-                                            >
-                                                {isRequired ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                                            </button>
-                                            {isVisible && (
-                                                <button
-                                                    onClick={() => handleToggle(field.key, 'secondary')}
-                                                    className={cn(
-                                                        "p-1.5 rounded transition-colors",
-                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                                                        (config as any)?.is_secondary
-                                                            ? "text-amber-500 bg-amber-50"
-                                                            : "text-gray-300 hover:bg-gray-200"
-                                                    )}
-                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                                                    title={(config as any)?.is_secondary ? 'Secundário — "Ver mais" (clique para primário)' : 'Primário (clique para mover ao "Ver mais")'}
-                                                >
-                                                    <ChevronsDown className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
                         </div>
                     )}
                 </div>

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 import { useFieldConfig, useSystemFieldsMutations } from '../../../hooks/useFieldConfig'
 import { useToast } from '../../../contexts/ToastContext'
-import { Eye, EyeOff, CheckSquare, Square, AlertTriangle, ToggleLeft, ToggleRight, Layers, ChevronsDown, LayoutTemplate, GripVertical } from 'lucide-react'
+import { Eye, EyeOff, CheckSquare, Square, ToggleLeft, ToggleRight, Layers, ChevronsDown, LayoutTemplate, GripVertical } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import {
     DndContext,
@@ -46,7 +46,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
     const [open, setOpen] = useState(false)
     const [activeTab, setActiveTab] = useState<string | null>(null)
 
-    // Set initial tab
     const currentTab = activeTab ?? visiblePhases[0]?.id ?? null
     const currentPhase = visiblePhases.find(p => p.id === currentTab)
 
@@ -100,48 +99,22 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         return stages.filter(s => s.phase_id === currentPhase.id)
     }, [stages, currentPhase])
 
-    // Representative stage = last stage of the phase
+    // Representative stage = last stage of the phase. Edits in this panel always
+    // batch-write to all sibling stages, so this stage's config is canonical.
     const representativeStageId = useMemo(() => {
         if (phaseStages.length === 0) return null
         return phaseStages[phaseStages.length - 1].id
     }, [phaseStages])
 
-    // Check divergence: do all stages in this phase have the same config for each field?
-    const divergentFields = useMemo(() => {
-        if (!stageConfigs || phaseStages.length <= 1) return new Set<string>()
-
-        const divergent = new Set<string>()
-        for (const field of sectionFields) {
-            const configs = phaseStages.map(s => {
-                const cfg = stageConfigs.find(c => c.stage_id === s.id && c.field_key === field.key)
-                return {
-                    is_visible: cfg?.is_visible ?? null,
-                    is_required: cfg?.is_required ?? null,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                    is_secondary: (cfg as any)?.is_secondary ?? null,
-                    show_in_header: cfg?.show_in_header ?? null
-                }
-            })
-            // Check if all configs are the same
-            const first = configs[0]
-            const allSame = configs.every(c =>
-                c.is_visible === first.is_visible && c.is_required === first.is_required && c.is_secondary === first.is_secondary && c.show_in_header === first.show_in_header
-            )
-            if (!allSame) divergent.add(field.key)
-        }
-        return divergent
-    }, [stageConfigs, phaseStages, sectionFields])
-
-    // Get field config from the representative stage
     const getFieldState = useCallback((fieldKey: string) => {
-        if (!stageConfigs || !representativeStageId) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false, hasOverride: false }
+        if (!stageConfigs || !representativeStageId) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false }
         const cfg = stageConfigs.find(c => c.stage_id === representativeStageId && c.field_key === fieldKey)
-        if (!cfg) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false, hasOverride: false }
+        if (!cfg) return { isVisible: true, isRequired: false, isSecondary: false, showInHeader: false }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, isSecondary: (cfg as any)?.is_secondary ?? false, showInHeader: cfg.show_in_header ?? false, hasOverride: true }
+        return { isVisible: cfg.is_visible ?? true, isRequired: cfg.is_required ?? false, isSecondary: (cfg as any)?.is_secondary ?? false, showInHeader: cfg.show_in_header ?? false }
     }, [stageConfigs, representativeStageId])
 
-    // Batch upsert mutation — applies to ALL stages of the phase
+    // Batch upsert mutation — applies to ALL stages of the phase, ensuring uniformity.
     const batchUpsertMutation = useMutation({
         mutationFn: async ({ fieldKey, isVisible, isRequired, isSecondary, showInHeader }: { fieldKey: string; isVisible: boolean; isRequired: boolean; isSecondary: boolean; showInHeader: boolean }) => {
             const rows = phaseStages.map(s => ({
@@ -153,7 +126,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                 show_in_header: showInHeader
             }))
 
-            // Upsert all stage configs in parallel
             const results = await Promise.all(
                 rows.map(row =>
                     supabase
@@ -173,51 +145,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         }
     })
 
-    // Normalize: apply representative stage's config to all stages in phase
-    const normalizeMutation = useMutation({
-        mutationFn: async () => {
-            if (!stageConfigs || !representativeStageId) return
-
-            const repConfigs = stageConfigs.filter(c => c.stage_id === representativeStageId)
-
-            const rows: { stage_id: string; field_key: string; is_visible: boolean; is_required: boolean; is_secondary: boolean; show_in_header: boolean }[] = []
-            for (const s of phaseStages) {
-                if (s.id === representativeStageId) continue
-                for (const field of sectionFields) {
-                    const repCfg = repConfigs.find(c => c.field_key === field.key)
-                    rows.push({
-                        stage_id: s.id,
-                        field_key: field.key,
-                        is_visible: repCfg?.is_visible ?? true,
-                        is_required: repCfg?.is_required ?? false,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
-                        is_secondary: (repCfg as any)?.is_secondary ?? false,
-                        show_in_header: repCfg?.show_in_header ?? false
-                    })
-                }
-            }
-
-            const results = await Promise.all(
-                rows.map(row =>
-                    supabase
-                        .from('stage_field_config')
-                        .upsert(row, { onConflict: 'stage_id,field_key' })
-                )
-            )
-            const failed = results.find(r => r.error)
-            if (failed?.error) throw failed.error
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['stage-field-configs-all'] })
-            queryClient.invalidateQueries({ queryKey: ['stage-field-configs-unified'] })
-            toast({ title: 'Stages normalizados', type: 'success' })
-        },
-        onError: (error: Error) => {
-            toast({ title: 'Erro ao normalizar', description: error.message, type: 'error' })
-        }
-    })
-
-    // Toggle visible_in_card for the phase
     const toggleVisibleInCardMutation = useMutation({
         mutationFn: async ({ phaseId, visible }: { phaseId: string; visible: boolean }) => {
             const { error } = await supabase
@@ -280,21 +207,16 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
         })
     }, [getFieldState, batchUpsertMutation])
 
-    const hasDivergence = divergentFields.size > 0
-
     if (visiblePhases.length === 0 || sectionFields.length === 0) return null
 
-    // Summary for collapsed header — count hidden fields across all phases using representative stages
-    const summaryParts: string[] = []
     const hiddenAbas = visiblePhases.filter(p => (p.visible_in_card ?? true) === false).length
-    if (hiddenAbas > 0) summaryParts.push(`${hiddenAbas} aba(s) oculta(s)`)
-    if (hasDivergence) summaryParts.push(`${divergentFields.size} divergente(s)`)
-    const hasRules = summaryParts.length > 0
-    const summary = hasRules ? summaryParts.join(', ') : `${visiblePhases.length} abas configuráveis`
+    const hasRules = hiddenAbas > 0
+    const summary = hiddenAbas > 0
+        ? `${hiddenAbas} aba${hiddenAbas > 1 ? 's' : ''} escondida${hiddenAbas > 1 ? 's' : ''}`
+        : `${visiblePhases.length} fases`
 
     return (
         <div>
-            {/* Collapsible header — matching SectionFieldDefaultsPicker pattern */}
             <button
                 onClick={() => setOpen(prev => !prev)}
                 className="flex items-center gap-2 w-full text-left"
@@ -303,7 +225,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                     <Layers className="w-3.5 h-3.5" />
                 </span>
                 <span className={cn("text-xs font-medium", hasRules ? "text-indigo-700" : "text-muted-foreground")}>
-                    Campos por fase
+                    Campos desta seção por fase
                 </span>
                 <span className="text-[10px] text-muted-foreground/60 truncate">
                     — {summary}
@@ -316,7 +238,7 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
             {open && (
                 <div className="mt-2 ml-6 space-y-2">
                     <p className="text-[10px] text-muted-foreground/60 mb-2">
-                        Configure campos e visibilidade por fase. Aplica a todos os stages da fase.
+                        Marque quais campos aparecem em cada fase. A regra vale para todas as etapas dentro da fase.
                     </p>
 
                     {/* Phase tabs */}
@@ -357,26 +279,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                         </button>
                     )}
 
-                    {/* Divergence warning — manual normalize only */}
-                    {hasDivergence && (
-                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                            <span className="text-[11px] text-amber-700 flex-1">
-                                {normalizeMutation.isPending
-                                    ? 'Normalizando etapas...'
-                                    : `${divergentFields.size} campo(s) com config diferente entre etapas`
-                                }
-                            </span>
-                            <button
-                                onClick={() => normalizeMutation.mutate()}
-                                disabled={normalizeMutation.isPending}
-                                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
-                            >
-                                Normalizar
-                            </button>
-                        </div>
-                    )}
-
                     {/* Field list */}
                     <DndContext
                         sensors={sensors}
@@ -390,14 +292,12 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
                             <div className="space-y-0.5">
                                 {sectionFields.map(field => {
                                     const state = getFieldState(field.key)
-                                    const isDivergent = divergentFields.has(field.key)
 
                                     return (
                                         <SortablePhaseFieldRow
                                             key={field.key}
                                             fieldKey={field.key}
                                             label={field.label}
-                                            isDivergent={isDivergent}
                                             isVisible={state.isVisible}
                                             isRequired={state.isRequired}
                                             isSecondary={state.isSecondary}
@@ -422,7 +322,6 @@ export default function PhaseFieldConfigPanel({ sectionKey, stages, phases }: Ph
 interface SortablePhaseFieldRowProps {
     fieldKey: string
     label: string
-    isDivergent: boolean
     isVisible: boolean
     isRequired: boolean
     isSecondary: boolean
@@ -437,7 +336,6 @@ interface SortablePhaseFieldRowProps {
 function SortablePhaseFieldRow({
     fieldKey,
     label,
-    isDivergent,
     isVisible,
     isRequired,
     isSecondary,
@@ -470,7 +368,6 @@ function SortablePhaseFieldRow({
             style={style}
             className={cn(
                 "flex items-center gap-2 py-1 px-1 rounded",
-                isDivergent && "bg-amber-50/50",
                 isDragging && "bg-slate-100 shadow-sm"
             )}
         >
@@ -544,9 +441,6 @@ function SortablePhaseFieldRow({
             )}>
                 {label}
             </span>
-            {isDivergent && (
-                <span className="text-[10px] text-amber-600 font-medium">diverge</span>
-            )}
         </div>
     )
 }
