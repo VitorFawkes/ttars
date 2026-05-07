@@ -2541,6 +2541,18 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - nome/sobrenome: primeira letra maiuscula.
 - Campos dinamicos permitidos em "Campos permitidos no card" (ex: mkt_destino, ww_sdr_ajuda_familia): grave quando o cliente indicou explicitamente.
 
+### Captura de NOME (regra crítica — não pular)
+Quando o cliente DISSER seu nome ou sobrenome (em qualquer formato natural), isso NÃO é inferência, é fato literal: SEMPRE inclua em contact_patch.
+Exemplos que DEVEM virar contact_patch.nome:
+- "Sou o Vitor" / "Sou a Maria" → nome="Vitor" / nome="Maria"
+- "Aqui é o João" / "Aqui é a Ana" → nome="João" / nome="Ana"
+- "Meu nome é Pedro Silva" → nome="Pedro", sobrenome="Silva"
+- "Pode me chamar de Lu" → nome="Lu"
+- "Vitor Gambetti" / "Vitor falando" → nome="Vitor", sobrenome="Gambetti" (se houver)
+- "Tudo bem? Vitor aqui" → nome="Vitor"
+NÃO pular essa captura mesmo que a mensagem misture cumprimento + nome ("Oi, sou o Vitor"). Sempre que o cliente revelar identidade pela primeira vez, gravar.
+Não gravar nome/sobrenome se o cliente NÃO disse explicitamente (ex: nome no perfil do WhatsApp não conta).
+
 ### Avanco de stage (so se NAO for traveler)
 - Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
 - Se ja ha sinal deterministico que avançou, NAO tente avançar de novo.
@@ -3146,7 +3158,9 @@ Analise a resposta abaixo e verifique:
 6. Rejeita/desqualifica lead na primeira mensagem ou sem investigar? → BLOQUEIA (na duvida, avançar)
 7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer só isso? → CORRIJA
 8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
-9. Empilha 3+ perguntas soltas sobre temas diferentes na mesma mensagem? → CORRIJA mantendo no máximo 2 perguntas relacionadas
+9. Empilha perguntas de temas DIFERENTES na mesma mensagem? → CORRIJA. Permitido: 2 perguntas COMPLEMENTARES sobre o MESMO tema (ex: "alguma região em mente? E qual cidade dentro dela?"). PROIBIDO: 2+ perguntas sobre temas distintos (data + destino, convidados + orçamento, nome + email são temas diferentes). Quando detectar, mantenha APENAS a pergunta mais importante do turno e remova as outras.
+10. Lead fez pergunta social na última mensagem ("e você?", "tudo bem?", "como vai?", "td bem?", "como você está?") e a resposta NÃO ecoa essa pergunta antes de continuar? → CORRIJA inserindo uma frase curta natural respondendo a pergunta social ANTES do conteúdo principal. Ex: lead diz "Bem e você?", a resposta DEVE começar com algo como "Tudo ótimo por aqui, obrigada!" antes de seguir o roteiro.
+11. Lead disse seu nome explicitamente ("Aqui é o Vitor", "Sou a Maria", "Meu nome é Ana") e a resposta NÃO usa o nome dele em nenhum lugar? → CORRIJA inserindo o nome do lead naturalmente ao menos uma vez (ex: "Prazer, Vitor.", "Legal te conhecer, Maria.") antes de seguir o conteúdo.
 ${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
 ${rulesBlock}
 RESPOSTA a validar:

@@ -940,7 +940,23 @@ function CriterionRow({
     ativa !== rule.ativa ||
     JSON.stringify(conditionValue) !== JSON.stringify(rule.condition_value)
 
+  // Validação: regras ai_subjective precisam de pergunta não-vazia. Sem
+  // pergunta o avaliador retorna 0 silenciosamente (bug histórico — Vitor
+  // criou regras com pergunta vazia e elas nunca disparavam).
+  const questionEmpty =
+    rule.condition_type === 'ai_subjective' &&
+    !((conditionValue as { question?: string })?.question ?? '').trim()
+  const labelEmpty = !label.trim()
+  const saveBlocked = questionEmpty || labelEmpty
+
   const handleSave = async () => {
+    if (saveBlocked) {
+      if (questionEmpty) toast.error('Preencha a pergunta antes de salvar — ela é o que a IA usa para avaliar este critério.')
+      else if (labelEmpty) toast.error('Dê um nome (label) ao critério antes de salvar.')
+      // Abre o painel avançado pra mostrar onde está o erro
+      if (questionEmpty && !showAdvanced) setShowAdvanced(true)
+      return
+    }
     setIsSaving(true)
     try {
       await onSave({
@@ -1018,12 +1034,21 @@ function CriterionRow({
       {showAdvanced && (
         <div className="border-t border-slate-200 px-3 py-3 space-y-3 bg-slate-50/30">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">{conditionLabel[rule.condition_type]}</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              {conditionLabel[rule.condition_type]}
+              {rule.condition_type === 'ai_subjective' && <span className="text-red-600 ml-1">*</span>}
+            </label>
             <ConditionEditor
               type={rule.condition_type}
               value={conditionValue}
               onChange={setConditionValue}
+              hasError={questionEmpty}
             />
+            {questionEmpty && (
+              <p className="text-[11px] text-red-600 mt-1">
+                Sem pergunta a IA não consegue avaliar este critério (resultado fica sempre em zero). Preencha antes de salvar.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1066,8 +1091,9 @@ function CriterionRow({
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={isSaving}
-              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isSaving || saveBlocked}
+              title={saveBlocked ? (questionEmpty ? 'Preencha a pergunta primeiro' : 'Preencha o nome primeiro') : undefined}
+              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-300"
             >
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               Salvar
@@ -1087,12 +1113,14 @@ function ConditionEditor({
   type,
   value,
   onChange,
+  hasError,
 }: {
   type: ConditionType
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (v: any) => void
+  hasError?: boolean
 }) {
   if (type === 'ai_subjective') {
     return (
@@ -1101,7 +1129,12 @@ function ConditionEditor({
         onChange={(e) => onChange({ question: e.target.value })}
         placeholder='ex: "O casal mencionou que quer casar no Caribe?"'
         rows={3}
-        className="w-full border border-slate-300 rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+        className={cn(
+          'w-full border rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 resize-y',
+          hasError
+            ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-500'
+            : 'border-slate-300 focus:ring-indigo-500',
+        )}
       />
     )
   }
