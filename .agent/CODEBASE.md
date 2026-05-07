@@ -7,12 +7,12 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 149 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
 
 ---
 
@@ -492,7 +492,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **149 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **150 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -568,6 +568,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CronRoteamentoDetailPage` | `src/pages/admin/automations/CronRoteamentoDetailPage.tsx` |
 | `NewAutomationPage` | `src/pages/admin/automations/NewAutomationPage.tsx` |
 | `WorkflowEditorPage` | `src/pages/admin/automations/v2/WorkflowEditorPage.tsx` |
+| `DeletableEdge` | `src/pages/admin/automations/v2/edges/DeletableEdge.tsx` |
 | `CardActionEditors` | `src/pages/admin/automations/v2/editors/CardActionEditors.tsx` |
 | `EditorRouter` | `src/pages/admin/automations/v2/editors/EditorRouter.tsx` |
 | `FlowEditors` | `src/pages/admin/automations/v2/editors/FlowEditors.tsx` |

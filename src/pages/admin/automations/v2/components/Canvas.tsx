@@ -17,6 +17,7 @@ import '@xyflow/react/dist/style.css'
 
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { NODE_TYPES } from '../nodes/BaseNode'
+import { EDGE_TYPES } from '../edges/DeletableEdge'
 import type { WorkflowNode, WorkflowNodeType } from '../types'
 
 export const Canvas: React.FC = () => {
@@ -65,6 +66,7 @@ export const Canvas: React.FC = () => {
                 onNodeClick={(_, node) => selectNode(node.id)}
                 onPaneClick={() => selectNode(null)}
                 nodeTypes={NODE_TYPES}
+                edgeTypes={EDGE_TYPES}
                 fitView
                 proOptions={{ hideAttribution: true }}
                 defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
