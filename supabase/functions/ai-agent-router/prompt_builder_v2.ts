@@ -584,11 +584,15 @@ function renderOneMoment(
           : ' [extra — só pergunta se a conversa fluir natural; nunca trava]';
       const ico = slot.icon ? `${slot.icon} ` : '';
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
+      const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
+      if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
+        lines.push(`        Contexto/cobertura desta pergunta: ${coverageNotes.trim()}`);
+      }
       if (slot.questions && slot.questions.length > 0) {
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
         slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
       } else {
-        lines.push(`        Sem pergunta escrita — formule a pergunta natural baseada no contexto.`);
+        lines.push(`        Sem pergunta escrita — formule a pergunta natural respeitando o contexto/cobertura acima.`);
       }
       if (slot.crm_field_key) {
         lines.push(`        (registra em ${slot.crm_field_key})`);

@@ -24,6 +24,15 @@ export interface DiscoverySlot {
   priority?: SlotPriority
   /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
   questions: string[]
+  /**
+   * Notas pro agente sobre o que essa pergunta PRECISA cobrir: que dados
+   * extrair, que clarificações exigir, formato esperado, edge cases. Usado
+   * especialmente quando `questions` está vazio (improvisação) — guia a IA
+   * a fazer a pergunta certa sem copiar texto literal.
+   * Ex: "precisa de mês E ano. Não aceita 'no fim do ano' — confirme mês
+   * específico. Se cliente disser só 'janeiro', pergunte qual ano."
+   */
+  coverage_notes?: string | null
   /** Liga ao campo do CRM (system_fields.field_key) — usado pra ligação visual com critérios. */
   crm_field_key?: string | null
 }
