@@ -614,6 +614,10 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                                     const label = meta?.field_label || (meta?.field_key ? humanizeKey(meta.field_key) : null)
                                                     if (label) return `${label} alterado`
                                                 }
+                                                // Para title_changed, descrição curta — old/new aparecem nos badges abaixo
+                                                if (activity.tipo === 'title_changed') {
+                                                    return 'Título alterado'
+                                                }
                                                 return activity.descricao
                                             })()}</p>
                                             {activity.party_type === 'supplier' && (
@@ -625,16 +629,26 @@ export default function ActivityFeed({ cardId, filters }: ActivityFeedProps) {
                                         {(() => {
                                             const detail = getChangeDetail(activity.tipo!, activity.metadata)
                                             if (!detail || (!detail.oldVal && !detail.newVal)) return null
+                                            const isTitle = activity.tipo === 'title_changed'
+                                            const oldClass = isTitle
+                                                ? 'px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-full break-words'
+                                                : 'px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-[140px] truncate'
+                                            const newClass = isTitle
+                                                ? 'px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-full break-words'
+                                                : 'px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-[180px] truncate'
+                                            const wrapperClass = isTitle
+                                                ? 'mt-1 flex flex-col items-start gap-1 text-[11px]'
+                                                : 'mt-1 flex items-center gap-1.5 text-[11px]'
                                             return (
-                                                <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                                                <div className={wrapperClass}>
                                                     {detail.oldVal && (
-                                                        <span className="px-1.5 py-0.5 bg-red-50 text-red-700 rounded line-through max-w-[140px] truncate" title={detail.oldVal}>
+                                                        <span className={oldClass} title={detail.oldVal}>
                                                             {detail.oldVal}
                                                         </span>
                                                     )}
-                                                    <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                                    {!isTitle && <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />}
                                                     {detail.newVal && (
-                                                        <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded font-medium max-w-[180px] truncate" title={detail.newVal}>
+                                                        <span className={newClass} title={detail.newVal}>
                                                             {detail.newVal}
                                                         </span>
                                                     )}
