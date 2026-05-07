@@ -1,11 +1,12 @@
-import { Phone, Clock, Flag, CheckCircle, MessageSquare, ShieldCheck, FileText } from 'lucide-react';
+import { Phone, Clock, Flag, CheckCircle, MessageSquare, ShieldCheck, FileText, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { EchoBadge } from '@/components/automations/EchoBadge';
 
 interface CadenceStep {
     id: string;
     step_order: number;
     step_key: string;
-    step_type: 'task' | 'wait' | 'end' | 'message';
+    step_type: 'task' | 'wait' | 'end' | 'message' | 'send_media' | 'echo_action';
     day_offset?: number | null;
     task_config: {
         tipo?: string;
@@ -25,8 +26,29 @@ interface CadenceStep {
         hsm_template_name?: string | null;
         corpo?: string | null;
     } | null;
+    media_config?: {
+        media_url?: string | null;
+        mime_type?: string | null;
+        filename?: string | null;
+    } | null;
+    echo_config?: {
+        action?: string;
+        status?: string;
+        tag_id?: string | null;
+    } | null;
     requires_previous_completed?: boolean;
 }
+
+const ECHO_ACTION_LABEL: Record<string, string> = {
+    assign: 'Atribuir',
+    release: 'Liberar',
+    close: 'Fechar',
+    set_status: 'Mudar status',
+    add_tag: 'Adicionar tag',
+    remove_tag: 'Remover tag',
+    add_co_owner: 'Adicionar co-owner',
+    remove_co_owner: 'Remover co-owner',
+};
 
 interface DayPattern {
     days: number[];
@@ -62,6 +84,10 @@ export function CadenceTimeline({
                 return <Flag className="w-4 h-4" />;
             case 'message':
                 return <MessageSquare className="w-4 h-4" />;
+            case 'send_media':
+                return <ImageIcon className="w-4 h-4" />;
+            case 'echo_action':
+                return <EchoBadge iconOnly size={14} />;
             default:
                 return null;
         }
@@ -75,6 +101,10 @@ export function CadenceTimeline({
                 return 'bg-amber-500';
             case 'message':
                 return 'bg-emerald-500';
+            case 'send_media':
+                return 'bg-teal-500';
+            case 'echo_action':
+                return 'bg-violet-500';
             case 'end':
                 if (result === 'success') return 'bg-green-500';
                 if (result === 'failure' || result === 'ghosting') return 'bg-red-500';
@@ -92,6 +122,10 @@ export function CadenceTimeline({
                 return 'bg-amber-50 border-amber-200';
             case 'message':
                 return 'bg-emerald-50 border-emerald-200';
+            case 'send_media':
+                return 'bg-teal-50 border-teal-200';
+            case 'echo_action':
+                return 'bg-violet-50 border-violet-200';
             case 'end':
                 if (result === 'success') return 'bg-green-50 border-green-200';
                 if (result === 'failure' || result === 'ghosting') return 'bg-red-50 border-red-200';
@@ -156,6 +190,17 @@ export function CadenceTimeline({
                     <span>Mensagem</span>
                 </div>
                 <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-teal-500" />
+                    <span>Mídia</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-violet-500" />
+                    <span className="flex items-center gap-1">
+                        <EchoBadge iconOnly size={10} />
+                        Ação Echo
+                    </span>
+                </div>
+                <div className="flex items-center gap-1">
                     <div className="w-3 h-3 rounded-full bg-amber-500" />
                     <span>Espera</span>
                 </div>
@@ -207,6 +252,8 @@ export function CadenceTimeline({
                                                         ? `Mensagem (HSM ${step.message_config?.hsm_template_name || ''})`
                                                         : 'Mensagem (texto livre)'
                                                 )}
+                                                {step.step_type === 'send_media' && (step.media_config?.filename || 'Enviar mídia')}
+                                                {step.step_type === 'echo_action' && (ECHO_ACTION_LABEL[step.echo_config?.action || ''] || 'Ação Echo')}
                                             </span>
                                         </div>
 
@@ -251,6 +298,18 @@ export function CadenceTimeline({
                                                     )}
                                                 </>
                                             )}
+                                            {step.step_type === 'send_media' && (
+                                                <Badge className="bg-teal-100 text-teal-700 text-xs flex items-center gap-1">
+                                                    <ImageIcon className="w-3 h-3" />
+                                                    {step.media_config?.mime_type || 'mídia'}
+                                                </Badge>
+                                            )}
+                                            {step.step_type === 'echo_action' && (
+                                                <Badge className="bg-violet-100 text-violet-700 text-xs flex items-center gap-1">
+                                                    <EchoBadge iconOnly size={10} />
+                                                    Echo
+                                                </Badge>
+                                            )}
                                             {step.step_type === 'end' && (
                                                 <>
                                                     <Badge className={`text-xs ${
@@ -293,6 +352,14 @@ export function CadenceTimeline({
                     <div>
                         <span className="font-medium">{steps.filter(s => s.step_type === 'message').length}</span>
                         <span className="text-slate-400 ml-1">mensagens</span>
+                    </div>
+                    <div>
+                        <span className="font-medium">{steps.filter(s => s.step_type === 'send_media').length}</span>
+                        <span className="text-slate-400 ml-1">mídias</span>
+                    </div>
+                    <div>
+                        <span className="font-medium">{steps.filter(s => s.step_type === 'echo_action').length}</span>
+                        <span className="text-slate-400 ml-1">ações Echo</span>
                     </div>
                     <div>
                         <span className="font-medium">{steps.filter(s => s.step_type === 'wait').length}</span>

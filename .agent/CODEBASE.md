@@ -7,12 +7,12 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
-> **Stats:** 191 tabelas | 143 paginas | 235 hooks | 22 views | 656 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
 
 ---
 
@@ -174,7 +174,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **235 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **236 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -292,6 +292,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useDebouncedValue()` | `useDebouncedValue.ts` |
+| `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |

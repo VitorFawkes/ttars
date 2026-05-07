@@ -284,6 +284,30 @@ serve(async (req) => {
                 });
             }
 
+            case 'echo_proxy': {
+                // Proxy autenticado pra Echo API. Whitelist de paths/métodos
+                // pra evitar abuso (não expor mutations sensíveis sem rota dedicada).
+                const allowed = new Set([
+                    'GET /tags',
+                    'GET /close-reasons',
+                    'GET /phone-numbers',
+                ]);
+                const proxyMethod = (body.method || 'GET').toUpperCase();
+                const proxyPath = body.path || '';
+                const key = `${proxyMethod} ${proxyPath}`;
+                if (!allowed.has(key)) {
+                    return new Response(
+                        JSON.stringify({ error: `echo_proxy: rota não permitida — ${key}` }),
+                        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                    );
+                }
+                const proxyResult = await callEchoApi(proxyMethod as 'GET', proxyPath);
+                return new Response(JSON.stringify(proxyResult.data), {
+                    status: proxyResult.status,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
 
             default:
                 // Default: Process both queues
@@ -541,6 +565,10 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 result = await executeUpdateFieldAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'trigger_n8n_webhook') {
                 result = await executeTriggerN8nWebhookAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'send_media') {
+                result = await executeSendMediaAction(supabaseClient, item.card_id, trigger, item.org_id);
+            } else if (trigger.action_type === 'echo_action') {
+                result = await executeEchoActionAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else {
                 throw new Error(`Unknown action type: ${trigger.action_type}`);
             }
@@ -1087,6 +1115,104 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     }
 
     return { sent: true, sendMode, body: messageBody, response: respData, wamid, whatsappMessageRowId: ownRowId || null };
+}
+
+// ============================================================================
+// Echo API: helpers para gestão de conversa (assign, release, close, tags, ...)
+// ============================================================================
+// Documentação: docs/echo-api.md
+// ----------------------------------------------------------------------------
+// callEchoApi: wrapper genérico autenticado.
+//   - method: GET/POST/PATCH/DELETE
+//   - path:   começando com '/' (ex: '/conversations/<id>/assign')
+//   - body:   objeto pra POST/PATCH (omite no GET/DELETE)
+// Retorna { ok, status, data } sem lançar — chamadores decidem se erro é fatal.
+// ----------------------------------------------------------------------------
+async function callEchoApi(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    path: string,
+    body?: Record<string, unknown>,
+): Promise<{ ok: boolean; status: number; data: any }> {
+    const echoApiUrl = Deno.env.get("ECHO_API_URL") ?? "";
+    const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
+    const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
+    const url = `${echoBase}${path.startsWith('/') ? path : '/' + path}`;
+
+    const headers: Record<string, string> = { 'x-api-key': echoApiKey };
+    let init: RequestInit = { method, headers };
+    if (body !== undefined && method !== 'GET' && method !== 'DELETE') {
+        headers['Content-Type'] = 'application/json';
+        init = { ...init, body: JSON.stringify(body) };
+    }
+    const res = await fetch(url, init);
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+}
+
+// ----------------------------------------------------------------------------
+// resolveEchoConversationId: dado um card, retorna a conversation_id Echo
+// mais recente associada. Se nenhuma mensagem foi trocada ainda e
+// `createIfMissing` for true, cria conversa via POST /conversations.
+// ----------------------------------------------------------------------------
+async function resolveEchoConversationId(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    options?: { createIfMissing?: boolean; phoneNumberId?: string | null },
+): Promise<string | null> {
+    const { data: lastMsg } = await supabaseClient
+        .from('whatsapp_messages')
+        .select('conversation_id')
+        .eq('card_id', cardId)
+        .not('conversation_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (lastMsg?.conversation_id) return lastMsg.conversation_id as string;
+
+    if (!options?.createIfMissing) return null;
+
+    // Sem conversa: cria via POST /conversations usando contato titular do card
+    const { data: cardContatos } = await supabaseClient
+        .from('cards_contatos')
+        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+        .eq('card_id', cardId)
+        .order('ordem', { ascending: true });
+    const principal = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
+    const contato: any = principal?.contatos;
+    if (!contato?.telefone) return null;
+    const phone = (contato.telefone as string).replace(/\D/g, '');
+    const phoneNumberId = options.phoneNumberId || Deno.env.get('ECHO_PHONE_NUMBER_ID') || '';
+    if (!phoneNumberId) return null;
+
+    const created = await callEchoApi('POST', '/conversations', {
+        contact_phone: phone,
+        contact_name: contato.nome || phone,
+        phone_number_id: phoneNumberId,
+    });
+    if (!created.ok) {
+        console.warn('[cadence-engine] Failed to create Echo conversation:', created.status, created.data);
+        return null;
+    }
+    return created.data?.conversation?.id || null;
+}
+
+// ----------------------------------------------------------------------------
+// resolveEchoUserId: TTARS profile.id → Echo external_user_id.
+// Lookup em integration_user_map. Retorna null se não houver mapping.
+// ----------------------------------------------------------------------------
+async function resolveEchoUserId(
+    supabaseClient: SupabaseClient,
+    profileId: string,
+): Promise<string | null> {
+    if (!profileId) return null;
+    const { data } = await supabaseClient
+        .from('integration_user_map')
+        .select('external_user_id')
+        .eq('internal_user_id', profileId)
+        .limit(1)
+        .maybeSingle();
+    return (data?.external_user_id as string) || null;
 }
 
 // ----------------------------------------------------------------------------
@@ -1719,6 +1845,174 @@ async function executeTriggerN8nWebhookAction(
     return { fired: true, status, url_host: parsed.host };
 }
 
+// ----------------------------------------------------------------------------
+// send_media (entry trigger): envia mídia via Echo /send-image (modo URL).
+// trigger.action_config: { media_url, mime_type, filename?, caption?, phone_number_id }
+// ----------------------------------------------------------------------------
+async function executeSendMediaAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string,
+) {
+    const cfg = trigger.action_config || {};
+    const mediaUrl: string | undefined = cfg.media_url;
+    const mimeType: string | undefined = cfg.mime_type;
+    if (!mediaUrl || !mimeType) {
+        return { skipped: true, reason: 'missing_media_url_or_mime' };
+    }
+
+    const { data: cardContatos } = await supabaseClient
+        .from('cards_contatos')
+        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+        .eq('card_id', cardId)
+        .order('ordem', { ascending: true });
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
+    const contato: any = principalRow?.contatos;
+    if (!contato?.telefone) return { skipped: true, reason: 'no_phone' };
+
+    const { data: card } = await supabaseClient
+        .from('cards').select('titulo').eq('id', cardId).single();
+
+    const phone = (contato.telefone as string).replace(/\D/g, '');
+    const phoneNumberId: string = cfg.phone_number_id || Deno.env.get('ECHO_PHONE_NUMBER_ID') || '';
+    if (!phoneNumberId) {
+        throw new Error("phone_number_id ausente — automação precisa escolher uma linha WhatsApp explicitamente no builder");
+    }
+
+    const firstName = (contato.nome || '').split(' ')[0] || '';
+    const renderVars = (s: string) => s
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
+    const caption = cfg.caption ? renderVars(cfg.caption) : null;
+
+    const result = await callEchoApi('POST', '/send-image', {
+        to: phone,
+        phone_number_id: phoneNumberId,
+        media_url: mediaUrl,
+        mime_type: mimeType,
+        filename: cfg.filename || null,
+        caption: caption || null,
+    });
+
+    await supabaseClient.from('cadence_event_log').insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: result.ok ? 'entry_rule_media_sent' : 'entry_rule_media_failed',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            mime_type: mimeType,
+            filename: cfg.filename || null,
+            wamid: result.data?.whatsapp_message_id || null,
+            contact_id: contato.id,
+        },
+        action_taken: 'send_media',
+        action_result: result.data,
+    });
+
+    return { sent: result.ok, response: result.data };
+}
+
+// ----------------------------------------------------------------------------
+// echo_action (entry trigger): assign/release/close/set_status/tags/co-owners.
+// trigger.action_config: { action, ...params }
+// ----------------------------------------------------------------------------
+async function executeEchoActionAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string,
+) {
+    const cfg = trigger.action_config || {};
+    const subAction: string = cfg.action;
+    if (!subAction) return { skipped: true, reason: 'missing_action' };
+
+    const conversationId = await resolveEchoConversationId(supabaseClient, cardId, {
+        createIfMissing: true,
+        phoneNumberId: cfg.phone_number_id || null,
+    });
+    if (!conversationId) return { skipped: true, reason: 'no_conversation' };
+
+    let externalUserId: string | null = null;
+    const needsUser = ['assign', 'add_co_owner', 'remove_co_owner'].includes(subAction);
+    if (needsUser) {
+        let ttarsUserId: string | null = cfg.user_id || null;
+        if (subAction === 'assign' && cfg.assign_to === 'card_owner') {
+            const { data: card } = await supabaseClient
+                .from('cards').select('dono_atual_id').eq('id', cardId).single();
+            ttarsUserId = card?.dono_atual_id || null;
+        }
+        if (ttarsUserId) {
+            externalUserId = await resolveEchoUserId(supabaseClient, ttarsUserId);
+        }
+        if (!externalUserId) return { skipped: true, reason: 'no_echo_user_mapping' };
+    }
+
+    let result: { ok: boolean; status: number; data: any };
+
+    switch (subAction) {
+        case 'assign':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/assign`, { user_id: externalUserId });
+            break;
+        case 'release':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/release`);
+            break;
+        case 'close':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/close`,
+                cfg.reason ? { reason: cfg.reason } : {});
+            break;
+        case 'set_status': {
+            const status: string = cfg.status;
+            if (!['active', 'waiting', 'closed'].includes(status)) {
+                throw new Error(`echo_action.set_status: status inválido "${status}"`);
+            }
+            const patch: Record<string, unknown> = { status };
+            if (status === 'closed' && cfg.reason) patch.close_reason = cfg.reason;
+            result = await callEchoApi('PATCH', `/conversations/${conversationId}`, patch);
+            break;
+        }
+        case 'add_tag':
+            if (!cfg.tag_id) throw new Error('echo_action.add_tag: tag_id obrigatório');
+            result = await callEchoApi('POST', `/conversations/${conversationId}/tags`, { tag_id: cfg.tag_id });
+            break;
+        case 'remove_tag':
+            if (!cfg.tag_id) throw new Error('echo_action.remove_tag: tag_id obrigatório');
+            result = await callEchoApi('DELETE', `/conversations/${conversationId}/tags?tag_id=${encodeURIComponent(cfg.tag_id)}`);
+            break;
+        case 'add_co_owner':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/co-owners`, { user_id: externalUserId });
+            break;
+        case 'remove_co_owner':
+            result = await callEchoApi('DELETE', `/conversations/${conversationId}/co-owners?user_id=${encodeURIComponent(externalUserId!)}`);
+            break;
+        default:
+            throw new Error(`echo_action: sub-action desconhecida "${subAction}"`);
+    }
+
+    await supabaseClient.from('cadence_event_log').insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: result.ok ? 'entry_rule_echo_done' : 'entry_rule_echo_failed',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            sub_action: subAction,
+            conversation_id: conversationId,
+            external_user_id: externalUserId,
+            tag_id: cfg.tag_id || null,
+            status: cfg.status || null,
+        },
+        action_taken: `echo_${subAction}`,
+        action_result: result.data,
+    });
+
+    return { ok: result.ok, sub_action: subAction };
+}
+
 // ============================================================================
 // Day Pattern Helpers
 // ============================================================================
@@ -1803,6 +2097,12 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
 
         case 'message':
             return await executeMessageStep(supabaseClient, instance, step, card);
+
+        case 'send_media':
+            return await executeMediaStep(supabaseClient, instance, step, card);
+
+        case 'echo_action':
+            return await executeEchoActionStep(supabaseClient, instance, step, card);
 
         default:
             throw new Error(`Unknown step type: ${step.step_type}`);
@@ -2386,27 +2686,317 @@ async function advanceAfterMessageStep(
     instance: any,
     step: any,
 ) {
+    return advanceLinearStep(supabaseClient, instance, step);
+}
+
+// Avança após qualquer step "auto-completo" (message, send_media, echo_action).
+// - blocks: não faz nada (avanço por handleTaskOutcome)
+// - linear: agenda next_step_key honrando wait_config.duration_minutes
+async function advanceLinearStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+) {
     const execMode = instance.template?.execution_mode || 'linear';
-    if (execMode === 'blocks') {
-        // Em blocks o avanço é coordenado pelo handleTaskOutcome — não fazemos nada aqui.
-        // (steps de mensagem em blocks ficam pra iteração futura)
-        return;
-    }
+    if (execMode === 'blocks') return;
     if (step.next_step_key) {
-        // Próximo step: se for 'wait', ele mesmo agenda; se for outro 'message',
-        // executamos imediatamente (delay 0). O wait entre mensagens deve ser
-        // modelado como step do tipo 'wait' separado, ou como wait_config no
-        // próprio step de mensagem (consumido aqui).
         const waitMin = step.wait_config?.duration_minutes;
         const delay = typeof waitMin === 'number' && waitMin > 0 ? waitMin : 0;
         await scheduleNextStep(supabaseClient, instance, step.next_step_key, delay);
     } else {
-        // Sem next_step_key — completar cadência
         await supabaseClient
             .from('cadence_instances')
             .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', instance.id);
     }
+}
+
+// Verifica se a cadência deve ser cancelada porque o card saiu da etapa
+// inicial (auto_cancel_on_stage_change). Compartilhado por message/media/echo.
+// Retorna true se cancelou.
+async function maybeCancelOnStageChange(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    card: any,
+    stepKey: string,
+): Promise<boolean> {
+    const template = instance.template || {};
+    const initialStageId: string | null = instance.context?.initial_stage_id || null;
+    if (!template.auto_cancel_on_stage_change || !initialStageId) return false;
+    if (!card.pipeline_stage_id || card.pipeline_stage_id === initialStageId) return false;
+
+    await supabaseClient
+        .from('cadence_instances')
+        .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancelled_reason: 'card_left_initial_stage',
+        })
+        .eq('id', instance.id);
+    await supabaseClient
+        .from('cadence_queue')
+        .update({ status: 'cancelled' })
+        .eq('instance_id', instance.id)
+        .in('status', ['pending', 'processing']);
+    await logEvent(supabaseClient, {
+        instance_id: instance.id,
+        card_id: card.id,
+        event_type: 'cadence_cancelled',
+        event_source: 'cadence_engine',
+        event_data: {
+            reason: 'card_left_initial_stage',
+            initial_stage_id: initialStageId,
+            current_stage_id: card.pipeline_stage_id,
+            step_key: stepKey,
+        },
+        action_taken: 'cancel_cadence',
+    });
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// executeMediaStep: envia mídia (imagem/vídeo/doc) via Echo /send-image
+// (modo URL JSON — upload multipart fica para uso manual fora de automação).
+// ----------------------------------------------------------------------------
+async function executeMediaStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+    card: any,
+) {
+    if (await maybeCancelOnStageChange(supabaseClient, instance, card, step.step_key)) {
+        return { skipped: true, reason: 'card_left_initial_stage' };
+    }
+
+    const config = step.media_config || {};
+    const mediaUrl: string | undefined = config.media_url;
+    const mimeType: string | undefined = config.mime_type;
+    if (!mediaUrl || !mimeType) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id, card_id: card.id,
+            event_type: 'cadence_step_media_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'missing_media_url_or_mime' },
+            action_taken: 'skip',
+        });
+        await advanceLinearStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'missing_media_url_or_mime' };
+    }
+
+    // Resolver contato titular do card
+    const { data: cardContatos } = await supabaseClient
+        .from('cards_contatos')
+        .select('contato_id, tipo_viajante, ordem, contatos:contato_id ( id, nome, telefone )')
+        .eq('card_id', card.id)
+        .order('ordem', { ascending: true });
+    const principalRow = (cardContatos || []).find((r: any) => r.tipo_viajante === 'titular') || (cardContatos || [])[0];
+    const contato: any = principalRow?.contatos;
+    if (!contato?.telefone) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id, card_id: card.id,
+            event_type: 'cadence_step_media_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'no_phone' },
+            action_taken: 'skip',
+        });
+        await advanceLinearStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'no_phone' };
+    }
+
+    const phone = (contato.telefone as string).replace(/\D/g, '');
+    const phoneNumberId: string = config.phone_number_id || Deno.env.get('ECHO_PHONE_NUMBER_ID') || '';
+    if (!phoneNumberId) {
+        throw new Error(`Step ${step.step_key}: phone_number_id ausente em media_config`);
+    }
+
+    // Render variáveis em caption
+    const firstName = (contato.nome || '').split(' ')[0] || '';
+    const renderVars = (s: string) => s
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+    const caption = config.caption ? renderVars(config.caption) : null;
+
+    const result = await callEchoApi('POST', '/send-image', {
+        to: phone,
+        phone_number_id: phoneNumberId,
+        media_url: mediaUrl,
+        mime_type: mimeType,
+        filename: config.filename || null,
+        caption: caption || null,
+    });
+
+    const ok = result.ok || !!result.data?.whatsapp_message_id;
+
+    await logEvent(supabaseClient, {
+        instance_id: instance.id, card_id: card.id,
+        event_type: ok ? 'cadence_step_media_sent' : 'cadence_step_media_failed',
+        event_source: 'cadence_engine',
+        event_data: {
+            step_key: step.step_key,
+            step_order: step.step_order,
+            mime_type: mimeType,
+            filename: config.filename || null,
+            wamid: result.data?.whatsapp_message_id || null,
+            contact_id: contato.id,
+        },
+        action_taken: ok ? 'send_media' : 'fail_send_media',
+        action_result: result.data,
+    });
+
+    if (ok) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({
+                total_contacts_attempted: (instance.total_contacts_attempted || 0) + 1,
+                successful_contacts: (instance.successful_contacts || 0) + 1,
+                current_step_id: step.id,
+                status: 'active',
+            })
+            .eq('id', instance.id);
+    }
+
+    await advanceLinearStep(supabaseClient, instance, step);
+    return { sent: ok, response: result.data };
+}
+
+// ----------------------------------------------------------------------------
+// executeEchoActionStep: ações de gestão de conversa Echo
+// (assign, release, close, set_status, add_tag, remove_tag, add/remove co_owner).
+// echo_config: { action, ...params específicos }
+// ----------------------------------------------------------------------------
+async function executeEchoActionStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+    card: any,
+) {
+    if (await maybeCancelOnStageChange(supabaseClient, instance, card, step.step_key)) {
+        return { skipped: true, reason: 'card_left_initial_stage' };
+    }
+
+    const config = step.echo_config || {};
+    const subAction: string = config.action;
+    if (!subAction) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id, card_id: card.id,
+            event_type: 'cadence_step_echo_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'missing_action' },
+            action_taken: 'skip',
+        });
+        await advanceLinearStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'missing_action' };
+    }
+
+    const conversationId = await resolveEchoConversationId(supabaseClient, card.id, {
+        createIfMissing: true,
+        phoneNumberId: config.phone_number_id || null,
+    });
+
+    if (!conversationId) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id, card_id: card.id,
+            event_type: 'cadence_step_echo_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'no_conversation', sub_action: subAction },
+            action_taken: 'skip',
+        });
+        await advanceLinearStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'no_conversation' };
+    }
+
+    // Resolver TTARS profile → Echo external_user_id quando o sub-action precisa
+    let externalUserId: string | null = null;
+    const needsUser = ['assign', 'add_co_owner', 'remove_co_owner'].includes(subAction);
+    if (needsUser) {
+        let ttarsUserId: string | null = config.user_id || null;
+        if (subAction === 'assign' && config.assign_to === 'card_owner') {
+            ttarsUserId = card.dono_atual_id || null;
+        }
+        if (ttarsUserId) {
+            externalUserId = await resolveEchoUserId(supabaseClient, ttarsUserId);
+        }
+        if (!externalUserId) {
+            await logEvent(supabaseClient, {
+                instance_id: instance.id, card_id: card.id,
+                event_type: 'cadence_step_echo_skipped',
+                event_source: 'cadence_engine',
+                event_data: { step_key: step.step_key, reason: 'no_echo_user_mapping', ttars_user_id: ttarsUserId, sub_action: subAction },
+                action_taken: 'skip',
+            });
+            await advanceLinearStep(supabaseClient, instance, step);
+            return { skipped: true, reason: 'no_echo_user_mapping' };
+        }
+    }
+
+    let result: { ok: boolean; status: number; data: any };
+
+    switch (subAction) {
+        case 'assign':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/assign`, { user_id: externalUserId });
+            break;
+        case 'release':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/release`);
+            break;
+        case 'close':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/close`,
+                config.reason ? { reason: config.reason } : {});
+            break;
+        case 'set_status': {
+            const status: string = config.status;
+            if (!['active', 'waiting', 'closed'].includes(status)) {
+                throw new Error(`echo_action.set_status: status inválido "${status}"`);
+            }
+            const patch: Record<string, unknown> = { status };
+            if (status === 'closed' && config.reason) patch.close_reason = config.reason;
+            result = await callEchoApi('PATCH', `/conversations/${conversationId}`, patch);
+            break;
+        }
+        case 'add_tag':
+            if (!config.tag_id) throw new Error('echo_action.add_tag: tag_id obrigatório');
+            result = await callEchoApi('POST', `/conversations/${conversationId}/tags`, { tag_id: config.tag_id });
+            break;
+        case 'remove_tag':
+            if (!config.tag_id) throw new Error('echo_action.remove_tag: tag_id obrigatório');
+            result = await callEchoApi('DELETE', `/conversations/${conversationId}/tags?tag_id=${encodeURIComponent(config.tag_id)}`);
+            break;
+        case 'add_co_owner':
+            result = await callEchoApi('POST', `/conversations/${conversationId}/co-owners`, { user_id: externalUserId });
+            break;
+        case 'remove_co_owner':
+            result = await callEchoApi('DELETE', `/conversations/${conversationId}/co-owners?user_id=${encodeURIComponent(externalUserId!)}`);
+            break;
+        default:
+            throw new Error(`echo_action: sub-action desconhecida "${subAction}"`);
+    }
+
+    await logEvent(supabaseClient, {
+        instance_id: instance.id, card_id: card.id,
+        event_type: result.ok ? 'cadence_step_echo_done' : 'cadence_step_echo_failed',
+        event_source: 'cadence_engine',
+        event_data: {
+            step_key: step.step_key,
+            step_order: step.step_order,
+            sub_action: subAction,
+            conversation_id: conversationId,
+            external_user_id: externalUserId,
+            tag_id: config.tag_id || null,
+            status: config.status || null,
+        },
+        action_taken: `echo_${subAction}`,
+        action_result: result.data,
+    });
+
+    if (result.ok) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({ current_step_id: step.id, status: 'active' })
+            .eq('id', instance.id);
+    }
+
+    await advanceLinearStep(supabaseClient, instance, step);
+    return { ok: result.ok, sub_action: subAction };
 }
 
 // ============================================================================

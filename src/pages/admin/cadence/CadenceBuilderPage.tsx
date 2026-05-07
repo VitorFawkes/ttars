@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft, Save, Trash2, Phone, Clock, Flag, Settings, AlertCircle,
-    ChevronUp, ChevronDown, Calendar, Eye, ListOrdered, CheckCircle, MessageSquare
+    ChevronUp, ChevronDown, Calendar, Eye, ListOrdered, CheckCircle, MessageSquare,
+    Image as ImageIcon, UserCheck, UserMinus, X as XIcon, Tag as TagIcon, Users, Settings as SettingsIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -26,6 +27,9 @@ import { useUsers } from '@/hooks/useUsers';
 import { DayPatternEditor } from './components/DayPatternEditor';
 import { CadenceTimeline } from './components/CadenceTimeline';
 import { MessageStepEditor, type MessageConfig } from './components/MessageStepEditor';
+import { MediaStepEditor, type MediaConfig } from './components/MediaStepEditor';
+import { EchoActionStepEditor, type EchoConfig, type EchoSubAction, ECHO_SUB_ACTION_META } from './components/EchoActionStepEditor';
+import { EchoBadge } from '@/components/automations/EchoBadge';
 import { useProductContext } from '@/hooks/useProductContext';
 
 interface DayPattern {
@@ -37,7 +41,7 @@ interface CadenceStep {
     id: string;
     step_order: number;
     step_key: string;
-    step_type: 'task' | 'wait' | 'end' | 'message';
+    step_type: 'task' | 'wait' | 'end' | 'message' | 'send_media' | 'echo_action';
     day_offset: number | null;
     requires_previous_completed: boolean;
     task_config: {
@@ -58,6 +62,8 @@ interface CadenceStep {
         motivo_perda_id?: string;
     } | null;
     message_config: MessageConfig | null;
+    media_config: MediaConfig | null;
+    echo_config: EchoConfig | null;
     next_step_key: string | null;
 }
 
@@ -239,6 +245,8 @@ const CadenceBuilderPage: React.FC = () => {
                     day_offset: s.day_offset ?? null,
                     requires_previous_completed: s.requires_previous_completed ?? true,
                     message_config: (s.message_config as MessageConfig | null) ?? null,
+                    media_config: (s.media_config as MediaConfig | null) ?? null,
+                    echo_config: (s.echo_config as EchoConfig | null) ?? null,
                 })));
             } catch (error) {
                 console.error('Error fetching cadence:', error);
@@ -318,6 +326,8 @@ const CadenceBuilderPage: React.FC = () => {
                 wait_config: step.wait_config,
                 end_config: step.end_config,
                 message_config: step.message_config,
+                media_config: step.media_config,
+                echo_config: step.echo_config,
                 next_step_key: steps[index + 1]?.step_key || null,
             }));
 
@@ -339,7 +349,7 @@ const CadenceBuilderPage: React.FC = () => {
         }
     };
 
-    const addStep = (type: CadenceStep['step_type']) => {
+    const addStep = (type: CadenceStep['step_type'], echoSubAction?: EchoSubAction) => {
         // Determinar o próximo dia disponível baseado no padrão
         let dayOffset: number | null = null;
         if (template.schedule_mode === 'day_pattern' && template.day_pattern) {
@@ -380,6 +390,18 @@ const CadenceBuilderPage: React.FC = () => {
                 template_id: null,
                 phone_number_id: null,
             } : null,
+            media_config: type === 'send_media' ? {
+                media_url: null,
+                mime_type: null,
+                filename: null,
+                caption: null,
+                phone_number_id: null,
+            } : null,
+            echo_config: type === 'echo_action' ? {
+                action: echoSubAction,
+                assign_to: echoSubAction === 'assign' ? 'card_owner' : undefined,
+                phone_number_id: null,
+            } : null,
             next_step_key: null,
         };
 
@@ -416,6 +438,8 @@ const CadenceBuilderPage: React.FC = () => {
             case 'wait': return <Clock className="w-4 h-4" />;
             case 'end': return <Flag className="w-4 h-4" />;
             case 'message': return <MessageSquare className="w-4 h-4" />;
+            case 'send_media': return <ImageIcon className="w-4 h-4" />;
+            case 'echo_action': return <EchoBadge iconOnly size={14} />;
             default: return null;
         }
     };
@@ -610,12 +634,39 @@ const CadenceBuilderPage: React.FC = () => {
                                                     : 'Adicione steps em sequência com intervalos de espera'}
                                             </CardDescription>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 flex-wrap justify-end">
                                             <Button variant="outline" size="sm" onClick={() => addStep('task')}>
                                                 <Phone className="w-4 h-4 mr-1" /> Tarefa
                                             </Button>
                                             <Button variant="outline" size="sm" onClick={() => addStep('message')}>
                                                 <MessageSquare className="w-4 h-4 mr-1" /> Mensagem
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('send_media')}>
+                                                <ImageIcon className="w-4 h-4 mr-1" /> Mídia
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'assign')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <UserCheck className="w-4 h-4 mr-1" /> Atribuir
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'release')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <UserMinus className="w-4 h-4 mr-1" /> Liberar
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'close')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <XIcon className="w-4 h-4 mr-1" /> Fechar
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'set_status')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <SettingsIcon className="w-4 h-4 mr-1" /> Status
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'add_tag')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <TagIcon className="w-4 h-4 mr-1" /> Tag
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => addStep('echo_action', 'add_co_owner')}>
+                                                <EchoBadge iconOnly size={14} className="mr-1" />
+                                                <Users className="w-4 h-4 mr-1" /> Co-owner
                                             </Button>
                                             {template.schedule_mode === 'interval' && (
                                                 <Button variant="outline" size="sm" onClick={() => addStep('wait')}>
@@ -668,6 +719,8 @@ const CadenceBuilderPage: React.FC = () => {
                                                                 {step.step_type === 'wait' && 'Espera'}
                                                                 {step.step_type === 'end' && 'Fim'}
                                                                 {step.step_type === 'message' && 'Mensagem'}
+                                                                {step.step_type === 'send_media' && 'Mídia'}
+                                                                {step.step_type === 'echo_action' && (step.echo_config?.action ? ECHO_SUB_ACTION_META[step.echo_config.action]?.label : 'Echo')}
                                                             </Badge>
                                                         </div>
 
@@ -792,6 +845,57 @@ const CadenceBuilderPage: React.FC = () => {
                                                                         config={step.message_config || {}}
                                                                         onChange={(next) => updateStep(index, { message_config: next })}
                                                                         product={currentProduct}
+                                                                    />
+                                                                </div>
+                                                            )}
+
+                                                            {/* Send media config */}
+                                                            {step.step_type === 'send_media' && (
+                                                                <div className="space-y-3">
+                                                                    {template.schedule_mode === 'day_pattern' && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Label className="text-xs">Dia:</Label>
+                                                                            <CustomSelect
+                                                                                value={step.day_offset !== null ? String(step.day_offset) : ''}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    day_offset: value ? parseInt(value) : null
+                                                                                })}
+                                                                                options={[
+                                                                                    { value: '', label: 'Selecionar dia...' },
+                                                                                    ...dayOptions
+                                                                                ]}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    <MediaStepEditor
+                                                                        config={step.media_config || {}}
+                                                                        onChange={(next) => updateStep(index, { media_config: next })}
+                                                                        product={currentProduct}
+                                                                    />
+                                                                </div>
+                                                            )}
+
+                                                            {/* Echo action config */}
+                                                            {step.step_type === 'echo_action' && (
+                                                                <div className="space-y-3">
+                                                                    {template.schedule_mode === 'day_pattern' && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Label className="text-xs">Dia:</Label>
+                                                                            <CustomSelect
+                                                                                value={step.day_offset !== null ? String(step.day_offset) : ''}
+                                                                                onChange={(value) => updateStep(index, {
+                                                                                    day_offset: value ? parseInt(value) : null
+                                                                                })}
+                                                                                options={[
+                                                                                    { value: '', label: 'Selecionar dia...' },
+                                                                                    ...dayOptions
+                                                                                ]}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    <EchoActionStepEditor
+                                                                        config={step.echo_config || {}}
+                                                                        onChange={(next) => updateStep(index, { echo_config: next })}
                                                                     />
                                                                 </div>
                                                             )}
