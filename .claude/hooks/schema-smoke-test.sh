@@ -290,6 +290,28 @@ if [ "$STAGING_MODE" = "false" ]; then
     echo "  FAIL: $CARD_HIER cards com hierarquia inconsistente — checar trigger trg_validate_parent_card_link e RPCs que escrevem parent_card_id" >&2
     FAILED=$((FAILED + 1))
   fi
+
+  # ── Itens Monde "zumbi": agregado pré-04-01 coexistindo com granular pós-04-01 da mesma venda ──
+  # Esperado: 0 após cleanup retroativo (20260507e). Se subir, importador parou de
+  # aplicar a regra "último arquivo vence" — ver migration 20260506f e callers em
+  # supabase/functions/integration-process e integration-sync-deals.
+  TOTAL=$((TOTAL + 1))
+  ZUMBI=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/count_monde_zombie_items" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$ZUMBI" ] || ! echo "$ZUMBI" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: count_monde_zombie_items → resposta inesperada: $ZUMBI" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$ZUMBI" != "0" ]; then
+    echo "  FAIL: $ZUMBI cards com itens Monde zumbi (mesma venda re-importada com conteúdo diferente, mas linhas antigas não foram arquivadas) — rodar cleanup retroativo" >&2
+    FAILED=$((FAILED + 1))
+  fi
 fi
 
 # ── M1: Travel Planner tables (só após promoção para produção) ──
