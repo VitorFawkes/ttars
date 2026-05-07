@@ -30,6 +30,7 @@ import { useWorkflowStore } from './store/useWorkflowStore'
 import { NODE_BY_TYPE } from './nodes/registry'
 import type { WorkflowNodeType } from './types'
 import { loadWorkflow } from './lib/persistence'
+import { applyAutoLayout } from './lib/autoLayout'
 
 const WorkflowEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>()
@@ -45,11 +46,13 @@ const WorkflowEditorPage: React.FC = () => {
         if (!isNew && id) {
             setLoading(true)
             loadWorkflow(id)
-                .then((result) => {
+                .then(async (result) => {
                     if (!result.success) {
                         toast.error(`Erro ao carregar: ${result.error}`)
                         return
                     }
+                    // Roda ELK pra reorganizar nodes (substitui o layout vertical fixo)
+                    const laidOutNodes = await applyAutoLayout(result.nodes || [], result.edges || [])
                     hydrate({
                         templateId: result.templateId!,
                         name: result.name || '',
@@ -57,7 +60,7 @@ const WorkflowEditorPage: React.FC = () => {
                         isActive: !!result.isActive,
                         autoCancelOnStageChange: !!result.autoCancelOnStageChange,
                         respectBusinessHours: !!result.respectBusinessHours,
-                        nodes: result.nodes || [],
+                        nodes: laidOutNodes,
                         edges: result.edges || [],
                     })
                 })

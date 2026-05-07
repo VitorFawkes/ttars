@@ -16,6 +16,7 @@ import {
 } from '@xyflow/react'
 import type { WorkflowNode, WorkflowEdge, WorkflowNodeType } from '../types'
 import { NODE_BY_TYPE } from '../nodes/registry'
+import { validateNode } from '../lib/validation'
 
 interface WorkflowState {
     // Metadados do template
@@ -50,6 +51,9 @@ interface WorkflowState {
     deleteNode: (id: string) => void
     deleteEdge: (id: string) => void
     reset: () => void
+
+    /** Substitui a lista inteira de nodes (usado pelo auto-layout) */
+    setNodes: (nodes: WorkflowNode[]) => void
 
     /** Hidrata a store inteira a partir do banco (usado no load) */
     hydrate: (snapshot: {
@@ -123,11 +127,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         }
 
         const id = genNodeId(type)
+        const initialValidation = validateNode(type, {})
         const newNode: WorkflowNode = {
             id,
             type,
             position,
-            data: { label: meta.label, config: {} },
+            data: {
+                label: meta.label,
+                config: {},
+                valid: initialValidation.valid,
+                error: initialValidation.error,
+            },
         }
         set({
             nodes: [...get().nodes, newNode],
@@ -138,9 +148,20 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     selectNode: (id) => set({ selectedNodeId: id }),
 
     updateNodeData: (id, patch) => set({
-        nodes: get().nodes.map((n) =>
-            n.id === id ? { ...n, data: { ...n.data, ...patch } } : n,
-        ),
+        nodes: get().nodes.map((n) => {
+            if (n.id !== id) return n
+            const nextData = { ...n.data, ...patch }
+            // Recalcula validação se mudou config
+            if ('config' in patch) {
+                const { valid, error } = validateNode(
+                    n.type as WorkflowNodeType,
+                    (nextData.config as Record<string, unknown>) || {},
+                )
+                nextData.valid = valid
+                nextData.error = error
+            }
+            return { ...n, data: nextData }
+        }),
     }),
 
     deleteNode: (id) => set({
@@ -152,6 +173,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     deleteEdge: (id) => set({
         edges: get().edges.filter((e) => e.id !== id),
     }),
+
+    setNodes: (nodes) => set({ nodes }),
 
     reset: () => set({
         templateId: null,
@@ -172,7 +195,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         isActive: snapshot.isActive,
         autoCancelOnStageChange: snapshot.autoCancelOnStageChange,
         respectBusinessHours: snapshot.respectBusinessHours,
-        nodes: snapshot.nodes,
+        nodes: snapshot.nodes.map((n) => {
+            const { valid, error } = validateNode(
+                n.type as WorkflowNodeType,
+                (n.data.config as Record<string, unknown>) || {},
+            )
+            return { ...n, data: { ...n.data, valid, error } }
+        }),
         edges: snapshot.edges,
         selectedNodeId: null,
     }),
