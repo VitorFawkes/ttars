@@ -385,6 +385,7 @@ export async function runPersonaAgent_v2(
           p_owner_id: bookCfg.responsavel_id,
           p_date_from: dateFrom,
           p_date_to: dateTo,
+          p_org_id: agent.org_id, // defesa em profundidade — só lê tarefas da org do agente
         });
         const slotsRaw = (cal as { available_slots?: Array<{ date: string; time: string; weekday: string }> } | null)?.available_slots ?? [];
 

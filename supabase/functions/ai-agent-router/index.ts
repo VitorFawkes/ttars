@@ -1788,6 +1788,7 @@ async function executeToolCall(
           p_owner_id: ownerForCalendar,
           p_date_from: args.date_from as string,
           p_date_to: args.date_to as string,
+          p_org_id: agent.org_id, // defesa em profundidade — só lê tarefas da org do agente
         });
         result = JSON.stringify(calResult || { error: "Sem dados de agenda" });
         break;
