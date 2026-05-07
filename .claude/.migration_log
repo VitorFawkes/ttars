@@ -751,3 +751,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T20:14:21Z | /tmp/check_cron.sql | applied_to_prod
 2026-05-06T20:29:36Z | supabase/migrations/20260506h_tarefas_dedup_hardening.sql | applied_to_prod
 2026-05-06T20:30:14Z | supabase/migrations/20260506i_duplicate_tasks_data_vencimento_signal.sql | applied_to_prod
+2026-05-07T12:45:41Z | supabase/migrations/20260507a_clear_skip_pos_venda_on_reopen.sql | applied_to_prod
+2026-05-07T14:27:53Z | supabase/migrations/20260507b_transformar_em_sub_card.sql | applied_to_prod
+2026-05-07T14:28:13Z | supabase/migrations/20260507c_duplicar_card_template.sql | applied_to_prod
+2026-05-07T14:28:33Z | supabase/migrations/20260507d_cards_hierarchy_audit_rpc.sql | applied_to_prod

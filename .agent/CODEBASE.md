@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 145 paginas | 237 hooks | 22 views | 653 components
-> **Stats:** 191 tabelas | 145 paginas | 237 hooks | 22 views | 653 components
-> **Stats:** 191 tabelas | 145 paginas | 237 hooks | 22 views | 653 components
-> **Stats:** 191 tabelas | 145 paginas | 237 hooks | 22 views | 653 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **237 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **239 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -387,6 +387,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
+| `useDuplicateCard()` | `useDuplicateCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
@@ -412,6 +413,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSubCards()` | `useSubCards.ts` |
 | `useTaskFilters()` | `useTaskFilters.ts` |
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
+| `useTransformIntoSubCard()` | `useTransformIntoSubCard.ts` |
 | `useTripsFilters()` | `useTripsFilters.ts` |
 
 #### Proposals
