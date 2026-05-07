@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { NODE_BY_TYPE } from '../nodes/registry'
 import type { WorkflowNodeType } from '../types'
+import { EditorRouter } from '../editors/EditorRouter'
 
 export const ConfigPanel: React.FC = () => {
     const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
@@ -62,11 +63,11 @@ export const ConfigPanel: React.FC = () => {
                     <p className="text-xs text-slate-600">{meta?.description}</p>
                 </div>
 
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                    Configurações específicas deste passo entram na Fase 2 — vamos plugar
-                    aqui os editores existentes (mensagem, mídia, ações Echo) e criar os
-                    novos pra triggers e ações de card.
-                </div>
+                <EditorRouter
+                    type={node.type as WorkflowNodeType}
+                    config={(node.data.config as Record<string, unknown>) || {}}
+                    onChange={(nextConfig) => updateNodeData(node.id, { config: nextConfig })}
+                />
             </div>
 
             <div className="p-3 border-t border-slate-200">
