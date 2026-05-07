@@ -1,4 +1,4 @@
-import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown, Mic, Play } from 'lucide-react'
+import { Pencil, Plus, UserPlus, UserMinus, FileText, X, Check, TrendingUp, UserCheck, ArrowRightLeft, Mail, MessageSquare, Calendar, RotateCcw, FileEdit, MapPin, DollarSign, Upload, Trash2, FileSignature, CheckCircle, XCircle, Archive, CalendarClock, Bot, Sparkles, ArrowRight, ChevronDown, Mic, Play, Pause, Lock, Unlock, Settings } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -100,6 +100,12 @@ const activityIcons = {
     'notes_changed': FileEdit,
     // Field changes (generic produto_data)
     'field_changed': Pencil,
+    // Internal ops
+    'ai_paused_card': Pause,
+    'field_locked': Lock,
+    'field_unlocked': Unlock,
+    'briefing_changed': FileEdit,
+    'operational_state_changed': Settings,
     // Generic
     'created': Plus,
     'updated': Pencil,
@@ -170,6 +176,12 @@ const activityColors = {
     'notes_changed': 'text-orange-600 bg-orange-50',
     // Field changes (generic produto_data)
     'field_changed': 'text-blue-600 bg-blue-50',
+    // Internal ops
+    'ai_paused_card': 'text-amber-600 bg-amber-50',
+    'field_locked': 'text-slate-600 bg-slate-50',
+    'field_unlocked': 'text-slate-600 bg-slate-50',
+    'briefing_changed': 'text-orange-600 bg-orange-50',
+    'operational_state_changed': 'text-cyan-600 bg-cyan-50',
     // Generic
     'created': 'text-green-600 bg-green-50',
     'updated': 'text-blue-600 bg-blue-50',
@@ -299,6 +311,8 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
             return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
         case 'primary_contact_changed':
             return { oldVal: meta.old_nome ?? null, newVal: meta.new_nome ?? null }
+        case 'operational_state_changed':
+            return { oldVal: meta.old_state ?? null, newVal: meta.new_state ?? null }
         case 'field_changed':
             return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
         default:
