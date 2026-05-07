@@ -1,0 +1,443 @@
+/**
+ * Persistência DAG ↔ banco.
+ *
+ * Mapeia o canvas (nodes + edges) pra:
+ *   - 1 row em cadence_templates (metadados do workflow)
+ *   - N rows em cadence_steps (as actions; via RPC replace_cadence_steps)
+ *   - 1 row em cadence_event_triggers (o trigger node, com action_type='start_cadence'
+ *     e target_template_id apontando pro template criado/atualizado)
+ *
+ * Limitação atual: cadence_steps suporta os step_types
+ * task/wait/branch/end/message/send_media/echo_action. Tipos de ação que
+ * só existem como action_type de trigger (change_stage, add_tag,
+ * remove_tag, update_field, notify_internal, start_cadence sub-cadência,
+ * trigger_n8n_webhook) ainda não persistem como step encadeado — quando
+ * aparecem no canvas como step, retornamos erro pedindo pro user
+ * substituir ou usar o builder simples. Migration futura pode estender.
+ */
+import { supabase } from '@/lib/supabase'
+import type { Edge } from '@xyflow/react'
+import type {
+    WorkflowNode,
+    TriggerNodeType,
+    ActionNodeType,
+} from '../types'
+
+// ----------------------------------------------------------------------------
+// Mapping node → step_type / action_type
+// ----------------------------------------------------------------------------
+
+/** Tipos de node que podem virar cadence_steps (encadeados). */
+const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
+    'action.create_task':  'task',
+    'action.send_message': 'message',
+    'action.send_media':   'send_media',
+    'action.wait':         'wait',
+    'action.branch':       'branch',
+    'action.end':          'end',
+    'action.echo_assign':          'echo_action',
+    'action.echo_release':         'echo_action',
+    'action.echo_close':           'echo_action',
+    'action.echo_set_status':      'echo_action',
+    'action.echo_add_tag':         'echo_action',
+    'action.echo_remove_tag':      'echo_action',
+    'action.echo_add_co_owner':    'echo_action',
+    'action.echo_remove_co_owner': 'echo_action',
+}
+
+/** Tipos de node que ainda só funcionam como action única do trigger. */
+const NODE_TO_TRIGGER_ACTION: Partial<Record<ActionNodeType, string>> = {
+    'action.change_stage':        'change_stage',
+    'action.add_tag':             'add_tag',
+    'action.remove_tag':          'remove_tag',
+    'action.update_field':        'update_field',
+    'action.notify_internal':     'notify_internal',
+    'action.start_cadence':       'start_cadence',
+    'action.trigger_n8n_webhook': 'trigger_n8n_webhook',
+}
+
+/** trigger.<x> → event_type Echo. */
+const NODE_TO_EVENT_TYPE: Record<TriggerNodeType, string> = {
+    'trigger.card_created':            'card_created',
+    'trigger.stage_enter':             'stage_enter',
+    'trigger.macro_stage_enter':       'macro_stage_enter',
+    'trigger.field_changed':           'field_changed',
+    'trigger.tag_added':               'tag_added',
+    'trigger.tag_removed':             'tag_removed',
+    'trigger.inbound_message_pattern': 'inbound_message_pattern',
+    'trigger.time_offset_from_date':   'time_offset_from_date',
+    'trigger.time_in_stage':           'time_in_stage',
+}
+
+/** Inverso pra deserialização. */
+const EVENT_TYPE_TO_NODE = Object.fromEntries(
+    Object.entries(NODE_TO_EVENT_TYPE).map(([k, v]) => [v, k as TriggerNodeType]),
+) as Record<string, TriggerNodeType>
+
+const STEP_TYPE_TO_NODE = (step: { step_type: string; echo_config?: { action?: string } | null }): ActionNodeType => {
+    switch (step.step_type) {
+        case 'task':       return 'action.create_task'
+        case 'wait':       return 'action.wait'
+        case 'branch':     return 'action.branch'
+        case 'end':        return 'action.end'
+        case 'message':    return 'action.send_message'
+        case 'send_media': return 'action.send_media'
+        case 'echo_action': {
+            const sub = step.echo_config?.action
+            switch (sub) {
+                case 'assign':          return 'action.echo_assign'
+                case 'release':         return 'action.echo_release'
+                case 'close':           return 'action.echo_close'
+                case 'set_status':      return 'action.echo_set_status'
+                case 'add_tag':         return 'action.echo_add_tag'
+                case 'remove_tag':      return 'action.echo_remove_tag'
+                case 'add_co_owner':    return 'action.echo_add_co_owner'
+                case 'remove_co_owner': return 'action.echo_remove_co_owner'
+                default:                return 'action.echo_assign'
+            }
+        }
+        default: return 'action.create_task'
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Save
+// ----------------------------------------------------------------------------
+
+export interface SavePayload {
+    templateId: string | null
+    name: string
+    description: string
+    isActive: boolean
+    autoCancelOnStageChange: boolean
+    respectBusinessHours: boolean
+    nodes: WorkflowNode[]
+    edges: Edge[]
+}
+
+export interface SaveResult {
+    success: boolean
+    templateId?: string
+    error?: string
+}
+
+export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
+    const triggerNode = payload.nodes.find((n) => (n.type as string).startsWith('trigger.'))
+    if (!triggerNode) {
+        return { success: false, error: 'Adicione um gatilho ao workflow.' }
+    }
+    if (!payload.name.trim()) {
+        return { success: false, error: 'Dê um nome ao workflow.' }
+    }
+
+    // Validar tipos não persistíveis como step
+    const unsupportedSteps = payload.nodes.filter((n) => {
+        const t = n.type as ActionNodeType
+        if ((n.type as string).startsWith('trigger.')) return false
+        if (NODE_TO_STEP_TYPE[t]) return false
+        if (NODE_TO_TRIGGER_ACTION[t]) return true  // só vale como ação imediata
+        return true
+    })
+    if (unsupportedSteps.length > 0 && payload.nodes.filter(n => !((n.type as string).startsWith('trigger.'))).length > 1) {
+        const names = unsupportedSteps.map((n) => n.data.label).join(', ')
+        return {
+            success: false,
+            error: `As ações "${names}" ainda não funcionam como passo encadeado. Mova pra ação direta do gatilho ou remova.`,
+        }
+    }
+
+    // 1) Upsert cadence_templates
+    const templatePayload = {
+        name: payload.name,
+        description: payload.description || null,
+        is_active: payload.isActive,
+        auto_cancel_on_stage_change: payload.autoCancelOnStageChange,
+        respect_business_hours: payload.respectBusinessHours,
+        execution_mode: 'linear',
+        schedule_mode: 'interval',
+    }
+
+    let templateId = payload.templateId
+    if (!templateId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+            .from('cadence_templates')
+            .insert(templatePayload)
+            .select('id')
+            .single()
+        if (error) return { success: false, error: error.message }
+        templateId = data?.id as string
+    } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+            .from('cadence_templates')
+            .update(templatePayload)
+            .eq('id', templateId)
+        if (error) return { success: false, error: error.message }
+    }
+    if (!templateId) return { success: false, error: 'Falha ao criar template.' }
+
+    // 2) Topologia: nós ordenados por BFS a partir do trigger via edges
+    const stepNodes = payload.nodes.filter((n) => !(n.type as string).startsWith('trigger.'))
+    const edgesBySource = new Map<string, Edge[]>()
+    for (const e of payload.edges) {
+        const list = edgesBySource.get(e.source) || []
+        list.push(e)
+        edgesBySource.set(e.source, list)
+    }
+
+    // BFS a partir do trigger pra ordenar e gerar step_keys consistentes
+    const orderMap = new Map<string, number>()
+    const queue: string[] = [triggerNode.id]
+    let order = 0
+    while (queue.length) {
+        const id = queue.shift()!
+        if (orderMap.has(id)) continue
+        orderMap.set(id, order++)
+        const next = (edgesBySource.get(id) || []).map((e) => e.target)
+        queue.push(...next)
+    }
+    // Nós soltos (não conectados) entram no fim
+    for (const n of stepNodes) {
+        if (!orderMap.has(n.id)) orderMap.set(n.id, order++)
+    }
+
+    const orderedSteps = stepNodes
+        .map((n, idx) => ({ node: n, _origIdx: idx }))
+        .sort((a, b) => (orderMap.get(a.node.id) ?? 0) - (orderMap.get(b.node.id) ?? 0))
+
+    // 3) Montar payload de cadence_steps
+    const stepRows = orderedSteps.map(({ node }, idx) => {
+        const stepKey = `n_${node.id.slice(0, 12)}`  // estável por id
+        const stepType = NODE_TO_STEP_TYPE[node.type as ActionNodeType]
+
+        // next_step_key: pega primeira aresta que sai daqui pra outro step
+        const out = (edgesBySource.get(node.id) || [])
+            .filter((e) => stepNodes.some((sn) => sn.id === e.target))
+        const nextStepKey = out[0]
+            ? `n_${out[0].target.slice(0, 12)}`
+            : null
+
+        // Configs por tipo: roteia a config genérica pro slot correto
+        const cfg = (node.data.config as Record<string, unknown>) || {}
+        const slotByType: Record<string, string> = {
+            'action.create_task':  'task_config',
+            'action.send_message': 'message_config',
+            'action.send_media':   'media_config',
+            'action.wait':         'wait_config',
+            'action.branch':       'branch_config',
+            'action.end':          'end_config',
+        }
+        const isEcho = (node.type as string).startsWith('action.echo_')
+        const slot = isEcho ? 'echo_config' : (slotByType[node.type as ActionNodeType] || 'task_config')
+        const stepConfig: Record<string, unknown> = { [slot]: cfg }
+
+        // Se for echo, garantir action no echo_config
+        if (isEcho) {
+            const sub = (node.type as string).replace('action.echo_', '')
+            stepConfig.echo_config = { ...cfg, action: sub }
+        }
+
+        // Branch precisa de branches[] no branch_config baseado nas edges
+        if (node.type === 'action.branch') {
+            const branches = out.map((e) => ({
+                handle: e.sourceHandle || 'true',
+                target_step_key: `n_${e.target.slice(0, 12)}`,
+            }))
+            stepConfig.branch_config = { ...(cfg as object), branches }
+        }
+
+        return {
+            step_order: idx + 1,
+            step_key: stepKey,
+            step_type: stepType,
+            block_index: 0,
+            day_offset: 0,
+            requires_previous_completed: false,
+            next_step_key: nextStepKey,
+            ...stepConfig,
+        }
+    })
+
+    // 4) Persistir steps via RPC
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: stepsError } = await (supabase as any).rpc('replace_cadence_steps', {
+        p_template_id: templateId,
+        p_steps: stepRows,
+    })
+    if (stepsError) return { success: false, error: stepsError.message }
+
+    // 5) Upsert cadence_event_triggers (o gatilho aponta pra start_cadence neste template)
+    const triggerEventType = NODE_TO_EVENT_TYPE[triggerNode.type as TriggerNodeType]
+    const triggerCfg = (triggerNode.data.config as Record<string, unknown>) || {}
+    const triggerPayload = {
+        name: `${payload.name} — gatilho`,
+        event_type: triggerEventType,
+        event_config: triggerCfg,
+        action_type: 'start_cadence',
+        action_config: { target_template_id: templateId },
+        target_template_id: templateId,
+        applicable_stage_ids: Array.isArray(triggerCfg.applicable_stage_ids) ? triggerCfg.applicable_stage_ids : null,
+        is_active: payload.isActive,
+        delay_minutes: 0,
+    }
+
+    // Existe trigger pra esse template? (procurar por target_template_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingTrigger } = await (supabase as any)
+        .from('cadence_event_triggers')
+        .select('id')
+        .eq('target_template_id', templateId)
+        .limit(1)
+        .maybeSingle()
+
+    if (existingTrigger?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+            .from('cadence_event_triggers')
+            .update(triggerPayload)
+            .eq('id', existingTrigger.id)
+        if (error) return { success: false, error: error.message }
+    } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+            .from('cadence_event_triggers')
+            .insert(triggerPayload)
+        if (error) return { success: false, error: error.message }
+    }
+
+    return { success: true, templateId }
+}
+
+// ----------------------------------------------------------------------------
+// Load
+// ----------------------------------------------------------------------------
+
+export interface LoadResult {
+    success: boolean
+    error?: string
+    templateId?: string
+    name?: string
+    description?: string
+    isActive?: boolean
+    autoCancelOnStageChange?: boolean
+    respectBusinessHours?: boolean
+    nodes?: WorkflowNode[]
+    edges?: Edge[]
+}
+
+export async function loadWorkflow(templateId: string): Promise<LoadResult> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: template, error: tplErr } = await (supabase as any)
+        .from('cadence_templates')
+        .select('*')
+        .eq('id', templateId)
+        .single()
+    if (tplErr || !template) return { success: false, error: tplErr?.message || 'Template não encontrado' }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: steps, error: stepsErr } = await (supabase as any)
+        .from('cadence_steps')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('step_order')
+    if (stepsErr) return { success: false, error: stepsErr.message }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: trigger } = await (supabase as any)
+        .from('cadence_event_triggers')
+        .select('*')
+        .eq('target_template_id', templateId)
+        .limit(1)
+        .maybeSingle()
+
+    // Layout vertical: trigger no topo, depois cada step com gap fixo
+    const X = 250
+    const GAP_Y = 140
+    const nodes: WorkflowNode[] = []
+
+    if (trigger) {
+        const triggerType = EVENT_TYPE_TO_NODE[trigger.event_type as string] || 'trigger.card_created'
+        nodes.push({
+            id: `trg_${trigger.id}`,
+            type: triggerType,
+            position: { x: X, y: 0 },
+            data: {
+                label: trigger.name || 'Gatilho',
+                config: trigger.event_config || {},
+            },
+        })
+    }
+
+    const stepKeyToNodeId = new Map<string, string>()
+    ;(steps || []).forEach((s: Record<string, unknown>, idx: number) => {
+        const nodeId = `step_${s.id}`
+        stepKeyToNodeId.set(s.step_key as string, nodeId)
+        const nodeType = STEP_TYPE_TO_NODE({
+            step_type: s.step_type as string,
+            echo_config: s.echo_config as { action?: string } | null,
+        })
+        // Recupera config do slot certo
+        const cfg = (s.message_config as Record<string, unknown>)
+            || (s.media_config as Record<string, unknown>)
+            || (s.echo_config as Record<string, unknown>)
+            || (s.task_config as Record<string, unknown>)
+            || (s.wait_config as Record<string, unknown>)
+            || (s.branch_config as Record<string, unknown>)
+            || (s.end_config as Record<string, unknown>)
+            || {}
+        nodes.push({
+            id: nodeId,
+            type: nodeType,
+            position: { x: X, y: (idx + 1) * GAP_Y },
+            data: {
+                label: (cfg?.titulo as string) || (s.step_key as string) || nodeType,
+                config: cfg,
+            },
+        })
+    })
+
+    // Edges
+    const edges: Edge[] = []
+    // trigger → primeiro step
+    if (trigger && (steps || []).length > 0) {
+        const firstStep = (steps as Array<Record<string, unknown>>)[0]
+        edges.push({
+            id: `e_trg_${firstStep.id}`,
+            source: `trg_${trigger.id}`,
+            target: `step_${firstStep.id}`,
+            type: 'smoothstep',
+            animated: true,
+        })
+    }
+    // step → next_step_key
+    ;(steps || []).forEach((s: Record<string, unknown>) => {
+        const nextKey = s.next_step_key as string | null
+        if (!nextKey) return
+        const targetNodeId = stepKeyToNodeId.get(nextKey)
+        if (!targetNodeId) return
+        edges.push({
+            id: `e_${s.id}_${targetNodeId}`,
+            source: `step_${s.id}`,
+            target: targetNodeId,
+            type: 'smoothstep',
+            animated: true,
+        })
+    })
+
+    return {
+        success: true,
+        templateId,
+        name: template.name as string,
+        description: (template.description as string) || '',
+        isActive: !!template.is_active,
+        autoCancelOnStageChange: !!template.auto_cancel_on_stage_change,
+        respectBusinessHours: !!template.respect_business_hours,
+        nodes,
+        edges,
+    }
+}
+
+// Re-exporta pra uso interno do pacote v2 — evita ciclo
+void STEP_TYPE_TO_NODE
+void NODE_TO_TRIGGER_ACTION

@@ -50,6 +50,18 @@ interface WorkflowState {
     deleteNode: (id: string) => void
     deleteEdge: (id: string) => void
     reset: () => void
+
+    /** Hidrata a store inteira a partir do banco (usado no load) */
+    hydrate: (snapshot: {
+        templateId: string
+        name: string
+        description: string
+        isActive: boolean
+        autoCancelOnStageChange: boolean
+        respectBusinessHours: boolean
+        nodes: WorkflowNode[]
+        edges: WorkflowEdge[]
+    }) => void
 }
 
 let nodeIdCounter = 0
@@ -150,6 +162,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         respectBusinessHours: true,
         nodes: [],
         edges: [],
+        selectedNodeId: null,
+    }),
+
+    hydrate: (snapshot) => set({
+        templateId: snapshot.templateId,
+        name: snapshot.name,
+        description: snapshot.description,
+        isActive: snapshot.isActive,
+        autoCancelOnStageChange: snapshot.autoCancelOnStageChange,
+        respectBusinessHours: snapshot.respectBusinessHours,
+        nodes: snapshot.nodes,
+        edges: snapshot.edges,
         selectedNodeId: null,
     }),
 }))
