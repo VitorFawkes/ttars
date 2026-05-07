@@ -73,3 +73,58 @@ export async function simulateWorkflow(args: {
     if (error) return { success: false, error: error.message }
     return { success: true, payload: data }
 }
+
+/**
+ * Executa pra valer (chama Echo, cria tarefas, etc) — sem passar pela queue.
+ * Mesmo mapping que simulate, mas action='execute_trigger_now'.
+ */
+export async function runWorkflowNow(args: {
+    cardId: string
+    triggerNode: WorkflowNode
+    firstActionNode: WorkflowNode | null
+}): Promise<SimulationResult> {
+    const { cardId, triggerNode, firstActionNode } = args
+
+    if (!firstActionNode) {
+        return { success: false, error: 'Adicione pelo menos uma ação ligada ao gatilho.' }
+    }
+
+    let actionType = ''
+    let actionConfig: Record<string, unknown> = {}
+    const t = firstActionNode.type as string
+    if (t === 'action.send_message') actionType = 'send_message'
+    else if (t === 'action.send_media') actionType = 'send_media'
+    else if (t.startsWith('action.echo_')) actionType = 'echo_action'
+    else if (t === 'action.create_task') actionType = 'create_task'
+    else if (t === 'action.change_stage') actionType = 'change_stage'
+    else if (t === 'action.add_tag') actionType = 'add_tag'
+    else if (t === 'action.remove_tag') actionType = 'remove_tag'
+    else if (t === 'action.update_field') actionType = 'update_field'
+    else if (t === 'action.notify_internal') actionType = 'notify_internal'
+    else if (t === 'action.start_cadence') actionType = 'start_cadence'
+    else if (t === 'action.trigger_n8n_webhook') actionType = 'trigger_n8n_webhook'
+    else return { success: false, error: `Ação "${t}" ainda não pode ser disparada manualmente — use o gatilho real.` }
+
+    actionConfig = (firstActionNode.data.config as Record<string, unknown>) || {}
+    if (t.startsWith('action.echo_')) {
+        const sub = t.replace('action.echo_', '')
+        actionConfig = { ...actionConfig, action: sub }
+    }
+
+    const { data, error } = await supabase.functions.invoke('cadence-engine', {
+        body: {
+            action: 'execute_trigger_now',
+            card_id: cardId,
+            trigger: {
+                id: 'manual_run',
+                name: triggerNode.data.label || 'Disparo manual',
+                action_type: actionType,
+                action_config: actionConfig,
+            },
+        },
+    })
+
+    if (error) return { success: false, error: error.message }
+    if (data?.error) return { success: false, error: data.error }
+    return { success: true, payload: data }
+}

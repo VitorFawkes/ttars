@@ -7,7 +7,7 @@
  * - Salvar: persiste template + steps + trigger
  */
 import React, { useState } from 'react'
-import { ArrowLeft, Play, Save, Loader2, AlignVerticalJustifyCenter } from 'lucide-react'
+import { ArrowLeft, Play, Save, Loader2, AlignVerticalJustifyCenter, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { saveWorkflow } from '../lib/persistence'
 import { applyAutoLayout } from '../lib/autoLayout'
-import { simulateWorkflow } from '../lib/simulate'
+import { simulateWorkflow, runWorkflowNow } from '../lib/simulate'
 import { NODE_BY_TYPE } from '../nodes/registry'
 import type { WorkflowNodeType } from '../types'
 
@@ -24,6 +24,7 @@ export const Toolbar: React.FC = () => {
     const navigate = useNavigate()
     const [saving, setSaving] = useState(false)
     const [simulating, setSimulating] = useState(false)
+    const [running, setRunning] = useState(false)
     const [layouting, setLayouting] = useState(false)
 
     const name = useWorkflowStore((s) => s.name)
@@ -96,6 +97,41 @@ export const Toolbar: React.FC = () => {
         toast.success('Simulação OK — veja o console pra detalhes')
     }
 
+    const handleRunNow = async () => {
+        const state = useWorkflowStore.getState()
+        const triggerNode = state.nodes.find((n) =>
+            NODE_BY_TYPE.get(n.type as WorkflowNodeType)?.isTrigger,
+        )
+        if (!triggerNode) {
+            toast.error('Adicione um gatilho')
+            return
+        }
+        const firstEdge = state.edges.find((e) => e.source === triggerNode.id)
+        const firstActionNode = firstEdge
+            ? state.nodes.find((n) => n.id === firstEdge.target) || null
+            : null
+        if (!firstActionNode) {
+            toast.error('Conecte o gatilho a uma ação primeiro')
+            return
+        }
+
+        const cardId = window.prompt(
+            'Disparo REAL — vai chamar a API de verdade (ex: enviar WhatsApp).\n\nID do card alvo (UUID):'
+        )?.trim()
+        if (!cardId) return
+        if (!window.confirm('Confirma disparar pra valer? A ação será executada de fato (pode mandar mensagem pro contato).')) return
+
+        setRunning(true)
+        const result = await runWorkflowNow({ cardId, triggerNode, firstActionNode })
+        setRunning(false)
+        if (!result.success) {
+            toast.error(`Falhou: ${result.error}`)
+            return
+        }
+        console.log('[v2] Run result:', result.payload)
+        toast.success('Disparado — veja o console pro retorno')
+    }
+
     return (
         <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-3 shadow-sm">
             <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automations')}>
@@ -138,11 +174,26 @@ export const Toolbar: React.FC = () => {
                 size="sm"
                 onClick={handleSimulate}
                 disabled={simulating}
+                title="Dry-run: mostra o que seria enviado, sem executar"
             >
                 {simulating
                     ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                     : <Play className="w-4 h-4 mr-1" />}
                 Simular
+            </Button>
+
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRunNow}
+                disabled={running}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                title="EXECUTA pra valer — chama Echo / cria tarefa / muda etapa de verdade"
+            >
+                {running
+                    ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    : <Zap className="w-4 h-4 mr-1" />}
+                Disparar agora
             </Button>
 
             <Button

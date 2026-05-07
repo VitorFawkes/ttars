@@ -277,6 +277,76 @@ serve(async (req) => {
                 });
             }
 
+            case 'execute_trigger_now': {
+                // Executa um trigger UMA VEZ contra um card específico, sem
+                // passar pelo entry_queue/pg_cron. Usado pelo botão
+                // "Disparar agora" do editor visual pra teste imediato.
+                //
+                // body: { card_id, trigger: {action_type, action_config, task_configs?, name?, id?} }
+                const { card_id, trigger } = body;
+                if (!card_id || !trigger?.action_type) {
+                    return new Response(
+                        JSON.stringify({ error: 'card_id e trigger.action_type obrigatórios' }),
+                        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                    );
+                }
+                // Garante org_id válido (RLS dos inserts em log)
+                const { data: cardRow } = await supabaseClient
+                    .from('cards').select('org_id').eq('id', card_id).single();
+                const orgId = (cardRow?.org_id as string) || '';
+
+                // Trigger virtual com id estável pra deduplicação não brigar
+                const virtualTrigger = {
+                    id: trigger.id || 'manual_run',
+                    name: trigger.name || 'Disparo manual',
+                    action_type: trigger.action_type,
+                    action_config: trigger.action_config || {},
+                    task_configs: trigger.task_configs || null,
+                };
+
+                let actionResult;
+                try {
+                    if (virtualTrigger.action_type === 'send_message') {
+                        actionResult = await executeSendMessageAction(supabaseClient, card_id, virtualTrigger);
+                    } else if (virtualTrigger.action_type === 'send_media') {
+                        actionResult = await executeSendMediaAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'echo_action') {
+                        actionResult = await executeEchoActionAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'create_task') {
+                        actionResult = await executeCreateTaskAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'change_stage') {
+                        actionResult = await executeChangeStageAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'add_tag') {
+                        actionResult = await executeAddTagAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'remove_tag') {
+                        actionResult = await executeRemoveTagAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'notify_internal') {
+                        actionResult = await executeNotifyInternalAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'update_field') {
+                        actionResult = await executeUpdateFieldAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'trigger_n8n_webhook') {
+                        actionResult = await executeTriggerN8nWebhookAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else if (virtualTrigger.action_type === 'start_cadence') {
+                        actionResult = await executeStartCadenceAction(supabaseClient, card_id, virtualTrigger, orgId);
+                    } else {
+                        return new Response(
+                            JSON.stringify({ error: `action_type não suportado em execute_trigger_now: ${virtualTrigger.action_type}` }),
+                            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                        );
+                    }
+                } catch (e) {
+                    return new Response(
+                        JSON.stringify({ error: (e as Error).message, action_type: virtualTrigger.action_type }),
+                        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                    );
+                }
+
+                return new Response(
+                    JSON.stringify({ ok: true, action_type: virtualTrigger.action_type, result: actionResult }),
+                    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
+
             case 'echo_proxy': {
                 // Proxy autenticado pra Echo API. Whitelist de paths/métodos
                 // pra evitar abuso (não expor mutations sensíveis sem rota dedicada).
