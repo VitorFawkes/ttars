@@ -7,12 +7,12 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 150 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
 
 ---
 
@@ -492,7 +492,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **150 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **151 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -574,6 +574,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FlowEditors` | `src/pages/admin/automations/v2/editors/FlowEditors.tsx` |
 | `TriggerEditor` | `src/pages/admin/automations/v2/editors/TriggerEditor.tsx` |
 | `BaseNode` | `src/pages/admin/automations/v2/nodes/BaseNode.tsx` |
+| `NodeRefLabels` | `src/pages/admin/automations/v2/store/NodeRefLabels.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |

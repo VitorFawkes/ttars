@@ -2,17 +2,27 @@
  * summarizeConfig — gera um resumo curto do que está configurado em um node,
  * pra renderizar dentro do próprio card do canvas (sem abrir painel).
  *
- * Recebe só o `config` do node (texto plano + IDs). IDs (de etapa, tag, user)
- * são exibidos com um indicador genérico (•) — resolver pra nome humano
- * exigiria hooks com queries; quando isso virar prioridade, dá pra criar um
- * provider global de catálogos e enriquecer aqui.
+ * Recebe o `config` do node + um pacote opcional de catálogos (etapas, tags,
+ * users, etc) carregados pelo NodeRefLabelsProvider. Quando os catálogos
+ * estão disponíveis, resolve IDs em nomes humanos; quando ainda estão
+ * carregando ou o ID não foi encontrado, cai num fallback genérico.
  */
 import type { WorkflowNodeType } from '../types'
-
-const BULLET = '•'
+import type { NodeRefLabels } from '../store/NodeRefLabels'
 
 const truncate = (s: string, max = 40) =>
     s.length > max ? `${s.slice(0, max)}…` : s
+
+const resolveOr = (
+    labels: NodeRefLabels | undefined,
+    map: keyof NodeRefLabels,
+    id: string | undefined | null,
+    fallback: string,
+): string => {
+    if (!id) return fallback
+    const name = labels?.[map].get(id)
+    return name ? truncate(name, 24) : fallback
+}
 
 const formatWait = (config: Record<string, unknown>): string => {
     const amount = config.duration_amount as number | undefined
@@ -38,18 +48,28 @@ const formatWait = (config: Record<string, unknown>): string => {
 export function summarizeConfig(
     type: WorkflowNodeType,
     config: Record<string, unknown>,
+    labels?: NodeRefLabels,
 ): string | null {
     switch (type) {
         // ─── Triggers ────────────────────────────────────────────────────────
-        case 'trigger.card_created':
-            return config.initial_stage_id ? `${BULLET} Etapa inicial específica` : 'Qualquer card novo'
+        case 'trigger.card_created': {
+            const id = config.initial_stage_id as string | undefined
+            if (!id) return 'Qualquer card novo'
+            return `Etapa: ${resolveOr(labels, 'stageById', id, '(carregando)')}`
+        }
         case 'trigger.stage_enter': {
             const ids = (config.applicable_stage_ids as string[]) || []
             if (ids.length === 0) return null
-            return `${ids.length} etapa${ids.length === 1 ? '' : 's'} selecionada${ids.length === 1 ? '' : 's'}`
+            if (ids.length === 1) {
+                return `Etapa: ${resolveOr(labels, 'stageById', ids[0], '(carregando)')}`
+            }
+            // 2+ etapas — mostra primeiro nome + contador
+            const first = resolveOr(labels, 'stageById', ids[0], '(carregando)')
+            return `${first} +${ids.length - 1}`
         }
         case 'trigger.macro_stage_enter':
-            return config.phase_id ? `${BULLET} Fase definida` : null
+            if (!config.phase_id) return null
+            return `Fase: ${resolveOr(labels, 'phaseById', config.phase_id as string, '(carregando)')}`
         case 'trigger.field_changed': {
             const f = config.field_key as string | undefined
             const to = config.to_value as string | undefined
@@ -58,7 +78,8 @@ export function summarizeConfig(
         }
         case 'trigger.tag_added':
         case 'trigger.tag_removed':
-            return config.tag_id ? `${BULLET} Tag escolhida` : null
+            if (!config.tag_id) return null
+            return `Tag: ${resolveOr(labels, 'cardTagById', config.tag_id as string, '(carregando)')}`
         case 'trigger.inbound_message_pattern': {
             const patterns = (config.patterns as string) || ''
             const lines = patterns.split('\n').map((s) => s.trim()).filter(Boolean)
@@ -75,7 +96,7 @@ export function summarizeConfig(
         }
         case 'trigger.time_in_stage':
             if (!config.stage_id) return null
-            return `${(config.days as number) ?? 1}d parado em etapa`
+            return `${(config.days as number) ?? 1}d em ${resolveOr(labels, 'stageById', config.stage_id as string, '(carregando)')}`
 
         // ─── Card actions ────────────────────────────────────────────────────
         case 'action.create_task': {
@@ -85,10 +106,12 @@ export function summarizeConfig(
             return `${tipo ? tipo + ' — ' : ''}${truncate(titulo, 28)}`
         }
         case 'action.change_stage':
-            return config.target_stage_id ? `→ ${BULLET} Etapa definida` : null
+            if (!config.target_stage_id) return null
+            return `→ ${resolveOr(labels, 'stageById', config.target_stage_id as string, '(carregando)')}`
         case 'action.add_tag':
         case 'action.remove_tag':
-            return config.tag_id ? `${BULLET} Tag escolhida` : null
+            if (!config.tag_id) return null
+            return `Tag: ${resolveOr(labels, 'cardTagById', config.tag_id as string, '(carregando)')}`
         case 'action.update_field': {
             const f = config.field_key as string | undefined
             const v = config.value
@@ -99,7 +122,10 @@ export function summarizeConfig(
         case 'action.notify_internal': {
             const mode = (config.recipient_mode as string) || 'card_owner'
             const title = config.title as string | undefined
-            const who = mode === 'card_owner' ? 'dono do card' : 'pessoa específica'
+            const userId = config.user_id as string | undefined
+            const who = mode === 'card_owner'
+                ? 'dono do card'
+                : resolveOr(labels, 'userById', userId, 'pessoa específica')
             return title ? `${who}: ${truncate(title, 22)}` : `Pra ${who}`
         }
         case 'action.trigger_n8n_webhook': {
@@ -112,7 +138,8 @@ export function summarizeConfig(
             }
         }
         case 'action.start_cadence':
-            return config.target_template_id ? `${BULLET} Cadência definida` : null
+            if (!config.target_template_id) return null
+            return `Inicia: ${resolveOr(labels, 'cadenceTemplateById', config.target_template_id as string, '(carregando)')}`
 
         // ─── Echo: envio ─────────────────────────────────────────────────────
         case 'action.send_message': {
@@ -135,47 +162,54 @@ export function summarizeConfig(
         // ─── Echo: gestão de conversa ────────────────────────────────────────
         case 'action.echo_assign': {
             const to = config.assign_to as string | undefined
-            return to === 'card_owner' ? 'Pro dono do card' : config.user_id ? `${BULLET} Pessoa definida` : null
+            if (to === 'card_owner') return 'Pro dono do card'
+            const userId = config.user_id as string | undefined
+            if (!userId) return null
+            return `→ ${resolveOr(labels, 'echoUserByProfileId', userId, '(carregando)')}`
         }
         case 'action.echo_release':
             return 'Devolve ao pool'
         case 'action.echo_close': {
             const reason = (config.reason as string) || ''
             if (reason) return `Motivo: ${truncate(reason, 22)}`
-            return config.close_reason_id ? `${BULLET} Motivo do catálogo` : 'Sem motivo'
+            const reasonId = config.close_reason_id as string | undefined
+            if (reasonId) return `Motivo: ${resolveOr(labels, 'closeReasonById', reasonId, '(carregando)')}`
+            return 'Sem motivo'
         }
         case 'action.echo_set_status': {
-            const labels: Record<string, string> = {
+            const statusLabels: Record<string, string> = {
                 active: 'Ativa', waiting: 'Aguardando', closed: 'Fechada',
             }
             const s = config.status as string | undefined
-            return s ? `→ ${labels[s] || s}` : null
+            return s ? `→ ${statusLabels[s] || s}` : null
         }
         case 'action.echo_add_tag':
         case 'action.echo_remove_tag':
-            return config.tag_id ? `${BULLET} Tag definida` : null
+            if (!config.tag_id) return null
+            return `Tag: ${resolveOr(labels, 'echoTagById', config.tag_id as string, '(carregando)')}`
         case 'action.echo_add_co_owner':
         case 'action.echo_remove_co_owner':
-            return config.user_id ? `${BULLET} Pessoa definida` : null
+            if (!config.user_id) return null
+            return `→ ${resolveOr(labels, 'echoUserByProfileId', config.user_id as string, '(carregando)')}`
 
         // ─── Flow ────────────────────────────────────────────────────────────
         case 'action.wait':
             return formatWait(config)
         case 'action.branch': {
             const t = config.condition_type as string | undefined
-            const labels: Record<string, string> = {
+            const branchLabels: Record<string, string> = {
                 task_outcome: 'Resultado da tarefa',
                 card_in_stage: 'Card na etapa X',
                 successful_contacts_gte: 'Contatos com sucesso ≥ N',
             }
-            return t ? labels[t] || t : null
+            return t ? branchLabels[t] || t : null
         }
         case 'action.end': {
             const r = config.result as string | undefined
-            const labels: Record<string, string> = {
+            const resultLabels: Record<string, string> = {
                 success: 'Sucesso', failure: 'Falha', ghosting: 'Ghosting',
             }
-            const base = r ? labels[r] || r : 'Sucesso'
+            const base = r ? resultLabels[r] || r : 'Sucesso'
             return config.move_to_stage_id ? `${base} • move card` : base
         }
     }

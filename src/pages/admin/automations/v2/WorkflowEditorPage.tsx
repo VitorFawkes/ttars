@@ -31,6 +31,7 @@ import { NODE_BY_TYPE } from './nodes/registry'
 import type { WorkflowNodeType } from './types'
 import { loadWorkflow } from './lib/persistence'
 import { applyAutoLayout } from './lib/autoLayout'
+import { NodeRefLabelsProvider } from './store/NodeRefLabels'
 
 const WorkflowEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>()
@@ -88,16 +89,18 @@ const WorkflowEditorPage: React.FC = () => {
     }
 
     return (
-        <ReactFlowProvider>
-            <div className="h-full flex flex-col bg-slate-50/50">
-                <Toolbar />
-                <div className="flex-1 flex min-h-0">
-                    <Toolbox hasTrigger={hasTrigger} />
-                    <Canvas />
-                    <ConfigPanel />
+        <NodeRefLabelsProvider>
+            <ReactFlowProvider>
+                <div className="h-full flex flex-col bg-slate-50/50">
+                    <Toolbar />
+                    <div className="flex-1 flex min-h-0">
+                        <Toolbox hasTrigger={hasTrigger} />
+                        <Canvas />
+                        <ConfigPanel />
+                    </div>
                 </div>
-            </div>
-        </ReactFlowProvider>
+            </ReactFlowProvider>
+        </NodeRefLabelsProvider>
     )
 }
 

@@ -14,6 +14,7 @@ import { NODE_BY_TYPE } from './registry'
 import type { WorkflowNode, WorkflowNodeType, NodeCategory } from '../types'
 import { EchoBadge } from '@/components/automations/EchoBadge'
 import { summarizeConfig } from './summarize'
+import { useNodeRefLabels } from '../store/NodeRefLabels'
 
 const CATEGORY_COLORS: Record<NodeCategory, { bg: string; border: string; ring: string; chip: string }> = {
     trigger:     { bg: 'bg-amber-50',   border: 'border-amber-300',   ring: 'ring-amber-400',   chip: 'bg-amber-100 text-amber-700' },
@@ -31,6 +32,7 @@ const resolveIcon = (name: string): LucideIcon => {
 
 const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, selected }) => {
     const meta = NODE_BY_TYPE.get(type as WorkflowNodeType)
+    const refLabels = useNodeRefLabels()
     if (!meta) {
         return (
             <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-xs text-red-700 shadow-sm">
@@ -71,6 +73,7 @@ const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, sele
                     const summary = summarizeConfig(
                         type as WorkflowNodeType,
                         (data.config as Record<string, unknown>) || {},
+                        refLabels,
                     )
                     if (summary) {
                         return (
