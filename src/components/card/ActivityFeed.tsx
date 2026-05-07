@@ -58,6 +58,7 @@ const activityIcons = {
     'traveler_removed': UserMinus,
     'traveler_changed': UserCheck,
     'traveler_updated': UserCheck,
+    'primary_contact_changed': UserCheck,
     // Communication
     'email_sent': Mail,
     'whatsapp_sent': MessageSquare,
@@ -127,6 +128,7 @@ const activityColors = {
     'traveler_removed': 'text-red-600 bg-red-50',
     'traveler_changed': 'text-violet-600 bg-violet-50',
     'traveler_updated': 'text-violet-600 bg-violet-50',
+    'primary_contact_changed': 'text-emerald-600 bg-emerald-50',
     // Communication
     'email_sent': 'text-blue-600 bg-blue-50',
     'whatsapp_sent': 'text-green-600 bg-green-50',
@@ -295,6 +297,8 @@ function getChangeDetail(tipo: string, meta: any): { oldVal: string | null; newV
         case 'budget_changed':
         case 'notes_changed':
             return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
+        case 'primary_contact_changed':
+            return { oldVal: meta.old_nome ?? null, newVal: meta.new_nome ?? null }
         case 'field_changed':
             return { oldVal: formatValue(meta.old), newVal: formatValue(meta.new) }
         default:
