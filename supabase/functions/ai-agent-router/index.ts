@@ -3446,7 +3446,14 @@ async function sendResponse(
 
       console.log(`[sendResponse] Echo result: status=${echoRes.status}, success=${success}, wamid=${echoResult?.whatsapp_message_id || 'none'}`);
 
-      // Salvar em whatsapp_messages
+      // Salvar em whatsapp_messages.
+      // CRÍTICO: salvar `external_id` com o whatsapp_message_id retornado pelo
+      // Echo. Sem isso, quando o webhook do Echo chega depois com o evento
+      // `message.sent`, o ON CONFLICT (platform_id, external_id) em
+      // process_whatsapp_raw_event_v2 não acha esta linha e cria uma SEGUNDA
+      // linha duplicada (uma com phone_number_label=NULL e outra com label).
+      // Bug confirmado em teste 07/05/2026.
+      const externalId = (echoResult?.whatsapp_message_id || echoResult?.id || null) as string | null;
       await supabase.from("whatsapp_messages").insert({
         contact_id: contactId,
         card_id: cardId || null,
@@ -3458,6 +3465,7 @@ async function sendResponse(
         sender_phone: normalizedPhone,
         sent_by_user_name: agentName,
         phone_number_label: phoneLineLabel,
+        external_id: externalId,
         metadata: {
           source: "ai_agent",
           agent_id: agentId,
