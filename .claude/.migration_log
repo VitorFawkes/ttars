@@ -767,3 +767,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-07T19:37:28Z | supabase/migrations/20260507d_enrich_activity_actor_specific_labels.sql | applied_to_prod
 2026-05-07T19:40:25Z | supabase/migrations/20260507e_normalize_stage_field_config_per_phase.sql | applied_to_prod
 2026-05-07T19:40:57Z | supabase/migrations/20260507e_normalize_stage_field_config_per_phase.sql | applied_to_prod
+2026-05-07T20:05:02Z | supabase/migrations/20260507g_bulk_import_financial_items_preserve_state.sql | applied_to_prod
