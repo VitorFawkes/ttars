@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAtendimentosCard } from '../../../hooks/concierge/useAtendimentosCard'
 import { useToggleCardCritical } from '../../../hooks/concierge/useToggleCritical'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
-import { CardContextBlocks } from '../CardContextBlocks'
+import { CardContextBlocks, CardObservacoesStandalone } from '../CardContextBlocks'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem } from '../../../hooks/concierge/types'
 import type { ViagemKanbanItem, SaudeViagem } from '../../../hooks/concierge/useKanbanViagens'
 import { cn } from '../../../lib/utils'
@@ -35,7 +35,10 @@ interface ViagemAtendimentosDrawerProps {
 }
 
 export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentosDrawerProps) {
-  const { data: items = [], isLoading } = useAtendimentosCard(viagem?.card_id ?? null)
+  // viagem.card_id já é o root_card_id (card principal), graças ao agrupamento
+  // em useKanbanViagens. 'with-sub-cards' garante que listamos TODOS os
+  // atendimentos da viagem, incluindo os criados em sub-cards.
+  const { data: items = [], isLoading } = useAtendimentosCard(viagem?.card_id ?? null, 'with-sub-cards')
   const [selected, setSelected] = useState<MeuDiaItem | null>(null)
   const { mutate: toggleCritical, isPending: togglingCritical } = useToggleCardCritical()
 
@@ -168,9 +171,14 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
           />
         </div>
 
-        {/* Contexto do card + lista de atendimentos */}
+        {/* Ordem: contato/viajantes → atendimentos (foco do drawer) → observações.
+            Atendimentos sobem porque o concierge entra aqui pra agir, não pra ler obs. */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          <CardContextBlocks cardId={viagem.card_id} showOutrasPendencias={false} />
+          <CardContextBlocks
+            cardId={viagem.card_id}
+            showOutrasPendencias={false}
+            showObservacoes={false}
+          />
 
           <div>
             <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500 mb-2">
@@ -205,6 +213,8 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
               </div>
             )}
           </div>
+
+          <CardObservacoesStandalone cardId={viagem.card_id} />
         </div>
       </div>
 

@@ -7,7 +7,6 @@ import { NovoAtendimentoModal } from '../../components/concierge/NovoAtendimento
 
 const tabs = [
   { name: 'Kanban', path: '/concierge', exact: true },
-  { name: 'Meu Dia', path: '/concierge/meu-dia' },
   { name: 'Painel', path: '/concierge/painel' },
   { name: 'Modelos', path: '/concierge/modelos' },
 ]
@@ -25,39 +24,37 @@ export default function ConciergeLayout() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="px-8 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-slate-900">Concierge</h1>
-            <Button
-              onClick={() => setShowNovoModal(true)}
-              variant="default"
-              size="sm"
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Novo atendimento
-            </Button>
+      {/* Header — título, tabs e botão na mesma linha pra economizar vertical */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="px-6 h-12 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-6 min-w-0">
+            <h1 className="text-base font-semibold text-slate-900 shrink-0">Concierge</h1>
+            <nav className="flex items-center gap-1">
+              {tabs.map((tab) => (
+                <Link
+                  key={tab.path}
+                  to={tab.path}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                    isTabActive(tab.path, tab.exact)
+                      ? 'text-indigo-600 bg-indigo-50'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  )}
+                >
+                  {tab.name}
+                </Link>
+              ))}
+            </nav>
           </div>
-
-          {/* Tabs */}
-          <div className="flex border-b border-slate-200">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.path}
-                to={tab.path}
-                className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
-                  isTabActive(tab.path, tab.exact)
-                    ? 'text-indigo-600 border-indigo-600'
-                    : 'text-slate-600 border-transparent hover:text-slate-900'
-                )}
-              >
-                {tab.name}
-              </Link>
-            ))}
-          </div>
+          <Button
+            onClick={() => setShowNovoModal(true)}
+            variant="default"
+            size="sm"
+            className="gap-1.5 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Novo atendimento
+          </Button>
         </div>
       </div>
 

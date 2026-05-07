@@ -19,6 +19,9 @@ interface CriarAtendimentoInput {
   cadence_step_id?: string | null
   hospedagem_ref?: string | null
   payload?: Record<string, unknown>
+  /** Quando true, suprime o toast individual de sucesso. Usado em criação em
+   *  lote (modal multi-bloco) onde quem chama exibe 1 toast resumindo o batch. */
+  silent?: boolean
 }
 
 export function useCriarAtendimento() {
@@ -49,7 +52,7 @@ export function useCriarAtendimento() {
       queryClient.invalidateQueries({ queryKey: ['concierge'] })
       queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
       queryClient.invalidateQueries({ queryKey: ['card-detail', vars.card_id] })
-      toast.success('Atendimento criado')
+      if (!vars.silent) toast.success('Atendimento criado')
     },
     onError: (err: Error) => toast.error('Erro ao criar atendimento', { description: err.message }),
   })

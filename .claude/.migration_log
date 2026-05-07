@@ -728,3 +728,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-06T13:42:28Z | supabase/migrations/20260505g_view_meu_dia_includes_started_at.sql | applied_to_prod
 2026-05-06T15:05:04Z | supabase/migrations/20260506a_view_meu_dia_includes_contato_principal.sql | applied_to_prod
 2026-05-07T12:11:03Z | supabase/migrations/20260506b_cascade_soft_delete_to_atendimento.sql | applied_to_prod
+2026-05-07T13:34:06Z | supabase/migrations/20260507a_view_meu_dia_root_card.sql | applied_to_prod

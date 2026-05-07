@@ -163,6 +163,24 @@ export interface MeuDiaItem {
 
   status_apresentacao: StatusApresentacao
   dias_pra_embarque: number | null
+
+  /** Card raiz da viagem. Se o atendimento foi criado num sub-card, root_*
+   *  aponta pro principal; senão, é o próprio card. Adicionado em 20260507a
+   *  pra (a) espelhar atendimentos no card principal e (b) agrupar kanban
+   *  /concierge por viagem (nunca por sub-card). Pode estar undefined em
+   *  registros lidos antes da migration. */
+  root_card_id?: string
+  root_card_titulo?: string | null
+  root_produto?: string | null
+  root_data_viagem_inicio?: string | null
+  root_data_viagem_fim?: string | null
+  root_pipeline_stage_id?: string | null
+  root_pessoa_principal_id?: string | null
+  root_pessoa_principal_nome?: string | null
+  root_valor_estimado?: number | null
+  root_valor_final?: number | null
+  root_is_critical?: boolean
+  is_from_sub_card?: boolean
 }
 
 export interface CardConciergeStats {
