@@ -7,12 +7,12 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-07
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 143 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 145 paginas | 236 hooks | 22 views | 657 components
 
 ---
 
@@ -492,7 +492,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **143 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **145 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -567,6 +567,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomationsListPage` | `src/pages/admin/automations/AutomationsListPage.tsx` |
 | `CronRoteamentoDetailPage` | `src/pages/admin/automations/CronRoteamentoDetailPage.tsx` |
 | `NewAutomationPage` | `src/pages/admin/automations/NewAutomationPage.tsx` |
+| `WorkflowEditorPage` | `src/pages/admin/automations/v2/WorkflowEditorPage.tsx` |
+| `BaseNode` | `src/pages/admin/automations/v2/nodes/BaseNode.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |

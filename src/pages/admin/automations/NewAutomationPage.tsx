@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Zap, Bolt, Layers, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Zap, Bolt, Layers, MessageSquare, Workflow } from 'lucide-react'
 import AdminPageHeader from '@/components/admin/ui/AdminPageHeader'
 import { Button } from '@/components/ui/Button'
 import { EchoBadge } from '@/components/automations/EchoBadge'
@@ -131,6 +131,31 @@ export default function NewAutomationPage() {
                 (WhatsApp, mídia, ações Echo). Use <strong>cadência paralela</strong> pra
                 grupos de tarefas humanas com checklists.
             </p>
+
+            {/* Beta — editor visual (canvas estilo n8n) */}
+            <div className="mt-8 max-w-6xl">
+                <button
+                    onClick={() => navigate('/settings/automations/v2/new')}
+                    className="w-full text-left bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-xl shadow-sm p-5 hover:shadow-lg transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center">
+                            <Workflow className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-semibold tracking-tight">Editor visual (beta)</h3>
+                                <span className="text-[10px] uppercase tracking-wider bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded font-semibold">novo</span>
+                            </div>
+                            <p className="text-xs text-slate-300 mt-0.5">
+                                Canvas com nodes ligados — gatilhos e ações conectados visualmente, igual n8n.
+                                Substitui os 3 builders acima por uma experiência única.
+                            </p>
+                        </div>
+                        <div className="text-xs text-slate-400 group-hover:text-white transition">Abrir →</div>
+                    </div>
+                </button>
+            </div>
         </>
     )
 }
