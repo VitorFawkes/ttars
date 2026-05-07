@@ -111,24 +111,28 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
       const { data, error } = await q
       if (error) throw error
 
-      // Filtros aplicados antes do agrupamento (a viagem só conta tarefas que casam com os filtros)
+      // Filtros aplicados antes do agrupamento (a viagem só conta tarefas que casam com os filtros).
+      // Agrupamento por root_card_id (card principal): atendimentos criados num
+      // sub-card aparecem na coluna do principal, não como uma "viagem" separada.
       const wantedTagIds = filters.tagFilter?.tagIds ?? []
       const tagLookup = filters.tagFilter?.lookup
       const filtered = (data ?? []).filter((item: MeuDiaItem) => {
-        if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
+        const rootId = item.root_card_id ?? item.card_id
+        if (filters.cardIds?.length && !filters.cardIds.includes(rootId)) return false
         if (filters.categorias?.length && !filters.categorias.includes(item.categoria)) return false
         if (filters.janelas?.length) {
           const jan = computeJanelaEmbarque(item.dias_pra_embarque)
           if (!filters.janelas.includes(jan)) return false
         }
         if (wantedTagIds.length > 0 && tagLookup) {
-          const cardTags = tagLookup.get(item.card_id)
+          const cardTags = tagLookup.get(rootId)
           if (!cardTags) return false
           if (!wantedTagIds.some(t => cardTags.has(t))) return false
         }
         if (filters.search?.trim()) {
           const q2 = filters.search.toLowerCase()
-          const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
+          const tituloRoot = item.root_card_titulo ?? item.card_titulo
+          const blob = `${item.titulo} ${tituloRoot} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
           if (!blob.includes(q2)) return false
         }
         return true
@@ -136,9 +140,10 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
 
       const byCard = new Map<string, MeuDiaItem[]>()
       for (const item of filtered as MeuDiaItem[]) {
-        const list = byCard.get(item.card_id) ?? []
+        const rootId = item.root_card_id ?? item.card_id
+        const list = byCard.get(rootId) ?? []
         list.push(item)
-        byCard.set(item.card_id, list)
+        byCard.set(rootId, list)
       }
 
       const result: ViagemKanbanItem[] = []
@@ -167,17 +172,20 @@ export function useKanbanViagens(filters: KanbanViagensFilters = {}) {
         const tiposSet = new Set<TipoConcierge>()
         for (const i of abertos) tiposSet.add(i.tipo_concierge)
 
+        // Dados exibidos no card do kanban vêm do root (card principal). Se a
+        // view não retornou as colunas root_* (ex: cache antigo), cai no fallback
+        // do próprio card_id — nesses casos é o próprio card, então é equivalente.
         const base = {
           card_id,
-          card_titulo: head.card_titulo,
-          produto: head.produto,
-          data_viagem_inicio: head.data_viagem_inicio,
-          data_viagem_fim: head.data_viagem_fim,
-          pessoa_principal_id: head.pessoa_principal_id,
-          card_valor_estimado: head.card_valor_estimado,
-          card_valor_final: head.card_valor_final,
-          card_is_critical: !!head.card_is_critical,
-          pipeline_stage_id: head.pipeline_stage_id,
+          card_titulo: head.root_card_titulo ?? head.card_titulo,
+          produto: head.root_produto ?? head.produto,
+          data_viagem_inicio: head.root_data_viagem_inicio ?? head.data_viagem_inicio,
+          data_viagem_fim: head.root_data_viagem_fim ?? head.data_viagem_fim,
+          pessoa_principal_id: head.root_pessoa_principal_id ?? head.pessoa_principal_id,
+          card_valor_estimado: head.root_valor_estimado ?? head.card_valor_estimado,
+          card_valor_final: head.root_valor_final ?? head.card_valor_final,
+          card_is_critical: !!(head.root_is_critical ?? head.card_is_critical),
+          pipeline_stage_id: head.root_pipeline_stage_id ?? head.pipeline_stage_id,
           total_atendimentos: items.length,
           abertos_count: abertos.length,
           vencidos,

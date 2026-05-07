@@ -124,18 +124,22 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
       ? null
       : Date.now() - 2 * 24 * 60 * 60 * 1000
     return enriched.filter(item => {
-      if (filters.cardIds?.length && !filters.cardIds.includes(item.card_id)) return false
+      // Filtros de "viagem" comparam contra root_card_id: o usuário pensa em
+      // viagens (cards principais), não em sub-cards individuais.
+      const rootId = item.root_card_id ?? item.card_id
+      if (filters.cardIds?.length && !filters.cardIds.includes(rootId)) return false
       if (filters.janelas?.length && !filters.janelas.includes(item.janela_embarque)) return false
       if (filters.categorias?.length && !filters.categorias.includes(item.categoria)) return false
       if (wantedTagIds.length > 0 && tagLookup) {
-        const cardTags = tagLookup.get(item.card_id)
+        const cardTags = tagLookup.get(rootId)
         if (!cardTags) return false
         const intersects = wantedTagIds.some(t => cardTags.has(t))
         if (!intersects) return false
       }
       if (filters.search?.trim()) {
         const q = filters.search.toLowerCase()
-        const blob = `${item.titulo} ${item.card_titulo} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
+        const tituloViagem = item.root_card_titulo ?? item.card_titulo
+        const blob = `${item.titulo} ${tituloViagem} ${item.descricao ?? ''} ${item.categoria}`.toLowerCase()
         if (!blob.includes(q)) return false
       }
       if (limiteAntigo !== null && item.outcome && item.outcome_em) {

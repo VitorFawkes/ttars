@@ -62,6 +62,12 @@ if [ "$STAGING_MODE" = "false" ]; then
 test_query "view_cards_acoes (colunas críticas)" \
   "view_cards_acoes?select=id,titulo,archived_at,is_group_parent,parent_card_id,anexos_count,pessoa_telefone_normalizado,concierge_nome&limit=1"
 
+# Concierge: view com colunas root_* para espelhar atendimentos de sub-card no principal
+# (20260507a) — frontend agrupa kanban /concierge por root_card_id e usa is_from_sub_card
+# para renderizar badge no card detail principal.
+test_query "v_meu_dia_concierge (root_card_id + is_from_sub_card)" \
+  "v_meu_dia_concierge?select=tarefa_id,card_id,root_card_id,root_card_titulo,root_pessoa_principal_nome,is_from_sub_card&limit=1"
+
 # Dashboard (StatsCards.tsx + FunnelChart.tsx)
 test_query "view_dashboard_funil" \
   "view_dashboard_funil?select=etapa_nome,total_cards,etapa_ordem,produto&limit=1"

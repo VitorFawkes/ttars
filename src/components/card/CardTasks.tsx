@@ -8,6 +8,7 @@ import { SmartTaskModal } from './SmartTaskModal'
 import { AtendimentoDetailModal } from '../concierge/AtendimentoDetailModal'
 import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
 import { useMarcarOutcome } from '../../hooks/concierge/useAtendimentoMutations'
+import { useSubCards, useSubCardParent } from '../../hooks/useSubCards'
 import { TIPO_LABEL, type MeuDiaItem } from '../../hooks/concierge/types'
 import { computeEstadoFunil, ESTADO_FUNIL_COLUMNS } from '../../hooks/concierge/useKanbanTarefas'
 import { format, isToday, isPast, isTomorrow } from 'date-fns'
@@ -44,14 +45,31 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
     const queryClient = useQueryClient()
 
-    // Fetch tasks
+    // Detecta se o card atual é principal (não sub-card) para espelhar atendimentos
+    // dos filhos. Se for sub-card, mostra só o que é do próprio card.
+    const { isSubCard, isLoading: isLoadingParent } = useSubCardParent(cardId)
+    const isMainCard = !isLoadingParent && !isSubCard
+
+    // Sub-cards ativos do card atual (vazio quando o card é sub-card ou não tem filhos).
+    const { subCards } = useSubCards(isMainCard ? cardId : undefined)
+    const activeSubCardIds = (subCards ?? [])
+        .filter(sc => sc.sub_card_status === 'active')
+        .map(sc => sc.id)
+    const subCardTitleById = new Map<string, string>(
+        (subCards ?? []).map(sc => [sc.id, sc.titulo]),
+    )
+    // Set estável de cardIds que pertencem à "viagem inteira": principal + sub-cards.
+    const cardIdsScope = [cardId, ...activeSubCardIds]
+    const cardIdsScopeKey = cardIdsScope.join(',')
+
+    // Fetch tasks (do principal + sub-cards quando aplicável)
     const { data: tasks, isLoading: isLoadingTasks } = useQuery({
-        queryKey: ['tasks', cardId],
+        queryKey: ['tasks', cardId, cardIdsScopeKey],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('tarefas')
                 .select('*')
-                .eq('card_id', cardId)
+                .in('card_id', cardIdsScope)
                 .is('deleted_at', null) // Respect soft delete
                 .order('data_vencimento', { ascending: true })
 
@@ -79,48 +97,67 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
         staleTime: 1000 * 60 // 1 minute
     })
 
-    // Realtime: invalidar query quando tarefas do card mudam
+    // Realtime: invalidar query quando tarefas do card OU dos sub-cards mudam.
+    // Sub-cards são "espelhados" no card principal, então mudanças neles também
+    // invalidam a lista do principal.
     useEffect(() => {
+        const scope = new Set(cardIdsScope)
         const channel = supabase
             .channel(`card-tasks-${cardId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'tarefas',
-                filter: `card_id=eq.${cardId}`,
-            }, () => {
-                queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
-                queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+            }, (payload) => {
+                const row = (payload.new ?? payload.old) as { card_id?: string } | null
+                if (row?.card_id && scope.has(row.card_id)) {
+                    queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
+                    queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+                }
             })
             .subscribe()
         return () => { supabase.removeChannel(channel) }
-    }, [cardId, queryClient])
+    }, [cardId, cardIdsScopeKey, queryClient])
 
     // Atendimentos de concierge ligados a este card (1:1 com tarefa via tarefa_id).
     // Usado para: (1) marcar tarefas com badge de tipo concierge e
     // (2) abrir AtendimentoDetailModal ao clicar em vez de SmartTaskModal.
-    const { data: atendimentos } = useAtendimentosCard(cardId)
+    // Quando o card é principal (não sub-card), espelha os atendimentos dos
+    // sub-cards filhos via root_card_id na view.
+    //
+    // Esperamos `isLoadingParent` resolver antes de disparar a query — evita
+    // double-fetch (mode 'self' → 'with-sub-cards') quando descobrimos que o
+    // card é principal. O hook usa enabled por dentro do staleTime curto.
+    const atendimentosCardId = isLoadingParent ? null : cardId
+    const { data: atendimentos } = useAtendimentosCard(
+        atendimentosCardId,
+        isMainCard ? 'with-sub-cards' : 'self',
+    )
     const { mutate: marcarOutcomeConcierge } = useMarcarOutcome()
     const conciergeByTarefaId = new Map<string, MeuDiaItem>(
         (atendimentos ?? []).map(a => [a.tarefa_id, a])
     )
     const [selectedAtendimento, setSelectedAtendimento] = useState<MeuDiaItem | null>(null)
 
-    // Realtime: invalidar lista de atendimentos quando algo muda no concierge deste card.
+    // Realtime: invalidar lista de atendimentos quando algo muda no concierge
+    // deste card OU dos sub-cards (quando estamos no principal).
     useEffect(() => {
+        const scope = new Set(cardIdsScope)
         const channel = supabase
             .channel(`card-tasks-concierge-${cardId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'atendimentos_concierge',
-                filter: `card_id=eq.${cardId}`,
-            }, () => {
-                queryClient.invalidateQueries({ queryKey: ['concierge', 'atendimentos-card', cardId] })
+            }, (payload) => {
+                const row = (payload.new ?? payload.old) as { card_id?: string } | null
+                if (row?.card_id && scope.has(row.card_id)) {
+                    queryClient.invalidateQueries({ queryKey: ['concierge', 'atendimentos-card', cardId] })
+                }
             })
             .subscribe()
         return () => { supabase.removeChannel(channel) }
-    }, [cardId, queryClient])
+    }, [cardId, cardIdsScopeKey, queryClient])
 
     // Fetch Task Outcomes
     const { data: outcomes } = useQuery({
@@ -672,6 +709,9 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
                         const conciergeItem = conciergeByTarefaId.get(task.id)
                         const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
+                        // Item espelhado de sub-card no card principal: badge na linha indica origem.
+                        const isFromSubCard = task.card_id !== cardId
+                        const subCardTitle = isFromSubCard ? (subCardTitleById.get(task.card_id) ?? null) : null
                         // Coluna atual do funil concierge (Aguardando atendimento / Em contato / etc).
                         const conciergeEstado = conciergeItem ? computeEstadoFunil(conciergeItem) : null
                         const conciergeColuna = conciergeEstado ? ESTADO_FUNIL_COLUMNS.find(c => c.id === conciergeEstado) : null
@@ -718,6 +758,15 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                     >
                                                         <BellConciergeIcon className="w-3 h-3" />
                                                         {conciergeTipo.label}
+                                                    </span>
+                                                )}
+                                                {isFromSubCard && (
+                                                    <span
+                                                        className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1"
+                                                        title={subCardTitle ? `Origem: sub-card "${subCardTitle}"` : 'Origem: sub-card'}
+                                                    >
+                                                        <RefreshCw className="w-3 h-3" />
+                                                        do sub-card
                                                     </span>
                                                 )}
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>

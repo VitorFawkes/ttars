@@ -48,9 +48,13 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const valor = fmtBRL(item.valor)
   const isVencido = item.status_apresentacao === 'vencido'
   const isCritical = item.prioridade === 'critica'
-  /** Crítica efetiva: se a tarefa é crítica direta OU a viagem inteira é crítica */
-  const isCriticalEffective = isCritical || !!item.card_is_critical
+  /** Crítica efetiva: se a tarefa é crítica direta OU a viagem (root) é crítica */
+  const isCriticalEffective = isCritical || !!(item.root_is_critical ?? item.card_is_critical)
   const titulo = item.titulo?.trim() || catLabel
+  // Card do kanban exibe título do principal (root). Se o atendimento foi
+  // criado num sub-card, queremos a viagem real, não "Sub-card: alteração X".
+  const tituloViagem = item.root_card_titulo ?? item.card_titulo
+  const pessoaPrincipalNome = item.root_pessoa_principal_nome ?? item.pessoa_principal_nome
   // Sempre mostra a pill da categoria — confirma classificação visual mesmo
   // quando o título da tarefa repete o nome da categoria (ex: "Check-in").
   const showCatPill = !!catLabel
@@ -138,13 +142,13 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
         </h4>
 
         <div className="flex items-center gap-1.5 text-[11.5px] text-slate-600 mb-1">
-          <span className="truncate flex-1">{item.card_titulo}</span>
+          <span className="truncate flex-1">{tituloViagem}</span>
         </div>
 
-        {item.pessoa_principal_nome && (
+        {pessoaPrincipalNome && (
           <div className="flex items-center gap-1 text-[10.5px] text-slate-500 mb-2">
             <User className="w-2.5 h-2.5 shrink-0" />
-            <span className="truncate">{item.pessoa_principal_nome}</span>
+            <span className="truncate">{pessoaPrincipalNome}</span>
           </div>
         )}
 

@@ -4,10 +4,12 @@ import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
+import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
-import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type OutcomeConcierge, type CobradoDe } from '../../hooks/concierge/types'
+import { TIPO_LABEL, SOURCE_LABEL, CATEGORIAS_CONCIERGE, type MeuDiaItem, type CobradoDe } from '../../hooks/concierge/types'
+import { ESTADO_FUNIL_COLUMNS, computeEstadoFunil, type EstadoFunil, type KanbanTarefaItem } from '../../hooks/concierge/useKanbanTarefas'
 import { SourceIcon } from './Badges'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -23,13 +25,6 @@ interface AtendimentoDetailModalProps {
   onOpenChange?: (open: boolean) => void
 }
 
-const OUTCOME_OPTIONS: { value: OutcomeConcierge; label: string; tone: string }[] = [
-  { value: 'aceito',    label: 'Aceito',    tone: 'border-purple-300 bg-purple-50 text-purple-700' },
-  { value: 'feito',     label: 'Feito',     tone: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
-  { value: 'recusado',  label: 'Recusado',  tone: 'border-red-300 bg-red-50 text-red-700' },
-  { value: 'cancelado', label: 'Cancelado', tone: 'border-slate-300 bg-slate-50 text-slate-700' },
-]
-
 function fmtBRL(v: number | null | undefined) {
   if (v == null) return null
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -39,12 +34,20 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
   const isOpen = props.open ?? props.isOpen ?? false
   const onClose = () => { props.onClose?.(); props.onOpenChange?.(false) }
-  const [selectedOutcome, setSelectedOutcome] = useState<OutcomeConcierge | null>((item?.outcome as OutcomeConcierge) ?? null)
+  // Estado atual do atendimento no funil concierge (computado a partir de
+  // started_at / notificou_cliente_em / outcome).
+  const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
+  const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
+  const [outcomeEncerramento, setOutcomeEncerramento] = useState<'recusado' | 'cancelado'>('cancelado')
+  // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
+  // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
+  const [comoAceito, setComoAceito] = useState(false)
   const [valorFinal, setValorFinal] = useState(item?.valor?.toString() ?? '')
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item?.cobrado_de ?? '')
   const [observacao, setObservacao] = useState('')
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
+  const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -76,17 +79,47 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const titulo = item.titulo?.trim() || catLabel
   const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
 
-  const handleMarcarOutcome = () => {
-    if (!selectedOutcome) return
-    marcarOutcome({
-      atendimento_id: item.atendimento_id,
-      outcome: selectedOutcome,
-      valor_final: valorFinal ? parseFloat(valorFinal) : null,
-      cobrado_de: cobradoDe ? (cobradoDe as CobradoDe) : null,
-      observacao: observacao ?? null,
-    }, {
-      onSuccess: () => onClose(),
-    })
+  const isOferta = item.tipo_concierge === 'oferta'
+  const podeConfirmar = !!destinoSelecionado && destinoSelecionado !== estadoAtual && destinoSelecionado !== 'aguardando_atendimento'
+  const isPendingMove = isMarkingOutcome || isMovingEstado
+
+  const handleConfirmar = async () => {
+    if (!destinoSelecionado || !podeConfirmar) return
+
+    // "Feito" pra oferta marcado como aceito → outcome='aceito' direto.
+    if (destinoSelecionado === 'feito' && isOferta && comoAceito) {
+      marcarOutcome({
+        atendimento_id: item.atendimento_id,
+        outcome: 'aceito',
+        valor_final: valorFinal ? parseFloat(valorFinal) : null,
+        cobrado_de: cobradoDe ? (cobradoDe as CobradoDe) : null,
+        observacao: observacao || undefined,
+      }, { onSuccess: () => onClose() })
+      return
+    }
+
+    // Demais casos delegam ao useMoverEstadoFunil (em_contato → started_at,
+    // aguardando_retorno → rpc_notificar_cliente, feito/encerrado → rpc_marcar_outcome).
+    try {
+      const kanbanItem: KanbanTarefaItem = {
+        ...item,
+        estado_funil: estadoAtual ?? 'aguardando_atendimento',
+        janela_embarque: 'embarca_futuro',
+        // Pra "feito" em oferta, pré-popular valor/cobrado_de no item passado
+        // ao hook (ele lê esses campos e repassa pro RPC).
+        valor: valorFinal ? parseFloat(valorFinal) : item.valor,
+        cobrado_de: cobradoDe ? (cobradoDe as CobradoDe) : item.cobrado_de,
+      }
+      await moverEstadoAsync({
+        atendimento: kanbanItem,
+        destino: destinoSelecionado,
+        outcomeEncerramento: destinoSelecionado === 'encerrado' ? outcomeEncerramento : undefined,
+        observacao: observacao || undefined,
+      })
+      onClose()
+    } catch {
+      // Toast de erro já é exibido pelo onError do hook.
+    }
   }
 
   return (
@@ -215,6 +248,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
           <CardContextBlocks
             cardId={item.card_id}
+            rootCardId={item.root_card_id ?? item.card_id}
             excludeAtendimentoId={item.atendimento_id}
             showOutrasPendencias={true}
           />
@@ -258,57 +292,114 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
           {!item.outcome ? (
             <div className="space-y-3">
               <div>
-                <div className="text-xs font-semibold text-slate-700 mb-2">Marcar como</div>
-                <div className={cn('grid gap-2', item.tipo_concierge === 'oferta' ? 'grid-cols-4' : 'grid-cols-3')}>
-                  {OUTCOME_OPTIONS
-                    .filter(opt => opt.value !== 'aceito' || item.tipo_concierge === 'oferta')
-                    .map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSelectedOutcome(opt.value)}
-                      className={cn(
-                        'p-2 rounded-lg border-2 transition-all text-[12.5px] font-semibold',
-                        selectedOutcome === opt.value
-                          ? opt.tone
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <div className="text-xs font-semibold text-slate-700 mb-2">Mover para coluna</div>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {ESTADO_FUNIL_COLUMNS.map(col => {
+                    const isAtual = col.id === estadoAtual
+                    const isSelecionado = destinoSelecionado === col.id
+                    // 'aguardando_atendimento' não pode ser destino: é estado inicial,
+                    // useMoverEstadoFunil rejeita. Mantém visível pra orientação,
+                    // mas só clicável se for o estado atual (sem efeito).
+                    const desabilitado = col.id === 'aguardando_atendimento' && !isAtual
+                    return (
+                      <button
+                        key={col.id}
+                        type="button"
+                        onClick={() => {
+                          if (desabilitado || isAtual) return
+                          setDestinoSelecionado(col.id)
+                        }}
+                        disabled={desabilitado || isAtual}
+                        title={
+                          isAtual ? 'Coluna atual' :
+                          desabilitado ? 'Estado inicial — não dá pra voltar' :
+                          `Mover para ${col.label}`
+                        }
+                        className={cn(
+                          'p-2 rounded-lg border-2 transition-all text-[11px] font-semibold leading-tight text-center',
+                          isAtual
+                            ? cn(col.tone.bg, col.tone.text, col.tone.border, 'cursor-default ring-2 ring-offset-1 ring-indigo-300')
+                            : isSelecionado
+                              ? cn(col.tone.bg, col.tone.text, col.tone.border)
+                              : desabilitado
+                                ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                        )}
+                      >
+                        <div>{col.label}</div>
+                        {isAtual && <div className="text-[9px] opacity-60 mt-0.5 normal-case font-normal">atual</div>}
+                      </button>
+                    )
+                  })}
                 </div>
-                {item.tipo_concierge !== 'oferta' && (
-                  <p className="text-[10.5px] text-slate-400 mt-1.5">"Aceito" só faz sentido pra ofertas comerciais.</p>
-                )}
               </div>
 
-              {item.tipo_concierge === 'oferta' && (selectedOutcome === 'aceito' || selectedOutcome === 'feito') && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11.5px] font-semibold text-slate-700 mb-1">Valor final</label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">R$</span>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={valorFinal}
-                        onChange={(e) => setValorFinal(e.target.value)}
-                        className="pl-8"
-                      />
+              {/* Sub-area condicional ao destino selecionado */}
+              {destinoSelecionado === 'feito' && isOferta && (
+                <div className="bg-purple-50/40 border border-purple-100 rounded-lg p-3 space-y-3">
+                  <label className="flex items-start gap-2 text-[12.5px] font-medium text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={comoAceito}
+                      onChange={(e) => setComoAceito(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>
+                      Cliente fechou a oferta (marcar como <span className="font-semibold text-purple-700">Aceito</span>)
+                    </span>
+                  </label>
+                  {comoAceito && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11.5px] font-semibold text-slate-700 mb-1">Valor final</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">R$</span>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={valorFinal}
+                            onChange={(e) => setValorFinal(e.target.value)}
+                            className="pl-8"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11.5px] font-semibold text-slate-700 mb-1">Cobrado de</label>
+                        <select
+                          value={cobradoDe}
+                          onChange={(e) => setCobradoDe(e.target.value as CobradoDe)}
+                          className="w-full h-9 px-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                        >
+                          <option value="">Selecionar…</option>
+                          <option value="cliente">Cliente</option>
+                          <option value="cortesia">Cortesia</option>
+                          <option value="incluido_pacote">Incluído no pacote</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11.5px] font-semibold text-slate-700 mb-1">Cobrado de</label>
-                    <select
-                      value={cobradoDe}
-                      onChange={(e) => setCobradoDe(e.target.value as CobradoDe)}
-                      className="w-full h-9 px-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-                    >
-                      <option value="">Selecionar…</option>
-                      <option value="cliente">Cliente</option>
-                      <option value="cortesia">Cortesia</option>
-                      <option value="incluido_pacote">Incluído no pacote</option>
-                    </select>
+                  )}
+                </div>
+              )}
+
+              {destinoSelecionado === 'encerrado' && (
+                <div className="bg-red-50/40 border border-red-100 rounded-lg p-3 space-y-2">
+                  <div className="text-[11.5px] font-semibold text-slate-700">Como encerrar?</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['recusado', 'cancelado'] as const).map(opt => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setOutcomeEncerramento(opt)}
+                        className={cn(
+                          'p-2 rounded-lg border-2 text-[12px] font-semibold capitalize transition-all',
+                          outcomeEncerramento === opt
+                            ? 'border-red-300 bg-white text-red-700'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -324,6 +415,11 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 resize-none"
                   rows={2}
                 />
+                {destinoSelecionado && destinoSelecionado !== 'feito' && destinoSelecionado !== 'encerrado' && (
+                  <p className="text-[10.5px] text-slate-400 mt-1">
+                    A observação só fica registrada quando finaliza (Feito ou Encerrado).
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -360,9 +456,9 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
         <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex items-center justify-end gap-2">
           {!item.outcome ? (
             <>
-              <Button variant="ghost" onClick={onClose} disabled={isMarkingOutcome}>Fechar</Button>
-              <Button onClick={handleMarcarOutcome} disabled={!selectedOutcome || isMarkingOutcome}>
-                {isMarkingOutcome ? 'Salvando…' : 'Confirmar'}
+              <Button variant="ghost" onClick={onClose} disabled={isPendingMove}>Fechar</Button>
+              <Button onClick={handleConfirmar} disabled={!podeConfirmar || isPendingMove}>
+                {isPendingMove ? 'Salvando…' : 'Confirmar'}
               </Button>
             </>
           ) : (

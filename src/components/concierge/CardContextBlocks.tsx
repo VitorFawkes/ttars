@@ -33,6 +33,16 @@ interface CardContextBlocksProps {
   showOutrasPendencias?: boolean
   /** Callback para abrir o drawer da viagem (se relevante) */
   onOpenDrawer?: () => void
+  /**
+   * Se passado, "outras pendências" lista atendimentos da VIAGEM INTEIRA
+   * (root + sub-cards). Quando o atendimento é de um sub-card, queremos as
+   * outras pendências da viagem completa, não só do sub-card.
+   */
+  rootCardId?: string
+  /** Quando false, não renderiza o bloco "Observações importantes" — quem
+   *  está consumindo se responsabiliza por mostrá-lo em outra posição (ex:
+   *  drawer da viagem mostra observações DEPOIS da lista de atendimentos). */
+  showObservacoes?: boolean
 }
 
 export function CardContextBlocks({
@@ -40,6 +50,8 @@ export function CardContextBlocks({
   excludeAtendimentoId,
   showOutrasPendencias = true,
   onOpenDrawer,
+  rootCardId,
+  showObservacoes = true,
 }: CardContextBlocksProps) {
   const { primary, travelers, isLoading: loadingPeople } = useCardPeople(cardId)
   const { data: observacoes } = useCardObservacoes(cardId)
@@ -49,7 +61,9 @@ export function CardContextBlocks({
   const { allTags } = useCardTags()
   const cardTags = (allTags ?? []).filter(t => tagIds.includes(t.id))
 
-  const { data: cardItems = [] } = useAtendimentosCard(cardId)
+  const outrasQueryCardId = rootCardId ?? cardId
+  const outrasMode = rootCardId ? 'with-sub-cards' : 'self'
+  const { data: cardItems = [] } = useAtendimentosCard(outrasQueryCardId, outrasMode)
   const outrasAbertas = cardItems.filter(i =>
     !i.outcome && !i.concluida && i.atendimento_id !== excludeAtendimentoId
   )
@@ -65,7 +79,7 @@ export function CardContextBlocks({
         <TagsBlock tags={cardTags} />
       )}
 
-      {obsEntries.length > 0 && (
+      {showObservacoes && obsEntries.length > 0 && (
         <ObservacoesBlock entries={obsEntries} />
       )}
 
@@ -223,6 +237,18 @@ function TagsBlock({ tags }: { tags: { id: string; name: string; color: string |
 }
 
 interface ObsEntry { key: string; label: string; value: string; source: 'briefing' | 'criticas' | 'pos_venda' }
+
+/**
+ * Bloco standalone de "Observações importantes" — para usar fora do
+ * CardContextBlocks (ex: no drawer da viagem, depois da lista de atendimentos).
+ * Faz seu próprio fetch via useCardObservacoes.
+ */
+export function CardObservacoesStandalone({ cardId }: { cardId: string }) {
+  const { data: observacoes } = useCardObservacoes(cardId)
+  const entries = flattenObservacoes(observacoes)
+  if (entries.length === 0) return null
+  return <ObservacoesBlock entries={entries} />
+}
 
 function ObservacoesBlock({ entries }: { entries: ObsEntry[] }) {
   return (
