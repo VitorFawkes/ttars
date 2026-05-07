@@ -2646,6 +2646,36 @@ Se nao ha nada COMPROVAVEL pra gravar, retorne card_patch e contact_patch vazios
     console.log(`[runDataAgentLLM] signals:`, JSON.stringify(qualificationSignals));
   }
 
+  // BUG FIX 2026-05-07 — timing pipeline: o ctx.form_data foi populado em
+  // buildConversationContext ANTES do Data Agent gravar. Sem refresh, o
+  // scoring/persona vê valores stale (do turno N-1). Resultado observado em
+  // teste real: cliente diz "200 mil" no turno N, Data Agent grava
+  // ww_orcamento_faixa, mas evaluateSubjectiveRules recebe form_data={} e
+  // value_per_guest retorna null. Score nunca soma.
+  // Mutamos ctx.form_data in-place pra refletir o estado pós-gravação. O ctx
+  // é passado por referência aos próximos steps (persona, scoring), então
+  // todos veem a versão atualizada deste turno.
+  if (Object.keys(cardPatch).length > 0) {
+    try {
+      const { data: refreshed } = await supabase
+        .from("cards")
+        .select("produto_data")
+        .eq("id", ctx.card_id)
+        .maybeSingle();
+      const fresh = (refreshed as { produto_data?: Record<string, unknown> } | null)?.produto_data;
+      if (fresh && typeof fresh === "object") {
+        const merged: Record<string, string> = { ...ctx.form_data };
+        for (const [k, v] of Object.entries(fresh)) {
+          if (v !== null && v !== undefined) merged[k] = String(v);
+        }
+        ctx.form_data = merged;
+        console.log(`[runDataAgentLLM] form_data refreshed: ${Object.keys(fresh).join(",")}`);
+      }
+    } catch (err) {
+      console.warn(`[runDataAgentLLM] form_data refresh failed (non-fatal): ${err}`);
+    }
+  }
+
   return { qualificationSignals };
 }
 
