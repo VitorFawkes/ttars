@@ -2470,7 +2470,10 @@ async function runDataAgentLLM(
   // Default sugerido só quando admin não configurou nada. RPC agent_update_card_data_v2
   // valida de novo contra system_fields e protected_fields antes de escrever.
   const autoUpdateFields = business?.auto_update_fields || [];
-  const defaultSugestao = ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id"];
+  // titulo NAO entra no default — exige opt-in explicito do admin em
+  // business.auto_update_fields para evitar reescrita automatica do nome do
+  // card a cada conversa. Edicao manual via UI continua livre.
+  const defaultSugestao = ["ai_resumo", "ai_contexto", "pipeline_stage_id"];
   const configuredCardFields = autoUpdateFields.length > 0 ? autoUpdateFields : defaultSugestao;
 
   // Traveler hard-lock: mesmo que admin tenha liberado titulo/stage, viajante não pode mexer.
@@ -2542,7 +2545,7 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - Campos permitidos no contato: ${allowedContactFields.join(", ")}.
 
 ### Normalizacoes
-- titulo (so se primary): "Viagem [Destino] - [Nome]". Ex: "Viagem Italia - Joao". Nao atualizar se ja tem titulo compativel.
+- titulo: NAO atualizar automaticamente. So gravar se "titulo" estiver explicitamente em "Campos permitidos no card".
 - cpf: so digitos, 11 caracteres.
 - passaporte: alfanumerico uppercase.
 - data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
