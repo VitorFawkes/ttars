@@ -9,6 +9,10 @@
 > **Trigger:** ALWAYS ON
 > **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 645 components
 > **Stats:** 191 tabelas | 144 paginas | 231 hooks | 22 views | 645 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
+> **Stats:** 191 tabelas | 145 paginas | 239 hooks | 22 views | 655 components
 
 ---
 
@@ -170,7 +174,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **231 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **239 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -236,6 +240,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useContactQuality()` | `useContactQuality.ts` |
 | `useDeleteContact()` | `useDeleteContact.ts` |
 | `useDuplicateDetection()` | `useDuplicateDetection.ts` |
+| `useDuplicateTasks()` | `useDuplicateTasks.ts` |
 | `usePeopleIntelligence()` | `usePeopleIntelligence.ts` |
 | `useQualityGate()` | `useQualityGate.ts` |
 
@@ -255,6 +260,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
 | `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentListening()` | `useAgentListening.ts` |
 | `useAgentMoments()` | `useAgentMoments.ts` |
 | `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
@@ -285,8 +291,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useConversationMessages()` | `useConversationMessages.ts` |
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
+| `useDebouncedValue()` | `useDebouncedValue.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -343,6 +351,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -380,12 +389,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
+| `useDuplicateCard()` | `useDuplicateCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
+| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -404,6 +415,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSubCards()` | `useSubCards.ts` |
 | `useTaskFilters()` | `useTaskFilters.ts` |
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
+| `useTransformIntoSubCard()` | `useTransformIntoSubCard.ts` |
 | `useTripsFilters()` | `useTripsFilters.ts` |
 
 #### Proposals
@@ -483,7 +495,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **145 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -506,6 +518,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
+| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |

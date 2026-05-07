@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useQuery } from '@tanstack/react-query'
@@ -18,6 +18,8 @@ import { toast } from 'sonner'
 import { ContactProposalsWidget } from '../proposals/ContactProposalsWidget'
 import ContactDetailsViewer from '../card/ContactDetailsViewer'
 import ContactChangeLogTab from './ContactChangeLogTab'
+import ConversationHistory from '../card/ConversationHistory'
+import { MessageSquare } from 'lucide-react'
 import { useDeleteContact } from '../../hooks/useDeleteContact'
 import { useMondeImportPerson } from '../../hooks/useMondeSearch'
 import { useContactGifts } from '../../hooks/useContactGifts'
@@ -35,12 +37,20 @@ interface PersonDetailDrawerProps {
     card?: Card
     onClose: () => void
     onRefresh?: () => void
+    defaultTab?: string
 }
 
-export default function PersonDetailDrawer({ person, card, onClose, onRefresh }: PersonDetailDrawerProps) {
+export default function PersonDetailDrawer({ person, card, onClose, onRefresh, defaultTab }: PersonDetailDrawerProps) {
     const navigate = useNavigate()
-    const [activeTab, setActiveTab] = useState('info')
+    const [activeTab, setActiveTab] = useState(defaultTab || 'info')
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+    // Sync activeTab when drawer reopens with a different defaultTab
+    useEffect(() => {
+        if (defaultTab && person) {
+            setActiveTab(defaultTab)
+        }
+    }, [defaultTab, person?.id])
     const { softDelete, isDeleting } = useDeleteContact({
         onSuccess: () => { onRefresh?.(); onClose() }
     })
@@ -103,7 +113,7 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
 
     return (
         <Drawer open={!!person} onOpenChange={(open) => !open && onClose()}>
-            <DrawerContent className="max-w-2xl">
+            <DrawerContent className="max-w-5xl">
                 <DrawerHeader className="border-b border-gray-100 pb-4">
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-4">
@@ -201,6 +211,12 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                 <DrawerBody>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="w-full justify-start mb-6 bg-gray-100/50 p-1">
+                            {card && (
+                                <TabsTrigger value="conversations" className="flex-1">
+                                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                                    Conversas
+                                </TabsTrigger>
+                            )}
                             <TabsTrigger value="info" className="flex-1">Informações</TabsTrigger>
                             <TabsTrigger value="proposals" className="flex-1">
                                 <FileText className="h-3.5 w-3.5 mr-1" />
@@ -222,6 +238,12 @@ export default function PersonDetailDrawer({ person, card, onClose, onRefresh }:
                                 </TabsTrigger>
                             )}
                         </TabsList>
+
+                        {card && (
+                            <TabsContent value="conversations" className="mt-0">
+                                <ConversationHistory cardId={card.id!} contactId={person.id} />
+                            </TabsContent>
+                        )}
 
                         <TabsContent value="info" className="mt-0">
                             <ContactForm

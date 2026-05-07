@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { CheckSquare, Plus, Check, UserPlus, X } from 'lucide-react'
+import { CheckSquare, Plus, Check, UserPlus, X, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -9,17 +9,23 @@ import { useFilterOptions } from '../hooks/useFilterOptions'
 import { TaskOutcomeModal } from '../components/shared/TaskOutcomeModal'
 import { useTaskTypesWithOutcomes } from '../hooks/useTaskOutcomes'
 import { toast } from 'sonner'
-import { cn } from '../lib/utils'
 import { TaskRow } from '../components/tasks/TaskRow'
-import { TaskFiltersBar } from '../components/tasks/TaskFiltersBar'
+import { TaskTopBar, type TaskViewMode } from '../components/tasks/TaskTopBar'
+import { TaskQuickChips } from '../components/tasks/TaskQuickChips'
+import { TaskFilterDrawer } from '../components/tasks/TaskFilterDrawer'
+import { ActiveTaskFilters } from '../components/tasks/ActiveTaskFilters'
+import { BulkDeleteConfirm } from '../components/tasks/BulkDeleteConfirm'
+import { DuplicateTasksView } from '../components/tasks/DuplicateTasksView'
 import { RescheduleModal } from '../components/tasks/RescheduleModal'
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal'
 import type { TaskListItem } from '../hooks/useTasksList'
 
 export default function Tasks() {
     const { profile } = useAuth()
-    const { filters, setFilters, reset } = useTaskFilters()
-    const { data: tasks, isLoading } = useTasksList({ filters })
+    const { filters, setFilters, reset, applyFocoHoje } = useTaskFilters()
+    const [viewMode, setViewMode] = useState<TaskViewMode>('list')
+    const enableTasksList = viewMode !== 'duplicates'
+    const { data: tasks, isLoading } = useTasksList({ filters, enabled: enableTasksList })
     const { data: options } = useFilterOptions()
     const queryClient = useQueryClient()
     const typesWithOutcomes = useTaskTypesWithOutcomes()
@@ -33,8 +39,22 @@ export default function Tasks() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const selectionActive = selectedIds.size > 0
     const [bulkReassignOpen, setBulkReassignOpen] = useState(false)
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
-    const [groupBy, setGroupBy] = useState<'none' | 'card'>('none')
+    const [moreFiltersOpen, setMoreFiltersOpen] = useState(false)
+
+    const moreFiltersCount =
+        filters.prioridades.length +
+        filters.fases.length +
+        filters.responsavelIds.length +
+        filters.cardFases.length +
+        filters.cardStatusComercial.length +
+        filters.urgencia.length +
+        filters.resultados.length +
+        (filters.atrasadaMaisDias ? 1 : 0) +
+        (filters.vencimentoFrom || filters.vencimentoTo ? 1 : 0) +
+        (filters.criacaoFrom || filters.criacaoTo ? 1 : 0) +
+        (filters.conclusaoFrom || filters.conclusaoTo ? 1 : 0)
 
     const completeMutation = useMutation({
         mutationFn: async ({ taskId, outcome, feedback }: { taskId: string; outcome?: string; feedback?: string }) => {
@@ -126,6 +146,28 @@ export default function Tasks() {
         onError: (err: Error) => toast.error('Erro ao reatribuir em lote', { description: err.message }),
     })
 
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async (ids: string[]) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.rpc as any)('bulk_soft_delete_tarefas', { p_task_ids: ids })
+            if (error) throw error
+            return Number(data) || 0
+        },
+        onSuccess: (deleted, ids) => {
+            queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
+            queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['duplicate-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            toast.success(`${deleted} ${deleted === 1 ? 'tarefa removida' : 'tarefas removidas'}`)
+            if (deleted < ids.length) {
+                toast.warning(`${ids.length - deleted} tarefas não puderam ser removidas (fora da sua organização ou já apagadas).`)
+            }
+            setSelectedIds(new Set())
+            setBulkDeleteOpen(false)
+        },
+        onError: (err: Error) => toast.error('Erro ao excluir em lote', { description: err.message }),
+    })
+
     const handleComplete = (task: TaskListItem) => {
         if (typesWithOutcomes.has(task.tipo)) {
             setTaskToComplete(task)
@@ -144,8 +186,19 @@ export default function Tasks() {
         })
     }
 
+    const setMany = (ids: string[], selected: boolean) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            for (const id of ids) {
+                if (selected) next.add(id)
+                else next.delete(id)
+            }
+            return next
+        })
+    }
+
     const groupedTasks = useMemo(() => {
-        if (groupBy !== 'card' || !tasks) return null
+        if (viewMode !== 'by_card' || !tasks) return null
         const groups = new Map<string, { cardId: string; cardTitulo: string; items: TaskListItem[] }>()
         for (const t of tasks) {
             const key = t.card_id
@@ -153,60 +206,51 @@ export default function Tasks() {
             groups.get(key)!.items.push(t)
         }
         return Array.from(groups.values())
-    }, [tasks, groupBy])
+    }, [tasks, viewMode])
+
+    const taskCount = viewMode === 'duplicates' ? 0 : (tasks?.length || 0)
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex-shrink-0 border-b border-slate-200 bg-white px-6 py-4">
-                <div className="flex items-center justify-between mb-4">
+            <div className="flex-shrink-0 border-b border-slate-200 bg-white px-6 py-4 space-y-3">
+                <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-xl font-bold text-slate-900 tracking-tight">Tarefas</h1>
                         <p className="text-sm text-slate-500 mt-0.5">
                             Seu dia a dia organizado por prioridade, prazo e origem.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex bg-slate-100 rounded-lg p-0.5">
-                            <button
-                                onClick={() => setGroupBy('none')}
-                                className={cn(
-                                    "px-2.5 py-1 text-xs font-medium rounded-md transition-all",
-                                    groupBy === 'none' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-                                )}
-                            >
-                                Lista
-                            </button>
-                            <button
-                                onClick={() => setGroupBy('card')}
-                                className={cn(
-                                    "px-2.5 py-1 text-xs font-medium rounded-md transition-all",
-                                    groupBy === 'card' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-                                )}
-                            >
-                                Por card
-                            </button>
-                        </div>
-                        <button
-                            onClick={() => setCreateOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Nova tarefa
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => setCreateOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Nova tarefa
+                    </button>
                 </div>
 
-                <TaskFiltersBar
+                <TaskTopBar
                     filters={filters}
                     setFilters={setFilters}
-                    onReset={reset}
-                    taskCount={tasks?.length || 0}
-                    isLoading={isLoading}
+                    viewMode={viewMode}
+                    onViewModeChange={(m) => {
+                        setViewMode(m)
+                        setSelectedIds(new Set())
+                    }}
+                    moreFiltersCount={moreFiltersCount}
+                    moreFiltersOpen={moreFiltersOpen}
+                    onToggleMoreFilters={() => setMoreFiltersOpen(o => !o)}
+                    taskCount={taskCount}
+                    isLoading={isLoading && enableTasksList}
                 />
+
+                <TaskQuickChips filters={filters} setFilters={setFilters} onFocoHoje={applyFocoHoje} />
+
+                <ActiveTaskFilters filters={filters} setFilters={setFilters} onReset={reset} />
             </div>
 
             {selectionActive && (
-                <div className="flex-shrink-0 bg-indigo-50 border-b border-indigo-200 px-6 py-2 flex items-center gap-3">
+                <div className="flex-shrink-0 bg-indigo-50 border-b border-indigo-200 px-6 py-2 flex items-center gap-3 flex-wrap">
                     <span className="text-sm text-indigo-900 font-medium">
                         {selectedIds.size} {selectedIds.size === 1 ? 'selecionada' : 'selecionadas'}
                     </span>
@@ -241,6 +285,14 @@ export default function Tasks() {
                         )}
                     </div>
                     <button
+                        onClick={() => setBulkDeleteOpen(true)}
+                        disabled={bulkDeleteMutation.isPending}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-white border border-rose-200 text-rose-700 hover:bg-rose-50"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir
+                    </button>
+                    <button
                         onClick={() => setSelectedIds(new Set())}
                         className="ml-auto flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
                     >
@@ -251,7 +303,14 @@ export default function Tasks() {
             )}
 
             <div className="flex-1 overflow-y-auto">
-                {isLoading ? (
+                {viewMode === 'duplicates' ? (
+                    <DuplicateTasksView
+                        scope={filters.scope}
+                        selectedIds={selectedIds}
+                        onToggleSelect={toggleSelect}
+                        onSetMany={setMany}
+                    />
+                ) : isLoading ? (
                     <div className="px-6 py-8 space-y-3">
                         {[1, 2, 3, 4, 5].map(i => (
                             <div key={i} className="h-16 bg-slate-100 rounded-lg animate-pulse" />
@@ -339,6 +398,21 @@ export default function Tasks() {
             <CreateTaskModal
                 open={createOpen}
                 onOpenChange={setCreateOpen}
+            />
+
+            <TaskFilterDrawer
+                open={moreFiltersOpen}
+                onClose={() => setMoreFiltersOpen(false)}
+                filters={filters}
+                setFilters={setFilters}
+            />
+
+            <BulkDeleteConfirm
+                open={bulkDeleteOpen}
+                count={selectedIds.size}
+                onClose={() => setBulkDeleteOpen(false)}
+                onConfirm={() => bulkDeleteMutation.mutate([...selectedIds])}
+                isPending={bulkDeleteMutation.isPending}
             />
         </div>
     )

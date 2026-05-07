@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown, Combine, ArrowUpFromLine } from 'lucide-react'
+import { Mail, X, Send, Loader2, Trash2, Zap, Sparkles, MessageSquare, Mic, FileText, ChevronDown, Combine, ArrowUpFromLine, ArrowDownToLine, Copy } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCreateProposal } from '@/hooks/useProposal'
@@ -21,6 +21,8 @@ import TranscriptionIAModal from './TranscriptionIAModal'
 import AIExtractionReviewModal from './AIExtractionReviewModal'
 import AIConversationReviewModal from './AIConversationReviewModal'
 import MergeCardsModal from './MergeCardsModal'
+import TransformIntoSubCardModal from './TransformIntoSubCardModal'
+import DuplicateCardModal from './DuplicateCardModal'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -54,6 +56,8 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
     const [showAIReview, setShowAIReview] = useState(false)
     const [showAIConversation, setShowAIConversation] = useState(false)
     const [showMergeModal, setShowMergeModal] = useState(false)
+    const [showTransformModal, setShowTransformModal] = useState(false)
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false)
     const [showPromoteConfirm, setShowPromoteConfirm] = useState(false)
     const promoteSubCard = usePromoteSubCard()
     const aiReview = useAIExtractionReview(card.id)
@@ -483,6 +487,28 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     Agrupar
                 </button>
 
+                {cardType === 'standard' && card.parent_card_id == null && subCardStatus == null && card.is_group_parent !== true && (
+                    <button
+                        onClick={() => setShowTransformModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 transition-colors text-xs font-medium"
+                        title="Vincular este card como sub-card (mudança/adicional) de outro em pós-venda"
+                    >
+                        <ArrowDownToLine className="h-3.5 w-3.5" />
+                        Virar sub-card
+                    </button>
+                )}
+
+                {cardType === 'standard' && (
+                    <button
+                        onClick={() => setShowDuplicateModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors text-xs font-medium"
+                        title="Criar um card novo aproveitando os dados desta viagem (sem cliente)"
+                    >
+                        <Copy className="h-3.5 w-3.5" />
+                        Duplicar
+                    </button>
+                )}
+
                 {isActiveSubCard && (
                     <button
                         onClick={() => setShowPromoteConfirm(true)}
@@ -637,6 +663,24 @@ export default function ActionButtons({ card }: ActionButtonsProps) {
                     setShowMergeModal(false)
                     navigate(`/cards/${destinoId}`, { replace: true })
                 }}
+            />
+
+            <TransformIntoSubCardModal
+                open={showTransformModal}
+                onClose={() => setShowTransformModal(false)}
+                card={{
+                    id: card.id,
+                    titulo: card.titulo ?? null,
+                    produto: (card as Record<string, unknown>).produto as string | null | undefined,
+                    pipeline_id: (card as Record<string, unknown>).pipeline_id as string | null | undefined,
+                }}
+                onLinked={(parentId) => navigate(`/cards/${parentId}`, { replace: true })}
+            />
+
+            <DuplicateCardModal
+                open={showDuplicateModal}
+                onClose={() => setShowDuplicateModal(false)}
+                card={{ id: card.id, titulo: card.titulo ?? null }}
             />
 
             {showPromoteConfirm && (

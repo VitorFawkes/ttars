@@ -4,6 +4,21 @@
 **Supabase Staging:** `ivmebyvjarcvrkrbemam` (defasado — Supabase Branching substitui staging por PR)
 **Stack:** React + Vite + TailwindCSS + Supabase (PostgreSQL + Edge Functions) + TypeScript Strict
 
+## ⚡ TOP 5 — Regras com violação recorrente (LEIA SEMPRE, INCLUSIVE SUBAGENTS)
+
+Estas 5 regras viraram bug ≥3 vezes nos últimos 60 dias (35 feedback files no `memory/` são prova). Se sua mudança envolve QUALQUER uma das áreas abaixo, **pare e leia o topic file linkado antes de tocar em código**:
+
+1. **Listagens de tabela por-org** (`teams`, `departments`, `motivos_perda`, `card_tags`, `cadence_templates`, `ai_agents`, `automation_flows`, `pipelines`, `pipeline_stages`, `pipeline_phases`, `sections`, `system_fields`, `cards`, `activities`, etc): SEMPRE `.eq('org_id', activeOrgId)` ou via RPC `SECURITY DEFINER`. Listar sem filtro vaza dados cross-workspace via RLS permissiva. → `memory/feedback_workspace_isolation_always.md`
+2. **Listar usuários/consultores em workspace**: NUNCA `.from('profiles').eq('org_id', X)` em workspace filho — `profiles.org_id` aponta pra account pai (Welcome Group), retorna lista vazia. Use `org_members` com `select('user_id, profiles!inner(...)').eq('org_id', workspaceId)`. → `memory/feedback_multi_tenant_org_members.md`
+3. **Hooks de configuração de pipeline** (`useFieldConfig`, `useStageSectionConfig`, `useStageFieldConfirmations`, `useQualityGate`): SEMPRE passar `pipelineId` fora de Pipeline Studio admin. Filtrar dados não basta — configs vazam cross-pipeline (campos WEDDING aparecem em telas TRIPS). → `memory/feedback_metadata_isolation.md`
+4. **Migrations**: Staging primeiro (`bash .claude/hooks/apply-to-staging.sh <arquivo>`), depois `promote-to-prod.sh` (que aplica + smoke test + registra log). NUNCA aplicar SQL direto. NUNCA deixar `.sql` órfão (sem promoção) acumulado no disco — após aplicar, **commitar o arquivo**. → §Protocolo de Migrations abaixo + `memory/feedback_migration_cleanup.md`
+5. **CREATE OR REPLACE FUNCTION existente**: ANTES de recriar, `grep -rn "CREATE.*FUNCTION nome_da_funcao" supabase/migrations/` em TODAS as migrations anteriores. Recriar cego reverte correções aplicadas em outras migrations (caso real: email voltou a ser obrigatório em 17/04 após rebase). → `memory/feedback_function_rebase_cuidado.md`
+
+### Disparando subagents (Explore/Plan/general-purpose)
+Subagents recebem este CLAUDE.md mas **NÃO recebem MEMORY.md/topic files**. Se a task envolve uma das 5 áreas acima, **inclua o conteúdo do topic file relevante no prompt do Agent tool** — não basta o pointer.
+
+---
+
 ## Regras Invioláveis
 - IMPORTANT: NUNCA hardcode secrets. Use `import.meta.env.VITE_*` ou variáveis de ambiente
 - IMPORTANT: NUNCA modifique view/trigger/function SQL sem ler docs/SQL_SOP.md primeiro

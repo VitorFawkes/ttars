@@ -48,6 +48,16 @@ export function TabValidatorRules({ form, setForm }: Props) {
   }
 
   const loadJuliaDefaults = () => {
+    // Confirmação destrutiva — substitui TUDO. Sem isso, admin que customizou
+    // regras (ex: Estela tem 'echo_pergunta_social' e 'usar_nome_revelado'
+    // específicas) perde silenciosamente.
+    const customCount = rules.length
+    if (customCount > 0) {
+      const confirmed = confirm(
+        `Isso vai SUBSTITUIR todas as ${customCount} regras atuais pelas 8 da Julia. Suas customizações serão perdidas. Confirma?`,
+      )
+      if (!confirmed) return
+    }
     setForm(f => ({ ...f, validator_rules: JULIA_VALIDATOR_RULES.map(r => ({ ...r })) }))
     toast.success('Regras da Julia carregadas')
   }
@@ -90,12 +100,19 @@ export function TabValidatorRules({ form, setForm }: Props) {
             </div>
           )}
 
-          {rules.map((rule, idx) => (
+          {rules.map((rule, idx) => {
+            // Regra ativa sem condição preenchida vai pro prompt como
+            // "→ BLOQUEAR" sem critério — LLM não sabe quando aplicar.
+            // Marcamos vermelho pra admin não esquecer.
+            const conditionEmpty = rule.enabled && !rule.condition.trim()
+            return (
             <div
               key={rule.id}
               className={cn(
                 'border rounded-lg p-4 space-y-3 transition-colors',
-                rule.enabled ? 'border-red-200 bg-red-50/40' : 'border-slate-200 bg-slate-50/40 opacity-70'
+                conditionEmpty
+                  ? 'border-red-400 bg-red-50 ring-2 ring-red-100'
+                  : rule.enabled ? 'border-red-200 bg-red-50/40' : 'border-slate-200 bg-slate-50/40 opacity-70'
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -114,12 +131,21 @@ export function TabValidatorRules({ form, setForm }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-600">Condição que dispara a regra</Label>
+                <Label className="text-xs text-slate-600">
+                  Condição que dispara a regra
+                  {rule.enabled && <span className="text-red-600 ml-1">*</span>}
+                </Label>
                 <Input
                   value={rule.condition}
                   onChange={e => update(idx, { condition: e.target.value })}
                   placeholder='Ex: "Menciona IA, modelo ou prompt"'
+                  className={cn(conditionEmpty && 'border-red-400 ring-1 ring-red-200')}
                 />
+                {conditionEmpty && (
+                  <p className="text-[11px] text-red-600">
+                    Regra ativa sem condição. A IA não saberá quando aplicar — preencha ou desligue.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -131,7 +157,8 @@ export function TabValidatorRules({ form, setForm }: Props) {
                 />
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         <Button variant="outline" onClick={add} className="gap-2 w-full">

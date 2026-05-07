@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import KanbanBoard from '../components/pipeline/KanbanBoard'
 import PipelineListView from '../components/pipeline/PipelineListView'
 import { cn } from '../lib/utils'
 import CreateCardModal from '../components/pipeline/CreateCardModal'
 
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { usePipelineFilters, useActiveFilterCount } from '../hooks/usePipelineFilters'
 import { useProductContext } from '../hooks/useProductContext'
 import { useMyVisiblePhases } from '../hooks/useMyVisiblePhases'
@@ -46,6 +47,14 @@ export default function Pipeline() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+
+    // Debounce search para evitar refetch a cada keystroke (busca em cards_contatos é cara).
+    // Input continua controlado por filters.search para UI responsiva; query só dispara após 300ms parado.
+    const debouncedSearch = useDebouncedValue(filters.search ?? '', 300)
+    const effectiveFilters = useMemo(
+        () => ({ ...filters, search: debouncedSearch }),
+        [filters, debouncedSearch]
+    )
 
     // Labels dinâmicos de fases
     const { pipelineId: currentPipelineId } = useCurrentProductMeta()
@@ -160,7 +169,7 @@ export default function Pipeline() {
                                     <input
                                         type="search"
                                         name="pipeline-search"
-                                        placeholder="Buscar por nome, telefone, email, título..."
+                                        placeholder="Buscar por nome, viajante, telefone, email, título..."
                                         className="block w-full pl-10 pr-3 py-1.5 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm [&::-webkit-search-decoration]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden"
                                         value={filters.search || ''}
                                         onChange={(e) => updateFilter({ search: e.target.value })}
@@ -367,7 +376,7 @@ export default function Pipeline() {
                             productFilter={currentProduct}
                             viewMode={viewMode}
                             subView={subView}
-                            filters={filters}
+                            filters={effectiveFilters}
                             showWonDirect={showWonDirect}
                             showClosedCards={currentProduct === 'CORP'}
                             className="h-full px-8 pb-4"
@@ -377,7 +386,7 @@ export default function Pipeline() {
                             productFilter={currentProduct}
                             viewMode={viewMode}
                             subView={subView}
-                            filters={filters}
+                            filters={effectiveFilters}
                             showWonDirect={showWonDirect}
                             showClosedCards={currentProduct === 'CORP'}
                             onCardClick={(cardId) => {

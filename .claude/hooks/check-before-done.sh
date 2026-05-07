@@ -40,7 +40,7 @@ PIPELINE_HOOKS="useFieldConfig|useStageSectionConfig|useStageFieldConfirmations|
 # Tabelas de config que só devem ser acessadas via hooks (não .from() direto em componentes)
 CONFIG_TABLES="stage_field_config|stage_section_config|section_field_config|stage_field_confirmations"
 # Excluir: definições dos hooks, Pipeline Studio (admin precisa de visão global), testes, hooks analytics
-EXCLUDE_PATTERN="src/hooks/(useFieldConfig|useStageSectionConfig|useSectionFieldConfig|useStageFieldConfirmations|useQualityGate)\.ts|src/components/admin/studio/|__tests__"
+EXCLUDE_PATTERN="src/hooks/(useFieldConfig|useStageSectionConfig|useSectionFieldConfig|useStageFieldConfirmations|useQualityGate|useStageRequirements)\.ts|src/components/admin/studio/|__tests__"
 ISOLATION_VIOLATIONS=""
 for f in $CHANGED_FILES; do
   echo "$f" | grep -qE "$EXCLUDE_PATTERN" && continue

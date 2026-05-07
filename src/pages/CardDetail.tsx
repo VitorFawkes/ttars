@@ -6,7 +6,6 @@ import CardHeader from '../components/card/CardHeader'
 import { useStageRequirements, type TaskRequirement } from '../hooks/useStageRequirements'
 import CardTasks from '../components/card/CardTasks'
 import { DynamicSectionsList } from '../components/card/DynamicSectionWidget'
-import ConversationHistory from '../components/card/ConversationHistory'
 import PessoasWidget from '../components/card/PessoasWidget'
 import CardCorpTimingPanel from '../components/card/CardCorpTimingPanel'
 
@@ -328,9 +327,7 @@ export default function CardDetail() {
                         </button>
                     )}
 
-                    {/* Tasks & Meetings (Unified) — hardcoded.
-                        Concierge atendimentos aparecem aqui mesmo, com selo de tipo
-                        e clique abrindo o modal completo (sem bloco separado). */}
+                    {/* Tasks & Meetings (Unified) — hardcoded */}
                     <CardTasks cardId={card.id!} requiredTasks={requiredTasks} />
 
                     {/* Dynamic Sections (left_column) — includes Informações Importantes via widget */}
@@ -339,9 +336,6 @@ export default function CardDetail() {
                         position="left_column"
                         excludeKeys={HARDCODED_EXCLUDE_KEYS}
                                             />
-
-                    {/* Conversation History — hardcoded, always last */}
-                    <ConversationHistory cardId={card.id!} contactId={card.pessoa_principal_id} />
                 </div>
 
                 {/* SIDEBAR - Context & Accountability */}

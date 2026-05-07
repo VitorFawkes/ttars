@@ -101,9 +101,16 @@ function matchesTrigger(moment: PlaybookMoment, ctx: MomentDetectionContext): bo
     case 'keyword': {
       const keywords = Array.isArray(cfg.keywords) ? (cfg.keywords as string[]) : [];
       if (keywords.length === 0) return false;
-      const msg = (ctx.last_lead_message ?? "").toLowerCase();
+      // Normaliza acentos antes do match: "família" no admin precisa bater com
+      // "familia" digitado pelo cliente, e vice-versa. Sem isso, qualquer
+      // keyword com acento ficava morta para uma fração grande dos clientes.
+      const normalize = (s: string) => s
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase();
+      const msg = normalize(ctx.last_lead_message ?? "");
       if (!msg) return false;
-      return keywords.some(k => typeof k === 'string' && msg.includes(k.toLowerCase()));
+      return keywords.some(k => typeof k === 'string' && msg.includes(normalize(k)));
     }
 
     case 'score_threshold': {

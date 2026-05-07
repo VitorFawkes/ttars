@@ -30,6 +30,7 @@
 export type HumanBlockKind =
   | 'header'
   | 'voice'
+  | 'listening'
   | 'anchors'
   | 'boundaries'
   | 'qualification'
@@ -58,6 +59,11 @@ const META: Record<HumanBlockKind, { title: string; emoji: string; description: 
     title: 'Como a agente fala',
     emoji: '🎙️',
     description: 'Tom, formalidade, frases típicas e proibidas.',
+  },
+  listening: {
+    title: 'Como a agente escuta',
+    emoji: '👂',
+    description: 'Como ela reage quando o cliente foge do roteiro: pergunta devolvida, comentário, várias mensagens em sequência.',
   },
   anchors: {
     title: 'Frases por momento',
@@ -101,6 +107,7 @@ const TURN_RE = /<turn\b[^>]*>([\s\S]*?)<\/turn>/
 
 const AGENT_INNER_TAGS: HumanBlockKind[] = [
   'voice',
+  'listening',
   'anchors',
   'boundaries',
   'qualification',

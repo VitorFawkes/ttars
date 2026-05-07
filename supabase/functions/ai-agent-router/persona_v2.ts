@@ -25,6 +25,7 @@ import {
   type IdentityConfig,
   type VoiceConfig,
   type BoundariesConfig,
+  type ListeningConfig,
 } from "./playbook_loader.ts";
 import { detectMoment, type MomentDetectionContext } from "./moment_detector.ts";
 import { buildPromptV2 } from "./prompt_builder_v2.ts";
@@ -46,6 +47,7 @@ interface AgentV2Config {
   identity_config: IdentityConfig | null;
   voice_config: VoiceConfig | null;
   boundaries_config: BoundariesConfig | null;
+  listening_config: ListeningConfig | null;
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
   handoff_actions?: {
     book_meeting?: {
@@ -98,6 +100,12 @@ export interface PersonaV2Result {
   response: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * true quando o texto veio de um path determinístico (anchor literal, short_closing).
+   * O caller deve evitar passar esse texto por LLMs que possam reescrever (validator/formatter
+   * em modo "rewriter"): admin já curou as palavras na UI.
+   */
+  was_literal: boolean;
   v2Metadata: {
     current_moment_key: string;
     qualification_score_at_turn: number | null;
@@ -145,6 +153,7 @@ export async function runPersonaAgent_v2(
       response,
       inputTokens: 0,
       outputTokens: response.length / 4 | 0,
+      was_literal: true,
       v2Metadata: {
         current_moment_key: ctx.last_moment_key ?? 'short_closing',
         qualification_score_at_turn: null,
@@ -412,6 +421,48 @@ export async function runPersonaAgent_v2(
     }
   }
 
+  // 5b.1. Skip split quando cliente já mandou tudo (FIX 07/05/2026).
+  // Sintoma: cliente envia "Oi sou o Vitor, queremos casar no Caribe em
+  // Janeiro 2028 com 30 pessoas e 100k" no T1 — mesmo assim a Estela cumpre
+  // o ritual de 2 turnos do anchor (cumprimento → pitch). Forçar 2 turnos
+  // queima rapport quando lead chegou pré-qualificado.
+  // Estratégia: se `usesSteps && stepIndex < totalSteps - 1 && form_data já
+  // tem >=3 dos 4 campos críticos`, salta pro último step da abertura. Isso
+  // mantém o segundo turno (pitch) sem perder o cumprimento, e libera a
+  // sondagem mais rápido. Mantém literal puro e determinístico.
+  if (usesSteps && currentMomentStepIndex < (() => {
+    const totalSteps = (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length;
+    return totalSteps - 1;
+  })()) {
+    const criticalKeys = [
+      'ww_destino', 'ww_data_casamento', 'ww_num_convidados',
+      'ww_orcamento_faixa', 'ww_orcamento_total',
+      'destino', 'data_casamento', 'num_convidados', 'orcamento_total',
+      'mkt_destino', 'mkt_pretende_viajar_quando',
+    ];
+    const formData = ctx.form_data ?? {};
+    const filled = new Set<string>();
+    for (const k of criticalKeys) {
+      const v = formData[k];
+      if (v != null && String(v).trim().length > 0) {
+        const normalized = k
+          .replace(/^ww_(sdr_)?/, '')
+          .replace(/^mkt_/, '')
+          .replace(/_faixa$|_total$|_casamento$/, '')
+          .replace(/^pretende_viajar_quando$/, 'data');
+        filled.add(normalized);
+      }
+    }
+    if (filled.size >= 3) {
+      const totalSteps = (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length;
+      const newIndex = Math.max(totalSteps - 1, currentMomentStepIndex);
+      if (newIndex !== currentMomentStepIndex) {
+        console.log(`[persona_v2] skip_split: cliente já forneceu ${filled.size} campos críticos (${[...filled].join(',')}), pulando step ${currentMomentStepIndex}→${newIndex}`);
+        currentMomentStepIndex = newIndex;
+      }
+    }
+  }
+
   // 5c. Detecção determinística de fatos do anchor que o lead já mencionou.
   // SÓ roda em modos literal/faithful (modo 'free' não precisa — agente já
   // adapta). E só roda quando há mensagens prévias do lead pra analisar.
@@ -473,6 +524,7 @@ export async function runPersonaAgent_v2(
     identity: agent.identity_config,
     voice: agent.voice_config,
     boundaries: agent.boundaries_config,
+    listening: agent.listening_config,
     moments,
     currentMoment: detected.moment,
     currentMomentMethod: detected.method,
@@ -536,6 +588,7 @@ export async function runPersonaAgent_v2(
       response: literalResponse,
       inputTokens: 0,
       outputTokens: literalResponse.length / 4 | 0,
+      was_literal: true,
       v2Metadata: {
         current_moment_key: detected.moment.moment_key,
         qualification_score_at_turn: scoreInfo.score,
@@ -559,6 +612,7 @@ export async function runPersonaAgent_v2(
     response,
     inputTokens,
     outputTokens,
+    was_literal: false,
     v2Metadata: {
       current_moment_key: detected.moment.moment_key,
       qualification_score_at_turn: scoreInfo.score,
@@ -641,6 +695,24 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
   // 2. Aplica omissões (trechos que o lead já antecipou)
   for (const trecho of omitExcerpts) {
     text = text.split(trecho).join('').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  // 2.5. Eco determinístico de pergunta social (FIX 07/05/2026).
+  // Em modo literal o LLM nunca é chamado, então a diretiva
+  // `<detected_social_question>` injetada em renderListeningBlock fica órfã.
+  // Resultado observado: cliente diz "Oi tudo bem?" e Estela responde "Olá,
+  // tudo bem? Aqui é a Estela!" — ignorando a pergunta social do cliente.
+  // Solução: prepend determinístico de uma frase de eco curto antes do anchor
+  // quando regex bate na última msg do lead. Sem LLM, sem variabilidade.
+  const _leadLines2 = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
+  const _lastLeadMsg = _leadLines2.length > 0
+    ? _leadLines2[_leadLines2.length - 1].replace(/^\[lead\]:\s*/, '').trim()
+    : '';
+  const _hasSocialQuestion = /\b(e\s+voc[eê]\??|td\s+bem\??|tudo\s+bem\??|como\s+vai\??|como\s+(voc[eê]\s+)?est[áa]\??|tudo\s+(bom|certo|joia)\??)\b/i.test(_lastLeadMsg.toLowerCase());
+  // Só prepend se o anchor não começa já com "tudo bem" ou "tudo ótimo" — evita duplicar quando admin já escreveu eco no anchor.
+  const _anchorAlreadyEchoes = /^(tudo\s+(bem|ótimo|otimo|bom|certo)|td\s+bem)/i.test(text.trim());
+  if (_hasSocialQuestion && !_anchorAlreadyEchoes) {
+    text = 'Tudo ótimo por aqui, obrigada!\n\n' + text;
   }
 
   // 3. Substitui variáveis

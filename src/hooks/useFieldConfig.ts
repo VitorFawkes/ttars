@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useOrg } from '../contexts/OrgContext'
 import type { Database, Json } from '../database.types'
@@ -247,4 +247,39 @@ export function useFieldConfig(pipelineId?: string) {
         getRequiredFields,
         hasSectionDefault
     }
+}
+
+/**
+ * Mutations para reordenar/atualizar `system_fields` da org atual.
+ * `system_fields` tem PK composta `(org_id, key)` — toda mutation filtra por org_id
+ * explicitamente (defesa em profundidade, RLS já cobre).
+ */
+export function useSystemFieldsMutations() {
+    const queryClient = useQueryClient()
+    const { org } = useOrg()
+    const orgId = org?.id
+
+    const reorderSectionFields = useMutation({
+        mutationFn: async (updates: { key: string; order_index: number }[]) => {
+            if (!orgId) throw new Error('Org ativa não definida')
+            const promises = updates.map(({ key, order_index }) =>
+                supabase
+                    .from('system_fields')
+                    .update({ order_index })
+                    .eq('key', key)
+                    .eq('org_id', orgId)
+            )
+            const results = await Promise.all(promises)
+            const errors = results.filter(r => r.error)
+            if (errors.length > 0) {
+                throw new Error('Falha ao reordenar campos')
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['system-fields-config', orgId] })
+            queryClient.invalidateQueries({ queryKey: ['system-fields-unified'] })
+        }
+    })
+
+    return { reorderSectionFields }
 }

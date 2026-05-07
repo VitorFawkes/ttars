@@ -21,6 +21,7 @@ type StageFieldConfig = Database['public']['Tables']['stage_field_config']['Row'
 
 import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
 import { useSections } from '../../../hooks/useSections'
+import { useSystemFieldsMutations } from '../../../hooks/useFieldConfig'
 import { Input } from '../../ui/Input'
 import {
     DropdownMenu,
@@ -223,18 +224,7 @@ export default function StudioUnified() {
         }
     })
 
-    const reorderFieldMutation = useMutation({
-        mutationFn: async (updates: { key: string; order_index: number }[]) => {
-            for (const u of updates) {
-                const { error } = await supabase.from('system_fields').update({ order_index: u.order_index }).eq('key', u.key)
-                if (error) throw error
-            }
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['system-fields-unified'] })
-            queryClient.invalidateQueries({ queryKey: ['system-fields-config'] })
-        }
-    })
+    const { reorderSectionFields: reorderFieldMutation } = useSystemFieldsMutations()
 
     const handleMoveField = (sectionKey: string, fieldKey: string, direction: 'up' | 'down') => {
         const sectionFields = fieldsBySection[sectionKey] || []

@@ -647,12 +647,20 @@ function CriteriaSection({
 
   const handleCreateOption = async (groupName: string) => {
     const existing = buckets.exclusionGroups.find((g) => g.name === groupName)
+    // Detecta grupos conhecidos com fórmula determinística — admin não precisa
+    // escrever pergunta, só ajustar os limites numéricos.
+    const isValuePerGuestGroup = groupName === 'valor_convidado'
+    const conditionValue = isValuePerGuestGroup
+      ? { formula: 'value_per_guest', min: null, max: null }
+      : { question: '' }
     await onSaveRule({
       dimension: generateDimensionKey(groupName),
       condition_type: 'ai_subjective',
-      condition_value: { question: '' },
+      condition_value: conditionValue,
       weight: 10,
-      label: 'Nova opção',
+      // Pra grupos com fórmula o label é derivado em tempo real do condition_value;
+      // o salvamento depois vai gravar o label correto.
+      label: isValuePerGuestGroup ? 'Valor por convidado: configurar faixa' : 'Nova opção',
       ordem: (existing?.rules.length ?? 0) * 10 + 10,
       ativa: true,
       rule_type: 'qualify',
@@ -927,12 +935,19 @@ function CriterionRow({
   onSave: (input: ScoringRuleInput) => Promise<void>
   onDelete: () => Promise<void>
 }) {
-  const [label, setLabel] = useState(rule.label ?? '')
+  const [labelManual, setLabelManual] = useState(rule.label ?? '')
   const [weight, setWeight] = useState(rule.weight)
   const [ativa, setAtiva] = useState(rule.ativa)
   const [conditionValue, setConditionValue] = useState(rule.condition_value)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Quando a regra usa fórmula determinística (ex: valor por convidado), o
+  // label é DERIVADO do condition_value — impede divergência label-vs-pergunta
+  // que existia antes (label dizia "1.000-1.500" e pergunta dizia "3.500-4.000").
+  const derivedLabel = deriveLabelFromFormula(conditionValue)
+  const usesFormula = derivedLabel !== null
+  const label = usesFormula ? (derivedLabel ?? '') : labelManual
 
   const dirty =
     label !== (rule.label ?? '') ||
@@ -940,7 +955,34 @@ function CriterionRow({
     ativa !== rule.ativa ||
     JSON.stringify(conditionValue) !== JSON.stringify(rule.condition_value)
 
+  // Validação:
+  // - regras com fórmula: precisam de pelo menos um limite numérico definido
+  // - regras ai_subjective sem fórmula: precisam de pergunta não-vazia
+  const formulaIncomplete = (() => {
+    if (!hasFormula(conditionValue)) return false
+    if (conditionValue.formula === 'value_per_guest') {
+      return conditionValue.min == null && conditionValue.max == null
+    }
+    if (conditionValue.formula === 'budget_below' || conditionValue.formula === 'budget_above') {
+      return conditionValue.value == null && conditionValue.min == null && conditionValue.max == null
+    }
+    return false
+  })()
+  const questionEmpty =
+    rule.condition_type === 'ai_subjective' &&
+    !usesFormula &&
+    !((conditionValue as { question?: string })?.question ?? '').trim()
+  const labelEmpty = !usesFormula && !labelManual.trim()
+  const saveBlocked = questionEmpty || labelEmpty || formulaIncomplete
+
   const handleSave = async () => {
+    if (saveBlocked) {
+      if (formulaIncomplete) toast.error('Preencha pelo menos um limite numérico antes de salvar.')
+      else if (questionEmpty) toast.error('Preencha a pergunta antes de salvar — ela é o que a IA usa para avaliar este critério.')
+      else if (labelEmpty) toast.error('Dê um nome ao critério antes de salvar.')
+      if ((questionEmpty || formulaIncomplete) && !showAdvanced) setShowAdvanced(true)
+      return
+    }
     setIsSaving(true)
     try {
       await onSave({
@@ -960,7 +1002,7 @@ function CriterionRow({
   }
 
   const handleDiscard = () => {
-    setLabel(rule.label ?? '')
+    setLabelManual(rule.label ?? '')
     setWeight(rule.weight)
     setAtiva(rule.ativa)
     setConditionValue(rule.condition_value)
@@ -980,13 +1022,23 @@ function CriterionRow({
     )}>
       {/* Linha principal: label + peso + toggle */}
       <div className={cn('flex items-center gap-2 p-3', dirty ? 'bg-white' : '')}>
-        <input
-          type="text"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Descreva esse critério..."
-          className="flex-1 min-w-0 border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
+        {usesFormula ? (
+          <div
+            className="flex-1 min-w-0 border border-slate-200 bg-slate-50 rounded px-3 py-1.5 text-sm text-slate-700"
+            title="Nome gerado a partir da fórmula. Edite os limites no painel avançado."
+          >
+            {label}
+            <span className="ml-2 text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded">auto</span>
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={labelManual}
+            onChange={(e) => setLabelManual(e.target.value)}
+            placeholder="Descreva esse critério..."
+            className="flex-1 min-w-0 border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+        )}
         {!hideWeight && (
           <div className="flex items-center gap-1 flex-shrink-0">
             <span className="text-xs text-slate-500">peso</span>
@@ -1018,12 +1070,26 @@ function CriterionRow({
       {showAdvanced && (
         <div className="border-t border-slate-200 px-3 py-3 space-y-3 bg-slate-50/30">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">{conditionLabel[rule.condition_type]}</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              {conditionLabel[rule.condition_type]}
+              {rule.condition_type === 'ai_subjective' && <span className="text-red-600 ml-1">*</span>}
+            </label>
             <ConditionEditor
               type={rule.condition_type}
               value={conditionValue}
               onChange={setConditionValue}
+              hasError={questionEmpty || formulaIncomplete}
             />
+            {questionEmpty && (
+              <p className="text-[11px] text-red-600 mt-1">
+                Sem pergunta a IA não consegue avaliar este critério (resultado fica sempre em zero). Preencha antes de salvar.
+              </p>
+            )}
+            {formulaIncomplete && (
+              <p className="text-[11px] text-red-600 mt-1">
+                Defina pelo menos um limite numérico (mínimo ou máximo) — sem isso a IA não consegue avaliar.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1066,8 +1132,9 @@ function CriterionRow({
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={isSaving}
-              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isSaving || saveBlocked}
+              title={saveBlocked ? (questionEmpty ? 'Preencha a pergunta primeiro' : 'Preencha o nome primeiro') : undefined}
+              className="gap-1.5 h-8 bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-300"
             >
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               Salvar
@@ -1083,17 +1150,106 @@ function CriterionRow({
 // Condition Editor (depende do condition_type)
 // ============================================================================
 
+// Detecta se a regra usa fórmula determinística (valor por convidado, faixa
+// numérica, etc). Quando tem formula, a UI mostra inputs estruturados em vez
+// de textarea de pergunta — impede o admin de criar label e pergunta divergentes.
+function hasFormula(value: unknown): value is { formula: string; min?: number | null; max?: number | null; value?: number | null } {
+  return typeof value === 'object' && value !== null && typeof (value as { formula?: unknown }).formula === 'string'
+}
+
+// Gera o label humano automaticamente a partir do condition_value estruturado.
+// Mantém label e pergunta sempre alinhados — o admin não consegue divergir.
+export function deriveLabelFromFormula(cv: unknown): string | null {
+  if (!hasFormula(cv)) return null
+  const fmt = (n: number | null | undefined) =>
+    n == null ? '' : `R$ ${n.toLocaleString('pt-BR')}`
+  if (cv.formula === 'value_per_guest') {
+    if (cv.min != null && cv.max != null) return `Valor por convidado: ${fmt(cv.min)} a ${fmt(cv.max)}/convidado`
+    if (cv.min != null) return `Valor por convidado: ${fmt(cv.min)}/convidado ou mais`
+    if (cv.max != null) return `Valor por convidado: até ${fmt(cv.max)}/convidado`
+    return 'Valor por convidado: configurar faixa'
+  }
+  if (cv.formula === 'budget_below') return `Orçamento abaixo de ${fmt(cv.value ?? cv.max)}`
+  if (cv.formula === 'budget_above') return `Orçamento acima de ${fmt(cv.value ?? cv.min)}`
+  return null
+}
+
 function ConditionEditor({
   type,
   value,
   onChange,
+  hasError,
 }: {
   type: ConditionType
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (v: any) => void
+  hasError?: boolean
 }) {
+  // Editor estruturado: faixa de valor por convidado (sem espaço pra divergir
+  // de label/pergunta — UI gera tudo a partir dos números).
+  if (type === 'ai_subjective' && hasFormula(value) && value.formula === 'value_per_guest') {
+    const min = value.min ?? null
+    const max = value.max ?? null
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] text-slate-500">
+          Valor calculado dividindo o investimento total pelo número de convidados.
+          A IA usa esses números diretamente — sem ambiguidade.
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-slate-600 flex items-center gap-1">
+            de R$
+            <input
+              type="number"
+              value={min ?? ''}
+              onChange={(e) => onChange({ ...value, min: e.target.value === '' ? null : Number(e.target.value) })}
+              placeholder="—"
+              className="no-spin w-24 border border-slate-300 rounded px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            /convidado
+          </label>
+          <label className="text-xs text-slate-600 flex items-center gap-1">
+            até R$
+            <input
+              type="number"
+              value={max ?? ''}
+              onChange={(e) => onChange({ ...value, max: e.target.value === '' ? null : Number(e.target.value) })}
+              placeholder="∞ (sem teto)"
+              className="no-spin w-32 border border-slate-300 rounded px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            /convidado
+          </label>
+        </div>
+        <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+          Pergunta gerada para a IA: "Valor por convidado entre {min != null ? `R$ ${min.toLocaleString('pt-BR')}` : '0'} e {max != null ? `R$ ${max.toLocaleString('pt-BR')}` : '∞'}?"
+        </p>
+      </div>
+    )
+  }
+  if (type === 'ai_subjective' && hasFormula(value) && (value.formula === 'budget_below' || value.formula === 'budget_above')) {
+    const cmp = value.formula === 'budget_below' ? 'abaixo de' : 'acima de'
+    const numVal = value.value ?? value.min ?? value.max ?? null
+    return (
+      <div className="space-y-2">
+        <label className="text-xs text-slate-600 flex items-center gap-2">
+          Orçamento total {cmp} R$
+          <input
+            type="number"
+            value={numVal ?? ''}
+            onChange={(e) => onChange({ formula: value.formula, value: e.target.value === '' ? null : Number(e.target.value) })}
+            placeholder="—"
+            className="no-spin w-32 border border-slate-300 rounded px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+        </label>
+        <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+          Comparação ESTRITA: {value.formula === 'budget_below' ? `< R$ ${(numVal ?? 0).toLocaleString('pt-BR')}` : `> R$ ${(numVal ?? 0).toLocaleString('pt-BR')}`}.
+          Igual ao valor não conta.
+        </p>
+      </div>
+    )
+  }
   if (type === 'ai_subjective') {
     return (
       <textarea
@@ -1101,7 +1257,12 @@ function ConditionEditor({
         onChange={(e) => onChange({ question: e.target.value })}
         placeholder='ex: "O casal mencionou que quer casar no Caribe?"'
         rows={3}
-        className="w-full border border-slate-300 rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+        className={cn(
+          'w-full border rounded px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 resize-y',
+          hasError
+            ? 'border-red-400 ring-1 ring-red-200 focus:ring-red-500'
+            : 'border-slate-300 focus:ring-indigo-500',
+        )}
       />
     )
   }

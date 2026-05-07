@@ -36,6 +36,7 @@ import type {
   IdentityConfig,
   VoiceConfig,
   BoundariesConfig,
+  ListeningConfig,
   ScoringRule,
 } from "./playbook_loader.ts";
 
@@ -71,6 +72,7 @@ export interface BuildPromptV2Input {
   identity: IdentityConfig | null;
   voice: VoiceConfig | null;
   boundaries: BoundariesConfig | null;
+  listening?: ListeningConfig | null;
   moments: PlaybookMoment[];
   currentMoment: PlaybookMoment;
   currentMomentMethod: 'deterministic' | 'llm' | 'fallback' | 'manual';
@@ -143,6 +145,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
+  const listening = renderListeningBlock(input.listening ?? null, input.userMessage);
   const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
@@ -159,6 +162,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
     `<agent name="${escapeXml(input.agentName)}">`,
     header,
     voice,
+    listening,
     anchors,
     boundaries,
     qualification,
@@ -245,6 +249,69 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
 
   if (lines.length === 0) return '';
   return `<voice>\n${lines.join('\n')}\n</voice>`;
+}
+
+/**
+ * Bloco <listening> — responsividade conversacional. Diz ao LLM como reagir
+ * quando o lead foge do roteiro: pergunta social devolvida, comentário
+ * espontâneo, múltiplas mensagens em sequência.
+ *
+ * Cada toggle ON adiciona uma instrução. Tudo OFF → bloco vazio (não é
+ * renderizado). Compatível com agentes legados que não têm listening_config
+ * — eles simplesmente não têm o bloco no prompt.
+ */
+function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage?: string | null): string {
+  if (!listening) return '';
+  const lines: string[] = [];
+
+  if (listening.echo_social_questions) {
+    lines.push('• Se o lead devolver pergunta social ("tudo bem?", "e você?", "como vai?", "td bem?", "como você está?"), responda em UMA frase curta e natural ANTES de continuar com a próxima pergunta do roteiro. Ignorar pergunta social = falha de educação básica.');
+  }
+  if (listening.acknowledge_observations) {
+    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "vi vocês no Instagram", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
+  }
+  if (listening.handle_message_bursts) {
+    lines.push('• Quando o lead manda 2 ou 3 mensagens em sequência (acontece muito no WhatsApp), trate o pacote como um turno único: responda o que precisa ser respondido E faça a próxima pergunta do funil. Nunca ignore parte do que ele disse.');
+  }
+  if (listening.never_ignore_lead) {
+    lines.push('• Conversa real é dos dois lados. Você não é um formulário — quando o lead trouxer pergunta, dúvida, objeção ou comentário, acolha antes de avançar.');
+  }
+  // Captura nome — quando o lead se identifica, a próxima resposta tem que usar o nome.
+  lines.push('• Se o lead disse o nome dele agora ("sou o X", "aqui é o Y", "meu nome é Z"), use esse nome naturalmente em algum ponto da resposta (cumprimento ou meio da frase). Não pular.');
+
+  const examples = listening.examples ?? [];
+  if (examples.length > 0) {
+    lines.push('Exemplos de respostas naturais (use como inspiração, não copie literalmente):');
+    examples.forEach(ex => lines.push(`  ✓ ${ex}`));
+  }
+
+  // Detector determinístico: injeta um aviso CURTO e ESPECÍFICO no prompt
+  // quando a última mensagem do lead contém pergunta social ou autoidentificação.
+  // Funciona como "puxão de orelha" pro LLM antes dele responder, separado das
+  // diretrizes gerais acima (que são consultivas).
+  const detectedDirectives: string[] = [];
+  if (lastLeadMessage) {
+    const msg = lastLeadMessage.toLowerCase();
+    const hasSocialQuestion = /\b(e\s+voc[eê]\??|td\s+bem\??|tudo\s+bem\??|como\s+vai\??|como\s+(voc[eê]\s+)?est[áa]\??)\b/i.test(msg);
+    if (hasSocialQuestion && listening.echo_social_questions) {
+      detectedDirectives.push('⚠ DETECTADO: o lead fez pergunta social no último turno. ECOE em UMA frase ANTES do anchor. Exemplo válido: "Tudo ótimo por aqui, obrigada!" / "Tudo bem sim, e por aí?".');
+    }
+    const nameRevealMatch = lastLeadMessage.match(/\b(?:sou\s+o|sou\s+a|aqui\s+[ée]\s+o|aqui\s+[ée]\s+a|meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30})?)/i);
+    if (nameRevealMatch) {
+      const detectedName = nameRevealMatch[1].split(/\s+/)[0];
+      detectedDirectives.push(`⚠ DETECTADO: o lead se identificou como "${detectedName}". USE esse nome ao menos uma vez na resposta (ex: "Prazer, ${detectedName}." / "Legal te conhecer, ${detectedName}.").`);
+    }
+  }
+
+  if (lines.length === 0 && detectedDirectives.length === 0) return '';
+  const detectedBlock = detectedDirectives.length > 0
+    ? `\n\nSinais detectados na ÚLTIMA mensagem do lead — atender ANTES do anchor:\n${detectedDirectives.join('\n')}`
+    : '';
+  return `<listening>
+ANTES de produzir QUALQUER mensagem — inclusive no primeiro contato e mesmo quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.
+
+${lines.join('\n')}${detectedBlock}
+</listening>`;
 }
 
 // Mapa pra normalizar weekday do Postgres → PT-BR. agent_check_calendar usa
@@ -590,6 +657,7 @@ function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
   if (boundaries.library_active) {
     for (const id of boundaries.library_active) {
       if (BOUNDARIES_LIBRARY[id]) libraryRules.push(BOUNDARIES_LIBRARY[id]);
+      else console.warn(`[boundaries] library_active contém id desconhecido "${id}" — admin marcou na UI mas o backend não tem essa regra. Sincronize boundariesLibrary.ts (frontend) e prompt_builder_v2.ts (backend).`);
     }
   }
   if (libraryRules.length > 0) {
