@@ -4,7 +4,7 @@
  * Recebe nodes/edges/handlers da store. Faz o handling de drop pra criar
  * um node novo quando o user solta um item da Toolbox aqui dentro.
  */
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import {
     ReactFlow,
     Background,
@@ -31,6 +31,43 @@ export const Canvas: React.FC = () => {
     const onConnect = useWorkflowStore((s) => s.onConnect)
     const addNodeOfType = useWorkflowStore((s) => s.addNodeOfType)
     const selectNode = useWorkflowStore((s) => s.selectNode)
+    const duplicateSelected = useWorkflowStore((s) => s.duplicateSelected)
+    const copySelected = useWorkflowStore((s) => s.copySelected)
+    const pasteFromClipboard = useWorkflowStore((s) => s.pasteFromClipboard)
+    const undo = useWorkflowStore((s) => s.undo)
+    const redo = useWorkflowStore((s) => s.redo)
+
+    // Atalhos: Ctrl+D duplicar, Ctrl+C copiar, Ctrl+V colar, Ctrl+Z undo,
+    // Ctrl+Shift+Z (ou Ctrl+Y) redo. Delete/Backspace fica com o React Flow.
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null
+            if (target) {
+                const tag = target.tagName
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+            }
+            const meta = e.metaKey || e.ctrlKey
+            if (!meta) return
+            const key = e.key.toLowerCase()
+            if (key === 'd') {
+                e.preventDefault()
+                duplicateSelected()
+            } else if (key === 'c') {
+                copySelected()
+            } else if (key === 'v') {
+                e.preventDefault()
+                pasteFromClipboard()
+            } else if (key === 'z' && !e.shiftKey) {
+                e.preventDefault()
+                undo()
+            } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+                e.preventDefault()
+                redo()
+            }
+        }
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [duplicateSelected, copySelected, pasteFromClipboard, undo, redo])
 
     const onDragOver = useCallback((event: React.DragEvent) => {
         event.preventDefault()
@@ -70,6 +107,10 @@ export const Canvas: React.FC = () => {
                 fitView
                 proOptions={{ hideAttribution: true }}
                 defaultEdgeOptions={{ type: 'smoothstep', animated: true }}
+                deleteKeyCode={['Delete', 'Backspace']}
+                multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+                selectionOnDrag
+                panOnDrag={[1, 2]}
             >
                 <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
                 <Controls />
