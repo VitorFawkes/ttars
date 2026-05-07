@@ -42,6 +42,59 @@ export interface SubjectiveEvalResult {
   tokens: { input: number; output: number };
 }
 
+/**
+ * Avaliação determinística de fórmulas conhecidas. Quando o admin escolhe
+ * "valor por convidado / faixa" na UI, salvamos `condition_value.formula` +
+ * `min`/`max` em vez de pergunta livre — eliminando a divergência label vs
+ * pergunta que existia antes (label dizia "1.000-1.500" e a pergunta do LLM
+ * dizia "3.500-4.000" porque os campos eram editáveis em separado).
+ *
+ * Retorna `null` quando não consegue avaliar (formula desconhecida, dados
+ * faltando, etc) — nesse caso o evaluator cai no LLM se a regra também tiver
+ * uma `question` textual; senão retorna NO conservador.
+ */
+function evaluateDeterministic(
+  formula: string,
+  cv: Record<string, unknown>,
+  formData: Record<string, string>,
+): boolean | null {
+  const toNum = (v: unknown): number | null => {
+    if (v == null || v === '') return null;
+    const cleaned = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  if (formula === 'value_per_guest') {
+    const orc = toNum(formData.ww_orcamento_total ?? formData.ww_orcamento_faixa ?? formData.orcamento_total);
+    const guests = toNum(formData.ww_num_convidados ?? formData.num_convidados);
+    if (orc == null || guests == null || guests <= 0) return null; // sem dado → fallback
+    const perGuest = orc / guests;
+    const min = toNum(cv.min);
+    const max = toNum(cv.max);
+    if (min != null && max != null) return perGuest >= min && perGuest < max;
+    if (min != null) return perGuest >= min;
+    if (max != null) return perGuest < max;
+    return null;
+  }
+
+  if (formula === 'budget_below') {
+    const orc = toNum(formData.ww_orcamento_total ?? formData.ww_orcamento_faixa ?? formData.orcamento_total);
+    const threshold = toNum(cv.value ?? cv.max);
+    if (orc == null || threshold == null) return null;
+    return orc < threshold; // ESTRITO — 50k não é abaixo de 50k
+  }
+
+  if (formula === 'budget_above') {
+    const orc = toNum(formData.ww_orcamento_total ?? formData.ww_orcamento_faixa ?? formData.orcamento_total);
+    const threshold = toNum(cv.value ?? cv.min);
+    if (orc == null || threshold == null) return null;
+    return orc > threshold;
+  }
+
+  return null; // formula desconhecida
+}
+
 export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promise<SubjectiveEvalResult> {
   const subjectiveRules = input.rules.filter(r => r.condition_type === 'ai_subjective');
   if (subjectiveRules.length === 0) {
@@ -49,6 +102,35 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
   }
 
   const start = Date.now();
+
+  // 1ª passada — calcular determinísticamente o que dá. O resto vai pro LLM.
+  const formData = input.form_data ?? {};
+  const deterministicResolved: Record<string, boolean> = {};
+  const llmRules: ScoringRule[] = [];
+  for (const r of subjectiveRules) {
+    const cv = (r.condition_value ?? {}) as Record<string, unknown>;
+    const formula = typeof cv.formula === 'string' ? cv.formula : null;
+    if (formula) {
+      const det = evaluateDeterministic(formula, cv, formData);
+      if (det !== null) {
+        deterministicResolved[r.id] = det;
+        continue;
+      }
+      // formula presente mas dado faltou → conservador (NO) e não chama LLM
+      deterministicResolved[r.id] = false;
+      continue;
+    }
+    llmRules.push(r);
+  }
+
+  // Se não sobrou nada pro LLM, retorna direto
+  if (llmRules.length === 0) {
+    return {
+      resolved: deterministicResolved,
+      elapsed_ms: Date.now() - start,
+      tokens: { input: 0, output: 0 },
+    };
+  }
 
   // Detecta grupos de regras mutuamente exclusivas. Duas fontes:
   //   1. Coluna explícita exclusion_group (preferencial — admin define).
@@ -69,14 +151,14 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
     return null;
   };
 
-  const questionsBlock = subjectiveRules.map((r, i) => {
+  const questionsBlock = llmRules.map((r, i) => {
     const q = (r.condition_value as { question?: string })?.question ?? '';
     const group = getGroupForRule(r);
     const groupTag = group ? ` [grupo: ${group}]` : '';
     return `${i + 1}. rule_id=${r.id}${groupTag} | ${q.trim()}`;
   }).join('\n');
 
-  const hasGroups = subjectiveRules.some(r => getGroupForRule(r) !== null);
+  const hasGroups = llmRules.some(r => getGroupForRule(r) !== null);
   const groupInstruction = hasGroups
     ? `\n\nIMPORTANTE sobre grupos: Perguntas marcadas com o mesmo [grupo: X] descrevem faixas mutuamente exclusivas da mesma variável. Para cada grupo, responda YES para APENAS UMA pergunta — a que melhor descreve o caso analisando o histórico. Todas as outras perguntas do mesmo grupo devem ser NO. Se não há evidência suficiente pra escolher nenhuma faixa do grupo, responda NO em todas do grupo.`
     : '';
@@ -146,7 +228,7 @@ Responda em JSON estrito:
     if (!res.ok) {
       const errBody = await res.text();
       console.warn(`[subjective_evaluator] LLM error status=${res.status}: ${errBody.substring(0, 300)}`);
-      return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
+      return { resolved: deterministicResolved, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
     }
 
     const data = await res.json();
@@ -157,14 +239,12 @@ Responda em JSON estrito:
     try {
       parsed = JSON.parse(content);
     } catch (parseErr) {
-      // Resposta veio truncada ou malformada. Loga finish_reason pra diagnóstico
-      // (ex: "length" indica que max_completion_tokens estourou).
       console.warn(`[subjective_evaluator] JSON parse failed (finish=${finishReason}, content_len=${content.length}, usage=${JSON.stringify(usage)}): ${String(parseErr).substring(0, 200)}`);
-      return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0 } };
+      return { resolved: deterministicResolved, elapsed_ms: Date.now() - start, tokens: { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0 } };
     }
     const evaluations = parsed.evaluations ?? [];
 
-    const resolved: Record<string, boolean> = {};
+    const resolved: Record<string, boolean> = { ...deterministicResolved };
     for (const e of evaluations) {
       if (e.rule_id) resolved[e.rule_id] = String(e.answer).toLowerCase().trim() === 'yes';
     }
@@ -176,6 +256,6 @@ Responda em JSON estrito:
     };
   } catch (err) {
     console.warn(`[subjective_evaluator] caught (${(err as Error).name}): ${String(err).substring(0, 300)}`);
-    return { resolved: {}, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
+    return { resolved: deterministicResolved, elapsed_ms: Date.now() - start, tokens: { input: 0, output: 0 } };
   }
 }
