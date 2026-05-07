@@ -3389,6 +3389,20 @@ async function sendResponse(
   const resolvedPhoneId = phoneNumberId || defaultPhoneId;
   const normalizedPhone = contactPhone.replace(/\D/g, "");
 
+  // Resolve platform_id da linha pra deduplicação ON CONFLICT (platform_id, external_id).
+  // Sem isso, sendResponse insere com platform_id=NULL, e quando o webhook do Echo
+  // chega com confirmação `message.sent` o ON CONFLICT do process_whatsapp_raw_event_v2
+  // não acha (NULL ≠ Echo UUID) e cria 2ª linha duplicada. Bug confirmado 07/05/2026.
+  let resolvedPlatformId: string | null = null;
+  if (resolvedPhoneId) {
+    const { data: lineRow } = await supabase
+      .from("whatsapp_linha_config")
+      .select("platform_id")
+      .eq("phone_number_id", resolvedPhoneId)
+      .maybeSingle();
+    resolvedPlatformId = (lineRow as { platform_id?: string } | null)?.platform_id ?? null;
+  }
+
   if (testWhitelist && testWhitelist.length > 0) {
     const normalizedWhitelist = testWhitelist.map((p) => p.replace(/\D/g, ""));
     if (!normalizedWhitelist.includes(normalizedPhone)) {
@@ -3466,6 +3480,8 @@ async function sendResponse(
         sent_by_user_name: agentName,
         phone_number_label: phoneLineLabel,
         external_id: externalId,
+        platform_id: resolvedPlatformId,
+        phone_number_id: resolvedPhoneId,
         metadata: {
           source: "ai_agent",
           agent_id: agentId,
