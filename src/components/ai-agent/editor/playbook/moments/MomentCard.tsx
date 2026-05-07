@@ -109,6 +109,44 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   }
 
   const handleSave = async () => {
+    // Validação anti-momento-fantasma. Se o trigger não tem dado pra disparar,
+    // o momento fica salvo mas nunca acontece — admin pensa que configurou e a
+    // IA nunca usa. Mesmo padrão de bug da Pontuação resolvido em 2026-05-06.
+    if (triggerType === 'keyword') {
+      const kws = Array.isArray(triggerConfig.keywords) ? (triggerConfig.keywords as string[]) : []
+      if (kws.length === 0) {
+        toast.error('Adicione pelo menos uma palavra-chave — sem isso o momento nunca dispara.')
+        return
+      }
+    }
+    if (triggerType === 'score_threshold') {
+      const v = triggerConfig.value
+      if (v == null || v === '' || (typeof v !== 'number' && Number.isNaN(Number(v)))) {
+        toast.error('Defina o valor numérico do threshold antes de salvar.')
+        return
+      }
+    }
+    if ((mode === 'literal' || mode === 'faithful') && !anchor.trim()) {
+      toast.error('Em "Texto exato" ou "Diretriz fiel" o texto âncora é obrigatório.')
+      return
+    }
+    // Avisa sobre placeholder com typo (não bloqueia, mas alerta)
+    const knownPlaceholders = new Set(['contact_name', 'agent_name', 'company_name', 'data', 'hora', 'slots_disponiveis', 'responsavel_first_name', 'responsavel_name'])
+    const usedPlaceholders = [...anchor.matchAll(/\{(\w+)\}/g)].map(m => m[1])
+    const unknownPlaceholders = usedPlaceholders.filter(p => !knownPlaceholders.has(p))
+    if (unknownPlaceholders.length > 0) {
+      const proceed = confirm(
+        `Encontrei placeholders desconhecidos no texto: ${unknownPlaceholders.map(p => '{' + p + '}').join(', ')}. Eles vão sair literais na mensagem do cliente. Salvar mesmo assim?`,
+      )
+      if (!proceed) return
+    }
+    // Avisa se anchor tem '---' mas modo de entrega não é wait_for_reply
+    if (anchor.includes('---') && deliveryMode !== 'wait_for_reply') {
+      const proceed = confirm(
+        `O texto contém "---" (separador de passos), mas o ritmo de envio não é "esperar lead responder". O separador vai sair literal na mensagem. Salvar mesmo assim?`,
+      )
+      if (!proceed) return
+    }
     try {
       await upsert.mutateAsync({
         id: moment.id,

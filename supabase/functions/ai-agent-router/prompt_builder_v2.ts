@@ -657,6 +657,7 @@ function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
   if (boundaries.library_active) {
     for (const id of boundaries.library_active) {
       if (BOUNDARIES_LIBRARY[id]) libraryRules.push(BOUNDARIES_LIBRARY[id]);
+      else console.warn(`[boundaries] library_active contém id desconhecido "${id}" — admin marcou na UI mas o backend não tem essa regra. Sincronize boundariesLibrary.ts (frontend) e prompt_builder_v2.ts (backend).`);
     }
   }
   if (libraryRules.length > 0) {
