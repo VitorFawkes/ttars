@@ -69,9 +69,11 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
   const [mustCover, setMustCover] = useState<string[]>(moment.must_cover ?? [])
+  const [literalPhrases, setLiteralPhrases] = useState<string[]>(moment.literal_phrases ?? [])
   const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(moment.discovery_config ?? null)
   const [newRedLine, setNewRedLine] = useState('')
   const [newMustCover, setNewMustCover] = useState('')
+  const [newLiteralPhrase, setNewLiteralPhrase] = useState('')
   const [dirty, setDirty] = useState(false)
   const anchorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -163,6 +165,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         anchor_text: (mode === 'literal' || mode === 'faithful') ? anchor.trim() : (anchor.trim() || null),
         red_lines: redLines,
         must_cover: mustCover,
+        literal_phrases: literalPhrases,
         collects_fields: moment.collects_fields ?? [],
         discovery_config: canHaveDiscovery ? discoveryConfig : null,
         delivery_mode: deliveryMode,
@@ -184,6 +187,10 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
 
   const addMustCover = () => {
     if (newMustCover.trim()) { setMustCover([...mustCover, newMustCover.trim()]); setNewMustCover(''); markDirty() }
+  }
+
+  const addLiteralPhrase = () => {
+    if (newLiteralPhrase.trim()) { setLiteralPhrases([...literalPhrases, newLiteralPhrase.trim()]); setNewLiteralPhrase(''); markDirty() }
   }
 
   const isFlow = moment.kind === 'flow'
@@ -431,29 +438,61 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
             </div>
           </div>
 
+          {mode === 'free' && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Tópicos que a resposta SEMPRE precisa cobrir {isFlow ? 'nesta fase' : 'nesta jogada'}
+              </label>
+              <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+                Cobertura conceitual (não palavra-por-palavra). A agente fala com as próprias palavras, mas garante que toca em cada ponto. Faz sentido só em <strong>Estilo livre</strong> — em "Texto exato" e "Diretriz fiel" o anchor já garante.
+              </p>
+              {mustCover.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {mustCover.map((mc, i) => (
+                    <span key={i} className="text-xs px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 inline-flex items-center gap-1.5">
+                      {mc}<button onClick={() => { setMustCover(mustCover.filter((_, j) => j !== i)); markDirty() }}><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input value={newMustCover} onChange={(e) => setNewMustCover(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMustCover() } }}
+                  placeholder="Ex: cumprimentar pelo nome do lead"
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
+                <Button size="sm" variant="outline" onClick={addMustCover} className="gap-1"><Plus className="w-3.5 h-3.5" /></Button>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              O que a resposta dela SEMPRE precisa ter {isFlow ? 'nesta fase' : 'nesta jogada'}
+              Frases que SEMPRE saem palavra-por-palavra {isFlow ? 'nesta fase' : 'nesta jogada'}
             </label>
             <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
-              Pontos de cobertura mínima. Útil em <strong>Diretriz fiel</strong> e <strong>Estilo livre</strong> — você dá liberdade de forma, mas garante que ela sempre toque nesses pontos.
+              Trechos de marca, prêmios, frases legais que <strong>não podem mudar nem uma palavra</strong>. Funciona em qualquer modo — a agente encaixa naturalmente na resposta. Se ela parafrasear, o sistema regera com instrução reforçada.
             </p>
-            {mustCover.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {mustCover.map((mc, i) => (
-                  <span key={i} className="text-xs px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 inline-flex items-center gap-1.5">
-                    {mc}<button onClick={() => { setMustCover(mustCover.filter((_, j) => j !== i)); markDirty() }}><X className="w-3 h-3" /></button>
+            {literalPhrases.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-2">
+                {literalPhrases.map((lp, i) => (
+                  <span key={i} className="text-xs px-2.5 py-1.5 rounded-md bg-violet-50 border border-violet-100 text-violet-800 inline-flex items-start gap-1.5 w-fit max-w-full">
+                    <span className="font-mono text-[11px] leading-snug whitespace-pre-wrap break-words">"{lp}"</span>
+                    <button className="shrink-0 mt-0.5" onClick={() => { setLiteralPhrases(literalPhrases.filter((_, j) => j !== i)); markDirty() }}><X className="w-3 h-3" /></button>
                   </span>
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <input value={newMustCover} onChange={(e) => setNewMustCover(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMustCover() } }}
-                placeholder="Ex: cumprimentar pelo nome do lead"
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
-              <Button size="sm" variant="outline" onClick={addMustCover} className="gap-1"><Plus className="w-3.5 h-3.5" /></Button>
+            <div className="flex gap-2 items-start">
+              <textarea value={newLiteralPhrase} onChange={(e) => setNewLiteralPhrase(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addLiteralPhrase() } }}
+                placeholder='Ex: nós fazemos Destination Wedding desde 2012 e ganhamos 5 prêmios como melhor da América Latina'
+                rows={2}
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs resize-none" />
+              <Button size="sm" variant="outline" onClick={addLiteralPhrase} className="gap-1 shrink-0"><Plus className="w-3.5 h-3.5" /></Button>
             </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              💡 Cmd/Ctrl+Enter pra adicionar. Mantenha frases curtas (uma ideia por frase) — quanto maior, mais difícil pra IA encaixar palavra-por-palavra.
+            </p>
           </div>
 
           <div className="flex justify-between pt-3 border-t border-slate-100">

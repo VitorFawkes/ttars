@@ -78,6 +78,14 @@ export interface PlaybookMoment {
    * 'citar 5 prêmios desde 2012', 'pedir o nome do cliente'].
    */
   must_cover: string[]
+  /**
+   * Frases que devem sair palavra-por-palavra na resposta gerada (qualquer modo).
+   * Diferente de must_cover (conceitual): aqui é match literal. Validada
+   * pós-geração com fuzzy match. Se faltar, persona regera 1x com instrução reforçada.
+   * Útil pra trechos de marca/legal/compliance: ex "Destination Wedding desde 2012,
+   * 5 prêmios da América Latina". Funciona em qualquer modo, mas brilha em livre/fiel.
+   */
+  literal_phrases: string[]
   collects_fields: string[]
   /** Slots da Sondagem (só preenchido em fases de descoberta). */
   discovery_config: DiscoveryConfig | null

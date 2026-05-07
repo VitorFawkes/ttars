@@ -568,7 +568,7 @@ function renderOneMoment(
       'Se o sistema injetou bloco <lead_already_mentioned>, omita os trechos listados lá. Resto: fiel.]'
     );
   } else {
-    lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines.]');
+    lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines. Se o sistema injetou bloco <must_include>, encaixe naturalmente as frases obrigatórias dentro da resposta livre — palavra-por-palavra.]');
   }
 
   if (m.discovery_config && m.discovery_config.slots && m.discovery_config.slots.length > 0) {
@@ -1080,6 +1080,23 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
     }
     parts.push('Quando omitir, faça-o de forma natural — não inicie a mensagem com "como você mencionou..." nem "já que você sabe...". Apenas pule o trecho específico e siga o resto.');
     parts.push('</lead_already_mentioned>');
+  }
+
+  // Bloco prescritivo: frases que DEVEM sair palavra-por-palavra na resposta.
+  // Configurado pelo admin no momento atual (literal_phrases). Mesmo padrão de
+  // <lead_already_mentioned>, mas com semântica oposta — incluir em vez de omitir.
+  // Validado pós-geração via fuzzy match em runValidator (regen 1x se faltar).
+  const literalPhrases = (input.currentMoment as { literal_phrases?: string[] }).literal_phrases ?? [];
+  const cleanedLiterals = literalPhrases.filter(p => typeof p === 'string' && p.trim().length > 0);
+  if (cleanedLiterals.length > 0) {
+    parts.push('');
+    parts.push('<must_include>');
+    parts.push('As frases abaixo DEVEM aparecer na sua resposta exatamente como escritas — palavra por palavra, sem parafrasear, sem trocar sinônimos, sem reordenar. Encaixe cada uma de forma natural no fluxo da resposta. O resto da mensagem você adapta ao contexto livremente conforme o modo configurado.');
+    for (const p of cleanedLiterals) {
+      parts.push(`  - "${p.trim()}"`);
+    }
+    parts.push('Se você precisar omitir alguma destas frases (porque o <lead_already_mentioned> indica que o lead já a antecipou), tudo bem omitir — mas se incluir, tem que ser palavra-por-palavra como acima.');
+    parts.push('</must_include>');
   }
 
   parts.push('');

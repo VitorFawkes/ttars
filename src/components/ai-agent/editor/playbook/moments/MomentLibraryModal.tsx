@@ -33,6 +33,7 @@ export function MomentLibraryModal({ agentId, existingKeys, nextDisplayOrder, on
         anchor_text: s.anchor_text ?? null,
         red_lines: s.red_lines ?? [],
         must_cover: [],
+        literal_phrases: [],
         collects_fields: [],
         discovery_config: null,
         delivery_mode: 'all_at_once',

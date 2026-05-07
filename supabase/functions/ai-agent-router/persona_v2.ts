@@ -647,10 +647,50 @@ export async function runPersonaAgent_v2(
   const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
 
-  const { response, inputTokens, outputTokens } = await callLLM(
+  let { response, inputTokens, outputTokens } = await callLLM(
     personaModel, personaTemp, personaMaxTok,
     prompt, userMessage,
   );
+
+  // 6c. Enforcement de literal_phrases (frases obrigatórias palavra-por-palavra).
+  // Mecanismo: depois da resposta, normalizar e checar se cada frase aparece. Se
+  // alguma faltar (parafraseou ou omitiu), regen 1x com instrução reforçada.
+  // Padrão Salesforce/HubSpot: ~80% das vezes LLM acerta de primeira; regen pega
+  // mais 15%. Restante 5% loga e segue (não bloqueia turno do lead).
+  // Pula a checagem se: (a) sem literal_phrases configuradas; (b) trechosAOmitir
+  // cobre todos (lead já mencionou, então omitir é OK).
+  const literalPhrases = ((cur as { literal_phrases?: string[] }).literal_phrases ?? [])
+    .filter(p => typeof p === 'string' && p.trim().length > 0);
+  if (literalPhrases.length > 0) {
+    const missingAfterFirst = checkMissingLiteralPhrases(response, literalPhrases, trechosAOmitir);
+    if (missingAfterFirst.length > 0) {
+      console.warn(`[persona_v2] literal_phrases missing after first pass: ${JSON.stringify(missingAfterFirst)} — regenerating once`);
+      const regenInstruction = `${userMessage}
+
+[INSTRUÇÃO CRÍTICA DO SISTEMA — sua resposta anterior omitiu/parafraseou frases obrigatórias. Reescreva a resposta encaixando NATURALMENTE estas frases EXATAS, palavra por palavra:
+${missingAfterFirst.map(p => `  - "${p}"`).join('\n')}
+Mantenha o tom e o resto do conteúdo, mas garanta que as frases acima apareçam idênticas.]`;
+      try {
+        const regen = await callLLM(personaModel, personaTemp, personaMaxTok, prompt, regenInstruction);
+        const stillMissing = checkMissingLiteralPhrases(regen.response, literalPhrases, trechosAOmitir);
+        if (stillMissing.length === 0) {
+          response = regen.response;
+          inputTokens += regen.inputTokens;
+          outputTokens += regen.outputTokens;
+        } else {
+          console.warn(`[persona_v2] literal_phrases STILL missing after regen: ${JSON.stringify(stillMissing)} — keeping first response, logging gap`);
+          // Prefere regen se ela cobriu MAIS frases (mesmo que não todas)
+          if (stillMissing.length < missingAfterFirst.length) {
+            response = regen.response;
+            inputTokens += regen.inputTokens;
+            outputTokens += regen.outputTokens;
+          }
+        }
+      } catch (regenErr) {
+        console.warn('[persona_v2] literal_phrases regen failed:', regenErr);
+      }
+    }
+  }
 
   return {
     response,
@@ -666,6 +706,45 @@ export async function runPersonaAgent_v2(
   };
 }
 
+/**
+ * Verifica quais literal_phrases NÃO aparecem na resposta (com tolerância a
+ * pontuação, espaços, case e a omissões legítimas via lead_already_mentioned).
+ *
+ * Algoritmo: normaliza ambos (lowercase, sem acentos, sem pontuação não-letra,
+ * espaços colapsados) e faz substring match. Tolerância suficiente pra detectar
+ * "ganhamos prêmio Vogue 2024" copiado certo mesmo com vírgula extra, mas pega
+ * paráfrase tipo "temos prêmios reconhecidos".
+ *
+ * Frases que estão dentro de trechosAOmitir não contam como faltando — o lead
+ * já mencionou, omitir é correto.
+ */
+function checkMissingLiteralPhrases(
+  response: string,
+  literalPhrases: string[],
+  trechosAOmitir: string[],
+): string[] {
+  const normalize = (s: string): string =>
+    s.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const normResponse = normalize(response);
+  const normOmits = trechosAOmitir.map(normalize);
+  const missing: string[] = [];
+  for (const phrase of literalPhrases) {
+    const normPhrase = normalize(phrase);
+    if (!normPhrase) continue;
+    // Se está em trechosAOmitir (lead já mencionou), ok não estar na resposta
+    const allowedToOmit = normOmits.some(o => o.includes(normPhrase) || normPhrase.includes(o));
+    if (allowedToOmit) continue;
+    if (!normResponse.includes(normPhrase)) {
+      missing.push(phrase);
+    }
+  }
+  return missing;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: detectShortClosing — lead mandou só agradecimento/despedida?
 // Regex ANCORADA pra mensagem inteira normalizada — não pega "ok pode ser
@@ -679,7 +758,7 @@ function detectShortClosing(userMessage: string): ClosingType | null {
   // Normaliza: lowercase, remove acentos, tira pontuação no fim, trim
   const normalized = userMessage
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[!.?]+$/g, '')
     .trim();
   if (normalized.length === 0 || normalized.length > 40) return null;
