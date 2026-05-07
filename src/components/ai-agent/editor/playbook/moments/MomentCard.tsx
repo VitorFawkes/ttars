@@ -68,8 +68,10 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [intent, setIntent] = useState(moment.intent ?? '')
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
+  const [mustCover, setMustCover] = useState<string[]>(moment.must_cover ?? [])
   const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(moment.discovery_config ?? null)
   const [newRedLine, setNewRedLine] = useState('')
+  const [newMustCover, setNewMustCover] = useState('')
   const [dirty, setDirty] = useState(false)
   const anchorRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -160,6 +162,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         intent: intent.trim() || null,
         anchor_text: (mode === 'literal' || mode === 'faithful') ? anchor.trim() : (anchor.trim() || null),
         red_lines: redLines,
+        must_cover: mustCover,
         collects_fields: moment.collects_fields ?? [],
         discovery_config: canHaveDiscovery ? discoveryConfig : null,
         delivery_mode: deliveryMode,
@@ -177,6 +180,10 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
 
   const addRedLine = () => {
     if (newRedLine.trim()) { setRedLines([...redLines, newRedLine.trim()]); setNewRedLine(''); markDirty() }
+  }
+
+  const addMustCover = () => {
+    if (newMustCover.trim()) { setMustCover([...mustCover, newMustCover.trim()]); setNewMustCover(''); markDirty() }
   }
 
   const isFlow = moment.kind === 'flow'
@@ -421,6 +428,31 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                 placeholder="Ex: Não pedir email ainda"
                 className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
               <Button size="sm" variant="outline" onClick={addRedLine} className="gap-1"><Plus className="w-3.5 h-3.5" /></Button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              O que a resposta dela SEMPRE precisa ter {isFlow ? 'nesta fase' : 'nesta jogada'}
+            </label>
+            <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+              Pontos de cobertura mínima. Útil em <strong>Diretriz fiel</strong> e <strong>Estilo livre</strong> — você dá liberdade de forma, mas garante que ela sempre toque nesses pontos.
+            </p>
+            {mustCover.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {mustCover.map((mc, i) => (
+                  <span key={i} className="text-xs px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 inline-flex items-center gap-1.5">
+                    {mc}<button onClick={() => { setMustCover(mustCover.filter((_, j) => j !== i)); markDirty() }}><X className="w-3 h-3" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input value={newMustCover} onChange={(e) => setNewMustCover(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMustCover() } }}
+                placeholder="Ex: cumprimentar pelo nome do lead"
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
+              <Button size="sm" variant="outline" onClick={addMustCover} className="gap-1"><Plus className="w-3.5 h-3.5" /></Button>
             </div>
           </div>
 

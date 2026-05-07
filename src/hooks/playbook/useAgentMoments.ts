@@ -69,6 +69,15 @@ export interface PlaybookMoment {
   intent: string | null
   anchor_text: string | null
   red_lines: string[]
+  /**
+   * Lista de pontos que SEMPRE precisam estar contemplados em qualquer
+   * resposta gerada nesta fase. Diferente de red_lines (proibições) e
+   * de intent (descrição). Permite admin dar liberdade de forma à IA mas
+   * garantir cobertura mínima — útil em modos faithful/free.
+   * Ex (Abertura): ['cumprimentar pelo nome', 'apresentar-se como Estela',
+   * 'citar 5 prêmios desde 2012', 'pedir o nome do cliente'].
+   */
+  must_cover: string[]
   collects_fields: string[]
   /** Slots da Sondagem (só preenchido em fases de descoberta). */
   discovery_config: DiscoveryConfig | null

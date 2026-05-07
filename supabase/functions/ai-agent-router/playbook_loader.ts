@@ -60,6 +60,8 @@ export interface PlaybookMoment {
   intent?: string | null;
   anchor_text: string | null;
   red_lines: string[];
+  /** Pontos que toda resposta nesta fase deve cobrir (oposto prescritivo de red_lines). */
+  must_cover?: string[];
   collects_fields: string[];
   /** Slots da Sondagem (só preenchido em fases de descoberta, kind=flow). */
   discovery_config: DiscoveryConfig | null;

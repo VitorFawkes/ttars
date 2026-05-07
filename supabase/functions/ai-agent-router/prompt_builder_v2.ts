@@ -604,6 +604,13 @@ function renderOneMoment(
     lines.push('    Não fazer nesta fase:');
     m.red_lines.forEach(rl => lines.push(`      - ${rl}`));
   }
+  // must_cover: lista prescritiva — pontos que toda resposta nesta fase deve garantir.
+  // Útil em modos faithful/free pra dar liberdade de forma sem perder cobertura.
+  const mustCover = (m as { must_cover?: string[] }).must_cover;
+  if (mustCover && Array.isArray(mustCover) && mustCover.length > 0) {
+    lines.push('    Esta resposta DEVE garantir cobertura de:');
+    mustCover.forEach(mc => lines.push(`      - ${mc}`));
+  }
   return lines;
 }
 
