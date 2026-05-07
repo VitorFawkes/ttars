@@ -13,6 +13,7 @@ import type { LucideIcon } from 'lucide-react'
 import { NODE_BY_TYPE } from './registry'
 import type { WorkflowNode, WorkflowNodeType, NodeCategory } from '../types'
 import { EchoBadge } from '@/components/automations/EchoBadge'
+import { summarizeConfig } from './summarize'
 
 const CATEGORY_COLORS: Record<NodeCategory, { bg: string; border: string; ring: string; chip: string }> = {
     trigger:     { bg: 'bg-amber-50',   border: 'border-amber-300',   ring: 'ring-amber-400',   chip: 'bg-amber-100 text-amber-700' },
@@ -61,14 +62,29 @@ const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, sele
                 </div>
             </div>
 
-            {/* Corpo: label customizado pelo user (ou default) */}
+            {/* Corpo: label customizado + resumo do que está configurado */}
             <div className="px-3 py-2.5">
                 <div className="text-sm font-medium text-slate-900 truncate">
                     {data.label || meta.label}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
-                    {meta.description}
-                </div>
+                {(() => {
+                    const summary = summarizeConfig(
+                        type as WorkflowNodeType,
+                        (data.config as Record<string, unknown>) || {},
+                    )
+                    if (summary) {
+                        return (
+                            <div className="mt-1 text-[11px] text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 truncate" title={summary}>
+                                {summary}
+                            </div>
+                        )
+                    }
+                    return (
+                        <div className="text-[11px] text-slate-400 mt-0.5 line-clamp-1 italic">
+                            Clique pra configurar
+                        </div>
+                    )
+                })()}
                 {isInvalid && data.error && (
                     <div className="mt-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
                         {data.error}
