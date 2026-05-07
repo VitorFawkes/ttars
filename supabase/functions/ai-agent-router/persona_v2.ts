@@ -100,6 +100,12 @@ export interface PersonaV2Result {
   response: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * true quando o texto veio de um path determinístico (anchor literal, short_closing).
+   * O caller deve evitar passar esse texto por LLMs que possam reescrever (validator/formatter
+   * em modo "rewriter"): admin já curou as palavras na UI.
+   */
+  was_literal: boolean;
   v2Metadata: {
     current_moment_key: string;
     qualification_score_at_turn: number | null;
@@ -147,6 +153,7 @@ export async function runPersonaAgent_v2(
       response,
       inputTokens: 0,
       outputTokens: response.length / 4 | 0,
+      was_literal: true,
       v2Metadata: {
         current_moment_key: ctx.last_moment_key ?? 'short_closing',
         qualification_score_at_turn: null,
@@ -581,6 +588,7 @@ export async function runPersonaAgent_v2(
       response: literalResponse,
       inputTokens: 0,
       outputTokens: literalResponse.length / 4 | 0,
+      was_literal: true,
       v2Metadata: {
         current_moment_key: detected.moment.moment_key,
         qualification_score_at_turn: scoreInfo.score,
@@ -604,6 +612,7 @@ export async function runPersonaAgent_v2(
     response,
     inputTokens,
     outputTokens,
+    was_literal: false,
     v2Metadata: {
       current_moment_key: detected.moment.moment_key,
       qualification_score_at_turn: scoreInfo.score,

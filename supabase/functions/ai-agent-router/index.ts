@@ -2783,7 +2783,7 @@ async function runPersonaAgent(
   qualificationSignals: Record<string, string> = {},
   presentations: AiAgentPresentation[] = [],
   conversationId?: string | null,
-): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
+): Promise<{ response: string; inputTokens: number; outputTokens: number; was_literal: boolean }> {
 
   // ═══════════════════════════════════════════════════════════════
   // Playbook v2 — guard com fail-safe. Se agente tem flag ativa,
@@ -2872,6 +2872,7 @@ async function runPersonaAgent(
         response: v2Result.response,
         inputTokens: v2Result.inputTokens,
         outputTokens: v2Result.outputTokens,
+        was_literal: v2Result.was_literal,
       };
     } catch (v2Err) {
       // Fail-safe: log + cai pro v1. Nunca deixa lead sem resposta.
@@ -2902,10 +2903,11 @@ async function runPersonaAgent(
         };
       });
 
-    return callLLM(
+    const result = await callLLM(
       agent.modelo, agent.temperature, agent.max_tokens,
       enrichedPrompt, userMessage, history,
     );
+    return { ...result, was_literal: false };
   }
 
   // Template-based: montar prompt completo + tool calling
@@ -3128,13 +3130,14 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
   const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
   const tools = await loadAgentTools(supabase, agent.id);
-  return callLLMWithTools(
+  const result = await callLLMWithTools(
     supabase,
     personaModel, personaTemp, personaMaxTok,
     personaPrompt, userMessage, history,
     tools,
     ctx, agent, business,
   );
+  return { ...result, was_literal: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -3146,6 +3149,7 @@ async function runValidator(
   response: string,
   ctx: ConversationContext,
   scenarios: SpecialScenario[],
+  wasLiteral = false,
 ): Promise<string> {
   if (!agent.is_template_based) return response;
 
@@ -3167,6 +3171,55 @@ async function runValidator(
   const rulesBlock = enabledRules.length > 0
     ? `\n## Regras habilitadas no agente\n${enabledRules.map((r, i) => `${i + 1}. ${r.condition} → ${r.action === 'block' ? 'BLOQUEAR' : r.action === 'correct' ? 'CORRIGIR' : 'IGNORAR'}`).join('\n')}\n`
     : '';
+
+  // wasLiteral=true: texto veio determinístico do anchor literal (ou short_closing).
+  // Admin já curou palavra por palavra na UI. Validator vira só rede de segurança
+  // contra problemas GRAVES (menção a IA, fato inventado, ActiveCampaign), nunca
+  // mexe em estilo. Sem isso, gpt-4.1-mini @ temp 0.1 reescreve "Me fala seu nome,
+  // por favor?" → "Qual é o seu nome?" e infla "Tudo ótimo por aqui, obrigada!" →
+  // "Tudo ótimo por aqui também, obrigada por perguntar!" (incidente 2026-05-07).
+  if (wasLiteral) {
+    const literalValidatorPrompt = `Você é um validador de SEGURANÇA, não de estilo.
+
+⚠️ TEXTO É LITERAL — foi escrito palavra por palavra pelo admin via UI do CRM.
+
+Você SÓ DEVE INTERVIR se detectar UM destes problemas GRAVES:
+1. Menção a IA, robô, modelo, prompt, sistema, agente, chatbot, bastidores → BLOQUEIA
+2. Fato inventado não presente no contexto (preço, prazo, feature inexistente) → BLOQUEIA
+3. Menção a "formulário", "ActiveCampaign", "cadastro", "dados do sistema" → BLOQUEIA
+4. Rejeição/desqualificação do lead na primeira mensagem → BLOQUEIA
+
+NÃO mexa em estilo (perguntas duplas, eco social, uso de nome, repetição, tom,
+pontuação, emoji, exclamação, ordem das frases) — o admin já considerou tudo
+isso ao escrever o texto literal.
+
+Se NENHUM dos 4 problemas graves foi detectado: retorne o TEXTO ORIGINAL EXATO,
+sem alterar NEM UMA letra. Não "melhore", não "ajuste", não "torne natural", não
+remova espaços, não normalize quebras de linha. Copie exatamente como recebeu.
+
+TEXTO A VALIDAR:
+"""
+${response}
+"""
+
+SAÍDA: apenas o texto final (original EXATO, ou corrigido se algum dos 4 problemas
+graves foi detectado). Nada mais.`;
+
+    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+    const validatorTempLit = agent.pipeline_models?.validator?.temperature ?? 0.1;
+    const validatorMaxTokLit = agent.pipeline_models?.validator?.max_tokens ?? 1024;
+
+    try {
+      const { response: validated } = await callLLM(
+        validatorModelLit, validatorTempLit, validatorMaxTokLit,
+        literalValidatorPrompt, response,
+      );
+      return validated.trim() || response;
+    } catch (err) {
+      console.error("Validator (literal) error:", err);
+      return response;
+    }
+  }
 
   const validatorPrompt = customValidator && customValidator.trim().length > 80
     ? customValidator
@@ -3292,70 +3345,21 @@ function formatWhatsAppMessagesHeuristic(text: string, maxBlocks = 3): string[] 
   return msgs.slice(0, cap);
 }
 
-// LLM formatter — paridade com "Format WhatsApp Messages" da Julia no n8n.
-// Divide em blocos naturais respeitando o prompt custom (prompts_extra.formatting)
-// e o model/temp de pipeline_models.formatter. Mantém markdown WhatsApp e quebra
-// perguntas em bloco separado. Se prompt custom for muito curto ou LLM falhar,
-// cai no heurístico.
+// Formatter — divide a resposta em até N blocos pra WhatsApp.
+//
+// REGRA DE PRODUTO: formatter NUNCA reescreve. Antes era LLM (gpt-4.1-mini @ 0.3) que
+// tinha "REGRA DE OURO: NUNCA altere o texto" no prompt mas reformulava palavras
+// mesmo assim. Validamos: persona literal "Me fala seu nome, por favor?" virava
+// "Qual é o seu nome?" no envio (incidente 2026-05-07). Decisão: sempre heurístico.
+//
+// Os campos `pipeline_models.formatter.*` e `prompts_extra.formatting` ficam dead
+// config no banco — mantidos pra backward compat mas não são usados.
 async function formatWhatsAppMessages(
   text: string,
   maxBlocks = 3,
-  agent?: AgentConfig,
+  _agent?: AgentConfig,
 ): Promise<string[]> {
-  const cap = Math.max(1, Math.min(maxBlocks, 10));
-
-  if (!text || !text.trim()) return [];
-  if (text.length < 150) return [text.trim()];
-
-  const customFormatter = agent?.prompts_extra?.formatting;
-  const formatterModel = agent?.pipeline_models?.formatter?.model;
-
-  const shouldUseLLM =
-    (customFormatter && customFormatter.trim().length > 80)
-    || !!formatterModel;
-
-  if (!shouldUseLLM) {
-    return formatWhatsAppMessagesHeuristic(text, cap);
-  }
-
-  const defaultFormatterPrompt = `Você divide respostas prontas em até ${cap} blocos naturais pra WhatsApp, sem alterar o conteúdo.
-
-REGRA DE OURO: NUNCA altere o texto. Só divida e aplique markdown do WhatsApp.
-
-Regras:
-1. Máximo ${cap} blocos — cada um legível, sem parágrafo longo.
-2. Se tiver pergunta no final, ela vai em bloco separado.
-3. Dentro de cada bloco: quebras de linha após pontuação pra separar ideias.
-4. Markdown WhatsApp: *negrito* (nunca **), ~tachado~, _itálico_ raro, \`link\`.
-5. Jamais deixe bloco vazio.
-
-Saída OBRIGATÓRIA em JSON:
-{ "messages": ["bloco1", "bloco2", "bloco3"] }
-
-Retorne APENAS o JSON. Nada mais.`;
-
-  const promptBody = customFormatter && customFormatter.trim().length > 80
-    ? customFormatter
-        .replace(/\{\{\s*cap\s*\}\}/g, String(cap))
-    : defaultFormatterPrompt;
-
-  const model = formatterModel || agent?.modelo || "gpt-4.1-mini";
-  const temperature = agent?.pipeline_models?.formatter?.temperature ?? 0.3;
-  const maxTokens = agent?.pipeline_models?.formatter?.max_tokens ?? 1024;
-
-  try {
-    const { response } = await callLLM(model, temperature, maxTokens, promptBody, text);
-    const cleaned = response.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    const msgs = parsed.messages;
-    if (Array.isArray(msgs) && msgs.length > 0 && msgs.every((m) => typeof m === "string" && m.trim().length > 0)) {
-      return msgs.slice(0, cap).map((m: string) => normalizeWhatsAppText(m).trim());
-    }
-    console.warn("[formatter] LLM returned invalid shape, using heuristic fallback");
-  } catch (err) {
-    console.warn("[formatter] LLM error, using heuristic fallback:", err);
-  }
-  return formatWhatsAppMessagesHeuristic(text, cap);
+  return formatWhatsAppMessagesHeuristic(text, Math.max(1, Math.min(maxBlocks, 10)));
 }
 
 // ---------------------------------------------------------------------------
@@ -4135,9 +4139,19 @@ serve(async (req) => {
       totalOutputTokens += personaResult.outputTokens;
 
       // ── Step 4: Validator ──
-      const validatedResponse = await runValidator(agent, rawResponse, ctx, agentConfig.scenarios);
+      // wasLiteral propagado do persona: quando true, validator usa prompt endurecido
+      // que SÓ corrige problemas graves (menção a IA, fato inventado, ActiveCampaign).
+      // Estilo (perguntas duplas, eco social, uso de nome) fica intocado — admin já
+      // curou na UI ao escrever o anchor literal.
+      const validatedResponse = await runValidator(
+        agent, rawResponse, ctx, agentConfig.scenarios,
+        personaResult.was_literal,
+      );
 
       // ── Step 5: Formatter ──
+      // formatter NUNCA reescreve. Sempre heurístico (split por pontuação/linha em
+      // branco), independente de literal ou LLM upstream. Decisão de produto: só o
+      // validator pode mexer em palavras, e só em casos graves.
       messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
 
       // G3 sanity check — se o formatter (ou qualquer LLM upstream) retornou output
