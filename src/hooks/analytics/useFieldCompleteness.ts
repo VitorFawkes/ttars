@@ -43,6 +43,24 @@ export type ExtraColumnKey = typeof EXTRA_COLUMNS[number]['key']
 
 // ── Field value check (same logic as useQualityGate) ───────────────────
 
+// Fields da mesma seção podem viver sob aliases diferentes por fase
+// (ObservacoesEstruturadas: SDR usa briefing_inicial.observacoes, PLANNER usa
+// produto_data.observacoes_criticas, etc).
+const SECTION_ALIASES = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes']
+
+function lookupInContainer(container: unknown, fieldKey: string): unknown {
+    if (!container || typeof container !== 'object') return undefined
+    const obj = container as Record<string, unknown>
+    if (fieldKey in obj) return obj[fieldKey]
+    for (const alias of SECTION_ALIASES) {
+        const sub = obj[alias]
+        if (sub && typeof sub === 'object' && fieldKey in (sub as Record<string, unknown>)) {
+            return (sub as Record<string, unknown>)[fieldKey]
+        }
+    }
+    return undefined
+}
+
 function isFieldFilled(card: ViewCard, fieldKey: string): boolean {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const c = card as any
@@ -50,16 +68,14 @@ function isFieldFilled(card: ViewCard, fieldKey: string): boolean {
     // 1. Direct card column
     let value = c[fieldKey]
 
-    // 2. Fallback: produto_data JSONB
+    // 2. Fallback: produto_data JSONB (flat ou em container de seção)
     if (value === null || value === undefined) {
-        const pd = c.produto_data as Record<string, unknown> | null
-        if (pd) value = pd[fieldKey]
+        value = lookupInContainer(c.produto_data, fieldKey)
     }
 
-    // 3. Fallback: briefing_inicial JSONB
+    // 3. Fallback: briefing_inicial JSONB (flat ou em container de seção)
     if (value === null || value === undefined) {
-        const bi = c.briefing_inicial as Record<string, unknown> | null
-        if (bi) value = bi[fieldKey]
+        value = lookupInContainer(c.briefing_inicial, fieldKey)
     }
 
     if (value === null || value === undefined) return false
@@ -76,12 +92,10 @@ function getFieldRawValue(card: ViewCard, fieldKey: string): unknown {
     const c = card as any
     let value = c[fieldKey]
     if (value === null || value === undefined) {
-        const pd = c.produto_data as Record<string, unknown> | null
-        if (pd) value = pd[fieldKey]
+        value = lookupInContainer(c.produto_data, fieldKey)
     }
     if (value === null || value === undefined) {
-        const bi = c.briefing_inicial as Record<string, unknown> | null
-        if (bi) value = bi[fieldKey]
+        value = lookupInContainer(c.briefing_inicial, fieldKey)
     }
     return value ?? null
 }
@@ -222,7 +236,7 @@ export function useFieldCompleteness({
         })
 
         return result
-    }, [systemFields, stageConfigs, sectionFieldConfigs, sections])
+    }, [systemFields, stageConfigs, sectionFieldConfigs, sections, pipelineId])
 
     // Fetch cards for selected stages
     const { data: cards, isLoading: cardsLoading } = useQuery({

@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProductContext } from './useProductContext'
-import { startOfDay, endOfDay, addDays, differenceInDays } from 'date-fns'
-import type { TaskFilterState, TaskOrigemFilter } from './useTaskFilters'
+import { startOfDay, endOfDay, addDays, differenceInDays, startOfWeek, endOfWeek, startOfMonth, subDays } from 'date-fns'
+import type { TaskFilterState, TaskOrigemFilter, TaskPrazo } from './useTaskFilters'
 
 export interface TaskListItem {
     id: string
@@ -31,6 +31,8 @@ export interface TaskListItem {
     card_valor: number | null
     card_stage_nome: string | null
     card_pipeline_stage_id: string | null
+    card_phase_slug: string | null
+    card_status_comercial: string | null
     contato_id: string | null
     contato_nome: string | null
     contato_telefone: string | null
@@ -44,15 +46,14 @@ export interface TaskListItem {
     created_by_nome: string | null
     concluido_por: string | null
     concluido_por_nome: string | null
-    /** Origem derivada: manual / cadencia / automacao / integracao */
     origem: TaskOrigemFilter
     cadencia_nome: string | null
-    /** Positive = days until due, negative = days overdue, 0 = today, null = no date */
     diff_days: number | null
 }
 
 interface UseTasksListOptions {
     filters: TaskFilterState
+    enabled?: boolean
 }
 
 interface RawTaskRow {
@@ -80,6 +81,7 @@ interface RawTaskRow {
     created_by: string | null
     concluido_por: string | null
     external_id: string | null
+    created_at?: string
     card?: {
         id: string
         titulo: string
@@ -87,15 +89,16 @@ interface RawTaskRow {
         valor_estimado: number | null
         valor_final: number | null
         pipeline_stage_id: string | null
-        stage?: { nome: string } | null
+        status_comercial: string | null
+        stage?: {
+            nome: string | null
+            phase?: { slug: string | null } | null
+        } | null
         contato?: { id: string; nome: string; telefone: string | null; email: string | null } | null
     } | null
 }
 
 function deriveOrigem(row: RawTaskRow): TaskOrigemFilter {
-    // external_source sozinho é lixo: a coluna tem DEFAULT 'activecampaign' no banco,
-    // então tarefas manuais também nascem com ela setada. Só classificamos como
-    // integração quando external_id TAMBÉM está preenchido (aí veio de verdade da AC).
     if (row.external_source && row.external_id) return 'integracao'
     const meta = row.metadata
     if (meta && typeof meta === 'object') {
@@ -116,14 +119,75 @@ function deriveCadenciaNome(row: RawTaskRow): string | null {
     return typeof name === 'string' ? name : null
 }
 
-export function useTasksList({ filters }: UseTasksListOptions) {
+const CANCELED_STATUSES = ['cancelada', 'cancelado', 'nao_compareceu']
+const NOT_OPEN_STATUSES = '(reagendada,cancelada,cancelado,nao_compareceu)'
+
+/**
+ * Hook auxiliar — membros do time do usuário, cacheado em separado pra
+ * não disparar a cada filter change.
+ */
+function useTeamMembers(teamId: string | null | undefined) {
+    return useQuery({
+        queryKey: ['team-members', teamId],
+        enabled: !!teamId,
+        staleTime: 5 * 60 * 1000,
+        queryFn: async (): Promise<string[]> => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('team_id', teamId!)
+            return (data || []).map(p => p.id)
+        },
+    })
+}
+
+/**
+ * Hook auxiliar — perfis de todos os usuários da org com fase derivada.
+ * Cache global de 5 min, evita refetch a cada query de tarefas.
+ */
+function useAllProfiles() {
+    return useQuery({
+        queryKey: ['profiles-with-phase'],
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select(`
+                    id, nome, team_id,
+                    team:teams(phase:pipeline_phases(slug, name))
+                `)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return Object.fromEntries((data || []).map((p: any) => [
+                p.id,
+                {
+                    nome: p.nome || '',
+                    team_id: p.team_id || null,
+                    fase_slug: p.team?.phase?.slug || null,
+                    fase_nome: p.team?.phase?.name || null,
+                },
+            ])) as Record<string, { nome: string; team_id: string | null; fase_slug: string | null; fase_nome: string | null }>
+        },
+    })
+}
+
+export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
     const { profile } = useAuth()
     const { currentProduct } = useProductContext()
+    const { data: teamMemberIds } = useTeamMembers(filters.scope === 'meu_time' ? profile?.team_id : null)
+    const { data: profileMap } = useAllProfiles()
 
     return useQuery({
-        queryKey: ['tasks-list', filters, currentProduct, profile?.id, profile?.team_id],
+        // profileMap incluído na key pra refazer enrichment quando ele chegar
+        queryKey: ['tasks-list', filters, currentProduct, profile?.id, profile?.team_id, !!profileMap, !!teamMemberIds],
+        // Tasks rodam ASSIM QUE profile.id existir. Profile/team caches carregam em paralelo
+        // e enriquecem quando chegam. Não bloqueamos a lista esperando dados auxiliares.
+        enabled: enabled && !!profile?.id,
+        staleTime: 30 * 1000,
+        refetchOnWindowFocus: false,
         queryFn: async () => {
             const now = new Date()
+            const todayStart = startOfDay(now)
+            const todayEnd = endOfDay(now)
 
             let q = supabase
                 .from('tarefas')
@@ -132,41 +196,118 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     concluida, concluida_em, started_at, status, prioridade, outcome,
                     resultado, feedback, metadata, rescheduled_from_id, rescheduled_to_id,
                     participantes_externos, external_source, external_id, card_id, responsavel_id,
-                    created_by, concluido_por,
+                    created_by, concluido_por, created_at,
                     card:cards!tarefas_card_id_fkey!inner(
-                        id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id,
-                        stage:pipeline_stages(nome),
+                        id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id, status_comercial,
+                        stage:pipeline_stages(nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)),
                         contato:contatos!cards_pessoa_principal_id_fkey(id, nome, telefone, email)
                     )
                 `)
                 .is('deleted_at', null)
                 .order('data_vencimento', { ascending: true, nullsFirst: false })
 
-            // Product isolation (defesa em profundidade sobre RLS)
             if (currentProduct) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 q = q.eq('card.produto', currentProduct as any)
             }
 
-            // Status tri-estado
-            if (filters.statusFilter === 'pending') {
-                q = q.eq('concluida', false)
-                q = q.not('status', 'eq', 'reagendada')
-            } else if (filters.statusFilter === 'completed_today') {
-                q = q.eq('concluida', true)
-                q = q.gte('concluida_em', startOfDay(now).toISOString())
+            // ─── EIXO 1: ESTADO ─────────────────────────────────────────
+            switch (filters.estado) {
+                case 'pendentes':
+                    q = q.eq('concluida', false).not('status', 'in', NOT_OPEN_STATUSES)
+                    break
+                case 'concluidas':
+                    q = q.eq('concluida', true)
+                    break
+                case 'reagendadas':
+                    q = q.in('status', ['reagendada'])
+                    break
+                case 'canceladas':
+                    q = q.in('status', CANCELED_STATUSES)
+                    break
+                case 'tudo':
+                    break
             }
 
-            // Scope
+            // ─── EIXO 2: PRAZOS (composição OR entre seleções) ──────────
+            if ((filters.estado === 'pendentes' || filters.estado === 'tudo') && filters.prazos.length > 0) {
+                const tomorrow = addDays(now, 1)
+                const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+                const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
+                const nextWeekStart = startOfWeek(addDays(now, 7), { weekStartsOn: 1 })
+                const nextWeekEnd = endOfWeek(addDays(now, 7), { weekStartsOn: 1 })
+
+                const orParts: string[] = []
+                const map: Record<TaskPrazo, () => string> = {
+                    atrasadas:      () => `data_vencimento.lt.${todayStart.toISOString()}`,
+                    hoje:           () => `and(data_vencimento.gte.${todayStart.toISOString()},data_vencimento.lte.${todayEnd.toISOString()})`,
+                    amanha:         () => `and(data_vencimento.gte.${startOfDay(tomorrow).toISOString()},data_vencimento.lte.${endOfDay(tomorrow).toISOString()})`,
+                    esta_semana:    () => `and(data_vencimento.gte.${weekStart.toISOString()},data_vencimento.lte.${weekEnd.toISOString()})`,
+                    proxima_semana: () => `and(data_vencimento.gte.${nextWeekStart.toISOString()},data_vencimento.lte.${nextWeekEnd.toISOString()})`,
+                    sem_prazo:      () => `data_vencimento.is.null`,
+                }
+                for (const p of filters.prazos) {
+                    orParts.push(map[p]())
+                }
+                if (orParts.length > 0) {
+                    q = q.or(orParts.join(','))
+                }
+            }
+
+            // ─── Janela de conclusão (combina com estado=concluidas) ────
+            if (filters.estado === 'concluidas' && !filters.conclusaoFrom && !filters.conclusaoTo) {
+                switch (filters.janelaConclusao) {
+                    case 'hoje':
+                        q = q.gte('concluida_em', todayStart.toISOString())
+                        break
+                    case 'ontem': {
+                        const yesterdayStart = startOfDay(subDays(now, 1))
+                        const yesterdayEnd = endOfDay(subDays(now, 1))
+                        q = q.gte('concluida_em', yesterdayStart.toISOString())
+                            .lte('concluida_em', yesterdayEnd.toISOString())
+                        break
+                    }
+                    case 'esta_semana': {
+                        const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+                        q = q.gte('concluida_em', weekStart.toISOString())
+                        break
+                    }
+                    case 'este_mes': {
+                        const monthStart = startOfMonth(now)
+                        q = q.gte('concluida_em', monthStart.toISOString())
+                        break
+                    }
+                    case 'sempre':
+                    default:
+                        break
+                }
+            }
+
+            // ─── Períodos personalizados ─────────────────────────────────
+            if (filters.conclusaoFrom) {
+                q = q.gte('concluida_em', startOfDay(new Date(filters.conclusaoFrom)).toISOString())
+            }
+            if (filters.conclusaoTo) {
+                q = q.lte('concluida_em', endOfDay(new Date(filters.conclusaoTo)).toISOString())
+            }
+            if (filters.criacaoFrom) {
+                q = q.gte('created_at', startOfDay(new Date(filters.criacaoFrom)).toISOString())
+            }
+            if (filters.criacaoTo) {
+                q = q.lte('created_at', endOfDay(new Date(filters.criacaoTo)).toISOString())
+            }
+            if (filters.vencimentoFrom) {
+                q = q.gte('data_vencimento', startOfDay(new Date(filters.vencimentoFrom)).toISOString())
+            }
+            if (filters.vencimentoTo) {
+                q = q.lte('data_vencimento', endOfDay(new Date(filters.vencimentoTo)).toISOString())
+            }
+
+            // ─── Escopo ──────────────────────────────────────────────────
             if (filters.scope === 'minhas' && profile?.id) {
                 q = q.eq('responsavel_id', profile.id)
-            } else if (filters.scope === 'meu_time' && profile?.team_id) {
-                const { data: teamMembers } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('team_id', profile.team_id)
-                const ids = (teamMembers || []).map(p => p.id)
-                if (ids.length > 0) q = q.in('responsavel_id', ids)
+            } else if (filters.scope === 'meu_time' && teamMemberIds && teamMemberIds.length > 0) {
+                q = q.in('responsavel_id', teamMemberIds)
             }
 
             if (filters.responsavelIds.length > 0) {
@@ -179,46 +320,14 @@ export function useTasksList({ filters }: UseTasksListOptions) {
 
             if (filters.tipos.length > 0) q = q.in('tipo', filters.tipos)
             if (filters.prioridades.length > 0) q = q.in('prioridade', filters.prioridades)
+            if (filters.cardStatusComercial.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                q = (q as any).in('card.status_comercial', filters.cardStatusComercial)
+            }
 
             if (filters.search.trim()) {
                 const term = filters.search.trim()
                 q = q.or(`titulo.ilike.%${term}%,descricao.ilike.%${term}%`)
-            }
-
-            if (filters.dateFrom) {
-                q = q.gte('data_vencimento', startOfDay(new Date(filters.dateFrom)).toISOString())
-            }
-            if (filters.dateTo) {
-                q = q.lte('data_vencimento', endOfDay(new Date(filters.dateTo)).toISOString())
-            }
-
-            if (filters.deadlineFilter !== 'all' && !filters.dateFrom && !filters.dateTo) {
-                const todayStart = startOfDay(now)
-                const todayEnd = endOfDay(now)
-                switch (filters.deadlineFilter) {
-                    case 'overdue':
-                        q = q.lt('data_vencimento', todayStart.toISOString())
-                        break
-                    case 'today':
-                        q = q.gte('data_vencimento', todayStart.toISOString())
-                            .lte('data_vencimento', todayEnd.toISOString())
-                        break
-                    case 'tomorrow':
-                        q = q.gte('data_vencimento', startOfDay(addDays(now, 1)).toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 1)).toISOString())
-                        break
-                    case 'this_week':
-                        q = q.gte('data_vencimento', todayStart.toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 7)).toISOString())
-                        break
-                    case 'next_week':
-                        q = q.gte('data_vencimento', startOfDay(addDays(now, 7)).toISOString())
-                            .lte('data_vencimento', endOfDay(addDays(now, 14)).toISOString())
-                        break
-                    case 'no_date':
-                        q = q.is('data_vencimento', null)
-                        break
-                }
             }
 
             const { data, error } = await q.limit(500)
@@ -226,42 +335,15 @@ export function useTasksList({ filters }: UseTasksListOptions) {
 
             const result = (data || []) as unknown as RawTaskRow[]
 
-            const uniqueIds = [...new Set(
-                result.flatMap(t => [t.responsavel_id, t.created_by, t.concluido_por])
-                    .filter((v): v is string => !!v)
-            )]
-            let profileMap: Record<string, { nome: string; team_id: string | null; fase_slug: string | null; fase_nome: string | null }> = {}
-            if (uniqueIds.length > 0) {
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select(`
-                        id, nome, team_id,
-                        team:teams(phase:pipeline_phases(slug, name))
-                    `)
-                    .in('id', uniqueIds)
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                profileMap = Object.fromEntries((profiles || []).map((p: any) => [
-                    p.id,
-                    {
-                        nome: p.nome || '',
-                        team_id: p.team_id || null,
-                        fase_slug: p.team?.phase?.slug || null,
-                        fase_nome: p.team?.phase?.name || null,
-                    },
-                ]))
-            }
-
-            const todayStart = startOfDay(now)
-
             const mapped: TaskListItem[] = result.map(t => {
                 let diff_days: number | null = null
                 if (t.data_vencimento) {
                     const due = startOfDay(new Date(t.data_vencimento))
                     diff_days = differenceInDays(due, todayStart)
                 }
-                const respInfo = t.responsavel_id ? profileMap[t.responsavel_id] : null
-                const createdByNome = t.created_by ? (profileMap[t.created_by]?.nome || null) : null
-                const concluidoPorNome = t.concluido_por ? (profileMap[t.concluido_por]?.nome || null) : null
+                const respInfo = t.responsavel_id ? profileMap?.[t.responsavel_id] : null
+                const createdByNome = t.created_by ? (profileMap?.[t.created_by]?.nome || null) : null
+                const concluidoPorNome = t.concluido_por ? (profileMap?.[t.concluido_por]?.nome || null) : null
 
                 return {
                     id: t.id,
@@ -289,6 +371,8 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                     card_valor: t.card?.valor_final ?? t.card?.valor_estimado ?? null,
                     card_stage_nome: t.card?.stage?.nome || null,
                     card_pipeline_stage_id: t.card?.pipeline_stage_id || null,
+                    card_phase_slug: t.card?.stage?.phase?.slug || null,
+                    card_status_comercial: t.card?.status_comercial || null,
                     contato_id: t.card?.contato?.id || null,
                     contato_nome: t.card?.contato?.nome || null,
                     contato_telefone: t.card?.contato?.telefone || null,
@@ -308,17 +392,38 @@ export function useTasksList({ filters }: UseTasksListOptions) {
                 }
             })
 
+            // ─── Filtros pós-query ───────────────────────────────────────
             let filtered = mapped
+
             if (filters.origens.length > 0) {
                 filtered = filtered.filter(t => filters.origens.includes(t.origem))
             }
             if (filters.fases.length > 0) {
                 filtered = filtered.filter(t => t.responsavel_fase_slug && filters.fases.includes(t.responsavel_fase_slug))
             }
+            if (filters.cardFases.length > 0) {
+                filtered = filtered.filter(t => t.card_phase_slug && filters.cardFases.includes(t.card_phase_slug))
+            }
+            if (filters.resultados.length > 0) {
+                filtered = filtered.filter(t => {
+                    const r = t.outcome || t.resultado
+                    return r && filters.resultados.includes(r)
+                })
+            }
+            if (filters.urgencia.length > 0) {
+                filtered = filtered.filter(t => {
+                    if (filters.urgencia.includes('sem_responsavel') && !t.responsavel_id) return true
+                    if (filters.urgencia.includes('sem_prazo') && !t.data_vencimento) return true
+                    if (filters.urgencia.includes('sem_descricao') && !t.descricao) return true
+                    if (filters.urgencia.includes('sem_resultado') && t.concluida && !t.outcome && !t.resultado) return true
+                    return false
+                })
+            }
+            if (typeof filters.atrasadaMaisDias === 'number' && filters.atrasadaMaisDias > 0) {
+                filtered = filtered.filter(t => t.diff_days !== null && t.diff_days < -filters.atrasadaMaisDias!)
+            }
 
             return filtered
         },
-        staleTime: 1000 * 60,
-        enabled: !!profile?.id,
     })
 }

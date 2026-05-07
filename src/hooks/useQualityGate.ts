@@ -25,12 +25,64 @@ interface RequirementRule {
     stage_id: string
     requirement_type: RequirementType
     field_key: string | null
+    section: string | null
     label: string
     is_blocking: boolean
     proposal_min_status: string | null
     task_tipo: string | null
     task_require_completed: boolean
     required_team_role: TeamRole | null
+}
+
+// ObservacoesEstruturadas guarda fields da mesma seção sob chaves diferentes por fase.
+const SECTION_ALIASES = ['observacoes_criticas', 'observacoes_pos_venda', 'observacoes']
+
+function isFilledValue(value: unknown): boolean {
+    if (value === null || value === undefined) return false
+    if (value === '') return false
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === 'object') return Object.keys(value as object).length > 0
+    return true
+}
+
+function lookupFieldValue(
+    card: Record<string, unknown>,
+    fieldKey: string,
+    section: string | null
+): unknown {
+    const direct = card[fieldKey]
+    if (isFilledValue(direct)) return direct
+
+    const containers = ['produto_data', 'briefing_inicial']
+    const aliases = section
+        ? [section, ...SECTION_ALIASES.filter(a => a !== section)]
+        : SECTION_ALIASES
+
+    for (const containerKey of containers) {
+        const raw = card[containerKey]
+        const parsed = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {})
+        if (!parsed || typeof parsed !== 'object') continue
+        const obj = parsed as Record<string, unknown>
+
+        let value = obj[fieldKey]
+        if (typeof value === 'object' && value !== null && 'total' in (value as Record<string, unknown>)) {
+            value = (value as Record<string, unknown>).total
+        }
+        if (isFilledValue(value)) return value
+
+        for (const alias of aliases) {
+            const sub = obj[alias]
+            if (sub && typeof sub === 'object') {
+                let nested = (sub as Record<string, unknown>)[fieldKey]
+                if (typeof nested === 'object' && nested !== null && 'total' in (nested as Record<string, unknown>)) {
+                    nested = (nested as Record<string, unknown>).total
+                }
+                if (isFilledValue(nested)) return nested
+            }
+        }
+    }
+
+    return undefined
 }
 
 // --- Unified missing requirement (single source of truth for the modal) ---
@@ -98,16 +150,18 @@ export function useQualityGate(pipelineId?: string) {
                 data.map(d => d.field_key).filter((k): k is string => !!k)
             ))
 
-            let labelByKey = new Map<string, string>()
+            const labelByKey = new Map<string, string>()
+            const sectionByKey = new Map<string, string | null>()
             if (fieldKeys.length > 0) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
                 const { data: fields } = await (supabase.from('system_fields') as any)
-                    .select('key, label')
+                    .select('key, label, section')
                     .in('key', fieldKeys)
                 if (fields) {
-                    labelByKey = new Map(
-                        (fields as { key: string; label: string }[]).map(f => [f.key, f.label])
-                    )
+                    for (const f of fields as { key: string; label: string; section: string | null }[]) {
+                        labelByKey.set(f.key, f.label)
+                        sectionByKey.set(f.key, f.section)
+                    }
                 }
             }
 
@@ -119,6 +173,7 @@ export function useQualityGate(pipelineId?: string) {
                     stage_id: item.stage_id as string,
                     requirement_type: (item.requirement_type || 'field') as RequirementType,
                     field_key: item.field_key,
+                    section: (item.field_key ? sectionByKey.get(item.field_key) : null) ?? null,
                     label: (item.field_key ? labelByKey.get(item.field_key) : undefined) || item.requirement_label || teamLabel || item.field_key || 'Requisito',
                     is_blocking: item.is_blocking ?? true,
                     proposal_min_status: item.proposal_min_status,
@@ -162,43 +217,8 @@ export function useQualityGate(pipelineId?: string) {
         const fieldRules = stageRules.filter(r => r.requirement_type === 'field')
         for (const rule of fieldRules) {
             if (!rule.field_key) continue
-
-            let value = card[rule.field_key]
-
-            if (value === undefined || value === null || value === '') {
-                const produtoData = typeof card.produto_data === 'string'
-                    ? JSON.parse(card.produto_data || '{}')
-                    : (card.produto_data || {})
-                value = produtoData[rule.field_key]
-
-                if (typeof value === 'object' && value !== null) {
-                    if ('total' in value) value = value.total
-                    else if (Object.keys(value).length === 0) value = undefined
-                }
-            }
-
-            if (value === undefined || value === null || value === '') {
-                const briefingData = typeof card.briefing_inicial === 'string'
-                    ? JSON.parse(card.briefing_inicial || '{}')
-                    : (card.briefing_inicial || {})
-                value = briefingData[rule.field_key]
-
-                if (typeof value === 'object' && value !== null) {
-                    if ('total' in value) value = value.total
-                    else if (Object.keys(value).length === 0) value = undefined
-                }
-            }
-
-            let isValid = true
-            if (value === null || value === undefined || value === '') {
-                isValid = false
-            } else if (Array.isArray(value) && value.length === 0) {
-                isValid = false
-            } else if (typeof value === 'object' && Object.keys(value).length === 0) {
-                isValid = false
-            }
-
-            if (!isValid) {
+            const value = lookupFieldValue(card, rule.field_key, rule.section)
+            if (!isFilledValue(value)) {
                 missing.push({ type: 'field', label: rule.label, field_key: rule.field_key })
             }
         }
@@ -413,43 +433,8 @@ export function useQualityGate(pipelineId?: string) {
         for (const rule of stageRules) {
             if (rule.requirement_type === 'field') {
                 if (!rule.field_key) continue
-
-                let value = card[rule.field_key]
-
-                if (value === undefined || value === null || value === '') {
-                    const produtoData = typeof card.produto_data === 'string'
-                        ? JSON.parse(card.produto_data || '{}')
-                        : (card.produto_data || {})
-                    value = produtoData[rule.field_key]
-
-                    if (typeof value === 'object' && value !== null) {
-                        if ('total' in value) value = value.total
-                        else if (Object.keys(value).length === 0) value = undefined
-                    }
-                }
-
-                if (value === undefined || value === null || value === '') {
-                    const briefingData = typeof card.briefing_inicial === 'string'
-                        ? JSON.parse(card.briefing_inicial || '{}')
-                        : (card.briefing_inicial || {})
-                    value = briefingData[rule.field_key]
-
-                    if (typeof value === 'object' && value !== null) {
-                        if ('total' in value) value = value.total
-                        else if (Object.keys(value).length === 0) value = undefined
-                    }
-                }
-
-                let isValid = true
-                if (value === null || value === undefined || value === '') {
-                    isValid = false
-                } else if (Array.isArray(value) && value.length === 0) {
-                    isValid = false
-                } else if (typeof value === 'object' && Object.keys(value).length === 0) {
-                    isValid = false
-                }
-
-                if (!isValid) {
+                const value = lookupFieldValue(card, rule.field_key, rule.section)
+                if (!isFilledValue(value)) {
                     missing.push({ type: 'field', label: rule.label, field_key: rule.field_key })
                 }
             } else if (rule.requirement_type === 'rule') {

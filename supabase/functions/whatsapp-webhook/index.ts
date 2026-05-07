@@ -264,12 +264,59 @@ Deno.serve(async (req) => {
                         console.warn("[webhook] echo-loop check failed (proceeding):", err);
                     }
 
+                    // ── PRE-FILTRO: só insere no buffer (e chama o roteador) se a
+                    //   linha tem agente IA ativo E o contato passa nas whitelists.
+                    // Sem isso, o webhook insere msgs de TODA linha — vendedores humanos,
+                    // grupos, linhas sem IA — e essas linhas ficam órfãs no buffer (a msg
+                    // já está em whatsapp_messages, que é a fonte de verdade da conversa).
+                    // Quando ativar agente pra clientes reais, basta zerar
+                    // routing_filter.allowed_phones + test_mode_phone_whitelist do agente.
+                    const phoneNumberId = data.phone_number_id || singlePayload.phone_number_id || null;
+                    const normalizedContact = contactPhone.replace(/\D/g, "");
+                    if (!phoneNumberId) {
+                        console.log(`[webhook] AI skip: no phone_number_id on inbound`);
+                        continue;
+                    }
+                    const { data: lineRow } = await supabaseClient
+                        .from("whatsapp_linha_config")
+                        .select("id")
+                        .eq("phone_number_id", phoneNumberId)
+                        .eq("ativo", true)
+                        .limit(1)
+                        .maybeSingle();
+                    if (!lineRow) {
+                        console.log(`[webhook] AI skip: no active linha_config for phone_number_id=${phoneNumberId}`);
+                        continue;
+                    }
+                    const { data: agentLink } = await supabaseClient
+                        .from("ai_agent_phone_line_config")
+                        .select("routing_filter, ai_agents!inner(id, ativa, test_mode_phone_whitelist)")
+                        .eq("phone_line_id", lineRow.id)
+                        .eq("ativa", true)
+                        .eq("ai_agents.ativa", true)
+                        .limit(1)
+                        .maybeSingle();
+                    if (!agentLink) {
+                        console.log(`[webhook] AI skip: no active agent linked to line ${lineRow.id}`);
+                        continue;
+                    }
+                    // deno-lint-ignore no-explicit-any
+                    const routingAllowed: string[] | null = (agentLink as any).routing_filter?.allowed_phones ?? null;
+                    // deno-lint-ignore no-explicit-any
+                    const testWhitelist: string[] | null = ((agentLink as any).ai_agents)?.test_mode_phone_whitelist ?? null;
+                    const passRouting = !routingAllowed || routingAllowed.length === 0 || routingAllowed.includes(normalizedContact);
+                    const passTestMode = !testWhitelist || testWhitelist.length === 0 || testWhitelist.includes(normalizedContact);
+                    if (!passRouting || !passTestMode) {
+                        console.log(`[webhook] AI skip: ${normalizedContact} not in whitelist (routing=${passRouting}, test=${passTestMode})`);
+                        continue;
+                    }
+
                     // Insert into debounce buffer before calling router
                     const msgType = data.type || data.message_type || "text";
                     const mediaUrl = data.media_url || data.media?.url || null;
                     await supabaseClient.from("ai_message_buffer").insert({
-                        contact_phone: contactPhone.replace(/\D/g, ""),
-                        phone_number_id: data.phone_number_id || singlePayload.phone_number_id || null,
+                        contact_phone: normalizedContact,
+                        phone_number_id: phoneNumberId,
                         contact_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || null,
                         message_text: messageText,
                         message_type: msgType,

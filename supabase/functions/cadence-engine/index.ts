@@ -1944,8 +1944,12 @@ async function executeTaskStep(
         taskDueDate = calculateBusinessTime(calcBase, 0, businessConfig);
     }
 
-    // Criar tarefa
-    const { data: task, error: taskError } = await supabaseClient
+    // Criar tarefa. O índice unique tarefas_unique_cadence_step garante que
+    // duas execuções concorrentes do mesmo step não criem tarefas duplicadas.
+    // Em caso de violação (23505), recupera a tarefa já existente e prossegue
+    // de forma idempotente.
+    let task: any;
+    const { data: insertedTask, error: taskError } = await supabaseClient
         .from("tarefas")
         .insert({
             card_id: card.id,
@@ -1966,7 +1970,26 @@ async function executeTaskStep(
         .single();
 
     if (taskError) {
-        throw new Error(`Failed to create task: ${taskError.message}`);
+        if (taskError.code === '23505') {
+            console.log(`[CadenceEngine] Tarefa já existe para step ${step.id} no card ${card.id} (execução paralela). Recuperando ID existente.`);
+            const { data: existing } = await supabaseClient
+                .from("tarefas")
+                .select("*")
+                .eq("card_id", card.id)
+                .is("deleted_at", null)
+                .is("rescheduled_from_id", null)
+                .contains("metadata", { cadence_instance_id: instance.id, cadence_step_id: step.id })
+                .limit(1)
+                .single();
+            if (!existing) {
+                throw new Error(`Failed to create task and could not recover existing: ${taskError.message}`);
+            }
+            task = existing;
+        } else {
+            throw new Error(`Failed to create task: ${taskError.message}`);
+        }
+    } else {
+        task = insertedTask;
     }
 
     // Cria complemento atendimentos_concierge se step marcado pra concierge

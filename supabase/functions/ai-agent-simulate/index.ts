@@ -26,6 +26,7 @@ import {
   type IdentityConfig,
   type VoiceConfig,
   type BoundariesConfig,
+  type ListeningConfig,
   type ScoringRule,
 } from "../ai-agent-router/playbook_loader.ts";
 import { detectMoment } from "../ai-agent-router/moment_detector.ts";
@@ -54,12 +55,14 @@ interface AgentRow {
   identity_config?: IdentityConfig | null;
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
+  listening_config?: ListeningConfig | null;
 }
 
 interface PreviewPlaybookConfig {
   identity_config?: IdentityConfig | null;
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
+  listening_config?: ListeningConfig | null;
   moments?: PlaybookMoment[];
   silent_signals?: PlaybookSilentSignal[];
   few_shot_examples?: PlaybookFewShotExample[];
@@ -127,7 +130,7 @@ serve(async (req) => {
       .select(`
         id, org_id, nome, persona, modelo, temperature, max_tokens, system_prompt,
         handoff_signals, intelligent_decisions, prompts_extra, multimodal_config,
-        playbook_enabled, identity_config, voice_config, boundaries_config
+        playbook_enabled, identity_config, voice_config, boundaries_config, listening_config
       `)
       .eq("id", body.agent_id)
       .single();
@@ -177,6 +180,7 @@ serve(async (req) => {
       const identity = preview?.identity_config ?? a.identity_config ?? null;
       const voice = preview?.voice_config ?? a.voice_config ?? null;
       const boundaries = preview?.boundaries_config ?? a.boundaries_config ?? null;
+      const listening = preview?.listening_config ?? a.listening_config ?? null;
 
       if (moments.length === 0) {
         return new Response(
@@ -222,6 +226,7 @@ serve(async (req) => {
         identity,
         voice,
         boundaries,
+        listening,
         moments,
         currentMoment: detected.moment,
         currentMomentMethod: detected.method,

@@ -675,6 +675,7 @@ export default function VendasMondePage() {
         // Bulk RPC: envia tudo de uma vez, processa server-side em uma transaction
         const bulkPayload = matched.map(card => ({
             card_id: card.cardId,
+            monde_venda_num: card.vendaNum,
             products: card.products.map(p => ({
                 description: p.produto || null,
                 sale_value: p.valorTotal,

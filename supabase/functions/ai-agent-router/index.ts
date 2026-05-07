@@ -22,6 +22,7 @@ import {
   type IdentityConfig,
   type VoiceConfig,
   type BoundariesConfig,
+  type ListeningConfig,
 } from "./playbook_loader.ts";
 
 const corsHeaders = {
@@ -130,6 +131,7 @@ interface AgentConfig {
   identity_config?: IdentityConfig | null;
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
+  listening_config?: ListeningConfig | null;
 }
 
 interface BusinessCustomBlock {
@@ -656,7 +658,7 @@ async function findAgentByActiveConversation(
       pipeline_models, timings, validator_rules,
       test_mode_phone_whitelist, multimodal_config,
       handoff_actions,
-      playbook_enabled, identity_config, voice_config, boundaries_config
+      playbook_enabled, identity_config, voice_config, boundaries_config, listening_config
     `)
     .eq("id", candidate.current_agent_id)
     .eq("ativa", true)
@@ -2539,6 +2541,18 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - nome/sobrenome: primeira letra maiuscula.
 - Campos dinamicos permitidos em "Campos permitidos no card" (ex: mkt_destino, ww_sdr_ajuda_familia): grave quando o cliente indicou explicitamente.
 
+### Captura de NOME (regra crítica — não pular)
+Quando o cliente DISSER seu nome ou sobrenome (em qualquer formato natural), isso NÃO é inferência, é fato literal: SEMPRE inclua em contact_patch.
+Exemplos que DEVEM virar contact_patch.nome:
+- "Sou o Vitor" / "Sou a Maria" → nome="Vitor" / nome="Maria"
+- "Aqui é o João" / "Aqui é a Ana" → nome="João" / nome="Ana"
+- "Meu nome é Pedro Silva" → nome="Pedro", sobrenome="Silva"
+- "Pode me chamar de Lu" → nome="Lu"
+- "Vitor Gambetti" / "Vitor falando" → nome="Vitor", sobrenome="Gambetti" (se houver)
+- "Tudo bem? Vitor aqui" → nome="Vitor"
+NÃO pular essa captura mesmo que a mensagem misture cumprimento + nome ("Oi, sou o Vitor"). Sempre que o cliente revelar identidade pela primeira vez, gravar.
+Não gravar nome/sobrenome se o cliente NÃO disse explicitamente (ex: nome no perfil do WhatsApp não conta).
+
 ### Avanco de stage (so se NAO for traveler)
 - Use advance_to_stage_id da lista acima quando a condicao da conversa bater claramente (cliente confirmou reuniao, respondeu primeira vez, etc).
 - Se ja ha sinal deterministico que avançou, NAO tente avançar de novo.
@@ -2769,6 +2783,7 @@ async function runPersonaAgent(
           identity_config: agent.identity_config ?? null,
           voice_config: agent.voice_config ?? null,
           boundaries_config: agent.boundaries_config ?? null,
+          listening_config: agent.listening_config ?? null,
           pipeline_models: agent.pipeline_models ?? null,
           // deno-lint-ignore no-explicit-any
           handoff_actions: (agent as any).handoff_actions ?? null,
@@ -3004,7 +3019,8 @@ Contexto:
 - ai_contexto: ${backoffice.ai_contexto || "(vazio)"}
 ${ctx.contact_name_known
   ? `- Nome: ${ctx.contact_name}`
-  : `- Nome: DESCONHECIDO — voce NAO sabe o nome do lead ainda. NUNCA use "Cliente", "Lead" ou qualquer placeholder como se fosse o nome dele. Em vez disso, descubra o nome com naturalidade na conversa (ex: "pra eu te chamar pelo nome, como voce se chama?"). Ate saber, use cumprimento sem nome ("Oi, tudo bem?").`}
+  // IMPORTANTE: nao colocar exemplos entre aspas aqui — LLMs reproduzem literal e a saudacao vira template fixo (incidente 2026-05-06).
+  : `- Nome: DESCONHECIDO — voce ainda NAO sabe o nome do lead. NUNCA invente, NUNCA use placeholder generico (Cliente, Lead, Amigo). Quando fizer sentido natural na conversa, peca o nome com SUAS palavras, alinhado a sua persona, sem copiar formula pronta. Enquanto nao souber, cumprimente sem usar nome.`}
 - Primeiro contato: ${ctx.is_primeiro_contato}
 - Role: ${backoffice.detected_role}
 - Card ID: ${ctx.card_id || "(sem card)"}
@@ -3050,7 +3066,7 @@ ${protectedFieldsBlock}
 
 HANDOFF: Finalize: "Vou verificar aqui e te retorno em breve!" NUNCA mencione transferencia.
 
-${presentationBlock ? presentationBlock : `PRIMEIRO CONTATO: Se is_primeiro_contato=true, NAO se apresente novamente. Avance direto.`}
+${presentationBlock ? presentationBlock : `PRIMEIRO CONTATO: nao ha apresentacao customizada configurada. Priorize entender a intencao do lead em 1-2 frases curtas, alinhado a sua persona acima. Sem formulas prontas, sem repetir saudacao quando ja conversou antes.`}
 
 FORMATO: 1-3 frases por msg WhatsApp. Tom: ${business?.tone || "professional"}. pt-BR natural.
 NUNCA mencione IA, sistema, formulario, tools, regras internas.
@@ -3142,7 +3158,9 @@ Analise a resposta abaixo e verifique:
 6. Rejeita/desqualifica lead na primeira mensagem ou sem investigar? → BLOQUEIA (na duvida, avançar)
 7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer só isso? → CORRIJA
 8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
-9. Empilha 3+ perguntas soltas sobre temas diferentes na mesma mensagem? → CORRIJA mantendo no máximo 2 perguntas relacionadas
+9. Empilha perguntas de temas DIFERENTES na mesma mensagem? → CORRIJA. Permitido: 2 perguntas COMPLEMENTARES sobre o MESMO tema (ex: "alguma região em mente? E qual cidade dentro dela?"). PROIBIDO: 2+ perguntas sobre temas distintos (data + destino, convidados + orçamento, nome + email são temas diferentes). Quando detectar, mantenha APENAS a pergunta mais importante do turno e remova as outras.
+10. Lead fez pergunta social na última mensagem ("e você?", "tudo bem?", "como vai?", "td bem?", "como você está?") e a resposta NÃO ecoa essa pergunta antes de continuar? → CORRIJA inserindo uma frase curta natural respondendo a pergunta social ANTES do conteúdo principal. Ex: lead diz "Bem e você?", a resposta DEVE começar com algo como "Tudo ótimo por aqui, obrigada!" antes de seguir o roteiro.
+11. Lead disse seu nome explicitamente ("Aqui é o Vitor", "Sou a Maria", "Meu nome é Ana") e a resposta NÃO usa o nome dele em nenhum lugar? → CORRIJA inserindo o nome do lead naturalmente ao menos uma vez (ex: "Prazer, Vitor.", "Legal te conhecer, Maria.") antes de seguir o conteúdo.
 ${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
 ${rulesBlock}
 RESPOSTA a validar:
@@ -3323,6 +3341,11 @@ async function sendResponse(
   phoneNumberId?: string,
   typingDelayMs = 1500,
   testWhitelist?: string[] | null,
+  // Antes esses valores eram hardcoded "Luna IA" / "SDR Trips" — vazavam atribuicao
+  // errada em qualquer agente que nao fosse a Luna (incidente 2026-05-06).
+  agentName: string = "AI Agent",
+  agentId: string | null = null,
+  phoneLineLabel: string | null = null,
 ): Promise<void> {
   const echoApiUrl = Deno.env.get("ECHO_API_URL");
   const echoApiKey = Deno.env.get("ECHO_API_KEY");
@@ -3351,9 +3374,11 @@ async function sendResponse(
         type: "text",
         status: "blocked_test_mode",
         sender_phone: normalizedPhone,
-        sent_by_user_name: "Luna IA (blocked)",
+        sent_by_user_name: `${agentName} (blocked)`,
+        phone_number_label: phoneLineLabel,
         metadata: {
           source: "ai_agent",
+          agent_id: agentId,
           blocked_reason: "test_mode_phone_whitelist",
           allowed_phones: normalizedWhitelist,
         },
@@ -3401,10 +3426,11 @@ async function sendResponse(
         type: "text",
         status: success ? "sent" : "failed",
         sender_phone: normalizedPhone,
-        sent_by_user_name: "Luna IA",
-        phone_number_label: "SDR Trips",
+        sent_by_user_name: agentName,
+        phone_number_label: phoneLineLabel,
         metadata: {
           source: "ai_agent",
+          agent_id: agentId,
           echo_response: echoResult,
         },
       });
@@ -4013,7 +4039,7 @@ serve(async (req) => {
 
     if (escalated) {
       const msgs = await formatWhatsAppMessages(escalationMsg, maxBlocks, agent);
-      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
+      await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, msgs, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist, agent.nome, agent.id, input.phone_number_label ?? null);
       return new Response(
         JSON.stringify({ handled: true, agent: agent.nome, escalated: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -4144,7 +4170,7 @@ serve(async (req) => {
       .eq("id", conversationId);
 
     // Enviar via WhatsApp (multiplas mensagens)
-    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist);
+    await sendResponse(supabase, contactId, input.contact_phone, ctx.card_id, messages, input.phone_number_id, typingDelayMs, agent.test_mode_phone_whitelist, agent.nome, agent.id, input.phone_number_label ?? null);
 
     // Libera lock de pipeline antes de retornar (sucesso).
     try {

@@ -176,7 +176,7 @@ export default function ConversationHistory({ cardId, contactId, initialTab }: C
                             )}
                         </button>
 
-                        {/* Julia IA Toggle + Chat com IA tab — right-aligned */}
+                        {/* Julia IA Toggle + Perguntar à IA tab — right-aligned */}
                         <div className="flex items-center gap-2 ml-auto">
                             {aiStatus !== undefined && (
                                 <button
@@ -205,7 +205,7 @@ export default function ConversationHistory({ cardId, contactId, initialTab }: C
                                 )}
                             >
                                 <Sparkles className="h-4 w-4" />
-                                Chat com IA
+                                Perguntar à IA
                             </button>
                         </div>
                     </div>
