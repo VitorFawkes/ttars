@@ -238,14 +238,19 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
 
     // 3) Montar payload de cadence_steps
     const stepRows = orderedSteps.map(({ node }, idx) => {
-        const stepKey = `n_${node.id.slice(0, 12)}`  // estável por id
+        // step_key precisa ser único por template_id (UNIQUE constraint).
+        // Usar o node.id INTEIRO — slice(0,12) anterior pegava só o prefixo
+        // do tipo (ex: "send_message_") e duplicava quando havia 2+ nodes
+        // do mesmo tipo, batendo na unique. Tipos do React Flow id já são
+        // [a-z_0-9-] safe pra usar direto como step_key.
+        const stepKey = `n_${node.id}`
         const stepType = NODE_TO_STEP_TYPE[node.type as ActionNodeType]
 
         // next_step_key: pega primeira aresta que sai daqui pra outro step
         const out = (edgesBySource.get(node.id) || [])
             .filter((e) => stepNodes.some((sn) => sn.id === e.target))
         const nextStepKey = out[0]
-            ? `n_${out[0].target.slice(0, 12)}`
+            ? `n_${out[0].target}`
             : null
 
         // Configs por tipo: roteia a config genérica pro slot correto
@@ -281,7 +286,7 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         if (node.type === 'action.branch') {
             const branches = out.map((e) => ({
                 handle: e.sourceHandle || 'true',
-                target_step_key: `n_${e.target.slice(0, 12)}`,
+                target_step_key: `n_${e.target}`,
             }))
             stepConfig.branch_config = { ...(cfg as object), branches }
         }
