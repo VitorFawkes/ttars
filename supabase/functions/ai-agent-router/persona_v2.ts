@@ -875,17 +875,35 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
     text = 'Tudo ótimo por aqui, obrigada!\n\n' + text;
   }
 
-  // 2.6. Prepend determinístico de "Prazer, Nome" quando lead se identifica
-  // (FIX 08/05/2026). Mesmo padrão do eco social: em modo literal o LLM
-  // nunca é chamado e a diretiva injetada em renderListeningBlock fica órfã.
-  // Sem isso: lead diz "Me chamo Vitor" e Estela ignora o nome no step 2 da
-  // abertura, soa robotizada.
-  // Detector regex idêntico ao de prompt_builder_v2:299 — captura "sou o X",
-  // "me chamo Z", "aqui é o Y", etc. Só prepend se anchor não começa já com
-  // saudação personalizada (Prazer/Legal/Oi <nome>) — evita duplicação.
-  const _nameRevealMatch = _lastLeadMsg.match(/\b(?:sou\s+o|sou\s+a|aqui\s+[ée]\s+o|aqui\s+[ée]\s+a|meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30})?)/i);
-  if (_nameRevealMatch) {
-    const _detectedName = _nameRevealMatch[1].split(/\s+/)[0];
+  // 2.6. Prepend determinístico de "Prazer, Nome" quando lead se identifica.
+  //
+  // Em modo literal o LLM nunca é chamado e a diretiva injetada em
+  // renderListeningBlock fica órfã. Sem isso: lead diz "Me chamo Vitor" e
+  // Estela ignora o nome no step 2 da abertura, soa robotizada.
+  //
+  // Estratégia (FIX 08/05/2026 v2): combinar 2 paths pra cobrir typos.
+  //   Path 1 — regex direto: pega "me chamo X", "sou o Y", "meu nome é Z"
+  //            quando texto está limpo.
+  //   Path 2 — fallback via Data Agent: se contactNameKnown=true (Data Agent
+  //            já extraiu o nome neste turn) E o nome aparece na última msg
+  //            do lead (case-insensitive, sem acentos), usa o nome extraído.
+  //            Cobre o caso real de typo "Me cham,o Vitor" — regex falha mas
+  //            Data Agent (LLM gpt-5.1) entende e extrai "Vitor"; apareceu em
+  //            "Me cham,o Vitor", então prepend.
+  //   Ambos bloqueados se anchor já começa com "Prazer Nome" pra evitar dup.
+  const _detectedName = (() => {
+    const m = _lastLeadMsg.match(/\b(?:sou\s+o|sou\s+a|aqui\s+[ée]\s+o|aqui\s+[ée]\s+a|meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30})?)/i);
+    if (m) return m[1].split(/\s+/)[0];
+    if (contactNameKnown && contactName && contactName.trim().length >= 2) {
+      const firstName = contactName.trim().split(/\s+/)[0];
+      const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (norm(_lastLeadMsg).includes(norm(firstName))) {
+        return firstName;
+      }
+    }
+    return null;
+  })();
+  if (_detectedName) {
     const _anchorAlreadyGreets = new RegExp(`^(prazer|legal\\s+te\\s+conhecer|oi)[,\\s]*${_detectedName}\\b`, 'i').test(text.trim());
     if (!_anchorAlreadyGreets) {
       text = `Prazer, ${_detectedName}.\n\n` + text;
