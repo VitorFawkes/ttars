@@ -780,3 +780,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 20260507j_add_literal_phrases_to_moments.sql|2026-05-07T23:19|hot-applied via Management API
 2026-05-08T12:49:11Z | supabase/migrations/20260508a_resolve_whatsapp_target_for_card.sql | applied_to_prod
 20260508b_reset_agent_test_conversation_v6_soft_cards.sql|2026-05-08T13:14|hot-applied via Management API
+2026-05-08T18:05:01Z | supabase/migrations/20260508a_patricia_engine_and_clone.sql | applied_to_staging (aguardando autorização do Vitor pra promover)
+2026-05-08T18:08:34Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508a_patricia_engine_and_clone.sql | applied_to_prod

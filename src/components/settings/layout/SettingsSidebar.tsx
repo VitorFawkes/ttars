@@ -153,6 +153,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/automations" icon={Zap} label="Automações" />
                             <NavItem to="/settings/automacoes/templates" icon={MessageSquare} label="Templates de Mensagem" />
                             <NavItem to="/settings/ai-agents" icon={Bot} label="Agentes IA" />
+                            <NavItem to="/settings/ai-agents-v2" icon={Sparkles} label="Agentes IA v2" />
                             <NavItem to="/settings/ai-agents/conversations" icon={MessageSquare} label="Conversas IA" />
                             <NavItem to="/settings/ai-skills" icon={Wrench} label="Ferramentas IA" />
                             <NavItem to="/settings/ai-knowledge-bases" icon={BookOpen} label="Bases de Conhecimento" />

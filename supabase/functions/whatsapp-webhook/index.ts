@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
                     }
                     const { data: agentLink } = await supabaseClient
                         .from("ai_agent_phone_line_config")
-                        .select("routing_filter, ai_agents!inner(id, ativa, test_mode_phone_whitelist)")
+                        .select("routing_filter, ai_agents!inner(id, ativa, test_mode_phone_whitelist, engine)")
                         .eq("phone_line_id", lineRow.id)
                         .eq("ativa", true)
                         .eq("ai_agents.ativa", true)
@@ -326,7 +326,12 @@ Deno.serve(async (req) => {
                       .catch((err: Error) => console.error("[webhook] Buffer insert error:", err));
 
                     try {
-                        const routerRes = await fetch(`${supabaseUrl}/functions/v1/ai-agent-router`, {
+                        // deno-lint-ignore no-explicit-any
+                        const agentEngine = ((agentLink as any).ai_agents)?.engine || "multi_agent_pipeline";
+                        const routerPath = agentEngine === "single_agent_v2"
+                            ? "/functions/v1/ai-agent-router-v2"
+                            : "/functions/v1/ai-agent-router";
+                        const routerRes = await fetch(`${supabaseUrl}${routerPath}`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",

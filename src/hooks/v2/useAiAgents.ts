@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 export type AgentTipo = 'sales' | 'support' | 'success' | 'specialist' | 'router'
 
@@ -106,7 +106,7 @@ export function useAiAgents(produto?: string) {
           ai_agent_skills(id, skill_id, enabled, priority, ai_skills(id, nome, categoria, tipo)),
           ai_agent_phone_line_config(id, phone_line_id, ativa, priority)
         `)
-        .eq('engine', 'multi_agent_pipeline')
+        .eq('engine', 'single_agent_v2')
         .order('created_at', { ascending: false })
 
       if (produto) q = q.eq('produto', produto)

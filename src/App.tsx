@@ -117,6 +117,8 @@ import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 // Agentes IA WhatsApp
 import AiAgentListPage from './pages/admin/AiAgentListPage'
 import AiAgentDetailPage from './pages/admin/AiAgentDetailPage'
+import AiAgentV2ListPage from './pages/admin/AiAgentV2ListPage'
+import AiAgentV2DetailPage from './pages/admin/AiAgentV2DetailPage'
 import AiSkillManagerPage from './pages/admin/AiSkillManagerPage'
 import AiKnowledgeBasePage from './pages/admin/AiKnowledgeBasePage'
 import AiAgentConversationsPage from './pages/admin/AiAgentConversationsPage'
@@ -367,6 +369,9 @@ function App() {
                     <Route path="ai-agents/builder" element={<AiAgentBuilderWizard />} />
                     <Route path="ai-agents/builder/:draftId" element={<AiAgentBuilderWizard />} />
                     <Route path="ai-agents/:id" element={<AiAgentDetailPage />} />
+                    {/* Agentes IA v2 (single-agent + brand validator — Patricia) */}
+                    <Route path="ai-agents-v2" element={<AiAgentV2ListPage />} />
+                    <Route path="ai-agents-v2/:id" element={<AiAgentV2DetailPage />} />
                     <Route path="ai-skills" element={<AiSkillManagerPage />} />
                     <Route path="ai-knowledge-bases" element={<AiKnowledgeBasePage />} />
                     <Route path="ai-agents/conversations" element={<AiAgentConversationsPage />} />

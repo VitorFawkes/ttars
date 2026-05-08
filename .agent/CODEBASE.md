@@ -7,18 +7,18 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
-> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
 
 ---
 
@@ -180,8 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **236 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
-> **238 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **266 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -191,11 +190,18 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAIExtraction()` | `useAIExtraction.ts` |
 | `useAIExtractionReview()` | `useAIExtractionReview.ts` |
 | `useAiAgentHealth()` | `useAiAgentHealth.ts` |
+| `useAiAgentHealth()` | `useAiAgentHealth.ts` |
+| `useAiAgentHubStats()` | `useAiAgentHubStats.ts` |
 | `useAiAgentHubStats()` | `useAiAgentHubStats.ts` |
 | `useAiAgentPresentations()` | `useAiAgentPresentations.ts` |
+| `useAiAgentPresentations()` | `useAiAgentPresentations.ts` |
+| `useAiAgents()` | `useAiAgents.ts` |
 | `useAiAgents()` | `useAiAgents.ts` |
 | `useAiConversations()` | `useAiConversations.ts` |
+| `useAiConversations()` | `useAiConversations.ts` |
 | `useAiKnowledgeBases()` | `useAiKnowledgeBases.ts` |
+| `useAiKnowledgeBases()` | `useAiKnowledgeBases.ts` |
+| `useAiSkills()` | `useAiSkills.ts` |
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
 | `useChatIA()` | `useChatIA.ts` |
@@ -263,23 +269,42 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 |------|------|
 | `types()` | `types.ts` |
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
+| `useAgentBoundaries()` | `useAgentBoundaries.ts` |
+| `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
+| `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
+| `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentIdentity()` | `useAgentIdentity.ts` |
 | `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentKBLinks()` | `useAgentKBLinks.ts` |
+| `useAgentListening()` | `useAgentListening.ts` |
 | `useAgentListening()` | `useAgentListening.ts` |
 | `useAgentMoments()` | `useAgentMoments.ts` |
+| `useAgentMoments()` | `useAgentMoments.ts` |
+| `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentPromptPreview()` | `useAgentPromptPreview.ts` |
 | `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
+| `useAgentQualificationFlow()` | `useAgentQualificationFlow.ts` |
+| `useAgentScoring()` | `useAgentScoring.ts` |
 | `useAgentScoring()` | `useAgentScoring.ts` |
 | `useAgentSilentSignals()` | `useAgentSilentSignals.ts` |
+| `useAgentSilentSignals()` | `useAgentSilentSignals.ts` |
+| `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentSimulator()` | `useAgentSimulator.ts` |
 | `useAgentSpecialScenarios()` | `useAgentSpecialScenarios.ts` |
+| `useAgentSpecialScenarios()` | `useAgentSpecialScenarios.ts` |
+| `useAgentSuggestVariations()` | `useAgentSuggestVariations.ts` |
 | `useAgentSuggestVariations()` | `useAgentSuggestVariations.ts` |
 | `useAgentTemplates()` | `useAgentTemplates.ts` |
+| `useAgentTemplates()` | `useAgentTemplates.ts` |
+| `useAgentTestWhitelist()` | `useAgentTestWhitelist.ts` |
 | `useAgentTestWhitelist()` | `useAgentTestWhitelist.ts` |
 | `useAgentV1V2Comparison()` | `useAgentV1V2Comparison.ts` |
+| `useAgentV1V2Comparison()` | `useAgentV1V2Comparison.ts` |
 | `useAgentVoice()` | `useAgentVoice.ts` |
+| `useAgentVoice()` | `useAgentVoice.ts` |
+| `useAgentWizard()` | `useAgentWizard.ts` |
 | `useAgentWizard()` | `useAgentWizard.ts` |
 | `useAllGiftAssignments()` | `useAllGiftAssignments.ts` |
 | `useApiKeys()` | `useApiKeys.ts` |
@@ -302,6 +327,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -348,6 +374,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useReactivationPatterns()` | `useReactivationPatterns.ts` |
 | `useReceitaPermission()` | `useReceitaPermission.ts` |
 | `useResetAgentConversations()` | `useResetAgentConversations.ts` |
+| `useResetAgentConversations()` | `useResetAgentConversations.ts` |
 | `useSaudeList()` | `useSaudeList.ts` |
 | `useSaudeSummary()` | `useSaudeSummary.ts` |
 | `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
@@ -357,6 +384,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -401,6 +429,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
+| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -499,8 +528,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **151 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
-> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **154 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -523,6 +551,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
+| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
@@ -548,6 +577,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AiAgentDetailPage` | `src/pages/admin/AiAgentDetailPage.tsx` |
 | `AiAgentHealthPage` | `src/pages/admin/AiAgentHealthPage.tsx` |
 | `AiAgentListPage` | `src/pages/admin/AiAgentListPage.tsx` |
+| `AiAgentV2DetailPage` | `src/pages/admin/AiAgentV2DetailPage.tsx` |
+| `AiAgentV2ListPage` | `src/pages/admin/AiAgentV2ListPage.tsx` |
 | `AiKnowledgeBasePage` | `src/pages/admin/AiKnowledgeBasePage.tsx` |
 | `AiSkillManagerPage` | `src/pages/admin/AiSkillManagerPage.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
