@@ -394,7 +394,10 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
             type: nodeType,
             position: { x: X, y: (idx + 1) * GAP_Y },
             data: {
-                label: (cfg?.titulo as string) || (s.step_key as string) || nodeType,
+                // Sem nome customizado, deixa vazio — BaseNode usa meta.label
+                // do registry como fallback ("Enviar mensagem", "Esperar", ...).
+                // step_key do banco é técnico e não deve aparecer pro usuário.
+                label: (cfg?.titulo as string) || '',
                 config: cfg,
             },
         })

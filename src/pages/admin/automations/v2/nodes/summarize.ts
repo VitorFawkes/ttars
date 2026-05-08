@@ -197,12 +197,20 @@ export function summarizeConfig(
             return formatWait(config)
         case 'action.branch': {
             const t = config.condition_type as string | undefined
+            if (!t) return null
+            if (t === 'card_in_stage') {
+                const sid = config.stage_id as string | undefined
+                if (!sid) return 'Card na etapa…'
+                return `Card na etapa: ${resolveOr(labels, 'stageById', sid, '(carregando)')}`
+            }
+            if (t === 'successful_contacts_gte') {
+                const min = (config.min_contacts as number) ?? 1
+                return `Contatos com sucesso ≥ ${min}`
+            }
             const branchLabels: Record<string, string> = {
                 task_outcome: 'Resultado da tarefa',
-                card_in_stage: 'Card na etapa X',
-                successful_contacts_gte: 'Contatos com sucesso ≥ N',
             }
-            return t ? branchLabels[t] || t : null
+            return branchLabels[t] || t
         }
         case 'action.end': {
             const r = config.result as string | undefined
