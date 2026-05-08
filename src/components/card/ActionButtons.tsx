@@ -225,6 +225,12 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
         const cleanNumber = contact.telefone.replace(/\D/g, '')
         const message = encodeURIComponent(`Olá! Sobre sua viagem: ${card.titulo}`)
 
+        // Open a placeholder window synchronously, BEFORE any await — this preserves
+        // the user-gesture context that browsers require for window.open. Without this,
+        // popup-blockers can drop the call (or the menu close re-render races the open),
+        // and the user ends up on wa.me instead of Echo.
+        const openedWindow = window.open('about:blank', '_blank')
+
         let targetUrl: string | null = null
         let fallbackUsed = 'wa_me'
         let platformName = 'WhatsApp'
@@ -242,7 +248,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                     .eq('phase_id', currentPhaseId)
                     .eq('ativo', true)
                     .limit(1)
-                    .single()
+                    .maybeSingle()
                 expectedPhoneLabel = lineConfig?.phone_number_label || null
             }
 
@@ -255,7 +261,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                     .eq('contact_id', card.pessoa_principal_id)
                     .order('last_message_at', { ascending: false })
                     .limit(1)
-                    .single()
+                    .maybeSingle()
 
                 const conversationMatchesPhase = !expectedPhoneLabel || conversation?.phone_number_label === expectedPhoneLabel
 
@@ -268,7 +274,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                         .from('whatsapp_platforms')
                         .select('name, dashboard_url_template')
                         .eq('id', conversation.platform_id)
-                        .single()
+                        .maybeSingle()
 
                     if (platform?.dashboard_url_template) {
                         targetUrl = platform.dashboard_url_template.replace('{conversation_id}', conversation.external_conversation_id)
@@ -288,7 +294,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                     .eq('is_active', true)
                     .order('priority')
                     .limit(1)
-                    .single()
+                    .maybeSingle()
 
                 if (mapping?.platform_id) {
                     const { data: platform } = await supabase
@@ -296,7 +302,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                         .select('name, dashboard_url_template')
                         .eq('id', mapping.platform_id)
                         .eq('is_active', true)
-                        .single()
+                        .maybeSingle()
 
                     if (platform?.dashboard_url_template && !platform.dashboard_url_template.includes('{')) {
                         targetUrl = platform.dashboard_url_template
@@ -330,7 +336,12 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
             syncWhatsAppMutation.mutate(card.pessoa_principal_id)
         }
 
-        window.open(targetUrl, '_blank')
+        // Steer the placeholder window we opened earlier; if blocked, fall back to same tab.
+        if (openedWindow && !openedWindow.closed) {
+            openedWindow.location.href = targetUrl
+        } else {
+            window.location.href = targetUrl
+        }
     }
 
     const handleSync = async () => {
