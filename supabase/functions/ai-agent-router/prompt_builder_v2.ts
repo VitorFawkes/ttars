@@ -50,6 +50,7 @@ import type {
   ListeningConfig,
   ScoringRule,
 } from "./playbook_loader.ts";
+import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
 
 // Catálogo de linhas vermelhas padrão (espelho do frontend — NUNCA mude aqui
 // sem espelhar em src/lib/playbook/boundariesLibrary.ts, senão quebra paridade).
@@ -153,6 +154,31 @@ export interface BuildPromptV2Input {
 // ---------------------------------------------------------------------------
 
 export function buildPromptV2(input: BuildPromptV2Input): string {
+  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
+  // todos os campos editáveis pelo admin antes de renderizar. Idempotente:
+  // texto sem placeholder passa intocado.
+  // NÃO toca em input.ctx.* (histórico, ai_resumo, ai_contexto, last_lead_message)
+  // — esses são gerados pelo lead/LLM em turnos passados, não devem ser modificados.
+  const _placeholderCtx: ResolverContext = {
+    agent_name: input.agentName,
+    company_name: input.companyName,
+    contact_name: input.ctx?.contact_name_known ? input.ctx.contact_name : null,
+  };
+  input = {
+    ...input,
+    identity: input.identity ? resolvePlaceholdersDeep(input.identity, _placeholderCtx) : input.identity,
+    voice: input.voice ? resolvePlaceholdersDeep(input.voice, _placeholderCtx) : input.voice,
+    boundaries: input.boundaries ? resolvePlaceholdersDeep(input.boundaries, _placeholderCtx) : input.boundaries,
+    listening: input.listening ? resolvePlaceholdersDeep(input.listening, _placeholderCtx) : input.listening,
+    moments: input.moments.map((m) => resolvePlaceholdersDeep(m, _placeholderCtx)),
+    currentMoment: resolvePlaceholdersDeep(input.currentMoment, _placeholderCtx),
+    silentSignals: input.silentSignals.map((s) => resolvePlaceholdersDeep(s, _placeholderCtx)),
+    fewShotExamples: input.fewShotExamples.map((e) => resolvePlaceholdersDeep(e, _placeholderCtx)),
+    scoringRules: input.scoringRules.map((r) => resolvePlaceholdersDeep(r, _placeholderCtx)),
+    bookMeeting: input.bookMeeting ? resolvePlaceholdersDeep(input.bookMeeting, _placeholderCtx) : input.bookMeeting,
+    companyDescription: input.companyDescription ? resolvePlaceholdersDeep(input.companyDescription, _placeholderCtx) : input.companyDescription,
+  };
+
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);

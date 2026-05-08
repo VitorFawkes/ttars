@@ -24,6 +24,7 @@ import {
   type BoundariesConfig,
   type ListeningConfig,
 } from "./playbook_loader.ts";
+import { resolveAgentPlaceholders } from "./placeholder_resolver.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2290,7 +2291,16 @@ async function runBackofficeAgent(
 
   // Agent.prompts_extra.context tem prioridade (paridade Julia).
   // Se vazio, cai no hardcoded default.
-  const customContext = agent.prompts_extra?.context;
+  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
+  // texto editável pelo admin antes de mandar pro LLM.
+  const _resolverCtx = {
+    agent_name: agent.nome,
+    company_name: business?.company_name ?? null,
+    contact_name: ctx.contact_name_known ? ctx.contact_name : null,
+  };
+  const customContext = agent.prompts_extra?.context
+    ? resolveAgentPlaceholders(agent.prompts_extra.context, _resolverCtx)
+    : agent.prompts_extra?.context;
   const roleLabel = secondaryRoleLabel(business);
   const roleLabelCap = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
 
@@ -2534,7 +2544,14 @@ async function runDataAgentLLM(
         : configContactFields)
     : defaultContactFields;
 
-  const customData = agent.prompts_extra?.data_update;
+  const _resolverCtxData = {
+    agent_name: agent.nome,
+    company_name: business?.company_name ?? null,
+    contact_name: ctx.contact_name_known ? ctx.contact_name : null,
+  };
+  const customData = agent.prompts_extra?.data_update
+    ? resolveAgentPlaceholders(agent.prompts_extra.data_update, _resolverCtxData)
+    : agent.prompts_extra?.data_update;
   const dataBlock = `
 
 ## Dados deste turno (injetados pelo runtime)
@@ -2958,7 +2975,12 @@ async function runPersonaAgent(
 
   // Para agentes nao-template, usar o system_prompt original (v1 behavior — sem tools)
   if (!agent.is_template_based) {
-    let enrichedPrompt = agent.system_prompt;
+    const _resolverCtxLegacy = {
+      agent_name: agent.nome,
+      company_name: business?.company_name ?? null,
+      contact_name: ctx.contact_name_known ? ctx.contact_name : null,
+    };
+    let enrichedPrompt = resolveAgentPlaceholders(agent.system_prompt, _resolverCtxLegacy);
     if (ctx.contact_name) enrichedPrompt += `\n\n--- CLIENTE ---\n${ctx.contact_name}`;
     if (ctx.ai_resumo) enrichedPrompt += `\n\n--- RESUMO ---\n${ctx.ai_resumo}`;
 
@@ -3109,8 +3131,14 @@ async function runPersonaAgent(
   // Instruções customizadas do agente — system_prompt editado pelo admin no CRM.
   // Vai como complemento ao persona dinâmico (regras finas de VIAJANTE, Club Med,
   // scripts específicos que não couberam nos campos estruturados).
+  // Resolver placeholders {agent_name}, {company_name}, {contact_name} aqui também.
+  const _resolverCtxPersona = {
+    agent_name: agent.nome,
+    company_name: business?.company_name ?? null,
+    contact_name: ctx.contact_name_known ? ctx.contact_name : null,
+  };
   const customAgentInstructions = agent.system_prompt && agent.system_prompt.trim().length > 0
-    ? `\n## INSTRUÇÕES CUSTOMIZADAS DO AGENTE\n${agent.system_prompt.trim()}`
+    ? `\n## INSTRUÇÕES CUSTOMIZADAS DO AGENTE\n${resolveAgentPlaceholders(agent.system_prompt.trim(), _resolverCtxPersona)}`
     : "";
 
   const personaPrompt = `Voce e ${agent.nome}, ${agent.persona || "assistente"} da ${business?.company_name || "empresa"}.
@@ -3235,10 +3263,19 @@ async function runValidator(
     .filter(Boolean)
     .join("\n");
 
-  const customValidator = agent.prompts_extra?.validator;
+  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
+  // textos editáveis (prompts_extra.validator + validator_rules[].condition).
+  const _resolverCtxVal = {
+    agent_name: agent.nome,
+    company_name: null,
+    contact_name: ctx.contact_name_known ? ctx.contact_name : null,
+  };
+  const customValidator = agent.prompts_extra?.validator
+    ? resolveAgentPlaceholders(agent.prompts_extra.validator, _resolverCtxVal)
+    : agent.prompts_extra?.validator;
   const enabledRules = (agent.validator_rules || []).filter(r => r.enabled);
   const rulesBlock = enabledRules.length > 0
-    ? `\n## Regras habilitadas no agente\n${enabledRules.map((r, i) => `${i + 1}. ${r.condition} → ${r.action === 'block' ? 'BLOQUEAR' : r.action === 'correct' ? 'CORRIGIR' : 'IGNORAR'}`).join('\n')}\n`
+    ? `\n## Regras habilitadas no agente\n${enabledRules.map((r, i) => `${i + 1}. ${resolveAgentPlaceholders(r.condition, _resolverCtxVal)} → ${r.action === 'block' ? 'BLOQUEAR' : r.action === 'correct' ? 'CORRIGIR' : 'IGNORAR'}`).join('\n')}\n`
     : '';
 
   // wasLiteral=true: texto veio determinístico do anchor literal (ou short_closing).

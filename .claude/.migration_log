@@ -782,3 +782,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 20260508b_reset_agent_test_conversation_v6_soft_cards.sql|2026-05-08T13:14|hot-applied via Management API
 2026-05-08T18:05:01Z | supabase/migrations/20260508a_patricia_engine_and_clone.sql | applied_to_staging (aguardando autorização do Vitor pra promover)
 2026-05-08T18:08:34Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508a_patricia_engine_and_clone.sql | applied_to_prod
+2026-05-08T22:16:36Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod
+2026-05-08T22:17:54Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod
+2026-05-08T22:18:34Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod

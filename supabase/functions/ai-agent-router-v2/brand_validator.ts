@@ -17,6 +17,7 @@ import {
   BRAND_VALIDATOR_SCHEMA,
   type BrandValidatorVerdict,
 } from "./prompt_schema.ts";
+import { resolveAgentPlaceholders } from "./placeholder_resolver.ts";
 
 export interface ValidatorRule {
   id: string;
@@ -56,8 +57,11 @@ export async function validateBrandCompliance(
     };
   }
 
+  // Resolver placeholders nas conditions (admin pode escrever {agent_name}
+  // em "Estela fala preço..." → vira "Patricia fala preço..." em runtime).
+  const resolverCtx = { agent_name: input.agent_name };
   const rulesBlock = enabledRules
-    .map((r, i) => `${i + 1}. [${r.id}] (${r.action}) ${r.condition}`)
+    .map((r, i) => `${i + 1}. [${r.id}] (${r.action}) ${resolveAgentPlaceholders(r.condition, resolverCtx)}`)
     .join("\n");
 
   const messagesBlock = input.messages

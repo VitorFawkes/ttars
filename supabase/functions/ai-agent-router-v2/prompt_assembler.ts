@@ -19,6 +19,7 @@ import type {
   ScoringRule,
   VoiceConfig,
 } from "./playbook_loader.ts";
+import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
 
 export interface BuildSinglePromptInput {
   agent: {
@@ -63,22 +64,37 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const {
     agent,
     business,
-    moments,
-    silentSignals,
-    fewShotExamples,
-    scoringRules,
+    moments: rawMoments,
+    silentSignals: rawSignals,
+    fewShotExamples: rawExamples,
+    scoringRules: rawScoringRules,
     scoringThreshold,
     conversationState,
     availableTools,
   } = input;
 
-  const identity = agent.identity_config || {};
-  const voice = agent.voice_config || {};
-  const boundaries = agent.boundaries_config || {};
-  const listening = agent.listening_config || {};
+  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
+  // todos os textos editáveis pelo admin antes de injetar no prompt.
+  // Idempotente: se admin escreveu literal "Patricia" em vez de placeholder,
+  // passa intocado. Histórico do lead e mensagens persistidas NÃO são tocadas.
+  const resolverCtx: ResolverContext = {
+    agent_name: agent.nome,
+    company_name: business?.company_name ?? null,
+    contact_name: conversationState.contact_name ?? null,
+  };
+
+  const identity = resolvePlaceholdersDeep(agent.identity_config || {}, resolverCtx);
+  const voice = resolvePlaceholdersDeep(agent.voice_config || {}, resolverCtx);
+  const boundaries = resolvePlaceholdersDeep(agent.boundaries_config || {}, resolverCtx);
+  const listening = resolvePlaceholdersDeep(agent.listening_config || {}, resolverCtx);
+  const resolvedBusiness = business ? resolvePlaceholdersDeep(business, resolverCtx) : null;
+  const moments = rawMoments.map((m) => resolvePlaceholdersDeep(m, resolverCtx));
+  const silentSignals = rawSignals.map((s) => resolvePlaceholdersDeep(s, resolverCtx));
+  const fewShotExamples = rawExamples.map((e) => resolvePlaceholdersDeep(e, resolverCtx));
+  const scoringRules = rawScoringRules.map((r) => resolvePlaceholdersDeep(r, resolverCtx));
 
   // -------- Header / identity ---------------------------------------------
-  const headerBlock = renderHeader(agent.nome, identity, business);
+  const headerBlock = renderHeader(agent.nome, identity, resolvedBusiness);
 
   // -------- Voice ---------------------------------------------------------
   const voiceBlock = renderVoice(voice);
