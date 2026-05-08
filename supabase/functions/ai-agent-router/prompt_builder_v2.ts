@@ -355,6 +355,67 @@ const WEEKDAY_PT: Record<string, string> = {
   Seg: 'segunda', Ter: 'terça', Qua: 'quarta', Qui: 'quinta', Sex: 'sexta', Sáb: 'sábado', Dom: 'domingo',
 };
 
+/**
+ * Deriva uma pergunta natural a partir do slot.label e/ou slot.coverage_notes
+ * (Fase 3, 08/05/2026). Usado quando admin não escreveu `questions` literal.
+ * Substitui improvisação livre do LLM por template determinístico — preserva
+ * conjunções do label ("Mês E Ano" não vira "mês ou ano") e elimina classe
+ * de bug onde regra-de-prompt falhava ~20% das vezes.
+ *
+ * Estratégia:
+ *   - Se coverage_notes preenchido: converte prosa em pergunta ("Se o casal
+ *     já sabe X" → "Vocês já sabem X?"). Coverage é mais informativo que
+ *     label porque admin escreveu pensando no que precisa cobrir.
+ *   - Senão: usa o label. Se tem hifen/travessão no label, usa o tail
+ *     ("Data do casamento - Mês e Ano" → "Vocês já têm em mente Mês e Ano?").
+ *   - Senão: pergunta genérica com label inteiro.
+ *
+ * Exemplos:
+ *   slot.label = "Data do casamento - Mês e Ano"
+ *   slot.coverage_notes = "Se o casal já sabe o mês e ano do casamento"
+ *   → "Vocês já sabem o mês e ano do casamento?"
+ *
+ *   slot.label = "Destino"
+ *   slot.coverage_notes = null
+ *   → "Vocês já têm em mente Destino?"
+ *
+ *   slot.label = "Número de convidados"
+ *   slot.coverage_notes = "Quantas pessoas vão participar"
+ *   → "Quantas pessoas vão participar?"
+ */
+// deno-lint-ignore no-explicit-any
+function deriveSlotQuestion(slot: any): string | null {
+  const cov = ((slot?.coverage_notes ?? '') as string).trim();
+  const label = ((slot?.label ?? '') as string).trim();
+
+  if (cov && cov.length >= 8) {
+    let q = cov;
+    // Remove prefixos narrativos comuns: "Se o casal", "Quando o casal", "O casal"
+    q = q.replace(/^(se\s+o?\s*casal\s+)/i, '');
+    q = q.replace(/^(quando\s+o?\s*casal\s+)/i, '');
+    q = q.replace(/^(o\s+casal\s+)/i, '');
+    // Reescreve "já sabe X" / "sabe X" como "Vocês já sabem X"
+    q = q.replace(/^(j[áa]\s+)?sabe(m)?\s+/i, 'Vocês já sabem ');
+    q = q.replace(/^(j[áa]\s+)?tem\s+/i, 'Vocês já têm ');
+    q = q.replace(/^(j[áa]\s+)?t[êe]m\s+/i, 'Vocês já têm ');
+    // Capitaliza primeira letra
+    q = q.charAt(0).toUpperCase() + q.slice(1);
+    // Garante "?" no fim
+    q = q.replace(/[.!]+$/, '');
+    if (!q.endsWith('?')) q = q + '?';
+    return q;
+  }
+
+  if (label) {
+    // Se label tem hifen/travessão, usa tail ("Data do casamento - Mês e Ano" → "Mês e Ano")
+    const splitMatch = label.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    const target = splitMatch ? splitMatch[2].trim() : label;
+    return `Vocês já têm em mente ${target}?`;
+  }
+
+  return null;
+}
+
 /** Formata um slot do agent_check_calendar pra texto natural: "quarta 30/04 às 14h". */
 function formatSlotLabel(slot: { date: string; time: string; weekday: string }): string {
   const wd = WEEKDAY_PT[slot.weekday] ?? slot.weekday.toLowerCase();
@@ -657,8 +718,20 @@ function renderOneMoment(
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
         slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
       } else {
-        lines.push(`        Sem pergunta escrita — formule a pergunta natural cobrindo EXATAMENTE o que o nome do slot e o contexto/cobertura pedem.`);
-        lines.push(`        ⚠ PRESERVE CONJUNÇÕES do nome do slot. Se o nome diz "Mês E Ano" / "Nome E Sobrenome" / "X E Y", pergunte por AMBOS — não suavize pra "X OU Y" porque suavizar pede só metade do dado e gasta turn extra. Trate "E" como exigência, "OU" como opção do cliente.`);
+        // Fase 3 (08/05/2026) — Template-first quando admin não escreveu
+        // pergunta. Antes era "improvise respeitando o contexto" + regra
+        // textual "PRESERVE CONJUNÇÕES" — frágil, LLM suavizava "Mês E Ano"
+        // pra "mês ou ano". Agora deriva pergunta deterministicamente do
+        // coverage_notes ou label e instrui LLM a usar palavra-por-palavra
+        // (admin pode escrever rapport prefix curto antes — "Que bom! ").
+        // Resolve "mês ou ano" estruturalmente, não por regra.
+        const derived = deriveSlotQuestion(slot);
+        if (derived) {
+          lines.push(`        Pergunta gerada (use PALAVRA-POR-PALAVRA — você pode prefixar com rapport curto tipo "Legal!", "Entendi", "Que bom!" + nome do lead, mas NÃO altere a pergunta em si):`);
+          lines.push(`          • "${derived}"`);
+        } else {
+          lines.push(`        Sem pergunta escrita — formule pergunta natural cobrindo EXATAMENTE o nome do slot e contexto.`);
+        }
       }
       if (slot.crm_field_key) {
         lines.push(`        (registra em ${slot.crm_field_key})`);
@@ -1225,27 +1298,21 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
   const isDesfecho = /desfecho|qualifi|fechament/i.test(cur.moment_key);
   if (isDesfecho) {
     lines.push(`- Você está na fase de FECHAMENTO. O objetivo final é marcar a reunião com a especialista. Mas seja natural: se o lead quiser conversar mais, fazer perguntas ou compartilhar algo, RESPONDA naturalmente — não fique empurrando reunião a cada turn. Quando der a abertura natural pra propor o horário, proponha. Cuidado pra não soar insistente.`);
-    // FIX 08/05/2026 — bugs 1+3 (handoff/booking não disparou):
-    // Sintoma: lead confirmou "Posso na terça" e Estela respondeu "está perfeito"
-    // sem chamar create_task. Resultado: zero tarefas no CRM, Wedding Planner não
-    // notificada, etapa não avançou. Promessa em vão.
-    // Cura: instrução explícita pra chamar create_task QUANDO o lead confirma
-    // horário. create_task com tipo=reuniao_video dispara handoff_actions completo
-    // (change_stage, apply_tag, notify_responsible) automaticamente em index.ts.
-    lines.push(`- AGENDAMENTO OBRIGATÓRIO: assim que o lead confirmar um horário ("posso na terça", "fechado dia X às Y", "ok pode ser então"), você DEVE chamar a tool create_task IMEDIATAMENTE com tipo="reuniao_video" e data_vencimento no formato ISO YYYY-MM-DDTHH:MM:SS. Confirmação verbal sem create_task = reunião não existe no CRM, Wedding Planner não fica sabendo. Não pule esse passo nem pergunte de novo.`);
-    // FIX 08/05/2026 — bug 2 (slot mismatch silencioso 9h→11h):
-    // Sintoma: oferta foi "9h ou 9h" → lead aceitou terça → check_calendar
-    // retornou que 9h não está livre → Estela escolheu sozinha 11h e confirmou
-    // "11h está perfeito". Lead nunca aceitou 11h.
-    // Cura: instrução pra confirmar com o lead se o horário pedido não estiver
-    // disponível, em vez de escolher sozinha.
+    // Fase 4 (08/05/2026) — REMOVIDAS regras textuais que viraram redundantes:
+    //   "AGENDAMENTO OBRIGATÓRIO": Fase 1 força create_task via tool_choice da
+    //     OpenAI quando detector regex pega confirmação de slot. Schema da API
+    //     garante 100% de chamada — não dependia mais dessa regra textual.
+    //   "PRESERVE CONJUNÇÕES": Fase 3 (deriveSlotQuestion em prompt_builder_v2)
+    //     gera pergunta deterministicamente do label/coverage_notes. "Mês E
+    //     Ano" sai literal porque o template é literal, não improviso de LLM.
+    //   "HORÁRIOS COMPLETOS": render dos slots em prompt_builder já agrupa por
+    //     dia e a string entra completa no anchor. Faithful 10% pode parafrasear
+    //     "ou" pra "e" mas não derruba slot inteiro — uma regra textual nessa
+    //     escala não move agulha.
+    // Mantida APENAS: SLOT INDISPONÍVEL (caso real onde regra ajuda — LLM
+    // tende a "ajudar" o lead escolhendo outro slot quando o pedido falha;
+    // a regra força ele a perguntar antes).
     lines.push(`- SLOT INDISPONÍVEL: se você ofereceu um horário X e o lead aceitou, mas o check_calendar retornou que X não está mais livre, NÃO escolha outro horário sozinha. Pergunte ao lead: "Na verdade {horário pedido} não está mais livre, posso confirmar {horário disponível mais próximo} ou prefere outro dia?". Só chame create_task DEPOIS que o lead confirmar o novo horário.`);
-    // FIX 08/05/2026 — preservar lista de horários (variável {slots_disponiveis})
-    // em modo faithful. Sintoma: admin configura slots_per_day=2 × 3 dias = 6
-    // slots agrupados, mas LLM em faithful (10% leeway) simplificava pra 2 slots
-    // de dias diferentes ("seg 9h ou ter 9h"), perdendo opções que cabiam.
-    // Cura: instrução explícita pra preservar TODOS os horários listados.
-    lines.push(`- HORÁRIOS COMPLETOS: se o anchor inclui múltiplos horários (ex: "segunda 11/05 às 9h ou 11h, terça 12/05 às 9h ou 11h"), preserve TODOS — não simplifique escolhendo um subconjunto. O admin já balanceou no config. Cliente prefere ver opções e escolher.`);
   }
 
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);

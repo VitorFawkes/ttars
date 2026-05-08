@@ -2167,6 +2167,14 @@ async function callLLMWithTools(
   ctx: ConversationContext,
   agent: AgentConfig,
   business?: BusinessConfig | null,
+  /**
+   * Fase 1 (08/05/2026) — força LLM a chamar uma tool específica na primeira
+   * iteração. Usado em desfecho_qualificado quando regex detecta que o lead
+   * confirmou um slot. Garante estruturalmente que create_task vai rodar
+   * (e por consequência o cascade handoff_actions: change_stage + apply_tag
+   * + notify_responsible). Resolve gap de regra-de-prompt onde LLM esquecia.
+   */
+  forceToolName?: string,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -2190,7 +2198,14 @@ async function callLLMWithTools(
     };
     if (tools.length > 0) {
       body.tools = tools;
-      body.tool_choice = "auto";
+      // Primeira iter + forceToolName → OpenAI obriga LLM a retornar tool_call
+      // dessa função específica. Iters seguintes voltam pra "auto" pra LLM
+      // poder finalizar a resposta de texto após receber o tool result.
+      if (iteration === 0 && forceToolName) {
+        body.tool_choice = { type: "function", function: { name: forceToolName } };
+      } else {
+        body.tool_choice = "auto";
+      }
     }
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -2356,6 +2371,20 @@ resposta NO CONTEXTO da pergunta antes de decidir se atualiza ai_resumo.
 - mudancas.ai_resumo = TRUE quando a resposta curta adiciona fato novo, mesmo
   que isolada parecesse vazia. NAO ignore so porque a mensagem do lead tem 1-3
   palavras — a maioria das respostas em conversa real é assim.
+
+REGRA CRITICA — ESTADOS CONFIRMADOS VS ESPECULATIVOS (Fase 2, 08/05/2026):
+NAO afirme em ai_resumo/ai_contexto fatos que dependem de execucao do sistema
+sem checar a flag determinística correspondente. Use APENAS:
+- "Reunião agendada"/"reunião marcada"/"aceitou reunião" → SOMENTE quando
+  ctx.meeting_created_or_confirmed = ${ctx.meeting_created_or_confirmed}.
+  Se a flag for false, escreva "em negociação de horário", "discutindo
+  agenda", ou similar — NUNCA "aceitou", "marcou", "confirmou".
+- "Lead disse X" / "casal mencionou Y" → sempre OK, isso é fato da conversa
+  literal e não depende de execução.
+Esta regra existe porque o Backoffice nao tem visibilidade de tarefas
+criadas, etapas mudadas, tags coladas — só do texto da conversa. Sem essa
+regra, voce alucinou (08/05) "Aceitou reunião 11/05 às 09h" quando o slot
+não estava livre e a Estela ainda estava negociando 11h.
 
 Resposta OBRIGATORIA em JSON:
 {
@@ -2887,14 +2916,17 @@ async function runPersonaAgent(
         } : null,
         userMessage,
         qualificationSignals,
-        async (model, temp, maxTok, sys, userMsg) => {
+        async (model, temp, maxTok, sys, userMsg, forceToolName) => {
           // Tool-calling habilitado em v2: persona pode chamar check_calendar
           // pra ver disponibilidade, create_task pra agendar, search_knowledge_base
           // pra responder fatos da KB, etc. Sem tools (lista vazia), o callLLMWithTools
           // se comporta como callLLM puro — fail-safe.
+          // forceToolName: persona detecta confirmação de slot em desfecho e força
+          // create_task estruturalmente (Fase 1, 08/05/2026).
           return callLLMWithTools(
             supabase, model, temp, maxTok,
             sys, userMsg, v2History, v2Tools, ctx, agent, business,
+            forceToolName,
           );
         },
       );

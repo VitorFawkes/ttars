@@ -129,6 +129,13 @@ export async function runPersonaAgent_v2(
   callLLM: (
     model: string, temp: number, maxTok: number,
     systemPrompt: string, userMsg: string,
+    /**
+     * Fase 1 (08/05/2026): quando passado, força LLM a chamar essa tool
+     * específica na primeira iteração via tool_choice. Persona detecta
+     * confirmação de slot em desfecho_qualificado e passa "create_task"
+     * pra garantir que a reunião sai do CRM.
+     */
+    forceToolName?: string,
   ) => Promise<{ response: string; inputTokens: number; outputTokens: number }>,
 ): Promise<PersonaV2Result> {
 
@@ -663,9 +670,30 @@ export async function runPersonaAgent_v2(
   const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
 
+  // Fase 1 (08/05/2026) — Detector de confirmação de slot em desfecho_qualificado.
+  // Quando lead diz "pode ser 9h", "fechado terça", "ok dia 11" etc., e moment é
+  // desfecho com book_meeting habilitado, FORÇA o LLM a chamar create_task na 1ª
+  // iteração via tool_choice da OpenAI API. Garante estruturalmente que tarefa é
+  // criada (e cascade handoff_actions roda: change_stage + apply_tag + notify).
+  // Resolve o problema "regra-de-prompt sobre AGENDAMENTO OBRIGATÓRIO falha às
+  // vezes". Schema strict da API é determinístico, regra textual não é.
+  const forceToolName = (
+    cur.moment_key === 'desfecho_qualificado'
+    && bookCfg?.enabled === true
+    && detectSlotConfirmation(userMessage)
+  ) ? 'create_task' : undefined;
+  if (forceToolName) {
+    console.log(JSON.stringify({
+      event: 'force_tool_create_task',
+      agent_id: agent.id,
+      moment: cur.moment_key,
+      user_msg_excerpt: userMessage.slice(0, 80),
+    }));
+  }
+
   let { response, inputTokens, outputTokens } = await callLLM(
     personaModel, personaTemp, personaMaxTok,
-    prompt, userMessage,
+    prompt, userMessage, forceToolName,
   );
 
   // 6c. Enforcement de literal_phrases (frases obrigatórias palavra-por-palavra).
@@ -768,6 +796,48 @@ function checkMissingLiteralPhrases(
     }
   }
   return missing;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: detectSlotConfirmation — lead aceitou um horário oferecido?
+// Usado por persona_v2 em desfecho_qualificado pra decidir se força create_task
+// via tool_choice da OpenAI. Escopo restrito (só roda em desfecho), então
+// falsos positivos têm impacto controlado — schema do create_task valida args.
+//
+// Padrões cobertos:
+//   "Posso na terça"           — verbo + dia
+//   "Pode ser as 9h"           — verbo + hora
+//   "Fechado pra segunda"      — verbo + dia
+//   "Confirma terça 11h"       — verbo + dia + hora
+//   "Ok, vamos"                — confirmação seca
+//   "Sim, dia 12 às 14h"       — sim + data
+//   "9h"                       — resposta curta com hora
+//   "Terça"                    — resposta curta com dia da semana
+// ---------------------------------------------------------------------------
+
+function detectSlotConfirmation(userMessage: string): boolean {
+  if (!userMessage) return false;
+  const msg = userMessage.toLowerCase().trim();
+  if (msg.length === 0 || msg.length > 200) return false;
+
+  // Padrão 1: verbo de confirmação + referência temporal
+  const confirmAndTime = /\b(pode|posso|pra mim|fechado|confirma|confirmado|combinado|ok|sim|t[áa]\s*bom|tudo\s*certo|vamos|fica|fico|topa|topo|beleza)\b[^.]{0,40}\b(seg|ter[çc]a|qua|qui|sex|s[áa]b|dom|segunda|quarta|quinta|sexta|s[áa]bado|domingo|h\b|\d+\s*h|às|dia\s+\d|manh[ãa]|tarde|noite|amanh[ãa]|hoje|próxim)\b/i;
+  if (confirmAndTime.test(userMessage)) return true;
+
+  // Padrão 2: verbo de confirmação isolado em msg curta (lead aceitando proposta sem reespecificar)
+  // Ex: "ok!", "fechado", "pode ser", "tá bom"
+  if (msg.length < 30) {
+    const justConfirm = /^\s*(ok|okay|sim|fechado|pode|combinado|tá\s*ok|tá\s*bom|beleza|topa|vamos|isso|certo|perfeito|ótimo|otimo|claro)[\s.!?]*$/i;
+    if (justConfirm.test(userMessage)) return true;
+  }
+
+  // Padrão 3: msg curta com hora/dia explícito (resposta direta a "qual horário?")
+  if (msg.length < 50) {
+    const justTimeRef = /\b(\d+\s*h|\d{1,2}:\d{2}|seg|ter[çc]a|qua|qui|sex|s[áa]b|dom|segunda|quarta|quinta|sexta|s[áa]bado|domingo|manh[ãa]|tarde|noite|amanh[ãa])\b/i;
+    if (justTimeRef.test(userMessage)) return true;
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
