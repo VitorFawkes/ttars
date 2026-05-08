@@ -81,6 +81,18 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const canHaveDiscovery = moment.kind === 'flow'
   const hasDiscovery = canHaveDiscovery && discoveryConfig !== null
 
+  /**
+   * Detecta se este momento entrega em SEQUÊNCIA (wait_for_reply + anchor com `---`).
+   * Quando entrega em sequência, must_cover e literal_phrases SÓ disparam na última
+   * mensagem da sequência (senão conteúdo do step final vaza pra step 1 e quebra
+   * o ritmo "uma de cada vez"). UI mostra aviso visual quando isso é relevante.
+   */
+  const anchorHasSteps = typeof anchor === 'string' && /\n\s*-{3,}\s*\n/.test(anchor)
+  const usesStepSequence = deliveryMode === 'wait_for_reply' && anchorHasSteps
+  const stepCount = usesStepSequence
+    ? anchor.split(/\n\s*-{3,}\s*\n/).filter((s) => s.trim().length > 0).length
+    : 1
+
   const enableDiscovery = () => {
     setDiscoveryConfig({ slots: [] })
     markDirty()
@@ -446,6 +458,11 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
               <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
                 Cobertura conceitual (não palavra-por-palavra). A agente fala com as próprias palavras, mas garante que toca em cada ponto. Faz sentido só em <strong>Estilo livre</strong> — em "Texto exato" e "Diretriz fiel" o anchor já garante.
               </p>
+              {usesStepSequence && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mb-2 leading-relaxed">
+                  ⚠ Esta fase entrega em <strong>{stepCount} mensagens em sequência</strong>. Os tópicos abaixo só são cobrados na <strong>última mensagem</strong> da sequência — senão eles vazam pras mensagens iniciais e a agente atropela o ritmo "uma de cada vez".
+                </p>
+              )}
               {mustCover.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {mustCover.map((mc, i) => (
@@ -472,6 +489,11 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
             <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
               Trechos de marca, prêmios, frases legais que <strong>não podem mudar nem uma palavra</strong>. Funciona em qualquer modo — a agente encaixa naturalmente na resposta. Se ela parafrasear, o sistema regera com instrução reforçada.
             </p>
+            {usesStepSequence && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mb-2 leading-relaxed">
+                ⚠ Esta fase entrega em <strong>{stepCount} mensagens em sequência</strong>. As frases abaixo só são travadas na <strong>última mensagem</strong> da sequência. Se você quer travar uma frase na primeira mensagem, escreva ela direto no texto-âncora antes do <code className="font-mono">---</code>.
+              </p>
+            )}
             {literalPhrases.length > 0 && (
               <div className="flex flex-col gap-1.5 mb-2">
                 {literalPhrases.map((lp, i) => (
