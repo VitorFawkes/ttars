@@ -155,13 +155,24 @@ export async function runWorkflowFull(args: {
     })
 
     if (error) {
-        // Edge function devolve 409 quando já tem instance ativa pro
-        // mesmo card+template. supabase-js empacota como FunctionsHttpError.
-        const msg = error.message || ''
-        if (msg.includes('409') || msg.toLowerCase().includes('already active')) {
-            return { success: false, alreadyRunning: true, error: 'Já existe uma instância rodando pra esse card.' }
+        // supabase-js v2 envolve a Response da edge function em FunctionsHttpError.
+        // O status real fica em error.context (uma Response do Fetch API).
+        // error.message é genérico ("Edge Function returned a non-2xx status code"),
+        // então pra detectar 409 precisamos ler o status do context.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ctx = (error as any).context as Response | undefined
+        const status = ctx?.status
+        let bodyMsg = ''
+        try {
+            const body = await ctx?.json?.()
+            if (body?.error) bodyMsg = String(body.error)
+        } catch {
+            // body pode não ser JSON em alguns erros — segue com bodyMsg vazio
         }
-        return { success: false, error: msg }
+        if (status === 409 || bodyMsg.toLowerCase().includes('already active')) {
+            return { success: false, alreadyRunning: true, error: bodyMsg || 'Já existe uma instância rodando pra esse card.' }
+        }
+        return { success: false, error: bodyMsg || error.message }
     }
     if (data?.error) {
         return { success: false, error: data.error }
