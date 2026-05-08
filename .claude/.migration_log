@@ -772,3 +772,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 20260507i_add_must_cover_to_moments.sql|2026-05-07T20:13|hot-applied via Management API
 2026-05-07T21:04:07Z | supabase/migrations/20260507j_bulk_import_diff_unmarks_ready.sql | applied_to_prod
 20260507j_add_literal_phrases_to_moments.sql|2026-05-07T23:19|hot-applied via Management API
+2026-05-08T12:49:11Z | supabase/migrations/20260508a_resolve_whatsapp_target_for_card.sql | applied_to_prod
+20260508b_reset_agent_test_conversation_v6_soft_cards.sql|2026-05-08T13:14|hot-applied via Management API

@@ -641,6 +641,7 @@ export async function runPersonaAgent_v2(
       companyName: business?.company_name ?? '',
       bookMeeting: bookMeetingForPrompt,
       historicoCompacto: ctx.historico_compacto,
+      lastLeadMessage: userMessage,
       omitExcerpts: trechosAOmitir,
     });
     return {
@@ -823,12 +824,22 @@ interface RenderLiteralInput {
   companyName: string;
   bookMeeting: Parameters<typeof buildPromptV2>[0]['bookMeeting'];
   historicoCompacto: string;
+  /**
+   * Mensagem inteira do lead deste turno (já combinada pelo buffer caso sejam
+   * múltiplas msgs em sequência). Necessário porque o histórico_compacto perde
+   * continuação multi-linha — quando lead manda "Oi Estela" + "Me chamo Vitor"
+   * em sequência, o buffer combina como "Oi Estela\nMe chamo Vitor" e o
+   * histórico só prefixa a primeira linha com [lead]:. Detectores de eco
+   * social e name reveal precisam ver o texto completo.
+   */
+  lastLeadMessage: string;
   omitExcerpts: string[];
 }
 
 function renderLiteralResponse(input: RenderLiteralInput): string {
   const { moment, stepIndex, usesSteps, contactNameKnown, contactName,
-          agentName, companyName, bookMeeting, historicoCompacto, omitExcerpts } = input;
+          agentName, companyName, bookMeeting, historicoCompacto,
+          lastLeadMessage, omitExcerpts } = input;
 
   if (!moment.anchor_text) return '';
 
@@ -844,17 +855,19 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
     text = text.split(trecho).join('').replace(/\s{2,}/g, ' ').trim();
   }
 
-  // 2.5. Eco determinístico de pergunta social (FIX 07/05/2026).
+  // 2.5. Eco determinístico de pergunta social (FIX 07/05/2026, atualizado 08/05).
   // Em modo literal o LLM nunca é chamado, então a diretiva
   // `<detected_social_question>` injetada em renderListeningBlock fica órfã.
   // Resultado observado: cliente diz "Oi tudo bem?" e Estela responde "Olá,
   // tudo bem? Aqui é a Estela!" — ignorando a pergunta social do cliente.
   // Solução: prepend determinístico de uma frase de eco curto antes do anchor
   // quando regex bate na última msg do lead. Sem LLM, sem variabilidade.
-  const _leadLines2 = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
-  const _lastLeadMsg = _leadLines2.length > 0
-    ? _leadLines2[_leadLines2.length - 1].replace(/^\[lead\]:\s*/, '').trim()
-    : '';
+  //
+  // FIX 08/05: usar `lastLeadMessage` (passado direto, já combinado pelo buffer)
+  // em vez de parsear historicoCompacto. Quando o buffer combina múltiplas
+  // msgs ("Oi Estela\nMe chamo Vitor"), o histórico só prefixa [lead]: na
+  // primeira linha, e a continuação ficava invisível pro detector.
+  const _lastLeadMsg = (lastLeadMessage || '').trim();
   const _hasSocialQuestion = /\b(e\s+voc[eê]\??|td\s+bem\??|tudo\s+bem\??|como\s+vai\??|como\s+(voc[eê]\s+)?est[áa]\??|tudo\s+(bom|certo|joia)\??)\b/i.test(_lastLeadMsg.toLowerCase());
   // Só prepend se o anchor não começa já com "tudo bem" ou "tudo ótimo" — evita duplicar quando admin já escreveu eco no anchor.
   const _anchorAlreadyEchoes = /^(tudo\s+(bem|ótimo|otimo|bom|certo)|td\s+bem)/i.test(text.trim());
@@ -890,11 +903,11 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
     subs['{responsavel_first_name}'] = bookMeeting.responsavel_name.trim().split(/\s+/)[0];
   }
   // Saudação detectada da última msg do lead (boa noite/tarde/dia)
-  const leadLines = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
-  const lastLead = leadLines.length > 0 ? leadLines[leadLines.length - 1].replace(/^\[lead\]:\s*/, '').trim() : '';
+  // FIX 08/05: usar lastLeadMessage direto (já combinada pelo buffer) — mesmo
+  // motivo do fix do eco social acima.
   let detectedGreeting: string | null = null;
-  if (lastLead) {
-    const head = lastLead.toLowerCase().slice(0, 30);
+  if (_lastLeadMsg) {
+    const head = _lastLeadMsg.toLowerCase().slice(0, 30);
     if (/\bboa\s+noite\b/.test(head)) detectedGreeting = 'Boa noite';
     else if (/\bboa\s+tarde\b/.test(head)) detectedGreeting = 'Boa tarde';
     else if (/\bbom\s+dia\b/.test(head)) detectedGreeting = 'Bom dia';
