@@ -224,11 +224,10 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
 
         const cleanNumber = contact.telefone.replace(/\D/g, '')
         const message = encodeURIComponent(`Olá! Sobre sua viagem: ${card.titulo}`)
+        const waMeUrl = `https://wa.me/${cleanNumber}?text=${message}`
 
-        // Open a placeholder window synchronously, BEFORE any await — this preserves
-        // the user-gesture context that browsers require for window.open. Without this,
-        // popup-blockers can drop the call (or the menu close re-render races the open),
-        // and the user ends up on wa.me instead of Echo.
+        // Open a placeholder window synchronously, BEFORE any await — preserves the
+        // user-gesture context required by popup blockers.
         const openedWindow = window.open('about:blank', '_blank')
 
         let targetUrl: string | null = null
@@ -236,88 +235,28 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
         let platformName = 'WhatsApp'
 
         try {
-            const currentPhaseId = card.pipeline_stage?.phase_id
+            // Single SECURITY DEFINER RPC — resolves Echo/dashboard URL bypassing the
+            // org boundary (whatsapp_conversations live na conta-pai, card no workspace).
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: resolved, error } = await (supabase.rpc as any)('resolve_whatsapp_target_for_card', {
+                p_card_id: card.id,
+            })
 
-            // Resolve expected phone line for current phase
-            let expectedPhoneLabel: string | null = null
-            if (currentPhaseId) {
-                const { data: lineConfig } = await (supabase
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .from('whatsapp_linha_config') as any)
-                    .select('phone_number_label')
-                    .eq('phase_id', currentPhaseId)
-                    .eq('ativo', true)
-                    .limit(1)
-                    .maybeSingle()
-                expectedPhoneLabel = lineConfig?.phone_number_label || null
-            }
-
-            // PRIORITY 1: Check conversation — only use if it matches current phase's line
-            if (card.pessoa_principal_id) {
-                const { data: conversation } = await (supabase
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .from('whatsapp_conversations') as any)
-                    .select('external_conversation_id, external_conversation_url, platform_id, phone_number_label')
-                    .eq('contact_id', card.pessoa_principal_id)
-                    .order('last_message_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle()
-
-                const conversationMatchesPhase = !expectedPhoneLabel || conversation?.phone_number_label === expectedPhoneLabel
-
-                if (conversation?.external_conversation_url && conversationMatchesPhase) {
-                    targetUrl = conversation.external_conversation_url
-                    fallbackUsed = 'deep_link'
-                    platformName = 'Echo'
-                } else if (conversation?.external_conversation_id && conversationMatchesPhase) {
-                    const { data: platform } = await supabase
-                        .from('whatsapp_platforms')
-                        .select('name, dashboard_url_template')
-                        .eq('id', conversation.platform_id)
-                        .maybeSingle()
-
-                    if (platform?.dashboard_url_template) {
-                        targetUrl = platform.dashboard_url_template.replace('{conversation_id}', conversation.external_conversation_id)
-                        fallbackUsed = 'deep_link'
-                        platformName = platform.name || 'Echo'
-                    }
-                }
-            }
-
-            // PRIORITY 2: Phase mapping fallback (opens Echo dashboard)
-            if (!targetUrl && currentPhaseId) {
-                const { data: mapping } = await (supabase
-                    .from('whatsapp_phase_instance_map' as never)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .select('platform_id') as any)
-                    .eq('phase_id', currentPhaseId)
-                    .eq('is_active', true)
-                    .order('priority')
-                    .limit(1)
-                    .maybeSingle()
-
-                if (mapping?.platform_id) {
-                    const { data: platform } = await supabase
-                        .from('whatsapp_platforms')
-                        .select('name, dashboard_url_template')
-                        .eq('id', mapping.platform_id)
-                        .eq('is_active', true)
-                        .maybeSingle()
-
-                    if (platform?.dashboard_url_template && !platform.dashboard_url_template.includes('{')) {
-                        targetUrl = platform.dashboard_url_template
-                        fallbackUsed = 'dashboard'
-                        platformName = platform.name || 'Echo'
-                    }
-                }
+            if (error) {
+                console.warn('resolve_whatsapp_target_for_card error:', error)
+            } else if (resolved && typeof resolved === 'object' && 'url' in resolved) {
+                const r = resolved as { url: string; platform?: string; fallback_used?: string }
+                targetUrl = r.url
+                platformName = r.platform || 'Echo'
+                fallbackUsed = r.fallback_used || 'deep_link'
             }
         } catch (err) {
             console.warn('WhatsApp platform lookup failed, using fallback:', err)
         }
 
-        // PRIORITY 3: Universal fallback to wa.me
+        // Universal fallback to wa.me
         if (!targetUrl) {
-            targetUrl = `https://wa.me/${cleanNumber}?text=${message}`
+            targetUrl = waMeUrl
             fallbackUsed = 'wa_me'
         }
 
