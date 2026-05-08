@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { saveWorkflow } from '../lib/persistence'
 import { applyAutoLayout } from '../lib/autoLayout'
-import { simulateWorkflow, runWorkflowNow } from '../lib/simulate'
+import { simulateWorkflow, runWorkflowFull, cancelActiveInstance } from '../lib/simulate'
 import { NODE_BY_TYPE } from '../nodes/registry'
 import type { WorkflowNodeType } from '../types'
 
@@ -106,30 +106,78 @@ export const Toolbar: React.FC = () => {
             toast.error('Adicione um gatilho')
             return
         }
-        const firstEdge = state.edges.find((e) => e.source === triggerNode.id)
-        const firstActionNode = firstEdge
-            ? state.nodes.find((n) => n.id === firstEdge.target) || null
-            : null
-        if (!firstActionNode) {
-            toast.error('Conecte o gatilho a uma ação primeiro')
+        if (state.nodes.length < 2) {
+            toast.error('Adicione pelo menos uma ação ligada ao gatilho.')
             return
         }
 
         const cardId = window.prompt(
-            'Disparo REAL — vai chamar a API de verdade (ex: enviar WhatsApp).\n\nID do card alvo (UUID):'
+            'Disparo REAL da cadência inteira.\n' +
+            '— Cria uma instância e roda step-a-step (respeitando waits)\n' +
+            '— Mensagens, mídia e ações Echo são executadas DE VERDADE\n\n' +
+            'ID do card alvo (UUID):'
         )?.trim()
         if (!cardId) return
-        if (!window.confirm('Confirma disparar pra valer? A ação será executada de fato (pode mandar mensagem pro contato).')) return
+        if (!window.confirm('Confirma rodar a cadência completa? Mensagens vão chegar pro contato real e ações de card vão ser aplicadas.')) return
 
         setRunning(true)
-        const result = await runWorkflowNow({ cardId, triggerNode, firstActionNode })
-        setRunning(false)
-        if (!result.success) {
-            toast.error(`Falhou: ${result.error}`)
-            return
+        try {
+            // 1) Garante que o template está salvo (senão start_cadence não tem o que disparar)
+            let templateId = state.templateId
+            if (!templateId) {
+                const saveResult = await saveWorkflow({
+                    templateId: state.templateId,
+                    name: state.name || 'Workflow sem nome',
+                    description: state.description,
+                    isActive: state.isActive,
+                    autoCancelOnStageChange: state.autoCancelOnStageChange,
+                    respectBusinessHours: state.respectBusinessHours,
+                    nodes: state.nodes,
+                    edges: state.edges,
+                })
+                if (!saveResult.success) {
+                    toast.error(`Falhou ao salvar antes de disparar: ${saveResult.error}`)
+                    return
+                }
+                templateId = saveResult.templateId || null
+                if (!templateId) {
+                    toast.error('Não consegui obter o ID do template salvo.')
+                    return
+                }
+                navigate(`/settings/automations/v2/${templateId}`, { replace: true })
+            }
+
+            // 2) Tenta start_cadence
+            let result = await runWorkflowFull({ cardId, templateId })
+
+            // 3) Se já existe instance ativa, oferece cancelar e reiniciar
+            if (result.alreadyRunning) {
+                if (!window.confirm('Já existe uma cadência rodando pra esse card. Cancelar a atual e iniciar de novo?')) {
+                    return
+                }
+                const cancelRes = await cancelActiveInstance({ cardId, templateId })
+                if (!cancelRes.success) {
+                    toast.error(`Não consegui cancelar a anterior: ${cancelRes.error}`)
+                    return
+                }
+                result = await runWorkflowFull({ cardId, templateId })
+                if (!result.success) {
+                    toast.error(`Falhou após reiniciar: ${result.error}`)
+                    return
+                }
+            } else if (!result.success) {
+                toast.error(`Falhou: ${result.error}`)
+                return
+            }
+
+            console.log('[v2] Cadence started:', result.payload)
+            toast.success(
+                `Cadência rodando • instance ${result.instanceId?.slice(0, 8)}…\n` +
+                'Steps são processados a cada 30s pelo pg_cron.',
+            )
+        } finally {
+            setRunning(false)
         }
-        console.log('[v2] Run result:', result.payload)
-        toast.success('Disparado — veja o console pro retorno')
     }
 
     return (

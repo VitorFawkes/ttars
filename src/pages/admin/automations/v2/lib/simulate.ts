@@ -128,3 +128,69 @@ export async function runWorkflowNow(args: {
     if (data?.error) return { success: false, error: data.error }
     return { success: true, payload: data }
 }
+
+/**
+ * Roda a cadência inteira via start_cadence — cria a instance, enfileira o
+ * primeiro step e o pg_cron processa step-a-step (respeita waits, branches,
+ * auto_cancel_on_stage_change). Diferente de runWorkflowNow que executa só
+ * a primeira ação.
+ *
+ * Pré-requisito: workflow tem que estar salvo (templateId != null). O caller
+ * (Toolbar) trata o save antes de chamar isso.
+ */
+export interface RunFullResult extends SimulationResult {
+    instanceId?: string
+    /** Já havia instance ativa pra esse card+template (HTTP 409) */
+    alreadyRunning?: boolean
+}
+
+export async function runWorkflowFull(args: {
+    cardId: string
+    templateId: string
+}): Promise<RunFullResult> {
+    const { cardId, templateId } = args
+
+    const { data, error } = await supabase.functions.invoke('cadence-engine', {
+        body: { action: 'start_cadence', card_id: cardId, template_id: templateId },
+    })
+
+    if (error) {
+        // Edge function devolve 409 quando já tem instance ativa pro
+        // mesmo card+template. supabase-js empacota como FunctionsHttpError.
+        const msg = error.message || ''
+        if (msg.includes('409') || msg.toLowerCase().includes('already active')) {
+            return { success: false, alreadyRunning: true, error: 'Já existe uma instância rodando pra esse card.' }
+        }
+        return { success: false, error: msg }
+    }
+    if (data?.error) {
+        return { success: false, error: data.error }
+    }
+    return { success: true, instanceId: data?.instance_id, payload: data }
+}
+
+/**
+ * Cancela a instance ativa de um card+template específico (se existir).
+ * Usado quando o user pede pra "reiniciar" a cadência.
+ */
+export async function cancelActiveInstance(args: {
+    cardId: string
+    templateId: string
+}): Promise<{ success: boolean; error?: string }> {
+    // Busca instance ativa
+    const { data: instances, error: findErr } = await supabase
+        .from('cadence_instances')
+        .select('id')
+        .eq('card_id', args.cardId)
+        .eq('template_id', args.templateId)
+        .in('status', ['active', 'waiting_task', 'paused'])
+        .limit(1)
+    if (findErr) return { success: false, error: findErr.message }
+    if (!instances || instances.length === 0) return { success: true }
+
+    const { error } = await supabase.functions.invoke('cadence-engine', {
+        body: { action: 'cancel_cadence', instance_id: instances[0].id, reason: 'manual_restart' },
+    })
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+}
