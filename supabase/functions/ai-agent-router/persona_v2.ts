@@ -743,14 +743,15 @@ function checkMissingLiteralPhrases(
       .replace(/\s+/g, ' ')
       .trim();
   const normResponse = normalize(response);
-  const normOmits = trechosAOmitir.map(normalize);
+  // Heurística allowedToOmit via fact_omission_detector REMOVIDA (FIX 08/05):
+  // era permissiva demais — se lead mencionou substring do literal (ex: "wedding"
+  // dentro de "destination wedding desde 2012 e 5 prêmios..."), marcava literal
+  // INTEIRO como "OK omitir". Regen nunca disparava em casos legítimos.
+  // literal_phrases é compromisso explícito do admin — sempre cobrar.
   const missing: string[] = [];
   for (const phrase of literalPhrases) {
     const normPhrase = normalize(phrase);
     if (!normPhrase) continue;
-    // Se está em trechosAOmitir (lead já mencionou), ok não estar na resposta
-    const allowedToOmit = normOmits.some(o => o.includes(normPhrase) || normPhrase.includes(o));
-    if (allowedToOmit) continue;
     if (!normResponse.includes(normPhrase)) {
       missing.push(phrase);
     }
