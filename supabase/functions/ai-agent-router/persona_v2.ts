@@ -474,7 +474,12 @@ export async function runPersonaAgent_v2(
   // tem >=3 dos 4 campos críticos`, salta pro último step da abertura. Isso
   // mantém o segundo turno (pitch) sem perder o cumprimento, e libera a
   // sondagem mais rápido. Mantém literal puro e determinístico.
-  if (usesSteps && currentMomentStepIndex < (() => {
+  //
+  // GUARDA (FIX 08/05): nunca pular step em primeiro contato. Mesmo que o
+  // Data Agent tenha alucinado e populado form_data com algum valor genérico
+  // ("vim do site" não tem fato pra extrair), o step 1 da abertura é a
+  // apresentação dela — pular significa cliente nunca ouvir "Aqui é a Estela".
+  if (!ctx.is_primeiro_contato && usesSteps && currentMomentStepIndex < (() => {
     const totalSteps = (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length;
     return totalSteps - 1;
   })()) {

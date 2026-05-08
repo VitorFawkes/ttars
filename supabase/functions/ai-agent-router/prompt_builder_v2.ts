@@ -145,7 +145,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
-  const listening = renderListeningBlock(input.listening ?? null, input.userMessage);
+  const listening = renderListeningBlock(input.listening ?? null, input.userMessage, input.ctx.is_primeiro_contato);
   const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
@@ -260,15 +260,19 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
  * renderizado). Compatível com agentes legados que não têm listening_config
  * — eles simplesmente não têm o bloco no prompt.
  */
-function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage?: string | null): string {
+function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage?: string | null, isPrimeiroContato?: boolean): string {
   if (!listening) return '';
   const lines: string[] = [];
 
   if (listening.echo_social_questions) {
     lines.push('• Se o lead devolver pergunta social ("tudo bem?", "e você?", "como vai?", "td bem?", "como você está?"), responda em UMA frase curta e natural ANTES de continuar com a próxima pergunta do roteiro. Ignorar pergunta social = falha de educação básica.');
   }
-  if (listening.acknowledge_observations) {
-    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "vi vocês no Instagram", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
+  if (listening.acknowledge_observations && !isPrimeiroContato) {
+    // Em primeiro contato, NÃO ecoar observações genéricas (tipo "vim do site",
+    // "queria saber mais", "vi vocês no Instagram"). Eco fica esquisito como abertura
+    // robotizada antes do "Aqui é a Estela". Acknowledge_observations só vale a partir
+    // do 2º turno em diante, quando há contexto pra responder de forma natural.
+    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
   }
   if (listening.handle_message_bursts) {
     lines.push('• Quando o lead manda 2 ou 3 mensagens em sequência (acontece muito no WhatsApp), trate o pacote como um turno único: responda o que precisa ser respondido E faça a próxima pergunta do funil. Nunca ignore parte do que ele disse.');
@@ -307,8 +311,14 @@ function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage
   const detectedBlock = detectedDirectives.length > 0
     ? `\n\nSinais detectados na ÚLTIMA mensagem do lead — atender ANTES do anchor:\n${detectedDirectives.join('\n')}`
     : '';
+  // Em primeiro contato, o lead ainda nem se apresentou. A abertura é da agente.
+  // Não exigir eco genérico aqui — só os "detectedDirectives" (pergunta social
+  // explícita ou nome revelado) podem disparar eco. Resto vai direto pro anchor.
+  const headerDirective = isPrimeiroContato
+    ? 'No primeiro contato, abra com o anchor da fase. Eco só se DETECTADO (pergunta social explícita ou nome revelado abaixo).'
+    : 'ANTES de produzir QUALQUER mensagem — inclusive quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.';
   return `<listening>
-ANTES de produzir QUALQUER mensagem — inclusive no primeiro contato e mesmo quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.
+${headerDirective}
 
 ${lines.join('\n')}${detectedBlock}
 </listening>`;
