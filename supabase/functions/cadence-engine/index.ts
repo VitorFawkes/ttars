@@ -1663,8 +1663,14 @@ async function executeNotifyInternalAction(
         return { skipped: true, reason: 'no_recipient' };
     }
 
-    // Renderizar variáveis básicas
-    const renderVars = (s: string) => s.replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+    // Resolver contato pra renderizar variáveis (mesmo conjunto usado em
+    // mensagens e mídia: contact.nome, contact.primeiro_nome, card.titulo)
+    const contato = await resolveCardContact(supabaseClient, cardId);
+    const firstName = (contato?.nome || '').split(' ')[0] || '';
+    const renderVars = (s: string) => s
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
     const title = renderVars(rawTitle).slice(0, 200);
     const body = renderVars(rawBody).slice(0, 500);
 
