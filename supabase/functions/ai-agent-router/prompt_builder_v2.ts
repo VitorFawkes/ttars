@@ -657,7 +657,8 @@ function renderOneMoment(
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
         slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
       } else {
-        lines.push(`        Sem pergunta escrita — formule a pergunta natural respeitando o contexto/cobertura acima.`);
+        lines.push(`        Sem pergunta escrita — formule a pergunta natural cobrindo EXATAMENTE o que o nome do slot e o contexto/cobertura pedem.`);
+        lines.push(`        ⚠ PRESERVE CONJUNÇÕES do nome do slot. Se o nome diz "Mês E Ano" / "Nome E Sobrenome" / "X E Y", pergunte por AMBOS — não suavize pra "X OU Y" porque suavizar pede só metade do dado e gasta turn extra. Trate "E" como exigência, "OU" como opção do cliente.`);
       }
       if (slot.crm_field_key) {
         lines.push(`        (registra em ${slot.crm_field_key})`);
