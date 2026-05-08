@@ -294,12 +294,12 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
             <textarea
               value={intent}
               onChange={(e) => { setIntent(e.target.value); markDirty() }}
-              placeholder="Ex: descobrir a visão dos noivos sobre o casamento e o que é importante pra eles."
+              placeholder="Ex: Coletar TODOS os 4 dados críticos (destino, data, convidados, orçamento) antes de avançar pra reunião."
               className="w-full min-h-[60px] rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-50/50"
               rows={2}
             />
-            <p className="text-[10px] text-slate-400 mt-1">
-              💡 A agente lê isso como contexto. Em <strong>Texto exato</strong> serve como guarda-corpo (ela não sai do texto, mas sabe o objetivo). Em <strong>Diretriz fiel</strong> e <strong>Estilo livre</strong>, ela usa pra adaptar com sentido.
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+              💡 Vai pro prompt como <strong>OBJETIVO desta fase</strong> — toda resposta serve esse objetivo, mesmo improvisando. Em <strong>Texto exato</strong>, é guarda-corpo. Em <strong>Diretriz fiel</strong>/<strong>Estilo livre</strong>, ancora a improvisação. Forma imperativa pesa mais ("Coletar X" &gt; "descobrir sobre X").
             </p>
           </div>
 
@@ -432,6 +432,9 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
             <label className="block text-xs font-medium text-slate-600 mb-1">
               Coisas que ela NÃO pode fazer {isFlow ? 'nesta fase' : 'nesta jogada'}
             </label>
+            <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
+              💡 Vai pro prompt como <strong>PROIBIÇÕES desta fase (não viole)</strong>. Forma imperativa funciona: <em>"Não falar preço"</em> &gt; <em>"evitar mencionar valores"</em>. A agente lê como linha vermelha, não como sugestão.
+            </p>
             {redLines.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {redLines.map((rl, i) => (

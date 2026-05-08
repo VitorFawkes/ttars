@@ -636,9 +636,13 @@ function renderOneMoment(
   // Intent: o "POR QUÊ" da fase, separado do texto. Ajuda LLM a entender
   // o objetivo independente do modo. Em literal serve como guarda-corpo;
   // em faithful/free guia adaptação. Aparece SÓ se admin preencheu.
+  // Fix B (08/05/2026): mudou de "[intenção: X]" (entre colchetes, descritivo)
+  // para "OBJETIVO DESTA FASE: X. Toda resposta deve servir esse objetivo."
+  // Em modo `free`, descritivo entre colchetes não ancora — LLM ignora. Forma
+  // imperativa funciona como guard-rail mesmo com flexibilidade do modo.
   if (m.intent && m.intent.trim()) {
     const intentSubstituted = applySubstitutions(m.intent.trim(), subs);
-    lines.push(`    [intenção: ${intentSubstituted}]`);
+    lines.push(`    OBJETIVO DESTA FASE: ${intentSubstituted}. Toda resposta deve servir esse objetivo, mesmo improvisando.`);
   }
 
   // Step sequencial: quando momento usa wait_for_reply E anchor está dividido
@@ -717,7 +721,11 @@ function renderOneMoment(
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
       const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
       if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
-        lines.push(`        Contexto/cobertura desta pergunta: ${coverageNotes.trim()}`);
+        // Fix A (08/05/2026): mudou de "Contexto/cobertura desta pergunta:" (descritivo,
+        // LLM lia como info) para diretiva imperativa. Bug observado: coverage="Se o
+        // casal já sabe mês e ano" virou pergunta "Vocês já sabem o mês ou ano?" porque
+        // em modo `free` o cabeçalho descritivo não competia com instrução-mãe do modo.
+        lines.push(`        ESTA PERGUNTA PRECISA COLETAR: ${coverageNotes.trim()}. Não suavize requisitos do admin (se diz "X e Y", colete os dois).`);
       }
       if (slot.questions && slot.questions.length > 0) {
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
@@ -745,7 +753,10 @@ function renderOneMoment(
   }
 
   if (m.red_lines && m.red_lines.length > 0) {
-    lines.push('    Não fazer nesta fase:');
+    // Fix C (08/05/2026): "Não fazer nesta fase" → "PROIBIÇÕES desta fase
+    // (não viole)". Imperativo > descritivo brando. LLM lia "Não fazer" como
+    // sugestão; "PROIBIÇÕES" + "não viole" tem peso superior.
+    lines.push('    PROIBIÇÕES desta fase (não viole):');
     m.red_lines.forEach(rl => lines.push(`      - ${rl}`));
   }
   // must_cover: lista prescritiva — pontos que toda resposta nesta fase deve garantir.
@@ -1127,7 +1138,10 @@ function renderSilentSignalsBlock(signals: PlaybookSilentSignal[]): string {
     let line = `• ${s.signal_label} — quando ${s.detection_hint}`;
     if (s.crm_field_key) line += ` → registra em ${s.crm_field_key}`;
     lines.push(line);
-    if (s.how_to_use) lines.push(`  uso: ${s.how_to_use}`);
+    // Fix D (08/05/2026): "uso: X" → "Quando detectar, USE ASSIM: X."
+    // Cabeçalho descritivo virou diretiva. UI também atualizada pra refletir
+    // que esse campo VAI pro prompt como instrução, não só doc administrativa.
+    if (s.how_to_use) lines.push(`  Quando detectar, USE ASSIM: ${s.how_to_use}`);
   }
   return `<silent_signals>\n${lines.join('\n')}\n</silent_signals>`;
 }

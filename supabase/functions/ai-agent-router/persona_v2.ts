@@ -744,6 +744,43 @@ Mantenha o tom e o resto do conteúdo, mas garanta que as frases acima apareçam
     }
   }
 
+  // 6d. Fix E (08/05/2026) — Verificação determinística de slot questions
+  // com conjunção crítica. Padrão idêntico ao literal_phrases (commit f9c635b3):
+  // checagem pós-LLM + regen 1x. Resolve bug "Mês E Ano" virar "mês ou ano"
+  // estruturalmente — não depende de regra-de-prompt, que falha ~15-20%.
+  //
+  // Algoritmo: pra cada slot do moment atual com pergunta DERIVADA (questions=[])
+  // que tem conjunção "X e Y" no label/coverage, verifica se AMBOS tokens
+  // aparecem na resposta. Se um falta, regen com pergunta-template explícita.
+  //
+  // Skip slots: já coletados (form_data tem o crm_field_key) ou com perguntas
+  // escritas pelo admin (admin já tem controle).
+  const slotViolations = checkSlotConjunctionViolations(response, cur, ctx.form_data);
+  if (slotViolations.length > 0) {
+    console.warn(`[persona_v2] slot conjunctions missing: ${JSON.stringify(slotViolations)} — regenerating once`);
+    const regenInstruction = `${userMessage}
+
+[INSTRUÇÃO CRÍTICA — sua resposta anterior omitiu tokens críticos da pergunta. O admin configurou que a pergunta deve cobrir AMBOS os tokens conectados por "e". Reescreva incluindo TODOS:
+${slotViolations.map(v => `  - Slot "${v.label}": precisa cobrir "${v.t1}" E "${v.t2}" (você incluiu apenas ${v.found.join(', ') || 'nenhum'})`).join('\n')}
+Mantenha o tom e prefixo de rapport. Só reescreva a pergunta pra incluir os tokens faltantes.]`;
+    try {
+      const regen = await callLLM(personaModel, personaTemp, personaMaxTok, prompt, regenInstruction);
+      const stillViolations = checkSlotConjunctionViolations(regen.response, cur, ctx.form_data);
+      if (stillViolations.length < slotViolations.length) {
+        response = regen.response;
+        inputTokens += regen.inputTokens;
+        outputTokens += regen.outputTokens;
+        if (stillViolations.length > 0) {
+          console.warn(`[persona_v2] slot conjunctions still partially missing after regen: ${JSON.stringify(stillViolations)}`);
+        }
+      } else {
+        console.warn(`[persona_v2] slot conjunctions regen didn't help, keeping first response`);
+      }
+    } catch (regenErr) {
+      console.warn('[persona_v2] slot conjunction regen failed:', regenErr);
+    }
+  }
+
   return {
     response,
     inputTokens,
@@ -796,6 +833,89 @@ function checkMissingLiteralPhrases(
     }
   }
   return missing;
+}
+
+// ---------------------------------------------------------------------------
+// Fix E (08/05/2026) — Verificação determinística de conjunções em slot questions.
+//
+// Quando admin configura slot.label="Data do casamento - Mês E Ano" ou
+// coverage_notes="Se o casal já sabe o mês e ano do casamento", a pergunta
+// derivada (deriveSlotQuestion) preserva a conjunção "e". Mas em modo `free`,
+// o LLM tende a suavizar pra "ou" ou dropar um dos tokens.
+//
+// Esta função extrai padrões "X e Y" do label/coverage de slots críticos
+// não-coletados e checa se AMBOS tokens aparecem na resposta. Retorna lista
+// de violações (slots onde um token falta).
+//
+// Skips:
+// - Slots onde admin escreveu perguntas literais (admin tem controle)
+// - Slots já coletados (crm_field_key tem valor em form_data)
+// - Tokens genéricos/stopwords ("casal", "casamento", "data", etc — palavras
+//   que aparecem em qualquer resposta sobre o tema, dão falso negativo)
+// ---------------------------------------------------------------------------
+
+const SLOT_CONJUNCTION_STOPWORDS = new Set([
+  'casal', 'casamento', 'wedding', 'data', 'tempo', 'agente',
+  'lead', 'cliente', 'noivo', 'noiva', 'noivos',
+  'algo', 'isso', 'essa', 'esse',
+]);
+
+function checkSlotConjunctionViolations(
+  response: string,
+  // deno-lint-ignore no-explicit-any
+  moment: any,
+  formData: Record<string, string>,
+): Array<{ label: string; t1: string; t2: string; found: string[] }> {
+  const slots = moment?.discovery_config?.slots ?? [];
+  if (!Array.isArray(slots) || slots.length === 0) return [];
+
+  const norm = (s: string): string =>
+    s.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const normResp = norm(response);
+
+  const violations: Array<{ label: string; t1: string; t2: string; found: string[] }> = [];
+
+  for (const slot of slots) {
+    // Skip se admin escreveu perguntas literais
+    if (Array.isArray(slot.questions) && slot.questions.length > 0) continue;
+    // Skip se slot já foi coletado
+    if (slot.crm_field_key && formData[slot.crm_field_key]) continue;
+
+    // Source da extração: coverage_notes (mais informativo) ou label
+    const source = (slot.coverage_notes || slot.label || '').toString();
+    if (!source) continue;
+
+    // Detecta padrão "X e Y" — palavras 3+ chars conectadas por " e "
+    // Cada match vira uma verificação independente
+    const conjunctions = [...source.matchAll(/\b([a-záéíóúâêôãõç]{3,})\s+e\s+([a-záéíóúâêôãõç]{3,})\b/gi)];
+
+    for (const m of conjunctions) {
+      const t1 = m[1];
+      const t2 = m[2];
+      const t1n = norm(t1);
+      const t2n = norm(t2);
+      // Skip stopwords/genéricos
+      if (SLOT_CONJUNCTION_STOPWORDS.has(t1n) || SLOT_CONJUNCTION_STOPWORDS.has(t2n)) continue;
+      // Verifica se ambos aparecem na resposta como palavra inteira
+      const t1Present = new RegExp(`\\b${t1n}\\b`).test(normResp);
+      const t2Present = new RegExp(`\\b${t2n}\\b`).test(normResp);
+      if (!t1Present || !t2Present) {
+        const found: string[] = [];
+        if (t1Present) found.push(t1);
+        if (t2Present) found.push(t2);
+        violations.push({
+          label: slot.label || '(sem label)',
+          t1, t2, found,
+        });
+      }
+    }
+  }
+
+  return violations;
 }
 
 // ---------------------------------------------------------------------------

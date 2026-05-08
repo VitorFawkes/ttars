@@ -299,8 +299,8 @@ function SlotItem({
               rows={3}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
             />
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Use isso pra explicar pro agente o que essa pergunta precisa contemplar — formato, edge cases, clarificações exigidas. Vale tanto pra perguntas escritas quanto pra improvisação.
+            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+              💡 Vai pro prompt como <strong>exigência</strong> ao agente. Forma imperativa funciona: <em>"precisa coletar mês E ano"</em> &gt; <em>"sobre data do casamento"</em>. Quando você fala "X e Y", a agente cobre os dois (sistema valida e regera se ela esquecer um).
             </p>
           </div>
 

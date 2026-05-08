@@ -135,6 +135,9 @@ function SignalEditorCard({
         <textarea value={howTo} onChange={(e) => { setHowTo(e.target.value); setDirty(true) }}
           placeholder="Ex: usa como teto de orçamento, sem confrontar"
           className="w-full min-h-[40px] rounded-md border border-slate-200 px-3 py-1.5 text-sm" />
+        <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+          💡 Vai pro prompt como diretiva quando o sinal for detectado: <em>"Quando detectar, USE ASSIM: ..."</em>. Escreva imperativo (<em>"usa como teto"</em>, <em>"menciona em silêncio"</em>) — não descritivo.
+        </p>
       </div>
 
       <div className="flex justify-between pt-1">
