@@ -2346,6 +2346,17 @@ REGRAS:
 5. Se nada mudou, mantenha textos identicos ao atual
 6. Em primeiro contato generico: NAO altere ai_resumo, apenas ai_contexto
 
+REGRA CRITICA — RESPOSTA CURTA (FIX 08/05/2026 — bug 5):
+Quando a ULTIMA mensagem da agente foi uma PERGUNTA e o lead respondeu com
+poucas palavras ("25", "100k", "sim", "Nordeste", "janeiro"), interprete a
+resposta NO CONTEXTO da pergunta antes de decidir se atualiza ai_resumo.
+- Pergunta agente: "quantas pessoas?" + Lead: "25" → ai_resumo deve incluir "~25 convidados"
+- Pergunta agente: "qual orçamento?" + Lead: "100k" → ai_resumo deve incluir "orçamento ~R$100k"
+- Pergunta agente: "região?" + Lead: "Nordeste" → ai_resumo deve incluir "Nordeste"
+- mudancas.ai_resumo = TRUE quando a resposta curta adiciona fato novo, mesmo
+  que isolada parecesse vazia. NAO ignore so porque a mensagem do lead tem 1-3
+  palavras — a maioria das respostas em conversa real é assim.
+
 Resposta OBRIGATORIA em JSON:
 {
   "ai_resumo": "<texto final>",
@@ -2552,6 +2563,20 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
 - nome/sobrenome: primeira letra maiuscula.
 - Campos dinamicos permitidos em "Campos permitidos no card" (ex: mkt_destino, ww_sdr_ajuda_familia): grave quando o cliente indicou explicitamente.
+
+### Datas com ano AMBÍGUO (FIX 08/05/2026 — bug 4)
+Quando o cliente disser SO MES sem ano ("em janeiro", "em maio", "no fim do ano",
+"primavera"), e o campo é uma data de evento futuro (ww_data_casamento,
+ww_data_viagem, mkt_pretende_viajar_quando, data_viagem_inicio):
+- NAO INFIRA o ano. Nao grave "2027-01" só porque hoje é maio/2026.
+- DEIXE o campo SEM gravar nesta rodada. O Persona vai pedir confirmação no
+  próximo turn ("janeiro de 2027 ou 2028?"). Quando cliente confirmar ano,
+  proxima passada do Data Agent grava completo.
+- EXCECAO: cliente disse explicitamente o ano ("janeiro de 2028", "maio do ano
+  que vem", "daqui a 2 anos"). Aí pode gravar com inferência clara.
+- Em qualification_signals, registre o sinal parcial mesmo: ex
+  {"ww_data_casamento_ambigua": "janeiro - ano nao confirmado"}. Isso permite
+  Persona pedir confirmação sem re-perguntar o mês.
 
 ### Captura de NOME (regra crítica — não pular)
 Quando o cliente DISSER seu nome ou sobrenome (em qualquer formato natural), isso NÃO é inferência, é fato literal: SEMPRE inclua em contact_patch.

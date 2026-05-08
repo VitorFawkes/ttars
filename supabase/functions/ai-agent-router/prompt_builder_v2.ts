@@ -1190,6 +1190,21 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
   const isDesfecho = /desfecho|qualifi|fechament/i.test(cur.moment_key);
   if (isDesfecho) {
     lines.push(`- Você está na fase de FECHAMENTO. O objetivo final é marcar a reunião com a especialista. Mas seja natural: se o lead quiser conversar mais, fazer perguntas ou compartilhar algo, RESPONDA naturalmente — não fique empurrando reunião a cada turn. Quando der a abertura natural pra propor o horário, proponha. Cuidado pra não soar insistente.`);
+    // FIX 08/05/2026 — bugs 1+3 (handoff/booking não disparou):
+    // Sintoma: lead confirmou "Posso na terça" e Estela respondeu "está perfeito"
+    // sem chamar create_task. Resultado: zero tarefas no CRM, Wedding Planner não
+    // notificada, etapa não avançou. Promessa em vão.
+    // Cura: instrução explícita pra chamar create_task QUANDO o lead confirma
+    // horário. create_task com tipo=reuniao_video dispara handoff_actions completo
+    // (change_stage, apply_tag, notify_responsible) automaticamente em index.ts.
+    lines.push(`- AGENDAMENTO OBRIGATÓRIO: assim que o lead confirmar um horário ("posso na terça", "fechado dia X às Y", "ok pode ser então"), você DEVE chamar a tool create_task IMEDIATAMENTE com tipo="reuniao_video" e data_vencimento no formato ISO YYYY-MM-DDTHH:MM:SS. Confirmação verbal sem create_task = reunião não existe no CRM, Wedding Planner não fica sabendo. Não pule esse passo nem pergunte de novo.`);
+    // FIX 08/05/2026 — bug 2 (slot mismatch silencioso 9h→11h):
+    // Sintoma: oferta foi "9h ou 9h" → lead aceitou terça → check_calendar
+    // retornou que 9h não está livre → Estela escolheu sozinha 11h e confirmou
+    // "11h está perfeito". Lead nunca aceitou 11h.
+    // Cura: instrução pra confirmar com o lead se o horário pedido não estiver
+    // disponível, em vez de escolher sozinha.
+    lines.push(`- SLOT INDISPONÍVEL: se você ofereceu um horário X e o lead aceitou, mas o check_calendar retornou que X não está mais livre, NÃO escolha outro horário sozinha. Pergunte ao lead: "Na verdade {horário pedido} não está mais livre, posso confirmar {horário disponível mais próximo} ou prefere outro dia?". Só chame create_task DEPOIS que o lead confirmar o novo horário.`);
   }
 
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);
